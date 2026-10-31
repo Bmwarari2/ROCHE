@@ -49,6 +49,7 @@ import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
   assigneeMayComplete,
+  EVIDENCE_ONLY_TASK_KINDS,
   escalationMinutes,
   GENERAL_TASK_PERMISSION,
   materialiseSeries,
@@ -102,6 +103,7 @@ async function completionRefusal(
   row: typeof task.$inferSelect,
   now: Date,
 ): Promise<string | null> {
+  if (EVIDENCE_ONLY_TASK_KINDS.includes(row.kind)) return "completed_by_its_evidence";
   const permission = row.requiredPermission;
   if (isPermission(permission) && can(access.effective, permission)) {
     const here = await inScopeOf(tx, scopeFor(access.effective, permission), () =>

@@ -56,7 +56,9 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
     p !== "insights.group.read" &&
     staffPermission(p) &&
     p !== "finance.ledger.record" &&
-    p !== "quality.evidence.read",
+    p !== "quality.evidence.read" &&
+    // HR-only staff documents stay with HR (workforce.md section 3); a manager is granted them.
+    p !== "workforce.hr_document.read",
 ).concat([
   "platform.user.manage",
   "platform.audit.read",
@@ -127,7 +129,9 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
         p !== "safety.notification.submit" &&
         p !== "platform.grant.manage" &&
         p !== "platform.dpia.prepare" &&
-        p !== "quality.statement_of_purpose.approve",
+        p !== "quality.statement_of_purpose.approve" &&
+        // The DBS risk assessment is the Registered Manager's (workforce.md rule 3).
+        p !== "workforce.dbs_risk_assessment.sign",
     ),
   },
   {
@@ -138,6 +142,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     permissions: [
       ...pointOfCare,
       "care.plan.write",
+      "care.dependency.assess",
       "care.capacity.write",
       "care.dols.manage",
       "care.respect.record",
@@ -166,6 +171,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     scopeKind: "location",
     permissions: [
       ...pointOfCare,
+      "care.dependency.assess",
       "medicines.cd.witness",
       "medicines.cd.administer",
       "workforce.competence.observe",
@@ -302,6 +308,9 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     scopeKind: "none",
     permissions: [
       "workforce.recruitment.manage",
+      "workforce.staff_file.read",
+      "workforce.staff_file.manage",
+      "workforce.hr_document.read",
       "workforce.training.manage",
       "workforce.supervision.manage",
       "workforce.casework.manage",

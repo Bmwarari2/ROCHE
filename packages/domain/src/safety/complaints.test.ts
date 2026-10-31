@@ -4,8 +4,10 @@ import { checkWorkflowTransition } from "../platform/workflow";
 import { addWorkingDays } from "../shared/working-days";
 import {
   COMPLAINT_WORKFLOW,
+  type ComplaintState,
   complaintClocks,
   complaintResponseProblems,
+  complaintStateDeadline,
   ombudsmanDeadline,
 } from "./complaints";
 import { resolveSafetyPhase2Rates } from "./phase2-rates";
@@ -109,5 +111,34 @@ describe("complaints (safety.md Phase 2 rule 2)", () => {
     expect(ombudsmanDeadline("2026-03-31", { lgscoTimeLimitMonths: 11 })).toBe("2027-02-28");
     const deadline = ombudsmanDeadline("2026-10-31", rates);
     expect(deadline > "2026-10-31").toBe(true);
+  });
+});
+
+describe("the deadline of each complaint state, for the approvals list (slice 18)", () => {
+  const clocks = {
+    acknowledgeBy: "2026-11-04",
+    respondBy: "2026-11-27",
+    pausedWorkingDays: 0,
+    wording: "",
+  };
+  it.each<[ComplaintState, string | null]>([
+    // The end of the last day, UK time (GMT in November).
+    ["received", "2026-11-05T00:00:00.000Z"],
+    ["acknowledged", "2026-11-28T00:00:00.000Z"],
+    ["investigating", "2026-11-28T00:00:00.000Z"],
+    ["responded", null],
+    ["appealed", null],
+    ["appeal_responded", null],
+    ["closed", null],
+  ])("%s", (state, expected) => {
+    expect(complaintStateDeadline(state, clocks)?.toISOString() ?? null).toBe(expected);
+  });
+
+  it("is listed on the approvals screen with its deadline kept on the record", () => {
+    expect(COMPLAINT_WORKFLOW.deadlineOnRecord?.states).toEqual([
+      "received",
+      "acknowledged",
+      "investigating",
+    ]);
   });
 });

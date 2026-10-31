@@ -24,9 +24,12 @@ import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
+import { complaintsRouter } from "./routes/complaints";
+import { dataProtectionRouter } from "./routes/data-protection";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
+import { dsarRouter } from "./routes/dsar";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
@@ -46,6 +49,7 @@ import { onboardingRouter } from "./routes/onboarding";
 import { createRouter } from "./routes/openapi";
 import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
+import { operatorBreachNoticesRouter } from "./routes/operator-breach-notices";
 import { operatorInvitationsRouter } from "./routes/operator-invitations";
 import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
@@ -65,11 +69,17 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { platformImportsRouter } from "./routes/platform-imports";
+import { policiesRouter } from "./routes/policies";
+import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
+import { safeguardingRouter } from "./routes/safeguarding";
 import { sampleDataRouter } from "./routes/sample-data";
+import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { staffFilesRouter } from "./routes/staff-files";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
@@ -80,6 +90,8 @@ import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
+/** Largest import upload (CSV text or JSON rows) accepted (platform.md rule 19). */
+export const IMPORT_MAX_BODY_BYTES = 12 * 1024 * 1024;
 /** Largest body any /v1/sync route accepts (security review round 4, M4). */
 export const SYNC_MAX_BODY_BYTES = 64 * 1024;
 /**
@@ -224,7 +236,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     c.header("cache-control", "no-store");
   });
   // Uploads are capped before they are read (largest category limit plus headroom; ASVS V5).
-  for (const path of ["/v1/documents", "/v1/documents/*", "/v1/people/:id/photo"]) {
+  for (const path of [
+    "/v1/documents",
+    "/v1/documents/*",
+    "/v1/people/:id/photo",
+    "/v1/workforce/staff-files/:id/items/:kind/documents",
+  ]) {
     app.use(
       path,
       bodyLimit({
@@ -234,6 +251,18 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // An import upload is CSV text or JSON rows, capped before it is read (platform.md rule 19).
+  app.use(
+    "/v1/imports",
+    bodyLimit({
+      maxSize: IMPORT_MAX_BODY_BYTES,
+      onError: (c) =>
+        problemResponse(
+          c,
+          new HttpProblem(413, "too_large", "The file is too large. Import it a home at a time."),
+        ),
+    }),
+  );
   // The logo is small (512 KB): a larger body is refused before it is read or decoded.
   app.use(
     "/v1/branding/logo",
@@ -291,6 +320,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", auditRouter);
   app.route("/", formsRouter);
   app.route("/", tasksRouter);
+  app.route("/", complaintsRouter);
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", careRouter);
@@ -301,11 +331,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", handoversRouter);
   app.route("/", mcaRouter);
   app.route("/", incidentsRouter);
+  app.route("/", safeguardingRouter);
   app.route("/", statutoryNotificationsRouter);
   app.route("/", operationsRouter);
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
+  app.route("/", policiesRouter);
+  app.route("/", qualityFrameworkRouter);
+  app.route("/", staffFilesRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
@@ -322,12 +356,17 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membersRouter);
   app.route("/", exportsRouter);
   app.route("/", dpiaRouter);
+  app.route("/", dataProtectionRouter);
+  app.route("/", dsarRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
+  app.route("/", platformImportsRouter);
   app.route("/", operatorInvitationsRouter);
   app.route("/", operatorSubProcessorsRouter);
+  app.route("/", operatorBreachNoticesRouter);
   app.route("/", peopleDetailsRouter);
+  app.route("/", schedulingDependencyRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

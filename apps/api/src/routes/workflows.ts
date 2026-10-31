@@ -5,6 +5,7 @@ import {
 } from "@harbour/contracts";
 import {
   candourRecord,
+  complaint,
   dolsAuthorisation,
   dolsLegalChangeReview,
   exitRecord,
@@ -191,6 +192,13 @@ async function visibleSubjects(
         ),
       );
     for (const row of rows) seen.set(`statutory_notification:${row.id}`, at(row.locationId));
+  }
+  if (ids("complaint").length > 0) {
+    const rows = await tx
+      .select({ id: complaint.id, locationId: complaint.locationId })
+      .from(complaint)
+      .where(and(inArray(complaint.id, ids("complaint")), isNull(complaint.deletedAt)));
+    for (const row of rows) seen.set(`complaint:${row.id}`, at(row.locationId));
   }
   if (ids("outage").length > 0) {
     const rows = await tx

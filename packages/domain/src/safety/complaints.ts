@@ -7,6 +7,7 @@
  */
 
 import { defineWorkflow } from "../platform/workflow";
+import { ukEndOfDay } from "../shared/time";
 import { addWorkingDays, type BankHolidays, isWorkingDay, ukIsoDate } from "../shared/working-days";
 import type { SafetyPhase2Rates } from "./phase2-rates";
 
@@ -22,6 +23,9 @@ export type ComplaintState =
 export const COMPLAINT_WORKFLOW = defineWorkflow<ComplaintState>({
   key: "safety.complaint",
   version: 1,
+  // The acknowledgement and response targets (`complaintStateDeadline`), written by the safety
+  // module; an appeal carries no target of its own (slice 18).
+  deadlineOnRecord: { states: ["received", "acknowledged", "investigating"] },
   states: [
     "received",
     "acknowledged",
@@ -129,6 +133,26 @@ export function complaintClocks(
     pausedWorkingDays: paused,
     wording: `Targets: acknowledge within ${rates.complaintAcknowledgeWorkingDays} working days and respond within ${rates.complaintResponseWorkingDays}. These are your organisation's targets; Regulation 16 sets none.`,
   };
+}
+
+/**
+ * The deadline of the state a complaint is in, as an instant: the end of the last day of the
+ * acknowledgement target while received, of the response target while acknowledged or under
+ * investigation; none otherwise (an appeal has no target of its own).
+ */
+export function complaintStateDeadline(
+  state: ComplaintState,
+  clocks: ComplaintClocks,
+): Date | null {
+  switch (state) {
+    case "received":
+      return ukEndOfDay(clocks.acknowledgeBy);
+    case "acknowledged":
+    case "investigating":
+      return ukEndOfDay(clocks.respondBy);
+    default:
+      return null;
+  }
 }
 
 /** The last day the complainant would normally have to go to the Ombudsman. */

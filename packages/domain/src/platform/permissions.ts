@@ -32,6 +32,11 @@ export interface PermissionDefinition {
   readonly stepUp?: boolean;
   /** Reads or writes care records (MFA is mandatory for any role holding one). */
   readonly careRecord?: boolean;
+  /**
+   * Reads or writes other special category or criminal offence data (the staff file: health and
+   * DBS): MFA is mandatory as for care records (section 5.3), without making it a care record.
+   */
+  readonly sensitive?: boolean;
 }
 
 export const PERMISSIONS = {
@@ -48,7 +53,12 @@ export const PERMISSIONS = {
     stepUp: true,
     careRecord: true,
   },
-  "platform.import.run": { description: "Run the migration import wizard" },
+  "platform.import.run": {
+    // An import stages and creates care records (people), so it needs MFA; it works only across
+    // the whole organisation (platform.md rule 18), and its commit and undo need a step-up.
+    description: "Run the migration import wizard across the organisation",
+    careRecord: true,
+  },
   "platform.billing.read": { description: "See the tenant's Harbour subscription and invoices" },
   "platform.search.use": {
     description: "Search the people, staff, documents and notes you can already see",
@@ -127,6 +137,11 @@ export const PERMISSIONS = {
   "care.note.write": { description: "Write daily notes and charts", careRecord: true },
   "care.note.read": { description: "Read daily notes and charts", careRecord: true },
   "care.assessment.write": { description: "Complete validated assessments", careRecord: true },
+  "care.dependency.assess": {
+    // The category comes from the organisation's own scale (scheduling.md section 12).
+    description: "Record a person's dependency category and one-to-one hours",
+    careRecord: true,
+  },
   "care.handover.manage": {
     description: "Read, compile, annotate and acknowledge shift handovers",
     careRecord: true,
@@ -183,7 +198,10 @@ export const PERMISSIONS = {
     careRecord: true,
   },
   "safety.safeguarding.manage": { description: "Manage the safeguarding log", careRecord: true },
-  "safety.complaint.manage": { description: "Manage complaints and compliments" },
+  "safety.complaint.manage": {
+    description: "Manage complaints and compliments",
+    careRecord: true,
+  },
   "safety.whistleblowing.read": { description: "Read speak-up concerns (anonymised)" },
   "safety.disclosure.approve": { description: "Approve coroner, police and solicitor disclosures" },
   // quality
@@ -192,7 +210,10 @@ export const PERMISSIONS = {
   "quality.evidence.manage": {
     description: "Manage the evidence library (tag records against quality statements)",
   },
-  "quality.dsar.manage": { description: "Run the DSAR workbench and breach register" },
+  "quality.dsar.manage": {
+    description: "Run the DSAR workbench and breach register",
+    careRecord: true,
+  },
   "quality.evidence.read": {
     description: "Open evidence packs released to you (inspectors only)",
     careRecord: true,
@@ -222,12 +243,34 @@ export const PERMISSIONS = {
   "workforce.supervision.manage": { description: "Schedule and record supervisions" },
   "workforce.casework.manage": { description: "Manage employee relations casework" },
   "workforce.self.read": { description: "Read own training, documents and pay" },
+  "workforce.staff_file.read": {
+    description:
+      "Read staff profiles and where each pre-employment check stands (not the HR-only documents)",
+    sensitive: true,
+  },
+  "workforce.staff_file.manage": {
+    description: "Record staff profiles and pre-employment checks (never one's own)",
+    sensitive: true,
+  },
+  "workforce.hr_document.read": {
+    description:
+      "Open and add HR-only staff documents (identity, right to work, health); every view is audited",
+    sensitive: true,
+  },
+  "workforce.dbs_risk_assessment.sign": {
+    description:
+      "Sign the DBS risk assessment that lets a worker start supervised or accepts a disclosure",
+    sensitive: true,
+  },
   // scheduling
   "scheduling.rota.read": { description: "Read rotas" },
   "scheduling.rota.manage": { description: "Build and publish rotas" },
   "scheduling.rota.approve": { description: "Approve rotas and timesheets" },
   "scheduling.visit.manage": { description: "Schedule visits and monitor ECM" },
   "scheduling.timesheet.self": { description: "Clock in and out and view own timesheets" },
+  "scheduling.dependency.manage": {
+    description: "Write, approve and archive the organisation's dependency scale",
+  },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
   "operations.catering.manage": {
@@ -319,4 +362,10 @@ export function requiresStepUp(permission: Permission): boolean {
 export function touchesCareRecords(permission: Permission): boolean {
   const definition: PermissionDefinition = PERMISSIONS[permission];
   return definition.careRecord === true;
+}
+
+/** MFA is mandatory to use it: care records, and other special category or criminal offence data. */
+export function requiresMfa(permission: Permission): boolean {
+  const definition: PermissionDefinition = PERMISSIONS[permission];
+  return definition.careRecord === true || definition.sensitive === true;
 }

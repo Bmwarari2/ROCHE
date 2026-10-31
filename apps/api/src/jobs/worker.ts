@@ -12,9 +12,11 @@ import {
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
+  escalateSafeguardingReferrals,
   escalateStatementsOfPurpose,
   escalateStatutoryNotifications,
   escalateTasks,
+  expireImportsJob,
   generatePlanTaskSeries,
   materialiseTaskSeries,
   outboxHandlers,
@@ -24,6 +26,8 @@ import {
   raiseReviews,
   relayOutbox,
   remindDolsExpiry,
+  remindPolicies,
+  remindStaffFileExpiry,
   reportBreakGlass,
   reportUnroutedDaily,
   retryUnroutedTasks,
@@ -70,6 +74,8 @@ const QUEUES = {
   taskEscalations: "task-escalations",
   careReviews: "care-reviews",
   dolsExpiry: "dols-expiry-reminders",
+  staffFileExpiry: "staff-file-expiry-reminders",
+  policyReminders: "policy-reminders",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
   candourBlocked: "candour-blocked-incidents",
@@ -85,6 +91,7 @@ const QUEUES = {
   fullExports: "full-exports",
   exportExpiry: "export-expiry",
   statementOverdue: "statement-of-purpose-overdue",
+  importExpiry: "import-expiry",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -121,8 +128,15 @@ await work(QUEUES.careReviews, async () => {
 await work(QUEUES.dolsExpiry, async () => {
   await remindDolsExpiry(deps);
 });
+await work(QUEUES.staffFileExpiry, async () => {
+  await remindStaffFileExpiry(deps);
+});
+await work(QUEUES.policyReminders, async () => {
+  await remindPolicies(deps);
+});
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
+  await escalateSafeguardingReferrals(deps);
 });
 await work(QUEUES.outbreaks, async () => {
   await detectOutbreaks(deps);
@@ -174,6 +188,9 @@ await work(QUEUES.exportExpiry, async () => {
 await work(QUEUES.statementOverdue, async () => {
   await escalateStatementsOfPurpose(deps);
 });
+await work(QUEUES.importExpiry, async () => {
+  await expireImportsJob(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -189,6 +206,10 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 // Hourly: DoLS reminders fall due by the day; outbreak detection is a safety net behind the
 // classification that runs whenever an infection incident is recorded.
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
+// Staff check expiry reminders (workforce.md section 5), hourly at 17 past.
+await boss.schedule(QUEUES.staffFileExpiry, "17 * * * *");
+// Policy read-and-sign reminders and review tasks (quality.md section 18.3), hourly at 27 past.
+await boss.schedule(QUEUES.policyReminders, "27 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
 // Hourly: people reviews fall due by the day; each raises one task, once.
@@ -219,6 +240,8 @@ await boss.schedule(QUEUES.statementOverdue, "11 * * * *");
 // Every minute: an export asked for starts at once; every 15 minutes, archives past expiry go.
 await boss.schedule(QUEUES.fullExports, "* * * * *");
 await boss.schedule(QUEUES.exportExpiry, "*/15 * * * *");
+// Hourly: a staged import's rows (personal data in quarantine) go within the hour of expiry.
+await boss.schedule(QUEUES.importExpiry, "31 * * * *");
 
 logger.info("Harbour worker started");
 

@@ -2,6 +2,7 @@ import { DOLS_LEGAL_CHANGE_REVIEW_WORKFLOW } from "../care/mca/dols";
 import { OUTAGE_WORKFLOW } from "../operations/outage";
 import { EXIT_WORKFLOWS } from "../people/exit";
 import { CANDOUR_WORKFLOW } from "../safety/candour";
+import { COMPLAINT_WORKFLOW } from "../safety/complaints";
 import { INCIDENT_WORKFLOW } from "../safety/incident";
 import { STATUTORY_NOTIFICATION_WORKFLOW } from "../safety/notifications";
 import { type Permission, requiresStepUp } from "./permissions";
@@ -20,6 +21,7 @@ export const LISTED_WORKFLOWS: readonly ListedWorkflow[] = [
   INCIDENT_WORKFLOW,
   CANDOUR_WORKFLOW,
   STATUTORY_NOTIFICATION_WORKFLOW,
+  COMPLAINT_WORKFLOW,
   DOLS_LEGAL_CHANGE_REVIEW_WORKFLOW,
   OUTAGE_WORKFLOW,
   ...Object.values(EXIT_WORKFLOWS),

@@ -23,6 +23,7 @@ import {
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
+import { tellAboutBreachNotice } from "../services/breach-notices";
 import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   generateBreakGlassReports,
@@ -43,13 +44,20 @@ import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
+import { expireImportBatches } from "../services/platform-imports";
+import { raisePolicyReminders } from "../services/policies";
 import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
 import { roleHolders, toldOf } from "../services/role-holders";
+import {
+  escalateOverdueSafeguardingReferrals,
+  SAFEGUARDING_UNROUTED_ACTION,
+} from "../services/safeguarding";
 import {
   detectLocationOutbreaks,
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
+import { raiseStaffFileReminders } from "../services/staff-files";
 import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import { tellAboutNotice } from "../services/sub-processors";
 import {
@@ -343,8 +351,8 @@ export function retryUnroutedTasks(deps: TaskDeps, now = new Date()): Promise<nu
 /**
  * The audit actions that mean no one could be told about safety work (ADR-0071 review rounds 2 to
  * 4): an overdue task, a sync task, an escalation chain step, an urgent refused-entry review, an
- * urgent result alert, a break-glass alert, an overdue statutory notification and an incident the
- * duty of candour holds open.
+ * urgent result alert, a break-glass alert, an overdue statutory notification, an overdue
+ * safeguarding referral and an incident the duty of candour holds open.
  */
 export const UNROUTED_ACTIONS = [
   TASK_ESCALATION_UNROUTED_ACTION,
@@ -354,6 +362,7 @@ export const UNROUTED_ACTIONS = [
   CARE_ALERT_UNROUTED_ACTION,
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   NOTIFICATION_UNROUTED_ACTION,
+  SAFEGUARDING_UNROUTED_ACTION,
   // An incident the duty of candour holds open, with no one who manages incidents there to tell
   // (#120 review round 4, M2).
   CANDOUR_BLOCKED_UNROUTED_ACTION,
@@ -473,6 +482,29 @@ export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promis
 }
 
 /**
+ * Staff check expiry reminders (workforce.md rule 1 and section 5): one task per reminder day
+ * before each expiry or DBS re-check, never twice.
+ */
+export async function remindStaffFileExpiry(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "staff-file-reminders", (tx, tenantId) =>
+    raiseStaffFileReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "staff file expiry reminders raised");
+  return raised;
+}
+
+/**
+ * Policy read-and-sign reminders and review tasks (quality.md section 18.3; HZ-128).
+ */
+export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "policy-reminders", (tx, tenantId) =>
+    raisePolicyReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "policy reminders raised");
+  return raised;
+}
+
+/**
  * Overdue statutory notifications (safety.md rule 10, HZ-013): one alert to the holders of
  * `safety.notification.submit`, escalated through the tenant's chain until the notification is
  * submitted or marked not required, and `safety.notification.overdue`.
@@ -485,6 +517,22 @@ export async function escalateStatutoryNotifications(
     escalateOverdueNotifications(tx, tenantId, now),
   );
   if (escalated > 0) deps.logger.info({ escalated }, "overdue statutory notifications escalated");
+  return escalated;
+}
+
+/**
+ * Safeguarding concerns past their referral target (safety.md "Safeguarding log", HZ-126): one
+ * alert to the holders of `safety.safeguarding.manage`, escalated through the tenant's chain until
+ * the concern is referred or a reason not to refer is recorded.
+ */
+export async function escalateSafeguardingReferrals(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const escalated = await eachTenant(deps, "safeguarding-referral-escalation", (tx, tenantId) =>
+    escalateOverdueSafeguardingReferrals(tx, tenantId, now),
+  );
+  if (escalated > 0) deps.logger.info({ escalated }, "overdue safeguarding referrals escalated");
   return escalated;
 }
 
@@ -601,6 +649,18 @@ export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()):
   );
   if (deleted > 0) deps.logger.info({ deleted }, "evidence pack bundles deleted");
   return deleted;
+}
+
+/**
+ * Staged imports past `expires_at` (platform.md rule 25): each is expired as the system, which
+ * deletes its staged rows in the same transaction; audited with the row count.
+ */
+export async function expireImportsJob(deps: TaskDeps): Promise<number> {
+  const expired = await eachTenant(deps, "import-expiry", (tx, tenantId) =>
+    expireImportBatches(tx, tenantId),
+  );
+  if (expired > 0) deps.logger.info({ expired }, "staged imports expired");
+  return expired;
 }
 
 /**
@@ -774,6 +834,15 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       );
     });
   }
+  // Thapsus's breach notices (platform.md rule 24): the lead and owners are told; a failure throws,
+  // so the relay retries, and the dedupe key tells no one twice.
+  handlers.set("platform.breach.processor_notice_sent", async (event) => {
+    const noticeId = (event.payload as { noticeId?: unknown } | null)?.noticeId;
+    if (typeof noticeId !== "string") return;
+    await inTenant(event.tenantId, (tx) =>
+      tellAboutBreachNotice(tx, event.tenantId, noticeId, new Date()),
+    );
+  });
   handlers.set("operations.downtime_places.changed", async (event) => {
     const locationId = (event.payload as { locationId?: unknown } | null)?.locationId;
     if (typeof locationId !== "string") return;

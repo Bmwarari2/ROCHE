@@ -74,6 +74,7 @@ describe("approvals screen (PLAT-011)", () => {
     ["safety.candour", "Duty of candour"],
     ["care.dols_legal_change_review", "DoLS review after the legal change"],
     ["operations.outage", "Outage"],
+    ["safety.complaint", "Complaint"],
     ["people.discharge", "Discharge"],
     ["people.death", "Death"],
     ["something.new", "Record"],
@@ -85,6 +86,16 @@ describe("approvals screen (PLAT-011)", () => {
     ["under review", {}, { status: "info", label: "Under review" }],
     ["a draft notification, waiting", { state: "draft" }, { status: "due", label: "Draft" }],
     ["an open incident, waiting", { state: "open" }, { status: "due", label: "Open" }],
+    [
+      "a complaint received, waiting",
+      { definitionKey: "safety.complaint", state: "received" },
+      { status: "due", label: "Received" },
+    ],
+    [
+      "a complaint being investigated",
+      { definitionKey: "safety.complaint", state: "investigating" },
+      { status: "info", label: "Being investigated" },
+    ],
     [
       "written candour notice due",
       { state: "written_due" },

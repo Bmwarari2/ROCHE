@@ -66,6 +66,9 @@ const WAITING_STATES = new Set([
   "planned",
   "recorded",
   "awaiting_return",
+  "received",
+  "acknowledged",
+  "appealed",
 ]);
 /** States where the work is under way: shown as in progress, with a magnifying glass. */
 const IN_PROGRESS_STATES = new Set([
@@ -74,6 +77,9 @@ const IN_PROGRESS_STATES = new Set([
   "reviewed",
   "referred",
   "left",
+  "investigating",
+  "responded",
+  "appeal_responded",
 ]);
 
 /**
