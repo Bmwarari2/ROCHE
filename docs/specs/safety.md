@@ -186,8 +186,16 @@ until their nation pack (Phase 7) and never a partial answer.
     Day clocks keep the UK wall-clock time across clock changes; working-day clocks skip the
     nation's bank holidays.
 11. **Separation of duties**: the person who raised an incident cannot close it, and an incident
-    cannot close while a notification is a draft or ready, a classifier question is open, or the
-    candour record is open (`incidentCloseProblems`).
+    cannot close while a notification is a draft or ready, a classifier question is open, the
+    candour record is open, the duty of candour may apply (Harbour found it, or the decision says
+    notifiable) and no candour record has finished, or any person we support affected has no
+    finished candour record of their own: one record covers only the person it names, whatever it
+    decides (`incidentCloseProblems`, `candourCloseBlock`; #120 review H1 and H2, round 2 M1 and
+    M2). A finished record keeps its decision until it is reopened with a reason, which blocks
+    closing again; a closed incident's record never changes (round 3 H1). An incident the duty of
+    candour holds open longer than `candour.close_blocked_days` days after it happened gives its
+    Registered Manager an urgent task, told to Registered Managers and then owners who manage
+    incidents, every day until it is resolved (round 2 M4, round 3 M2).
 12. **Falls protocol**: a fall creates the post-fall checklist (injury check, observations, GP
     contact, the NG249 falls pathway, bone health) as tasks. Head injury, or current anticoagulant
     or antiplatelet treatment other than aspirin alone (NICE NG232 1.2.4), or either not yet ruled
@@ -551,6 +559,213 @@ from; a stale page is refused in words that do not blame anyone else. Gaps logge
 no `access` on `IncidentDetail`, no candour state on the incident, no upload for the submitted
 form, and no stable key for a line of required content (STATUS item 19, H-266).
 
+Web incident follow-up, slice 9 part 5 (`apps/web/src/lib/candour.ts`, `investigation.ts`,
+`after-death.ts`, `incident-trends.ts`; `apps/web/src/components/safety/CandourSection.tsx`,
+`CandourForms.tsx`, `InvestigationSection.tsx`, `InvestigationForm.tsx`, `AfterDeath.tsx`;
+`apps/web/src/app/(shell)/incidents/trends/`; HZ-013 and HZ-091). On an incident seen whole, after
+the statutory notifications:
+
+- **After a death** (SAFE-008, rules 6 and 8), for each person we support who died on it, with
+  their communication needs: the medical examiner pack's notification with its clock and status
+  (linked to its page for a holder of `safety.incident.manage`) and the pack's seven sections in
+  `MEDICAL_EXAMINER_PACK_SECTIONS` order, each with what it holds (the catalogue repeats the
+  domain's words) and where it is kept (their record's Overview, Notes, Charts and Assessments or
+  Advance care; this incident), or "not shown on Harbour's web pages yet" (diagnoses, medicines).
+  The LeDeR prompt: with a LeDeR draft, "report the death on LeDeR's online form, which anyone can
+  use" linked to `SOURCES.leder`, then record it on the notification; when the incident does not
+  record whether the person had a learning disability or was autistic, "check whether LeDeR
+  applies" with the same link and the Child Death Review exception; nothing when both are
+  recorded as no. The medical examiner and LeDeR notification pages show the pack and the link
+  too. Nothing judges the death.
+- **Duty of candour** (SAFE-007, rule 5), shown with a candour record or a person we support on the
+  incident: its stage as an icon and words; the clocks from `CandourItem.clocks`, telling the person
+  "as soon as reasonably practicable: the clock started" (due now, then told in person, or not told
+  in person after `no_contact`) and the written notification as "your organisation's target is
+  N working days from the decision, by" its time, N read from `/v1/rates` on the incident's date
+  (`candour.written_notification.working_days`), always followed by "This is a target, not a
+  legal deadline" (ADR-0021; past the target it says so in words and an icon); until the threshold
+  decision, that the times count from when the incident happened; none once it is not notifiable.
+  The record (who it happened to with their communication needs, the decision and whose opinion it
+  records, telling them, attempts, the letter, results shared, correspondence, outcome) is read by
+  anyone who may read the incident. A holder of `safety.incident.manage`, on an incident not
+  closed, gets the forms for the stage (`candourForms`): the threshold decision (who it happened
+  to, from the people we support on it; yes or no and when, nothing chosen; whose opinion), then
+  telling them in person (when, who, in person asked, the account, the enquiries and the apology
+  ticked, the written record) and attempts to contact them, then the written notification (when,
+  what it included, its copy) and the results and correspondence. A time is chosen every time:
+  as recorded, just now (the server's time) or earlier, never later than now. Documents are
+  chosen from the relevant person's available PDFs (`/v1/documents`, letters sent and documents
+  added), with a link to their letters. The steps are the workflow's (`availableTransitions` on
+  `CANDOUR_WORKFLOW`), from the threshold only the one its decision points to, each offered only
+  when `candourStepProblems` finds nothing missing, otherwise the missing items listed in the
+  catalogue's words; not notifiable, no contact and closing take a reason. The API's candour
+  refusals are recognised (`refusals.ts`). "Review and close" lists an open candour record (any
+  stage but closed, not notifiable or no contact) among what must happen first, as
+  `incidentCloseProblems` does.
+- **Investigation** (SAFE-010): its status, lead, method, findings, contributing factors, lessons,
+  whether the lessons were marked published as a bulletin and when, and each action with its
+  status (open, open past its date, done or cancelled, icon and word), owner, due date and whether
+  a task was made. Staff are named from `/v1/members` for those who manage the team, else "you"
+  or "a colleague". A holder of `safety.incident.manage`, on an incident seen whole (closed or
+  not, as the API allows), records it: lead, method, findings, factors one per line, lessons, each
+  action's status, one new action at a time with its owner and date (a task for the owner), the
+  bulletin mark, and save, complete (needs the findings and the lessons) or reopen. **Changed in
+  the API** (`PUT /v1/incidents/{id}/investigation`): an open action with an owner and a date
+  becomes a task only for an owner who may be given it (`mayBeGiven` with
+  `safety.incident.manage` at the incident's location), as the task engine requires of every
+  assignee; otherwise the save is refused in words.
+- **Incident trends** (`/incidents/trends`, from the incidents list, for `safety.incident.read`):
+  incidents and near misses counted by type in each of the last six UK calendar months at the
+  chosen location, from one `GET /v1/incidents` read per month, with a row of totals, said as
+  "counts only, as recorded"; a month whose read reached the API's limit of 500 is said as "500 or
+  more". It interprets nothing (medical-device boundary section 4).
+
+Every write sends the version the page was drawn from (0 starts a record); a stale page is refused
+in words; after a save the page opens again with focus on its heading and says what was done.
+
+**Review round 1 (#120)**, fail safe:
+
+- **Closing waits for the duty of candour** (`candourCloseBlock` in `incidentCloseProblems`, so the
+  API refuses and the web lists it first): where Harbour found the duty may apply (a candour output
+  on the last classification, or a candour notification neither decided not required nor flagged
+  no longer indicated) or the threshold decision says notifiable, the incident cannot close until a
+  candour record has finished; and since one candour record covers one relevant person, with two
+  or more people we support affected every person without a finished record of their own is named
+  as still to be told and the incident cannot close. One record per person is the follow-up (it
+  needs a migration; H-480). A closed incident without a record says so plainly.
+- **Unknown is not none**: a candour or investigation read that fails says so, asks to reload,
+  offers no form, and keeps closing blocked.
+- **The threshold question** repeats regulation 20(9) (unintended or unexpected, during the
+  provision of a regulated activity; a death relating directly to the incident; an impairment of
+  sensory, motor or intellectual functions; the prolonged period read from the rate table as
+  `candour.prolonged_harm_days`), with Harbour's finding on the answers beside it. A decision that
+  differs from the finding, or changes a recorded one, takes a confirmation and a reason of at
+  least 20 characters (as H-265) and moves the record on at once with that reason as the step's;
+  "not notifiable" after Harbour drafted a candour notification asks the same. The relevant person's
+  hint gives only regulation 20(7)'s cases for a representative.
+- **Clocks**: telling the person counts only in person (a conversation recorded not in person keeps
+  "Due now" and says so); a target at UK midnight reads "by the end of" the day before.
+- **The candour notification** is recorded as submitted with the written notification's copy on the
+  candour record as its evidence, never a regulator's reference; without a copy the page sends the
+  reader to the candour record first.
+- **LeDeR** follows its notification: an open draft says to report it (the incident records the
+  learning disability or autism); one recorded as submitted says when; one recorded as not required
+  says only that; with nothing recorded on the incident the check stays, and on a closed incident
+  it says it was not answered (H-482).
+- **API** (`PUT /v1/incidents/{id}/candour`): times later than now, a decision dated before the
+  incident and a document cited that is not on the relevant person's record (as the caller sees
+  it) are refused in words; (`PUT .../investigation`) an action reopened gets a new task for its
+  owner.
+- **Trends**: "500 or more" throughout; a reader who sees only their own people is told the counts
+  leave out incidents they cannot see.
+
+**Review round 2 (#120, clinical re-check)**, fail safe:
+
+- **One decision, one person** (M1): a candour record covers only the person it names, whatever it
+  decides, so "not notifiable" for one person never clears another. Every person affected without a
+  finished record of their own is named as still to be told and the incident cannot close; with one
+  record per incident, an incident that affected two or more people cannot close here until one
+  record per person is built (H-480).
+- **The relevant person is one of those affected** (M2), with one person affected as with several:
+  `PUT /v1/incidents/{id}/candour` refuses a relevant person who is not one of the people we support
+  recorded as affected (someone lawfully acting on their behalf is told in their place under
+  regulation 20(7) and recorded on the same record, not named as the relevant person); the record
+  moves on (`POST .../candour/step`) only while it names one of them; a finished record's person
+  cannot change. The web's picker lists only the people affected.
+- **Reasons in the API** (M3): a threshold decision that differs from Harbour's finding
+  (`candourFindingOf` on the stored classification, the function the web uses) or changes a
+  recorded decision is refused without `thresholdConfirmed` and a `thresholdReason` of at least 20
+  characters (`candourReasonProblems`, `CANDOUR_REASON_MIN`); the reason is kept in the audit event.
+  The "not notifiable" step after Harbour drafted a candour notification needs `confirmed` and the
+  same reason.
+- **Leaving the candour check** (M4; widened in round 3 M1, below): once a threshold decision is
+  recorded, `PUT /v1/incidents/{id}` refuses a change that removes someone affected, or changes their kind or role
+  so they are no longer affected, unless `candourReason` has at least 20 characters, and audits
+  `safety.incident.candour_person_dropped` with the person's opaque id, the reason and the
+  incident.
+- **Stuck incidents have an owner** (M4): the worker's hourly `candour-blocked-incidents` job gives
+  each incident not closed, more than `candour.close_blocked_days` days after it happened (rate
+  table; Harbour default 14, to verify, H-480), that the duty of candour holds open
+  (`candourCloseBlock`) one urgent task (`safety.candour_close_blocked`, for `safety.incident.manage`
+  holders in the Registered Manager role), escalated on its own ladder since round 3 (M2, below). Closing the
+  incident finishes it, and so does the next run once nothing holds the incident. Submitting the
+  candour notification ends that notification's overdue alerts, never this task.
+- **Times** (L5): the times they were told, the letter was sent and an attempt was made cannot be
+  earlier than the incident.
+- **The threshold question** follows regulation 20(9) closely: an impairment "which has lasted, or
+  is likely to last" for the continuous period; prolonged pain or psychological harm "which they
+  have experienced, or are likely to experience" for it; and (b) treatment to prevent their death,
+  "or any injury which, if left untreated, would lead to one or more of the outcomes in (a)".
+- **The family feed** (`apps/api/src/services/feed-publish.ts`) holds publishing for a person with
+  an open incident whose family is not recorded as told, or with their own candour record open. It
+  is not a candour control: a person still to be told with no record of their own, on an incident
+  whose family is recorded as told, does not hold it (for H-480).
+- **Across pull requests**: `incidentManageView(incident, viewer, candourRecord)` now requires the
+  candour record (`null` for none, `"unread"` when the read failed), so a page that leaves it out
+  fails to type-check rather than offering close while someone is still to be told. #130's approvals
+  list (`GET /v1/workflows`, merged first) builds its forms from the API's `incident.closeBlocked`,
+  which now comes from the close route's own reading and rules (`incidentCloseView`,
+  `incidentCloseProblems`, the duty of candour included), so the list never offers a close the API
+  would refuse.
+
+**Review round 3 (#120, clinical re-check)**, fail safe:
+
+- **A finished record keeps its decision** (H1): `PUT /v1/incidents/{id}/candour` refuses a threshold
+  decision on a record finished as not notifiable, no contact or closed (code `candour_finished`):
+  the stage would stay finished, the candour draft stay not required, and the incident close with
+  the person never told. **Reopening** (`POST /v1/incidents/{id}/candour/reopen`, `safety.incident.
+  manage`) takes a record finished as not notifiable back to the threshold decision, or one finished
+  as no contact back to telling the person (`CANDOUR_REOPEN_TO`), with a reason of at least 20
+  characters (`candourReopenProblems`), kept on the workflow transition and audited
+  (`safety.candour.reopened`). A candour notification decided not required becomes a draft again
+  with its clock (`safety.notification.reopened`), and the unfinished record blocks closing again
+  (and the stuck-incident job sees it). A record closed after the person was told and written to
+  stays closed. The web offers reopening, with the reason, on a record finished as not notifiable or
+  no contact.
+- **A closed incident's record never changes** (H1): the candour `PUT`, step and reopen are refused
+  on a closed incident. A decision found after closing has no route yet (H-480 (d)).
+- **Taking someone out of those affected** (M1): any change that removes a person we support from
+  "affected" (removed, or their kind or role changed) needs `safety.incident.manage` and
+  `candourReason` of at least 20 characters, whether or not a threshold decision is recorded, and
+  is audited with the person's opaque id (`safety.incident.candour_person_dropped`). The person who
+  raised an incident without that permission cannot do it: before a decision, a change of role would
+  otherwise drop the duty of candour from the classifier unseen.
+- **Stuck incidents go up, daily** (M2; `services/candour-blocked.ts`): the task is not the task
+  engine's to escalate (`SELF_ESCALATED_TASK_KINDS`; it tells clinical leads and team leaders first,
+  once). On the day it is raised, the Registered Managers who hold `safety.incident.manage` at the
+  location are told (with none, the owners); from the next day, every day until nothing holds the
+  incident, the Registered Managers and the owners (founder, director or Nominated Individual) who
+  hold it. Only holders of `safety.incident.manage` are told. Raising
+  (`safety.candour.close_blocked_raised`), each day's escalation (`..._escalated`, with the day,
+  the tier and how many were told, or `..._unrouted` once a day when no one could be) and finishing
+  (`..._finished`, closed by whom or no longer held) are audited with opaque ids.
+- **Round 4** (clinical re-check): the stuck-incident ladder counts from when the incident first
+  became held open (its first task), so a task ended some other way and raised again never starts
+  it over, and the task cannot be ended by hand (`POST /v1/tasks/{id}/transition` refuses anything
+  but starting it; only resolving the duty of candour finishes it) (M1); a day on which no one could
+  be told reaches the operator's daily signal (`UNROUTED_ACTIONS`) (M2); the candour update, step and
+  reopen need `safety.incident.manage` where the incident is (`requireManagesIncident`), never only
+  elsewhere for the person who raised it (M3). H-480 (d), a decision found after closing, stays open.
+- **Lows**: the API test proves told, sent and attempt times before the incident are refused; a
+  finished record's relevant person cannot change (tested); the classifier tests read the Reg 18 and
+  candour thresholds apart, at and below each figure, and prove the recorded decision wins either way;
+  the "other" reason error says the shortest reason the form takes.
+
+Gaps logged, no API change: the API does not assemble the medical examiner pack or record which
+sections were sent (`missingPackSections` is unused), and the web has no medicines or diagnoses
+pages to link; duty of candour letters are refused by the letters API until it reads the candour
+record, so the written notification's copy is a document chosen from the person's record, and the
+web cannot upload one (PLAT-009); one candour record per incident (above); the incident form does
+not ask about learning disability or autism (H-482), hence the LeDeR check; no candour forms on a
+closed incident (a decision found after closing has no route); bulletins are a date only (no
+distribution, read receipts or list of lessons across incidents: no API lists investigations); the
+lead is not checked against any permission; communication needs show only for people in the
+reader's own list, never for a representative; trends count only what the reader can list, at most
+500 a month, by type only (no harm or severity breakdown yet). For the CSO: H-480 (candour wording,
+the evidence model, one record per person, a decision after closing, separation of duties, dated
+actions), H-481 (the pack listed, not assembled; its clock; the LeDeR check) and H-482 (the
+learning disability and autism question on the form).
+
 ## 6. Offline behaviour
 
 Incident capture works fully offline (section 17.1): the record, people, body-map marks and photos
@@ -590,7 +805,11 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
   `packages/db/test/mca-and-incidents.test.ts` and `apps/api/test/incidents.test.ts`.
 - Web and mobile: Playwright journey from a fall to a submitted Reg 18 draft; Maestro offline
   incident capture. Built so far: `apps/web/e2e/incidents.spec.ts` reads the list and an
-  incident with its drafts, clocks and warnings, and the restricted view, with axe (slice 9).
+  incident with its drafts, clocks and warnings, and the restricted view, with axe (slice 9);
+  `candour.spec.ts` (the candour record from the threshold decision to closing it; not notifiable
+  and a stale page), `investigation.spec.ts` (an investigation with an action as a task, the
+  lessons and a bulletin; a stale page; the trend view) and `after-death.spec.ts` (the medical
+  examiner pack and the LeDeR prompt), each with axe in both themes (slice 9 part 5).
 
 ## 10. Open questions
 

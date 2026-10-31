@@ -196,6 +196,9 @@ export function isIncidentApproval(item: WorkflowInstanceItem): boolean {
   );
 }
 
+/** No candour reasons: the approvals list knows only that closing is held back. */
+const NO_REASONS = { noRecord: false, open: false, stillToTell: [], unknown: false } as const;
+
 /**
  * The incident forms this page offers, from the steps and facts the API returned for the reader
  * where the incident is (#130 review rounds 1 and 2), never from permissions held elsewhere:
@@ -205,7 +208,13 @@ export function incidentApprovalView(item: WorkflowInstanceItem): IncidentManage
   if (!isIncidentApproval(item) || !item.incident) return null;
   const review = item.moves.some((m) => m.to === "open") ? "open" : null;
   if (item.incident.closeBlocked) {
-    return { review, close: { kind: "blocked", notifications: [], questions: 0 } };
+    // The API's yes or no, from the close route's own check (`incidentCloseProblems`, the duty of
+    // candour included; #120 review round 2). The list carries no reasons: the page links to the
+    // incident, which says what must be done first.
+    return {
+      review,
+      close: { kind: "blocked", notifications: [], questions: 0, candour: NO_REASONS },
+    };
   }
   return { review, close: { kind: "form" } };
 }
