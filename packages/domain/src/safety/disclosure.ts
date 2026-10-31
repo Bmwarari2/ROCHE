@@ -123,3 +123,57 @@ export function disclosurePackStorageKey(
   }
   return `tenants/${tenantId.toLowerCase()}/disclosures/${requestId.toLowerCase()}/${packId.toLowerCase()}.json`;
 }
+
+/**
+ * How a released pack reaches the recipient (H-958, recommended answer applied 31/10/2026): only
+ * through a secure route, never ordinary email. The pack leaves Harbour once, as a PDF carrying
+ * its fingerprint, downloaded with a fresh step-up; the hand-over is then recorded with its date
+ * and route.
+ */
+export const DISCLOSURE_HAND_OVER_ROUTES = {
+  secure_portal: "The recipient's secure portal or upload service",
+  secure_email: "A secure email service the recipient names (for example NHSmail or CJSM)",
+  encrypted_media: "Encrypted media, with the password sent separately",
+  in_person: "By hand, to the recipient in person",
+  recorded_delivery: "Recorded or special delivery post",
+} as const;
+export type DisclosureHandOverRoute = keyof typeof DISCLOSURE_HAND_OVER_ROUTES;
+
+export type HandOverProblem =
+  | "not_released"
+  | "not_downloaded"
+  | "already_handed_over"
+  | "before_release"
+  | "in_future"
+  | "reference_too_long";
+
+export const HAND_OVER_PROBLEM_MESSAGES: Record<HandOverProblem, string> = {
+  not_released: "Only a released pack can be handed over.",
+  not_downloaded: "Download the pack before recording how it was handed over.",
+  already_handed_over: "The hand-over is already recorded.",
+  before_release: "The hand-over cannot be before the pack was released.",
+  in_future: "The hand-over cannot be in the future.",
+  reference_too_long: "Keep the reference to 200 characters.",
+};
+
+/** The checks on recording a hand-over (the database holds the same rules again). */
+export function handOverProblems(
+  request: {
+    readonly state: string;
+    readonly releasedAt: Date | null;
+    readonly packDownloadedAt: Date | null;
+    readonly handedOverAt: Date | null;
+  },
+  input: { readonly at: Date; readonly reference: string | null },
+  now: Date,
+  clockDriftMs: number,
+): HandOverProblem[] {
+  const problems: HandOverProblem[] = [];
+  if (request.state !== "released" || !request.releasedAt) return ["not_released"];
+  if (request.handedOverAt) return ["already_handed_over"];
+  if (!request.packDownloadedAt) problems.push("not_downloaded");
+  if (input.at.getTime() < request.releasedAt.getTime()) problems.push("before_release");
+  if (input.at.getTime() > now.getTime() + clockDriftMs) problems.push("in_future");
+  if ((input.reference?.trim().length ?? 0) > 200) problems.push("reference_too_long");
+  return problems;
+}

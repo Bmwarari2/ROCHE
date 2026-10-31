@@ -326,6 +326,68 @@ export function readWithdraw(
     : failed({ reason: t("disclosures.withdraw.reasonError", { max: DISCLOSURE_TEXT_MAX }) });
 }
 
+/**
+ * How a released pack reaches its recipient (H-958): a secure route only, never ordinary email,
+ * so ordinary email is not offered. The API refuses anything else again.
+ */
+export const HAND_OVER_ROUTES = [
+  "secure_portal",
+  "secure_email",
+  "encrypted_media",
+  "in_person",
+  "recorded_delivery",
+] as const;
+export type HandOverRoute = (typeof HAND_OVER_ROUTES)[number];
+export const HAND_OVER_REFERENCE_MAX = 200;
+
+/** Recording the hand-over: the route, when (not in the future), and the recipient's reference. */
+export function readHandOver(
+  form: FormLike,
+  t: Translator,
+  options: { readonly expectedVersion: number; readonly now?: Date },
+): Read<{ route: HandOverRoute; at: string; reference: string | null; expectedVersion: number }> {
+  const errors: Record<string, string> = {};
+  const parts: Record<string, readonly string[]> = {};
+  const route = text(form, "route");
+  if (!(HAND_OVER_ROUTES as readonly string[]).includes(route)) {
+    errors.route = t("disclosures.handOver.routeError");
+  }
+  const at = readDateTimeField(form, "at", {
+    subject: t("disclosures.handOver.atSubject"),
+    t,
+    ...(options.now ? { now: options.now } : {}),
+  });
+  if (!at.ok) {
+    errors.at = (at as TimeProblem).message;
+    parts.at = (at as TimeProblem).parts;
+  }
+  const reference = text(form, "reference");
+  if (reference.length > HAND_OVER_REFERENCE_MAX) {
+    errors.reference = t("disclosures.handOver.referenceError", { max: HAND_OVER_REFERENCE_MAX });
+  }
+  if (Object.keys(errors).length > 0 || !at.ok || !at.instant) return failed(errors, parts);
+  return {
+    ok: true,
+    body: {
+      route: route as HandOverRoute,
+      at: at.instant,
+      reference: reference.length > 0 ? reference : null,
+      expectedVersion: options.expectedVersion,
+    },
+  };
+}
+
+/** What the hand-over card offers now: download, record the hand-over, or show what was done. */
+export function handOverStep(request: {
+  readonly state: string;
+  readonly packDownloadedAt: string | null;
+  readonly handOver: unknown | null;
+}): "none" | "download" | "record" | "recorded" {
+  if (request.state !== "released") return "none";
+  if (request.handOver) return "recorded";
+  return request.packDownloadedAt ? "record" : "download";
+}
+
 /** The coroner's Regulation 28 report: when it came, and when the response went (if it has). */
 export function readPreventionReport(
   form: FormLike,

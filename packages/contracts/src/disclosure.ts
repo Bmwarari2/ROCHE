@@ -29,6 +29,11 @@ export const DisclosureState = z
   .enum(["requested", "prepared", "approved", "released", "refused", "withdrawn"])
   .meta({ id: "DisclosureState" });
 
+/** How a released pack reached its recipient: a secure route, never ordinary email (H-958). */
+export const DisclosureHandOverRoute = z
+  .enum(["secure_portal", "secure_email", "encrypted_media", "in_person", "recorded_delivery"])
+  .meta({ id: "DisclosureHandOverRoute" });
+
 export const DisclosureRequestOut = z
   .object({
     id: uuid,
@@ -53,6 +58,18 @@ export const DisclosureRequestOut = z
     releasedBy: uuid.nullable(),
     releasedAt: isoDateTime.nullable(),
     packSha256: z.string().nullable(),
+    /** The one download of the issued pack as a PDF (H-958). */
+    packDownloadedAt: isoDateTime.nullable(),
+    packDownloadedBy: uuid.nullable(),
+    /** How and when the pack was given to the recipient, once recorded. */
+    handOver: z
+      .object({
+        at: isoDateTime,
+        by: uuid,
+        route: DisclosureHandOverRoute,
+        reference: z.string().nullable(),
+      })
+      .nullable(),
     collectedAt: isoDateTime.nullable(),
     notSearched: z.array(DsarNotSearched),
     items: z.object({
@@ -106,6 +123,17 @@ export const DecideDisclosure = z
 export const WithdrawDisclosure = z
   .object({ ...Versioned, reason: text(3, 2000) })
   .meta({ id: "WithdrawDisclosure" });
+
+export const RecordDisclosureHandOver = z
+  .object({
+    ...Versioned,
+    route: DisclosureHandOverRoute,
+    /** When it was handed over: not before the release, not in the future. */
+    at: isoDateTime,
+    /** The recipient's own reference for the delivery, if any (no personal data). */
+    reference: z.string().trim().max(200).nullable().optional(),
+  })
+  .meta({ id: "RecordDisclosureHandOver" });
 
 export const RecordPreventionReport = z
   .object({ ...Versioned, reportOn: ukDate, respondedOn: ukDate.nullable().optional() })

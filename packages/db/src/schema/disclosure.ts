@@ -58,6 +58,15 @@ export const disclosureRequest = pgTable(
     /** Coroner: a Regulation 28 prevention of future deaths report received, and the response. */
     preventionReportOn: date("prevention_report_on", { mode: "string" }),
     preventionRespondedOn: date("prevention_responded_on", { mode: "string" }),
+    /** The one download of the issued pack as a PDF, and who made it (H-958). */
+    packDownloadedAt: timestamp("pack_downloaded_at", { withTimezone: true }),
+    packDownloadedBy: uuid("pack_downloaded_by"),
+    /** How and when the pack was given to the recipient: a secure route, never ordinary email. */
+    handedOverAt: timestamp("handed_over_at", { withTimezone: true }),
+    handedOverBy: uuid("handed_over_by"),
+    /** A `DisclosureHandOverRoute`. */
+    handedOverRoute: text("handed_over_route"),
+    handedOverReference: text("handed_over_reference"),
     ...mutableColumns(),
   },
   (t) => [
@@ -82,6 +91,29 @@ export const disclosureRequest = pgTable(
         ],
         foreignColumns: [tenantUser.tenantId, tenantUser.id],
       }),
+    ),
+    foreignKey({
+      name: "disclosure_request_pack_downloaded_by_fk",
+      columns: [t.tenantId, t.packDownloadedBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "disclosure_request_handed_over_by_fk",
+      columns: [t.tenantId, t.handedOverBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    check(
+      "disclosure_request_download",
+      sql`(pack_downloaded_at IS NULL) = (pack_downloaded_by IS NULL)
+        AND (pack_downloaded_at IS NULL OR state = 'released')`,
+    ),
+    check(
+      "disclosure_request_hand_over",
+      sql`(handed_over_at IS NULL) = (handed_over_by IS NULL)
+        AND (handed_over_at IS NULL) = (handed_over_route IS NULL)
+        AND (handed_over_at IS NULL OR (state = 'released' AND handed_over_at >= released_at))
+        AND (handed_over_route IS NULL OR handed_over_route IN ('secure_portal', 'secure_email', 'encrypted_media', 'in_person', 'recorded_delivery'))
+        AND (handed_over_reference IS NULL OR char_length(btrim(handed_over_reference)) BETWEEN 1 AND 200)`,
     ),
     check(
       "disclosure_request_type",

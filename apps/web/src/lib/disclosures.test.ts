@@ -5,12 +5,15 @@ import {
   disclosureStateChip,
   disclosureSteps,
   disclosuresShown,
+  HAND_OVER_ROUTES,
+  handOverStep,
   itemDecisionChip,
   loggedByReader,
   plainName,
   plainValue,
   preventionChip,
   readDecide,
+  readHandOver,
   readItemDecision,
   readLogRequest,
   readPreventionReport,
@@ -270,5 +273,69 @@ describe("collected records in plain words (accessibility review)", () => {
     expect(loggedByReader({ loggedBy: "a" }, "a")).toBe(true);
     expect(loggedByReader({ loggedBy: "a" }, "b")).toBe(false);
     expect(loggedByReader({ loggedBy: null }, "a")).toBe(false);
+  });
+});
+
+describe("H-958 handing a released pack over", () => {
+  const at = when("at", ["31", "10", "2026", "11", "00"]);
+
+  it("never offers ordinary email as a route", () => {
+    expect([...HAND_OVER_ROUTES] as string[]).not.toContain("email");
+  });
+
+  it.each([
+    [
+      "a secure route, a time and a reference",
+      { route: "secure_email", reference: "Case 2026/123", ...at },
+      true,
+      [],
+    ],
+    ["no reference", { route: "in_person", ...at }, true, []],
+    ["no route", { ...at }, false, ["route"]],
+    ["ordinary email", { route: "email", ...at }, false, ["route"]],
+    ["no time", { route: "secure_portal" }, false, ["at"]],
+    [
+      "a reference too long",
+      { route: "secure_portal", reference: "x".repeat(201), ...at },
+      false,
+      ["reference"],
+    ],
+  ] as const)("%s", (_label, values, ok, fields) => {
+    const read = readHandOver(form(values as Record<string, string>), t, {
+      expectedVersion: 3,
+      now: NOW,
+    });
+    expect(read.ok).toBe(ok);
+    if (read.ok) {
+      expect(read.body.expectedVersion).toBe(3);
+      expect(read.body.at).toBe("2026-10-31T11:00:00.000Z");
+    } else {
+      expect(Object.keys(read.errors).sort()).toEqual([...fields]);
+    }
+  });
+
+  it.each([
+    [
+      "approved, not released",
+      { state: "approved", packDownloadedAt: null, handOver: null },
+      "none",
+    ],
+    [
+      "released, not downloaded",
+      { state: "released", packDownloadedAt: null, handOver: null },
+      "download",
+    ],
+    [
+      "downloaded",
+      { state: "released", packDownloadedAt: NOW.toISOString(), handOver: null },
+      "record",
+    ],
+    [
+      "handed over",
+      { state: "released", packDownloadedAt: NOW.toISOString(), handOver: {} },
+      "recorded",
+    ],
+  ] as const)("the hand-over card when %s", (_label, request, step) => {
+    expect(handOverStep(request)).toBe(step);
   });
 });

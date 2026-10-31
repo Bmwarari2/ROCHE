@@ -10,6 +10,7 @@ import {
   DisclosureVersioned,
   DsarItemDecisionInput,
   LogDisclosureRequest,
+  RecordDisclosureHandOver,
   RecordPreventionReport,
   WithdrawDisclosure,
 } from "@harbour/contracts";
@@ -34,6 +35,8 @@ import {
   dsarNotSearched,
   dsarNotSearchedOf,
   findThirdPartyNames,
+  HAND_OVER_PROBLEM_MESSAGES,
+  handOverProblems,
   legalBasis,
   type Permission,
   type RateNation,
@@ -43,7 +46,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, max } from "drizzle-orm";
+import { and, desc, eq, isNull, max } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -56,6 +59,10 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import {
+  renderDisclosurePackPdf,
+  type StoredDisclosurePack,
+} from "../services/disclosure-pack-pdf";
+import {
   asOrganisation,
   type CaseRow,
   collectRecords,
@@ -65,6 +72,7 @@ import {
   SUBJECT_MAP,
   thirdPartyNames,
 } from "../services/dsar";
+import { rateNumber } from "../services/rates";
 import { canonical, recordSha256, stringsIn } from "./dsar";
 import {
   conflictResponse,
@@ -246,6 +254,17 @@ async function requestOut(tx: Tx, access: TenantAccess, row: RequestRow) {
     releasedBy: row.releasedBy,
     releasedAt: row.releasedAt?.toISOString() ?? null,
     packSha256: row.packSha256,
+    packDownloadedAt: row.packDownloadedAt?.toISOString() ?? null,
+    packDownloadedBy: row.packDownloadedBy,
+    handOver:
+      row.handedOverAt && row.handedOverBy && row.handedOverRoute
+        ? {
+            at: row.handedOverAt.toISOString(),
+            by: row.handedOverBy,
+            route: row.handedOverRoute as z.infer<typeof RecordDisclosureHandOver>["route"],
+            reference: row.handedOverReference,
+          }
+        : null,
     collectedAt: row.collectedAt?.toISOString() ?? null,
     notSearched: row.notSearched.map((t) => dsarNotSearchedOf(t)),
     items: {
@@ -981,6 +1000,144 @@ export const disclosuresRouter = createRouter()
         JSON.parse(new TextDecoder().decode(bytes)) as z.infer<typeof DisclosurePack>,
         200,
       );
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/disclosures/{id}/pack/pdf",
+      tags,
+      summary: "Download the released pack once, as a PDF carrying its fingerprint (H-958)",
+      description:
+        "safety.incident.manage reaching the person's location, with a fresh step-up, once the request is released. Built from the pack exactly as issued, whose fingerprint is checked first (409 disclosure_pack_changed if the stored pack no longer matches); the fingerprint is printed on every page. Once only: a second download is refused (409 disclosure_pack_already_downloaded) and the data protection lead uses GET /v1/disclosures/{id}/pack instead. Audited (safety.disclosure.pack_downloaded) with the fingerprint. Then record the hand-over.",
+      security,
+      request: { params: IdParam },
+      responses: {
+        200: {
+          description: "The pack as a PDF",
+          content: { "application/pdf": { schema: z.string().meta({ format: "binary" }) } },
+        },
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, MANAGE);
+      requireStepUp(access);
+      const { id } = c.req.valid("param");
+      const first = await inTx(c, async (tx) => {
+        const r = await loadRequest(tx, id);
+        requireReach(access, MANAGE, r.locationId);
+        if (r.state !== "released" || !r.packStorageKey || !r.releasedAt) {
+          throw new HttpProblem(409, "disclosure_wrong_state", `This request is ${r.state}.`);
+        }
+        if (r.packDownloadedAt) {
+          throw new HttpProblem(
+            409,
+            "disclosure_pack_already_downloaded",
+            "This pack has already been downloaded. Record how it was handed over, or ask the data protection lead.",
+          );
+        }
+        return r;
+      });
+      const bytes = await c.get("services").exportStorage.get(first.packStorageKey as string);
+      if (!bytes) throw problems.notFound();
+      const pack = JSON.parse(new TextDecoder().decode(bytes)) as StoredDisclosurePack;
+      const fingerprint = createHash("sha256")
+        .update(
+          canonical({
+            records: pack.records,
+            redactedCount: pack.redactedCount,
+            withheldCount: pack.withheldCount,
+          }),
+        )
+        .digest("hex");
+      if (fingerprint !== first.packSha256 || pack.sha256 !== first.packSha256) {
+        throw new HttpProblem(
+          409,
+          "disclosure_pack_changed",
+          "The stored pack does not match its fingerprint, so it cannot be handed over. Tell the data protection lead.",
+        );
+      }
+      const downloadedAt = new Date();
+      // Recorded once, in the downloader's own name, before any byte leaves (the guard holds it).
+      await inTx(c, async (tx) => {
+        const [marked] = await tx
+          .update(disclosureRequest)
+          .set({ packDownloadedAt: downloadedAt, packDownloadedBy: access.tenantUserId })
+          .where(and(eq(disclosureRequest.id, id), isNull(disclosureRequest.packDownloadedAt)))
+          .returning({ id: disclosureRequest.id });
+        if (!marked) {
+          throw new HttpProblem(
+            409,
+            "disclosure_pack_already_downloaded",
+            "This pack has already been downloaded. Record how it was handed over, or ask the data protection lead.",
+          );
+        }
+        await audit(c, tx, access, "pack_downloaded", id, { sha256: first.packSha256 });
+      });
+      const pdf = renderDisclosurePackPdf(pack, {
+        recipientOrganisation: first.requesterOrganisation,
+        releasedAt: first.releasedAt as Date,
+        downloadedAt,
+      });
+      return new Response(pdf, {
+        status: 200,
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": `attachment; filename="disclosure-pack-${id}.pdf"`,
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/disclosures/{id}/hand-over",
+      tags,
+      summary: "Record how and when the released pack was handed over (H-958)",
+      description:
+        "safety.incident.manage reaching the person's location, once the pack has been downloaded. The route is a secure one (the recipient's portal, a secure email service they name, encrypted media, by hand or recorded delivery); ordinary email is not offered. Not before the release, not in the future; recorded once, in the member's own name. Audited (safety.disclosure.handed_over) with the route.",
+      security,
+      request: versioned(RecordDisclosureHandOver),
+      responses: requestResponses,
+    }),
+    async (c) => {
+      const access = await requirePermission(c, MANAGE);
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const now = new Date();
+      const out = await inTx(c, async (tx) => {
+        const r = await loadRequest(tx, id);
+        requireReach(access, MANAGE, r.locationId);
+        const driftMinutes = await rateNumber(tx, access.tenantId, "sync.clock_drift_flag_minutes");
+        const found = handOverProblems(
+          r,
+          { at: new Date(body.at), reference: body.reference ?? null },
+          now,
+          driftMinutes * 60_000,
+        );
+        if (found.length > 0) {
+          const conflict = found.includes("not_released") || found.includes("already_handed_over");
+          throw new HttpProblem(
+            conflict ? 409 : 422,
+            conflict ? "disclosure_wrong_state" : "invalid",
+            found.map((p) => HAND_OVER_PROBLEM_MESSAGES[p]).join(" "),
+          );
+        }
+        const saved = await change(tx, r, body.expectedVersion, ["released"], {
+          handedOverAt: new Date(Math.min(new Date(body.at).getTime(), now.getTime())),
+          handedOverBy: access.tenantUserId,
+          handedOverRoute: body.route,
+          handedOverReference: body.reference?.trim() || null,
+        });
+        await audit(c, tx, access, "handed_over", id, { route: body.route });
+        return requestOut(tx, access, saved);
+      });
+      return c.json(out, 200);
     },
   )
   .openapi(

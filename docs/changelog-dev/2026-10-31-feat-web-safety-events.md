@@ -70,4 +70,13 @@ from the decisions left for the CSO (H-950 to H-954). The clinical ones:
 
 - Staff cases on the line list need a staff list (H-955).
 - A death record page journey: making one would mark a demo resident dead for every journey.
-- A pack download route.
+
+## Recommended answers applied (31/10/2026)
+
+- H-950: the death record refuses the regulator's death notification, the medical examiner
+  information and LeDeR as done or not needed; only the notification centre settles them, and a
+  "not needed" recorded on the record earlier never counts (HZ-013 row and tests updated).
+- H-958: a released disclosure pack is downloaded once as a PDF carrying its fingerprint, with a
+  fresh step-up and an audit event, through `/disclosures/{id}/pack`; the hand-over is then recorded
+  once with its date, a secure route (never ordinary email) and the recipient's reference. Migration
+  0103 gains the columns and guards (this branch only).

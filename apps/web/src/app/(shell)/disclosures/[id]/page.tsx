@@ -1,4 +1,5 @@
 import { Card, PageHeader } from "@harbour/ui";
+import { CircleAlert, Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,6 +8,7 @@ import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import {
   CollectForm,
   DecideForm,
+  HandOverForm,
   PreventionReportForm,
   VersionedStepForm,
   WithdrawForm,
@@ -21,6 +23,7 @@ import {
   disclosureStateChip,
   disclosureSteps,
   disclosuresShown,
+  handOverStep,
   itemDecisionChip,
   loggedByReader,
   preventionChip,
@@ -51,8 +54,25 @@ function Row({ term, value }: { readonly term: string; readonly value: string | 
  * not searched. Approval is by a holder of safety.disclosure.approve who did not prepare it; the
  * API refuses anyone else, and release needs a fresh second factor.
  */
-export default async function DisclosurePage({ params }: { params: Promise<{ id: string }> }) {
+const DOWNLOAD_PROBLEMS = {
+  "step-up": "disclosures.handOver.downloadStepUp",
+  already: "disclosures.handOver.downloadAlready",
+  failed: "disclosures.handOver.downloadFailed",
+} as const;
+
+export default async function DisclosurePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ download?: string }>;
+}) {
   const { id } = await params;
+  const { download } = await searchParams;
+  const downloadProblem =
+    download && download in DOWNLOAD_PROBLEMS
+      ? DOWNLOAD_PROBLEMS[download as keyof typeof DOWNLOAD_PROBLEMS]
+      : null;
   if (!isUuid(id)) notFound();
   const { me } = await getShellContext();
   const title = t("disclosures.recordTitle");
@@ -78,6 +98,7 @@ export default async function DisclosurePage({ params }: { params: Promise<{ id:
       : null;
   const person = (await getPerson(data.personId)).person;
   const steps = disclosureSteps(data);
+  const handOver = handOverStep(data);
   const due = disclosureDueChip(data, t);
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -214,6 +235,60 @@ export default async function DisclosurePage({ params }: { params: Promise<{ id:
             />
             <Row term={t("disclosures.pack.fingerprint")} value={pack.sha256} />
           </dl>
+        </Card>
+      ) : null}
+      {handOver !== "none" ? (
+        <Card as="section" headingLevel={2} title={t("disclosures.handOver.title")}>
+          <div className="flex flex-col gap-3">
+            <p className="m-0">{t("disclosures.handOver.explain")}</p>
+            {downloadProblem ? (
+              <p role="alert" className="m-0 flex items-start gap-2 font-semibold">
+                <CircleAlert size={18} strokeWidth={1.5} aria-hidden className="mt-1 shrink-0" />
+                <span>{t(downloadProblem)}</span>
+              </p>
+            ) : null}
+            {handOver === "download" ? (
+              manage ? (
+                <>
+                  <p className="m-0">{t("disclosures.handOver.downloadOnce")}</p>
+                  <p className="m-0">
+                    <a
+                      href={`/disclosures/${data.id}/pack`}
+                      className="inline-flex min-h-target items-center gap-2 underline"
+                    >
+                      <Download size={18} strokeWidth={1.5} aria-hidden />
+                      {t("disclosures.handOver.download")}
+                    </a>
+                  </p>
+                </>
+              ) : (
+                <p className="m-0">{t("disclosures.handOver.notYet")}</p>
+              )
+            ) : null}
+            {data.packDownloadedAt ? (
+              <p className="m-0">
+                {t("disclosures.handOver.downloaded", {
+                  when: formatDateTime(data.packDownloadedAt) ?? "",
+                })}
+              </p>
+            ) : null}
+            {handOver === "record" && manage ? (
+              <HandOverForm id={data.id} version={data.version} />
+            ) : null}
+            {data.handOver ? (
+              <dl className="m-0 flex flex-col gap-3">
+                <Row
+                  term={t("disclosures.handOver.recorded", {
+                    when: formatDateTime(data.handOver.at) ?? "",
+                  })}
+                  value={t("disclosures.handOver.routeOption", { route: data.handOver.route })}
+                />
+                {data.handOver.reference ? (
+                  <Row term={t("disclosures.handOver.reference")} value={data.handOver.reference} />
+                ) : null}
+              </dl>
+            ) : null}
+          </div>
         </Card>
       ) : null}
       {data.type === "coroner" && manage ? (

@@ -90,21 +90,45 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
         NOW,
       ),
     ).toEqual([
-      "This step is done in the notification centre: submit the notification there, or record here why it is not needed.",
+      "This step is settled in the notification centre: submit the notification there, or decide there that it is not required.",
     ]);
-    // Not needed, with a reason (the person died in hospital, for example).
-    const notNeeded = deathRecordView({
-      facts: judged,
-      recorded: [{ step: "medical_examiner_pack", outcome: "not_needed", at: NOW }],
-      notifications: {},
-      review: noReview,
-      now: NOW,
-      rates,
-    });
-    expect(notNeeded.steps.find((s) => s.step === "medical_examiner_pack")?.state).toBe(
-      "not_needed",
-    );
   });
+
+  it.each(["medical_examiner_pack", "cqc_reg16_notification", "leder_notification"] as const)(
+    "hazard HZ-013 never marks %s not needed on the death record (H-950)",
+    (step) => {
+      const ld = deathRecordView({
+        facts: { ...judged, learningDisabilityOrAutism: true },
+        recorded: [],
+        notifications: {},
+        review: noReview,
+        now: NOW,
+        rates,
+      });
+      const enough = "The person died in hospital, so the hospital notifies.";
+      expect(
+        deathStepProblems(
+          ld.plan,
+          DIED,
+          { step, outcome: "not_needed", at: NOW, note: enough },
+          NOW,
+        ),
+      ).toEqual([
+        "This step is settled in the notification centre: submit the notification there, or decide there that it is not required.",
+      ]);
+      // A "not needed" recorded here earlier never settles it: only the notification does.
+      const earlier = deathRecordView({
+        facts: { ...judged, learningDisabilityOrAutism: true },
+        recorded: [{ step, outcome: "not_needed", at: NOW }],
+        notifications: {},
+        review: noReview,
+        now: NOW,
+        rates,
+      });
+      expect(earlier.steps.find((s) => s.step === step)?.state).toBe("outstanding");
+      expect(earlier.closeProblems.some((p) => p.includes("notification centre"))).toBe(true);
+    },
+  );
 
   it("closes only with every step done or not needed and the review recorded", () => {
     const all = deathRecordView({
@@ -126,7 +150,7 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
     });
     expect(without.closeProblems).toEqual([
       "Record telling the family, or why it is not needed.",
-      "Record the medical examiner information, or why it is not needed.",
+      "Submit the medical examiner information, or decide it is not required, in the notification centre.",
       "Submit the regulator's death notification, or decide it is not required, in the notification centre.",
       "Record the mortality review: its findings and lessons.",
     ]);

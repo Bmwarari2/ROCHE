@@ -1,6 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ageSession, createHarness, type Harness, OTHER } from "./support/harness";
+import { pdfText } from "./support/pdf-text";
 
 /**
  * Disclosure requests through the API (SAFE-016; safety.md section 11, rules 38 to 44; migration
@@ -292,6 +293,101 @@ describe("SAFE-016 rules 42 and 43: release with step-up, the pack as issued", (
     );
     expect(audit).toHaveLength(1);
     expect(JSON.stringify(audit[0]?.scope)).not.toMatch(/Coroner|Example/);
+  });
+});
+
+describe("SAFE-016 H-958: the released pack leaves once, as a fingerprinted PDF, by a secure route", () => {
+  async function released(): Promise<Request> {
+    const req = await toApproved();
+    const r = await post(`/v1/disclosures/${req.id}/release`, { expectedVersion: req.version });
+    expect(r.status).toBe(200);
+    return (await r.json()) as Request;
+  }
+  const handOver = (id: string, body: Record<string, unknown>) =>
+    post(`/v1/disclosures/${id}/hand-over`, body);
+
+  it("refuses the download without a fresh step-up, and before release", async () => {
+    const approved = await toApproved();
+    expect((await get(`/v1/disclosures/${approved.id}/pack/pdf`)).status).toBe(409);
+    const req = await released();
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.manager?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      expect((await get(`/v1/disclosures/${req.id}/pack/pdf`)).status).toBe(403);
+    } finally {
+      await ageSession(auth, session, 0);
+    }
+    expect((await current(req.id)).packSha256).toBe(req.packSha256);
+  });
+
+  it("downloads once, with the fingerprint on the pack, audited; then records the hand-over once", async () => {
+    const req = await released();
+    // No hand-over before the pack has left.
+    const early = await handOver(req.id, {
+      expectedVersion: req.version,
+      route: "secure_portal",
+      at: new Date().toISOString(),
+    });
+    expect(early.status).toBe(422);
+    expect(await early.text()).toMatch(/Download the pack/);
+    const r = await get(`/v1/disclosures/${req.id}/pack/pdf`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("application/pdf");
+    expect(r.headers.get("cache-control")).toMatch(/no-store/);
+    const text = pdfText(new Uint8Array(await r.arrayBuffer()));
+    expect(text).toContain(req.packSha256 ?? "missing");
+    expect(text).toContain("never by ordinary email");
+    // Once only.
+    const again = await get(`/v1/disclosures/${req.id}/pack/pdf`);
+    expect(again.status).toBe(409);
+    expect(await codeOf(again)).toBe("disclosure_pack_already_downloaded");
+    const audit = await owner<{ scope: Record<string, unknown> }>(
+      "SELECT scope FROM audit_event WHERE action = 'safety.disclosure.pack_downloaded' AND resource_id = $1",
+      [req.id],
+    );
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.scope.sha256).toBe(req.packSha256);
+    // Ordinary email is not a route; the time cannot be in the future.
+    const latest = await current(req.id);
+    expect(
+      (
+        await handOver(req.id, {
+          expectedVersion: latest.version,
+          route: "email",
+          at: new Date().toISOString(),
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await handOver(req.id, {
+          expectedVersion: latest.version,
+          route: "secure_email",
+          at: new Date(Date.now() + 3_600_000).toISOString(),
+        })
+      ).status,
+    ).toBe(422);
+    const done = await handOver(req.id, {
+      expectedVersion: latest.version,
+      route: "secure_email",
+      at: new Date().toISOString(),
+      reference: "Coroner's case 2026/123",
+    });
+    expect(done.status).toBe(200);
+    const out = (await done.json()) as Request & {
+      handOver: { route: string; reference: string | null } | null;
+      packDownloadedAt: string | null;
+    };
+    expect(out.handOver?.route).toBe("secure_email");
+    expect(out.packDownloadedAt).not.toBeNull();
+    // Recorded once.
+    const twice = await handOver(req.id, {
+      expectedVersion: out.version,
+      route: "in_person",
+      at: new Date().toISOString(),
+    });
+    expect(twice.status).toBe(409);
   });
 });
 

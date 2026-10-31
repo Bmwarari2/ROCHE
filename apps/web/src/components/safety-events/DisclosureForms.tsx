@@ -18,6 +18,7 @@ import {
   decideDisclosureItem,
   logDisclosureRequest,
   prepareDisclosure,
+  recordDisclosureHandOver,
   recordPreventionReport,
   releaseDisclosure,
   withdrawDisclosure,
@@ -27,8 +28,11 @@ import { useFieldIds } from "@/components/care/form-state";
 import {
   DISCLOSURE_TEXT_MAX,
   DISCLOSURE_TYPES,
+  HAND_OVER_REFERENCE_MAX,
+  HAND_OVER_ROUTES,
   ITEM_DECISIONS,
   readDecide,
+  readHandOver,
   readItemDecision,
   readLogRequest,
   readPreventionReport,
@@ -309,6 +313,57 @@ export function PreventionReportForm({
         </Button>
       </div>
       <FormFeedback result={result} success={t("disclosures.prevention.done")} fieldIds={ids} />
+    </form>
+  );
+}
+
+/**
+ * Recording how and when a downloaded pack was handed over (H-958): a secure route only; ordinary
+ * email is not offered.
+ */
+export function HandOverForm({ id, version }: { readonly id: string; readonly version: number }) {
+  const ids = useFieldIds(["route", "at", "reference"]);
+  const { submit, result, pending } = useSubmit(
+    (form) => readHandOver(form, t, { expectedVersion: version }),
+    (body) => recordDisclosureHandOver(id, body),
+  );
+  return (
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <RadioGroup
+        id={ids.route}
+        name="route"
+        legend={t("disclosures.handOver.route")}
+        options={HAND_OVER_ROUTES.map((route) => ({
+          value: route,
+          label: t("disclosures.handOver.routeOption", { route }),
+        }))}
+        error={errorFor(result, "route")}
+      />
+      <DateTimeInput
+        id={ids.at}
+        name="at"
+        legend={t("disclosures.handOver.at")}
+        hint={t("care.when.hint")}
+        labels={dateTimeLabels(t)}
+        repeated={ukRepeatedTime}
+        error={errorFor(result, "at")}
+        errorParts={boxesOf(partsFor(result, "at"))}
+      />
+      <TextField
+        id={ids.reference}
+        name="reference"
+        label={t("disclosures.handOver.reference")}
+        hint={t("disclosures.handOver.referenceHint")}
+        maxLength={HAND_OVER_REFERENCE_MAX}
+        autoComplete="off"
+        error={errorFor(result, "reference")}
+      />
+      <div>
+        <Button type="submit" variant="secondary" icon={<Send {...icon} />} disabled={pending}>
+          {pending ? t("common.saving") : t("disclosures.handOver.submit")}
+        </Button>
+      </div>
+      <FormFeedback result={result} success={t("disclosures.handOver.done")} fieldIds={ids} />
     </form>
   );
 }

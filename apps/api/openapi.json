@@ -28099,6 +28099,51 @@
               "null"
             ]
           },
+          "packDownloadedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "packDownloadedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "handOver": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "by": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "route": {
+                "$ref": "#/components/schemas/DisclosureHandOverRoute"
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "at",
+              "by",
+              "route",
+              "reference"
+            ]
+          },
           "collectedAt": {
             "type": [
               "string",
@@ -28199,6 +28244,9 @@
           "releasedBy",
           "releasedAt",
           "packSha256",
+          "packDownloadedAt",
+          "packDownloadedBy",
+          "handOver",
           "collectedAt",
           "notSearched",
           "items",
@@ -28226,6 +28274,16 @@
           "released",
           "refused",
           "withdrawn"
+        ]
+      },
+      "DisclosureHandOverRoute": {
+        "type": "string",
+        "enum": [
+          "secure_portal",
+          "secure_email",
+          "encrypted_media",
+          "in_person",
+          "recorded_delivery"
         ]
       },
       "LogDisclosureRequest": {
@@ -28616,6 +28674,34 @@
           "withheldCount",
           "notSearched",
           "sha256"
+        ]
+      },
+      "RecordDisclosureHandOver": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "route": {
+            "$ref": "#/components/schemas/DisclosureHandOverRoute"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "route",
+          "at"
         ]
       },
       "WithdrawDisclosure": {
@@ -46694,7 +46780,7 @@
           "safety"
         ],
         "summary": "Record a step of the death as done, or not needed with the reason",
-        "description": "Append-only: the latest for a step counts. A notification step is done only in the notification centre; here it can only be recorded as not needed, with a reason of at least 20 characters. The mortality review is recorded on its own.",
+        "description": "Append-only: the latest for a step counts. A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.",
         "security": [
           {
             "bearerAuth": []
@@ -59710,6 +59796,196 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/pack/pdf": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Download the released pack once, as a PDF carrying its fingerprint (H-958)",
+        "description": "safety.incident.manage reaching the person's location, with a fresh step-up, once the request is released. Built from the pack exactly as issued, whose fingerprint is checked first (409 disclosure_pack_changed if the stored pack no longer matches); the fingerprint is printed on every page. Once only: a second download is refused (409 disclosure_pack_already_downloaded) and the data protection lead uses GET /v1/disclosures/{id}/pack instead. Audited (safety.disclosure.pack_downloaded) with the fingerprint. Then record the hand-over.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pack as a PDF",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/hand-over": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record how and when the released pack was handed over (H-958)",
+        "description": "safety.incident.manage reaching the person's location, once the pack has been downloaded. The route is a secure one (the recipient's portal, a secure email service they name, encrypted media, by hand or recorded delivery); ordinary email is not offered. Not before the release, not in the future; recorded once, in the member's own name. Audited (safety.disclosure.handed_over) with the route.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordDisclosureHandOver"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

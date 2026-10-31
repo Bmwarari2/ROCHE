@@ -38,7 +38,7 @@ a location (an outbreak) follows location scope.
 | `candour_record` | mutable, versioned | incident, threshold decision and who made it, verbal notification (who, when, apology given), written notification (date, document), enquiries and results shared, outcome, correspondence documents | `serious_incident` |
 | `investigation` | mutable, versioned | incident, lead, method (root-cause template), findings, contributing factors, actions (owner, due, status), lessons, bulletin and read receipts | `serious_incident` |
 | `death_record` (slice 37) | mutable, versioned | person, location, the exit that recorded the death (one record each), incident, time of death, the clinician's judgement (expected; whether the cause may be unnatural; whose judgement), learning disability or autism, status (`open`, `closed`, `withdrawn`), the mortality review (due date fixed at opening, findings, lessons, who and when), who closed it | `serious_incident` |
-| `death_step` (slice 37) | append-only | death record, person, step (`verification_of_death`, `family_informed`, `police_informed`, `preserve_room_and_equipment`, or a notification step recorded as not needed), outcome (`done`, or `not_needed` with a reason of at least 20 characters), when, note, police reference, who recorded it; the latest for a step counts | `serious_incident` |
+| `death_step` (slice 37) | append-only | death record, person, step (`verification_of_death`, `family_informed`, `police_informed`, `preserve_room_and_equipment`; a notification step is settled only in the notification centre and refused here, done or not needed, H-950), outcome (`done`, or `not_needed` with a reason of at least 20 characters), when, note, police reference, who recorded it; the latest for a step counts | `serious_incident` |
 | `missing_episode` (slice 37) | mutable, versioned | person, location, the missing person or absconding incident, status (`open`, `found`, `closed`), immediate risk (call the police at once), under DoLS or the Mental Health Act at opening, the Herbert Protocol profile's version at opening, who closed it; one open per person | as the incident |
 | `missing_event` (slice 37) | append-only | episode, person, kind (`last_seen`, `noticed_missing`, `search_started`, `search`, `sighting`, `police_called`, `found`, `welfare_check`, `debrief`, `note`), when, police reference, area searched, note, who recorded it; each step of the search once | as the incident |
 | `herbert_profile` (slice 37) | mutable, versioned | person (one each), photograph (one of the person's documents), what they look like (required), distinguishing features, usual clothing, medical needs, mobility, communication, where they may go (required), people they may contact, routines, phone or tracker, earlier episodes, how to approach them, who it was checked with, review date and reviewer | `care_record` |
@@ -749,6 +749,15 @@ the whole organisation) reads them for the full export, never writes.
     records counted, hashed, stored as sent in the exports bucket (SSE-KMS, opaque key) and can be
     fetched again exactly, with step-up. The disclosure log is the list of requests with their basis,
     approver and release.
+42a. **Hand-over (H-958, recommended answer applied 31/10/2026).** The released pack leaves Harbour
+   once: a holder of `safety.incident.manage` where the person is, with a fresh step-up, downloads it
+   as a PDF built from the pack exactly as issued, its fingerprint checked first and printed on every
+   page (`GET /v1/disclosures/{id}/pack/pdf`, audited `safety.disclosure.pack_downloaded`; a second
+   download is refused and the data protection lead fetches the pack through the API). The hand-over
+   is then recorded once, in the member's own name, with its date and route: the recipient's secure
+   portal, a secure email service they name, encrypted media, by hand or recorded delivery; ordinary
+   email is not a route (`POST /v1/disclosures/{id}/hand-over`, audited `safety.disclosure.handed_over`;
+   the database holds the same rules).
 43. **Coroner tracker.** A coroner request may record a Regulation 28 prevention of future deaths
     report received on a day; the response is due `coroner.prevention_report_response_days` later
     (Coroners (Investigations) Regulations 2013 reg 29, rate table) and is recorded when sent.

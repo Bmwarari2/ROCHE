@@ -2,9 +2,10 @@
  * The death record (safety.md Phase 2 rule 4 and slice 37; SAFE-014; HZ-013): one per death recorded
  * on the person's exit, holding the clinician's judgement (expected or not, whether the cause may
  * be unnatural), the steps the death needs (`deathPlan`) with who did each and when, and the
- * mortality review. The notification steps follow the notification centre, never a tick here: the
- * regulator's death notification, the medical examiner information and LeDeR are done when
- * submitted or decided not required there. Until the judgement is recorded the plan assumes the
+ * mortality review. The notification steps follow the notification centre, never the record here:
+ * the regulator's death notification, the medical examiner information and LeDeR are done when
+ * submitted or decided not required there, where a not-required decision has its own permission,
+ * reason and checks; the record can mark them neither done nor not needed (H-950). Until the judgement is recorded the plan assumes the
  * death was unexpected and may be unnatural, so the police steps are never missed (fail safe).
  * Harbour never decides the cause, or whether the death was expected.
  */
@@ -160,12 +161,11 @@ export function deathRecordView(input: {
     }
     const kind = NOTIFICATION_DEATH_STEPS[step];
     if (kind) {
+      // Only the notification counts (H-950): a "not needed" recorded here before that decision
+      // is never read as settling the step.
       const status = input.notifications[kind] ?? null;
       if (status === "submitted" || status === "not_required") {
         return { step, state: "done", at: null, notificationStatus: status, reason };
-      }
-      if (recorded?.outcome === "not_needed") {
-        return { step, state: "not_needed", at: recorded.at, notificationStatus: status, reason };
       }
       return {
         step,
@@ -199,7 +199,7 @@ export function deathRecordView(input: {
     if (s.state === "done" || s.state === "not_needed") continue;
     if (s.step === "mortality_review") {
       closeProblems.push("Record the mortality review: its findings and lessons.");
-    } else if (s.state === "waiting") {
+    } else if (s.state === "waiting" || NOTIFICATION_DEATH_STEPS[s.step]) {
       closeProblems.push(
         `Submit ${LABEL[s.step]}, or decide it is not required, in the notification centre.`,
       );
@@ -219,8 +219,8 @@ export function deathRecordView(input: {
 
 /**
  * Why a step cannot be recorded: it is not in this death's plan; the mortality review is recorded
- * on its own; a notification step is done only in the notification centre (here only "not
- * needed"); "not needed" takes a reason of at least `DEATH_REASON_MIN` characters; the time is
+ * on its own; a notification step is settled only in the notification centre, neither done nor
+ * not needed here (H-950); "not needed" takes a reason of at least `DEATH_REASON_MIN` characters; the time is
  * not later than now nor earlier than the death. While the clinician's judgement is not yet
  * recorded, the police steps are never "not needed": the safer answer stands until it is (HZ-013).
  */
@@ -251,10 +251,12 @@ export function deathStepProblems(
     problems.push("Record the mortality review on its own, with its findings and lessons.");
   } else if (!plan.steps.includes(step.step)) {
     problems.push("This step is not needed for this death as recorded.");
-  } else if (NOTIFICATION_DEATH_STEPS[step.step] && step.outcome === "done") {
+  } else if (NOTIFICATION_DEATH_STEPS[step.step]) {
+    // Done or not needed alike (H-950): the notification centre decides, with its own permission.
     problems.push(
-      "This step is done in the notification centre: submit the notification there, or record here why it is not needed.",
+      "This step is settled in the notification centre: submit the notification there, or decide there that it is not required.",
     );
+    return problems;
   }
   if (step.outcome === "not_needed" && (step.note?.trim().length ?? 0) < DEATH_REASON_MIN) {
     problems.push(`Say why it is not needed, in at least ${DEATH_REASON_MIN} characters.`);

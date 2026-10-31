@@ -169,6 +169,19 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
       at: ago(MIN),
     });
     expect(ticked.status).toBe(422);
+    // Nor marked not needed here (H-950): the notification centre decides that, with its own
+    // permission, reason and checks.
+    for (const notification of ["medical_examiner_pack", "cqc_reg16_notification"]) {
+      const notNeeded = await step({
+        id: newId(),
+        step: notification,
+        outcome: "not_needed",
+        at: ago(MIN),
+        note: "The person died in hospital, so the hospital notifies.",
+      });
+      expect(notNeeded.status, notification).toBe(422);
+      expect(await notNeeded.text()).toMatch(/settled in the notification centre/);
+    }
     // Not needed takes a reason of at least 20 characters.
     const short = await step({
       id: newId(),

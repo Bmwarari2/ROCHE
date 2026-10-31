@@ -76,6 +76,21 @@ export async function releaseDisclosure(
   );
 }
 
+export async function recordDisclosureHandOver(
+  id: string,
+  body: {
+    route: "secure_portal" | "secure_email" | "encrypted_media" | "in_person" | "recorded_delivery";
+    at: string;
+    reference: string | null;
+    expectedVersion: number;
+  },
+): Promise<ActionResult<unknown>> {
+  if (!isUuid(id)) return notFound();
+  return sendAndRevalidate(paths(id), (api) =>
+    api.POST("/v1/disclosures/{id}/hand-over", { params: { path: { id } }, body }),
+  );
+}
+
 export async function withdrawDisclosure(
   id: string,
   body: { reason: string; expectedVersion: number },

@@ -9,6 +9,8 @@ import {
   type DisclosureRequestView,
   disclosurePackStorageKey,
   disclosurePrepareProblems,
+  HAND_OVER_PROBLEM_MESSAGES,
+  handOverProblems,
   legalBasis,
 } from "./disclosure";
 import { resolveSafetyPhase2Rates } from "./phase2-rates";
@@ -117,5 +119,55 @@ describe("disclosurePackStorageKey (rule 42)", () => {
     expect(disclosurePackStorageKey(t, r, p)).toBe(`tenants/${t}/disclosures/${r}/${p}.json`);
     expect(() => disclosurePackStorageKey(t, "../x", p)).toThrow(RangeError);
     expect(() => disclosurePackStorageKey("Ada", r, p)).toThrow(RangeError);
+  });
+});
+
+describe("handing a released pack over (H-958)", () => {
+  const released = new Date("2026-10-31T10:00:00Z");
+  const now = new Date("2026-10-31T12:00:00Z");
+  const drift = 5 * 60_000;
+  const base = {
+    state: "released",
+    releasedAt: released,
+    packDownloadedAt: new Date("2026-10-31T10:05:00Z"),
+    handedOverAt: null,
+  };
+  it.each([
+    ["downloaded, handed over an hour later", base, "2026-10-31T11:00:00Z", null, []],
+    [
+      "not released",
+      { ...base, state: "approved", releasedAt: null },
+      "2026-10-31T11:00:00Z",
+      null,
+      ["not_released"],
+    ],
+    [
+      "already recorded",
+      { ...base, handedOverAt: now },
+      "2026-10-31T11:00:00Z",
+      null,
+      ["already_handed_over"],
+    ],
+    [
+      "never downloaded",
+      { ...base, packDownloadedAt: null },
+      "2026-10-31T11:00:00Z",
+      null,
+      ["not_downloaded"],
+    ],
+    ["before the release", base, "2026-10-31T09:59:00Z", null, ["before_release"]],
+    ["in the future", base, "2026-10-31T12:06:00Z", null, ["in_future"]],
+    ["within the clock tolerance", base, "2026-10-31T12:04:00Z", null, []],
+    ["a long reference", base, "2026-10-31T11:00:00Z", "x".repeat(201), ["reference_too_long"]],
+  ] as const)("%s", (_label, request, at, reference, expected) => {
+    expect(handOverProblems(request, { at: new Date(at), reference }, now, drift)).toEqual(
+      expected,
+    );
+  });
+
+  it("says every refusal in words", () => {
+    for (const message of Object.values(HAND_OVER_PROBLEM_MESSAGES)) {
+      expect(message).toMatch(/^[A-Z].*\.$/);
+    }
   });
 });

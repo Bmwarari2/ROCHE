@@ -52,6 +52,12 @@ CREATE TABLE "disclosure_request" (
 	"collected_at" timestamp with time zone,
 	"prevention_report_on" date,
 	"prevention_responded_on" date,
+	"pack_downloaded_at" timestamp with time zone,
+	"pack_downloaded_by" uuid,
+	"handed_over_at" timestamp with time zone,
+	"handed_over_by" uuid,
+	"handed_over_route" text,
+	"handed_over_reference" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -76,6 +82,13 @@ CREATE TABLE "disclosure_request" (
 	CONSTRAINT "disclosure_request_pack" CHECK ((pack_sha256 IS NULL) = (pack_storage_key IS NULL)
         AND (pack_sha256 IS NULL) = (state <> 'released')
         AND (pack_sha256 IS NULL OR pack_sha256 ~ '^[0-9a-f]{64}$')),
+	CONSTRAINT "disclosure_request_download" CHECK ((pack_downloaded_at IS NULL) = (pack_downloaded_by IS NULL)
+        AND (pack_downloaded_at IS NULL OR state = 'released')),
+	CONSTRAINT "disclosure_request_hand_over" CHECK ((handed_over_at IS NULL) = (handed_over_by IS NULL)
+        AND (handed_over_at IS NULL) = (handed_over_route IS NULL)
+        AND (handed_over_at IS NULL OR (state = 'released' AND handed_over_at >= released_at))
+        AND (handed_over_route IS NULL OR handed_over_route IN ('secure_portal', 'secure_email', 'encrypted_media', 'in_person', 'recorded_delivery'))
+        AND (handed_over_reference IS NULL OR char_length(btrim(handed_over_reference)) BETWEEN 1 AND 200)),
 	CONSTRAINT "disclosure_request_prevention" CHECK ((prevention_report_on IS NULL OR type = 'coroner')
         AND (prevention_responded_on IS NULL OR (prevention_report_on IS NOT NULL AND prevention_responded_on >= prevention_report_on)))
 );
@@ -89,6 +102,8 @@ ALTER TABLE "disclosure_request" ADD CONSTRAINT "disclosure_request_location_fk"
 ALTER TABLE "disclosure_request" ADD CONSTRAINT "disclosure_request_prepared_by_fk" FOREIGN KEY ("tenant_id","prepared_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "disclosure_request" ADD CONSTRAINT "disclosure_request_decided_by_fk" FOREIGN KEY ("tenant_id","decided_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "disclosure_request" ADD CONSTRAINT "disclosure_request_released_by_fk" FOREIGN KEY ("tenant_id","released_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "disclosure_request" ADD CONSTRAINT "disclosure_request_pack_downloaded_by_fk" FOREIGN KEY ("tenant_id","pack_downloaded_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "disclosure_request" ADD CONSTRAINT "disclosure_request_handed_over_by_fk" FOREIGN KEY ("tenant_id","handed_over_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "disclosure_item_request_idx" ON "disclosure_item" USING btree ("tenant_id","request_id","decision");--> statement-breakpoint
 CREATE INDEX "disclosure_request_state_idx" ON "disclosure_request" USING btree ("tenant_id","state","received_at");
 
@@ -137,11 +152,33 @@ BEGIN
   END IF;
   IF OLD.state IN ('released', 'refused', 'withdrawn')
      AND (to_jsonb(NEW) - ARRAY['prevention_report_on', 'prevention_responded_on', 'updated_at',
-            'updated_by', 'version'])
+            'updated_by', 'version', 'pack_downloaded_at', 'pack_downloaded_by', 'handed_over_at',
+            'handed_over_by', 'handed_over_route', 'handed_over_reference'])
          IS DISTINCT FROM
          (to_jsonb(OLD) - ARRAY['prevention_report_on', 'prevention_responded_on', 'updated_at',
-            'updated_by', 'version']) THEN
+            'updated_by', 'version', 'pack_downloaded_at', 'pack_downloaded_by', 'handed_over_at',
+            'handed_over_by', 'handed_over_route', 'handed_over_reference']) THEN
     RAISE EXCEPTION 'disclosure_closed' USING ERRCODE = 'check_violation';
+  END IF;
+  -- The pack is downloaded once, and its hand-over recorded once, each in the member's own name
+  -- (H-958): neither is changed or cleared afterwards.
+  IF OLD.pack_downloaded_at IS NOT NULL AND (NEW.pack_downloaded_at IS DISTINCT FROM OLD.pack_downloaded_at
+       OR NEW.pack_downloaded_by IS DISTINCT FROM OLD.pack_downloaded_by) THEN
+    RAISE EXCEPTION 'disclosure_pack_already_downloaded' USING ERRCODE = 'check_violation';
+  END IF;
+  IF OLD.pack_downloaded_at IS NULL AND NEW.pack_downloaded_at IS NOT NULL
+     AND NEW.pack_downloaded_by IS DISTINCT FROM v_me THEN
+    RAISE EXCEPTION 'disclosure_downloader_not_you' USING ERRCODE = 'check_violation';
+  END IF;
+  IF OLD.handed_over_at IS NOT NULL AND (NEW.handed_over_at IS DISTINCT FROM OLD.handed_over_at
+       OR NEW.handed_over_by IS DISTINCT FROM OLD.handed_over_by
+       OR NEW.handed_over_route IS DISTINCT FROM OLD.handed_over_route
+       OR NEW.handed_over_reference IS DISTINCT FROM OLD.handed_over_reference) THEN
+    RAISE EXCEPTION 'disclosure_already_handed_over' USING ERRCODE = 'check_violation';
+  END IF;
+  IF OLD.handed_over_at IS NULL AND NEW.handed_over_at IS NOT NULL
+     AND NEW.handed_over_by IS DISTINCT FROM v_me THEN
+    RAISE EXCEPTION 'disclosure_hand_over_not_you' USING ERRCODE = 'check_violation';
   END IF;
   IF NEW.prepared_at IS DISTINCT FROM OLD.prepared_at AND NEW.prepared_by IS DISTINCT FROM v_me THEN
     RAISE EXCEPTION 'disclosure_preparer_not_you' USING ERRCODE = 'check_violation';

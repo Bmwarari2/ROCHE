@@ -13811,7 +13811,7 @@ export interface paths {
     put?: never;
     /**
      * Record a step of the death as done, or not needed with the reason
-     * @description Append-only: the latest for a step counts. A notification step is done only in the notification centre; here it can only be recorded as not needed, with a reason of at least 20 characters. The mortality review is recorded on its own.
+     * @description Append-only: the latest for a step counts. A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.
      */
     post: {
       parameters: {
@@ -25625,6 +25625,182 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/disclosures/{id}/pack/pdf": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Download the released pack once, as a PDF carrying its fingerprint (H-958)
+     * @description safety.incident.manage reaching the person's location, with a fresh step-up, once the request is released. Built from the pack exactly as issued, whose fingerprint is checked first (409 disclosure_pack_changed if the stored pack no longer matches); the fingerprint is printed on every page. Once only: a second download is refused (409 disclosure_pack_already_downloaded) and the data protection lead uses GET /v1/disclosures/{id}/pack instead. Audited (safety.disclosure.pack_downloaded) with the fingerprint. Then record the hand-over.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The pack as a PDF */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/disclosures/{id}/hand-over": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record how and when the released pack was handed over (H-958)
+     * @description safety.incident.manage reaching the person's location, once the pack has been downloaded. The route is a secure one (the recipient's portal, a secure email service they name, encrypted media, by hand or recorded delivery); ordinary email is not offered. Not before the release, not in the future; recorded once, in the member's own name. Audited (safety.disclosure.handed_over) with the route.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordDisclosureHandOver"];
+        };
+      };
+      responses: {
+        /** @description The request */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DisclosureRequest"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/disclosures/{id}/withdraw": {
     parameters: {
       query?: never;
@@ -34851,6 +35027,18 @@ export interface components {
       releasedAt: string | null;
       packSha256: string | null;
       /** Format: date-time */
+      packDownloadedAt: string | null;
+      /** Format: uuid */
+      packDownloadedBy: string | null;
+      handOver: {
+        /** Format: date-time */
+        at: string;
+        /** Format: uuid */
+        by: string;
+        route: components["schemas"]["DisclosureHandOverRoute"];
+        reference: string | null;
+      } | null;
+      /** Format: date-time */
       collectedAt: string | null;
       notSearched: components["schemas"]["DsarNotSearched"][];
       items: {
@@ -34882,6 +35070,13 @@ export interface components {
       | "access_to_health_records";
     /** @enum {string} */
     DisclosureState: "requested" | "prepared" | "approved" | "released" | "refused" | "withdrawn";
+    /** @enum {string} */
+    DisclosureHandOverRoute:
+      | "secure_portal"
+      | "secure_email"
+      | "encrypted_media"
+      | "in_person"
+      | "recorded_delivery";
     LogDisclosureRequest: {
       /** Format: uuid */
       personId: string;
@@ -34974,6 +35169,13 @@ export interface components {
       withheldCount: number;
       notSearched: components["schemas"]["DsarNotSearched"][];
       sha256: string;
+    };
+    RecordDisclosureHandOver: {
+      expectedVersion: number;
+      route: components["schemas"]["DisclosureHandOverRoute"];
+      /** Format: date-time */
+      at: string;
+      reference?: string | null;
     };
     WithdrawDisclosure: {
       expectedVersion: number;

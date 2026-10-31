@@ -307,7 +307,7 @@ export const deathsMissingRouter = createRouter()
       tags: ["safety"],
       summary: "Record a step of the death as done, or not needed with the reason",
       description:
-        "Append-only: the latest for a step counts. A notification step is done only in the notification centre; here it can only be recorded as not needed, with a reason of at least 20 characters. The mortality review is recorded on its own.",
+        "Append-only: the latest for a step counts. A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.",
       security,
       request: {
         params: IdParam,
