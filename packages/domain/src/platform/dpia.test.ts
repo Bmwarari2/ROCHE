@@ -29,6 +29,8 @@ const TEMPLATE = fileURLToPath(
   new URL("../../../../docs/compliance/dpia-template.md", import.meta.url),
 );
 const SHA = "c".repeat(64);
+/** The Phase 1 risks every tenant's DPIA carries, after any optional processing's own risk. */
+const PHASE_1_RISK_IDS = ["R13", "R14", "R15", "R16", "R17", "R18", "R19"];
 
 function accessFor(roleKey: string): EffectiveAccess {
   const role = builtinRole(roleKey);
@@ -104,7 +106,10 @@ describe("DPIA prefill", () => {
       purposes: ["B1", "B2", "B3", "B4", "B5", "B6", "B7"],
     });
     expect(draft.missingConfig).toEqual([]);
-    expect(draft.risks.map((r) => r.id)).toEqual(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"]);
+    expect(draft.risks.map((r) => r.id)).toEqual([
+      ...["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"],
+      ...PHASE_1_RISK_IDS,
+    ]);
   });
 
   it("uses the template's risk ids and wording for every risk", () => {
@@ -114,7 +119,7 @@ describe("DPIA prefill", () => {
       ["module.domiciliary", "module.ai", "module.family_portal"],
     );
     const risks = prefillDpia(everything, NOW).risks;
-    expect(risks.map((r) => r.id)).toEqual(Array.from({ length: 12 }, (_, i) => `R${i + 1}`));
+    expect(risks.map((r) => r.id)).toEqual(Array.from({ length: 19 }, (_, i) => `R${i + 1}`));
     for (const risk of risks) expect(template).toContain(`| ${risk.id} | ${risk.risk}`);
   });
 
@@ -146,7 +151,7 @@ describe("DPIA prefill", () => {
     const draft = prefillDpia(config(extra, features), NOW);
     const optional = draft.sections.map((s) => s.key).slice(10);
     expect(optional).toEqual(sections);
-    expect(draft.risks.map((r) => r.id).slice(8)).toEqual(risks);
+    expect(draft.risks.map((r) => r.id).slice(8, -PHASE_1_RISK_IDS.length)).toEqual(risks);
   });
 
   it("screens for monitoring, AI and children from the configuration", () => {
