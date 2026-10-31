@@ -20770,6 +20770,7 @@ export interface components {
       /** Format: uuid */
       recordId: string;
       versions: components["schemas"]["RecordVersion"][];
+      latestChanged: string[] | null;
     };
     RecordVersion: {
       version: number;

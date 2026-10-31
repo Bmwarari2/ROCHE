@@ -43,6 +43,7 @@ import {
   type PcspDomain as DomainPcsp,
   type Recurrence as DomainRecurrence,
   LIKELIHOOD_LABELS,
+  type Permission,
   planActionNotice,
   planPublication,
   RISK_MATRIX_SOURCE,
@@ -54,7 +55,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
@@ -68,6 +69,7 @@ import {
   REVIEW_TASKS,
 } from "../services/care-planning";
 import { syncPlanTaskSeries } from "../services/plan-tasks";
+import { latestChanged, mayReadRemoved } from "../services/record-history";
 import { type StaffLookup, staffNames } from "../services/staff";
 import {
   iso,
@@ -99,16 +101,21 @@ const PlanParams = PersonParam.extend({ planId: z.uuid() });
 const SectionParams = PlanParams.extend({ domain: PcspDomain });
 const ActionParams = PlanParams.extend({ actionId: z.uuid() });
 const RiskParams = PersonParam.extend({ riskId: z.uuid() });
+/**
+ * Each table with its history, and the permission its own read route needs: a record's history
+ * never shows more than the record does (security review round 1). The legal-change review is read
+ * only through the DoLS register's management routes (`care.dols.manage`, routes/mca.ts).
+ */
 const HISTORY_TABLES = {
-  care_plan: carePlan,
-  care_plan_section: carePlanSection,
-  care_plan_action: carePlanAction,
-  risk_assessment: riskAssessment,
-  advance_care_record: advanceCareRecord,
-  consent_record: consentRecord,
-  dols_authorisation: dolsAuthorisation,
-  dols_legal_change_review: dolsLegalChangeReview,
-} as const;
+  care_plan: { source: carePlan, permission: "care.plan.read" },
+  care_plan_section: { source: carePlanSection, permission: "care.plan.read" },
+  care_plan_action: { source: carePlanAction, permission: "care.plan.read" },
+  risk_assessment: { source: riskAssessment, permission: "care.plan.read" },
+  advance_care_record: { source: advanceCareRecord, permission: "care.plan.read" },
+  consent_record: { source: consentRecord, permission: "care.plan.read" },
+  dols_authorisation: { source: dolsAuthorisation, permission: "care.plan.read" },
+  dols_legal_change_review: { source: dolsLegalChangeReview, permission: "care.dols.manage" },
+} as const satisfies Record<string, { source: unknown; permission: Permission }>;
 const HistoryParams = PersonParam.extend({
   table: z.enum([
     "care_plan",
@@ -1354,16 +1361,28 @@ export const carePlansRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.plan.read");
       const { id: personId, table, recordId } = c.req.valid("param");
-      const versions = await withTenant(c, async (tx) => {
+      const { source, permission } = HISTORY_TABLES[table];
+      const access = await requirePermission(c, permission);
+      const history = await withTenant(c, async (tx) => {
         await personContext(tx, personId);
-        const source = HISTORY_TABLES[table];
+        // The row as stored, in the shape the version trigger keeps (to_jsonb of the row), only to
+        // work out what the latest change altered; it is never sent.
         const [record] = await tx
-          .select({ personId: source.personId })
+          .select({
+            personId: source.personId,
+            deletedAt: source.deletedAt,
+            data: sql<Record<string, unknown>>`to_jsonb(${source})`,
+          })
           .from(source)
           .where(eq(source.id, recordId));
-        if (record?.personId !== personId) throw problems.notFound();
+        if (!record || record.personId !== personId) throw problems.notFound();
+        // A removed record is gone from every ordinary read; its history stays for whoever may
+        // read the audit log and record history for this person. A care plan and a DoLS
+        // authorisation are never removed alone (docs/specs/care.md), so a section, an action or a
+        // legal-change review is checked by its own row.
+        const removed = record.deletedAt !== null;
+        if (removed && !(await mayReadRemoved(tx, access, personId))) throw problems.notFound();
         const rows = await tx
           .select()
           .from(recordVersion)
@@ -1373,12 +1392,14 @@ export const carePlansRouter = createRouter()
           action: "care.history.view",
           resourceType: table,
           resourceId: recordId,
+          // Says the record had been removed when it was read, nothing of its content.
+          ...(removed ? { scopeExtra: { removed: true } } : {}),
         });
         const staff = await staffNames(
           tx,
           rows.map((v) => v.changedBy),
         );
-        return rows.map((v) => ({
+        const versions = rows.map((v) => ({
           version: v.recordVersion,
           validFrom: v.validFrom.toISOString(),
           validTo: v.validTo.toISOString(),
@@ -1386,7 +1407,8 @@ export const carePlansRouter = createRouter()
           changedByStaff: staff(v.changedBy),
           data: v.data as Record<string, unknown>,
         }));
+        return { versions, latestChanged: latestChanged(versions, record.data) };
       });
-      return c.json({ table, recordId, versions }, 200);
+      return c.json({ table, recordId, ...history }, 200);
     },
   );
