@@ -18,7 +18,8 @@
     "worker": "tsx watch --env-file-if-exists=../../.env src/jobs/worker.ts",
     "start:worker": "node dist/worker.js",
     "seed:users": "tsx --env-file-if-exists=../../.env scripts/seed-users.ts",
-    "exports:run": "tsx --env-file-if-exists=../../.env scripts/run-exports.ts"
+    "exports:run": "tsx --env-file-if-exists=../../.env scripts/run-exports.ts",
+    "e2e:evidence-code": "tsx --env-file-if-exists=../../.env scripts/e2e-evidence-code.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1149.0",

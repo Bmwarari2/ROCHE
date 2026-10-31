@@ -1,4 +1,6 @@
-import { expect, type Page, test } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { type Browser, expect, type Page, type TestInfo, test } from "@playwright/test";
 import { demoPerson, expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
@@ -19,6 +21,35 @@ const EMAIL = "ivy.inspector@example.invalid";
 const PERSON = demoPerson(2);
 const PERSON_NAME = "Ben Sample";
 let packUrl = "";
+/** The released link, as the owner copied it (only ever in memory here). */
+let inspectorLink = "";
+const API_DIR = fileURLToPath(new URL("../../api", import.meta.url));
+
+/**
+ * One more code for the newest live link to the invented inspector: the development email
+ * adapter keeps codes in the API's memory, so the journey asks the local-only script for one,
+ * stored exactly as the API stores it (apps/api/scripts/e2e-evidence-code.ts).
+ */
+function plantedCode(): string {
+  const out = execFileSync("pnpm", ["-s", "e2e:evidence-code", EMAIL], {
+    cwd: API_DIR,
+    env: { ...process.env, NODE_ENV: "development" },
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  return out.toString().trim().split("\n").pop() ?? "";
+}
+
+/** The inspector's own browser: no Harbour sign-in, no cookies, every request URL recorded. */
+async function inspector(browser: Browser, info: TestInfo) {
+  const context = await browser.newContext({
+    baseURL: info.project.use.baseURL,
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  const urls: string[] = [];
+  page.on("request", (request) => urls.push(request.url()));
+  return { context, page, urls };
+}
 
 const main = (page: Page) => page.getByRole("main");
 
@@ -198,6 +229,7 @@ test("hazard HZ-050 the owner, stepped up, reads what will be shared, releases i
   const linkField = issued.getByLabel("Link for the recipient");
   // The token rides in the fragment, never the path or query.
   await expect(linkField).toHaveValue(/\/evidence#[A-Za-z0-9_-]{43}$/);
+  inspectorLink = await linkField.inputValue();
   await bothThemes(page, "link issued");
 
   await issued.getByRole("button", { name: "I have sent the link" }).click();
@@ -215,6 +247,50 @@ test("hazard HZ-050 the owner, stepped up, reads what will be shared, releases i
   await bothThemes(page, "pack released");
 });
 
+test("hazard HZ-050 the inspector opens the link in their own browser with an emailed code and downloads the pack", async ({
+  browser,
+}, testInfo) => {
+  test.setTimeout(180_000);
+  expect(inspectorLink).not.toBe("");
+  const token = inspectorLink.split("#")[1] ?? "";
+  const { context, page, urls } = await inspector(browser, testInfo);
+  await page.goto(inspectorLink);
+  // The token leaves the address bar at once and no request ever carries it in its URL.
+  await expect(page.getByRole("heading", { name: "Open the evidence pack" })).toBeFocused();
+  expect(page.url()).not.toContain("#");
+  await expect(page).toHaveTitle(/^Evidence pack/);
+  await bothThemes(page, "inspector link");
+
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  await expect(page.getByRole("heading", { name: "Enter the code from your email" })).toBeFocused();
+  await expect(page.getByText("Code sent. Check your email.")).toBeVisible();
+  // A code that does not match is said at the field, and the summary links to it.
+  await page.getByLabel("Six-digit code").fill("000000");
+  await page.getByRole("button", { name: "Open the pack" }).click();
+  const summary = page.getByRole("main").getByRole("alert");
+  await expect(summary).toContainText("That code did not match");
+  await expect(page.getByLabel("Six-digit code")).toHaveAttribute("aria-invalid", "true");
+  await summary.getByRole("link").first().click();
+  await expect(page.getByLabel("Six-digit code")).toBeFocused();
+  await bothThemes(page, "inspector code refused");
+
+  await page.getByLabel("Six-digit code").fill(plantedCode());
+  await page.getByRole("button", { name: "Open the pack" }).click();
+  await expect(page.getByRole("heading", { name: "Your evidence pack is ready" })).toBeFocused();
+  await bothThemes(page, "inspector pack ready");
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download the pack" }).click(),
+  ]);
+  expect(file.suggestedFilename()).toBe("evidence-pack.pdf");
+  const chunks: Buffer[] = [];
+  for await (const chunk of await file.createReadStream()) chunks.push(chunk as Buffer);
+  expect(Buffer.concat(chunks).subarray(0, 5).toString()).toBe("%PDF-");
+  await expect(page.getByText("Pack downloaded. Look in your downloads.")).toBeVisible();
+  expect(urls.filter((url) => url.includes(token))).toEqual([]);
+  await context.close();
+});
+
 test("hazard HZ-050 the manager withdraws the pack and its link stops", async ({ page }) => {
   expect(packUrl).not.toBe("");
   await signIn(page, "manager@example.invalid");
@@ -229,4 +305,21 @@ test("hazard HZ-050 the manager withdraws the pack and its link stops", async ({
   await expect(page.getByRole("region", { name: "Links" })).toContainText("Withdrawn");
   await expect(main(page)).toContainText("The content of this pack has been deleted");
   await bothThemes(page, "pack withdrawn");
+});
+
+test("hazard HZ-050 a withdrawn link says so in the inspector's browser and offers no code", async ({
+  browser,
+}, testInfo) => {
+  expect(inspectorLink).not.toBe("");
+  const { context, page } = await inspector(browser, testInfo);
+  await page.goto(inspectorLink);
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  await expect(page.getByRole("heading", { name: "This pack has been withdrawn" })).toBeFocused();
+  await expect(page.getByRole("button", { name: /code/ })).toHaveCount(0);
+  await bothThemes(page, "inspector link withdrawn");
+  // Opened again without its token: says the link is not complete.
+  await page.goto("/evidence");
+  await expect(page.getByRole("heading", { name: "This link is not complete" })).toBeFocused();
+  await bothThemes(page, "inspector link without its token");
+  await context.close();
 });

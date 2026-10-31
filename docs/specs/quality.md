@@ -443,8 +443,7 @@ the web offers the five CQC key questions as the ids (`safe`, `effective`, `cari
 quality statements and maps these to their key question.
 
 The link the screen shows is `PUBLIC_WEB_URL/evidence#<token>`: the token in a fragment never
-reaches a server in a URL, a log or a Referer (as invitations do). The public page that takes the
-token from the fragment and calls `/p/evidence/code`, `/verify` and `/bundle` is a separate item.
+reaches a server in a URL, a log or a Referer (as invitations do). The public page is below.
 
 ### Statement of purpose actions
 
@@ -489,3 +488,35 @@ As built (`feat/web-evidence-sop`, review round 1, security, clinical safety and
 - Left for later: the API's English refusal text is not yet marked `lang="en-GB"` in the shared
   error summary (Phase 7, Welsh); revoking stays with compose holders, as specified (a question
   for the CSO).
+
+### The public inspector page (`/evidence`)
+
+Signed out, no product shell, the title "Evidence pack" (never a person, recipient or pack),
+`noindex` and no Referer. Built after #113's first review.
+
+- The token is read from the fragment once and taken out of the address bar at once; it is kept
+  only in the page's memory and sent only in JSON bodies to the page's own route handlers
+  (`/api/evidence/code`, `/api/evidence/verify`), which pass it to the API's `/p/evidence/code` and
+  `/verify` in a body. The handlers take same-origin JSON posts only (the origin from
+  `PUBLIC_WEB_URL`, never the request), pass on the user agent and the trusted-proxy client
+  address, log nothing, and answer `no-store`. A code that is not six digits is refused before it
+  is sent, so it is never counted.
+- A right code makes the API set its HttpOnly, Secure, SameSite=Strict session cookie for that
+  link alone (`__Host-`, path `/`); the handler passes it back unchanged, and the token is
+  forgotten. "Download the pack" calls `/api/evidence/bundle`, which forwards that cookie (the
+  only credential), streams the watermarked PDF as `evidence-pack.pdf` with `no-store` and
+  `nosniff`, and stores nothing.
+- Views, each starting with a heading that takes focus and an icon with words: open (ask for a
+  code), enter the code (a code that does not match, or too many requests, is said at the field
+  and linked from the summary), ready (the download, with "do not share it further"), withdrawn,
+  expired, locked, for someone else, not found, unreachable, and opened without its token (which
+  still offers the download to a browser that already has a session).
+- Tests: `apps/web/src/lib/evidence-link.test.ts`; `apps/web/e2e/evidence-pack.spec.ts`
+  (`hazard HZ-050 the inspector opens the link in their own browser with an emailed code and
+  downloads the pack`: no request URL carries the token, a code that does not match refused at the
+  field, a real PDF downloaded; `hazard HZ-050 a withdrawn link says so in the inspector's browser
+  and offers no code`), axe in light and dark. The development email adapter keeps codes in the
+  API's memory, so the journey issues one more code with `pnpm --filter @harbour/api
+  e2e:evidence-code <address>` (`apps/api/scripts/e2e-evidence-code.ts`: an `example.invalid`
+  address only, refused unless the database is local and NODE_ENV is development or test, stored
+  exactly as the API stores codes).

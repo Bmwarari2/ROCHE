@@ -38,11 +38,16 @@ Branch `feat/web-evidence-sop`.
   provider's redaction rules). No new personal data or purpose: records of processing and data
   standards unchanged.
 
+- Web, the public inspector page `/evidence` (after #113's first review): signed out, no shell;
+  the token from the fragment, out of the address bar at once, kept in memory and sent only in
+  bodies through same-origin route handlers (`/api/evidence/code`, `/verify`, `/bundle`) to the
+  API; ask for a code, enter it (a code that does not match or too many requests said at the
+  field), download the watermarked PDF with the link's session; withdrawn, expired, locked and
+  incomplete links explained. API script `e2e:evidence-code` (local only) issues a known code for
+  the journey, since the development email adapter keeps codes in memory.
+
 ## What is next
 
-- The public inspector page at `/evidence` that takes the token from the fragment and calls
-  `/p/evidence/code`, `/verify` and `/bundle` (not in this branch; the link the screen shows
-  points there).
 - The remaining record types for packs (body map, assessments, care plan sections, risk
   assessments, activities, visits, advance care records) as the API adds them.
 - QUAL-001 replaces the key questions with the quality statements.
@@ -73,5 +78,6 @@ Branch `feat/web-evidence-sop`.
 
 - `apps/web/src/lib/evidence-packs.test.ts`, `apps/web/src/lib/statement-of-purpose.test.ts`
   (41); `apps/web/e2e/evidence-pack.spec.ts` (3) and
-  `apps/web/e2e/statement-of-purpose.spec.ts` (2), axe in light and dark on every state, re-run
+  `apps/web/e2e/statement-of-purpose.spec.ts` (2), `apps/web/src/lib/evidence-link.test.ts` (15),
+  the evidence journey's inspector tests (2: open with a code and download; withdrawn), axe in light and dark on every state, re-run
   clean; `apps/api/test/evidence-packs.test.ts` (20, the link version).
