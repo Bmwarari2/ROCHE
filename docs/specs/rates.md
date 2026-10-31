@@ -176,6 +176,16 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | asc_wds.funding_completeness_percentage | 90 | percent | 2000-01-01 | - | england | master prompt 12.3 (ASC-WDS funding data standard) | master-prompt |
 | dspt.submission_deadline.month | 6 | month_of_year | 2000-01-01 | - | england | master prompt 11.2 (30 June deadline) | master-prompt |
 | dspt.submission_deadline.day | 30 | day_of_month | 2000-01-01 | - | england | master prompt 11.2 (30 June deadline) | master-prompt |
+| cqc.rating_scale.min | 1 | count | 2000-01-01 | - | england | master prompt 11.2 (self-rating 1 to 4); CQC ratings scale: 1 inadequate, 2 requires improvement, 3 good, 4 outstanding | master-prompt |
+| cqc.rating_scale.max | 4 | count | 2000-01-01 | - | england | master prompt 11.2 (self-rating 1 to 4); CQC ratings scale: 1 inadequate, 2 requires improvement, 3 good, 4 outstanding | master-prompt |
+| quality.indicator.bed_days_base | 1000 | count | 2000-01-01 | - | all | master prompt 11.2 (falls per 1,000 bed-days): the multiplier for bed-day rates on the quality dashboard | master-prompt |
+| quality.audit.action_due_days | 28 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an audit action's due date when the auditor does not choose one; tenant default | to-verify |
+| policy.read_and_sign.reminder_days | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: how long after publication or the last reminder an unsigned policy is reminded again; tenant default | to-verify |
+| policy.review_due_soon_days | 30 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: how long before a policy's review date it shows as due soon; tenant default | to-verify |
+| policy.review_interval_months.max | 36 | months | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: the longest a policy may go before its review date (Reg 17 good governance sets no interval); tenant default | to-verify |
+| quality.renewal_reminder_days | 60 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: how long before a DSPT deadline, certificate expiry or registration renewal it shows as due soon; tenant default | to-verify |
+| cyber_essentials.certificate_valid_months | 12 | months | 2000-01-01 | - | uk | https://www.ncsc.gov.uk/cyberessentials/overview (a Cyber Essentials certificate is renewed every year) | to-verify |
+| ico.registration.renewal_months | 12 | months | 2000-01-01 | - | uk | https://ico.org.uk/for-organisations/data-protection-fee/ (the data protection fee is paid every year, Data Protection (Charges and Information) Regulations 2018) | to-verify |
 | nmc.revalidation.practice_hours | 450 | hours | 2016-04-01 | - | uk | master prompt 12.2 | master-prompt |
 | nmc.revalidation.cpd_hours | 35 | hours | 2016-04-01 | - | uk | master prompt 12.2 | master-prompt |
 | nmc.revalidation.cycle_years | 3 | years | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (https://www.nmc.org.uk/revalidation/) | to-verify |
@@ -467,6 +477,13 @@ literals, and tests assert against the table, not a literal (section 7, section 
   swept nightly and its address cleared. Tenant default, confirmed by the tenant's data protection
   lead (H-355). `invitation.unlinked_sign_in_hours` (24) is how old an unlinked sign-in must be
   before the nightly sweep deletes it: long enough that an acceptance in progress is never caught.
+
+- Quality Phase 2 (slice 8, [quality.md](quality.md) section 17): `quality.audit.action_due_days`
+  (28), `policy.read_and_sign.reminder_days` (7), `policy.review_due_soon_days` (30),
+  `policy.review_interval_months.max` (36) and `quality.renewal_reminder_days` (60) are Harbour
+  defaults each tenant may change; no law sets them (H-603). `cyber_essentials.certificate_valid_months`
+  (12) and `ico.registration.renewal_months` (12) are to be confirmed on the NCSC and ICO pages
+  before a tenant relies on them (H-604).
 
 ## Other notes
 
