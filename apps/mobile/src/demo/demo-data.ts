@@ -18,7 +18,8 @@ export const demoMe: Me = {
   tenant: { id: DEMO_TENANT_ID, name: "Example Care (demo)" },
   tenantUserId: "00000000-0000-4000-8000-00000000d202",
   locations: [{ id: DEMO_LOCATION_ID, name: "Example House" }],
-  permissions: ["people.person.read"],
+  // care.handover.manage shows the handover tab with the demo handover.
+  permissions: ["people.person.read", "care.handover.manage"],
 };
 
 interface DemoPerson {
@@ -183,6 +184,7 @@ export function demoSeedStatements(seededAt: Date): SqlStatement[] {
 
 const [ADA, BEA, CAL] = [demoPeople[0]?.id ?? "", demoPeople[1]?.id ?? "", demoPeople[2]?.id ?? ""];
 const DEMO_PLAN_ID = "00000000-0000-4000-8000-00000000d601";
+const DEMO_HANDOVER_ID = "00000000-0000-4000-8000-00000000dd01";
 
 function insert(table: string, row: Record<string, string | number | null>): SqlStatement {
   const columns = Object.keys(row);
@@ -454,6 +456,52 @@ export function demoCareStatements(seededAt: Date): SqlStatement[] {
         from_earlier_plan: 1,
       }),
     ),
+    // A handover for the demo home, compiled and locked. The demo has no sync token, so no shift
+    // pattern: the screen says it cannot tell which handover to expect and shows this one as the
+    // latest on the phone, as a real phone would without the pattern.
+    insert("handover", {
+      id: DEMO_HANDOVER_ID,
+      ...tenant,
+      location_id: DEMO_LOCATION_ID,
+      shift_name: "night",
+      shift_start: hoursAgo(14),
+      shift_end: hoursAgo(2),
+      compiled_at: hoursAgo(2.5),
+      locked_at: hoursAgo(2),
+    }),
+    insert("handover_item", {
+      id: "00000000-0000-4000-8000-00000000dd02",
+      ...tenant,
+      handover_id: DEMO_HANDOVER_ID,
+      item_key: "fall:00000000-0000-4000-8000-00000000dd12",
+      position: 1,
+      kind: "fall",
+      person_id: ADA,
+      source_type: "care_note",
+      source_id: "00000000-0000-4000-8000-00000000dd12",
+      at: hoursAgo(8),
+      late_addition: 0,
+      added_at: hoursAgo(2.5),
+      summary: JSON.stringify({ key: "handover.summary.fall", params: { source: "care_note" } }),
+    }),
+    insert("handover_item", {
+      id: "00000000-0000-4000-8000-00000000dd03",
+      ...tenant,
+      handover_id: DEMO_HANDOVER_ID,
+      item_key: "unfinished_task:00000000-0000-4000-8000-00000000dd13",
+      position: 2,
+      kind: "unfinished_task",
+      person_id: CAL,
+      source_type: "task",
+      source_id: "00000000-0000-4000-8000-00000000dd13",
+      at: hoursAgo(3),
+      late_addition: 0,
+      added_at: hoursAgo(2.5),
+      summary: JSON.stringify({
+        key: "handover.summary.unfinishedTask",
+        params: { title: "Evening personal care" },
+      }),
+    }),
     insert("care_note", {
       ...entry("00000000-0000-4000-8000-00000000db01", ADA, 20),
       category: "personal_care",

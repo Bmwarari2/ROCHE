@@ -380,6 +380,9 @@ export const auditEvent = pgTable(
     index("audit_event_tenant_seq_idx").on(t.tenantId, t.seq),
     unique("audit_event_chain_position_key").on(t.tenantId, t.chainPosition).nullsNotDistinct(),
     index("audit_event_resource_idx").on(t.tenantId, t.resourceType, t.resourceId),
+    // Finds an organisation's recent events of one kind: an import's undo looks for sync tokens
+    // issued since its commit (migration 0088; #150 security review round 2).
+    index("audit_event_tenant_action_idx").on(t.tenantId, t.action, t.occurredAt),
   ],
 );
 

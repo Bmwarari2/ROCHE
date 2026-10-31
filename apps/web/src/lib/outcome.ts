@@ -86,6 +86,10 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     }
     case "feature_disabled":
       return { code, message: detail || t("care.errors.featureDisabled") };
+    // A finished duty of candour record's decision changed without reopening it first (#120
+    // review round 3, H1): the page offers reopening it with a reason.
+    case "candour_finished":
+      return { code, message: t("care.refusal.candourFinished") };
     case "version_conflict":
       return { code, message: t("care.errors.conflict") };
     // A save sent again with its id kept, after the first reached Harbour, but with other details
@@ -110,6 +114,11 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     case "dpia_not_signable":
     case "decision_not_recordable":
       return { code, message: detail || t("care.errors.invalid") };
+    // White-label branding (PLAT-002): the API says why the accent fails and which colour works.
+    case "brand_accent_contrast": {
+      const message = detail || t("branding.accent.notAColour");
+      return { code, message, fields: { accent: message } };
+    }
     // Sample data mode (platform-completions.md rules 30 and 32; HZ-072): plain words for each
     // refusal, from the catalogue.
     case "real_people_exist":

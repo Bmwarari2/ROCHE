@@ -55,7 +55,7 @@ that home only.
 | `platform.flag.manage` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.audit.read` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `platform.export.create` | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `platform.import.run` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `platform.import.run` |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.billing.read` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.search.use` |  |  | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  | yes |  | yes | yes |  |  |  | yes |  |
 | `platform.search.archived` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
@@ -87,6 +87,7 @@ that home only.
 | `care.note.write` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  | yes |  |  | yes |  |
 | `care.note.read` |  | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes | yes |  |  | yes |  |
 | `care.assessment.write` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |
+| `care.dependency.assess` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.handover.manage` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |
 | `care.held_entry.hand_over` | yes | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.capacity.write` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
@@ -104,13 +105,13 @@ that home only.
 | `safety.incident.manage` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.notification.submit` | yes | yes | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.safeguarding.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `safety.complaint.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `safety.complaint.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `safety.whistleblowing.read` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `safety.disclosure.approve` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `quality.audit.manage` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.policy.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
-| `quality.dsar.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `quality.dsar.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence.read` |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |
 | `quality.evidence_pack.compose` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence_pack.release` | yes | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
@@ -122,11 +123,16 @@ that home only.
 | `workforce.supervision.manage` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
 | `workforce.casework.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
 | `workforce.self.read` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |
+| `workforce.staff_file.read` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
+| `workforce.staff_file.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
+| `workforce.hr_document.read` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
+| `workforce.dbs_risk_assessment.sign` |  |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.rota.read` |  |  | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |
 | `scheduling.rota.manage` |  |  | yes |  | yes | yes |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.rota.approve` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.visit.manage` |  |  | yes |  | yes | yes |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.timesheet.self` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |
+| `scheduling.dependency.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.premises.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `operations.catering.manage` |  |  | yes |  | yes | yes |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.housekeeping.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |

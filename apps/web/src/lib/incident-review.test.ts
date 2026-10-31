@@ -5,6 +5,7 @@ import {
   CONTENT_NOTES,
   contentFields,
   doneToShow,
+  followUpDoneToShow,
   incidentManageView,
   judgedNeeded,
   manageDone,
@@ -37,6 +38,8 @@ function incident(
     restricted?: boolean;
     openQuestionCount?: number;
     notifications?: readonly never[];
+    outputs?: readonly string[];
+    affected?: readonly string[];
   } = {},
 ) {
   return {
@@ -44,9 +47,19 @@ function incident(
     raisedBy: RAISER,
     restricted: overrides.restricted ?? false,
     openQuestionCount: overrides.openQuestionCount ?? 0,
-    classifier: { notifications: overrides.notifications ?? [] } as never,
+    classifier: {
+      notifications: overrides.notifications ?? [],
+      outputs: (overrides.outputs ?? []).map((kind) => ({ kind })),
+    } as never,
+    people: (overrides.affected ?? []).map((personId) => ({
+      kind: "service_user",
+      role: "affected",
+      personId,
+    })) as never,
   };
 }
+
+const NO_CANDOUR = { noRecord: false, open: false, stillToTell: [], unknown: false };
 
 describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
   const manager = { tenantUserId: MANAGER, permissions: MANAGE };
@@ -60,22 +73,28 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
     ["a closed incident", incident({ status: "closed" }), manager],
     ["an incident the reader cannot see whole", incident({ restricted: true }), manager],
   ])("offers nothing for %s", (_, item, viewer) => {
-    expect(incidentManageView(item, viewer)).toBeNull();
+    expect(incidentManageView(item, viewer, null)).toBeNull();
   });
 
   it("offers starting the review and closing on an open incident", () => {
-    expect(incidentManageView(incident(), manager)).toEqual({
+    expect(incidentManageView(incident(), manager, null)).toEqual({
       review: "under_review",
       close: { kind: "form" },
     });
   });
 
   it("offers sending it back to open while under review", () => {
-    expect(incidentManageView(incident({ status: "under_review" }), manager)?.review).toBe("open");
+    expect(incidentManageView(incident({ status: "under_review" }), manager, null)?.review).toBe(
+      "open",
+    );
   });
 
   it("hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it", () => {
-    const view = incidentManageView(incident(), { tenantUserId: RAISER, permissions: MANAGE });
+    const view = incidentManageView(
+      incident(),
+      { tenantUserId: RAISER, permissions: MANAGE },
+      null,
+    );
     expect(view).toEqual({ review: "under_review", close: { kind: "raisedByYou" } });
   });
 
@@ -91,6 +110,7 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
         ],
       }),
       manager,
+      null,
     );
     expect(view?.close).toEqual({
       kind: "blocked",
@@ -99,6 +119,116 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
         { id: "n2", kind: "riddor_death" },
       ],
       questions: 2,
+      candour: NO_CANDOUR,
+    });
+  });
+
+  it.each([
+    ["threshold_assessment", true],
+    ["verbal_due", true],
+    ["written_due", true],
+    ["enquiries_open", true],
+    ["not_notifiable", false],
+    ["no_contact", false],
+    ["closed", false],
+  ])(
+    "hazard HZ-013 hazard HZ-091 says the duty of candour record at %s must finish first: %s",
+    (state, open) => {
+      const view = incidentManageView(incident(), manager, {
+        state: state as never,
+        threshold: null,
+        personId: null,
+      });
+      expect(view?.close).toEqual(
+        open
+          ? {
+              kind: "blocked",
+              notifications: [],
+              questions: 0,
+              candour: { ...NO_CANDOUR, open: true },
+            }
+          : { kind: "form" },
+      );
+    },
+  );
+
+  it("hazard HZ-013 hazard HZ-091 says a duty of candour Harbour found needs a record first (review H2)", () => {
+    const view = incidentManageView(
+      incident({ outputs: ["candour"], affected: ["ada"] }),
+      manager,
+      null,
+    );
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, noRecord: true },
+    });
+    // A candour notification decided not required, with no output, needs nothing more.
+    const decided = incidentManageView(
+      incident({
+        notifications: [notification("c", "candour", "not_required")],
+        affected: ["ada"],
+      }),
+      manager,
+      null,
+    );
+    expect(decided?.close).toEqual({ kind: "form" });
+  });
+
+  it("hazard HZ-013 hazard HZ-091 names who is still to be told when two people were harmed (review H1)", () => {
+    const view = incidentManageView(
+      incident({ outputs: ["candour"], affected: ["ada", "ben"] }),
+      manager,
+      { state: "closed", threshold: null, personId: "ada" },
+    );
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, stillToTell: ["ben"] },
+    });
+  });
+
+  it("hazard HZ-013 hazard HZ-091 a not-notifiable decision covers only the person it names (round 2 M1)", () => {
+    const view = incidentManageView(
+      incident({ outputs: ["candour"], affected: ["ada", "ben"] }),
+      manager,
+      {
+        state: "not_notifiable",
+        threshold: { notifiable: false, decidedAt: "2026-10-30T09:00:00.000Z", decidedBy: "A GP" },
+        personId: "ada",
+      },
+    );
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, stillToTell: ["ben"] },
+    });
+  });
+
+  it("hazard HZ-013 hazard HZ-091 a record for someone not affected tells nobody affected (round 2 M2)", () => {
+    const view = incidentManageView(
+      incident({ outputs: ["candour"], affected: ["ada"] }),
+      manager,
+      { state: "no_contact", threshold: null, personId: "ben" },
+    );
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, stillToTell: ["ada"] },
+    });
+  });
+
+  it("hazard HZ-013 keeps close blocked while the candour record could not be read (review M3)", () => {
+    const view = incidentManageView(incident(), manager, "unread");
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, unknown: true },
     });
   });
 
@@ -106,6 +236,7 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
     const view = incidentManageView(
       incident({ notifications: [notification("n3", "safeguarding_s42", "submitted")] }),
       manager,
+      null,
     );
     expect(view?.close).toEqual({ kind: "form" });
   });
@@ -238,6 +369,28 @@ describe("doneToShow", () => {
     expect(doneToShow("submitted", "ready")).toBeNull();
     expect(doneToShow("saved", "ready")).toBe("saved");
     expect(doneToShow(null, "open")).toBeNull();
+    // A candour or investigation form's done is never said against the incident's status.
+    expect(doneToShow("candourSaved", "open")).toBeNull();
+  });
+
+  it("hazard HZ-091 announces a candour or investigation form only while what it did holds", () => {
+    expect(followUpDoneToShow("candourSaved", "threshold_assessment", null)).toBe("candourSaved");
+    expect(followUpDoneToShow("candourSaved", null, null)).toBeNull();
+    expect(followUpDoneToShow("candourMoved", "verbal_due", null)).toBe("candourMoved");
+    expect(followUpDoneToShow("candourMoved", "threshold_assessment", null)).toBeNull();
+    expect(followUpDoneToShow("investigationSaved", null, "open")).toBe("investigationSaved");
+    expect(followUpDoneToShow("investigationCompleted", null, "completed")).toBe(
+      "investigationCompleted",
+    );
+    expect(followUpDoneToShow("investigationCompleted", null, "open")).toBeNull();
+    expect(followUpDoneToShow("investigationReopened", null, "open")).toBe("investigationReopened");
+    expect(followUpDoneToShow("closed", "closed", "completed")).toBeNull();
+    // Reopened (#120 review round 3, H1): only while it is back at the decision or telling them.
+    expect(followUpDoneToShow("candourReopened", "threshold_assessment", null)).toBe(
+      "candourReopened",
+    );
+    expect(followUpDoneToShow("candourReopened", "verbal_due", null)).toBe("candourReopened");
+    expect(followUpDoneToShow("candourReopened", "not_notifiable", null)).toBeNull();
   });
 });
 
@@ -294,6 +447,12 @@ describe("hazard HZ-091 readSubmitForm (HZ-090: no time assumed)", () => {
         externalReference: "Enter the regulator's reference in at most 120 characters",
       },
     });
+  });
+
+  it("hazard HZ-091 asks no regulator's reference for a duty of candour notification (review H2)", () => {
+    expect(
+      readSubmitForm(form({ "submittedAt-mode": "now" }), NOW, t, { reference: false }),
+    ).toEqual({ ok: true, submittedAt: null, externalReference: "" });
   });
 
   it("leaves just now to the server", () => {
@@ -403,5 +562,16 @@ describe("manageDone and manageResult", () => {
     for (const done of ["reviewing", "closed", "submitted", "notRequired"] as const) {
       expect(t("safety.manage.done", { done })).not.toBe("Saved");
     }
+    for (const done of [
+      "candourSaved",
+      "investigationSaved",
+      "investigationCompleted",
+      "investigationReopened",
+    ] as const) {
+      expect(t("safety.followUp.done", { done, state: "none" })).not.toBe("Saved");
+    }
+    expect(t("safety.followUp.done", { done: "candourMoved", state: "verbal_due" })).toBe(
+      "Duty of candour: tell the person in person next",
+    );
   });
 });

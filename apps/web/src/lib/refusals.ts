@@ -63,7 +63,49 @@ export type RefusalKey =
   | "notificationFinished"
   | "submittedAtMissing"
   | "submittedInFuture"
-  | "submissionReference";
+  | "submissionReference"
+  | "candourPerson"
+  | "candourDecidedInFuture"
+  | "candourThreshold"
+  | "candourThresholdMismatch"
+  | "candourVerbal"
+  | "candourInPerson"
+  | "candourRepresentatives"
+  | "candourAccount"
+  | "candourEnquiriesAdvised"
+  | "candourApology"
+  | "candourWrittenRecord"
+  | "candourAttempts"
+  | "candourWritten"
+  | "candourWrittenCopy"
+  | "candourWrittenAccount"
+  | "candourWrittenEnquiries"
+  | "candourWrittenApology"
+  | "candourResults"
+  | "candourCorrespondence"
+  | "investigationComplete"
+  | "investigationPerson"
+  | "investigationOwner"
+  | "closeCandourRecord"
+  | "closeCandourPeople"
+  | "candourDecidedBeforeIncident"
+  | "candourToldFuture"
+  | "candourSentFuture"
+  | "candourAttemptFuture"
+  | "candourResultsFuture"
+  | "candourDocument"
+  | "candourStepPerson"
+  | "candourPersonFinished"
+  | "candourReason"
+  | "candourConfirm"
+  | "candourToldEarly"
+  | "candourSentEarly"
+  | "candourAttemptEarly"
+  | "candourPersonDropped"
+  | "candourClosedIncident"
+  | "candourReopenState"
+  | "candourReopenReason"
+  | "affectedManagersOnly";
 
 export interface KnownRefusal {
   readonly key: RefusalKey;
@@ -287,6 +329,16 @@ const RULES: readonly Rule[] = [
     fields: [],
     found: has("Complete the duty of candour record before closing."),
   },
+  {
+    key: "closeCandourRecord",
+    fields: [],
+    found: has("Record the duty of candour threshold decision before closing."),
+  },
+  {
+    key: "closeCandourPeople",
+    fields: [],
+    found: has("Someone affected has no finished duty of candour record of their own"),
+  },
   { key: "stepReason", fields: ["reason"], found: has("Give a reason for this step.") },
   {
     key: "stepNotPossible",
@@ -314,6 +366,200 @@ const RULES: readonly Rule[] = [
     key: "submissionReference",
     fields: ["externalReference"],
     found: has("Record the regulator's reference or attach the submitted form."),
+  },
+  // The duty of candour record (the API's own checks, and `candourStepProblems`, which a step
+  // runs first; regulation 20). A step's needs are said beside the step, never at a field.
+  {
+    key: "candourPerson",
+    fields: ["personId"],
+    found: has("The relevant person must be one of the people affected."),
+  },
+  {
+    key: "candourDecidedInFuture",
+    fields: ["decidedAt"],
+    found: has("The decision cannot be dated in the future."),
+  },
+  {
+    key: "candourDecidedBeforeIncident",
+    fields: ["decidedAt"],
+    found: has("The decision cannot be dated before the incident happened."),
+  },
+  {
+    key: "candourToldFuture",
+    fields: ["at"],
+    found: has("The time they were told cannot be in the future."),
+  },
+  {
+    key: "candourSentFuture",
+    fields: ["sentAt"],
+    found: has("The time the written notification was sent cannot be in the future."),
+  },
+  {
+    key: "candourAttemptFuture",
+    fields: ["attemptAt"],
+    found: has("The time of an attempt to contact them cannot be in the future."),
+  },
+  {
+    key: "candourResultsFuture",
+    fields: ["resultsSharedAt"],
+    found: has("The time the results were shared cannot be in the future."),
+  },
+  {
+    key: "candourDocument",
+    fields: [],
+    found: has("A document cited must be on the relevant person's record."),
+  },
+  {
+    key: "candourStepPerson",
+    fields: [],
+    found: has("Choose who it happened to, from the people affected, before moving the record on."),
+  },
+  {
+    key: "candourPersonFinished",
+    fields: ["personId"],
+    found: has("The relevant person cannot change once the record is finished."),
+  },
+  {
+    key: "candourReason",
+    fields: ["reason"],
+    found: has("the decision differs from Harbour's finding or changes the one recorded."),
+  },
+  { key: "candourConfirm", fields: ["confirm"], found: has("Confirm the decision.") },
+  {
+    key: "candourToldEarly",
+    fields: ["at"],
+    found: has("The time they were told cannot be before the incident happened."),
+  },
+  {
+    key: "candourSentEarly",
+    fields: ["sentAt"],
+    found: has("The time the written notification was sent cannot be before the incident"),
+  },
+  {
+    key: "candourAttemptEarly",
+    fields: ["attemptAt"],
+    found: has("The time of an attempt to contact them cannot be before the incident"),
+  },
+  {
+    key: "candourPersonDropped",
+    fields: [],
+    found: has("Someone affected would leave the duty of candour check"),
+  },
+  // #120 review round 3: a closed incident's record, reopening, and who may take a person out.
+  {
+    key: "candourClosedIncident",
+    fields: [],
+    found: has("The duty of candour record of a closed incident cannot be changed."),
+  },
+  {
+    key: "candourReopenState",
+    fields: [],
+    found: has("Only a duty of candour record finished as not notifiable or no contact"),
+  },
+  {
+    key: "candourReopenReason",
+    fields: ["reason"],
+    found: has("Say why the record is reopened"),
+  },
+  {
+    key: "affectedManagersOnly",
+    fields: [],
+    found: has("Only someone who manages incidents can take a person out of those affected."),
+  },
+  {
+    key: "candourThreshold",
+    fields: [],
+    found: has("Record the threshold decision and who made it."),
+  },
+  {
+    key: "candourThresholdMismatch",
+    fields: [],
+    found: has("The threshold decision does not match this step."),
+  },
+  { key: "candourVerbal", fields: [], found: has("Record the notification given in person.") },
+  {
+    key: "candourInPerson",
+    fields: [],
+    found: has("The notification must be given in person (reg 20(3)(a))."),
+  },
+  {
+    key: "candourRepresentatives",
+    fields: [],
+    found: has("Record who gave the notification (reg 20(3)(a))."),
+  },
+  {
+    key: "candourAccount",
+    fields: [],
+    found: has("Give an account of all the facts known (reg 20(3)(b))."),
+  },
+  {
+    key: "candourEnquiriesAdvised",
+    fields: [],
+    found: has("Advise what further enquiries are appropriate (reg 20(3)(c))."),
+  },
+  { key: "candourApology", fields: [], found: has("Include an apology (reg 20(3)(d)).") },
+  {
+    key: "candourWrittenRecord",
+    fields: [],
+    found: has("Keep a written record of the notification (reg 20(3)(e))."),
+  },
+  {
+    key: "candourAttempts",
+    fields: [],
+    found: has("Keep a written record of the attempts to contact or speak to the person"),
+  },
+  {
+    key: "candourWritten",
+    fields: [],
+    found: has("Record the written notification (reg 20(4))."),
+  },
+  {
+    key: "candourWrittenCopy",
+    fields: [],
+    found: has("Keep a copy of the written notification (reg 20(6))."),
+  },
+  {
+    key: "candourWrittenAccount",
+    fields: [],
+    found: has("The written notification must include the account of the facts (reg 20(4)(a))."),
+  },
+  {
+    key: "candourWrittenEnquiries",
+    fields: [],
+    found: has("The written notification must give details of the enquiries (reg 20(4)(b))."),
+  },
+  {
+    key: "candourWrittenApology",
+    fields: [],
+    found: has("The written notification must include an apology (reg 20(4)(d))."),
+  },
+  {
+    key: "candourResults",
+    fields: [],
+    found: has("Share the results of any further enquiries (reg 20(4)(c))."),
+  },
+  {
+    key: "candourCorrespondence",
+    fields: [],
+    found: has("Keep a copy of all correspondence (reg 20(6))."),
+  },
+  // The investigation (the API's own checks in apps/api/src/routes/incidents.ts).
+  {
+    key: "investigationComplete",
+    fields: ["findings", "lessons"],
+    found: has("Record the findings and the lessons before completing it."),
+  },
+  {
+    key: "investigationPerson",
+    fields: [],
+    found: (detail) =>
+      detail.includes("The action owner was not found.") ||
+      detail.includes("The investigation lead was not found."),
+  },
+  {
+    key: "investigationOwner",
+    fields: ["newOwner"],
+    found: has("The action's owner cannot be given its task"),
   },
 ];
 
