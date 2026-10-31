@@ -5,6 +5,7 @@ import {
   linkRefusal,
   readEvidenceCode,
   retryMinutes,
+  sessionCookie,
 } from "./evidence-link";
 
 const TOKEN = "a".repeat(43);
@@ -46,5 +47,13 @@ describe("the public evidence pack page (quality.md section 16; ADR-0050; HZ-050
     expect(isFinal({ kind: "wrong_code" })).toBe(false);
     expect(retryMinutes(null)).toBe(1);
     expect(retryMinutes("61")).toBe(2);
+  });
+
+  it("hazard HZ-050 passes on only this link's session cookie, never the browser's others", () => {
+    expect(
+      sessionCookie("theme=dark; __Host-harbour_evidence_session=abc.def=; harbour_session=xyz"),
+    ).toBe("abc.def=");
+    expect(sessionCookie("harbour_session=xyz")).toBeNull();
+    expect(sessionCookie(null)).toBeNull();
   });
 });

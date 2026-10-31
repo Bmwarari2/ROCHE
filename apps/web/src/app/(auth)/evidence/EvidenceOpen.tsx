@@ -22,6 +22,8 @@ type View =
   | { readonly kind: "ready" }
   | { readonly kind: "code"; readonly sent: boolean }
   | { readonly kind: "verified"; readonly downloaded: boolean }
+  /** The session cookie cleared: this browser can no longer open the pack. */
+  | { readonly kind: "finished" }
   | { readonly kind: "ended"; readonly reason: LinkEnded }
   | { readonly kind: "throttled"; readonly minutes: number }
   | { readonly kind: "not_found" }
@@ -131,7 +133,12 @@ export function EvidenceOpen() {
     started.current = true;
     const fromLink = evidenceTokenFromFragment(window.location.hash);
     // Out of the address bar, history and any screenshot at once.
-    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname);
+    if (window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname);
+      // Again once Next.js has patched history, so its router forgets the fragment too and a
+      // later refresh never writes the token back into the address (#113 security review L2).
+      setTimeout(() => window.history.replaceState(null, "", window.location.pathname), 0);
+    }
     token.current = fromLink;
     setView(fromLink ? { kind: "ready" } : { kind: "no_token" });
   }, []);
@@ -139,7 +146,7 @@ export function EvidenceOpen() {
   useEffect(() => {
     if (view.kind === "loading") return;
     container.current?.querySelector<HTMLElement>("[data-view-heading]")?.focus();
-  }, [view.kind]);
+  }, [view]);
 
   /** A result that ends or blocks the flow becomes its own view; others stay at the code. */
   const show = useCallback((result: EvidenceLinkResult): boolean => {
@@ -147,7 +154,8 @@ export function EvidenceOpen() {
       if (result.kind === "ended") setView({ kind: "ended", reason: result.reason });
       else if (result.kind === "not_found") setView({ kind: "not_found" });
       else setView({ kind: "unavailable" });
-      if (isFinal(result)) token.current = null;
+      // Never kept after a result that ends the flow, nor after one the page cannot read.
+      token.current = null;
       return true;
     }
     return false;
@@ -204,8 +212,24 @@ export function EvidenceOpen() {
       setView({ kind: "verified", downloaded: true });
       return;
     }
-    if (result.kind === "code_required") return setView({ kind: "no_token" });
+    if (result.kind === "code_required") {
+      // A new view object, so focus returns to its heading even from the same view.
+      setSaid(t("evidenceLink.noSession"));
+      return setView({ kind: "no_token" });
+    }
     if (!show(result)) setView({ kind: "unavailable" });
+  };
+
+  const finish = async () => {
+    setBusy(true);
+    try {
+      await fetch("/api/evidence/finish", { method: "POST", cache: "no-store" });
+    } catch {
+      // The cookie also goes when the browser closes; the page says what to do either way.
+    }
+    setBusy(false);
+    setSaid("");
+    setView({ kind: "finished" });
   };
 
   return (
@@ -261,12 +285,20 @@ export function EvidenceOpen() {
       ) : view.kind === "verified" ? (
         <Message icon={<CircleCheck {...icon} />} title={t("evidenceLink.verified.title")}>
           <p className="m-0">{t("evidenceLink.verified.body")}</p>
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button type="button" disabled={busy} onClick={getPack}>
               <Download size={16} strokeWidth={1.5} aria-hidden="true" />
               {t("evidenceLink.download")}
             </Button>
+            <Button type="button" variant="secondary" disabled={busy} onClick={finish}>
+              {t("evidenceLink.finish")}
+            </Button>
           </div>
+          <p className="m-0 text-body-dense text-text-secondary">{t("evidenceLink.finishHint")}</p>
+        </Message>
+      ) : view.kind === "finished" ? (
+        <Message icon={<CircleCheck {...icon} />} title={t("evidenceLink.finished.title")}>
+          <p className="m-0">{t("evidenceLink.finished.body")}</p>
         </Message>
       ) : view.kind === "ended" ? (
         <Message

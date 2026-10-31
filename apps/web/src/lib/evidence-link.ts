@@ -81,3 +81,18 @@ export function isFinal(result: EvidenceLinkResult): boolean {
 
 /** The file name the browser saves the pack as: no person, recipient or pack details. */
 export const BUNDLE_FILE_NAME = "evidence-pack.pdf";
+
+/** The API's session cookie for one evidence link (HttpOnly, Secure, SameSite=Strict). */
+export const EVIDENCE_SESSION_COOKIE = "__Host-harbour_evidence_session";
+
+/**
+ * The session cookie's value from a Cookie header, or null: the only cookie the bundle route
+ * passes on to the API (#113 security review I1).
+ */
+export function sessionCookie(header: string | null): string | null {
+  for (const part of header?.split(";") ?? []) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === EVIDENCE_SESSION_COOKIE) return rest.join("=") || null;
+  }
+  return null;
+}

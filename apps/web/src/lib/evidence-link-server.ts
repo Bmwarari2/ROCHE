@@ -3,12 +3,15 @@ import { headers } from "next/headers";
 import { API_URL } from "./api";
 import { clientAddress, trustedProxies } from "./client-address";
 import {
+  EVIDENCE_SESSION_COOKIE,
   type EvidenceLinkResult,
   isEvidenceToken,
   linkRefusal,
   readEvidenceCode,
+  sessionCookie,
 } from "./evidence-link";
 import { isJsonMediaType, isSameOrigin } from "./invitations";
+import { readJsonBody } from "./json-body";
 import { webOrigin } from "./quality-server";
 
 /**
@@ -18,6 +21,22 @@ import { webOrigin } from "./quality-server";
  * never read from the request), and only JSON. The API's session cookie for the link is passed back
  * as it is set: HttpOnly, Secure, SameSite=Strict.
  */
+
+/**
+ * Ends this browser's access to the pack: the session cookie cleared (the API keeps the session
+ * sealed with its own expiry; without the cookie the browser holds nothing).
+ */
+export async function finishSession(request: Request): Promise<Response> {
+  if (!isSameOrigin(request.headers.get("origin"), webOrigin())) {
+    return Response.json({ kind: "unavailable" }, { status: 403, headers: NO_STORE });
+  }
+  const out = new Headers(NO_STORE);
+  out.append(
+    "set-cookie",
+    `${EVIDENCE_SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`,
+  );
+  return Response.json({ kind: "finished" }, { headers: out });
+}
 
 const TRUSTED_PROXIES = trustedProxies(process.env.TRUSTED_PROXY_CIDRS);
 const NO_STORE = { "cache-control": "no-store" } as const;
@@ -65,13 +84,11 @@ async function readPost(request: Request): Promise<Record<string, unknown> | Res
   ) {
     return Response.json({ kind: "unavailable" }, { status: 403, headers: NO_STORE });
   }
-  try {
-    const body = (await request.json()) as unknown;
-    if (typeof body === "object" && body !== null) return body as Record<string, unknown>;
-  } catch {
-    // Falls through to the refusal.
-  }
-  return Response.json({ kind: "malformed" }, { status: 400, headers: NO_STORE });
+  // At most a few KiB, however it is sent (#113 security review L1).
+  const read = await readJsonBody(request);
+  return read.ok
+    ? read.body
+    : Response.json({ kind: "malformed" }, { status: read.status, headers: NO_STORE });
 }
 
 const answer = (result: EvidenceLinkResult, extra?: Headers) => {
@@ -118,7 +135,10 @@ export async function verifyCode(request: Request): Promise<Response> {
  * says in words.
  */
 export async function openBundle(request: Request): Promise<Response> {
-  const cookie = request.headers.get("cookie");
+  // Only this link's session cookie goes on to the API, never the rest of the browser's cookies
+  // (#113 security review I1).
+  const session = sessionCookie(request.headers.get("cookie"));
+  const cookie = session ? `${EVIDENCE_SESSION_COOKIE}=${session}` : null;
   let response: Response;
   try {
     response = await fetch(`${API_URL}/p/evidence/bundle`, {
@@ -136,6 +156,8 @@ export async function openBundle(request: Request): Promise<Response> {
         "content-type": "application/pdf",
         "content-disposition": 'attachment; filename="evidence-pack.pdf"',
         "x-content-type-options": "nosniff",
+        // Opened in the browser by mistake, the PDF can run nothing (#113 security review I2).
+        "content-security-policy": "default-src 'none'; sandbox",
       },
     });
   }

@@ -70,6 +70,12 @@ Branch `feat/web-evidence-sop`.
   confirmed as not undoable; editor rows with ids, focus on add and remove, errors naming their
   field; "wrong codes" reworded; server actions check their input. HZ-050 records the new
   controls; hazard ids added to the tests that verify them.
+- Round 2 (the lead's security review of the public page): request bodies capped at 4 KiB,
+  chunked or not (evidence and invitation handlers); the fragment cleared again after Next.js
+  patches history (evidence and invitation pages), checked by a router refresh in the journey;
+  the session cookie a browser-session cookie with "Finish and remove access from this browser"
+  (ADR-0050 amended); only the link's cookie passed to the bundle route; a sandboxing CSP on the
+  PDF; the token forgotten after an unreadable result. The script's admin URL built with `URL`.
 - For the CSO (not decided here): whether release-only holders should also withdraw a pack;
   whether a person in scope the releaser cannot see should block release; the wording of the due,
   overdue and approval messages (H-219).

@@ -258,6 +258,12 @@ test("hazard HZ-050 the inspector opens the link in their own browser with an em
   // The token leaves the address bar at once and no request ever carries it in its URL.
   await expect(page.getByRole("heading", { name: "Open the evidence pack" })).toBeFocused();
   expect(page.url()).not.toContain("#");
+  // A router refresh never writes the token back into the address (#113 security review L2).
+  await page.evaluate(() =>
+    (window as unknown as { next?: { router?: { refresh(): void } } }).next?.router?.refresh(),
+  );
+  await page.waitForLoadState("networkidle");
+  expect(page.url()).not.toContain("#");
   await expect(page).toHaveTitle(/^Evidence pack/);
   await bothThemes(page, "inspector link");
 
@@ -288,6 +294,19 @@ test("hazard HZ-050 the inspector opens the link in their own browser with an em
   expect(Buffer.concat(chunks).subarray(0, 5).toString()).toBe("%PDF-");
   await expect(page.getByText("Pack downloaded. Look in your downloads.")).toBeVisible();
   expect(urls.filter((url) => url.includes(token))).toEqual([]);
+
+  // Finishing removes this browser's access: the session cookie goes, and the page says so.
+  await page.getByRole("button", { name: "Finish and remove access from this browser" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Access removed from this browser" }),
+  ).toBeFocused();
+  expect(
+    (await context.cookies()).filter((c) => c.name === "__Host-harbour_evidence_session"),
+  ).toEqual([]);
+  await bothThemes(page, "inspector access removed");
+  await page.goto("/evidence");
+  await page.getByRole("button", { name: "Download the pack" }).click();
+  await expect(page.getByRole("heading", { name: "This link is not complete" })).toBeFocused();
   await context.close();
 });
 

@@ -19,9 +19,16 @@ if (!email?.endsWith("@example.invalid")) {
   throw new Error("Give the invented recipient's address (on example.invalid)");
 }
 const config = loadConfig();
-const adminUrl =
-  process.env.HARBOUR_TEST_ADMIN_URL?.replace(/\/[^/]*$/, "/harbour") ??
-  "postgres://harbour_admin:harbour_admin_local@localhost:5432/harbour";
+/** The local superuser URL (`HARBOUR_TEST_ADMIN_URL`) pointed at the harbour database. */
+function adminDatabaseUrl(): string {
+  const url = new URL(
+    process.env.HARBOUR_TEST_ADMIN_URL ??
+      "postgres://harbour_admin:harbour_admin_local@localhost:5432/postgres",
+  );
+  url.pathname = "/harbour";
+  return url.toString();
+}
+const adminUrl = adminDatabaseUrl();
 const refusal = testOnlySwitchRefusal({
   env: process.env,
   nodeEnv: config.NODE_ENV,

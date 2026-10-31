@@ -520,3 +520,11 @@ Signed out, no product shell, the title "Evidence pack" (never a person, recipie
   e2e:evidence-code <address>` (`apps/api/scripts/e2e-evidence-code.ts`: an `example.invalid`
   address only, refused unless the database is local and NODE_ENV is development or test, stored
   exactly as the API stores codes).
+
+After #113's security review (round 2): the public bodies are capped at 4 KiB however they are
+sent (`apps/web/src/lib/json-body.ts`, also used by the invitation page); the fragment is cleared
+again once Next.js has patched history, so a router refresh never writes the token back (the
+invitation page too); the session cookie is a browser-session cookie, and "Finish and remove
+access from this browser" clears it; the bundle route passes on only the link's session cookie,
+and the PDF carries `content-security-policy: default-src 'none'; sandbox`; the token is
+forgotten after any result that ends the flow, including one the page cannot read.
