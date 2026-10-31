@@ -10,7 +10,12 @@ import { DEMO } from "@harbour/db/seed";
 import { ABUSE_TYPES, ENQUIRY_FINDINGS, SAFEGUARDING_WORKFLOW } from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { escalateSafeguardingReferrals, type TaskDeps, UNROUTED_ACTIONS } from "../src/jobs/tasks";
+import {
+  escalateSafeguardingReferrals,
+  escalateTasks,
+  type TaskDeps,
+  UNROUTED_ACTIONS,
+} from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { SAFEGUARDING_UNROUTED_ACTION } from "../src/services/safeguarding";
 import { createHarness, type Harness, LODGE } from "./support/harness";
@@ -346,8 +351,9 @@ describe("hazard HZ-126 a concern raised is never left unseen", () => {
     expect(recipients).not.toContain(DEMO.users.carer.id);
     for (const r of rows) {
       expect(r.severity).toBe("urgent");
-      expect(r.channels).toEqual(["in_app", "push"]);
-      // H-598: the managers first, then the owner role after the escalation minutes.
+      // In the app: push has no destination yet (clinical review, finding 6).
+      expect(r.channels).toEqual(["in_app"]);
+      // H-598: unacknowledged, it goes to the chain's next step after the escalation minutes.
       expect(r.escalate_at).not.toBeNull();
     }
     const tasks = (await referralTask(raised.id)).rows;
@@ -379,6 +385,79 @@ describe("hazard HZ-126 a concern raised is never left unseen", () => {
       expect(r.acknowledged_at).not.toBeNull();
       expect(r.escalate_at).toBeNull();
     }
+  });
+
+  it("closes the task as the manager who referred it, with the concern as its evidence", async () => {
+    const { id } = await json<{ id: string }>(await raise("carer"));
+    await update(id, { ...referral(), personalOutcomes: asked.personalOutcomes });
+    expect((await step(id, "referred")).status).toBe(200);
+    const { rows } = await asDemoTenant((c) =>
+      c.query<{ status: string; completed_by: string; evidence_type: string; evidence_id: string }>(
+        `SELECT status, completed_by, evidence_type, evidence_id FROM task
+          WHERE source_id = $1 AND kind = 'safety.safeguarding_referral'`,
+        [id],
+      ),
+    );
+    expect(rows).toEqual([
+      {
+        status: "done",
+        completed_by: DEMO.users.manager.id,
+        evidence_type: "safeguarding_concern",
+        evidence_id: id,
+      },
+    ]);
+  });
+
+  it("stops the escalation once a manager other than the raiser opens the concern", async () => {
+    const { id } = await json<{ id: string }>(await raise("carer"));
+    expect((await alerts(id)).rows.every((r) => r.escalate_at !== null)).toBe(true);
+    expect((await as("manager", `/v1/safeguarding/concerns/${id}`)).status).toBe(200);
+    for (const r of (await alerts(id)).rows) {
+      expect(r.escalate_at).toBeNull();
+      // Still unread for the others: only the chain stops.
+      expect(r.acknowledged_at).toBeNull();
+    }
+  });
+
+  it("leaves an overdue referral task to the safeguarding sweep, never the general task engine", async () => {
+    const { id } = await json<{ id: string }>(await raise("carer"));
+    const taskId = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `UPDATE task SET due_at = now() - interval '3 hours'
+          WHERE source_id = $1 AND kind = 'safety.safeguarding_referral' RETURNING id`,
+        [id],
+      );
+      return rows[0]?.id ?? "";
+    });
+    await escalateTasks(deps, new Date());
+    const { rows } = await asDemoTenant((c) =>
+      c.query<{ escalation_level: number; told: string }>(
+        `SELECT escalation_level,
+                (SELECT count(*) FROM notification WHERE source_id = task.id::text)::text AS told
+           FROM task WHERE id = $1`,
+        [taskId],
+      ),
+    );
+    expect(rows).toEqual([{ escalation_level: 0, told: "0" }]);
+  });
+
+  it("asks again what happens to the measures when they change", async () => {
+    const { id } = await json<{ id: string }>(
+      await raise("carer", { protectiveMeasures: "Two staff for personal care" }),
+    );
+    await update(id, { measuresOutcome: "no_longer_needed" });
+    expect((await concern(id)).measuresOutcome).toBe("no_longer_needed");
+    // The same measures sent again keep the answer.
+    await update(id, { protectiveMeasures: "Two staff for personal care" });
+    expect((await concern(id)).measuresOutcome).toBe("no_longer_needed");
+    await update(id, { protectiveMeasures: "Two staff for personal care and checks every hour" });
+    expect((await concern(id)).measuresOutcome).toBeNull();
+    // Answered in the same update as the change, the answer stands.
+    await update(id, {
+      protectiveMeasures: "Checks every hour only",
+      measuresOutcome: "carried_into_care_plan",
+    });
+    expect((await concern(id)).measuresOutcome).toBe("carried_into_care_plan");
   });
 });
 

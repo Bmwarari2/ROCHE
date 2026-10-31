@@ -137,6 +137,8 @@ export function readRaiseConcern(
   options: { readonly id: string; readonly personId: string },
 ): Read<RaiseSafeguardingConcern> {
   const errors: Record<string, string> = {};
+  // Never a default person: a concern filed against the wrong person protects nobody (HZ-126).
+  if (!options.personId) errors.personId = t("safeguarding.form.personError");
   const abuseTypes = all(form, "abuseTypes", ABUSE_TYPES);
   if (abuseTypes.length === 0) errors.abuseTypes = t("safeguarding.form.abuseTypesError");
   const description = text(form, "description");
@@ -167,7 +169,12 @@ export function readRaiseConcern(
 export function readSafeguardingUpdate(
   form: FormLike,
   t: Translator,
-  options: { readonly version: number; readonly now?: Date },
+  options: {
+    readonly version: number;
+    readonly now?: Date;
+    /** The outcome already recorded: sent again only with changed measures, which clear it. */
+    readonly savedMeasuresOutcome?: string | null;
+  },
 ): Read<UpdateSafeguardingConcern> {
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
@@ -240,8 +247,17 @@ export function readSafeguardingUpdate(
     body.protectiveMeasures = value || null;
   }
   // Needed before a concern with measures is closed or not referred (HZ-126; the domain rule).
-  const measuresOutcome = oneOf(MEASURES_OUTCOMES, text(form, "measuresOutcome"));
-  if (measuresOutcome) body.measuresOutcome = measuresOutcome;
+  // Sent when it changes, or with changed measures, since the API clears it when they change.
+  const chosen = text(form, "measuresOutcome");
+  const measuresOutcome = oneOf(MEASURES_OUTCOMES, chosen);
+  if (chosen && !measuresOutcome) {
+    errors.measuresOutcome = t("safeguarding.update.measuresOutcomeError");
+  } else if (
+    measuresOutcome &&
+    (measuresOutcome !== options.savedMeasuresOutcome || body.protectiveMeasures !== undefined)
+  ) {
+    body.measuresOutcome = measuresOutcome;
+  }
   if (Object.keys(errors).length > 0) return failed(errors, parts);
   if (Object.keys(body).length === 1) {
     return failed({ form: t("safeguarding.update.nothing") });

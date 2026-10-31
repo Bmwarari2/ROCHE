@@ -52,7 +52,12 @@ export async function safeguardingChain(tx: Transaction, tenantId: string) {
 }
 
 /** Audited once a day when nobody active can manage the log where the concern is (as HZ-013). */
-async function recordUnrouted(tx: Transaction, row: SafeguardingConcernRow, now: Date) {
+async function recordUnrouted(
+  tx: Transaction,
+  row: SafeguardingConcernRow,
+  now: Date,
+  reasonCode: "no_active_manager" | "raiser_only" = "no_active_manager",
+) {
   const [recent] = await tx
     .select({ id: auditEvent.id })
     .from(auditEvent)
@@ -72,11 +77,11 @@ async function recordUnrouted(tx: Transaction, row: SafeguardingConcernRow, now:
     outcome: "error",
     resourceType: "safeguarding_concern",
     resourceId: row.id,
-    reason: "no_active_manager",
+    reason: reasonCode,
     scope: {
       locationId: row.locationId,
       dueAt: row.referralDueAt.toISOString(),
-      reasonCode: "no_active_manager",
+      reasonCode,
     },
   });
 }
@@ -230,12 +235,14 @@ export async function tellManagersNotReferred(
 
 /**
  * A concern raised is never left unseen (HZ-126; the gap found by the slice 83 guides): at once,
- * the holders of `safety.safeguarding.manage` at the person's home are told (urgent, in the app and
- * by push) through the same chain as an overdue referral (H-598: the managers first, then the
- * owner role after the notification escalation minutes, or the tenant's own chain), and a task
- * asks them to decide on the referral by its target. The raiser is told only when nobody else
- * holds it. Nobody active to tell is audited as unrouted, as the overdue sweep does. Returns how
- * many were told.
+ * the holders of `safety.safeguarding.manage` at the person's home other than the raiser are told
+ * (urgent, in the app; push has no destination yet) through the same chain as an overdue referral
+ * (H-598: unacknowledged, it goes to the chain's next step), and a task asks them to decide on the
+ * referral by its target. When the raiser is the only holder at the home, the holders at other
+ * homes are told instead (clinical review, finding 8); when there are none, the raiser is told
+ * and it is audited as unrouted, coded `raiser_only`, so the operator's daily signal counts it.
+ * Nobody active at all is audited as unrouted, as the overdue sweep does. Returns how many were
+ * told.
  */
 export async function alertSafeguardingRaised(
   tx: Transaction,
@@ -249,8 +256,16 @@ export async function alertSafeguardingRaised(
       .where(eq(person.id, row.personId));
     const locationId = home?.locationId ?? row.locationId;
     const holders = await permissionHolders(tx, "safety.safeguarding.manage", locationId, now);
-    const others = holders.filter((id) => id !== row.raisedBy);
-    const recipients = others.length > 0 ? others : holders;
+    const notRaiser = (ids: readonly string[]) => ids.filter((id) => id !== row.raisedBy);
+    let recipients = notRaiser(holders);
+    let raiserOnly = false;
+    if (recipients.length === 0 && holders.length > 0) {
+      recipients = notRaiser(await permissionHolders(tx, "safety.safeguarding.manage", null, now));
+      if (recipients.length === 0) {
+        recipients = holders;
+        raiserOnly = true;
+      }
+    }
     await tx
       .insert(task)
       .values({
@@ -270,6 +285,7 @@ export async function alertSafeguardingRaised(
       await recordUnrouted(tx, { ...row, locationId }, now);
       return 0;
     }
+    if (raiserOnly) await recordUnrouted(tx, { ...row, locationId }, now, "raiser_only");
     const chain = await safeguardingChain(tx, row.tenantId);
     const steps = chain.steps as EscalationStep[];
     for (const recipient of recipients) {
@@ -282,7 +298,7 @@ export async function alertSafeguardingRaised(
           title: "A safeguarding concern has been raised",
           body: "Open it to read the concern and decide on the referral to the local authority.",
           link: `/safeguarding/${row.id}`,
-          channels: ["in_app", "push"],
+          channels: ["in_app"],
           sourceType: "safeguarding_concern",
           sourceId: row.id,
           personId: row.personId,
@@ -301,12 +317,16 @@ export async function alertSafeguardingRaised(
   });
 }
 
-/** The referral decision (referred, or not referred with a reason) completes the task it opened. */
+/**
+ * The referral decision (referred, or not referred with a reason) completes the task it opened,
+ * attributed to whoever made it, with the concern as its evidence.
+ */
 export async function finishSafeguardingReferralTask(
   tx: Transaction,
   concernId: string,
   now: Date,
   reason: "referred" | "no_referral",
+  decidedBy: string,
 ): Promise<void> {
   await withTenantWideScope(tx, async () => {
     await tx
@@ -314,6 +334,9 @@ export async function finishSafeguardingReferralTask(
       .set({
         status: "done",
         completedAt: now,
+        completedBy: decidedBy,
+        evidenceType: "safeguarding_concern",
+        evidenceId: concernId,
         statusReason:
           reason === "referred" ? "The concern was referred" : "A reason not to refer was recorded",
       })
@@ -323,6 +346,27 @@ export async function finishSafeguardingReferralTask(
           eq(task.sourceType, "safeguarding_concern"),
           eq(task.sourceId, concernId),
           inArray(task.status, ["open", "in_progress"]),
+        ),
+      );
+  });
+}
+
+/**
+ * A manager of the log opening a raised concern stops the escalation of the alerts it raised
+ * (clinical review, finding 7): a manager has seen it, so the next step of the chain is not told
+ * for every manager who has not. The alerts stay unread for the others.
+ */
+export async function stopRaisedEscalation(tx: Transaction, concernId: string): Promise<void> {
+  await withTenantWideScope(tx, async () => {
+    await tx
+      .update(notification)
+      .set({ escalateAt: null })
+      .where(
+        and(
+          eq(notification.kind, "safety.safeguarding.raised"),
+          eq(notification.sourceType, "safeguarding_concern"),
+          eq(notification.sourceId, concernId),
+          isNull(notification.acknowledgedAt),
         ),
       );
   });

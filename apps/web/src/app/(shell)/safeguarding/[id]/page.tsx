@@ -90,6 +90,12 @@ export default async function ConcernPage({ params }: { params: Promise<{ id: st
           />
           <Row term={t("safeguarding.form.description")} value={data.description} />
           <Row term={t("safeguarding.form.measures")} value={data.protectiveMeasures} />
+          {data.protectiveMeasures ? (
+            <Row
+              term={t("safeguarding.detail.measuresOutcome")}
+              value={t("safeguarding.measuresOutcome", { outcome: data.measuresOutcome ?? "none" })}
+            />
+          ) : null}
           {data.referral ? (
             <Row
               term={t("safeguarding.update.referral")}

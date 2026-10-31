@@ -10,8 +10,10 @@ import {
   TextArea,
   TextField,
 } from "@harbour/ui";
-import { CircleAlert, Save, Send, ShieldAlert } from "lucide-react";
+import { CircleAlert, CircleCheck, Save, Send, ShieldAlert } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import {
   raiseSafeguardingConcern,
   stepSafeguardingConcern,
@@ -45,33 +47,78 @@ const choose = (list: readonly string[], key: string, none: string) => [
   ...list.map((value) => ({ value, label: t(key as "safeguarding.finding", { value }) })),
 ];
 
-/** Raising a concern about a person: who, what kind of abuse, what happened, what keeps them safe. */
+/**
+ * Raising a concern about a person: who, what kind of abuse, what happened, what keeps them safe.
+ * Nobody is chosen until the raiser chooses (clinical review, finding 1). A manager of the log goes
+ * on to the concern; anyone else stays here and is told it was raised, since they cannot open it.
+ */
 export function RaiseConcernForm({
   people,
   personId,
+  canManage,
 }: {
-  readonly people: readonly { readonly id: string; readonly name: string }[];
+  readonly people: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly label: string;
+  }[];
   readonly personId: string | null;
+  readonly canManage: boolean;
 }) {
   const router = useRouter();
   const ids = useFieldIds(["personId", "abuseTypes", "description", "protectiveMeasures"]);
+  const [raisedFor, setRaisedFor] = useState<{ id: string; name: string } | null>(null);
+  const confirmation = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (raisedFor) confirmation.current?.focus();
+  }, [raisedFor]);
   const { submit, result, pending } = useSubmit(
     (form) =>
       readRaiseConcern(form, t, { id: uuidv7(), personId: String(form.get("personId") ?? "") }),
     raiseSafeguardingConcern,
-    (data) => {
+    (data, form) => {
       const raised = data as { id?: string };
-      router.push(raised.id ? `/safeguarding/${raised.id}` : "/safeguarding");
+      if (canManage) {
+        router.push(raised.id ? `/safeguarding/${raised.id}` : "/safeguarding");
+        return;
+      }
+      const chosen = people.find((p) => p.id === String(new FormData(form).get("personId")));
+      setRaisedFor(chosen ? { id: chosen.id, name: chosen.name } : null);
     },
   );
+  if (raisedFor) {
+    return (
+      <div className="flex flex-col gap-3" role="status">
+        <h2
+          ref={confirmation}
+          tabIndex={-1}
+          className="m-0 flex items-center gap-2 text-body font-semibold"
+        >
+          <CircleCheck {...icon} />
+          {t("safeguarding.raised.title")}
+        </h2>
+        <p className="m-0">{t("safeguarding.raised.body")}</p>
+        <p className="m-0">
+          <Link
+            href={`/people/${raisedFor.id}/safeguarding`}
+            className="inline-flex min-h-target items-center underline"
+          >
+            {t("safeguarding.raised.back", { name: raisedFor.name })}
+          </Link>
+        </p>
+      </div>
+    );
+  }
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <SelectField
         id={ids.personId}
         name="personId"
         label={t("safeguarding.form.person")}
-        defaultValue={personId ?? people[0]?.id ?? ""}
-        options={people.map((p) => ({ value: p.id, label: p.name }))}
+        hint={t("safeguarding.form.personHint")}
+        defaultValue={personId ?? ""}
+        emptyOption={t("safeguarding.form.personChoose")}
+        options={people.map((p) => ({ value: p.id, label: p.label }))}
         error={errorFor(result, "personId")}
       />
       <fieldset
@@ -166,7 +213,7 @@ export function UpdateConcernForm({
     "form",
   ]);
   const { submit, result, pending } = useSubmit(
-    (form) => readSafeguardingUpdate(form, t, { version }),
+    (form) => readSafeguardingUpdate(form, t, { version, savedMeasuresOutcome: measuresOutcome }),
     (body) => updateSafeguardingConcern(id, body),
   );
   const legend = "mb-2 text-body font-semibold";
@@ -323,19 +370,19 @@ export function UpdateConcernForm({
           formatCount={(remaining) => characterCount(remaining)}
           error={errorFor(result, "protectiveMeasures")}
         />
-        <RadioGroup
-          id={ids.measuresOutcome}
-          name="measuresOutcome"
-          legend={t("safeguarding.update.measuresOutcome")}
-          hint={t("safeguarding.update.measuresOutcomeHint")}
-          options={MEASURES_OUTCOMES.map((value) => ({
-            value,
-            label: t("safeguarding.measuresOutcome", { outcome: value }),
-          }))}
-          {...(measuresOutcome ? { defaultValue: measuresOutcome } : {})}
-          error={errorFor(result, "measuresOutcome")}
-        />
       </fieldset>
+      <RadioGroup
+        id={ids.measuresOutcome}
+        name="measuresOutcome"
+        legend={t("safeguarding.update.measuresOutcome")}
+        hint={t("safeguarding.update.measuresOutcomeHint")}
+        options={MEASURES_OUTCOMES.map((value) => ({
+          value,
+          label: t("safeguarding.measuresOutcome", { outcome: value }),
+        }))}
+        {...(measuresOutcome ? { defaultValue: measuresOutcome } : {})}
+        error={errorFor(result, "measuresOutcome")}
+      />
       <div>
         <Button type="submit" icon={<Save {...icon} />} disabled={pending}>
           {pending ? t("common.saving") : t("safeguarding.update.submit")}

@@ -10,6 +10,8 @@ import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
+import { UNROUTED_ACTIONS } from "../src/jobs/tasks";
+import { SPEAK_UP_UNROUTED_ACTION } from "../src/services/speak-up-alerts";
 import {
   createHarness,
   type Harness,
@@ -145,7 +147,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-describe("hazard HZ-126 the Freedom to Speak Up lead is told a concern has arrived", () => {
+describe("hazard HZ-131 the Freedom to Speak Up lead is told a concern has arrived", () => {
   const alerts = (concernId: string) =>
     asDemoTenant((c) =>
       c.query<{
@@ -156,9 +158,10 @@ describe("hazard HZ-126 the Freedom to Speak Up lead is told a concern has arriv
         link: string;
         created_at: Date;
         person_id: string | null;
+        severity: string;
       }>(
         `SELECT recipient_tenant_user_id AS recipient, channels, title, body, link, created_at,
-                person_id
+                person_id, severity
            FROM notification WHERE kind = 'safety.speak_up.received' AND source_id = $1`,
         [concernId],
       ),
@@ -185,9 +188,10 @@ describe("hazard HZ-126 the Freedom to Speak Up lead is told a concern has arriv
     const { rows } = await alerts(id);
     expect(rows.map((r) => r.recipient)).toContain(GUARDIAN_ID);
     for (const r of rows) {
-      // In the app only, dated to the start of the day: no push at the moment it was raised.
+      // In the app, at the real time, so it is never buried below the day's other alerts.
       expect(r.channels).toEqual(["in_app"]);
-      expect(r.created_at.getTime()).toBeLessThanOrEqual(before);
+      expect(r.created_at.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+      expect(r.severity).toBe("warning");
       expect(r.body).not.toContain("Petty cash");
       expect(r.title).not.toContain("Petty cash");
       expect(r.link).toBe("/speak-up/cases");
@@ -590,7 +594,7 @@ describe("SAFE-012 the lead's staff list (slice 62)", () => {
   });
 });
 
-describe("hazard HZ-126 the Freedom to Speak Up lead is told a named or confidential concern has arrived", () => {
+describe("hazard HZ-131 the Freedom to Speak Up lead is told a named or confidential concern has arrived", () => {
   const alerts = (concernId: string) =>
     asDemoTenant((c) =>
       c.query<{
@@ -601,25 +605,47 @@ describe("hazard HZ-126 the Freedom to Speak Up lead is told a named or confiden
         link: string;
         created_at: Date;
         person_id: string | null;
+        severity: string;
       }>(
         `SELECT recipient_tenant_user_id AS recipient, channels, title, body, link, created_at,
-                person_id
+                person_id, severity
            FROM notification WHERE kind = 'safety.speak_up.received' AND source_id = $1`,
         [concernId],
       ),
     );
 
-  it("tells the lead of a named or confidential concern, by push too, never naming the reporter", async () => {
+  it("tells the lead of a named or confidential concern, never naming the reporter", async () => {
     for (const identity of ["named", "confidential"] as const) {
       const raised = await raiseNamed(identity);
       const { rows } = await alerts(raised.id);
       const lead = rows.find((r) => r.recipient === GUARDIAN_ID);
-      expect(lead?.channels).toEqual(["in_app", "push"]);
+      expect(lead?.channels).toEqual(["in_app"]);
       expect(`${lead?.title} ${lead?.body}`).not.toMatch(/Carol|Carer|sleep/i);
       // Nobody but the leads is told.
       expect(
         rows.every((r) => r.recipient === GUARDIAN_ID || r.recipient !== DEMO.users.owner.id),
       ).toBe(true);
     }
+  });
+
+  it("makes a concern about care quality or safety urgent, and nothing more about it", async () => {
+    const response = await asUser("carer", "/v1/speak-up", {
+      method: "POST",
+      body: {
+        identity: "confidential",
+        category: "care_quality_or_safety",
+        summary: "Bed rails left down at night.",
+      },
+    });
+    expect(response.status, await response.clone().text()).toBe(201);
+    const raised = await json<SpeakUpThread>(response);
+    const { rows } = await alerts(raised.id);
+    const lead = rows.find((r) => r.recipient === GUARDIAN_ID);
+    expect(lead?.severity).toBe("urgent");
+    expect(`${lead?.title} ${lead?.body}`).not.toMatch(/Bed rails|Carol|Carer/i);
+  });
+
+  it("counts a concern no lead can be told about in the operator's daily signal", () => {
+    expect(UNROUTED_ACTIONS).toContain(SPEAK_UP_UNROUTED_ACTION);
   });
 });

@@ -139,6 +139,49 @@ test("SAFE-006 the manager raises a safeguarding concern; the carer sees only it
   await expect(page.getByText("You do not have access", { exact: false })).toBeVisible();
 });
 
+test("hazard HZ-126 the carer raises a concern from the menu and the record, and is told it was raised", async ({
+  page,
+  context,
+}) => {
+  const person = demoPerson(2);
+  await as(context, "carer");
+  await page.goto("/");
+  // The menu takes a carer straight to raising a concern; nobody is chosen for them.
+  await page.getByRole("navigation").getByRole("link", { name: "Safeguarding" }).first().click();
+  await page.waitForURL(/\/safeguarding\/new$/);
+  await expect(page.getByLabel("Who it is about")).toHaveValue("");
+  await accessibleInBothThemes(page, "raise a safeguarding concern as a carer");
+
+  // From the person's record, the person is chosen.
+  await page.goto(`/people/${person}/safeguarding`);
+  await page.getByRole("link", { name: /^Raise a safeguarding concern about / }).click();
+  await page.waitForURL(/\/safeguarding\/new\?person=/);
+  await expect(page.getByLabel("Who it is about")).toHaveValue(person);
+  await page
+    .getByRole("group", { name: "What kind of abuse or neglect" })
+    .getByLabel("Psychological", { exact: true })
+    .check();
+  await page.getByLabel("What happened").fill(`Shouted at during breakfast (${RUN}).`);
+  await page.getByRole("button", { name: "Raise concern" }).click();
+  // The carer cannot open the concern, so they stay here and are told it was raised.
+  await expect(page.getByRole("heading", { name: "Concern raised" })).toBeFocused();
+  await expect(page).toHaveURL(/\/safeguarding\/new/);
+  await accessibleInBothThemes(page, "concern raised by a carer");
+
+  // The manager is asked what will happen to the measures, as a question.
+  await as(context, "manager");
+  await page.goto("/safeguarding");
+  await page
+    .getByRole("link", { name: /Concern raised/ })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("group", {
+      name: "What will happen to the protective measures when the concern ends?",
+    }),
+  ).toBeVisible();
+});
+
 test("SAFE-012 the carer speaks up in confidence; the lead acknowledges it and replies", async ({
   page,
   context,

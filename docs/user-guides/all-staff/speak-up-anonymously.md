@@ -45,8 +45,8 @@ agency workers and visitors.
   show it to you again.
 - Only the Freedom to Speak Up lead, and people they name to look into it, read your concern.
 - If something is putting a person in danger now, tell the person in charge or call the
-  emergency services. The lead is told a concern has arrived, with nothing that
-  could point at you, but may not read it straight away.
+  emergency services. The lead is told in Harbour that a concern has arrived,
+  naming nobody, but may not read it straight away.
 - You can also speak up outside the organisation, to the National Guardian's Office or a prescribed
   person such as the Care Quality Commission.
 - The rules: [safety specification, web screens](../../specs/safety.md#web-screens-phase-2-slice-62)

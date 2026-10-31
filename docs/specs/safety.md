@@ -1125,31 +1125,45 @@ the whole organisation) reads them for the full export, never writes.
   approving, police without purpose, AHRA for a living person, release without step-up), the
   Regulation 28 clock from the rate table, audit without text.
 
-## 12. Fixes from the slice 83 guides (HZ-126)
+## 12. Fixes from the slice 83 guides (HZ-126, HZ-131)
 
-Writing the user guides (slice 83) found gaps on the screens; these close them.
+Writing the user guides (slice 83) found gaps on the screens; these close them. The clinical-safety
+and accessibility reviews of the fixes refined rules 1 to 4.
 
 1. **A raised safeguarding concern is told at once** (`alertSafeguardingRaised`): the holders of
-   `safety.safeguarding.manage` at the person's home, other than the raiser unless nobody else
-   holds it, get an urgent notification ("A safeguarding concern has been raised", in app and by
-   push) through the escalation chain `safety.safeguarding.overdue` (H-598: the managers, then the
-   owner role after `notification.escalation_minutes`, or the tenant's own chain), and a task
-   `safety.safeguarding_referral` ("Decide on a safeguarding referral", urgent, due at the referral
-   target). Referring, or recording why not, acknowledges the alerts and completes the task, which
-   no task transition closes. Nobody active to tell is audited as `safety.safeguarding.unrouted`.
-2. **A speak-up concern tells the leads** (`tellSpeakUpLeads`): every holder of
-   `safety.speak_up.manage` gets "A speak-up concern has arrived", linking to their cases, with no
-   reporter, person, location or words of the concern. An anonymous concern's alert is dated to the
-   start of the UK day it arrived and sent in the app only, so its time cannot point at who raised
-   it; a named or confidential one is pushed too. Nobody else is told, because anyone outside the
-   leads may be the person the concern is about (escalation: H-1152). Still no outbox event.
-   Nobody to tell is audited as `safety.speak_up.unrouted`.
-3. **Raising a concern is one step away for care workers**: "Raise a safeguarding concern" in the
-   menu for those who hold `safety.incident.report` but not `safety.safeguarding.manage` (who
-   reach it from the log), and "Raise a safeguarding concern about this person" on the person's
-   Safeguarding measures tab.
-4. **The protective measures' outcome is on the update form** ("When the concern ends, the
-   protective measures are": carried into the care plan or risk assessment, or no longer needed),
-   so a concern with measures can be closed or not referred on the web.
+   `safety.safeguarding.manage` at the person's home other than the raiser get an urgent
+   notification ("A safeguarding concern has been raised", in the app; push has no destination
+   yet) through the escalation chain `safety.safeguarding.overdue` (H-598: unacknowledged after
+   `statutory_notification.escalation_minutes`, the chain's next step, by default the owner role,
+   or the tenant's own chain). When the raiser is the only holder at the home, the holders at other
+   homes are told; when there are none, the raiser is told and it is audited as
+   `safety.safeguarding.unrouted` coded `raiser_only`. Nobody active at all is audited coded
+   `no_active_manager`. A task `safety.safeguarding_referral` ("Decide on a safeguarding referral",
+   urgent, due at the referral target) is opened. A holder other than the raiser opening the
+   concern stops the chain for every copy (`stopRaisedEscalation`); the alerts stay unread.
+   Referring, or recording why not, acknowledges the alerts and completes the task as the deciding
+   manager with the concern as its evidence; no task transition closes it, and the general
+   overdue-task engine leaves it to the safeguarding sweep (`SELF_ESCALATED_TASK_KINDS`).
+2. **A speak-up concern tells the leads** (`tellSpeakUpLeads`; HZ-131): every holder of
+   `safety.speak_up.manage` gets "A speak-up concern has arrived" in the app, at the real time,
+   linking to their cases, with no reporter, person, location or words of the concern. A concern
+   about care quality or safety is urgent and its title says so; others are warnings. Nobody else
+   is told, because anyone outside the leads may be the person the concern is about (escalation,
+   an acknowledgement clock and what happens with no lead: H-1152). Still no outbox event. No lead
+   to tell is audited as `safety.speak_up.unrouted` and counted in the operator's daily unrouted
+   signal.
+3. **Raising a concern is one step away for care workers**: **Safeguarding** in the menu, going
+   straight to the raise form, for those who hold `safety.incident.report` but not
+   `safety.safeguarding.manage` (who reach it from the log), and "Raise a safeguarding concern
+   about" the person on their Safeguarding measures tab. The form chooses nobody by default, lists
+   each person with their date of birth, loads a person chosen from a record at another home, and
+   says in words when that person cannot be found. A raiser who cannot open the log stays on the
+   page, told the concern was raised, with a link back to the person's measures.
+4. **The protective measures' outcome is on the update form** ("What will happen to the
+   protective measures when the concern ends?": carried into the care plan or risk assessment, or
+   no longer needed), so a concern with measures can be closed or not referred on the web. The
+   answer is sent only when it changes or with changed measures. Changing the measures clears the
+   answer unless the same update gives it, so an answer about old measures never ends a concern
+   with new ones. The concern shows the answer.
 5. **`safety.whistleblowing.read` is held by no built-in role** until the anonymised view it
    names exists ([ADR-0125](../decisions/0125-speak-up-anonymised-view-not-yet-granted.md)).

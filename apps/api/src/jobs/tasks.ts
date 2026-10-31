@@ -65,6 +65,7 @@ import {
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
+import { SPEAK_UP_UNROUTED_ACTION } from "../services/speak-up-alerts";
 import { raiseStaffFileReminders } from "../services/staff-files";
 import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import { tellAboutNotice } from "../services/sub-processors";
@@ -360,7 +361,8 @@ export function retryUnroutedTasks(deps: TaskDeps, now = new Date()): Promise<nu
  * The audit actions that mean no one could be told about safety work (ADR-0071 review rounds 2 to
  * 4): an overdue task, a sync task, an escalation chain step, an urgent refused-entry review, an
  * urgent result alert, a break-glass alert, an overdue statutory notification, an overdue
- * safeguarding referral and an incident the duty of candour holds open.
+ * safeguarding referral, an incident the duty of candour holds open and a speak-up concern with no
+ * lead.
  */
 export const UNROUTED_ACTIONS = [
   TASK_ESCALATION_UNROUTED_ACTION,
@@ -374,6 +376,8 @@ export const UNROUTED_ACTIONS = [
   // An incident the duty of candour holds open, with no one who manages incidents there to tell
   // (#120 review round 4, M2).
   CANDOUR_BLOCKED_UNROUTED_ACTION,
+  // A speak-up concern with no active Freedom to Speak Up lead to tell (HZ-131).
+  SPEAK_UP_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */

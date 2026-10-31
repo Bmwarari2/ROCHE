@@ -4298,6 +4298,16 @@
     "import.mapping.blank",
     "import.mapping.noRows",
     "import.done",
-    "import.commit.doneTitle"
+    "import.commit.doneTitle",
+    "safeguarding.update.measuresOutcomeError",
+    "safeguarding.detail.measuresOutcome",
+    "safeguarding.form.personHint",
+    "safeguarding.form.personChoose",
+    "safeguarding.form.personOption",
+    "safeguarding.form.personError",
+    "safeguarding.form.personNotFound",
+    "safeguarding.raised.title",
+    "safeguarding.raised.body",
+    "safeguarding.raised.back"
   ]
 }

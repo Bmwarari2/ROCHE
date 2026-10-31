@@ -9,6 +9,7 @@ import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
 
@@ -46,7 +47,7 @@ async function SafeguardingTab({ params }: { readonly params: Params }) {
               href={`/safeguarding/new?person=${id}`}
               className="inline-flex min-h-target items-center underline"
             >
-              {t("safeguarding.raiseAbout")}
+              {t("safeguarding.raiseAbout", { name: personNames(person).full })}
             </Link>
           </p>
         ) : null}

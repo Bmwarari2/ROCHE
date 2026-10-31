@@ -243,10 +243,43 @@ describe("safeguarding", () => {
         readSafeguardingUpdate(form({ measuresOutcome: outcome }), t, { version: 3, now: NOW }),
       ).toMatchObject({ ok: true, body: { version: 3, measuresOutcome: outcome } });
     }
+    const invalid = readSafeguardingUpdate(form({ measuresOutcome: "forgotten" }), t, {
+      version: 3,
+      now: NOW,
+    });
+    expect(invalid).toMatchObject({ ok: false, errors: { measuresOutcome: expect.any(String) } });
+  });
+
+  it("hazard HZ-126 sends a saved outcome again only with changed measures", () => {
+    const saved = { version: 3, now: NOW, savedMeasuresOutcome: "no_longer_needed" };
+    // The saved answer, pre-filled and left alone, is not a change: nothing is sent.
+    expect(readSafeguardingUpdate(form({ measuresOutcome: "no_longer_needed" }), t, saved).ok).toBe(
+      false,
+    );
     expect(
-      readSafeguardingUpdate(form({ measuresOutcome: "forgotten" }), t, { version: 3, now: NOW })
-        .ok,
-    ).toBe(false);
+      readSafeguardingUpdate(form({ measuresOutcome: "carried_into_care_plan" }), t, saved),
+    ).toMatchObject({ ok: true, body: { measuresOutcome: "carried_into_care_plan" } });
+    // With changed measures the answer is sent, since changing them clears it.
+    expect(
+      readSafeguardingUpdate(
+        form({
+          measuresChanged: "yes",
+          protectiveMeasures: "Checks every hour.",
+          measuresOutcome: "no_longer_needed",
+        }),
+        t,
+        saved,
+      ),
+    ).toMatchObject({ ok: true, body: { measuresOutcome: "no_longer_needed" } });
+  });
+
+  it("hazard HZ-126 never raises a concern without a person chosen", () => {
+    const read = readRaiseConcern(
+      form({ abuseTypes: ["neglect"], description: "Left without water overnight." }),
+      t,
+      { id: ID, personId: "" },
+    );
+    expect(read).toMatchObject({ ok: false, errors: { personId: expect.any(String) } });
   });
 
   it("sends only the sections filled in, and says when nothing was", () => {

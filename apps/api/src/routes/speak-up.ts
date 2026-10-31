@@ -441,8 +441,8 @@ export const speakUpRouter = createRouter()
           concernId: id,
           actor: "anonymous",
         });
-        // HZ-126: the leads are told, with nothing that could point at who raised it.
-        await tellSpeakUpLeads(tx, tenantId, id, true, now);
+        // HZ-131: the leads are told, with nothing that could point at who raised it.
+        await tellSpeakUpLeads(tx, tenantId, id, body.category, now);
       });
       const expires = replyTokenExpiresAt as Date | null;
       return c.json(
@@ -549,8 +549,8 @@ export const speakUpRouter = createRouter()
           concernId: id,
           actor: "reporter",
         });
-        // HZ-126: the leads are told; a confidential or named reporter is never in the alert.
-        await tellSpeakUpLeads(tx, access.tenantId, id, false, new Date());
+        // HZ-131: the leads are told; a confidential or named reporter is never in the alert.
+        await tellSpeakUpLeads(tx, access.tenantId, id, body.category, new Date());
         const [row] = await loadMine(tx, access, id);
         if (!row) throw problems.notFound();
         return threadOf(tx, row);

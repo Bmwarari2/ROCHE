@@ -41,10 +41,11 @@ Managers, the owner and the quality lead cannot see cases unless the lead names 
   was raised anonymously with no way to reply."
 - If the page warns **Possible flood**, many anonymous concerns arrived today and new ones are
   refused above the organisation's daily limit. Check for repeats.
-- When a concern arrives, every Freedom to Speak Up lead is told in the app: "A speak-up concern
-  has arrived". The alert names nobody and says nothing of the concern. For an anonymous concern
-  it is dated to the start of that day and never sent as a push, so its time cannot help anyone
-  work out who raised it. Nobody else is told, so check your cases if you have not had alerts.
+- When a concern arrives, every Freedom to Speak Up lead is told in Harbour: "A speak-up concern
+  has arrived", or, for one about care quality or safety, an urgent "A speak-up concern about care
+  quality or safety has arrived". The alert names nobody and says nothing else of the concern.
+  It is not sent to your phone or email, and nobody else is told, so check your cases often,
+  and arrange cover with your organisation when you are away.
 - Harbour never tells managers about a case, and never sends it to the regulator or the police.
   If a concern needs a safeguarding referral or an incident record, you decide and make it
   yourself.
