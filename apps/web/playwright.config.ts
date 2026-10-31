@@ -28,7 +28,38 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "off",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      // The 360 px checks belong to the project below.
+      testIgnore: ["responsive.spec.ts"],
+    },
+    {
+      // Responsive web down to 360 px (MOB-013, WCAG 1.4.10): a phone-sized Chromium window with
+      // touch, running the smoke journeys, a sample journey from each module and the screen-by-
+      // screen overflow, target and axe checks in responsive.spec.ts.
+      name: "mobile-360",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 360, height: 740 },
+        deviceScaleFactor: 2,
+        hasTouch: true,
+      },
+      testMatch: [
+        "responsive.spec.ts",
+        "smoke.spec.ts",
+        "care-record.spec.ts",
+        "round.spec.ts",
+        "handover.spec.ts",
+        "incidents.spec.ts",
+        "tasks.spec.ts",
+        "documents.spec.ts",
+        "search.spec.ts",
+        "team.spec.ts",
+      ],
+    },
+  ],
   webServer: [
     {
       command: "node dist/server.js",
