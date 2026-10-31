@@ -495,7 +495,13 @@ export function AssessmentForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form key={`${tool}-${round}`} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form
+        method="post"
+        key={`${tool}-${round}`}
+        className="flex flex-col gap-4"
+        onSubmit={submit}
+        noValidate
+      >
         {tool === "must" ? <MustFields name={name} /> : null}
         {tool === "ng249_falls" ? <FallsFields name={name} /> : null}
         {tool === "braden" ? <BradenFields /> : null}

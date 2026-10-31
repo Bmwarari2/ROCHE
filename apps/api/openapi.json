@@ -2824,6 +2824,9 @@
                     "awaiting_clearance"
                   ]
                 },
+                "version": {
+                  "type": "integer"
+                },
                 "beds": {
                   "type": "array",
                   "items": {
@@ -2871,6 +2874,7 @@
                 "label",
                 "unitName",
                 "status",
+                "version",
                 "beds"
               ]
             }
@@ -2986,6 +2990,125 @@
         "required": [
           "items",
           "version"
+        ]
+      },
+      "EnquiryRecorded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PersonStatus"
+          },
+          "statusChangedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "status",
+          "statusChangedAt",
+          "version",
+          "replayed"
+        ]
+      },
+      "CreateEnquiry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "givenName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "familyName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "preferredName": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "locationId",
+          "givenName",
+          "familyName",
+          "dateOfBirth"
+        ],
+        "description": "A new person record at `enquiry`, before the pre-admission assessment starts. The NHS number and other details follow on the record."
+      },
+      "ServiceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ServiceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "serviceType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "name",
+          "serviceType",
+          "status"
         ]
       },
       "PropertyList": {
@@ -6848,6 +6971,191 @@
           "reason",
           "version"
         ]
+      },
+      "WorkflowInstanceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowInstanceItem"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "truncated"
+        ]
+      },
+      "WorkflowInstanceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "definitionKey": {
+            "type": "string"
+          },
+          "subjectType": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "incidentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enteredStateAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "slaDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "slaState": {
+            "$ref": "#/components/schemas/WorkflowSlaState"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "incident": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "version": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "closeBlocked": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "closeBlocked"
+            ]
+          },
+          "moves": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowMoveOption"
+            }
+          },
+          "awaitingYourApproval": {
+            "type": "boolean"
+          },
+          "raisedByYou": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "definitionKey",
+          "subjectType",
+          "subjectId",
+          "personId",
+          "incidentId",
+          "locationId",
+          "state",
+          "startedAt",
+          "enteredStateAt",
+          "slaDueAt",
+          "slaState",
+          "createdBy",
+          "permissions",
+          "incident",
+          "moves",
+          "awaitingYourApproval",
+          "raisedByYou"
+        ]
+      },
+      "WorkflowSlaState": {
+        "type": "string",
+        "enum": [
+          "none",
+          "on_track",
+          "due_today",
+          "overdue",
+          "on_record"
+        ],
+        "description": "The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline; on_record when the deadline is kept on the record and the list does not have it (open the record to check, never read as no deadline)"
+      },
+      "WorkflowMoveOption": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string"
+          },
+          "approval": {
+            "type": "boolean"
+          },
+          "requiresReason": {
+            "type": "boolean"
+          },
+          "requiresStepUp": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "to",
+          "approval",
+          "requiresReason",
+          "requiresStepUp"
+        ]
+      },
+      "WorkflowListView": {
+        "type": "string",
+        "enum": [
+          "approvals",
+          "all"
+        ],
+        "default": "approvals",
+        "description": "approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in"
       },
       "DocumentItem": {
         "type": "object",
@@ -12988,6 +13296,34 @@
             "type": "string",
             "format": "date-time"
           },
+          "summary": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "key",
+              "params"
+            ]
+          },
           "seen": {
             "type": "boolean"
           }
@@ -13001,6 +13337,7 @@
           "at",
           "lateAddition",
           "addedAt",
+          "summary",
           "seen"
         ]
       },
@@ -25028,6 +25365,92 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Record an enquiry: a new person record at enquiry (people.md rule 1)",
+        "description": "people.enquiry.manage at the location the enquiry is about. Names and a date of birth (1900 to today) only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later, before 1900 or before the birth. The answer is the record's id and state, never the person's details. A request sent again by the same person with the same id and details answers as the first (replayed); the same id with other details is refused with 409 `id_reused_with_different_details`; an id in use for anything else is refused (422). Refusals are audited with opaque ids.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnquiry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded (or the first copy of the same request sent again)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnquiryRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/people/{id}": {
@@ -26996,6 +27419,86 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/services": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "The services run at a location, for an assessment or an admission",
+        "description": "Organisation configuration, no personal data. For holders of people.enquiry.manage, people.admission.manage or people.person.read who work at the location; anywhere else reads as not found.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Services, by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -29682,7 +30185,7 @@
           "people"
         ],
         "summary": "Record an item of the exit checklist as done, or not required with a reason",
-        "description": "Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand. 'Not required' needs a reason and is allowed only where the checklist allows it.",
+        "description": "Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand, even before the draft exists. A statutory notification the safety module does not draft (a regulator outside England) is recorded only by a holder of safety.notification.submit, with step-up. Residents money, deposits and the DWP need finance.ledger.approve with step-up. 'Not required' needs a reason and is allowed only where the checklist allows it.",
         "security": [
           {
             "bearerAuth": []
@@ -31545,6 +32048,76 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workflows": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Open workflows in your scope, with their deadline state and the steps open to you",
+        "description": "For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Each listed permission counts only where its own scope shows the record and reaches its home (ADR-0071). Steps are taken on each record's own route, which checks its rules and separation of duties again. Records in a state whose deadline is kept on the record but not yet carried here come first, then soonest deadline first.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WorkflowListView"
+            },
+            "required": false,
+            "description": "approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in",
+            "name": "view",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workflows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowInstanceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -44489,7 +45062,7 @@
           "sync"
         ],
         "summary": "A short-lived token for the PowerSync service, scoped to tenant and assignments",
-        "description": "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+        "description": "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         "security": [
           {
             "bearerAuth": []

@@ -15,7 +15,7 @@ import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
-import { idleErrorLogger, type Logger } from "./logger";
+import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { breakGlassSearchRouter } from "./routes/break-glass-search";
 import { careRouter } from "./routes/care";
@@ -49,6 +49,7 @@ import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
 import { peopleRouter } from "./routes/people";
 import { peopleDetailsRouter } from "./routes/people-details";
+import { peopleEnquiriesRouter } from "./routes/people-enquiries";
 import { peopleExitRouter } from "./routes/people-exit";
 import { peopleLifecycleRouter } from "./routes/people-lifecycle";
 import { peoplePropertyRouter } from "./routes/people-property";
@@ -72,6 +73,7 @@ import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
+import { workflowsRouter } from "./routes/workflows";
 import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
@@ -231,6 +233,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", memberSessionsRouter);
   app.route("/", peopleRouter);
   app.route("/", peopleLifecycleRouter);
+  app.route("/", peopleEnquiriesRouter);
   app.route("/", peoplePropertyRouter);
   app.route("/", peopleRecordsRouter);
   app.route("/", peopleTransfersRouter);
@@ -241,6 +244,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", auditRouter);
   app.route("/", formsRouter);
   app.route("/", tasksRouter);
+  app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
@@ -309,11 +313,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }
       return response;
     }
-    // Opaque identifiers only: the error message may contain data, so log its name and stack.
-    logger.error(
-      { requestId: c.get("requestId"), err: { name: error.name, stack: error.stack } },
-      "request failed",
-    );
+    // Opaque identifiers only (section 5.3). The message, and the stack's first line that repeats
+    // it, may hold data: a database error's message holds the query and its values (names, dates
+    // of birth). So only the error's kind, the database's code and the stack's frames are logged.
+    logger.error({ requestId: c.get("requestId"), err: loggableError(error) }, "request failed");
     return problemResponse(
       c,
       new HttpProblem(500, "internal", "Something went wrong on our side. Try again in a moment."),

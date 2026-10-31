@@ -2,6 +2,7 @@ import { AppSchema } from "@harbour/sync/client";
 import { describe, expect, it } from "vitest";
 import type { Me } from "../auth/auth-client";
 import type { FetchLike } from "../auth/http";
+import { answeredMetaId } from "../care/answered-tasks";
 import { issueItem } from "../care/entry-view";
 import { UPLOAD_ISSUES_SQL, type UploadIssueRow } from "../care/queries";
 import { DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
@@ -1766,5 +1767,36 @@ describe("hazard HZ-040 a device a manager revoked (care.md section 6, Device in
     );
     expect(marker?.revoked).toBe(true);
     expect(parseHeldWork(JSON.stringify({ ...marker, revoked: "yes" }))?.revoked).toBeUndefined();
+  });
+});
+
+describe("hazard HZ-029 a held entry that answers a round task answers it again when put back (#123 check, M1)", () => {
+  it("rebuilds the owner's answer the hold cleared", async () => {
+    const dev = await device();
+    const taskId = "0199d000-0000-7000-8000-00000000ta01";
+    const entryId = "0199d000-0000-7000-8000-00000000en01";
+    await dev.execute(
+      `INSERT INTO held_entry (id, tenant_id, person_id, record_table, op, payload, position, held_at)
+       VALUES (?, ?, ?, 'observation', 'PUT', ?, 0, ?)`,
+      [
+        entryId,
+        DEMO_TENANT_ID,
+        BEA_PERSON,
+        JSON.stringify({
+          tenant_id: DEMO_TENANT_ID,
+          person_id: BEA_PERSON,
+          occurred_at: NOW.toISOString(),
+          chart: "repositioning",
+          chart_values: "{}",
+          task_id: taskId,
+        }),
+        NOW.toISOString(),
+      ],
+    );
+    expect(await restoreHeldWork(dev.holdDb, NOW)).toMatchObject({ restored: 1 });
+    const answer = all<{ value: string }>(dev.sql, "SELECT value FROM sync_meta WHERE id = ?", [
+      answeredMetaId(sam.tenantUserId ?? "", taskId),
+    ])[0];
+    expect(JSON.parse(answer?.value ?? "{}")).toMatchObject({ taskId, entryId });
   });
 });

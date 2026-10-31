@@ -55,15 +55,11 @@ function decodeBase64Url(input: string): string | null {
   }
 }
 
-const strings = (value: unknown): string[] | null =>
-  Array.isArray(value) && value.every((v) => typeof v === "string") ? [...value] : null;
-
 /**
- * The write scope a sync token carries, read from its payload (the phone does not verify the
- * signature: PowerSync and the API do; this only decides what to offer). Null when the token has
- * no write claims or cannot be read.
+ * A sync token's claims, read from its payload without verifying it (PowerSync and the API do);
+ * null when the token cannot be read.
  */
-export function writeScopeFromToken(token: string): WriteScope | null {
+export function decodeTokenClaims(token: string): Record<string, unknown> | null {
   const payload = token.split(".")[1];
   if (!payload) return null;
   const text = decodeBase64Url(payload);
@@ -74,8 +70,22 @@ export function writeScopeFromToken(token: string): WriteScope | null {
   } catch {
     return null;
   }
-  if (typeof claims !== "object" || claims === null) return null;
-  const record = claims as Record<string, unknown>;
+  return typeof claims === "object" && claims !== null && !Array.isArray(claims)
+    ? (claims as Record<string, unknown>)
+    : null;
+}
+
+const strings = (value: unknown): string[] | null =>
+  Array.isArray(value) && value.every((v) => typeof v === "string") ? [...value] : null;
+
+/**
+ * The write scope a sync token carries, read from its payload (the phone does not verify the
+ * signature: PowerSync and the API do; this only decides what to offer). Null when the token has
+ * no write claims or cannot be read.
+ */
+export function writeScopeFromToken(token: string): WriteScope | null {
+  const record = decodeTokenClaims(token);
+  if (record === null) return null;
   const locationIds = strings(record.entries_write_location_ids);
   if (locationIds === null || typeof record.entries_write_assigned !== "boolean") return null;
   return {

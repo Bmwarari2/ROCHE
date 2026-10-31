@@ -290,6 +290,7 @@ async function detail(
       at: i.at.toISOString(),
       lateAddition: i.lateAddition,
       addedAt: i.addedAt.toISOString(),
+      summary: i.summary ? { key: i.summary.key, params: { ...i.summary.params } } : null,
       seen: you.seenKeys.has(i.key),
     })),
     notes: notes.map((n) => noteItem(n, staff)),

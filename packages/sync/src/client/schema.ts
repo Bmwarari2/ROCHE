@@ -361,6 +361,11 @@ const task = new Table(
     status: column.text,
     /** `caught_up` when a return or correction brought a missed round back once (people.md rule 2). */
     restore_code: column.text,
+    /**
+     * 1 for a round of a care plan series its plan no longer drives: say "From an earlier plan:
+     * check the current plan" with it (HZ-024; kept by the database, migration 0071).
+     */
+    from_earlier_plan: column.integer,
     escalation_level: column.integer,
     updated_at: column.text,
     /** Sent back as `version` when the task is moved, so a stale move is refused. */
@@ -395,8 +400,9 @@ const handover = new Table(
 );
 
 /**
- * The compiled items the reader may see, by reference only (`key` on the server, a keyword on the
- * device). Their keys in `position` order make the seen token the API asks for when acknowledging.
+ * The compiled items the reader may see (`key` on the server, a keyword on the device), each with
+ * its worded summary. Their keys in `position` order make the seen token the API asks for when
+ * acknowledging.
  */
 const handover_item = new Table(
   {
@@ -412,6 +418,13 @@ const handover_item = new Table(
     at: column.text,
     late_addition: column.integer,
     added_at: column.text,
+    /**
+     * What the item says, JSON: `key` (a catalogue key, `handover.summary.*`, worded on the phone as
+     * `mobile.` + key) and `params` (codes, the NEWS2 score, and a task's title and the reason it
+     * was not done), so the phone words items whose sources it does not hold (H-300). Empty on
+     * items compiled before migration 0071.
+     */
+    summary: column.text,
   },
   { indexes: { by_handover: ["handover_id", "position"] } },
 );

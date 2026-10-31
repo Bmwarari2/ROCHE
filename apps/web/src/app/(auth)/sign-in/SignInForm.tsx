@@ -145,7 +145,7 @@ export function SignInForm({
 
   if (step === "totp") {
     return (
-      <form className="flex flex-col gap-4" onSubmit={verifyCode} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={verifyCode} noValidate>
         {errorMessage}
         <TextField
           ref={codeRef}
@@ -166,7 +166,7 @@ export function SignInForm({
 
   return (
     <div className="flex flex-col gap-6">
-      <form className="flex flex-col gap-4" onSubmit={signIn} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={signIn} noValidate>
         {errorMessage}
         <TextField
           name="email"
