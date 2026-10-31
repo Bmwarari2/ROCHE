@@ -116,6 +116,23 @@ export class PerUserQuota {
   }
 
   /**
+   * Gives back one hit `take` recorded at `at`, for a request reserved before its outcome was
+   * known that turned out not to count (#119 review round 2: reserve first, so parallel requests
+   * cannot all pass a check made before any of them was counted).
+   */
+  async release(tx: Transaction, tenantUserId: string, at: number, amount = 1): Promise<void> {
+    const hits = await lockedHits(tx, this.name, tenantUserId);
+    const index = hits.findIndex((h) => h.at === at && h.amount === amount);
+    if (index < 0) return;
+    await saveHits(
+      tx,
+      this.name,
+      tenantUserId,
+      hits.filter((_, i) => i !== index),
+    );
+  }
+
+  /**
    * Counts one request, answering how many seconds to wait when it would pass the limit (nothing
    * is counted then), else null.
    */
