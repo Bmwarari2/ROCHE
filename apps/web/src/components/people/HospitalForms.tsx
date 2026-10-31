@@ -70,7 +70,8 @@ export function SendToHospitalForm({
         sendItemIds: form.getAll("items").map(String),
         version,
       });
-      setResult(outcome);
+      // On success the page says so where it lands (ArrivalNotice), once.
+      setResult(outcome.ok ? null : outcome);
       if (outcome.ok) {
         entry.next();
         router.push(`${tabHref(personId, "hospital")}?done=sent`, { scroll: false });
@@ -192,7 +193,7 @@ export function HandoverForm({
         acknowledgementReason: reason,
         version,
       });
-      setResult(outcome);
+      setResult(outcome.ok ? null : outcome);
       // The form is replaced by the hand-over as recorded: the page says so and takes focus.
       if (outcome.ok) {
         router.push(`${tabHref(personId, "hospital")}?done=handover`, { scroll: false });
@@ -265,7 +266,8 @@ export function ReturnForm({
         returnedAt: back.instant,
         version,
       });
-      setResult(outcome);
+      // On success the page says so where it lands (ArrivalNotice), once.
+      setResult(outcome.ok ? null : outcome);
       if (outcome.ok) {
         router.push(`${tabHref(personId, "hospital")}?done=returned`, { scroll: false });
       }
@@ -325,7 +327,7 @@ export function ReturnCheckButton({
           onClick={() =>
             startTransition(async () => {
               const outcome = await completeReturnCheck(personId, transferId, checkKey, version);
-              setResult(outcome);
+              setResult(outcome.ok ? null : outcome);
               // The button goes once the check is done: the page says so and takes focus.
               if (outcome.ok) {
                 router.push(`${tabHref(personId, "hospital")}?done=check&at=${checkKey}`, {
