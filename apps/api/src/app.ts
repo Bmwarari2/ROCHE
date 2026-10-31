@@ -89,6 +89,7 @@ import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
 import { speakUpRouter } from "./routes/speak-up";
+import { ldssRouter, sponsorshipRouter, staffPrivacyRouter } from "./routes/sponsorship";
 import { ssoRouter } from "./routes/sso";
 import { staffFilesRouter } from "./routes/staff-files";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
@@ -382,6 +383,9 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", qualityAuditsRouter);
   app.route("/", outbreaksRouter);
   app.route("/", staffFilesRouter);
+  app.route("/", sponsorshipRouter);
+  app.route("/", staffPrivacyRouter);
+  app.route("/", ldssRouter);
   app.route("/", recruitmentRouter);
   app.route("/", caseworkRouter);
   app.route("/", inductionRouter);

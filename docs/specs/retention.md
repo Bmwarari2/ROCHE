@@ -92,6 +92,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `job_template`, `vacancy` (slice 23) | organisation_document |
 | `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
 | `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |
+| `sponsored_worker`, `sponsor_absence`, `sponsor_report`, `staff_privacy_acknowledgement`, `staff_image_consent`, `ldss_claim` (slice 35) | staff_file (tenant's chosen row); as Harbour reads the guidance for sponsors, sponsor records must be kept for at least a year after sponsorship ends, which the staff file rows outlast (to confirm, H-901) |
 | `training_record`, `competence` | training_record |
 | `competence_sign_off`, `competence_withdrawal`, `revalidation_evidence` (slice 17) | training_record |
 | `supervision_record` (slice 17) | staff_file (tenant's chosen row) |

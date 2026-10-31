@@ -25547,6 +25547,828 @@
           "signedOn"
         ]
       },
+      "SponsoredWorkerList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SponsoredWorker"
+            }
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "items",
+          "asOf"
+        ]
+      },
+      "SponsoredWorker": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "member": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "cosReference": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{6,20}$"
+          },
+          "cosAssignedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "socCode": {
+            "type": "string",
+            "pattern": "^\\d{4}$"
+          },
+          "route": {
+            "$ref": "#/components/schemas/SponsorRoute"
+          },
+          "visaExpiresOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "contractedWeeklyHours": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 168
+          },
+          "guaranteedYearlyPay": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "englishEvidence": {
+            "$ref": "#/components/schemas/EnglishEvidence"
+          },
+          "switchingEvidenceOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "appendixDHeld": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppendixDItem"
+            },
+            "maxItems": 8
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "ended"
+            ]
+          },
+          "endedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "visa": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "due_soon",
+              "expired"
+            ]
+          },
+          "salary": {
+            "type": "object",
+            "properties": {
+              "passes": {
+                "type": "boolean"
+              },
+              "meetsYearly": {
+                "type": "boolean"
+              },
+              "meetsHourly": {
+                "type": "boolean"
+              },
+              "hourlyPay": {
+                "type": "number"
+              },
+              "countedWeeklyHours": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "passes",
+              "meetsYearly",
+              "meetsHourly",
+              "hourlyPay",
+              "countedWeeklyHours"
+            ]
+          },
+          "appendixDGaps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppendixDItem"
+            }
+          },
+          "absenceToReport": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "happenedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "dueOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "happenedOn",
+              "dueOn"
+            ]
+          },
+          "absences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SponsorAbsence"
+            }
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SponsorReport"
+            }
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "tenantUserId",
+          "member",
+          "cosReference",
+          "cosAssignedOn",
+          "socCode",
+          "route",
+          "visaExpiresOn",
+          "contractedWeeklyHours",
+          "guaranteedYearlyPay",
+          "englishEvidence",
+          "switchingEvidenceOn",
+          "appendixDHeld",
+          "status",
+          "endedOn",
+          "visa",
+          "salary",
+          "appendixDGaps",
+          "absenceToReport",
+          "absences",
+          "reports",
+          "asOf"
+        ]
+      },
+      "SponsorRoute": {
+        "type": "string",
+        "enum": [
+          "skilled_worker",
+          "health_and_care_worker",
+          "other"
+        ]
+      },
+      "EnglishEvidence": {
+        "type": "string",
+        "enum": [
+          "not_recorded",
+          "majority_english_speaking_country",
+          "degree_taught_in_english",
+          "secure_english_language_test",
+          "previous_grant"
+        ]
+      },
+      "AppendixDItem": {
+        "type": "string",
+        "enum": [
+          "passport_or_travel_document",
+          "right_to_work_check",
+          "contact_details",
+          "certificate_of_sponsorship",
+          "recruitment_evidence",
+          "english_language_evidence",
+          "registration_or_qualification",
+          "absence_records"
+        ]
+      },
+      "SponsorAbsence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fromOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "toOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "authorised": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "fromOn",
+          "toOn",
+          "authorised"
+        ]
+      },
+      "SponsorReport": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SponsorReportKind"
+          },
+          "happenedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reportedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "smsReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "reported",
+              "reported_late",
+              "open",
+              "overdue"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "kind",
+          "happenedOn",
+          "reportedOn",
+          "smsReference",
+          "dueOn",
+          "state"
+        ]
+      },
+      "SponsorReportKind": {
+        "type": "string",
+        "enum": [
+          "did_not_start",
+          "unauthorised_absence",
+          "employment_ended",
+          "change_of_job",
+          "change_of_salary",
+          "change_of_work_location",
+          "change_of_hours",
+          "other"
+        ]
+      },
+      "CreateSponsoredWorker": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cosReference": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{6,20}$"
+          },
+          "cosAssignedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "socCode": {
+            "type": "string",
+            "pattern": "^\\d{4}$"
+          },
+          "route": {
+            "$ref": "#/components/schemas/SponsorRoute"
+          },
+          "visaExpiresOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "contractedWeeklyHours": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 168
+          },
+          "guaranteedYearlyPay": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "englishEvidence": {
+            "$ref": "#/components/schemas/EnglishEvidence"
+          },
+          "switchingEvidenceOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "appendixDHeld": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppendixDItem"
+            },
+            "maxItems": 8
+          }
+        },
+        "required": [
+          "tenantUserId",
+          "cosReference",
+          "cosAssignedOn",
+          "socCode",
+          "route",
+          "visaExpiresOn",
+          "contractedWeeklyHours",
+          "guaranteedYearlyPay",
+          "englishEvidence",
+          "switchingEvidenceOn",
+          "appendixDHeld"
+        ]
+      },
+      "UpdateSponsoredWorker": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cosReference": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{6,20}$"
+          },
+          "cosAssignedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "socCode": {
+            "type": "string",
+            "pattern": "^\\d{4}$"
+          },
+          "route": {
+            "$ref": "#/components/schemas/SponsorRoute"
+          },
+          "visaExpiresOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "contractedWeeklyHours": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 168
+          },
+          "guaranteedYearlyPay": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "englishEvidence": {
+            "$ref": "#/components/schemas/EnglishEvidence"
+          },
+          "switchingEvidenceOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "appendixDHeld": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppendixDItem"
+            },
+            "maxItems": 8
+          },
+          "endedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "cosReference",
+          "cosAssignedOn",
+          "socCode",
+          "route",
+          "visaExpiresOn",
+          "contractedWeeklyHours",
+          "guaranteedYearlyPay",
+          "englishEvidence",
+          "switchingEvidenceOn",
+          "appendixDHeld",
+          "endedOn"
+        ]
+      },
+      "RecordSponsorAbsence": {
+        "type": "object",
+        "properties": {
+          "fromOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "toOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "authorised": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fromOn",
+          "toOn",
+          "authorised"
+        ]
+      },
+      "RecordSponsorReport": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SponsorReportKind"
+          },
+          "happenedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "kind",
+          "happenedOn"
+        ]
+      },
+      "MarkSponsorReportReported": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reportedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "smsReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reportedOn",
+          "smsReference"
+        ]
+      },
+      "SetStaffPrivacyNotice": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "StaffPrivacy": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currentNoticeVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acknowledged": {
+            "type": "boolean"
+          },
+          "acknowledgedVersions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "imageConsent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "purpose": {
+                  "$ref": "#/components/schemas/ImagePurpose"
+                },
+                "decision": {
+                  "type": "string",
+                  "enum": [
+                    "given",
+                    "refused",
+                    "withdrawn",
+                    "none"
+                  ]
+                },
+                "mayUse": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "purpose",
+                "decision",
+                "mayUse"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tenantUserId",
+          "currentNoticeVersion",
+          "acknowledged",
+          "acknowledgedVersions",
+          "imageConsent"
+        ]
+      },
+      "ImagePurpose": {
+        "type": "string",
+        "enum": [
+          "newsletter",
+          "website",
+          "social_media",
+          "family_feed"
+        ]
+      },
+      "AcknowledgeStaffPrivacyNotice": {
+        "type": "object",
+        "properties": {
+          "noticeVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "noticeVersion"
+        ]
+      },
+      "DecideStaffImageConsent": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "$ref": "#/components/schemas/ImagePurpose"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "given",
+              "refused",
+              "withdrawn"
+            ]
+          }
+        },
+        "required": [
+          "purpose",
+          "decision"
+        ]
+      },
+      "LdssClaimList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LdssClaim"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "LdssClaim": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "member": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "courseTitle": {
+            "type": "string"
+          },
+          "completedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "claimedAmount": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/LdssStatus"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submittedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "paidOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "tenantUserId",
+          "member",
+          "courseTitle",
+          "completedOn",
+          "claimedAmount",
+          "status",
+          "reference",
+          "submittedOn",
+          "paidOn",
+          "reason"
+        ]
+      },
+      "LdssStatus": {
+        "type": "string",
+        "enum": [
+          "planned",
+          "submitted",
+          "paid",
+          "rejected",
+          "withdrawn"
+        ]
+      },
+      "CreateLdssClaim": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "courseTitle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "completedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "claimedAmount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100000
+          }
+        },
+        "required": [
+          "tenantUserId",
+          "courseTitle",
+          "completedOn",
+          "claimedAmount"
+        ]
+      },
+      "ChangeLdssClaimStatus": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/LdssStatus"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "status",
+          "reference",
+          "on",
+          "reason"
+        ]
+      },
       "JobTemplateList": {
         "type": "object",
         "properties": {
@@ -65625,6 +66447,1092 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/sponsored-workers": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Sponsored workers",
+        "description": "workforce.immigration.read. Every sponsored worker but oneself, with the visa's state, the salary check, Appendix D gaps, absences, reportable changes and each report's due date today. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sponsored workers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsoredWorkerList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a sponsored worker",
+        "description": "workforce.sponsor.manage. One active record per member of staff, never one's own. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSponsoredWorker"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsoredWorker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/sponsored-workers/{id}": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Change a sponsored worker's record",
+        "description": "workforce.sponsor.manage. The certificate, visa, pay, evidence held and, with an end date, the end of sponsorship. Never one's own; a stale version is refused. Audited with the changed fields' names only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSponsoredWorker"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsoredWorker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/sponsored-workers/{id}/absences": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a sponsored worker's absence",
+        "description": "workforce.sponsor.manage. An absence, authorised or not; the record then says whether unauthorised absence has passed the limit and when the report is due. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordSponsorAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsoredWorker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/sponsored-workers/{id}/reports": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a reportable change",
+        "description": "workforce.sponsor.manage. A change the sponsor must report on the sponsor management system, with the day it happened; the due date follows from the rate table and bank holidays. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordSponsorReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsoredWorker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/sponsor-reports/{id}/reported": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Mark a change as reported",
+        "description": "workforce.sponsor.manage. The date it was reported on the sponsor management system and the reference given; never on one's own record. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkSponsorReportReported"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Marked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsoredWorker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-privacy-notice": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Set the staff privacy notice in force",
+        "description": "platform.tenant.manage. The version of the organisation's staff privacy notice now in force; members are asked to acknowledge it. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetStaffPrivacyNotice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "version"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/staff-privacy": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "My staff privacy notice and image consent",
+        "description": "workforce.self.read. The notice version in force, whether the member has acknowledged it, and their decision on each optional use of their photo or image.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your privacy choices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPrivacy"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/staff-privacy/acknowledgements": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Acknowledge the staff privacy notice",
+        "description": "workforce.self.read. The member acknowledges the version in force, once; kept as made. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeStaffPrivacyNotice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPrivacy"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/staff-image-consent": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Decide on an optional use of my photo or image",
+        "description": "workforce.self.read. Give, refuse or withdraw consent for one optional use; the latest decision stands and earlier ones are kept. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideStaffImageConsent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPrivacy"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{id}/staff-privacy": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A member's privacy notice acknowledgement and image consent",
+        "description": "workforce.staff_file.read. Whether the member has acknowledged the notice in force and their image consent decisions, before their photo is used. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The member's choices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPrivacy"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/ldss-claims": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "LDSS claims",
+        "description": "workforce.ldss.manage. Every Learning and Development Support Scheme claim, newest first.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Claims",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdssClaimList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Plan an LDSS claim",
+        "description": "workforce.ldss.manage. A planned claim for a member's course; the amount as the claim states it. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLdssClaim"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Planned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdssClaim"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/ldss-claims/{id}/status": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Move an LDSS claim on",
+        "description": "workforce.ldss.manage. Submitted (reference and date), paid (date), rejected or withdrawn (a reason), or resubmitted after a rejection. A stale version is refused. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeLdssClaimStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdssClaim"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -978,6 +978,32 @@ H-871).
 | `leaver_record.staff_file_retain_until` | Records Management Code of Practice | `YYYY-MM-DD` or empty | Rule 23 |
 | `reference_request.kind`, `state`, `declined_reason` | Harbour; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct`; `requested`, `sent`, `declined`; `no_consent_to_share`, `not_employed_here`, `duplicate_request` | H-876 |
 
+## Workforce: sponsor licence, staff privacy and LDSS (Phase 2, slice 35)
+
+Code lists for [workforce.md](workforce.md) section 12 (migration 0097). Harbour's own fields,
+exported in the full tenant export with these names. Route and SOC codes follow the Home Office
+sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, to confirm (H-901).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `sponsored_worker.cos_reference`, `cos_assigned_on` | Home Office certificate of sponsorship | Capitals and digits, 6 to 20; `YYYY-MM-DD` | HR only |
+| `sponsored_worker.soc_code` | SOC 2020 (ONS) | Four digits | |
+| `sponsored_worker.route` | Immigration Rules routes | `skilled_worker`, `health_and_care_worker`, `other` | |
+| `sponsored_worker.visa_expires_on` | Harbour | `YYYY-MM-DD` | Never the visa's contents |
+| `sponsored_worker.contracted_weekly_hours`, `guaranteed_yearly_pay` | Home Office salary rules | Hours to 2 decimals; pounds to the penny | The salary check reads the floors from the rate table |
+| `sponsored_worker.english_evidence` | Immigration Rules Appendix English Language | `not_recorded`, `majority_english_speaking_country`, `degree_taught_in_english`, `secure_english_language_test`, `previous_grant` | |
+| `sponsored_worker.switching_evidence_on` | Harbour | `YYYY-MM-DD` or empty | H-524 |
+| `sponsored_worker.appendix_d_held` | Guidance for sponsors, Appendix D | `passport_or_travel_document`, `right_to_work_check`, `contact_details`, `certificate_of_sponsorship`, `recruitment_evidence`, `english_language_evidence`, `registration_or_qualification`, `absence_records` | Which records are held, not the records |
+| `sponsored_worker.status`, `ended_on` | Harbour | `active` (no end date) or `ended` (with one) | One active record per member |
+| `sponsor_absence.from_on`, `to_on`, `authorised` | Harbour | `YYYY-MM-DD`, both inclusive; boolean | |
+| `sponsor_report.kind` | Sponsor management system reportable changes | `did_not_start`, `unauthorised_absence`, `employment_ended`, `change_of_job`, `change_of_salary`, `change_of_work_location`, `change_of_hours`, `other` | |
+| `sponsor_report.happened_on`, `reported_on`, `sms_reference` | Harbour | `YYYY-MM-DD`; the reference the sponsor management system gave (up to 40 characters) | Reported date and reference set together |
+| `tenant.staff_privacy_notice_version` | Harbour | Up to 40 characters | The organisation's own version label |
+| `staff_privacy_acknowledgement.notice_version`, `acknowledged_at` | Harbour | Up to 40 characters; UTC timestamp | Append-only; once per version |
+| `staff_image_consent.purpose`, `decision`, `decided_at` | Harbour | `newsletter`, `website`, `social_media`, `family_feed`; `given`, `refused`, `withdrawn`; UTC timestamp | Append-only; the latest decision stands |
+| `ldss_claim.course_title`, `completed_on`, `claimed_amount` | Skills for Care LDSS (England) | Plain text, 2 to 200; `YYYY-MM-DD`; pounds as claimed | Harbour holds no funding figure (H-903) |
+| `ldss_claim.status`, `reference`, `submitted_on`, `paid_on`, `reason` | Harbour | `planned`, `submitted`, `paid`, `rejected`, `withdrawn`; plain text | Submitted needs a reference and date; paid a date; rejected or withdrawn a reason |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

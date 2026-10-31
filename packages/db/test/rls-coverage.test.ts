@@ -13,6 +13,8 @@ const APPEND_ONLY_TABLES = [
   "shadow_shift",
   "probation_review",
   "employee_case_event",
+  "staff_privacy_acknowledgement",
+  "staff_image_consent",
   "audit_event",
   "record_version",
   "workflow_transition",

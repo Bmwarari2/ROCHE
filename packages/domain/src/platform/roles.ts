@@ -60,7 +60,10 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
     p !== "finance.ledger.record" &&
     p !== "quality.evidence.read" &&
     // HR-only staff documents stay with HR (workforce.md section 3); a manager is granted them.
-    p !== "workforce.hr_document.read",
+    p !== "workforce.hr_document.read" &&
+    // So do immigration and sponsor licence records (section 12.4).
+    p !== "workforce.immigration.read" &&
+    p !== "workforce.sponsor.manage",
 ).concat([
   "platform.user.manage",
   "platform.audit.read",
@@ -314,6 +317,9 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.staff_file.read",
       "workforce.staff_file.manage",
       "workforce.hr_document.read",
+      "workforce.immigration.read",
+      "workforce.sponsor.manage",
+      "workforce.ldss.manage",
       "workforce.training.manage",
       "workforce.supervision.manage",
       "workforce.competence.observe",

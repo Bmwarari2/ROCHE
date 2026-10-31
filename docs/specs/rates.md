@@ -131,6 +131,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |
 | sponsor.switching_evidence_months | 3 | months | 2025-07-22 | - | uk | master prompt 12.1 ("3-month switching evidence") | to-verify |
 | sponsor.counted_weekly_hours_max | 48 | hours | 2025-07-22 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, salary requirements (pay counted for at most 48 hours a week) | to-verify |
+| sponsor.unauthorised_absence_working_days | 10 | working_days | 2000-01-01 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, reporting duties (a sponsored worker absent without permission for more than 10 consecutive working days is reported) | to-verify |
+| sponsor.visa_expiry_warning_days | 90 | days | 2025-01-01 | - | uk | Harbour default: how far ahead a sponsored worker's visa expiry is flagged (no statutory figure) | to-verify |
 | fnc.weekly.standard | 267.68 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
 | fnc.weekly.standard | 254.06 | GBP_per_week | 2025-04-01 | 2026-03-31 | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost | verified |
 | fnc.weekly.higher | 368.24 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
@@ -358,6 +360,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
   (£12.82 an hour) as the lower going rate for occupation codes 6135 and 6136, but does not say which
   column applies to care workers, and the page shows no effective date (last updated 22 July 2025, used
   as `valid_from`). Confirm the applicable rate and its start date with the Home Office sponsor guidance.
+- `sponsor.unauthorised_absence_working_days` (10) and `sponsor.visa_expiry_warning_days` (90, a Harbour
+  default): confirm the absence reporting threshold against the current guidance for sponsors and the
+  warning window with the organisation's HR lead before the sponsor module is used (H-900, H-902).
 - `sponsor.switching_evidence_months` (3): section 12.1 asks for "3-month switching evidence" without
   defining it. It is read here as the evidence period for in-country switching into the care worker
   route. Confirm the rule and its start date before the sponsor module (Phase 2) uses it.
