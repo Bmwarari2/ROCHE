@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { resolveRate } from "../platform/rates";
 import {
+  ALERT_REASON_CODES,
   type AlertNotification,
   acknowledgementState,
   alertConditions,
+  alertReasonFromFlags,
   alertSummaryCode,
   checkHandoverKeepsItems,
   checkHandoverNote,
   compileHandover,
+  HANDOVER_ALERT_KINDS,
   HANDOVER_CLOSED_MESSAGE,
   HANDOVER_NOTE_TAGS,
   HANDOVER_NOTIFICATION_KIND,
@@ -321,6 +324,7 @@ const sources: HandoverSources = {
     {
       id: "a-urgent",
       kind: "care.urgent_result",
+      reason: "news2_threshold",
       personId: "p1",
       severity: "urgent",
       createdAt: t("2026-10-11T09:02:00Z"),
@@ -356,7 +360,7 @@ const sources: HandoverSources = {
     },
   ],
   tasks: [
-    task("t-overdue", { windowEnd: t("2026-10-11T12:30:00Z") }),
+    task("t-overdue", { windowEnd: t("2026-10-11T12:30:00Z"), fromEarlierPlan: true }),
     task("t-overdue-no-window", { dueAt: t("2026-10-11T09:00:00Z") }),
     task("t-done", {
       status: "done",
@@ -371,6 +375,7 @@ const sources: HandoverSources = {
     task("t-skipped-urgent", {
       kind: "care.news2_response",
       statusReason: "Asleep, will turn at 14:00",
+      planAction: "Turn every two hours, left and right",
       status: "skipped",
       priority: "urgent",
       closedAt: t("2026-10-11T10:00:00Z"),
@@ -492,9 +497,9 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
       "alert",
       "a-urgent",
       "handover.summary.alert",
-      { alert: "care_urgent_result", acknowledged: "yes" },
+      { alert: "care_urgent_result", reason: "news2_threshold" },
     ],
-    ["alert", "a-unacknowledged", "handover.summary.alert", { alert: "other", acknowledged: "no" }],
+    ["alert", "a-unacknowledged", "handover.summary.alert", { alert: "other", reason: "other" }],
     [
       "body_map_mark",
       "m-1",
@@ -502,25 +507,41 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
       { markType: "bruise", view: "front", region: "forearm", side: "left" },
     ],
     ["flagged_note", "n-flagged", "handover.summary.flaggedNote", {}],
-    ["overdue_task", "t-overdue", "handover.summary.overdueTask", { title: "Reposition" }],
-    ["unfinished_task", "t-unfinished", "handover.summary.unfinishedTask", { title: "Reposition" }],
+    [
+      "overdue_task",
+      "t-overdue",
+      "handover.summary.overdueTask",
+      { title: "Reposition", planAction: "", earlierPlan: "yes" },
+    ],
+    [
+      "unfinished_task",
+      "t-unfinished",
+      "handover.summary.unfinishedTask",
+      { title: "Reposition", planAction: "", earlierPlan: "no" },
+    ],
     [
       "must_follow_up",
       "t-must",
       "handover.summary.mustFollowUp",
-      { title: "Refer to the dietitian" },
+      { title: "Refer to the dietitian", planAction: "", earlierPlan: "no" },
     ],
     [
       "skipped_task",
       "t-skipped-urgent",
       "handover.summary.skippedTask",
-      { title: "Reposition", status: "skipped", reason: "Asleep, will turn at 14:00" },
+      {
+        title: "Reposition",
+        planAction: "Turn every two hours, left and right",
+        earlierPlan: "no",
+        status: "skipped",
+        reason: "Asleep, will turn at 14:00",
+      },
     ],
     [
       "skipped_task",
       "t-skipped-evidence",
       "handover.summary.skippedTask",
-      { title: "Reposition", status: "cancelled", reason: "" },
+      { title: "Reposition", planAction: "", earlierPlan: "no", status: "cancelled", reason: "" },
     ],
     [
       "refusal",
@@ -1174,5 +1195,52 @@ describe("hazards HZ-018 and HZ-008 a late addition always reaches someone who c
         canSee,
       }),
     ).toEqual({ notices: [], unheard: [] });
+  });
+});
+
+describe("hazard HZ-018 an alert's summary says what it is about (#50 review round 1, clinical M2)", () => {
+  it.each([
+    [{ news2: { band: "high", score: 7 } }, "news2_threshold"],
+    [{ iddsiAlert: true, iddsiProblem: "level_not_recorded" }, "iddsi_level_not_recorded"],
+    [{ iddsiAlert: true }, "iddsi_unsafe_level"],
+    [{ iddsiAlert: false }, undefined],
+    [null, undefined],
+  ])("reads the trigger of a care result from its observation's flags: %o", (flags, reason) => {
+    expect(alertReasonFromFlags(flags)).toBe(reason);
+  });
+
+  it("carries the reason from any copy of the alert, and never whether anyone acknowledged it", () => {
+    const [alert] = alertConditions([
+      {
+        id: "n-1",
+        kind: "care.urgent_result",
+        severity: "urgent",
+        sourceType: "observation",
+        sourceId: "o-1",
+        personId: "p1",
+        createdAt: t("2026-10-11T09:00:00Z"),
+        acknowledgedAt: null,
+        reason: "iddsi_unsafe_level",
+      },
+    ]);
+    const [item] = compileHandover(shift, { ...empty, alerts: alert ? [alert] : [] }, compiledAt);
+    expect(item?.summary).toEqual({
+      key: "handover.summary.alert",
+      params: { alert: "care_urgent_result", reason: "iddsi_unsafe_level" },
+    });
+  });
+
+  it("lists every urgent alert kind and care result code a summary words", () => {
+    expect(HANDOVER_ALERT_KINDS).toContain("platform.task.overdue");
+    expect(HANDOVER_ALERT_KINDS).toContain("care.dols.expiring");
+    expect([...ALERT_REASON_CODES].sort()).toEqual(
+      [
+        "iddsi_level_not_recorded",
+        "iddsi_prescribed_unreadable",
+        "iddsi_reason_missing",
+        "iddsi_unsafe_level",
+        "news2_threshold",
+      ].sort(),
+    );
   });
 });
