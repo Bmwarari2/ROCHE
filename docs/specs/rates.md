@@ -14,7 +14,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
   `valid_from` dates or nations; for a given key and nation, date ranges never overlap.
 - **value**: a plain number with no currency symbol or thousands separator. Money is in pounds with two
   decimals (12.71). Percentages are numbers (12.07 means 12.07%).
-- **unit**: `GBP_per_hour`, `GBP_per_day`, `GBP_per_week`, `GBP_per_year`, `GBP`, `percent`, `days`,
+- **unit**: `GBP_per_hour`, `GBP_per_day`, `GBP_per_week`, `GBP_per_month`, `GBP_per_year`, `GBP`, `percent`, `days`,
   `working_days`, `working_hours`, `hours`, `minutes`, `seconds`, `weeks`, `months`, `years`, `celsius`,
   `mm`, `count`, `day_of_month`, `month_of_year`, `minute_of_day` (0 to 1439 minutes after midnight, UK local time; 07:30 is 450).
 - **valid_from / valid_to**: ISO dates, inclusive. `valid_to` is `-` while the figure is current; when a
@@ -52,6 +52,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | nmw.accommodation_offset.daily | 10.66 | GBP_per_day | 2025-04-01 | 2026-03-31 | uk | https://www.gov.uk/national-minimum-wage-accommodation | verified |
 | nmw.accommodation_offset.weekly | 77.70 | GBP_per_week | 2026-04-01 | - | uk | https://www.gov.uk/national-minimum-wage-accommodation | verified |
 | nmw.accommodation_offset.weekly | 74.62 | GBP_per_week | 2025-04-01 | 2026-03-31 | uk | https://www.gov.uk/national-minimum-wage-accommodation | verified |
+| nmw.age.21_plus | 21 | years | 2024-04-01 | - | uk | https://www.gov.uk/national-minimum-wage-rates (the "21 and over" band) | verified |
+| nmw.age.18_to_20 | 18 | years | 2024-04-01 | - | uk | https://www.gov.uk/national-minimum-wage-rates (the "18 to 20" band) | verified |
+| nmw.apprentice.age_limit | 19 | years | 2000-01-01 | - | uk | https://www.gov.uk/national-minimum-wage-rates (apprentices aged under 19, or 19 or over in the first year) | verified |
+| nmw.apprentice.first_year_months | 12 | months | 2000-01-01 | - | uk | https://www.gov.uk/national-minimum-wage-rates (the first year of the apprenticeship) | verified |
 | ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | england | https://www.gov.uk/statutory-sick-pay | verified |
 | ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | wales | https://www.gov.uk/statutory-sick-pay | verified |
 | ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | scotland | https://www.gov.uk/statutory-sick-pay | verified |
@@ -62,6 +66,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ssp.waiting_days | 0 | days | 2026-04-06 | - | wales | master prompt 3, 12.3 (SSP from day one) | master-prompt |
 | ssp.waiting_days | 0 | days | 2026-04-06 | - | scotland | master prompt 3, 12.3 (SSP from day one) | master-prompt |
 | ssp.max_weeks | 28 | weeks | 2000-01-01 | - | uk | https://www.gov.uk/employers-sick-pay | verified |
+| family_pay.standard_weekly | 194.32 | GBP_per_week | 2026-04-05 | - | uk | Statutory maternity, paternity, adoption, shared parental and parental bereavement pay standard rate from April 2026 (secondary sources citing gov.uk; start date 5 or 6 April to confirm) | to-verify |
+| family_pay.earnings_percentage | 90 | percent | 2000-01-01 | - | uk | https://www.gov.uk/maternity-pay-leave (90% of average weekly earnings) | to-verify |
+| smp.higher_rate_weeks | 6 | weeks | 2000-01-01 | - | uk | https://www.gov.uk/maternity-pay-leave (the first 6 weeks at 90%) | to-verify |
+| smp.total_weeks | 39 | weeks | 2007-04-01 | - | uk | https://www.gov.uk/maternity-pay-leave | to-verify |
 | holiday.accrual_percentage.irregular_hours | 12.07 | percent | 2024-04-01 | - | england | master prompt 12.3 (holiday reforms 2024) | master-prompt |
 | holiday.accrual_percentage.irregular_hours | 12.07 | percent | 2024-04-01 | - | wales | master prompt 12.3 (holiday reforms 2024) | master-prompt |
 | holiday.accrual_percentage.irregular_hours | 12.07 | percent | 2024-04-01 | - | scotland | master prompt 12.3 (holiday reforms 2024) | master-prompt |
@@ -83,9 +91,21 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | wtr.young_worker.daily_rest_hours | 12 | hours | 1998-10-01 | - | uk | https://www.gov.uk/rest-breaks-work/young-workers | verified |
 | wtr.young_worker.weekly_rest_hours | 48 | hours | 1998-10-01 | - | uk | https://www.gov.uk/rest-breaks-work/young-workers | verified |
 | awr.qualifying_weeks | 12 | weeks | 2011-10-01 | - | uk | master prompt 12.3 (AWR 2010) | master-prompt |
+| awr.break_reset_weeks | 6 | weeks | 2011-10-01 | - | uk | Agency Workers Regulations 2010, regulation 7 (a break of more than six weeks resets the clock) | to-verify |
+| awr.sickness_pause_max_weeks | 28 | weeks | 2011-10-01 | - | uk | Agency Workers Regulations 2010, regulation 7 (sickness or injury breaks of up to 28 weeks pause the clock) | to-verify |
+| absence.bradford.window_weeks | 52 | weeks | 2000-01-01 | - | all | Tenant default: the Bradford factor has no statutory basis (phase-2.md, slice 6; H-581) | to-verify |
 | auto_enrolment.earnings_trigger | 10000.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627; master prompt 12.3 | verified |
 | auto_enrolment.qualifying_earnings.lower | 6240.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627 | verified |
 | auto_enrolment.qualifying_earnings.upper | 50270.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627 | verified |
+| auto_enrolment.earnings_trigger.weekly | 192.00 | GBP_per_week | 2026-04-06 | - | uk | The Pensions Regulator, earnings thresholds by pay reference period (annual figure unchanged for 2026-27) | to-verify |
+| auto_enrolment.earnings_trigger.monthly | 833.00 | GBP_per_month | 2026-04-06 | - | uk | As above | to-verify |
+| auto_enrolment.qualifying_earnings.lower.weekly | 120.00 | GBP_per_week | 2026-04-06 | - | uk | As above | to-verify |
+| auto_enrolment.qualifying_earnings.lower.monthly | 520.00 | GBP_per_month | 2026-04-06 | - | uk | As above | to-verify |
+| auto_enrolment.qualifying_earnings.upper.weekly | 967.00 | GBP_per_week | 2026-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/ earnings thresholds table | verified |
+| auto_enrolment.qualifying_earnings.upper.monthly | 4189.00 | GBP_per_month | 2026-04-06 | - | uk | As above | verified |
+| auto_enrolment.eligible_min_age | 22 | years | 2012-10-01 | - | uk | Pensions Act 2008 (eligible jobholder: aged 22 to state pension age) | to-verify |
+| auto_enrolment.min_age | 16 | years | 2012-10-01 | - | uk | Pensions Act 2008 (non-eligible jobholder and entitled worker from 16) | to-verify |
+| auto_enrolment.max_age | 74 | years | 2012-10-01 | - | uk | Pensions Act 2008 (to 74) | to-verify |
 | sponsor.salary_floor.care_worker | 25000.00 | GBP_per_year | 2025-07-22 | - | uk | master prompt 12.1; shown as the lower going rate for SOC 6135 and 6136 at https://www.gov.uk/government/publications/skilled-worker-visa-going-rates-for-eligible-occupations/skilled-worker-visa-going-rates-for-eligible-occupation-codes | master-prompt |
 | sponsor.salary_floor.care_worker_hourly | 12.82 | GBP_per_hour | 2025-07-22 | - | uk | https://www.gov.uk/government/publications/skilled-worker-visa-going-rates-for-eligible-occupations/skilled-worker-visa-going-rates-for-eligible-occupation-codes | to-verify |
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |

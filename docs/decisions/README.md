@@ -62,6 +62,8 @@ for an answer.
 | [0071](0071-data-scope-is-per-permission.md) | Data scope is per permission | accepted | 2026-10-12 | Phase 1 |
 | [0072](0072-mfa-counts-only-for-the-session-that-used-it.md) | MFA counts only for the session that used it | accepted | 2026-10-16 | Phase 1 |
 | [0073](0073-changelog-fragments.md) | Development log entries as one file per pull request (deviation from section 20 rule 9's wording) | accepted | 2026-10-16 | All phases |
+| [0086](0086-pay-rules-engine.md) | Pay rules engine: pure functions over stored inputs, in whole pence, with their working | accepted | 2026-10-31 | Phase 2 |
+| [0087](0087-employment-law-not-yet-in-force.md) | Employment law not yet in force: record, do not calculate | accepted | 2026-10-31 | Phase 2 |
 
 ## Open items carried by these ADRs
 
