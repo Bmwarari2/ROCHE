@@ -49,6 +49,7 @@ import { operatorInvitationsRouter } from "./routes/operator-invitations";
 import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
 import { peopleRouter } from "./routes/people";
+import { peopleDetailsRouter } from "./routes/people-details";
 import { peopleExitRouter } from "./routes/people-exit";
 import { peopleLifecycleRouter } from "./routes/people-lifecycle";
 import { peoplePropertyRouter } from "./routes/people-property";
@@ -281,6 +282,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", sampleDataRouter);
   app.route("/", operatorInvitationsRouter);
   app.route("/", operatorSubProcessorsRouter);
+  app.route("/", peopleDetailsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
