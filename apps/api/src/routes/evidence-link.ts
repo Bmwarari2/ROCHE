@@ -345,7 +345,9 @@ export const evidenceLinkRouter = createRouter()
           secure: true,
           sameSite: "Strict",
           path: "/",
-          maxAge: Math.max(1, Math.floor((expiresAt - Date.now()) / 1000)),
+          // A browser-session cookie (no Max-Age, #113 security review L3): it goes when the
+          // browser closes, and its sealed expiry (never past the link's) is checked on every
+          // request, so it never outlives the session it carries.
         },
       );
       return c.body(null, 204);

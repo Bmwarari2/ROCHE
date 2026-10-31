@@ -25585,6 +25585,7 @@ export interface components {
       locked: boolean;
       /** Format: date-time */
       lastOpenedAt: string | null;
+      version: number;
     };
     ComposeEvidencePack: {
       recipient: {
