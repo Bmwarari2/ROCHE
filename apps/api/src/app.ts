@@ -71,6 +71,7 @@ import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { ldssRouter, sponsorshipRouter, staffPrivacyRouter } from "./routes/sponsorship";
 import { staffFilesRouter } from "./routes/staff-files";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
@@ -314,6 +315,9 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
   app.route("/", staffFilesRouter);
+  app.route("/", sponsorshipRouter);
+  app.route("/", staffPrivacyRouter);
+  app.route("/", ldssRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);

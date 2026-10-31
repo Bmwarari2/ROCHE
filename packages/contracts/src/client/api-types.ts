@@ -16386,6 +16386,1042 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/sponsored-workers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Sponsored workers
+     * @description workforce.immigration.read. Every sponsored worker but oneself, with the visa's state, the salary check, Appendix D gaps, absences, reportable changes and each report's due date today. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Sponsored workers */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SponsoredWorkerList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a sponsored worker
+     * @description workforce.sponsor.manage. One active record per member of staff, never one's own. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateSponsoredWorker"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SponsoredWorker"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/sponsored-workers/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Change a sponsored worker's record
+     * @description workforce.sponsor.manage. The certificate, visa, pay, evidence held and, with an end date, the end of sponsorship. Never one's own; a stale version is refused. Audited with the changed fields' names only.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateSponsoredWorker"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SponsoredWorker"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/sponsored-workers/{id}/absences": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a sponsored worker's absence
+     * @description workforce.sponsor.manage. An absence, authorised or not; the record then says whether unauthorised absence has passed the limit and when the report is due. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordSponsorAbsence"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SponsoredWorker"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/sponsored-workers/{id}/reports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a reportable change
+     * @description workforce.sponsor.manage. A change the sponsor must report on the sponsor management system, with the day it happened; the due date follows from the rate table and bank holidays. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordSponsorReport"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SponsoredWorker"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/sponsor-reports/{id}/reported": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mark a change as reported
+     * @description workforce.sponsor.manage. The date it was reported on the sponsor management system and the reference given; never on one's own record. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["MarkSponsorReportReported"];
+        };
+      };
+      responses: {
+        /** @description Marked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SponsoredWorker"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-privacy-notice": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Set the staff privacy notice in force
+     * @description platform.tenant.manage. The version of the organisation's staff privacy notice now in force; members are asked to acknowledge it. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SetStaffPrivacyNotice"];
+        };
+      };
+      responses: {
+        /** @description Set */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              version: string;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/staff-privacy": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * My staff privacy notice and image consent
+     * @description workforce.self.read. The notice version in force, whether the member has acknowledged it, and their decision on each optional use of their photo or image.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Your privacy choices */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffPrivacy"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/staff-privacy/acknowledgements": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Acknowledge the staff privacy notice
+     * @description workforce.self.read. The member acknowledges the version in force, once; kept as made. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AcknowledgeStaffPrivacyNotice"];
+        };
+      };
+      responses: {
+        /** @description Acknowledged */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffPrivacy"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/staff-image-consent": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Decide on an optional use of my photo or image
+     * @description workforce.self.read. Give, refuse or withdraw consent for one optional use; the latest decision stands and earlier ones are kept. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DecideStaffImageConsent"];
+        };
+      };
+      responses: {
+        /** @description Decided */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffPrivacy"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{id}/staff-privacy": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's privacy notice acknowledgement and image consent
+     * @description workforce.staff_file.read. Whether the member has acknowledged the notice in force and their image consent decisions, before their photo is used. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The member's choices */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffPrivacy"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/ldss-claims": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * LDSS claims
+     * @description workforce.ldss.manage. Every Learning and Development Support Scheme claim, newest first.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Claims */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LdssClaimList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Plan an LDSS claim
+     * @description workforce.ldss.manage. A planned claim for a member's course; the amount as the claim states it. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateLdssClaim"];
+        };
+      };
+      responses: {
+        /** @description Planned */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LdssClaim"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/ldss-claims/{id}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Move an LDSS claim on
+     * @description workforce.ldss.manage. Submitted (reference and date), paid (date), rejected or withdrawn (a reason), or resubmitted after a rejection. A stale version is refused. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeLdssClaimStatus"];
+        };
+      };
+      responses: {
+        /** @description Moved on */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LdssClaim"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/p/evidence/code": {
     parameters: {
       query?: never;
@@ -29285,6 +30321,228 @@ export interface components {
       expectedVersion: number;
       /** Format: date */
       signedOn: string;
+    };
+    SponsoredWorkerList: {
+      items: components["schemas"]["SponsoredWorker"][];
+      /** Format: date */
+      asOf: string;
+    };
+    SponsoredWorker: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      tenantUserId: string;
+      member: components["schemas"]["StaffName"];
+      cosReference: string;
+      /** Format: date */
+      cosAssignedOn: string;
+      socCode: string;
+      route: components["schemas"]["SponsorRoute"];
+      /** Format: date */
+      visaExpiresOn: string;
+      contractedWeeklyHours: number;
+      guaranteedYearlyPay: number;
+      englishEvidence: components["schemas"]["EnglishEvidence"];
+      /** Format: date */
+      switchingEvidenceOn: string | null;
+      appendixDHeld: components["schemas"]["AppendixDItem"][];
+      /** @enum {string} */
+      status: "active" | "ended";
+      /** Format: date */
+      endedOn: string | null;
+      /** @enum {string} */
+      visa: "valid" | "due_soon" | "expired";
+      salary: {
+        passes: boolean;
+        meetsYearly: boolean;
+        meetsHourly: boolean;
+        hourlyPay: number;
+        countedWeeklyHours: number;
+      };
+      appendixDGaps: components["schemas"]["AppendixDItem"][];
+      absenceToReport: {
+        /** Format: date */
+        happenedOn: string;
+        /** Format: date */
+        dueOn: string;
+      } | null;
+      absences: components["schemas"]["SponsorAbsence"][];
+      reports: components["schemas"]["SponsorReport"][];
+      /** Format: date */
+      asOf: string;
+    };
+    /** @enum {string} */
+    SponsorRoute: "skilled_worker" | "health_and_care_worker" | "other";
+    /** @enum {string} */
+    EnglishEvidence:
+      | "not_recorded"
+      | "majority_english_speaking_country"
+      | "degree_taught_in_english"
+      | "secure_english_language_test"
+      | "previous_grant";
+    /** @enum {string} */
+    AppendixDItem:
+      | "passport_or_travel_document"
+      | "right_to_work_check"
+      | "contact_details"
+      | "certificate_of_sponsorship"
+      | "recruitment_evidence"
+      | "english_language_evidence"
+      | "registration_or_qualification"
+      | "absence_records";
+    SponsorAbsence: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date */
+      fromOn: string;
+      /** Format: date */
+      toOn: string;
+      authorised: boolean;
+    };
+    SponsorReport: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      kind: components["schemas"]["SponsorReportKind"];
+      /** Format: date */
+      happenedOn: string;
+      /** Format: date */
+      reportedOn: string | null;
+      smsReference: string | null;
+      /** Format: date */
+      dueOn: string;
+      /** @enum {string} */
+      state: "reported" | "reported_late" | "open" | "overdue";
+    };
+    /** @enum {string} */
+    SponsorReportKind:
+      | "did_not_start"
+      | "unauthorised_absence"
+      | "employment_ended"
+      | "change_of_job"
+      | "change_of_salary"
+      | "change_of_work_location"
+      | "change_of_hours"
+      | "other";
+    CreateSponsoredWorker: {
+      /** Format: uuid */
+      tenantUserId: string;
+      cosReference: string;
+      /** Format: date */
+      cosAssignedOn: string;
+      socCode: string;
+      route: components["schemas"]["SponsorRoute"];
+      /** Format: date */
+      visaExpiresOn: string;
+      contractedWeeklyHours: number;
+      guaranteedYearlyPay: number;
+      englishEvidence: components["schemas"]["EnglishEvidence"];
+      /** Format: date */
+      switchingEvidenceOn: string | null;
+      appendixDHeld: components["schemas"]["AppendixDItem"][];
+    };
+    UpdateSponsoredWorker: {
+      expectedVersion: number;
+      cosReference: string;
+      /** Format: date */
+      cosAssignedOn: string;
+      socCode: string;
+      route: components["schemas"]["SponsorRoute"];
+      /** Format: date */
+      visaExpiresOn: string;
+      contractedWeeklyHours: number;
+      guaranteedYearlyPay: number;
+      englishEvidence: components["schemas"]["EnglishEvidence"];
+      /** Format: date */
+      switchingEvidenceOn: string | null;
+      appendixDHeld: components["schemas"]["AppendixDItem"][];
+      /** Format: date */
+      endedOn: string | null;
+    };
+    RecordSponsorAbsence: {
+      /** Format: date */
+      fromOn: string;
+      /** Format: date */
+      toOn: string;
+      authorised: boolean;
+    };
+    RecordSponsorReport: {
+      kind: components["schemas"]["SponsorReportKind"];
+      /** Format: date */
+      happenedOn: string;
+    };
+    MarkSponsorReportReported: {
+      expectedVersion: number;
+      /** Format: date */
+      reportedOn: string;
+      smsReference: string;
+    };
+    SetStaffPrivacyNotice: {
+      version: string;
+    };
+    StaffPrivacy: {
+      /** Format: uuid */
+      tenantUserId: string;
+      currentNoticeVersion: string | null;
+      acknowledged: boolean;
+      acknowledgedVersions: string[];
+      imageConsent: {
+        purpose: components["schemas"]["ImagePurpose"];
+        /** @enum {string} */
+        decision: "given" | "refused" | "withdrawn" | "none";
+        mayUse: boolean;
+      }[];
+    };
+    /** @enum {string} */
+    ImagePurpose: "newsletter" | "website" | "social_media" | "family_feed";
+    AcknowledgeStaffPrivacyNotice: {
+      noticeVersion: string;
+    };
+    DecideStaffImageConsent: {
+      purpose: components["schemas"]["ImagePurpose"];
+      /** @enum {string} */
+      decision: "given" | "refused" | "withdrawn";
+    };
+    LdssClaimList: {
+      items: components["schemas"]["LdssClaim"][];
+    };
+    LdssClaim: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      tenantUserId: string;
+      member: components["schemas"]["StaffName"];
+      courseTitle: string;
+      /** Format: date */
+      completedOn: string | null;
+      claimedAmount: number | null;
+      status: components["schemas"]["LdssStatus"];
+      reference: string | null;
+      /** Format: date */
+      submittedOn: string | null;
+      /** Format: date */
+      paidOn: string | null;
+      reason: string | null;
+    };
+    /** @enum {string} */
+    LdssStatus: "planned" | "submitted" | "paid" | "rejected" | "withdrawn";
+    CreateLdssClaim: {
+      /** Format: uuid */
+      tenantUserId: string;
+      courseTitle: string;
+      /** Format: date */
+      completedOn: string | null;
+      claimedAmount: number | null;
+    };
+    ChangeLdssClaimStatus: {
+      expectedVersion: number;
+      status: components["schemas"]["LdssStatus"];
+      reference: string | null;
+      /** Format: date */
+      on: string | null;
+      reason: string | null;
     };
     /** @description Whether the email with the code was sent */
     EvidenceLinkCodeSent: {

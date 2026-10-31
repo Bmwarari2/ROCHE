@@ -343,3 +343,94 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Upload titles and file names travel in the query string, as on `/v1/documents` | They may reach proxy logs | A header or multipart field for every upload route |
 | A refused HR upload (malware, wrong type) | Not audited as `workforce.hr_document.added` denied | Wrap the document store's refusals in audited refusals |
 | The full tenant export runs as the system | Holders of `platform.export.create` export staff files and HR-only documents | Decide with the DPO whether the export needs the HR permissions too (H-577) |
+
+## 12. Sponsor licence, staff data protection and LDSS (slice 35, migration 0097)
+
+Register rows WORK-003, WORK-007 and WORK-011 (section 12 of the master prompt). Harbour keeps the
+sponsor's records and clocks; it never decides a worker's immigration status. Every figure comes
+from the rate table; the rules are Harbour's reading of the Home Office guidance for sponsors, for
+an immigration adviser to confirm (H-524, H-900 to H-902).
+
+### 12.1 Records
+
+- `sponsored_worker`: the certificate of sponsorship (number, date), SOC 2020 code, route, visa
+  expiry, contracted weekly hours, guaranteed yearly pay, how English language was shown, the date
+  switching evidence was checked, which Appendix D records are held, and whether sponsorship has
+  ended. One active record per member. Mutable, versioned.
+- `sponsor_absence`: dates (inclusive) and whether authorised.
+- `sponsor_report`: a reportable change (`SPONSOR_REPORT_KINDS`), the day it happened, and the day
+  it was reported on the sponsor management system with its reference (set together).
+- `tenant.staff_privacy_notice_version`: the organisation's staff privacy notice in force.
+- `staff_privacy_acknowledgement` (append-only): a member's acknowledgement of a version, once.
+- `staff_image_consent` (append-only): a member's decision on each optional use of their photo or
+  image (`IMAGE_PURPOSES`); the latest stands, and no decision means no use.
+- `ldss_claim`: a Learning and Development Support Scheme claim for a member's course, with its
+  status, reference, dates and reason. Harbour holds no LDSS funding figure (H-903).
+
+### 12.2 Rules (`packages/domain/src/workforce/sponsorship.ts`, table-driven tests)
+
+1. Unauthorised absence for more than `sponsor.unauthorised_absence_working_days` consecutive
+   working days is reportable. Weekends and the nation's bank holidays inside a spell neither count
+   nor break it; an authorised day breaks it. The change happens on the working day the limit is
+   passed, and the report is due `sponsor.change_report_working_days` working days later (rule 9).
+2. A visa is `due_soon` from `sponsor.visa_expiry_warning_days` before it expires and `expired`
+   after the expiry date.
+3. Appendix D gaps are the items of `APPENDIX_D_ITEMS` not held.
+4. The salary check is rule 9's `salaryCheck`, shown on every record.
+5. LDSS claims move planned to submitted (reference and date) or withdrawn; submitted to paid
+   (date), rejected or withdrawn (a reason); rejected back to submitted. Paid and withdrawn are
+   final.
+6. A member has acknowledged the notice only when they acknowledged the version in force; a
+   changed notice asks again.
+
+### 12.3 Permissions
+
+| Action | Permission | Built-in roles | Database |
+| --- | --- | --- | --- |
+| Read sponsor records, absences, reports, their versions | `workforce.immigration.read` (sensitive) | Owner, HR; not the Registered Manager | Restrictive read policies; never one's own |
+| Record or change them | `workforce.sponsor.manage` (sensitive) | Owner, HR | Insert and update policies; never one's own |
+| Set the staff privacy notice version | `platform.tenant.manage` | Owner | Tenant isolation |
+| Acknowledge the notice, decide on image use | `workforce.self.read` (one's own only) | Staff roles | Insert only for one's own member id; no update or delete |
+| Read a member's acknowledgements and image consent | `workforce.staff_file.read` | Managers, HR | Read policy: own, staff file holders, the organisation's system context |
+| LDSS claims | `workforce.ldss.manage` | Owner, Registered Manager, HR | Read: own or holders; write: holders |
+
+No role may delete these rows. The organisation's system context (the full export and the DSAR
+collector) reads them, so a staff DSAR finds the sponsor record, acknowledgements, image consent and
+LDSS claims. Absences and reports link to the sponsor record, not to a member, so the DSAR workbench
+lists them under "not searched"; the reviewer reads them from the sponsor record.
+
+### 12.4 API
+
+`GET`/`POST /v1/workforce/sponsored-workers`, `PUT /v1/workforce/sponsored-workers/{id}`,
+`POST /v1/workforce/sponsored-workers/{id}/absences`, `POST .../{id}/reports`,
+`POST /v1/workforce/sponsor-reports/{id}/reported`; `PUT /v1/workforce/staff-privacy-notice`,
+`GET /v1/me/staff-privacy`, `POST /v1/me/staff-privacy/acknowledgements`,
+`POST /v1/me/staff-image-consent`, `GET /v1/workforce/members/{id}/staff-privacy`;
+`GET`/`POST /v1/workforce/ldss-claims`, `POST /v1/workforce/ldss-claims/{id}/status`. Every write
+and every read of sponsor records or a member's choices is audited
+(`workforce.sponsored_worker.*`, `workforce.sponsor_absence.recorded`,
+`workforce.sponsor_report.*`, `workforce.staff_privacy_notice.*`,
+`workforce.staff_image_consent.decided`, `workforce.staff_privacy.viewed`,
+`workforce.ldss_claim.*`) with opaque ids and codes only: never a certificate number, reference,
+pay or date of absence. Screens follow with slice 56.
+
+### 12.5 Tests
+
+- `packages/domain/src/workforce/sponsorship.test.ts`: absence runs across weekends, bank holidays
+  and authorised days; visa windows; Appendix D gaps; every LDSS transition; acknowledgement of the
+  version in force; the latest image decision.
+- `packages/db/test/sponsorship.test.ts`: cross-tenant denial; HR only and never one's own; the
+  worker sees none of their sponsor records; shape checks; versions hidden like the records; no
+  delete; acknowledgements and consent made only by the member, append-only, read by HR; LDSS for
+  holders, read by the member.
+- `apps/api/test/sponsorship.test.ts`: each route's permission, own records refused, the clocks,
+  stale versions, ids-only audit, and a staff DSAR collecting the new tables.
+
+### 12.6 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| No reminder task for a visa due soon or a report due | The reminder sweep, as for staff checks (slice 17) |
+| Unauthorised absence is not drawn from the rota or leave records | Rota and leave (slice 36 onward) |
+| The family feed does not yet check staff image consent before a staff photo is published | Feed publishing checks (slice 56, H-905) |
+| Sponsor records follow the staff file's retention row; any sponsor-specific minimum is unconfirmed | H-901 |

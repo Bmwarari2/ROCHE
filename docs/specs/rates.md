@@ -351,7 +351,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
   as `valid_from`). Confirm the applicable rate and its start date with the Home Office sponsor guidance.
 - `sponsor.unauthorised_absence_working_days` (10) and `sponsor.visa_expiry_warning_days` (90, a Harbour
   default): confirm the absence reporting threshold against the current guidance for sponsors and the
-  warning window with the organisation's HR lead before the sponsor module is used (H-900).
+  warning window with the organisation's HR lead before the sponsor module is used (H-900, H-902).
 - `sponsor.switching_evidence_months` (3): section 12.1 asks for "3-month switching evidence" without
   defining it. It is read here as the evidence period for in-country switching into the care worker
   route. Confirm the rule and its start date before the sponsor module (Phase 2) uses it.
