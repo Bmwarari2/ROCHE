@@ -1,7 +1,7 @@
-# Quality dashboard and PIR prefill (API)
+# Quality dashboard and PIR prefill
 
-Branch `feat/quality-dashboard-pir` (Phase 2 slice 47: QUAL-005, QUAL-006), cut from
-`feat/web-policies-data-security`. The screens are slice 65 part 2.
+Branch `feat/quality-dashboard-pir` (Phase 2 slice 47 and slice 65 part 2: QUAL-005, QUAL-006),
+cut from `feat/web-policies-data-security`.
 
 ## What changed
 
@@ -35,6 +35,23 @@ Branch `feat/quality-dashboard-pir` (Phase 2 slice 47: QUAL-005, QUAL-006), cut 
   `quality.indicator.min_group_size` and `quality.incident_review.target_days`.
 - HZ-129 added to the hazard log. quality.md section 22 covers rules 38 to 44, the permission
   matrix and tests. The medical-device boundary and records of processing are updated.
+
+## Screens (slice 65 part 2)
+
+- `/quality/dashboard`:
+  - a location and whole-month picker;
+  - ten indicator cards, each with a status as an icon and a word, the figure, the reason when
+    there is no rating, and the working;
+  - a withheld count reads "Withheld: fewer than 5", never 0;
+  - the five indicators not built read "No data: Harbour does not record this yet".
+- `/quality/dashboard/targets`: set and clear the organisation's and a location's target.
+- `/quality/pir`:
+  - a plain statement that Harbour does not submit the return;
+  - one table per key question, each data point prefilled or "To complete" with the reason;
+  - a read-only text box of the figures to copy.
+- Sidebar entries "Quality dashboard" and "PIR figures" for holders of `quality.audit.manage`.
+- The API now gives each indicator's multiplier, so the screens write the method in their own
+  words. An incomplete period now says so before "nothing to measure".
 
 ## Review fixes
 
@@ -87,6 +104,8 @@ The security and clinical-safety reviews (before push) found no critical issues.
   direction, one live target, no delete; counts by UK day, every incident at the location
   whatever the reader may see, corrected and healed marks, bed-days, reviews, incident response,
   numbers only, refusals, execute rights.
+- `apps/web/src/lib/quality-dashboard.test.ts` (21) and the journey
+  `apps/web/e2e/quality-dashboard-pir.spec.ts` (2, axe in light and dark themes).
 - `apps/api/test/quality-dashboard.test.ts` (18): permissions, period checks, not built and
   incomplete never rated, small numbers withheld, targets with the location's own winning, audit,
   and the PIR prefill.

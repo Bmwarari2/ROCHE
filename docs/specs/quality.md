@@ -1048,3 +1048,26 @@ person.
 - `apps/api/test/quality-dashboard.test.ts`: permissions and scope, not-built and incomplete
   indicators never rated, small numbers withheld, targets with the location's own winning, RAG,
   audit, and the PIR prefill.
+
+## 23. Web screens: quality dashboard and PIR figures (slice 65 part 2; QUAL-005, QUAL-006)
+
+The screens for section 22, on `feat/quality-dashboard-pir`. The web holds no rules of its own;
+the API decides every one again. Status is an icon and a word, never colour alone (green "Within
+target" with a tick, amber "Close to target" with an alert, red "Outside target" with a warning
+triangle, "No rating" with a dash). Strings are `quality.dashboard.*` and `quality.pir.*`.
+
+| Route | Shows | Who sees it |
+| --- | --- | --- |
+| `/quality/dashboard?location&from&to` | A picker (a GET filter form: location, from and to months, whole months that have ended, up to 12; an unusable choice falls back to last month and says so), when the figures were counted, and ten indicator cards. Each card gives the status, the figure (or "Withheld: fewer than N", never 0), the reason when there is no rating ("No data: Harbour does not record this yet" for the five not built), and its working as a list: counted, measured against, period, source, how it is worked out and the target (with the organisation default beside a location's own) | `quality.audit.manage` (sidebar "Quality dashboard"); the API refuses a location where it is not held |
+| `/quality/dashboard/targets?location` | For each of the five indicators Harbour counts: the organisation default and the location's own target, each with a form to set it (green and amber, in the indicator's direction) and a button to clear it | As above; the API decides who may set which |
+| `/quality/pir?location` | A plain statement that Harbour does not submit the return; the 12 whole months; one table per key question (data point, answer with the records behind it, status "Prefilled" or "To complete", and where it comes from or why it is to complete); and a read-only text box of the figures to copy, prefilled first, then those to complete | As above (sidebar "PIR figures") |
+
+### Tests
+
+- Unit: `apps/web/src/lib/quality-dashboard.test.ts` (the months offered and read, statuses and
+  figures in words, a withheld count never 0, the target form, PIR answers and the text to copy).
+- Journey with axe in light and dark themes: `apps/web/e2e/quality-dashboard-pir.spec.ts`
+  (HZ-129: the five not built and the incomplete months never rated; months the wrong way round;
+  the organisation's falls target refused the wrong way round, then set; a home's own target set
+  and cleared; the Registered Manager refused a looser target; the PIR figures by key question
+  with the text to copy).
