@@ -46,6 +46,7 @@ import {
   type RateNation,
   resolveAbsenceRates,
   resolvePayRates,
+  scopeFor,
   sickPay,
   ukIsoDate,
 } from "@harbour/domain";
@@ -185,8 +186,15 @@ async function nationOf(tx: Tx): Promise<Exclude<RateNation, "uk" | "all">> {
   return (t?.nation ?? "england") as Exclude<RateNation, "uk" | "all">;
 }
 
-const holdsAt = (access: TenantAccess, permission: string) =>
-  can(access.effective, permission as Permission);
+/** Whether the member holds a permission at a home (or across the organisation). */
+function holdsAt(access: TenantAccess, permission: string, locationId: string): boolean {
+  if (!can(access.effective, permission as Permission)) return false;
+  const reach = scopeFor(access.effective, permission as Permission);
+  return (
+    reach.scope === "tenant" ||
+    (reach.scope === "locations" && reach.locationIds.includes(locationId))
+  );
+}
 
 async function openCoverCount(tx: Tx, ids: readonly string[]): Promise<Map<string, number>> {
   const out = new Map<string, number>();
@@ -209,10 +217,10 @@ async function itemsOf(tx: Tx, access: TenantAccess, rows: readonly AbsenceRow[]
     tx,
     rows.map((r) => r.id),
   );
-  const hr = holdsAt(access, HR);
+  const hrAnywhere = rows.some((r) => holdsAt(access, HR, r.locationId));
   const today = ukIsoDate(new Date());
   const nation = await nationOf(tx);
-  const rates = hr
+  const rates = hrAnywhere
     ? resolveAbsenceRates(
         await rateRows(tx, Object.values(ABSENCE_RATE_KEYS)),
         nation,
@@ -222,7 +230,7 @@ async function itemsOf(tx: Tx, access: TenantAccess, rows: readonly AbsenceRow[]
     : null;
   const sick = rows.filter((r) => r.kind === "sickness").map((r) => r.id);
   const notes =
-    hr && sick.length > 0
+    hrAnywhere && sick.length > 0
       ? await tx
           .select({
             absenceId: fitNote.absenceId,
@@ -235,7 +243,7 @@ async function itemsOf(tx: Tx, access: TenantAccess, rows: readonly AbsenceRow[]
   return rows.map((r) => {
     const name = names(r.memberId);
     let uncovered: string[] | null = null;
-    if (hr && rates && r.kind === "sickness") {
+    if (holdsAt(access, HR, r.locationId) && rates && r.kind === "sickness") {
       const need = fitNoteNeeded(
         r.startsOn,
         r.endsOn,
@@ -297,7 +305,7 @@ const rtwOut = (r: typeof returnToWork.$inferSelect) => ({
 async function detailOf(tx: Tx, access: TenantAccess, row: AbsenceRow) {
   const [item] = await itemsOf(tx, access, [row]);
   if (!item) throw problems.notFound();
-  const hr = holdsAt(access, HR);
+  const hr = holdsAt(access, HR, row.locationId);
   const notes =
     hr && row.kind === "sickness"
       ? await tx.select().from(fitNote).where(eq(fitNote.absenceId, row.id))
@@ -639,6 +647,10 @@ export const absencesRouter = createRouter()
       const out = await inTx(c, async (tx) => {
         const row = await loadAbsence(tx, id);
         requireLocationInScope(access, row.locationId);
+        // HR's at the home, never for one's own absence (the database checks it too).
+        if (!holdsAt(access, HR, row.locationId) || row.memberId === access.tenantUserId) {
+          throw problems.forbidden();
+        }
         if (row.kind !== "sickness")
           throw problems.invalid("Only a sickness counts in the Bradford factor.");
         if (row.version !== body.version) throw stale();
@@ -894,16 +906,22 @@ export const absencesRouter = createRouter()
             .from(absence)
             .where(and(eq(absence.memberId, id), isNull(absence.deletedAt))),
         );
-        // The member must be one the holder reaches: an absence at a home in their scope.
-        const reachable = rows.filter((r) => {
-          try {
-            requireLocationInScope(access, r.locationId);
-            return true;
-          } catch {
-            return false;
-          }
-        });
-        if (reachable.length === 0 && access.context.scope !== "tenant") throw problems.notFound();
+        // The member must work now at a home the holder's HR permission reaches.
+        const homes = await withSystemRights(tx, () =>
+          tx.execute<{ location_id: string | null }>(sql`
+            SELECT ra.location_id FROM public.role_assignment ra
+            WHERE ra.tenant_user_id = ${id} AND ra.deleted_at IS NULL
+              AND ra.valid_from <= now() AND (ra.valid_to IS NULL OR ra.valid_to > now())`),
+        );
+        const reach = scopeFor(access.effective, HR as Permission);
+        const reached = homes.rows.some(
+          (h) =>
+            reach.scope === "tenant" ||
+            (h.location_id !== null &&
+              reach.scope === "locations" &&
+              reach.locationIds.includes(h.location_id)),
+        );
+        if (!reached || id === access.tenantUserId) throw problems.notFound();
         const days = bradfordDays(
           rows.map((r) => ({
             kind: r.kind as AbsenceKind,
@@ -975,14 +993,17 @@ export const absencesRouter = createRouter()
   )
   .openapi(
     createRoute({
-      method: "get",
+      method: "post",
       path: "/v1/absences/{id}/ssp",
       tags,
       summary: "The SSP working for a sickness, for payroll",
       description:
         "workforce.hr_document.read at the home. From the member's sicknesses: the period of incapacity this one belongs to (ssp.piw_min_days, linked within ssp.piw_link_weeks), the qualifying days already paid in it, and the slice 6 rule (ssp.weekly, ssp.earnings_percentage, ssp.waiting_days, ssp.max_weeks) with the earnings and qualifying days given. Advice only: nothing is paid or stored. Audited (scheduling.ssp.calculated) with the absence id, never the earnings.",
       security,
-      request: { params: IdParam, query: SspQuery },
+      request: {
+        params: IdParam,
+        body: { content: { "application/json": { schema: SspQuery } } },
+      },
       responses: {
         200: jsonBody(SspResultItem, "The working"),
         ...errorResponses,
@@ -992,8 +1013,9 @@ export const absencesRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, HR);
       const { id } = c.req.valid("param");
-      const q = c.req.valid("query");
-      const weekdays = new Set(q.qualifyingWeekdays.split(",").map(Number));
+      // In the body, never the address: earnings must not reach access logs or history.
+      const q = c.req.valid("json");
+      const weekdays = new Set(q.qualifyingWeekdays);
       const out = await inTx(c, async (tx) => {
         const row = await withSystemRights(tx, async () => {
           const [r] = await tx.select().from(absence).where(eq(absence.id, id));
@@ -1001,6 +1023,9 @@ export const absencesRouter = createRouter()
         });
         if (row?.kind !== "sickness") throw problems.notFound();
         requireLocationInScope(access, row.locationId);
+        if (!holdsAt(access, HR, row.locationId) || row.memberId === access.tenantUserId) {
+          throw problems.notFound();
+        }
         const today = ukIsoDate(new Date());
         const nation = await nationOf(tx);
         const keys = [...Object.values(PAY_RATE_KEYS), ...Object.values(ABSENCE_RATE_KEYS)];

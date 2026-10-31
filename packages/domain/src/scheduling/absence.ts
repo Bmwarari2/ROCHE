@@ -1,5 +1,5 @@
 import { type RateNation, RateNotFoundError, type RateRow, resolveRate } from "../platform/rates";
-import { daysFrom, plusDays } from "./intervals";
+import { DAYS_PER_WEEK, daysFrom, plusDays } from "./intervals";
 
 /**
  * Absence and leave (scheduling.md section 15; SCHED-010; hazards HZ-123, HZ-124): requests and
@@ -198,7 +198,7 @@ export function periodsOfIncapacity(
     .map((s) => ({ s, days: absenceDays(s.startsOn, s.endsOn, today) }))
     .filter(({ days }) => days.length >= (rates.piwMinDays as number))
     .sort((a, b) => a.s.startsOn.localeCompare(b.s.startsOn) || a.s.id.localeCompare(b.s.id));
-  const linkDays = rates.piwLinkWeeks * 7;
+  const linkDays = rates.piwLinkWeeks * DAYS_PER_WEEK;
   const out: { startsOn: string; endsOn: string; spellIds: string[]; days: string[] }[] = [];
   for (const { s, days } of long) {
     const last = out.at(-1);
@@ -218,11 +218,12 @@ export function periodsOfIncapacity(
 /** The qualifying days (the days of the week the member normally works) among some dates. */
 export function qualifyingDaysIn(
   days: readonly string[],
-  /** ISO weekday numbers, 1 Monday to 7 Sunday. */
+  /** ISO weekday numbers, Monday 1 to Sunday the last. */
   qualifyingWeekdays: ReadonlySet<number>,
 ): string[] {
   return days.filter((d) => {
-    const weekday = new Date(`${d}T12:00:00Z`).getUTCDay() || 7;
+    // getUTCDay is 0 for Sunday; ISO counts Sunday as the last day of the week.
+    const weekday = new Date(`${d}T12:00:00Z`).getUTCDay() || DAYS_PER_WEEK;
     return qualifyingWeekdays.has(weekday);
   });
 }

@@ -36,3 +36,22 @@ Branch `feat/sched-absence-leave`, cut from `feat/sched-rota-builder`.
 ## Human actions logged
 
 - H-970 to H-979.
+
+## Review
+
+- Clinical safety: cover needs are raised at any home through `app.raise_cover_need` (definer,
+  checked), a published shift that loses its worker is marked changed since publication, every UK
+  date a long shift touches counts, a sickness ended early resolves needs from UK midnight after its
+  last day, tests carry the hazard ids and cover another home and a published rota. Not built: a
+  consumer of `scheduling.cover_needed` that tells managers at once (H-978) and the daily re-check
+  (H-839).
+- Security: fit note uploads are capped like other uploads; HR-only fields are decided per home;
+  the Bradford exclusion needs HR rights at the home and never one's own (API and database); a
+  decision's reason is fixed; absence versions only with HR rights; a fit note's document is never
+  readable by its member through HR rights (`app.absence_member`); the Bradford factor needs the
+  member to work now at a home the holder reaches; the SSP working takes the earnings in the body.
+
+## Tests
+
+- Domain 5458 (absence.ts 98.7% lines), database 784, API 1471, contracts 34, web 1437; lint and
+  typecheck clean.

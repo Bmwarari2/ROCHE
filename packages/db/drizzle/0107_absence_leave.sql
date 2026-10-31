@@ -186,8 +186,15 @@ BEGIN
     IF NEW.state = 'cancelled' AND me = OLD.member_id AND OLD.state <> 'requested' THEN
       RAISE EXCEPTION 'absence_member_cancels_request_only' USING ERRCODE = 'check_violation';
     END IF;
-  ELSIF NEW.decided_by IS DISTINCT FROM OLD.decided_by OR NEW.decided_at IS DISTINCT FROM OLD.decided_at THEN
+  ELSIF NEW.decided_by IS DISTINCT FROM OLD.decided_by OR NEW.decided_at IS DISTINCT FROM OLD.decided_at
+     OR NEW.decision_reason IS DISTINCT FROM OLD.decision_reason THEN
     RAISE EXCEPTION 'absence_decision_fixed' USING ERRCODE = 'check_violation';
+  END IF;
+  -- Leaving a sickness out of the Bradford factor is HR's, at the home, never for oneself.
+  IF NEW.bradford_excluded_reason IS DISTINCT FROM OLD.bradford_excluded_reason
+     AND (me IS NULL OR me = OLD.member_id
+       OR NOT app.holds_permission_at('workforce.hr_document.read', OLD.location_id)) THEN
+    RAISE EXCEPTION 'absence_bradford_not_yours' USING ERRCODE = 'check_violation';
   END IF;
   IF OLD.state IN ('declined', 'cancelled') THEN
     RAISE EXCEPTION 'absence_closed' USING ERRCODE = 'check_violation';
@@ -244,7 +251,12 @@ CREATE POLICY absence_health_insert ON public.return_to_work AS RESTRICTIVE FOR 
 CREATE POLICY cover_read ON public.shift_cover_need AS RESTRICTIVE FOR SELECT
   TO harbour_app, harbour_owner
   USING (app.reads_rota(location_id)
-    OR app.holds_permission_at('scheduling.rota.approve', location_id));
+    OR app.holds_permission_at('scheduling.rota.approve', location_id)
+    -- Whoever decides or records the absence sees the needs it raised, at any home (ids only).
+    OR EXISTS (SELECT 1 FROM public.absence a WHERE a.tenant_id = shift_cover_need.tenant_id
+      AND a.id = shift_cover_need.absence_id
+      AND (app.holds_permission_at('scheduling.rota.approve', a.location_id)
+        OR app.holds_permission_at('scheduling.rota.manage', a.location_id))));
 --> statement-breakpoint
 CREATE POLICY cover_insert ON public.shift_cover_need AS RESTRICTIVE FOR INSERT
   TO harbour_app, harbour_owner
@@ -320,17 +332,30 @@ REVOKE DELETE, TRUNCATE ON public.absence, public.shift_cover_need FROM harbour_
 REVOKE UPDATE, DELETE, TRUNCATE ON public.fit_note, public.return_to_work FROM harbour_app;
 --> statement-breakpoint
 
--- Earlier versions of an absence follow the absence's own read rule.
+-- Earlier versions of an absence may hold the Bradford exclusion reason (HR's only): they are read
+-- by holders of workforce.hr_document.read at its home, or by the system.
 CREATE POLICY record_version_absence ON public.record_version AS RESTRICTIVE FOR SELECT
   TO harbour_app, harbour_owner
   USING (table_name <> 'absence' OR app.is_system()
-    OR EXISTS (SELECT 1 FROM public.absence a WHERE a.id = record_version.record_id));
+    OR app.holds_permission_at('workforce.hr_document.read', (data->>'location_id')::uuid));
 --> statement-breakpoint
 
 -- A fit note is an HR-only staff document (rule 3): added by a holder of
 -- workforce.hr_document.read for someone else's absence, never their own, and read as other HR-only
 -- documents are (by holders of workforce.hr_document.read, never about themselves). The compliance
 -- item case is unchanged from migration 0073.
+-- Whose absence a fit note is about, whatever the reader's own view of absences (definer: as
+-- app.compliance_item_member answers for staff files).
+CREATE OR REPLACE FUNCTION app.absence_member(p_absence_id uuid) RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+  SELECT a.member_id FROM public.absence a
+  WHERE a.tenant_id = app.current_tenant_id() AND a.id = p_absence_id
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.absence_member(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.absence_member(uuid) TO harbour_app;
+--> statement-breakpoint
 DROP POLICY document_hr_only ON public.document;
 --> statement-breakpoint
 CREATE POLICY document_hr_only ON public.document AS RESTRICTIVE FOR ALL TO harbour_app
@@ -338,8 +363,7 @@ CREATE POLICY document_hr_only ON public.document AS RESTRICTIVE FOR ALL TO harb
     OR (app.holds_staff_permission('workforce.hr_document.read')
         AND app.compliance_item_member(subject_id) IS DISTINCT FROM app.current_user_id()
         AND (subject_type <> 'fit_note'
-          OR (SELECT a.member_id FROM public.absence a WHERE a.id = document.subject_id)
-             IS DISTINCT FROM app.current_user_id())))
+          OR app.absence_member(subject_id) IS DISTINCT FROM app.current_user_id())))
   WITH CHECK (category <> 'staff_hr_document' OR app.is_system()
     OR (app.holds_staff_permission('workforce.hr_document.read')
         AND app.holds_staff_permission('workforce.staff_file.manage')
@@ -349,5 +373,52 @@ CREATE POLICY document_hr_only ON public.document AS RESTRICTIVE FOR ALL TO harb
     OR (app.holds_staff_permission('workforce.hr_document.read')
         AND person_id IS NULL
         AND subject_type = 'fit_note'
-        AND EXISTS (SELECT 1 FROM public.absence a WHERE a.id = document.subject_id
-          AND a.kind = 'sickness' AND a.member_id <> app.current_user_id())));
+        AND app.absence_member(subject_id) <> app.current_user_id()));
+--> statement-breakpoint
+
+-- HZ-123: a cover need on a shift at any home of the organisation, raised by whoever approves or
+-- records the absence (who may not read that home's rota). Definer rights only to see the
+-- assignment; it checks the caller holds scheduling.rota.approve or .manage at the absence's home,
+-- the absence takes the member away, and the assignment is the member's own and live. Returns the
+-- new need's id, or null when one is already open.
+CREATE OR REPLACE FUNCTION app.raise_cover_need(p_assignment_id uuid, p_absence_id uuid) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE
+  a public.absence%ROWTYPE;
+  sa public.shift_assignment%ROWTYPE;
+  made uuid;
+  raised integer;
+BEGIN
+  IF app.current_user_id() IS NULL THEN
+    RAISE EXCEPTION 'cover_need_not_allowed' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  SELECT * INTO a FROM public.absence
+    WHERE tenant_id = app.current_tenant_id() AND id = p_absence_id;
+  IF NOT FOUND OR a.state NOT IN ('approved', 'recorded')
+     OR NOT (app.holds_permission_at('scheduling.rota.approve', a.location_id)
+       OR app.holds_permission_at('scheduling.rota.manage', a.location_id)) THEN
+    RAISE EXCEPTION 'cover_need_not_allowed' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  SELECT * INTO sa FROM public.shift_assignment
+    WHERE tenant_id = a.tenant_id AND id = p_assignment_id AND deleted_at IS NULL;
+  IF NOT FOUND OR sa.worker_id <> a.member_id THEN
+    RAISE EXCEPTION 'cover_need_not_allowed' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  made := app.uuid_v7();
+  INSERT INTO public.shift_cover_need (id, tenant_id, shift_id, assignment_id, absence_id, location_id, created_by)
+    VALUES (made, a.tenant_id, sa.shift_id, sa.id, a.id, sa.location_id, app.current_user_id())
+    ON CONFLICT DO NOTHING;
+  GET DIAGNOSTICS raised = ROW_COUNT;
+  IF raised = 0 THEN
+    made := NULL;
+  END IF;
+  -- A published shift that loses its worker is a change since publication (notice is owed).
+  UPDATE public.shift SET changed_after_publish_at = now()
+    WHERE tenant_id = a.tenant_id AND id = sa.shift_id AND published_at IS NOT NULL;
+  RETURN made;
+END
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.raise_cover_need(uuid, uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.raise_cover_need(uuid, uuid) TO harbour_app;

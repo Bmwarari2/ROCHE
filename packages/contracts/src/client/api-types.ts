@@ -26497,23 +26497,26 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    get?: never;
+    put?: never;
     /**
      * The SSP working for a sickness, for payroll
      * @description workforce.hr_document.read at the home. From the member's sicknesses: the period of incapacity this one belongs to (ssp.piw_min_days, linked within ssp.piw_link_weeks), the qualifying days already paid in it, and the slice 6 rule (ssp.weekly, ssp.earnings_percentage, ssp.waiting_days, ssp.max_weeks) with the earnings and qualifying days given. Advice only: nothing is paid or stored. Audited (scheduling.ssp.calculated) with the absence id, never the earnings.
      */
-    get: {
+    post: {
       parameters: {
-        query: {
-          averageWeeklyEarningsPence?: number | null;
-          qualifyingWeekdays: string;
-        };
+        query?: never;
         header?: never;
         path: {
           id: string;
         };
         cookie?: never;
       };
-      requestBody?: never;
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SspQuery"];
+        };
+      };
       responses: {
         /** @description The working */
         200: {
@@ -26562,8 +26565,6 @@ export interface paths {
         };
       };
     };
-    put?: never;
-    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -34590,6 +34591,10 @@ export interface components {
       }[];
       inputHash: string | null;
       notice: string;
+    };
+    SspQuery: {
+      averageWeeklyEarningsPence: number;
+      qualifyingWeekdays: number[];
     };
   };
   responses: never;

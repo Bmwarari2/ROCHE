@@ -43,6 +43,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.resolve_sub_processor_objection(uuid, uuid, text, text)": ["harbour_operator"],
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
+  // Cover needs at any home of the organisation (HZ-123, migration 0107).
+  "app.raise_cover_need(uuid, uuid)": ["harbour_app"],
+  "app.absence_member(uuid)": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
 };
 

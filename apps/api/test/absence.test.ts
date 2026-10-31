@@ -1,7 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness, OTHER } from "./support/harness";
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Absence and leave through the API (scheduling.md section 15; SCHED-010; hazards HZ-123 and
@@ -113,7 +113,7 @@ describe("SCHED-010 requests and decisions", () => {
     expect(other.status).toBe(403);
   });
 
-  it("the member cannot approve their own; the manager can, raising a cover need (HZ-123)", async () => {
+  it("hazard HZ-123 the member cannot approve their own; the manager can, raising a cover need", async () => {
     const mine = await post("manager", "/v1/absences", {
       locationId: LOC,
       kind: "annual_leave",
@@ -171,7 +171,7 @@ describe("SCHED-010 requests and decisions", () => {
     expect(await codeOf(r)).toBe("member_absent");
   });
 
-  it("taking the member off resolves the cover need; cancelling resolves the rest", async () => {
+  it("hazard HZ-123 taking the member off resolves the cover need; cancelling resolves the rest", async () => {
     const [a] = await sql<{ version: number }>(
       "SELECT version FROM shift_assignment WHERE id = $1",
       [assignmentId],
@@ -210,6 +210,54 @@ describe("SCHED-010 requests and decisions", () => {
       endsOn: null,
     });
     expect(r.status).toBe(404);
+  });
+});
+
+describe("hazard HZ-123 cover needs at another home and on a published rota", () => {
+  it("raises a need on the member's shift at another home and marks a published shift changed", async () => {
+    // The carer also works a published shift at Harbour Lodge, whose rota the manager cannot see.
+    const [rota] = await sql<{ id: string }>(
+      "INSERT INTO rota (location_id, starts_on, ends_on, state, published_at) VALUES ($1, $2, $3, 'published', now()) RETURNING id",
+      [LODGE.locationId, inDays(60), inDays(66)],
+    );
+    const [s] = await sql<{ id: string }>(
+      `INSERT INTO shift (rota_id, location_id, label, kind, starts_at, ends_at, break_minutes, published_at)
+       VALUES ($1, $2, 'Night', 'work', $3::date + time '20:00', $3::date + time '20:00' + interval '12 hours', 30, now()) RETURNING id`,
+      [rota?.id, LODGE.locationId, inDays(61)],
+    );
+    await sql(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) SELECT $1, id, $2 FROM role WHERE key = 'care_worker'",
+      [CARER, LODGE.locationId],
+    );
+    const [a] = await sql<{ id: string }>(
+      "INSERT INTO shift_assignment (shift_id, location_id, worker_id, published_at) VALUES ($1, $2, $3, now()) RETURNING id",
+      [s?.id, LODGE.locationId, CARER],
+    );
+    // A sickness recorded at the demo home from the morning the night shift ends.
+    const r = await post("manager", "/v1/absences", {
+      memberId: CARER,
+      locationId: LOC,
+      kind: "sickness",
+      startsOn: inDays(62),
+      endsOn: inDays(63),
+    });
+    expect(r.status).toBe(201);
+    expect(((await r.json()) as Absence).coverNeeded).toBe(1);
+    const [need] = await sql<{ location_id: string }>(
+      "SELECT location_id FROM shift_cover_need WHERE assignment_id = $1 AND resolved_at IS NULL",
+      [a?.id],
+    );
+    expect(need?.location_id).toBe(LODGE.locationId);
+    const [changed] = await sql<{ changed_after_publish_at: Date | null }>(
+      "SELECT changed_after_publish_at FROM shift WHERE id = $1",
+      [s?.id],
+    );
+    expect(changed?.changed_after_publish_at).not.toBeNull();
+    const [event] = await sql<{ n: number }>(
+      "SELECT count(*)::int AS n FROM outbox_event WHERE event_type = 'scheduling.cover_needed' AND aggregate_id = $1",
+      [s?.id],
+    );
+    expect(event?.n).toBe(1);
   });
 });
 
@@ -310,6 +358,13 @@ describe("SCHED-010 sickness, fit notes and return to work (health data)", () =>
   });
 
   it("the Bradford factor comes with its working and a notice, never a judgement (H-583)", async () => {
+    // Leaving a sickness out is HR's at the home, never a rota manager's.
+    const current = (await (await as("owner", `/v1/absences/${sick.id}`)).json()) as Absence;
+    const byManager = await post("manager", `/v1/absences/${sick.id}/bradford-exclusion`, {
+      version: current.version,
+      reason: "Disability related",
+    });
+    expect(byManager.status).toBe(403);
     const r = await as("owner", `/v1/members/${CARER}/bradford`);
     expect(r.status).toBe(200);
     const out = (await r.json()) as {
@@ -330,11 +385,10 @@ describe("SCHED-010 sickness, fit notes and return to work (health data)", () =>
   });
 
   it("the SSP working uses the period of incapacity and the slice 6 rule", async () => {
-    const q = new URLSearchParams({
-      averageWeeklyEarningsPence: "40000",
-      qualifyingWeekdays: "1,2,3,4,5",
+    const r = await post("owner", `/v1/absences/${sick.id}/ssp`, {
+      averageWeeklyEarningsPence: 40000,
+      qualifyingWeekdays: [1, 2, 3, 4, 5],
     });
-    const r = await as("owner", `/v1/absences/${sick.id}/ssp?${q}`);
     expect(r.status).toBe(200);
     const out = (await r.json()) as {
       applies: boolean;

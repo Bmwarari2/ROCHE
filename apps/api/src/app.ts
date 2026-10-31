@@ -234,6 +234,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     "/v1/documents/*",
     "/v1/people/:id/photo",
     "/v1/workforce/staff-files/:id/items/:kind/documents",
+    "/v1/absences/:id/fit-notes",
   ]) {
     app.use(
       path,

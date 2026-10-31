@@ -193,10 +193,14 @@ export const BradfordResult = z
 
 export const SspQuery = z
   .object({
-    /** From payroll: the member's average weekly earnings, in pence. */
-    averageWeeklyEarningsPence: z.coerce.number().int().min(0).max(100_000_000),
-    /** The days of the week the member normally works, 1 Monday to 7 Sunday, comma separated. */
-    qualifyingWeekdays: z.string().regex(/^[1-7](,[1-7]){0,6}$/),
+    /** From payroll: the member's average weekly earnings, in pence. Never stored or audited. */
+    averageWeeklyEarningsPence: z.number().int().min(0).max(100_000_000),
+    /** The days of the week the member normally works, 1 Monday to 7 Sunday, each once. */
+    qualifyingWeekdays: z
+      .array(z.number().int().min(1).max(7))
+      .min(1)
+      .max(7)
+      .refine((d) => new Set(d).size === d.length, "Each day once"),
   })
   .meta({ id: "SspQuery" });
 

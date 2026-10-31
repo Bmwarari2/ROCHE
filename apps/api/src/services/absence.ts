@@ -5,8 +5,9 @@ import {
   absentOn,
   assignmentsNeedingCover,
   ukIsoDate,
+  ukStartOfDay,
 } from "@harbour/domain";
-import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { withSystemRights } from "./system-rights";
 
@@ -17,6 +18,10 @@ import { withSystemRights } from "./system-rights";
  * dates or anything about health), so the rota never counts an absent member as care on the floor
  * and never puts them on a shift they will not work.
  */
+
+/** The ISO date `days` after another (calendar days). */
+const plusDays = (isoDate: string, days: number) =>
+  new Date(Date.parse(`${isoDate}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 export type AwayAbsence = {
   readonly state: AbsenceState;
@@ -58,11 +63,13 @@ export async function awayAbsences(
   return out;
 }
 
-/** The UK dates a shift touches (a night touches the date it ends on too). */
+/** Every UK date a shift touches (a night touches the date it ends on; a long shift, each between). */
 export function shiftDates(s: { readonly startsAt: Date; readonly endsAt: Date }): string[] {
   const first = ukIsoDate(s.startsAt);
   const last = ukIsoDate(new Date(s.endsAt.getTime() - 1));
-  return last > first ? [first, last] : [first];
+  const dates = [first];
+  for (let d = plusDays(first, 1); d <= last; d = plusDays(d, 1)) dates.push(d);
+  return dates;
 }
 
 /** The assignments whose member is away on the shift (rule 7): counted as open, flagged. */
@@ -101,39 +108,42 @@ const DAY_MS = 86_400_000;
 
 /**
  * Raises a cover need for each live assignment of the absent member on a shift touching the
- * absence (rule 7), in the caller's transaction and name, for the assignments the caller can see
- * (the rota still counts every other one as needing cover, from the absence itself). Returns how
- * many were raised; each is an outbox event for the rota's managers.
+ * absence (rule 7; HZ-123), at any home of the organisation, in the caller's transaction and name:
+ * the assignments are found with the system's rights (ids and times only) and each need is raised
+ * through `app.raise_cover_need`, which checks the caller and the absence again and marks a
+ * published shift as changed since publication. Returns how many were raised; each is an outbox
+ * event for the rota's managers.
  */
 export async function raiseCoverNeeds(tx: Transaction, row: AbsenceRow): Promise<number> {
-  const from = new Date(`${row.startsOn}T00:00:00Z`);
-  from.setUTCDate(from.getUTCDate() - 1);
-  const live = await tx
-    .select({
-      assignmentId: shiftAssignment.id,
-      shiftId: shiftAssignment.shiftId,
-      workerId: shiftAssignment.workerId,
-      locationId: shiftAssignment.locationId,
-      startsAt: shift.startsAt,
-      endsAt: shift.endsAt,
-    })
-    .from(shiftAssignment)
-    .innerJoin(
-      shift,
-      and(eq(shift.tenantId, shiftAssignment.tenantId), eq(shift.id, shiftAssignment.shiftId)),
-    )
-    .where(
-      and(
-        eq(shiftAssignment.workerId, row.memberId),
-        isNull(shiftAssignment.deletedAt),
-        isNull(shift.deletedAt),
-        gte(shift.endsAt, from),
-        // A day either side: the UK dates are checked exactly below.
-        ...(row.endsOn
-          ? [lte(shift.startsAt, new Date(Date.parse(`${row.endsOn}T00:00:00Z`) + 2 * DAY_MS))]
-          : []),
+  const from = new Date(Date.parse(`${row.startsOn}T00:00:00Z`) - 2 * DAY_MS);
+  const live = await withSystemRights(tx, () =>
+    tx
+      .select({
+        assignmentId: shiftAssignment.id,
+        shiftId: shiftAssignment.shiftId,
+        workerId: shiftAssignment.workerId,
+        locationId: shiftAssignment.locationId,
+        startsAt: shift.startsAt,
+        endsAt: shift.endsAt,
+      })
+      .from(shiftAssignment)
+      .innerJoin(
+        shift,
+        and(eq(shift.tenantId, shiftAssignment.tenantId), eq(shift.id, shiftAssignment.shiftId)),
+      )
+      .where(
+        and(
+          eq(shiftAssignment.workerId, row.memberId),
+          isNull(shiftAssignment.deletedAt),
+          isNull(shift.deletedAt),
+          gte(shift.endsAt, from),
+          // A day either side: the UK dates are checked exactly below.
+          ...(row.endsOn
+            ? [lte(shift.startsAt, new Date(Date.parse(`${row.endsOn}T00:00:00Z`) + 2 * DAY_MS))]
+            : []),
+        ),
       ),
-    );
+  );
   const needing = assignmentsNeedingCover(
     { memberId: row.memberId, startsOn: row.startsOn, endsOn: row.endsOn },
     live.map((l) => ({
@@ -147,17 +157,10 @@ export async function raiseCoverNeeds(tx: Transaction, row: AbsenceRow): Promise
   for (const n of needing) {
     const at = live.find((l) => l.assignmentId === n.assignmentId);
     if (!at) continue;
-    const [made] = await tx
-      .insert(shiftCoverNeed)
-      .values({
-        shiftId: n.shiftId,
-        assignmentId: n.assignmentId,
-        absenceId: row.id,
-        locationId: at.locationId,
-      })
-      .onConflictDoNothing()
-      .returning({ id: shiftCoverNeed.id });
-    if (!made) continue;
+    const made = await tx.execute<{ id: string | null }>(
+      sql`SELECT app.raise_cover_need(${n.assignmentId}::uuid, ${row.id}::uuid) AS id`,
+    );
+    if (!made.rows[0]?.id) continue;
     raised += 1;
     await publish(tx, {
       context: "scheduling",
@@ -194,7 +197,8 @@ export async function resolveCoverNeeds(
         shift,
         and(eq(shift.tenantId, shiftCoverNeed.tenantId), eq(shift.id, shiftCoverNeed.shiftId)),
       )
-      .where(and(...conditions, gte(shift.startsAt, new Date(`${after}T23:59:59Z`))));
+      // Shifts starting from UK midnight after the last day (BST or GMT alike).
+      .where(and(...conditions, gte(shift.startsAt, ukStartOfDay(plusDays(after, 1)))));
     ids = rows.map((r) => r.id);
     if (ids.length === 0) return 0;
   }

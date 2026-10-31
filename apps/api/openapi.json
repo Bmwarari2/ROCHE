@@ -29689,6 +29689,30 @@
           "inputHash",
           "notice"
         ]
+      },
+      "SspQuery": {
+        "type": "object",
+        "properties": {
+          "averageWeeklyEarningsPence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          },
+          "qualifyingWeekdays": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "minItems": 1,
+            "maxItems": 7
+          }
+        },
+        "required": [
+          "averageWeeklyEarningsPence",
+          "qualifyingWeekdays"
+        ]
       }
     },
     "parameters": {}
@@ -60405,7 +60429,7 @@
       }
     },
     "/v1/absences/{id}/ssp": {
-      "get": {
+      "post": {
         "tags": [
           "scheduling"
         ],
@@ -60428,30 +60452,17 @@
             "required": true,
             "name": "id",
             "in": "path"
-          },
-          {
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0,
-              "maximum": 100000000
-            },
-            "required": false,
-            "name": "averageWeeklyEarningsPence",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-7](,[1-7]){0,6}$"
-            },
-            "required": true,
-            "name": "qualifyingWeekdays",
-            "in": "query"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SspQuery"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "The working",

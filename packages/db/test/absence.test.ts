@@ -218,6 +218,60 @@ describe("migration 0107 fit notes and return to work are health data", () => {
   });
 });
 
+describe("migration 0107 the guards the security review asked for", () => {
+  it("keeps the Bradford exclusion HR's at the home, never one's own, and fixes a decision's reason", async () => {
+    const recorded = await asPlanner((c) =>
+      c.query<{ id: string }>(RECORD, [a.carer, a.locationNorth]),
+    );
+    const id = recorded.rows[0]?.id as string;
+    const EXCLUDE =
+      "UPDATE absence SET bradford_excluded_reason = 'Pregnancy related' WHERE id = $1";
+    // A rota manager without HR documents may not; HR at the home may.
+    await expect(asPlanner((c) => c.query(EXCLUDE, [id]))).rejects.toThrow(
+      /absence_bradford_not_yours/,
+    );
+    await asNorth((c) => c.query(EXCLUDE, [id]));
+    // North's manager may not exclude their own sickness.
+    const own = await asPlanner((c) =>
+      c.query<{ id: string }>(RECORD, [a.northManager, a.locationNorth]),
+    );
+    await expect(asNorth((c) => c.query(EXCLUDE, [own.rows[0]?.id]))).rejects.toThrow(
+      /absence_bradford_not_yours/,
+    );
+    // A decision's reason never changes without the decision.
+    const asked = await asCarer((c) => c.query<{ id: string }>(ASK, [a.carer, a.locationNorth]));
+    const leave = asked.rows[0]?.id as string;
+    await asNorth((c) => decide(c, leave, "declined", a.northManager, "Short-staffed that week"));
+    await expect(
+      asNorth((c) =>
+        c.query("UPDATE absence SET decision_reason = 'Something else' WHERE id = $1", [leave]),
+      ),
+    ).rejects.toThrow(/absence_decision_fixed|absence_closed/);
+  });
+
+  it("never lets an HR holder read a fit note document about themselves", async () => {
+    const recorded = await asPlanner((c) =>
+      c.query<{ id: string }>(RECORD, [a.northManager, a.locationNorth]),
+    );
+    const sickness = recorded.rows[0]?.id as string;
+    await asOwner(TENANT_A, (c) =>
+      c.query(
+        `INSERT INTO document (category, title, retention_class, storage_key, content_type, size_bytes, sha256, subject_type, subject_id)
+         VALUES ('staff_hr_document', 'Fit note', 'sickness_absence', 'fit-note-own', 'application/pdf', 10, $1, 'fit_note', $2)`,
+        [HASH, sickness],
+      ),
+    );
+    const seen = await asNorth((c) =>
+      count(
+        c,
+        "SELECT count(*) AS n FROM document WHERE subject_type = 'fit_note' AND subject_id = $1",
+        [sickness],
+      ),
+    );
+    expect(seen).toBe(0);
+  });
+});
+
 describe("hazard HZ-123 migration 0107 cover needs", () => {
   it("are raised only for the absent member's own assignment, read with the rota, resolved once", async () => {
     const recorded = await asPlanner((c) =>

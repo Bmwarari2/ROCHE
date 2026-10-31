@@ -852,11 +852,19 @@ Row-level security: an absence is read by its member (their own, through any rol
 and by the system context for the export; written by its member (a request, a cancellation of
 their own request) or a rota manager there. A fit note and a return to work record are health
 data: read and written only by holders of `workforce.hr_document.read` at the location (and read by
-the member themselves), never by a rota manager without it. Guards: an absence keeps its member,
+the member themselves), never by a rota manager without it; a fit note's document is never readable
+by the member it is about through HR rights (`app.absence_member`). Earlier versions of an absence
+(which may hold the Bradford exclusion reason) are read only with HR rights at its home. Leaving a
+sickness out of the Bradford factor needs HR rights at the home and is never for one's own; a
+decision's reason never changes without the decision. Guards: an absence keeps its member,
 location and kind; a decision is made by a holder of `scheduling.rota.approve` there, never the
 member (`absence_decider_is_member`); `requested` moves to `approved`, `declined` or `cancelled`,
 `recorded` (a sickness, or leave a manager records) to `cancelled`, nothing back. A cover need is
-raised only by the decision or recording that caused it, in the same transaction.
+raised only by the decision or recording that caused it, in the same transaction, through
+`app.raise_cover_need` (definer rights to see the assignment at any home; it checks the caller holds
+`.approve` or `.manage` at the absence's home, the absence takes the member away and the assignment
+is theirs), which also marks a published shift as changed since publication; whoever raised a need
+reads it.
 
 ### Rules
 
@@ -913,7 +921,7 @@ raised only by the decision or recording that caused it, in the same transaction
 `/v1/absences` (list by home or member, ask, record), `/v1/absences/{id}` (read),
 `/{id}/decision`, `/{id}/cancel`, `/{id}/end` (a sickness's last day), `/{id}/fit-notes` (upload
 the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNoteId}/content`,
-`/{id}/return-to-work`, `/v1/members/{id}/bradford`, `/{id}/ssp`. Audit:
+`/{id}/return-to-work`, `/{id}/bradford-exclusion`, `/v1/members/{id}/bradford`, `POST /{id}/ssp` (the earnings in the body, never the address). Audit:
 `scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
 `workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
 `workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
