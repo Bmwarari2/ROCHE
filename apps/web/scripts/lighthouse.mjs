@@ -42,7 +42,8 @@ async function signIn() {
 rmSync(".lighthouseci", { recursive: true, force: true });
 if (lhci(["collect"]) !== 0) process.exit(1);
 const cookie = await signIn();
-if (lhci(["collect"], { HARBOUR_LHCI_COOKIE: cookie }) !== 0) process.exit(1);
+// --additive keeps the signed-out runs: collect otherwise starts afresh.
+if (lhci(["collect", "--additive"], { HARBOUR_LHCI_COOKIE: cookie }) !== 0) process.exit(1);
 const asserted = lhci(["assert"]);
 lhci(["upload"]);
 process.exit(asserted);
