@@ -43,6 +43,7 @@ import {
 } from "./backoff";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
 import { type HandoverConfig, handoverConfigFromToken } from "./handover-shifts";
+import { offlineDaysFromToken } from "./offline-days";
 import {
   isRoundWritableTable,
   type RoundMove,
@@ -309,6 +310,11 @@ export interface HarbourConnectorOptions {
    * does not reach the phone.
    */
   readonly onHandoverConfig?: (config: HandoverConfig | null) => void;
+  /**
+   * Called with the offline window's days from each new sync token, so the round and the handover
+   * say what the phone holds from them (#123 clinical review, M4); null when the token has none.
+   */
+  readonly onOfflineDays?: (days: string[] | null) => void;
   readonly backoff?: BackoffPolicy;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly random?: () => number;
@@ -446,6 +452,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     const credentials = parseSyncCredentials(await response.json());
     this.options.onWriteScope?.(writeScopeFromToken(credentials.token));
     this.options.onHandoverConfig?.(handoverConfigFromToken(credentials.token));
+    this.options.onOfflineDays?.(offlineDaysFromToken(credentials.token));
     return credentials;
   }
 

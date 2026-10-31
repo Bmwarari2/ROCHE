@@ -12,10 +12,13 @@ import { Card } from "./Card";
 export function RoundHeaderCard({
   header,
   empty,
+  loading = false,
 }: {
   readonly header: RoundHeader;
   /** The words for an empty round, or null when there are tasks. */
   readonly empty: string | null;
+  /** Still reading the round: say so, never "no tasks on this phone" (#123 clinical review, L9). */
+  readonly loading?: boolean;
 }) {
   const theme = useTheme();
   return (
@@ -29,7 +32,9 @@ export function RoundHeaderCard({
           {header.incomplete}
         </Text>
       </View>
-      {empty ? (
+      {loading ? (
+        <Text testID="round-loading">{t("mobile.round.loading")}</Text>
+      ) : empty ? (
         <View style={{ gap: theme.space[1] }}>
           <FlagChip
             tone="neutral"

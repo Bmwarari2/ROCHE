@@ -1387,9 +1387,15 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     the same rule (`planRoundNotice`) and synced with the open tasks.
   - (e) the sync token carries `handover_shifts`: each nation's day and night start times
     (minutes after midnight, UK time), where the handover family reaches. A nation whose figures
-    are missing, not whole minutes of a day or not day before night is left out, so the phone says
-    it cannot tell, and the API logs a warning for the operator with the organisation's id, the
-    nations and the rate keys (#50 review round 1, clinical M4).
+    are missing, not whole minutes of a day or not day before night is left out, and the API logs a
+    warning for the operator with the organisation's id, the nations and the rate keys (#50 review
+    round 1, clinical M4). The handover screen (below) works out the expected outgoing shift
+    with `shiftAt` and `previousShift`, says "not compiled yet" when no handover for it has arrived,
+    "not final" while `locked_at` is empty, and that it cannot tell when a nation is left out
+    (#123 clinical review, L5). Its tests cover: each of those states; a nation left
+    out; the clock-change nights; the overlap before a shift changes (the running shift's
+    handover first); the items worded from their summaries; the acknowledgement over the items
+    shown; and the homes it lists matching the token's handover reach.
   - The handover family needs `safety.incident.read`, `care.note.read`, `people.person.read` and
     `care.plan.read` at the same or a wider scope than `care.handover.manage`, since the summaries
     carry incidents, notes, the person and a care plan action's own words (ADR-0071; #50 review
@@ -1397,9 +1403,7 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   - A route's task (`task`) tags a new entry only when this device holds that task for that person,
     open and not already marked (`useRoundTaskFor`), and the record shows its synced title; links
     from outside the app have `task` and `taskTitle` stripped (`+native-intent`) (#123 security
-    review, M2). The phone works out the expected outgoing shift with `shiftAt` and
-    `previousShift`, and says "not compiled yet" when no handover for it has arrived, and "not
-    final" while `locked_at` is empty.
+    review, M2).
 
   The round screen is built (`apps/mobile/src/app/(care)/round.tsx`, `care/round-view.ts`; 3(b)).
   It covers gate items (b), (d), (f) and (g) for the round:
@@ -1426,6 +1430,15 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   - The header counts the window's days from the last sync, since the last token fixed them.
   - An entry for a task that Harbour refused is tied back to the task on the round (HZ-006).
   - Demo mode seeds three round tasks and its member may mark them (a demo write scope).
+  - From the clinical review of PR #123: every task, evidence ones included, offers "Not done" with
+    a reason (H1; until `task.evidence_type` syncs the API takes an entry of any kind as a task's
+    evidence, H-423); a task is answered by one entry from this device, remembered after the entry
+    uploads (M1); a task about someone whose record is not on the phone cannot be marked (M2); the
+    person's name is in each button's spoken label and their communication needs show by name (M3,
+    H-395); the header states the window from the token's own `offline_days`, in UK time (M4); the
+    evidence path refuses where a move would (L1); a plan round with no earlier-plan flag says the
+    phone cannot tell (L8); the round says it is loading while it reads (L9); medicines tasks are
+    never marked here before eMAR (L10); an escalated overdue task says so (L11).
 
   The handover screen is built (`apps/mobile/src/app/(care)/handover.tsx`, `care/handover-view.ts`;
   3(c)). It covers gate items (a), (d) and (e) for the handover:
@@ -1451,8 +1464,8 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   - Items are listed in compiled order, worded from their summaries or by kind (a), with the person
     as they are known, their communication needs, and "Added late" and "New since you
     acknowledged" as icon and word.
-  - What the phone holds (handovers for shifts ending on the window's days, counted from the last
-    sync), when it last synced and that items added since are not here are said first; an empty
+  - What the phone holds (handovers for shifts ending on the window's days, from the token's own
+    `offline_days`, in UK time), when it last synced and that items added since are not here are said first; an empty
     handover never reads as nothing to hand over (d). The needs-attention list sits above.
   - "I have read this handover" saves an acknowledgement over the items shown (the seen token) and
     says it is waiting to upload; with items added since, "I have read the new items" asks again.

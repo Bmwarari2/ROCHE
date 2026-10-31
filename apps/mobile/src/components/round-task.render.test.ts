@@ -79,7 +79,9 @@ describe("a task on the round, rendered", () => {
     const view = await render(card({ priority: "urgent", communication_needs: needs }).element);
     expect(view.find("round-task-1-urgent")).toBeTruthy();
     expect(view.find("round-task-1-communication")).toBeTruthy();
-    expect(view.texts()).toEqual(expect.arrayContaining(["Urgent", "Communication need"]));
+    expect(view.texts()).toEqual(
+      expect.arrayContaining(["Urgent", "Communication: British Sign Language"]),
+    );
   });
 
   it("counts the characters left in a reason rather than cutting it off", async () => {
@@ -129,6 +131,42 @@ describe("a task on the round, rendered", () => {
     expect(evidence).toEqual(["task-1"]);
   });
 
+  it("hazard HZ-029 offers Not done with a reason on a task that needs evidence, never a note in its place (#123 clinical review, H1)", async () => {
+    const { element, marks } = card({ evidence_required: 1 });
+    const view = await render(element);
+    expect(view.find("round-task-1-not-done")).toBeTruthy();
+    await view.press("round-task-1-not-done");
+    await view.typeInto("round-task-1-reason", "Asleep, will turn at 14:00");
+    await view.press("round-task-1-save");
+    expect(marks).toEqual([["skipped", "Asleep, will turn at 14:00"]]);
+  });
+
+  it("hazard HZ-001 names the person in what each button says, and their communication needs in words (#123 clinical review, M3)", async () => {
+    const needs = JSON.stringify([{ code: "bsl", display: "British Sign Language" }]);
+    const view = await render(card({ communication_needs: needs }).element);
+    expect(view.find("round-task-1-done")?.props.accessibilityLabel).toBe(
+      "Mark Reposition done, for Ada Example",
+    );
+    expect(view.find("round-task-1-not-done")?.props.accessibilityLabel).toBe(
+      "Mark Reposition not done, for Ada Example",
+    );
+    expect(view.texts()).toContain("Communication: British Sign Language");
+  });
+
+  it("hazard HZ-006 shows the refusal in place of every action, the evidence path included (#123 clinical review, L1)", async () => {
+    const refused = createElement(RoundTaskCard, {
+      item: roundItem(row({ evidence_required: 1 }), NOW),
+      manager: false,
+      onMark: async () => null,
+      onRecordEvidence: () => undefined,
+      refusal: { key: "mobile.round.personUnknown" },
+    });
+    const view = await render(refused);
+    expect(view.find("round-task-1-evidence")).toBeNull();
+    expect(view.find("round-task-1-not-done")).toBeNull();
+    expect(view.find("round-task-1-refusal")).toBeTruthy();
+  });
+
   it("hazard HZ-029 offers nothing while its evidence or its move waits to upload (gate item (f))", async () => {
     for (const overrides of [
       { evidence_required: 1, evidence_waiting: 1 },
@@ -160,7 +198,12 @@ describe("a task on the round, rendered", () => {
 
 describe("hazard HZ-028 the round's header, rendered (gate item (d))", () => {
   it("says what the phone holds and from when, and in place of an empty list never says nothing is due", async () => {
-    const header = roundHeader({ now: NOW, windowDays: 3, lastSyncedAt: NOW, demo: false });
+    const header = roundHeader({
+      now: NOW,
+      offlineDays: ["2026-10-10", "2026-10-11", "2026-10-12"],
+      lastSyncedAt: NOW,
+      demo: false,
+    });
     const view = await render(
       createElement(RoundHeaderCard, {
         header,

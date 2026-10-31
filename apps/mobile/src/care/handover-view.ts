@@ -17,13 +17,14 @@
  * - Status is always an icon and a word, never colour alone.
  */
 import { previousShift, type ShiftWindow, shiftAt, twoShiftPattern } from "@harbour/domain";
-import { communicationFlagLabel, knownAsName } from "@harbour/ui-native/logic";
+import { knownAsName } from "@harbour/ui-native/logic";
 import { t } from "../i18n/t";
 import { parseCommunicationNeeds } from "../people/person-view";
 import type { HandoverShifts } from "../sync/handover-shifts";
+import { offlineWindowBounds } from "../sync/offline-days";
 import { handoverItemWords } from "./handover-summary";
 import type { ShownItem } from "./round-actions";
-import { parseInstant, ukDateLabel, ukDateTimeParts } from "./time";
+import { parseInstant, ukDateTimeParts } from "./time";
 
 /** A synced handover. */
 export interface HandoverRow {
@@ -292,7 +293,6 @@ export function handoverItems(
     .map((row) => {
       const at = parseInstant(row.at);
       const needs = row.person_id ? parseCommunicationNeeds(row.communication_needs) : null;
-      const count = needs ? needs.needs.length + (needs.unreadable ? 1 : 0) : 0;
       // The person's record is not on the phone, so neither are their needs: say so, never nothing.
       const personMissing =
         row.person_id !== null && !row.preferred_name && !row.given_name && !row.family_name;
@@ -304,11 +304,25 @@ export function handoverItems(
         person: personName(row),
         personId: row.person_id,
         when: at ? t("mobile.common.dateTime", ukDateTimeParts(at)) : null,
-        communicationNeeds: count,
+        communicationNeeds: needs ? needs.needs.length + (needs.unreadable ? 1 : 0) : 0,
+        // Needs by name, through the catalogue (#123 clinical review, M3 and L12).
         communicationLabel: personMissing
           ? t("mobile.handover.communicationUnknown")
-          : count > 0
-            ? communicationFlagLabel(count)
+          : needs && (needs.needs.length > 0 || needs.unreadable)
+            ? t("mobile.round.communication", {
+                needs: needs.needs
+                  .map((n) =>
+                    n.preferredFormat
+                      ? t("mobile.round.needWithFormat", {
+                          need: n.display,
+                          format: n.preferredFormat,
+                        })
+                      : n.display,
+                  )
+                  .join("; "),
+                unreadable: needs.unreadable ? "yes" : "no",
+                count: needs.needs.length,
+              })
             : null,
         lateAddition: row.late_addition === 1,
         // An acknowledgement whose keys cannot be read covers nothing, so every item reads as new.
@@ -348,24 +362,22 @@ export interface HandoverHeader {
 
 /**
  * Gate item (d) and HZ-028 for the handover: what the phone holds (the handovers for shifts ending
- * on the days of the offline window, counted from the last sync, which fixed them), when it last
- * synced, and that items added since are not here.
+ * on the offline window's days, exactly as the last token gave them: whole UTC days, said in UK
+ * time; #123 clinical review, M4), when it last synced, and that items added since are not here.
  */
 export function handoverHeader(input: {
   readonly now: Date;
-  readonly windowDays: number | null;
+  readonly offlineDays: readonly string[] | null;
   readonly lastSyncedAt: Date | null;
   readonly demo: boolean;
 }): HandoverHeader {
-  const anchor = input.lastSyncedAt ?? input.now;
-  const days = input.windowDays ?? 1;
-  const holds =
-    input.windowDays === null
-      ? t("mobile.handover.holdsUnknown")
-      : t("mobile.handover.holds", {
-          from: ukDateLabel(anchor, days - 1),
-          to: ukDateLabel(anchor, -1),
-        });
+  const bounds = input.offlineDays ? offlineWindowBounds(input.offlineDays) : null;
+  const holds = bounds
+    ? t("mobile.handover.holds", {
+        from: t("mobile.common.dateTime", ukDateTimeParts(bounds.start)),
+        to: t("mobile.common.dateTime", ukDateTimeParts(new Date(bounds.end.getTime() - 60_000))),
+      })
+    : t("mobile.handover.holdsUnknown");
   let synced: string;
   if (input.demo) synced = t("mobile.sync.demo");
   else if (input.lastSyncedAt) {

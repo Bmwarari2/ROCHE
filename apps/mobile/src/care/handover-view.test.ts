@@ -206,7 +206,10 @@ describe("hazard HZ-018 the items, worded from their summaries (gate item (a))",
       ],
       null,
     );
-    expect(first).toMatchObject({ communicationLabel: "Communication need", lateAddition: true });
+    expect(first).toMatchObject({
+      communicationLabel: "Communication: British Sign Language",
+      lateAddition: true,
+    });
   });
 
   it("names a person not on the phone, and says their communication needs are not here either", () => {
@@ -253,17 +256,17 @@ describe("hazard HZ-018 the items, worded from their summaries (gate item (a))",
 });
 
 describe("hazard HZ-028 what the handover on this phone holds (gate item (d))", () => {
-  it("says the days it holds from the last sync, when that was, and that it may be incomplete", () => {
+  it("says the window the token gave, in UK time, when it last synced, and that it may be incomplete (#123 clinical review, M4)", () => {
     expect(
       handoverHeader({
         now: new Date("2026-10-31T10:00:00.000Z"),
-        windowDays: 2,
+        offlineDays: ["2026-10-30", "2026-10-31", "2026-11-01"],
         lastSyncedAt: new Date("2026-10-31T09:00:00.000Z"),
         demo: false,
       }),
     ).toEqual({
       holds:
-        "This phone holds the handovers for shifts ending from 30/10/2026 to the end of 01/11/2026.",
+        "This phone holds the handovers for shifts ending from 30/10/2026 at 00:00 to 01/11/2026 at 23:59.",
       synced: "Last successful sync 31/10/2026 at 09:00",
       incomplete:
         "Items added since the last sync are not shown here. The whole handover is in Harbour on the web.",

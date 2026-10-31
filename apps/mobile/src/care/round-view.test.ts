@@ -121,11 +121,11 @@ describe("what each task on the round says", () => {
         key: "communication",
         icon: "message-square-text",
         tone: "info",
-        label: "Communication need",
+        label: "Communication: British Sign Language",
       },
     ]);
-    expect(roundItem(row({ communication_needs: "not json" }), NOW).flags[0]?.key).toBe(
-      "communication",
+    expect(roundItem(row({ communication_needs: "not json" }), NOW).flags[0]?.label).toBe(
+      "Communication needs could not be read",
     );
     expect(roundItem(row(), NOW).flags).toEqual([]);
   });
@@ -134,6 +134,31 @@ describe("what each task on the round says", () => {
     const item = roundItem(row({ evidence_required: 1, evidence_refused: 1 }), NOW);
     expect(item.action).toBe("evidence");
     expect(item.notices[0]).toMatch(/^An entry for this task was not accepted by Harbour/);
+  });
+
+  it("says it cannot tell when a plan's round has no earlier-plan flag yet (#123 clinical review, L8)", () => {
+    expect(
+      roundItem(row({ from_earlier_plan: null, series_id: "series-1" }), NOW).notices,
+    ).toContain(
+      "This phone cannot tell whether this round is from the current plan: check the current plan",
+    );
+    expect(roundItem(row({ from_earlier_plan: null }), NOW).notices).toEqual([]);
+  });
+
+  it("never offers a medicines task here, before eMAR (#123 clinical review, L10)", () => {
+    const item = roundItem(row({ kind: "medicines.administration" }), NOW);
+    expect(item.action).toBe("none");
+    expect(item.notices).toContain(
+      "Medicines are recorded in Harbour on the web until medicines recording is on the phone.",
+    );
+  });
+
+  it("says an escalated overdue task is escalated, in words (#123 clinical review, L11)", () => {
+    const item = roundItem(
+      row({ window_end: "2026-10-11T09:00:00.000Z", escalation_level: 1 }),
+      NOW,
+    );
+    expect(item.chip.label).toBe("Overdue: escalated");
   });
 
   it("says where to record evidence for a task about nobody", () => {
@@ -233,36 +258,52 @@ describe("what each task on the round says", () => {
 });
 
 describe("hazard HZ-028 what the round on this phone holds, never read as nothing due (gate item (d))", () => {
-  it("says the days it holds, when it last synced, and that it may be incomplete", () => {
+  // As the API puts them in the token: tomorrow, today and the day before (UTC days).
+  const days = ["2026-10-10", "2026-10-11", "2026-10-12"];
+
+  it("says the window the token gave, when it last synced, and that it may be incomplete", () => {
     expect(
       roundHeader({
         now: NOW,
-        windowDays: 3,
+        offlineDays: days,
         lastSyncedAt: new Date("2026-10-11T09:45:00.000Z"),
         demo: false,
       }),
     ).toEqual({
-      holds: "This phone holds the open tasks due from 09/10/2026 to the end of 12/10/2026.",
+      // British Summer Time: UTC days run from 01:00 to 00:59.
+      holds: "This phone holds the open tasks due from 10/10/2026 at 01:00 to 13/10/2026 at 00:59.",
       synced: "Last successful sync 11/10/2026 at 10:45",
       incomplete:
         "Tasks due before then, and changes made since the last sync, are not shown here. The whole round is in Harbour on the web.",
     });
   });
 
-  it("counts the days from the last sync, not from now, once offline past midnight (clinical review M2)", () => {
-    const header = roundHeader({
-      now: new Date("2026-10-31T01:00:00.000Z"),
-      windowDays: 1,
-      lastSyncedAt: new Date("2026-10-30T20:00:00.000Z"), // 20:00 on 30/10, UK time (GMT after 25/10).
-      demo: false,
-    });
-    expect(header.holds).toBe(
-      "This phone holds the open tasks due from 30/10/2026 to the end of 31/10/2026.",
+  it.each([
+    [
+      // A sync at 23:30 UTC in BST is 00:30 UK time the next day: the token's days are still the
+      // UTC ones, so the phone never claims the UK day it does not hold (#123 clinical review, M4).
+      "a sync at 23:30 UTC in British Summer Time",
+      ["2026-10-19", "2026-10-20", "2026-10-21"],
+      "This phone holds the open tasks due from 19/10/2026 at 01:00 to 22/10/2026 at 00:59.",
+    ],
+    [
+      "the autumn clock change, Sunday 25/10/2026",
+      ["2026-10-24", "2026-10-25", "2026-10-26"],
+      "This phone holds the open tasks due from 24/10/2026 at 01:00 to 26/10/2026 at 23:59.",
+    ],
+    [
+      "the spring clock change, Sunday 29/03/2026",
+      ["2026-03-28", "2026-03-29", "2026-03-30"],
+      "This phone holds the open tasks due from 28/03/2026 at 00:00 to 31/03/2026 at 00:59.",
+    ],
+  ])("words %s from the token's days", (_label, offlineDays, holds) => {
+    expect(roundHeader({ now: NOW, offlineDays, lastSyncedAt: NOW, demo: false }).holds).toBe(
+      holds,
     );
   });
 
   it("says it does not know the days, or has never synced, rather than guess", () => {
-    const header = roundHeader({ now: NOW, windowDays: null, lastSyncedAt: null, demo: false });
+    const header = roundHeader({ now: NOW, offlineDays: null, lastSyncedAt: null, demo: false });
     expect(header.holds).toMatch(/does not know yet which days/);
     expect(header.synced).toMatch(/^Not synced yet/);
   });

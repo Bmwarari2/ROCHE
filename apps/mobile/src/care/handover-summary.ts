@@ -70,6 +70,9 @@ export function handoverItemWords(item: HandoverItemRow): string {
   params.planAction ??= "";
   params.earlierPlan ??= "no";
   params.reason ??= "other";
+  // An alert compiled before it carried its NEWS2 score is worded without one.
+  params.scored ??= "no";
+  params.band ??= "other";
   try {
     return t(`mobile.${summary.key}` as MessageKey, params);
   } catch {

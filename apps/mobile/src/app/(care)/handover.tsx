@@ -23,6 +23,7 @@ import {
   HANDOVER_PEOPLE_HOMES_SQL,
   HANDOVER_SHIFTS_SQL,
   HANDOVERS_SQL,
+  META_VALUE_SQL,
   MY_ACKNOWLEDGEMENT_SQL,
 } from "../../care/queries";
 import { Card } from "../../components/Card";
@@ -37,6 +38,7 @@ import {
   type HandoverShifts,
   parseCachedHandoverConfig,
 } from "../../sync/handover-shifts";
+import { OFFLINE_DAYS_META_ID, parseCachedOfflineDays } from "../../sync/offline-days";
 import { lastSyncedAtOf } from "../../sync/sync-state";
 import { useWriteScope } from "../../sync/write-scope-store";
 
@@ -178,9 +180,12 @@ export default function HandoverScreen() {
     return locations.filter((l) => homes.has(l.id));
   }, [config, locations, peopleHomes, handovers, writeScope]);
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);
+  const daysParams = useMemo(() => [OFFLINE_DAYS_META_ID], []);
+  const { data: daysRows } = useQuery<{ value: string }>(META_VALUE_SQL, daysParams);
+  const offlineDays = useMemo(() => parseCachedOfflineDays(daysRows[0]?.value), [daysRows]);
   const header = handoverHeader({
     now,
-    windowDays: vault.offlineWindowDays,
+    offlineDays,
     lastSyncedAt,
     demo: appEnv.demoMode,
   });

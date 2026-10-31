@@ -6,6 +6,7 @@ import {
   type AlertNotification,
   acknowledgementState,
   alertConditions,
+  alertNews2FromFlags,
   alertReasonFromFlags,
   alertSummaryCode,
   checkHandoverKeepsItems,
@@ -325,6 +326,7 @@ const sources: HandoverSources = {
       id: "a-urgent",
       kind: "care.urgent_result",
       reason: "news2_threshold",
+      news2: { score: 7, band: "high" },
       personId: "p1",
       severity: "urgent",
       createdAt: t("2026-10-11T09:02:00Z"),
@@ -497,9 +499,21 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
       "alert",
       "a-urgent",
       "handover.summary.alert",
-      { alert: "care_urgent_result", reason: "news2_threshold" },
+      // What was found, as published, never "needs a response now" (#123 clinical review, M6).
+      {
+        alert: "care_urgent_result",
+        reason: "news2_threshold",
+        scored: "yes",
+        score: 7,
+        band: "high",
+      },
     ],
-    ["alert", "a-unacknowledged", "handover.summary.alert", { alert: "other", reason: "other" }],
+    [
+      "alert",
+      "a-unacknowledged",
+      "handover.summary.alert",
+      { alert: "other", reason: "other", scored: "no" },
+    ],
     [
       "body_map_mark",
       "m-1",
@@ -1202,12 +1216,31 @@ describe("hazard HZ-018 an alert's summary says what it is about (#50 review rou
   it.each([
     [{ news2: { band: "high", score: 7 } }, "news2_threshold"],
     [{ iddsiAlert: true, iddsiProblem: "level_not_recorded" }, "iddsi_level_not_recorded"],
+    // Food as well as drink (#123 clinical review, M5).
+    [
+      { chart: "food", iddsiAlert: true, iddsiProblem: "level_not_recorded" },
+      "iddsi_level_not_recorded",
+    ],
+    [{ chart: "food", iddsiAlert: true }, "iddsi_unsafe_level"],
     [{ iddsiAlert: true }, "iddsi_unsafe_level"],
     [{ iddsiAlert: false }, undefined],
     [null, undefined],
   ])("reads the trigger of a care result from its observation's flags: %o", (flags, reason) => {
     expect(alertReasonFromFlags(flags)).toBe(reason);
   });
+
+  it.each([
+    [{ news2: { score: 7, band: "high" } }, { score: 7, band: "high" }],
+    [{ news2: { score: 3, band: "low_medium" } }, { score: 3, band: "low_medium" }],
+    [{ news2: { score: "7", band: "high" } }, undefined],
+    [{ news2: { score: 7, band: "very high" } }, undefined],
+    [{ iddsiAlert: true }, undefined],
+  ])(
+    "reads a NEWS2 alert's score and band from its observation's flags: %o (#123 clinical review, M6)",
+    (flags, news2) => {
+      expect(alertNews2FromFlags(flags)).toEqual(news2);
+    },
+  );
 
   it("carries the reason from any copy of the alert, and never whether anyone acknowledged it", () => {
     const [alert] = alertConditions([
@@ -1226,7 +1259,7 @@ describe("hazard HZ-018 an alert's summary says what it is about (#50 review rou
     const [item] = compileHandover(shift, { ...empty, alerts: alert ? [alert] : [] }, compiledAt);
     expect(item?.summary).toEqual({
       key: "handover.summary.alert",
-      params: { alert: "care_urgent_result", reason: "iddsi_unsafe_level" },
+      params: { alert: "care_urgent_result", reason: "iddsi_unsafe_level", scored: "no" },
     });
   });
 

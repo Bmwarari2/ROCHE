@@ -1234,7 +1234,9 @@ type ProfileRow = typeof personCareProfile.$inferSelect | null;
 
 /** Why the nurse in charge is told about a food or drink entry (HZ-016). */
 const IDDSI_ALERT_REASONS: Readonly<Record<string, string>> = {
-  level_not_recorded: "A drink was recorded without its IDDSI level while a level is prescribed",
+  // Food or a drink (HZ-016; #123 clinical review, M5).
+  level_not_recorded:
+    "Food or a drink was recorded without its IDDSI level while a level is prescribed, which may not be safe",
   prescribed_unreadable: "The prescribed IDDSI level could not be read",
 };
 

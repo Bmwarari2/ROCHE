@@ -89,3 +89,28 @@ whether it was from an earlier plan). Finished on 31/10/2026:
 - Optional: the refresh computes the flag once per series; the task trigger skips its lookup when
   the session's organisation is not the row's.
 
+## PR #123 clinical review
+
+- H1 (HZ-029, HZ-018, HZ-003): every task, evidence ones included, offers "Not done" with a
+  reason; the record's banner no longer presents a note as completing the task; HZ-029 and care.md
+  record that the API takes an entry of any kind as evidence until `task.evidence_type` syncs
+  (H-423).
+- M1: a task is answered by one entry from this device, remembered after the entry uploads and its
+  synced copy drops `task_id` (`answered-tasks.ts`); HZ-029's row corrected.
+- M2: a one-tap move is refused about a person whose record is not on the phone, whoever the task
+  is given to.
+- M3 (HZ-001): the person's name in each button's spoken label (the Maestro selector follows);
+  communication needs by name; H-395 states the full gap against the web round, with the default in
+  force; an HZ-001 control row and render test.
+- M4 (HZ-028, HZ-009): the phone keeps the token's `offline_days` and the header states the window
+  from them in UK time; tests at 23:30 UTC in BST and on both clock-change Sundays.
+- M5 (HZ-016): both texture alerts say "food or a drink" and that it may not be safe; food rows in
+  the domain table; the API's reason text.
+- M6: a NEWS2 alert's summary carries the score and band found, in the past tense with the
+  published band names; noted under H-127 and H-129.
+- Lows: L1, L8, L9, L10, L11, L12 in code; L3 (ADR-0074 in H-303), L4 (HZ-018's row and the Welsh
+  placeholders), L5 (care.md and HZ-018 no longer claim the phone says it cannot tell before the
+  handover screen merges, and list the tests that PR must carry) and L13 (CARE-013's phone paths) in
+  docs. Logged for the CSO: L2 (H-396 reframed around the 15-minute banner), L6 (H-424), L7 (H-425),
+  splitting the screens gate (H-426), free text on phones (H-427).
+

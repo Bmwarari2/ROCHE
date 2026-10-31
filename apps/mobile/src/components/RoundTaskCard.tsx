@@ -1,6 +1,6 @@
 import { Button, FlagChip, iconByName, StatusChip, Text, useTheme } from "@harbour/ui-native";
 import { useEffect, useRef, useState } from "react";
-import { type TextInput, View } from "react-native";
+import { AccessibilityInfo, findNodeHandle, type TextInput, View } from "react-native";
 import type { FieldError } from "../care/entries";
 import { TASK_REASON_MAX } from "../care/round-actions";
 import { type RoundItem, roundRefusalText } from "../care/round-view";
@@ -16,16 +16,28 @@ export interface RoundTaskCardProps {
   readonly onMark: (to: "done" | "skipped", reason: string) => Promise<FieldError | null>;
   /** Opens the person's record to record the entry the task asks for. */
   readonly onRecordEvidence: (item: RoundItem) => void;
+  /**
+   * Why this member may not act on the task here (the move's own refusal, applied to the evidence
+   * path too; #123 clinical review, L1), or null when they may.
+   */
+  readonly refusal?: FieldError | null;
 }
 
 /**
  * One open task on the round (care.md section 6): what it is, for whom, when, its status as an
- * icon and a word, and what the carer may do. "Not done" asks why before anything is saved; a
- * task that needs evidence is done by recording the entry it asks for; a task already marked or
+ * icon and a word, and what the carer may do. "Not done" asks why before anything is saved, on
+ * every task; a task that needs evidence is done by recording the entry it asks for, or marked not
+ * done with a reason (#123 clinical review, H1); a task already marked or
  * whose evidence waits to upload offers nothing, so it is never recorded twice (HZ-029). Buttons
  * are 44 pt targets.
  */
-export function RoundTaskCard({ item, manager, onMark, onRecordEvidence }: RoundTaskCardProps) {
+export function RoundTaskCard({
+  item,
+  manager,
+  onMark,
+  onRecordEvidence,
+  refusal = null,
+}: RoundTaskCardProps) {
   const theme = useTheme();
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState("");
@@ -33,10 +45,24 @@ export function RoundTaskCard({ item, manager, onMark, onRecordEvidence }: Round
   const [problem, setProblem] = useState<string | null>(null);
   const reasonRef = useRef<TextInput>(null);
   const left = TASK_REASON_MAX - reason.length;
-  // Screen reader focus follows the reason field when "Not done" opens it (WCAG 2.4.3).
+  const notDoneRef = useRef<View>(null);
+  const wasAsking = useRef(false);
+  // Screen reader focus follows the reason field when "Not done" opens it, and returns to "Not
+  // done" when it closes (WCAG 2.4.3; #123 clinical review, L11).
   useEffect(() => {
     if (asking) reasonRef.current?.focus();
+    else if (wasAsking.current) {
+      // Best effort: focus is a courtesy, never a reason for the card to fail.
+      try {
+        const node = findNodeHandle(notDoneRef.current);
+        if (node) AccessibilityInfo.setAccessibilityFocus(node);
+      } catch {
+        // No native view (tests) or no screen reader: nothing to move.
+      }
+    }
+    wasAsking.current = asking;
   }, [asking]);
+  const accessibleFor = item.person ? "yes" : "no";
 
   const mark = async (to: "done" | "skipped") => {
     setSaving(true);
@@ -101,12 +127,22 @@ export function RoundTaskCard({ item, manager, onMark, onRecordEvidence }: Round
           {notice}
         </Text>
       ))}
-      {item.action === "evidence" ? (
+      {refusal && item.action !== "none" ? (
+        <Text variant="bodyDense" testID={`round-${item.id}-refusal`}>
+          {roundRefusalText(refusal, manager)}
+        </Text>
+      ) : null}
+      {item.action === "evidence" && !refusal && !asking ? (
         <View style={{ gap: theme.space[1] }}>
           <Text variant="bodyDense">{t("mobile.round.evidenceRequired")}</Text>
           {item.personId ? (
             <Button
               label={t("mobile.round.recordEvidence")}
+              accessibilityLabel={t("mobile.round.recordEvidenceLabel", {
+                title: item.title,
+                hasPerson: accessibleFor,
+                person: item.person ?? "",
+              })}
               accessibilityHint={t("mobile.round.recordEvidenceHint")}
               variant="secondary"
               onPress={() => onRecordEvidence(item)}
@@ -115,29 +151,42 @@ export function RoundTaskCard({ item, manager, onMark, onRecordEvidence }: Round
           ) : null}
         </View>
       ) : null}
-      {item.action === "mark" && !asking ? (
+      {(item.action === "mark" || item.action === "evidence") && !refusal && !asking ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space[1] }}>
-          <Button
-            label={t("mobile.round.markDone")}
-            accessibilityLabel={t("mobile.round.markDoneLabel", { title: item.title })}
-            onPress={() => void mark("done")}
-            loading={saving}
-            testID={`round-${item.id}-done`}
-          />
+          {item.action === "mark" ? (
+            <Button
+              label={t("mobile.round.markDone")}
+              accessibilityLabel={t("mobile.round.markDoneLabel", {
+                title: item.title,
+                hasPerson: accessibleFor,
+                person: item.person ?? "",
+              })}
+              onPress={() => void mark("done")}
+              loading={saving}
+              testID={`round-${item.id}-done`}
+            />
+          ) : null}
+          {/* Not done, with a reason, on every task, evidence ones included: a note is never the
+              way to say a task was not done (#123 clinical review, H1). */}
           <Button
             label={t("mobile.round.markNotDone")}
-            accessibilityLabel={t("mobile.round.markNotDoneLabel", { title: item.title })}
+            accessibilityLabel={t("mobile.round.markNotDoneLabel", {
+              title: item.title,
+              hasPerson: accessibleFor,
+              person: item.person ?? "",
+            })}
             variant="secondary"
             onPress={() => {
               setProblem(null);
               setAsking(true);
             }}
             disabled={saving}
+            focusRef={notDoneRef}
             testID={`round-${item.id}-not-done`}
           />
         </View>
       ) : null}
-      {item.action === "mark" && asking ? (
+      {(item.action === "mark" || item.action === "evidence") && asking ? (
         <View style={{ gap: theme.space[1] }}>
           <TextField
             label={t("mobile.round.reasonLabel")}
