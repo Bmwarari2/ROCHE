@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  approvalStates,
   availableTransitions,
   checkWorkflowTransition,
   defineWorkflow,
@@ -10,6 +11,7 @@ import {
   workflowActorView,
   workflowPermissions,
   workflowSlaState,
+  workflowSlaStateFor,
 } from "./workflow";
 
 type IncidentState = "open" | "under_review" | "closed";
@@ -302,5 +304,37 @@ describe("what an actor may do with a workflow instance (PLAT-011 approvals)", (
       "safety.incident.manage",
       "safety.notification.submit",
     ]);
+  });
+});
+
+describe("deadlines kept on the record (HZ-013)", () => {
+  const onRecord = defineWorkflow<IncidentState>({
+    key: "test.notification",
+    version: 1,
+    states: ["open", "under_review", "closed"],
+    initial: "open",
+    terminal: ["closed"],
+    transitions: [{ from: "open", to: "closed", permission: "safety.incident.manage" }],
+    deadlineOnRecord: true,
+  });
+  const now = new Date("2026-10-31T10:00:00Z");
+
+  it.each<[string, WorkflowDefinition<IncidentState>, string | null, WorkflowSlaState]>([
+    ["a record deadline not yet written warns", onRecord, null, "on_record"],
+    ["a record deadline written reads as any other", onRecord, "2026-10-31T09:00:00Z", "overdue"],
+    ["a workflow without one has no deadline", incident, null, "none"],
+  ])("%s", (_label, definition, due, expected) => {
+    expect(workflowSlaStateFor(definition, due ? new Date(due) : null, now)).toBe(expected);
+  });
+
+  it("refuses a workflow with both a record deadline and an SLA", () => {
+    expect(() => defineWorkflow({ ...onRecord, sla: { open: { hours: 1 } } })).toThrow(
+      "cannot also have an SLA",
+    );
+  });
+
+  it("lists the states an approval step leaves from", () => {
+    expect(approvalStates(incident)).toEqual(["open", "under_review"]);
+    expect(approvalStates(onRecord)).toEqual([]);
   });
 });

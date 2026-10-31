@@ -32,6 +32,8 @@ export type CandourState =
 export const CANDOUR_WORKFLOW = defineWorkflow<CandourState>({
   key: "safety.candour",
   version: 1,
+  // The candour clocks (`candourStateDeadline`), written by the safety module.
+  deadlineOnRecord: true,
   states: [
     "threshold_assessment",
     "not_notifiable",
@@ -176,6 +178,24 @@ export interface CandourClocks {
   readonly writtenTargetWording: string;
   /** True until a threshold decision is recorded: the clock runs from the incident so it is never late. */
   readonly provisional: boolean;
+}
+
+/**
+ * The deadline of the state a candour record is in, from its clocks: telling the person is due as
+ * soon as reasonably practicable, so from the start of the clock while the threshold is decided
+ * and the verbal notification is due; the written notification by the tenant's target; none once
+ * enquiries are open or the record is finished.
+ */
+export function candourStateDeadline(state: CandourState, clocks: CandourClocks): Date | null {
+  switch (state) {
+    case "threshold_assessment":
+    case "verbal_due":
+      return clocks.verbalDueAt;
+    case "written_due":
+      return clocks.writtenTargetAt;
+    default:
+      return null;
+  }
 }
 
 /**

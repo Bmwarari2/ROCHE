@@ -6208,7 +6208,7 @@ export interface paths {
     };
     /**
      * Open workflows in your scope, with their deadline state and the steps open to you
-     * @description For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Steps are taken on each record's own route, which checks its rules and separation of duties again. Soonest deadline first.
+     * @description For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Each listed permission counts only where its own scope sees the record (ADR-0071). Steps are taken on each record's own route, which checks its rules and separation of duties again. Records whose deadline is kept on the record but not yet carried here come first, then soonest deadline first.
      */
     get: {
       parameters: {
@@ -22572,20 +22572,23 @@ export interface components {
       locationId: string | null;
       state: string;
       /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
       enteredStateAt: string;
       /** Format: date-time */
       slaDueAt: string | null;
       slaState: components["schemas"]["WorkflowSlaState"];
       createdBy: components["schemas"]["StaffName"];
+      permissions: string[];
       moves: components["schemas"]["WorkflowMoveOption"][];
       awaitingYourApproval: boolean;
       raisedByYou: boolean;
     };
     /**
-     * @description The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline
+     * @description The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline; on_record when the deadline is kept on the record and the list does not have it (open the record to check, never read as no deadline)
      * @enum {string}
      */
-    WorkflowSlaState: "none" | "on_track" | "due_today" | "overdue";
+    WorkflowSlaState: "none" | "on_track" | "due_today" | "overdue" | "on_record";
     WorkflowMoveOption: {
       to: string;
       approval: boolean;

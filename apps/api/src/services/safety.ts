@@ -62,7 +62,7 @@ import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
 import { bankHolidays, rateNumber, rateRows } from "./rates";
 import { toldOf } from "./role-holders";
-import { startWorkflow } from "./workflow";
+import { setWorkflowDeadline, startWorkflow } from "./workflow";
 
 /**
  * Safety rules wired to the database (docs/specs/safety.md; hazards HZ-013 and HZ-027). The
@@ -220,6 +220,7 @@ export async function upsertDraft(
       STATUTORY_NOTIFICATION_WORKFLOW,
       { subjectType: "statutory_notification", subjectId: row.id, personId: spec.personId },
       now,
+      spec.dueAt,
     );
     await publish(tx, {
       context: "safety",
@@ -257,6 +258,14 @@ export async function upsertDraft(
         .set({ ...values, noLongerIndicated: false, noLongerIndicatedReason: null })
         .where(eq(statutoryNotification.id, existing.id));
     }
+    // The workflow carries the clock too, for the approvals list (HZ-013); written every time, so
+    // an instance started before it carried one catches up.
+    await setWorkflowDeadline(
+      tx,
+      STATUTORY_NOTIFICATION_WORKFLOW,
+      { subjectType: "statutory_notification", subjectId: existing.id },
+      spec.dueAt,
+    );
   }
   return { id: existing.id, created: false };
 }

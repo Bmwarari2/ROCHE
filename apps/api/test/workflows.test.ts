@@ -8,7 +8,15 @@ import type {
 import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
+import {
+  createHarness,
+  type Harness,
+  LODGE,
+  markSessionsVerified,
+  OTHER,
+  PASSWORD,
+} from "./support/harness";
 
 /**
  * The cross-module workflow list for the approvals screen (PLAT-011). The manager raises an
@@ -20,7 +28,20 @@ import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 let h: Harness;
 let raised: IncidentDetail;
 
+/**
+ * Two invented members whose permissions reach different homes (ADR-0071):
+ * - Dee Deputy manages incidents at Harbour House and has an acting-up grant at Harbour Lodge
+ *   carrying only safety.notification.submit.
+ * - Ned Nightnurse is a team leader (reads incidents) at Harbour House and a clinical lead (manages
+ *   them) at Harbour Lodge.
+ */
+const DEE = "0194d000-0000-7000-8000-0000000003b1";
+const NED = "0194d000-0000-7000-8000-0000000003b2";
+const extra: Record<"dee" | "ned", string> = { dee: "", ned: "" };
+const DAY = 86_400_000;
+
 const MIN = 60_000;
+const DEMO_RESIDENT = "0194d000-0000-7000-8600-000000000003";
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 const json = async <T>(response: Response) => (await response.json()) as T;
 const as = (
@@ -52,6 +73,58 @@ async function asDemoTenant<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T>
   } finally {
     client.release();
   }
+}
+
+async function asOwner(query: string, params: unknown[] = []) {
+  return asDemoTenant(async (c) => (await c.query(query, params)).rows);
+}
+
+/** Signs up and in as the mobile app does, links the member and records TOTP enrolment. */
+async function member(id: string, name: string, email: string): Promise<string> {
+  const signUp = await h.request("/api/auth/sign-up/email", {
+    method: "POST",
+    body: { email, password: PASSWORD, name },
+  });
+  if (signUp.status !== 200) throw new Error(`sign-up failed: ${signUp.status}`);
+  const authId = ((await signUp.json()) as { user: { id: string } }).user.id;
+  const signIn = await h.request("/api/auth/sign-in/email", {
+    method: "POST",
+    body: { email, password: PASSWORD },
+    origin: MOBILE_APP_ORIGIN,
+  });
+  const token = signIn.headers.get("set-auth-token");
+  if (!token) throw new Error("no bearer token returned");
+  await asOwner(
+    `INSERT INTO tenant_user (id, display_name, email, status, auth_user_id)
+     VALUES ($1, $2, $3, 'active', $4)`,
+    [id, name, email, authId],
+  );
+  await h.db
+    .pool("harbour_auth")
+    .query("UPDATE auth.user SET two_factor_enabled = true WHERE id = $1", [authId]);
+  await markSessionsVerified(h.db.pool("harbour_auth"));
+  return token;
+}
+
+async function listAs(token: string, view: "approvals" | "all") {
+  const response = await h.request(`/v1/workflows?view=${view}`, { token, tenant: DEMO.tenantId });
+  expect(response.status, await response.clone().text()).toBe(200);
+  return json<WorkflowInstanceList>(response);
+}
+
+async function raiseAt(user: keyof Harness["tokens"], locationId: string, description: string) {
+  const response = await as(user, "/v1/incidents", {
+    method: "POST",
+    body: {
+      locationId,
+      type: "environmental",
+      occurredAt: ago(10 * MIN),
+      description,
+      people: [],
+    },
+  });
+  expect(response.status, await response.clone().text()).toBe(201);
+  return json<IncidentDetail>(response);
 }
 
 /** Answers every open classifier question "nothing to report", as a manager would before closing. */
@@ -96,7 +169,28 @@ beforeAll(async () => {
   });
   expect(response.status, await response.clone().text()).toBe(201);
   raised = await json<IncidentDetail>(response);
-}, 120_000);
+  extra.dee = await member(DEE, "Dee Deputy", "dee.deputy@example.invalid");
+  extra.ned = await member(NED, "Ned Nightnurse", "ned.nightnurse.wf@example.invalid");
+  await asOwner(
+    `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+     SELECT $1::uuid, id, $3::uuid FROM role WHERE key = 'deputy_manager'
+     UNION ALL SELECT $2::uuid, id, $3::uuid FROM role WHERE key = 'team_leader'
+     UNION ALL SELECT $2::uuid, id, $4::uuid FROM role WHERE key = 'clinical_lead'`,
+    [DEE, NED, DEMO.locationId, LODGE.locationId],
+  );
+  await asOwner(
+    `INSERT INTO access_grant
+       (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by)
+     VALUES ($1, '{safety.notification.submit}', $2, $3, $4, 'Acting up at Harbour Lodge', $5)`,
+    [
+      DEE,
+      LODGE.locationId,
+      new Date(Date.now() - DAY),
+      new Date(Date.now() + DAY),
+      DEMO.users.owner.id,
+    ],
+  );
+}, 180_000);
 
 afterAll(async () => {
   await h?.close();
@@ -197,6 +291,63 @@ describe("PLAT-011 open workflows and approvals", () => {
     const lodge = await json<IncidentDetail>(response);
     expect(forIncident((await list("manager", "all")).items, lodge.id)).toBeUndefined();
     expect(forIncident((await list("owner", "all")).items, lodge.id)).toBeDefined();
+  });
+
+  it("hazard HZ-011 never lets a permission held at another home show an incident here", async () => {
+    // Dee manages incidents at Harbour House; her Lodge grant carries only notification submission.
+    const lodge = await raiseAt("owner", LODGE.locationId, "A Lodge shed door stuck.");
+    const house = await raiseAt("owner", DEMO.locationId, "A House gate hinge squeaked.");
+    const dee = await listAs(extra.dee, "all");
+    expect(forIncident(dee.items, lodge.id)).toBeUndefined();
+    expect(forIncident(dee.items, house.id)).toMatchObject({
+      awaitingYourApproval: true,
+      permissions: ["safety.incident.manage"],
+    });
+  });
+
+  it("hazard HZ-011 offers closing only where the reader manages incidents", async () => {
+    // Ned only reads incidents at Harbour House and manages them at the Lodge.
+    const house = await raiseAt("manager", DEMO.locationId, "A House kettle tripped the fuse.");
+    const lodge = await raiseAt("owner", LODGE.locationId, "A Lodge tap dripped.");
+    const ned = await listAs(extra.ned, "all");
+    expect(forIncident(ned.items, house.id)).toBeUndefined();
+    const there = forIncident(ned.items, lodge.id);
+    expect(there?.moves.map((m) => m.to)).toContain("closed");
+    expect(forIncident((await listAs(extra.ned, "approvals")).items, house.id)).toBeUndefined();
+  });
+
+  it("hazard HZ-013 carries a statutory notification's own deadline, and warns when it has none", async () => {
+    const response = await as("manager", "/v1/incidents", {
+      method: "POST",
+      body: {
+        locationId: DEMO.locationId,
+        type: "behaviour",
+        occurredAt: ago(2 * DAY),
+        description: "Shouted at a visitor in the garden.",
+        people: [{ kind: "service_user", role: "affected", personId: DEMO_RESIDENT }],
+        answers: [{ key: "police.involved", value: "unsure" }],
+      },
+    });
+    expect(response.status, await response.clone().text()).toBe(201);
+    const detail = await json<IncidentDetail>(response);
+    const draft = detail.classifier?.notifications.find((n) => n.kind === "cqc_reg18_police");
+    expect(draft, "a police notification draft").toBeDefined();
+    const notification = await json<{ dueAt: string }>(
+      await as("owner", `/v1/notifications/statutory/${draft?.id}`),
+    );
+    const listed = (await list("owner", "all")).items.find((i) => i.subjectId === draft?.id);
+    expect(listed?.slaDueAt).toBe(new Date(notification.dueAt).toISOString());
+    expect(listed?.slaState).toBe(
+      Date.parse(notification.dueAt) <= Date.now() ? "overdue" : listed?.slaState,
+    );
+    expect(listed?.slaState).not.toBe("none");
+
+    // An instance started before the module wrote the deadline warns and comes first.
+    await asOwner("UPDATE workflow_instance SET sla_due_at = NULL WHERE subject_id = $1", [
+      draft?.id,
+    ]);
+    const all = (await list("owner", "all")).items;
+    expect(all[0]).toMatchObject({ subjectId: draft?.id, slaState: "on_record" });
   });
 
   it("never shows another organisation's workflows", async () => {

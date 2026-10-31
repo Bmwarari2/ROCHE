@@ -36,6 +36,7 @@ import {
   type CandourState,
   type ClassifierQuestionKey,
   candourClocks,
+  candourStateDeadline,
   candourStepProblems,
   classifierAnswerProblem,
   INCIDENT_WORKFLOW,
@@ -67,7 +68,7 @@ import {
   toClassifierAnswers,
   withTenantWideScope,
 } from "../services/safety";
-import { startWorkflow } from "../services/workflow";
+import { setWorkflowDeadline, startWorkflow } from "../services/workflow";
 import { iso, range, SENT_AT_HEADER, withLateEntryReview } from "./care-shared";
 import {
   conflictResponse,
@@ -245,6 +246,28 @@ function candourView(row: CandourRow): CandourRecordView {
     enquiryResultsSharedAt: row.enquiryResultsSharedAt,
     correspondenceDocumentIds: row.correspondenceDocumentIds,
   };
+}
+
+/**
+ * Writes the deadline of the candour record's state onto its workflow, so the approvals list shows
+ * it (HZ-013): the safety module's own clocks, never worked out elsewhere.
+ */
+async function syncCandourDeadline(
+  tx: Transaction,
+  tenantId: string,
+  row: CandourRow,
+  occurredAt: Date,
+  nation: IncidentNation,
+): Promise<void> {
+  const rates = await safetyRates(tx, tenantId, ukIsoDate(occurredAt));
+  const decidedAt = row.thresholdNotifiable === true ? (row.thresholdDecidedAt ?? null) : null;
+  const clocks = candourClocks(occurredAt, decidedAt, rates, await bankHolidays(tx, nation));
+  await setWorkflowDeadline(
+    tx,
+    CANDOUR_WORKFLOW,
+    { subjectType: "candour_record", subjectId: row.id },
+    candourStateDeadline(row.state as CandourState, clocks),
+  );
 }
 
 async function candourItem(
@@ -1033,6 +1056,13 @@ export const incidentsRouter = createRouter()
           .where(and(eq(candourRecord.id, record.id), eq(candourRecord.version, record.version)))
           .returning();
         if (!saved) throw problems.conflict();
+        await syncCandourDeadline(
+          tx,
+          access.tenantId,
+          saved,
+          row.occurredAt,
+          await nationOf(tx, row.locationId),
+        );
         if (thresholdChanged || body.version === 0) {
           await classifyAndStore(tx, {
             tenantId: access.tenantId,
@@ -1108,6 +1138,13 @@ export const incidentsRouter = createRouter()
           .where(and(eq(candourRecord.id, record.id), eq(candourRecord.version, body.version)))
           .returning();
         if (!saved) throw problems.conflict();
+        await syncCandourDeadline(
+          tx,
+          access.tenantId,
+          saved,
+          row.occurredAt,
+          await nationOf(tx, row.locationId),
+        );
         await audit(c, tx, access, {
           action: `safety.candour.${body.to}`,
           resourceType: "candour_record",

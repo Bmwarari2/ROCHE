@@ -239,11 +239,13 @@ export type EndTaskSeries = z.infer<typeof EndTaskSeries>;
 // Workflow instances and approvals (PLAT-011)
 // ------------------------------------------------------------------------------------------------
 
-export const WorkflowSlaState = z.enum(["none", "on_track", "due_today", "overdue"]).meta({
-  id: "WorkflowSlaState",
-  description:
-    "The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline",
-});
+export const WorkflowSlaState = z
+  .enum(["none", "on_track", "due_today", "overdue", "on_record"])
+  .meta({
+    id: "WorkflowSlaState",
+    description:
+      "The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline; on_record when the deadline is kept on the record and the list does not have it (open the record to check, never read as no deadline)",
+  });
 export type WorkflowSlaState = z.infer<typeof WorkflowSlaState>;
 
 export const WorkflowMoveOption = z
@@ -269,11 +271,18 @@ export const WorkflowInstanceItem = z
     /** The home an outage is at, for its link. */
     locationId: uuid.nullable(),
     state: z.string(),
+    /** When the workflow started (the record was raised). */
+    startedAt: isoDateTime,
     enteredStateAt: isoDateTime,
     slaDueAt: isoDateTime.nullable(),
     slaState: WorkflowSlaState,
     /** Who started the workflow (raised the record); null when a job started it. */
     createdBy: StaffName.nullable(),
+    /**
+     * The workflow's permissions the reader holds where this record is: each one's own scope sees
+     * the record (ADR-0071), and managing an incident needs it seen whole. The steps follow these.
+     */
+    permissions: z.array(z.string()),
     /** The steps open to the reader now. Each is taken on the record's own page or route. */
     moves: z.array(WorkflowMoveOption),
     awaitingYourApproval: z.boolean(),

@@ -33,6 +33,12 @@ export interface WorkflowDefinition<S extends string> {
   readonly terminal: readonly S[];
   readonly transitions: readonly WorkflowTransitionRule<S>[];
   readonly sla?: Partial<Record<S, WorkflowSla>>;
+  /**
+   * The open states' deadline is the record's own clock (a statutory notification's due time, the
+   * candour clocks), which the module writes onto the instance; the engine keeps it across moves
+   * and clears it at a terminal state, instead of working one out from `sla`.
+   */
+  readonly deadlineOnRecord?: boolean;
 }
 
 export class WorkflowDefinitionError extends Error {
@@ -77,6 +83,11 @@ export function defineWorkflow<S extends string>(
         `${definition.key}: unknown permission ${rule.permission}.`,
       );
     }
+  }
+  if (definition.deadlineOnRecord && definition.sla) {
+    throw new WorkflowDefinitionError(
+      `${definition.key}: a deadline kept on the record cannot also have an SLA.`,
+    );
   }
   for (const [state, sla] of Object.entries(definition.sla ?? {}) as [S, WorkflowSla][]) {
     if (!states.has(state))
@@ -202,7 +213,7 @@ export function slaDueAt<S extends string>(
  * `due_today` when it falls later on the same UK calendar day, `on_track` when it is on a later
  * day, and `none` when the state has no deadline. Facts from the clock only: no weighting.
  */
-export type WorkflowSlaState = "none" | "on_track" | "due_today" | "overdue";
+export type WorkflowSlaState = "none" | "on_track" | "due_today" | "overdue" | "on_record";
 
 const ukDay = (instant: Date) => {
   const { year, month, day } = toUkWallClock(instant);
@@ -213,6 +224,29 @@ export function workflowSlaState(slaDueAt: Date | null, now: Date): WorkflowSlaS
   if (!slaDueAt) return "none";
   if (slaDueAt.getTime() <= now.getTime()) return "overdue";
   return ukDay(slaDueAt) === ukDay(now) ? "due_today" : "on_track";
+}
+
+/**
+ * As `workflowSlaState`, for a listed instance: a workflow whose deadline is kept on its record but
+ * whose instance carries none yet (one started before the module wrote it) reads `on_record`, a
+ * warning to open the record, never "no deadline" (HZ-013).
+ */
+export function workflowSlaStateFor<S extends string>(
+  definition: WorkflowDefinition<S>,
+  slaDueAt: Date | null,
+  now: Date,
+): WorkflowSlaState {
+  if (!slaDueAt && definition.deadlineOnRecord) return "on_record";
+  return workflowSlaState(slaDueAt, now);
+}
+
+/** The states an approval step (one the creator may not take) leaves from. */
+export function approvalStates<S extends string>(definition: WorkflowDefinition<S>): S[] {
+  const states = new Set<S>();
+  for (const t of definition.transitions) {
+    if (t.distinctFromCreator) for (const from of asList(t.from)) states.add(from);
+  }
+  return definition.states.filter((s) => states.has(s));
 }
 
 /** One step the reader may take now, with what it needs. */
