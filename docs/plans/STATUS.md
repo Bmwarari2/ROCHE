@@ -4,21 +4,21 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 0% done** (0 of 233 register rows `done`; 60 `partial`, 173 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 65 `partial`, 168 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
-| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Not started |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules) |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
-## Where to pick up (paused 16/10/2026, resumed 31/10/2026)
+## Where to pick up (resumed 31/10/2026)
 
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
@@ -37,47 +37,59 @@ ADR-0073 (one development-log file per pull request).
 phone sync streams, the screens gate, draft PR #50 and `feat/mobile-round-screen` are open for work
 again. The Phase 1 safety case (v0.1) still excludes the mobile app until its journeys run in CI.
 
-**Resumed on 31/10/2026.** Six branches pushed, none merged yet; merge them in this order (each
-touches `phase-1-gate.md`, so expect small conflicts there; take both sides):
+**Resumed on 31/10/2026.** Work ran in parallel (local agents and cloud sessions), each branch
+reviewed by the security, accessibility and clinical-safety reviewer agents before its pull request,
+and merged by the lead once CI was green.
 
-1. `feat/web-history-journey`: the history tab journey with axe (closes the WCAG gap but
-   choose-organisation), this status update, and turbo's `agentGuidance` off.
-2. `fix/care-history-latest-change` (stacked on 1): the history API sends the current record, so the
-   newest earlier version marks what the latest review changed; answers and statuses in words (HZ-024).
-3. `chore/gate-hazard-status-and-pack-render`: the last stale hazard statuses marked Passing from CI
-   run 38938760784; two more evidence pack PDF render tests; gate small items 1 and 2 closed.
-4. `docs/clinical-safety-case-v0-1`: safety case v0.1 drafted; CSO sign-off is H-381.
-5. `docs/dpia-phase-1`: DPIA risks R13 to R19 (template section 7A and the in-app prefill in
-   `packages/domain/src/platform/dpia.ts`), eight data-standards tables; sign-off is H-382.
-6. `feat/web-break-glass-report`: the weekly break-glass report screens (PLAT-006) and `staff`
-   names on the report API.
+**Merged on 31/10/2026:** #105 history tab journey and this file's resumption note; #106 gate hazard
+statuses and evidence pack render tests; #107 DPIA Phase 1 risks R13 to R19 and eight data-standards
+tables; #108 clinical safety case v0.1 (draft, CSO sign-off H-381); #109 weekly break-glass report
+screens (PLAT-006); #110 next 16.4.1 and patched transitive dependencies (two critical RCEs); #111
+Storybook 10.6.2; #112 reviews tab, reviews due tracker and hospital transfer pack (PEOP-008, 009);
+#115 second demo organisation, choose-organisation journey (every web route now has axe) and
+Lighthouse CI; #117 history marks what the latest review changed (HZ-024); #121 phone keeps an
+upload refused for MFA (HZ-112); #122 a location's DoLS requests and expiring authorisations
+(HZ-020); #124 Phase 1 follow-ups (sample people marked on prints, sample files removed, the
+evidence-link test made deterministic, HZ-003/008/021/027 Passing); #125 the Phase 2 plan.
 
-Reviewer agents (security, accessibility, clinical) were run on 2, 4 and 6 before the pull requests.
+**Open pull requests** (merge order where it matters):
+- #118 admission and pre-admission (PEOP-005, 007), then #116 leaving the home (PEOP-010): #118
+  owns `POST /v1/people` (enquiry, no NHS number) and the global `onError` logging fix; #116 drops
+  its own route and takes main's after #118.
+- #119 personal details, About me and sharing (PEOP-001, 003, 013): NHS-number oracle, date bounds
+  and a sharing decision failing closed when an attorney's authority ends (HZ-022).
+- #120 candour, after a death, investigations, trends (SAFE-007, 008, 010): closing blocked until
+  every person harmed has a finished candour record; reg 20 wording.
+- #113 evidence pack, statement of purpose and the public `/evidence` page (QUAL-003, 009).
+- #114 tasks, documents and retention (PLAT-009, 011, 012): task list paging (CI timeout) and four
+  security lows.
+- #123 the phone's round screen and the screens gate data, superseding #50: **migration 0071**;
+  must merge before any 0072. Then `feat/mobile-gate` (Maestro against a seeded API; `store-release`
+  environment guard, H-399; run the workflow, H-400) and `feat/mobile-handover-screen`.
+- #126 store compliance (MOB-011, 012); #127 role dashboards (INSI-001); #128 user guides by role
+  and the Phase 1 demo walkthrough (34 register rows linked).
 
-**Next, in order** (from [phase-1-gate.md](phase-1-gate.md), the gate's gap report):
+**In progress:** white-label branding (PLAT-002); workflow approvals and SLAs (PLAT-011 gap); API
+hardening (`x-request-id` validation, property witness must be staff at the location, retention
+destroy race and storage-before-certificate, legal holds audit); Phase 2 slice 2 (MEDS-001 domain)
+and slice 5 (SCHED-003 Working Time domain).
 
-1. Open items from 31/10/2026:
-   - Break-glass report: each opening's time and typed reason are not shown (RLS lets only
-     tenant-wide readers or the opener read `break_glass_event`); needs a security decision and a
-     report-scoped read. Nothing sets `break_glass_event.reviewed_at`. Step-up on review is H-80.
-   - DPIA: a signed DPIA is not flagged for re-review when new standard risks (R13 to R19) are
-     added (`dpiaReviewTriggers` compares purposes, sub-processors, categories and features only).
-   - History: consent and DoLS review statuses still show as keys; likelihood and severity as numbers.
-   - Hazard verification rows still saying "runs in CI" though run 38938760784 shows them passing:
-     HZ-027, HZ-003, HZ-008, HZ-021.
-   - `phase-1.md` cites an `mca.md` spec that does not exist (the rules are in `care.md`).
-   - Next.js 16.4.0 reports a known security advisory on `next dev`: upgrade on its own branch.
-2. Web screens for the API-only Phase 1 rows: people lifecycle (PEOP-001, 003, 005, 007 to 010,
-   013); documents, tasks and retention (PLAT-009, 011, 012, with HZ-006's `tasks.spec.ts`);
-   candour, medical examiner and investigations (SAFE-007, 008, 010); evidence pack composing and
-   statement of purpose (QUAL-003, QUAL-009).
-3. CSO and DPO sign-offs (H-381, H-382): human actions; build continues meanwhile.
-4. White-label branding (PLAT-002) and role dashboards (INSI-001).
-5. User guides per role and `docs/demo/` with the Phase 1 walkthrough (every register row needs
-   its user guide before it can be `done`).
-6. A second demo tenant with a shared user, for the choose-organisation journey; Lighthouse CI.
-7. When Phase 1 is complete: run the Cloudflare security-audit skill read-only, then fix what it
-   finds; then Phase 2 (non-mobile).
+**Numbering in use:** migrations: 0071 is #123; Phase 2 owns 0072 to 0110 in the plan's merge
+order ([phase-2.md](phase-2.md)). ADRs: 0074 is #123's shift-pattern ADR; 0075 to 0079 Phase 1
+follow-ups; 0080 to 0099 Phase 2. Human actions: blocks per branch up to H-569, Phase 2 from H-510
+(plan) and H-550 per lane. Note: #50's provisional migration 0056 became 0071 and its ADR-0072
+became ADR-0074 (ADR-0072 is the MFA ADR).
+
+**Decisions waiting on people** (none block the build): H-381 safety case v0.1 and the 13 level-3
+hazards (web-only ratings proposed); HZ-071 controls (H-119; blocks production until accepted);
+H-382 DPIA Phase 1 sign-off; H-397 decode-uri-component exception (expires 30/11/2026); H-399 and
+H-400 mobile store guard and first workflow run; H-452 statutory drafts for sample people; H-480 and
+H-481 candour and LeDeR decisions; H-563 to H-566 store accounts and deletion page; the Phase 2 block
+H-510 to H-549 (TRUD and dm+d licences, payroll accounts, CSO and DPO decisions).
+
+**Next:** merge the open pull requests as their fixes land; Phase 2 lanes A to F domain slices, then
+schema slices from 0072 once #123 has merged; the 14 UX gaps the user-guide author logged (#128);
+STATUS follow-ups below.
 
 **Follow-ups logged on 16/10/2026 that are not yet in the items below**:
 - Sample data (HZ-072): mark sample people on the downtime pack, letters, family updates, the
@@ -93,7 +105,9 @@ Reviewer agents (security, accessibility, clinical) were run on 2, 4 and 6 befor
 **Ways of working that saved time** (keep them):
 - Migrations merge in number order; after each lands, the next pull request merges `main` and
   regenerates its journal entry and snapshot with drizzle-kit (`migration-journal.test.ts` fails
-  otherwise). The next free number is 0071.
+  otherwise). The next free number is 0071, reserved for the open mobile pull request; Phase 2 owns
+  0072 to 0110 as assigned in [phase-2.md](phase-2.md), with hazards HZ-113 to HZ-139 and ADRs
+  0080 to 0099 reserved there too.
 - Definer functions: set the ACL before the ownership change, or as the owner
   (`definer-acls.test.ts`, ADR-0002).
 - Development log entries are one file per pull request in `docs/changelog-dev/` (ADR-0073), so

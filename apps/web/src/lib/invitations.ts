@@ -46,6 +46,17 @@ export function forgetKeptToken(): void {
  * Whether a request's Origin is exactly this site's configured origin (`PUBLIC_WEB_URL`), scheme
  * and port included. Nothing from the request itself decides what "this site" is.
  */
+/**
+ * This site's origin from configuration (`PUBLIC_WEB_URL`, set per environment by Terraform). In
+ * development the local web server's address; in production without it, nothing matches. The
+ * same-origin checks of the invitation and document upload routes use it, never request headers.
+ */
+export function webOrigin(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string | null {
+  return env.PUBLIC_WEB_URL ?? (env.NODE_ENV === "production" ? null : "http://localhost:3000");
+}
+
 export function isSameOrigin(origin: string | null, webOrigin: string | null): boolean {
   if (!origin || !webOrigin) return false;
   try {

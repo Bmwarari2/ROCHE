@@ -8,6 +8,7 @@ import { type FormEvent, useEffect, useRef, useState, useTransition } from "reac
 import { type LetterInput, previewLetter, sendLetter } from "@/app/actions/letters";
 import { useFieldIds } from "@/components/care/form-state";
 import { PersonAvatar } from "@/components/people/PersonAvatar";
+import { SampleBadge } from "@/components/people/SampleBadge";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { t } from "@/lib/i18n";
 import { penceFrom, type TypedField } from "@/lib/letters";
@@ -151,7 +152,7 @@ export function LetterComposer({
 
   return (
     <div className="flex flex-col gap-6">
-      <form className="flex flex-col gap-4" onSubmit={onPreview} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={onPreview} noValidate>
         <SelectField
           id={ids.template}
           name="template"
@@ -244,7 +245,9 @@ export function LetterComposer({
             <dl className="m-0 grid grid-cols-1 gap-1">
               <div>
                 <dt className="inline font-semibold">{t("comms.letters.about")}: </dt>
-                <dd className="m-0 inline">{preview.person.fullName}</dd>
+                <dd className="m-0 inline">
+                  {preview.person.fullName} <SampleBadge sample={preview.person.sample} />
+                </dd>
               </div>
               {preview.person.roomLabel ? (
                 <div>
@@ -277,6 +280,7 @@ export function LetterComposer({
           </p>
           {/* A new preview (new version or new words) is a new form: the tick is never carried over. */}
           <form
+            method="post"
             key={`${preview.templateVersionId}:${preview.textHash}`}
             className="flex flex-col gap-4"
             onSubmit={onSend}

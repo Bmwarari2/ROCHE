@@ -80,6 +80,7 @@ export interface Services {
   readonly enquiryLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */
   readonly handoverCompileLimiter: RateLimiter;
+  readonly accountDeletionLimiter: RateLimiter;
   /** A tenant's adapter for a channel: its configured provider, else the mock (or, in production, none). */
   readonly adapterFor: (
     tenantId: string,

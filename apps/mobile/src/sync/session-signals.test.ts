@@ -32,6 +32,7 @@ describe("classifyForbidden (security review round 4, H1)", () => {
   it.each([
     ["not_a_member", "session"],
     ["mfa_enrolment_required", "session"],
+    ["mfa_verification_required", "session"],
     ["step_up_required", "session"],
     ["missing_permission", "api"],
     ["feature_disabled", "api"],

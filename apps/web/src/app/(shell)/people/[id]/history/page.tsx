@@ -146,6 +146,9 @@ async function HistoryTab({ params }: { readonly params: Params }) {
           <h3 id="history-person" className="m-0 text-body font-semibold">
             {t("care.history.person.title")}
           </h3>
+          <p className="m-0 text-body-dense">
+            <Link href={tabHref(id, "overview")}>{t("care.history.person.current")}</Link>
+          </p>
           <VersionList
             history={personHistory}
             tenantUserId={me.tenantUserId}

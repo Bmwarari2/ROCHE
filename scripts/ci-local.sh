@@ -97,6 +97,7 @@ step "Build API and web" pnpm turbo run build --filter=@harbour/api --filter=@ha
 # Web journeys and accessibility
 step "E2E database" e2e_database
 step "Playwright and axe" pnpm --filter @harbour/web test:e2e
+step "Lighthouse CI" scripts/lighthouse-ci.sh
 # Security
 step "Gitleaks" gitleaks git . --config .gitleaks.toml --redact --log-opts="$BASE..HEAD"
 step "pnpm audit" pnpm audit --prod --audit-level high

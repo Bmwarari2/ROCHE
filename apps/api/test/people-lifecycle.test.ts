@@ -21,6 +21,7 @@ import type {
   ProblemDetails,
   PropertyItemOut,
   PropertyList,
+  RecordHistory,
   ReviewSchedule,
   SharingDecisionOut,
   SharingVisibility,
@@ -1601,6 +1602,16 @@ describe("hazard HZ-023 communication needs: an empty list is not 'none'", () =>
       await as("manager", `/v1/people/${resident(2)}/transfer-pack`),
     );
     expect(pack.missingCritical).not.toContain("communication");
+    // The person's history marks what this change altered, by key only.
+    const history = await json<RecordHistory>(
+      await as("manager", `/v1/people/${resident(2)}/history`),
+    );
+    expect(history.versions.at(-1)?.data).toMatchObject({
+      communication_needs_status: "not_recorded",
+    });
+    expect(history.latestChanged).toContain("communication_needs_status");
+    expect(history.latestChanged).not.toContain("given_name");
+    expect(history).not.toHaveProperty("current");
   });
 
   it("serves 'recorded' where the needs are listed", async () => {
@@ -1817,6 +1828,7 @@ describe("hazard HZ-022 sharing is closed by default", () => {
     expect(created.status).toBe(201);
     const link = await json<AboutMeShareLinkCreated>(created);
     expect(link.active).toBe(true);
+    expect(link.version).toBe(1);
     const stored = await asDemoTenant((c) =>
       c.query<{ token_hash: string }>("SELECT token_hash FROM about_me_share_link WHERE id = $1", [
         link.id,
@@ -1828,10 +1840,11 @@ describe("hazard HZ-022 sharing is closed by default", () => {
     expect(JSON.stringify(await json<AboutMeShareLinkList>(listed))).not.toContain(link.token);
     const revoked = await as("manager", `${path}/${link.id}/revoke`, {
       method: "POST",
-      body: { reason: "No longer needed", version: 1 },
+      body: { reason: "No longer needed", version: link.version },
     });
     expect(revoked.status).toBe(200);
-    expect((await json<AboutMeShareLinkList["items"][number]>(revoked)).active).toBe(false);
+    const after = await json<AboutMeShareLinkList["items"][number]>(revoked);
+    expect(after).toMatchObject({ active: false, version: link.version + 1 });
   });
 });
 

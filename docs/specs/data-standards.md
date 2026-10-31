@@ -91,6 +91,7 @@ names below are the concepts this contract carries and must be kept in step with
 | `invitation.token_hash` | SHA-256 | 64 lower-case hex characters of the hash of a 256-bit random token | Migration 0054. The token travels only in the link's URL fragment and POST bodies, never stored or logged; the application role may insert the hash but cannot read it back. |
 | `invitation.expires_at`, `accepted_at`, `revoked_at`, `revocation_reason` | ISO 8601 UTC; Harbour code list | `expires_at` after `created_at` by `invitation.expiry_hours`, at most `invitation.expiry_hours_max`; reason `superseded`, `revoked`, `member_removed`, `member_changed`, `expired` | Migration 0054. Single use: accepted or revoked is final. Retention class `invitation`. |
 | `invitation.claimed_auth_user_id`, `claimed_at` | Better Auth user id; ISO 8601 UTC | Text; set once (again only if that sign-in no longer exists), in its own transaction before the sign-in is linked; only a sign-in at the invitation's address created after the invitation | Migration 0054 (#48 review H1, M1). The sign-in an acceptance created, recorded so the nightly sweep can delete one left unlinked, and never a sign-in any membership or operator record names. Audited as `platform.invitation.claimed` (opaque ids). Internal: never exported. |
+| `task.kind` `platform.account_deletion_request` | Harbour code list | `source_type` `tenant_user`, `source_id` the member who asked; `required_permission` `platform.user.manage`; `due_at` the request plus `account_deletion.confirmation_days` | MOB-011 ([app-store-privacy.md](../compliance/app-store-privacy.md) section 5). No new column. At most one open per member; the notification `platform.account_deletion.requested` carries no name or address; audited as `platform.account_deletion.requested` with opaque ids. Nothing is deleted by the request. |
 
 ## Person
 
@@ -107,7 +108,7 @@ names below are the concepts this contract carries and must be kept in step with
 | `given_name` | text | NHS Data Dictionary PERSON GIVEN NAME | Free text | |
 | `family_name` | text | NHS Data Dictionary PERSON FAMILY NAME | Free text | |
 | `preferred_name` | text | MODS preferred name | Free text | Shown first on point-of-care screens with the legal name beneath. |
-| `date_of_birth` | date | NHS Data Dictionary PERSON BIRTH DATE | `YYYY-MM-DD` | |
+| `date_of_birth` | date | NHS Data Dictionary PERSON BIRTH DATE | `YYYY-MM-DD` | A change through the API is from 1900-01-01 to today in the UK (PEOP-001). |
 | `sex_code` | code | NHS Data Dictionary PERSON PHENOTYPIC SEX | See sex codes below | Used only where a published validated tool or reference needs it. |
 | `gender_identity` | code | NHS Data Dictionary PERSON STATED GENDER CODE | See gender codes below | How the person describes their gender. A self-description in the person's own words belongs in About Me. |
 | `ethnic_category_code` | code | NHS Data Dictionary ETHNIC CATEGORY | A to S, Z, 99 (below) | |
@@ -117,15 +118,15 @@ names below are the concepts this contract carries and must be kept in step with
 | `address_line1` | text | MODS usual address | Free text | |
 | `address_line2` | text | MODS usual address | Free text | |
 | `town` | text | MODS usual address | Free text | |
-| `postcode` | text | NHS Data Dictionary POSTCODE OF USUAL ADDRESS | Upper case, single space | For domiciliary clients this is also the visit address. |
+| `postcode` | text | NHS Data Dictionary POSTCODE OF USUAL ADDRESS | Upper case, single space | For domiciliary clients this is also the visit address. The API normalises what is typed (`zz993zz` is stored `ZZ99 3ZZ`) and refuses anything that is not a full UK postcode (PEOP-001). |
 | `gp_practice_ods_code` | code | NHS Data Dictionary GENERAL MEDICAL PRACTICE CODE (PATIENT REGISTRATION); ODS | `^[A-Z][0-9]{5}$` for practices in England and Wales | Format for Scotland and Northern Ireland practices to be confirmed with the Phase 7 packs. |
-| `legal_status` | enum | - | Harbour code list, defined in `docs/specs/people.md` | Legal frameworks that apply (for example DoLS, Mental Health Act, Court of Protection order). |
+| `legal_status` | enum | - | Harbour code list, defined in `docs/specs/people.md` | Legal frameworks that apply (for example DoLS, Mental Health Act, Court of Protection order). The code list is not written yet, so the API returns it and the web shows it but neither changes it (PEOP-001). |
 | `photo_document_id` | UUIDv7 | - | Reference to `document` | Photo shown on every point-of-care screen (wrong-person hazard). Exported in `documents/`. |
 | `communication_needs` | JSON array | Accessible Information Standard; SNOMED CT | `[{ "code", "display", "preferredFormat" }]` (below) | Flags on every screen and print (section 5.4). |
 | `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively, and `communication_needs_confirmed_by` and `_at` name who recorded the needs, or that there are none, on every change (hazard HZ-023). |
 | `allergy_status` | code | MODS allergies and adverse reactions (the "no known allergies" statement; see `allergy` below) | `unknown` (nobody has recorded whether the person has allergies), `no_known_allergies` (checked and recorded: none known), `has_allergies` (one or more rows in `allergy`) | Defaults to `unknown`, which never means none (hazard HZ-007). Read with the `allergy` rows; go-live waits until no current person is `unknown` ([platform-completions.md](platform-completions.md) rule 26). |
 | `allergy_status_confirmed_by`, `allergy_status_confirmed_at` | UUIDv7, timestamp | - | Reference to `tenant_user`; ISO 8601 UTC | Phase 1 (migration 0023). Who set the allergy status and when, kept by a database trigger on every write that touches the status or either of these columns: always the signed-in user (`app.current_user_id()`) and the time of the write, never values the client sends, and null when no user is signed in; cleared when the status returns to `unknown`; never the last person to edit the row. Null for statuses set before the migration (printed as "who confirmed this is not recorded"). |
-| `national_data_opt_out` | boolean | National data opt-out | `true` when the person has opted out | Honoured when publicly funded care data is used beyond direct care. Checking against the national service is a Phase 5 item. |
+| `national_data_opt_out` | boolean | National data opt-out | `true` when the person has opted out | Honoured when publicly funded care data is used beyond direct care. Checking against the national service is a Phase 5 item. Shown on the record's personal details tab in words with an icon ("Opted out" or "Not opted out"), as the home records it, and changed with `people.person.update` (PEOP-001). |
 | `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (the UK date of this instant) | ISO 8601 UTC | Sets `status` to `deceased`. The export adds `deceased_at_uk_date`. |
 | `discharged_at` | timestamp | MODS discharge date (the UK date of this instant) | ISO 8601 UTC | Sets `status` to `discharged`. The export adds `discharged_at_uk_date`. |
 
@@ -214,9 +215,12 @@ illustrative: the display text is whatever the loaded concept's preferred term i
 
 | Harbour field | Mapping | Notes |
 | --- | --- | --- |
-| `role` | Harbour code list, aligned to MODS related-person roles and MCA 2005 | `next_of_kin`, `lpa_health_welfare` (lasting power of attorney for health and welfare), `lpa_property_finance` (lasting power of attorney for property and financial affairs), `deputy` (Court of Protection deputy), `imca` (independent mental capacity advocate), `advocate`, `appointee` (DWP appointee), `other` |
+| `role` | Harbour code list, aligned to MODS related-person roles and MCA 2005 | `next_of_kin`, `lpa_health_welfare` (lasting power of attorney for health and welfare), `lpa_property_finance` (lasting power of attorney for property and financial affairs), `deputy` (Court of Protection deputy), `imca` (independent mental capacity advocate), `advocate`, `appointee` (DWP appointee), `gp`, `social_worker`, `other` |
 | Authority evidence | Document reference, OPG reference where registered, expiry | An attorney or deputy sees only what the authority covers (section 15.1). Evidence is required before a legal role grants portal access. |
-| `authority_scope` | Mental Capacity Act 2005 (Court of Protection deputyship orders) | `personal_welfare`, `property_affairs`, `both`; null for other roles | Phase 1, deputies only. Sharing checks what the authority covers (people.md rule 13). |
+| `authority_scope` | Mental Capacity Act 2005 (Court of Protection deputyship orders) | `personal_welfare`, `property_affairs`, `both`; null for other roles | Phase 1, deputies only. Sharing checks what the authority covers (people.md rule 13). Required for a deputy and refused for any other role (PEOP-001). |
+| `valid_until` | Date the role or authority ends | `YYYY-MM-DD` | From 1900 to 2199. Read as ended (`expired`) from the day after, in UK time; ended contacts stay listed, last. A sharing decision keeps the end date it was recorded with, and a change that ends the authority sooner suspends it (people.md section 6). |
+| `authority_reference`, `authority_document_id` | OPG, court or DWP reference; a document filed against the same person | Free text; reference to `document` | An attorney, deputy or appointee with neither is flagged "Evidence not recorded" (`evidenceMissing`), and nothing is shared on their authority until one is recorded (people.md rule 13). The document must be an available `person_document` about the same person (checked by the API; no foreign key yet). |
+| `is_next_of_kin`, `email`, `postcode` | MODS related person | `true` or `false`; an email address; a UK postcode stored upper case with one space | More than one contact may be next of kin. |
 
 ### `allergy`
 

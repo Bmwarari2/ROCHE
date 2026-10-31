@@ -49,7 +49,12 @@ function takeToken(): string | null {
   } catch {
     // Storage blocked: the page still works from the link; signing in first then needs the link.
   }
-  if (fromLink) window.history.replaceState(null, "", window.location.pathname);
+  if (fromLink) {
+    window.history.replaceState(null, "", window.location.pathname);
+    // Again once Next.js has patched history, so its router forgets the fragment too and a later
+    // refresh never writes the token back into the address (#113 security review L2).
+    setTimeout(() => window.history.replaceState(null, "", window.location.pathname), 0);
+  }
   return fromLink;
 }
 
@@ -373,7 +378,7 @@ export function InvitationAccept() {
 
     return (
       <Card>
-        <form className="flex flex-col gap-4" onSubmit={createSignIn} noValidate>
+        <form method="post" className="flex flex-col gap-4" onSubmit={createSignIn} noValidate>
           {intro}
           {problem}
           <p className="m-0">{t("invitation.form.body")}</p>

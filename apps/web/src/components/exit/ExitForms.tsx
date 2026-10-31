@@ -230,7 +230,13 @@ export function LeavingForm({
   const title = t(`people.exit.leaving.title`, { mode });
   return (
     <Section title={title} intro={t("people.exit.leaving.intro", { mode })}>
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate aria-label={title}>
+      <form
+        method="post"
+        className="flex flex-col gap-4"
+        onSubmit={submit}
+        noValidate
+        aria-label={title}
+      >
         {plannedKind ? null : (
           <RadioGroup<"discharge" | "transfer">
             id={ids.exitKind}
@@ -374,6 +380,7 @@ export function DeathForm({
   return (
     <Section title={t("people.exit.death.title")} intro={t("people.exit.death.intro")}>
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={submit}
         noValidate
@@ -500,6 +507,7 @@ export function ItemActions({
     <div className="flex flex-col gap-2">
       {inline.open ? (
         <form
+          method="post"
           className="flex flex-col gap-3"
           noValidate
           aria-label={t("people.exit.notRequiredNamed", { item: itemTitle })}
@@ -639,6 +647,7 @@ export function CancelPlan({
     <div className="flex flex-col gap-2">
       {inline.open ? (
         <form
+          method="post"
           className="flex flex-col gap-3"
           noValidate
           onSubmit={(event) => {
@@ -716,6 +725,7 @@ export function PropertyReturn({
     <div className="flex flex-col gap-2">
       {inline.open ? (
         <form
+          method="post"
           className="flex flex-col gap-3"
           noValidate
           aria-label={t("people.exit.returns.formLabel", { item: description })}
