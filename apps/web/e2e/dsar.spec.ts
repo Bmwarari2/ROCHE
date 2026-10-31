@@ -5,14 +5,16 @@ import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
  * The DSAR workbench (PLAT-022; platform.md, the DSAR workbench; slice 66). In the demo tenant
  * the owner, signed in with the end-to-end passkey (a fresh step-up), records a request for a
  * person supported, confirms who is asking, pauses and restarts the clock, finds the records with
- * what was not searched named first, and takes a part out of one record with a reason. In the
- * starter organisation, which holds almost nothing, the starter owner follows a request about
- * themselves through to the response. The Registered Manager, who holds the permission for one
+ * what was not searched named first, and takes a part out of one record with a reason. The owner
+ * then invites a new member of staff (a new one each run, so the journey can run again) and
+ * follows a request about them through to the response. The Registered Manager, who holds the permission for one
  * home only, is not offered the screens. Every state is checked with axe in light and dark.
  */
 
 test.describe.configure({ mode: "serial" });
 
+const RUN = Date.now().toString(36);
+const STAFF = `Dee Requester ${RUN}`;
 const main = (page: Page) => page.getByRole("main");
 const region = (page: Page, name: string | RegExp) => page.getByRole("region", { name });
 
@@ -107,10 +109,25 @@ test("the owner records a request, starts the clock and reviews a record", async
   ).toBeVisible();
 });
 
-test("the starter owner follows a request about themselves to the response", async ({ page }) => {
+test("the owner follows a request from a new member of staff to the response", async ({ page }) => {
   test.setTimeout(240_000);
-  await signInWithDemoPasskey(page, "starter");
-  const form = await recordRequest(page, "Member of staff");
+  await signInWithDemoPasskey(page, "owner");
+  // A new member each run, so the request collects only a handful of records.
+  await page.goto("/settings/team");
+  const invite = main(page).getByRole("region", { name: "Invite someone" });
+  await invite.getByLabel("Full name").fill(STAFF);
+  await invite.getByLabel("Work email address").fill(`dsar.${RUN}@example.invalid`);
+  await invite
+    .getByLabel("Role", { exact: true })
+    .selectOption({ label: "Care or support worker" });
+  await invite.getByLabel("Where the role applies").selectOption({ label: "Harbour House" });
+  await invite.getByRole("button", { name: "Send invitation" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: STAFF })).toBeVisible();
+
+  await page.goto("/data-rights");
+  const form = region(page, "Record a request");
+  await form.getByRole("radio", { name: "Member of staff" }).check();
+  await form.getByRole("combobox", { name: "Member of staff" }).selectOption({ label: STAFF });
   await form.getByLabel("We need to confirm who is asking before we respond").uncheck();
   await form.getByRole("button", { name: "Record the request" }).click();
   await arrived(page, "The request is recorded.");
@@ -121,7 +138,7 @@ test("the starter owner follows a request about themselves to the response", asy
     .click();
   await arrived(page, "The records have been collected.");
 
-  // Decide every record in turn: the starter organisation holds only a handful.
+  // Decide every record in turn: a new member has only a handful.
   for (let i = 0; i < 40; i += 1) {
     const row = region(page, "3. Review each record")
       .getByRole("row")

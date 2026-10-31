@@ -194,8 +194,8 @@ async function seedStarterOrganisation(): Promise<string> {
     await client.query(
       `INSERT INTO role (id, key, name, scope_kind, permissions)
        VALUES ($1, 'starter_owner', 'Owner', 'tenant',
-               '{platform.onboarding.manage,platform.onboarding.read,people.person.read,platform.user.manage,quality.dsar.manage}')
-       ON CONFLICT (id) DO UPDATE SET permissions = EXCLUDED.permissions`,
+               '{platform.onboarding.manage,platform.onboarding.read,people.person.read}')
+       ON CONFLICT (id) DO NOTHING`,
       [STARTER.roleId],
     );
     await client.query(
