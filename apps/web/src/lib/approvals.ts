@@ -1,0 +1,168 @@
+import type { WorkflowInstanceItem } from "@harbour/contracts";
+import { LISTED_WORKFLOW_PERMISSIONS } from "@harbour/domain";
+import type { Translator } from "@harbour/i18n";
+import { formatDateTime } from "./format";
+import type { SafetyChip } from "./incidents";
+
+/**
+ * The approvals screen (PLAT-011; platform.md, task and workflow engine): pure and unit tested.
+ * The API (`GET /v1/workflows`) lists open workflow records in the reader's scope with their
+ * deadline state and the steps open to the reader; these helpers group, name and link them. Every
+ * step is taken on the record's own route, which checks the module's rules and separation of
+ * duties again; an unknown workflow, state or deadline state never reads as calm.
+ */
+
+export const APPROVALS_PAGE = "/approvals";
+
+/** Shown to anyone who holds a permission some listed step needs (the API's own check). */
+export function approvalsShown(permissions: readonly string[]): boolean {
+  return LISTED_WORKFLOW_PERMISSIONS.some((p) => permissions.includes(p));
+}
+
+export type ApprovalGroup = "yours" | "raised" | "other";
+
+/**
+ * Waiting for the reader's approval first, then what they raised that waits for someone else,
+ * then every other open record they have a part in; each record in one group only, in the API's
+ * order (soonest deadline first).
+ */
+export function approvalGroups(
+  approvals: readonly WorkflowInstanceItem[],
+  all: readonly WorkflowInstanceItem[],
+): Record<ApprovalGroup, WorkflowInstanceItem[]> {
+  const yours = approvals.filter((i) => i.awaitingYourApproval);
+  const raised = approvals.filter((i) => !i.awaitingYourApproval && i.raisedByYou);
+  const listed = new Set([...yours, ...raised].map((i) => i.id));
+  const other = all.filter((i) => !listed.has(i.id) && !i.awaitingYourApproval && !i.raisedByYou);
+  return { yours, raised, other };
+}
+
+/** "Incident", "Statutory notification" and so on; "Record" for one the web does not know. */
+export function workflowLabel(definitionKey: string, t: Translator): string {
+  return t("approvals.workflow", { key: definitionKey.replace(/\./g, "_") });
+}
+
+const KNOWN_STATES = new Set([
+  "open",
+  "under_review",
+  "threshold_assessment",
+  "verbal_due",
+  "written_due",
+  "enquiries_open",
+  "draft",
+  "ready",
+  "awaiting_review",
+  "reviewed",
+  "referred",
+  "declared",
+  "planned",
+  "left",
+  "recorded",
+  "awaiting_return",
+]);
+
+/**
+ * The state as an icon and a word. An outage that has ended waits to be reconciled, so its
+ * "closed" reads that way; a state the web does not know is a warning, never a fact.
+ */
+export function workflowStateChip(item: WorkflowInstanceItem, t: Translator): SafetyChip {
+  if (item.definitionKey === "operations.outage" && item.state === "closed") {
+    return {
+      status: "due",
+      icon: "clock",
+      label: t("approvals.state", { state: "outage_closed" }),
+    };
+  }
+  if (!KNOWN_STATES.has(item.state)) {
+    return {
+      status: "overdue",
+      icon: "triangle-alert",
+      label: t("approvals.state", { state: "unknown" }),
+    };
+  }
+  return { status: "info", icon: "search", label: t("approvals.state", { state: item.state }) };
+}
+
+const timeOnly = (iso: string) => formatDateTime(iso)?.split(" ").slice(1).join(" ") ?? "";
+
+/** Where the record stands against its deadline, as an icon and words with the UK date. */
+export function slaChip(item: WorkflowInstanceItem, t: Translator): SafetyChip {
+  const when = formatDateTime(item.slaDueAt) ?? "";
+  switch (item.slaState) {
+    case "overdue":
+      return {
+        status: "overdue",
+        icon: "circle-alert",
+        label: t("approvals.sla", { state: "overdue", when, time: "" }),
+      };
+    case "due_today":
+      return {
+        status: "due",
+        icon: "clock",
+        label: t("approvals.sla", {
+          state: "due_today",
+          when,
+          time: item.slaDueAt ? timeOnly(item.slaDueAt) : "",
+        }),
+      };
+    case "on_track":
+      return {
+        status: "neutral",
+        icon: "clock",
+        label: t("approvals.sla", { state: "on_track", when, time: "" }),
+      };
+    case "none":
+      return {
+        status: "neutral",
+        icon: "circle-minus",
+        label: t("approvals.sla", { state: "none", when: "", time: "" }),
+      };
+    default:
+      // A deadline state the web does not know is a warning, never "no deadline".
+      return {
+        status: "overdue",
+        icon: "triangle-alert",
+        label: t("approvals.state", { state: "unknown" }),
+      };
+  }
+}
+
+/** The record's own page, where its steps are taken; null when the web has none for it. */
+export function workflowLink(item: WorkflowInstanceItem): string | null {
+  switch (item.subjectType) {
+    case "incident":
+      return `/incidents/${item.subjectId}`;
+    case "candour_record":
+      return item.incidentId ? `/incidents/${item.incidentId}` : null;
+    case "statutory_notification":
+      return `/notifications/statutory/${item.subjectId}`;
+    case "outage":
+      return item.locationId ? `/downtime/${item.locationId}/outages/${item.subjectId}` : null;
+    case "exit_record":
+      return item.personId ? `/people/${item.personId}` : null;
+    case "dols_legal_change_review":
+      return item.personId ? `/people/${item.personId}/dols` : null;
+    default:
+      return null;
+  }
+}
+
+/** Who raised it, or that Harbour started it (a job, for example a DoLS review). */
+export function raisedByLine(item: WorkflowInstanceItem, t: Translator): string {
+  return item.createdBy
+    ? t("approvals.raisedBy", { name: item.createdBy.displayName })
+    : t("approvals.startedByHarbour");
+}
+
+/**
+ * An incident whose closing the reader may approve here (the API marks it, and the page reads the
+ * incident for its version and what must be done first).
+ */
+export function isIncidentApproval(item: WorkflowInstanceItem): boolean {
+  return (
+    item.subjectType === "incident" &&
+    item.definitionKey === "safety.incident" &&
+    item.awaitingYourApproval &&
+    item.moves.some((m) => m.to === "closed" && m.approval)
+  );
+}
