@@ -4,6 +4,7 @@ import { Lock, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { HeaderFreshness } from "@/components/care/HeaderFreshness";
 import { ResuscitationStatus } from "@/components/care/ResuscitationStatus";
+import { PersonStatusBadge } from "@/components/exit/ExitChip";
 import { iddsiLabel } from "@/lib/care-record";
 import { formatDate, formatNhsNumber } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -121,6 +122,7 @@ export function PersonHeader({
                 {names.hasPreferred ? names.preferred : names.full}
               </h1>
               <SampleBadge sample={person.sample} />
+              <PersonStatusBadge status={person.status} />
             </div>
             {names.hasPreferred ? (
               <p className="m-0 text-body text-text-secondary">{names.full}</p>
@@ -262,6 +264,7 @@ export function PersonHeaderCompact({
           </a>
         </Heading>
         <SampleBadge sample={person.sample} />
+        <PersonStatusBadge status={person.status} />
       </div>
       <dl className="m-0 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Detail term={t("people.header.allergiesTitle")}>

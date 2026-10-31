@@ -87,7 +87,7 @@ export function AcceptSetting({
     send(() => acceptSetting(rateKey, clinical ? reviewer : undefined));
   };
   return (
-    <form className="flex flex-col gap-2" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-2" onSubmit={submit} noValidate>
       <p className="m-0">
         {value
           ? t("onboarding.setting.value", { value: value.value, unit: value.unit })
@@ -167,7 +167,7 @@ export function StaffFileOption({
     if (option) send(() => chooseStaffFileOption(option, version));
   };
   return (
-    <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
       <RadioGroup
         legend={t("onboarding.staffFile.legend")}
         name="staffFileOption"
@@ -211,7 +211,7 @@ export function RecordDcb0160({
     send(() => recordDcb0160(safetyCaseVersion, assessor));
   };
   return (
-    <form className="flex flex-col gap-2" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-2" onSubmit={submit} noValidate>
       <p className="m-0">{t("onboarding.dcb0160.about", { version: safetyCaseVersion })}</p>
       <ReviewerField
         id={ids.reviewer}

@@ -61,6 +61,17 @@ describe("hazard HZ-009 fromUkWallClock", () => {
     expect(fromUkWallClock(y, m, d, h, min).toISOString()).toBe(expected);
   });
 
+  it.each([
+    ["31 November", [2026, 11, 31, 9, 0]],
+    ["29 February in a common year", [2027, 2, 29, 9, 0]],
+    ["hour 24", [2026, 6, 1, 24, 0]],
+    ["hour 25", [2026, 6, 1, 25, 0]],
+    ["minute 60", [2026, 6, 1, 9, 60]],
+    ["month 13", [2026, 13, 1, 9, 0]],
+  ] as const)("refuses %s rather than retrying for ever", (_name, [y, m, d, h, min]) => {
+    expect(() => fromUkWallClock(y, m, d, h, min)).toThrow("Not a time on the UK clock");
+  });
+
   it("round-trips through the wall clock", () => {
     const instant = new Date("2026-08-01T16:45:00Z");
     const w = toUkWallClock(instant);

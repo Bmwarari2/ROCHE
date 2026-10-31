@@ -35,6 +35,7 @@
 import type { SyncDeviceReport } from "@harbour/contracts";
 import { AppSchema, DEVICE_WRITABLE_TABLES } from "@harbour/sync/client";
 import type { Me } from "../auth/auth-client";
+import { rememberAnsweredStatements } from "../care/answered-tasks";
 import type { FieldError } from "../care/entries";
 import { parseQueuedMove } from "../care/round-actions";
 import { type MessageKey, t } from "../i18n/t";
@@ -618,7 +619,11 @@ async function park(tx: TxLike, row: HeldEntryRow, code: ParkCode, now: Date): P
   await tx.execute("DELETE FROM held_entry WHERE id = ?", [row.id]);
 }
 
-async function putBack(tx: TxLike, row: HeldEntryRow): Promise<void> {
+async function putBack(
+  tx: TxLike,
+  row: HeldEntryRow,
+  ownerTenantUserId: string | null,
+): Promise<void> {
   const table = row.record_table ?? "";
   const data = payloadOf(row);
   if (table === "task") {
@@ -639,6 +644,19 @@ async function putBack(tx: TxLike, row: HeldEntryRow): Promise<void> {
         .join("")})`,
       [row.id, ...columns.map((c) => toSql(data[c]))],
     );
+  }
+  // An entry that answers a round task answers it again, for its owner: the hold cleared the
+  // answer with the rest of the bookkeeping (#123 check, M1 edge case 2).
+  if (typeof data.task_id === "string" && data.task_id && ownerTenantUserId) {
+    for (const s of rememberAnsweredStatements({
+      tenantUserId: ownerTenantUserId,
+      taskId: data.task_id,
+      entryTable: table,
+      entryId: row.id,
+      at: new Date(),
+    })) {
+      await tx.execute(s.sql, s.params);
+    }
   }
   await tx.execute("DELETE FROM held_entry WHERE id = ?", [row.id]);
 }
@@ -697,6 +715,9 @@ export async function restoreHeldWork(
   let restored = 0;
   let parked = 0;
   let remaining = 0;
+  // Restoring is for the owner only (admitToDatabase): their answers are rebuilt with the entries.
+  const owner = await readDeviceOwner(db).catch(() => null);
+  const ownerTenantUserId = owner && owner !== "unreadable" ? owner.tenantUserId : null;
   for (const row of rows) {
     if (blocked) {
       try {
@@ -710,7 +731,7 @@ export async function restoreHeldWork(
     const goesBack = resendable(row);
     try {
       await db.writeTransaction((tx) =>
-        goesBack ? putBack(tx, row) : park(tx, row, "held_not_restored", now),
+        goesBack ? putBack(tx, row, ownerTenantUserId) : park(tx, row, "held_not_restored", now),
       );
       if (goesBack) restored += 1;
       else parked += 1;

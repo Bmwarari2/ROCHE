@@ -18,7 +18,7 @@ export default function PeopleLayout() {
         contentStyle: { backgroundColor: theme.colors.bgSecondary },
       }}
     >
-      <Stack.Screen name="index" options={{ title: "People" }} />
+      <Stack.Screen name="index" options={{ title: t("mobile.tabs.people") }} />
       <Stack.Screen name="[personId]/index" options={{ title: t("mobile.person.title") }} />
       <Stack.Screen name="[personId]/note" options={{ title: t("mobile.note.title") }} />
       <Stack.Screen name="[personId]/chart" options={{ title: t("mobile.chart.choose") }} />

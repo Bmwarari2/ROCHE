@@ -528,3 +528,173 @@ invitation page too); the session cookie is a browser-session cookie, and "Finis
 access from this browser" clears it; the bundle route passes on only the link's session cookie,
 and the PDF carries `content-security-policy: default-src 'none'; sandbox`; the token is
 forgotten after any result that ends the flow, including one the page cannot read.
+
+## 17. Phase 2 domain rules (slice 8: QUAL-001, 002, 004, 005, 006, 008, 012)
+
+Master prompt section 11.2 with section 20 rule 3: domain types, the permission matrix, the rules
+and the test list come before code. This slice is pure domain rules in new files under
+`packages/domain/src/quality/` (lane E): no schema, API or screens. The schema and API slices that
+use them are 14 (framework and evidence library), 19 (audits), 25 (policies), 32 (data security
+evidence) and 47 (dashboard and PIR); the screens are 64 and 65. Every figure is read from
+`rate_table` (`resolveQualityPhase2Rates` in `quality-rates.ts`); no rule in this slice is a
+statutory clock. No new hazard: HZ-129 (an indicator shown as good when its data is missing)
+belongs to slice 47, and this slice writes the rule it will test (rule 22).
+
+### 17.1 Domain types
+
+| Module | Types | For |
+| --- | --- | --- |
+| `quality-framework.ts` | `FrameworkVersion` (id, framework key, regulator `cqc`, `ciw`, `care_inspectorate` or `rqia`, version number, state `draft`, `published` or `retired`, published and retired dates, source citation, key questions each with their statements, evidence categories), `FrameworkMapping` (tenant mapping of a framework version: version number, statement entries with a local title, owner role and the evidence categories the tenant expects, made by and at), `EvidenceTag` (record type and id, statement ids, framework version id, tagged by and at) | QUAL-001, QUAL-002 |
+| `quality-audits.ts` | `AuditTemplate` (key, title, kind `medication`, `care_plans`, `ipc`, `environment`, `dignity`, `night_visit`, `mock_inspection` or `other`, framework version id, questions each with a weight, the statements it evidences, and whether a "no" needs an action), `AuditAnswer` (`yes`, `partial`, `no`, `not_applicable`, or unanswered), `AuditRecord` (template, framework version it was scored against, answers, self-rating, actions, completed by and at), `AuditAction` (question, description, owner, due date) | QUAL-004 |
+| `quality-indicators.ts` | `IndicatorDefinition` (key, numerator and denominator descriptions, multiplier, unit, direction `lower_is_better` or `higher_is_better`, method in words), `IndicatorInput` (numerator, denominator, coverage: the share of the period and locations with data), `IndicatorTarget` (tenant targets: green and amber thresholds), `IndicatorResult` (value or null, status `green`, `amber`, `red` or `no_data`, reason, method shown) | QUAL-005 |
+| `quality-pir.ts` | `PirDataPoint` (key, CQC question area, label, source, unit), `PirValue` (value, as of, source records count, or missing with why), `PirDraft` (each data point with its value or "not available", never a guessed zero) | QUAL-006 |
+| `policies.ts` | `PolicyVersion` (policy key, version number, state `draft`, `published`, `superseded`, `retired`, change size `minor` or `major`, review due date, roles that must read it, published by and at), `PolicySignature` (staff member, version, signed at), `ReadAndSignStatus` (who must sign, who has, who is outstanding and since when, who is overdue a reminder) | QUAL-008 |
+| `quality-data-security.ts` | `DsptSubmission` (financial year, submitted on, status `standards_met`, `approaching_standards`, `standards_not_met`), `CertificateRecord` (kind `cyber_essentials`, `cyber_essentials_plus`, `ico_registration`; reference; issued on; expires on when the certificate says), `RenewalStatus` (`current`, `due_soon`, `expired`, `missing`) | QUAL-012 |
+
+### 17.2 Permissions
+
+Existing permissions only (packages/domain/src/platform/permissions.ts); the schema slices add any
+read permission they need, with their own matrix rows.
+
+| Permission | Allows in these rules | Held by (built-in roles) |
+| --- | --- | --- |
+| `quality.evidence.manage` | Change a tenant framework mapping; tag a record as evidence | Owner, Registered Manager, deputy, quality lead |
+| `quality.audit.manage` | Complete an audit, give the self-rating, raise its actions | Owner, Registered Manager, deputy, nurse in charge, quality lead |
+| `quality.policy.manage` | Publish a policy version and choose who must read it | Owner, Registered Manager, deputy, quality lead |
+| `quality.dsar.manage` | Record DSPT submissions, Cyber Essentials and ICO registration records (the data security evidence sits with the breach and DSAR registers, section 5.1) | Owner, Registered Manager, deputy, quality lead |
+
+Separation of duties: a policy version is never published by the only person who wrote it when
+the tenant requires a second reviewer (`requireSecondReviewer`, rule 25); an audit's self-rating is
+given by a person, never worked out from its score (rule 15).
+
+### 17.3 Rules
+
+Each rule has a table-driven test named after it.
+
+**Framework (QUAL-001)**
+
+1. A framework version is data: key questions, statements and evidence categories are rows, never
+   code. `checkFrameworkVersion` refuses a version with no key questions, a key question with no
+   statements, no evidence categories, a duplicate statement or key question id, or an id outside
+   the opaque id pattern the evidence pack already accepts (`^[A-Za-z0-9._-]{1,64}$`). The number
+   of statements is whatever the published framework has; Harbour never checks for 34.
+2. Versions move `draft` to `published` to `retired` (`FRAMEWORK_WORKFLOW`); a published version's
+   content never changes (a change is a new version).
+3. `frameworkInForce(versions, regulator, on)`: the published version for that regulator whose
+   published date is on or before the UK date and not retired by then; the latest when two
+   qualify; null when none, never a guess.
+4. Historical audits keep the version they were scored against (`auditFrameworkVersion`): the audit's
+   own version id is looked up, even when retired; a missing version fails loudly.
+5. Tenant mappings are versioned (`checkMappingChange`): the next version number is the last plus
+   one; every statement in the mapping exists in the mapped framework version; only a holder of
+   `quality.evidence.manage` makes the change. `mappingAt(mappings, at)` gives the mapping that was
+   in force at a moment, so a past audit is read with the mapping of its time.
+
+**Evidence library (QUAL-002)**
+
+6. `checkEvidenceTag`: at least one statement; every statement exists in the framework version the
+   tag names; the version is published (a retired version takes no new tags); the record type is a
+   known evidence record type or one of the Phase 2 additions (`audit`, `compliment`, `policy`,
+   `survey`); a record in a restricted silo (speak-up, employee relations casework, legal advice)
+   is never tagged, as rule 2 of the evidence pack says; the tagger holds `quality.evidence.manage`.
+7. `evidenceCoverage(tags, framework)`: for each statement, how many records evidence it, and the
+   statements with none, listed (a gap is shown, never hidden).
+
+**Audits (QUAL-004)**
+
+8. `checkAuditTemplate`: at least one question; weights are positive whole numbers; every statement
+   a question evidences exists in the template's framework version.
+9. `scoreAudit`: the score is the weighted share of answerable questions, where `yes` counts in
+   full, `partial` counts half and `no` counts nothing; `not_applicable` questions leave both sides;
+   unanswered questions make the audit incomplete. The score is null (never 0 or 100) when nothing
+   is answerable. The percentage is shown with the method in words.
+10. `checkAuditCompletion`: every question answered; every `no` (and `partial`) on a question that
+    needs an action has an action with a description, an owner and a due date on or after the audit
+    date; the self-rating is given; the person holds `quality.audit.manage`.
+11. The self-rating is a whole number in the CQC scale read from the rate table
+    (`cqc.rating_scale.min`, `cqc.rating_scale.max`), with the CQC words: 1 inadequate, 2 requires
+    improvement, 3 good, 4 outstanding (`SELF_RATING_WORDS`, keyed by the number).
+12. A default action due date, when the auditor does not choose one, is
+    `quality.audit.action_due_days` UK days after the audit (tenant default).
+13. `nextAuditDue(lastCompletedOn, frequencyMonths)`: the schedule's own frequency (tenant data),
+    calendar months, clamped to the month's last day; overdue on the day after.
+14. Mock inspections are audits of kind `mock_inspection` whose questions are mapped to statements;
+    `auditFindingsByStatement` groups `no` and `partial` answers by statement for the evidence library.
+15. Nothing works out a rating from a score: the self-rating is a person's judgement, recorded with
+    who gave it (no solely automated significant decisions, section 5.1).
+
+**Indicators (QUAL-005)**
+
+16. Every indicator is a definition with its method in words: numerator, denominator, multiplier
+    and unit ("Falls per 1,000 occupied bed-days: falls recorded ÷ occupied bed-days × 1,000"). The
+    multiplier for bed-day rates is `quality.indicator.bed_days_base` from the rate table.
+17. `computeIndicator`: value is numerator ÷ denominator × multiplier, rounded to one decimal for
+    display, exact underneath; a zero or missing denominator gives null.
+18. `checkIndicatorTarget`: green and amber thresholds in the direction of the indicator (for
+    `lower_is_better`, green ≤ amber); targets are the tenant's, never Harbour's.
+19. `ragStatus`: `green` within the green threshold, `amber` within amber, `red` beyond, in the
+    indicator's direction; boundaries count as the better band.
+20. Coverage: a result counts only when its data covers the whole period and every location in the
+    view (`coverage` 1); less gives `no_data` with the reason "Data incomplete for this period".
+21. Status is always a word with an icon on screen (section 5.4); this slice gives the word.
+22. **Missing data is never shown as good** (for HZ-129, slice 47): a null value, a zero or
+    missing denominator, incomplete coverage, a missing target or an unknown indicator gives
+    `no_data` with its reason, never `green`, and never a value of 0. A count indicator with a
+    genuine zero and full coverage is green only when its target says zero is green.
+
+**PIR (QUAL-006)**
+
+23. `PIR_DATA_POINTS` lists the data points by CQC question area (Safe, Effective, Caring,
+    Responsive, Well-led): headcount, vacancies, agency hours, training compliance, supervision,
+    incidents, medication errors, complaints and digital records; each names the source slice that
+    publishes it. The list is confirmed against CQC's current PIR questions (H-602).
+24. `assemblePirDraft`: each data point with its value and as-of date and the number of records
+    behind it; a data point with no value says "Not available in Harbour" with the reason, never
+    0; nothing is submitted to CQC (the Registered Manager reviews and copies across).
+
+**Policies (QUAL-008)**
+
+25. Versions move `draft` to `published` to `superseded` or `retired` (`POLICY_WORKFLOW`); one
+    published version per policy; publishing supersedes the last.
+    `checkPolicyPublication`: a review date after the publication date and no later than
+    `policy.review_interval_months.max` after it; at least one role must read it; the publisher holds
+    `quality.policy.manage`; with `requireSecondReviewer`, the publisher is not the author.
+26. Read-and-sign (`readAndSignStatus`): everyone holding a listed role on the publication date or
+    later must sign; a signature on this version counts; after a `minor` change a signature on the
+    previous published version still counts; after a `major` change it does not. People who left
+    are not counted. Outstanding people are listed with the date they became due.
+27. Reminders: a person outstanding for `policy.read_and_sign.reminder_days` UK days or more since
+    their last reminder (or since publication) is due one (`readAndSignRemindersDue`).
+28. `policyReviewStatus`: `current`, `due_soon` within `policy.review_due_soon_days` of the review
+    date, `overdue` after it.
+
+**Data security evidence (QUAL-012)**
+
+29. `dsptDeadline(on, rates)`: the next DSPT submission deadline on or after a UK date, from
+    `dspt.submission_deadline.month` and `.day` (the 30 June deadline), for the financial year it
+    closes (the year that ends 31 March before it).
+30. `dsptStatus`: `submitted` when a submission for that year exists, `due_soon` within
+    `quality.renewal_reminder_days` of the deadline, `overdue` after it, `due` otherwise; a
+    submission rated `standards_not_met` is submitted but flagged.
+31. `certificateStatus`: Cyber Essentials (and Plus) certificates expire
+    `cyber_essentials.certificate_valid_months` after issue unless the certificate gives its own
+    expiry; the ICO registration renews `ico.registration.renewal_months` after it; `due_soon`
+    within `quality.renewal_reminder_days`; `expired` after; `missing` when there is no record
+    (never assumed current).
+
+### 17.4 Rate rows added (docs/specs/rates.md)
+
+`cqc.rating_scale.min` and `.max` (the CQC ratings scale, master prompt 11.2 "self-rating 1 to 4"),
+`quality.indicator.bed_days_base` (master prompt 11.2 "per 1,000 bed-days"),
+`quality.audit.action_due_days`, `policy.read_and_sign.reminder_days`,
+`policy.review_due_soon_days`, `policy.review_interval_months.max`, `quality.renewal_reminder_days`
+(tenant defaults, to verify), `cyber_essentials.certificate_valid_months` and
+`ico.registration.renewal_months` (to verify against the scheme and the ICO).
+
+### 17.5 Tests
+
+Table-driven, in `packages/domain/src/quality/` beside each module, at 90% line coverage or more:
+`quality-framework.test.ts` (rules 1 to 7), `quality-audits.test.ts` (8 to 15),
+`quality-indicators.test.ts` (16 to 22, the last as `rule 22 missing data is never shown as
+good`), `quality-pir.test.ts` (23, 24), `policies.test.ts` (25 to 28), `quality-data-security.test.ts`
+(29 to 31) and `quality-rates.test.ts` (the rows resolve from rates.md; a missing row fails loudly).

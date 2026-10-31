@@ -123,6 +123,7 @@ export function ukWallClockOccurrences(
  * schedules. During the spring-forward gap the time does not exist and moves forward an hour;
  * during the autumn overlap the first (BST) occurrence is used, so deadlines are never late.
  * Times a person types for an event use `resolveRecordedUkTime` instead, which never guesses.
+ * A date or time that does not exist on any calendar (31/11, 24:00) throws a `RangeError`.
  */
 export function fromUkWallClock(
   year: number,
@@ -133,8 +134,12 @@ export function fromUkWallClock(
 ): Date {
   const first = ukWallClockOccurrences(year, month, day, hour, minute)[0];
   if (first) return first;
-  // Non-existent local time (spring forward): the same wall time an hour later.
-  return fromUkWallClock(year, month, day, hour + 1, minute);
+  // Non-existent local time (spring forward): the same wall time an hour later. The gap is one
+  // hour, so one step is always enough; anything else is not a time on the UK clock at all (31/11,
+  // 25:00), and is refused rather than retried for ever.
+  const later = ukWallClockOccurrences(year, month, day, hour + 1, minute)[0];
+  if (later) return later;
+  throw new RangeError("Not a time on the UK clock");
 }
 
 export interface UkWallClockTime {

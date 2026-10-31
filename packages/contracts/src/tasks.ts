@@ -137,7 +137,18 @@ export const TaskItem = z
   .meta({ id: "TaskItem" });
 export type TaskItem = z.infer<typeof TaskItem>;
 
-export const TaskList = z.object({ items: z.array(TaskItem) }).meta({ id: "TaskList" });
+export const TaskList = z
+  .object({
+    items: z.array(TaskItem),
+    /** True when the window itself held more tasks than the list returns: say so on screen. */
+    truncated: z.boolean().optional(),
+    /**
+     * With `earlier=yes`: open tasks due before the window that did not fit after the window's own
+     * tasks (the most recent earlier ones are listed first). Say how many on screen.
+     */
+    earlierOmitted: z.number().int().min(0).optional(),
+  })
+  .meta({ id: "TaskList" });
 export type TaskList = z.infer<typeof TaskList>;
 
 export const CreateTask = z
@@ -242,3 +253,84 @@ export const EndTaskSeries = z
   .object({ reason: z.string().trim().min(3).max(500), version: z.number().int().min(1) })
   .meta({ id: "EndTaskSeries" });
 export type EndTaskSeries = z.infer<typeof EndTaskSeries>;
+
+// ------------------------------------------------------------------------------------------------
+// Workflow instances and approvals (PLAT-011)
+// ------------------------------------------------------------------------------------------------
+
+export const WorkflowSlaState = z
+  .enum(["none", "on_track", "due_today", "overdue", "on_record"])
+  .meta({
+    id: "WorkflowSlaState",
+    description:
+      "The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline; on_record when the deadline is kept on the record and the list does not have it (open the record to check, never read as no deadline)",
+  });
+export type WorkflowSlaState = z.infer<typeof WorkflowSlaState>;
+
+export const WorkflowMoveOption = z
+  .object({
+    to: z.string(),
+    /** A step the record's creator may not take (separation of duties). */
+    approval: z.boolean(),
+    requiresReason: z.boolean(),
+    requiresStepUp: z.boolean(),
+  })
+  .meta({ id: "WorkflowMoveOption" });
+export type WorkflowMoveOption = z.infer<typeof WorkflowMoveOption>;
+
+export const WorkflowInstanceItem = z
+  .object({
+    id: uuid,
+    definitionKey: z.string(),
+    subjectType: z.string(),
+    subjectId: uuid,
+    personId: uuid.nullable(),
+    /** The incident a candour record belongs to, for its link. */
+    incidentId: uuid.nullable(),
+    /** The home an outage is at, for its link. */
+    locationId: uuid.nullable(),
+    state: z.string(),
+    /** When the workflow started (the record was raised). */
+    startedAt: isoDateTime,
+    enteredStateAt: isoDateTime,
+    slaDueAt: isoDateTime.nullable(),
+    slaState: WorkflowSlaState,
+    /** Who started the workflow (raised the record); null when a job started it. */
+    createdBy: StaffName.nullable(),
+    /**
+     * The workflow's permissions the reader holds where this record is: each one's own scope sees
+     * the record (ADR-0071), and managing an incident needs it seen whole. The steps follow these.
+     */
+    permissions: z.array(z.string()),
+    /**
+     * For an incident whose closing the reader manages: its version (for the forms) and whether a
+     * notification still a draft or ready, or an open question, holds closing back (HZ-013; the
+     * close route checks again). Null otherwise.
+     */
+    incident: z
+      .object({ version: z.number().int(), status: z.string(), closeBlocked: z.boolean() })
+      .nullable(),
+    /** The steps open to the reader now. Each is taken on the record's own page or route. */
+    moves: z.array(WorkflowMoveOption),
+    awaitingYourApproval: z.boolean(),
+    /** The reader could approve but raised the record, so someone else must. */
+    raisedByYou: z.boolean(),
+  })
+  .meta({ id: "WorkflowInstanceItem" });
+export type WorkflowInstanceItem = z.infer<typeof WorkflowInstanceItem>;
+
+export const WorkflowInstanceList = z
+  .object({
+    items: z.array(WorkflowInstanceItem),
+    /** True when more open workflows were in scope than the list holds. */
+    truncated: z.boolean(),
+  })
+  .meta({ id: "WorkflowInstanceList" });
+export type WorkflowInstanceList = z.infer<typeof WorkflowInstanceList>;
+
+export const WorkflowListView = z.enum(["approvals", "all"]).meta({
+  id: "WorkflowListView",
+  description:
+    "approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in",
+});
+export type WorkflowListView = z.infer<typeof WorkflowListView>;

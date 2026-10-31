@@ -14,6 +14,8 @@ import {
   statutoryNotification,
   type Transaction,
   task,
+  workflowInstance,
+  workflowTransition,
 } from "@harbour/db";
 import {
   checkExitWorkflowMove,
@@ -24,6 +26,7 @@ import {
   exitChecklistStatus,
   exitItemOwner,
   LIVE_PERSON_STATUSES,
+  PERSON_LIFECYCLE,
   type PersonStatus,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -112,6 +115,32 @@ async function evidenceBelongs(
       // Residents' money ledger entries arrive with the finance module (Phase 3).
       return false;
   }
+}
+
+/**
+ * Who recorded the departure (the person lifecycle's move to discharged or deceased for this
+ * exit), which may differ from who planned it: neither confirms the return of the person's money.
+ */
+async function departureRecordedBy(tx: Transaction, exit: ExitRow): Promise<string | null> {
+  const [move] = await tx
+    .select({ by: workflowTransition.createdBy })
+    .from(workflowTransition)
+    .innerJoin(
+      workflowInstance,
+      and(
+        eq(workflowInstance.id, workflowTransition.instanceId),
+        eq(workflowInstance.definitionKey, PERSON_LIFECYCLE.key),
+      ),
+    )
+    .where(
+      and(
+        eq(workflowTransition.personId, exit.personId),
+        inArray(workflowTransition.toState, ["discharged", "deceased"]),
+      ),
+    )
+    .orderBy(desc(workflowTransition.occurredAt))
+    .limit(1);
+  return move?.by ?? null;
 }
 
 async function latestExit(tx: Transaction, personId: string): Promise<ExitRow | null> {
@@ -383,7 +412,7 @@ export const peopleExitRouter = createRouter()
       tags: ["people"],
       summary: "Record an item of the exit checklist as done, or not required with a reason",
       description:
-        "Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand. 'Not required' needs a reason and is allowed only where the checklist allows it.",
+        "Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand, even before the draft exists. A statutory notification the safety module does not draft (a regulator outside England) is recorded only by a holder of safety.notification.submit, with step-up. Residents money, deposits and the DWP need finance.ledger.approve with step-up. 'Not required' needs a reason and is allowed only where the checklist allows it.",
       security,
       request: {
         params: ItemParams,
@@ -408,10 +437,16 @@ export const peopleExitRouter = createRouter()
       // the exit (separation of duties for residents' money). Ownership comes from the domain's
       // checklist definition for the key, before anything is read, and the stored row is checked
       // against it below.
-      const finance = exitItemOwner(itemKey) === "finance";
+      const owner = exitItemOwner(itemKey);
+      const finance = owner === "finance";
+      // A statutory notification item (owner safety) is never a box anyone with the exit
+      // permissions may tick (HZ-013): only a holder of the notification permission, with
+      // step-up, and only where the safety module does not draft it (below).
       const access = finance
         ? await requirePermission(c, "finance.ledger.approve")
-        : await requireAnyPermission(c, ["people.admission.manage", "people.movement.record"]);
+        : owner === "safety"
+          ? await requirePermission(c, "safety.notification.submit")
+          : await requireAnyPermission(c, ["people.admission.manage", "people.movement.record"]);
       const view = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           const p = await loadPerson(tx, id);
@@ -433,13 +468,18 @@ export const peopleExitRouter = createRouter()
             });
           }
           requireVersion(row.version, body.version);
-          if (finance && body.status !== "pending" && exit.createdBy === access.tenantUserId) {
+          if (
+            finance &&
+            body.status !== "pending" &&
+            (exit.createdBy === access.tenantUserId ||
+              (await departureRecordedBy(tx, exit)) === access.tenantUserId)
+          ) {
             throw new AuditedRefusal(
               new HttpProblem(
                 403,
                 "separation_of_duties",
                 "Someone else must confirm this.",
-                "The person who recorded the exit cannot also confirm the return of the person's money or deposit.",
+                "The person who planned or recorded the exit cannot also confirm the return of the person's money or deposit.",
               ),
               {
                 action: "people.exit.item",
@@ -460,6 +500,14 @@ export const peopleExitRouter = createRouter()
           if (DERIVED_FROM_RECORDS.has(itemKey)) {
             throw problems.invalid(
               "This is counted from the property inventory and the keys log: record each return there.",
+            );
+          }
+          // Drafted in the safety module (CQC, the medical examiner, LeDeR): the item follows its
+          // draft, before the draft exists too, so it is never ticked ahead of the notification.
+          const definition = state.definitions.find((d) => d.key === itemKey);
+          if (definition?.notification?.safetyKind && !state.fromSafety.has(itemKey)) {
+            throw problems.invalid(
+              "This follows its statutory notification, which is being drafted: submit it, or mark it not required, in notifications.",
             );
           }
           if (state.fromSafety.has(itemKey)) {
