@@ -38,6 +38,7 @@ import {
   requireVersion,
   requireWrite,
 } from "../services/people";
+import { isStaffAt } from "../services/role-holders";
 import {
   conflictResponse,
   createRouter,
@@ -81,6 +82,24 @@ const PROPERTY_MESSAGES: Record<PropertyProblem, string> = {
 
 function refuse(issues: readonly PropertyProblem[]): never {
   throw problems.invalid(issues.map((i) => PROPERTY_MESSAGES[i]).join(" "));
+}
+
+/**
+ * A named witness must be a second member of staff at the person's home: active, with a staff
+ * role in force there, never a family portal account (`isStaffAt`). The record is an attestation
+ * the witness does not sign in to give, so a direct call could otherwise name a relative with
+ * portal access, a suspended account or staff at another home (security review, 31 October 2026).
+ */
+async function requireWitness(
+  tx: Transaction,
+  witnessedBy: string | null | undefined,
+  locationId: string,
+): Promise<void> {
+  if (!witnessedBy) return;
+  if (await isStaffAt(tx, witnessedBy, locationId, new Date())) return;
+  throw problems.invalid(
+    "The witness must be a member of staff who works at this person's home and whose account is active.",
+  );
 }
 
 type ItemRow = typeof propertyItem.$inferSelect;
@@ -289,6 +308,7 @@ export const peoplePropertyRouter = createRouter()
           witnessedBy: body.witnessedBy ?? null,
         });
         if (!check.ok) refuse(check.problems);
+        await requireWitness(tx, body.witnessedBy, p.locationId);
         if (body.photoDocumentIds.length > 0) {
           const photos = await tx
             .select({ id: document.id, personId: document.personId })
@@ -376,6 +396,7 @@ export const peoplePropertyRouter = createRouter()
           p.status as PersonStatus,
         );
         if (!check.ok) refuse(check.problems);
+        await requireWitness(tx, body.witnessedBy, p.locationId);
         const [updated] = await tx
           .update(propertyItem)
           .set({
@@ -440,6 +461,7 @@ export const peoplePropertyRouter = createRouter()
           witnessedBy: body.witnessedBy,
         });
         if (!check.ok) refuse(check.problems);
+        await requireWitness(tx, body.witnessedBy, p.locationId);
         const [updated] = await tx
           .update(propertyItem)
           .set({

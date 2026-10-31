@@ -1,4 +1,5 @@
-import { role, roleAssignment, type Transaction, tenantUser } from "@harbour/db";
+import { familyPortalUser, role, roleAssignment, type Transaction, tenantUser } from "@harbour/db";
+import { rolePermissionMix } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 
 /**
@@ -93,4 +94,45 @@ export async function roleHolders(
     .groupBy(roleAssignment.tenantUserId)
     .orderBy(sql`min(${roleAssignment.validFrom})`, roleAssignment.tenantUserId);
   return rows.map((r) => r.id);
+}
+
+/**
+ * Whether a member is working staff at a location now: active (`roleInForce`, not deleted), with
+ * a staff role in force that reaches it (`roleReaches`; a role holding any portal permission
+ * never counts), and no open family portal link the caller can see, since such an account signs
+ * in to the portal only (ADR-0061). For a second member of staff named on a record, such as a
+ * property witness (people.md rule 7): the foreign key alone proves only that the id is a member
+ * of the organisation (security review, 31 October 2026).
+ */
+export async function isStaffAt(
+  tx: Transaction,
+  tenantUserId: string,
+  locationId: string,
+  now: Date,
+): Promise<boolean> {
+  const roles = await tx
+    .select({ permissions: role.permissions })
+    .from(roleAssignment)
+    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
+    .where(
+      and(
+        eq(roleAssignment.tenantUserId, tenantUserId),
+        roleInForce(now),
+        roleReaches([locationId]),
+      ),
+    );
+  if (!roles.some((r) => rolePermissionMix(r.permissions) === "staff")) return false;
+  const [portal] = await tx
+    .select({ id: familyPortalUser.id })
+    .from(familyPortalUser)
+    .where(
+      and(
+        eq(familyPortalUser.tenantUserId, tenantUserId),
+        isNull(familyPortalUser.revokedAt),
+        isNull(familyPortalUser.deletedAt),
+      ),
+    )
+    .limit(1);
+  return portal === undefined;
 }

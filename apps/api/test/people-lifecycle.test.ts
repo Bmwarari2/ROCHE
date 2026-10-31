@@ -48,7 +48,7 @@ import {
 } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { assigneeMayComplete } from "../src/services/tasks";
-import { ageSession, createHarness, type Harness, LODGE } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 import { pdfPages } from "./support/pdf-text";
 
 /**
@@ -737,6 +737,160 @@ describe("people.md rule 7: property and keys", () => {
     });
     expect(response.status).toBe(422);
     expect(await detail(response)).toContain(words);
+  });
+
+  describe("a witness must be working staff at the person's home (security review, 31 October 2026)", () => {
+    const SUSPENDED = uid("300", 0xe1);
+    const INVITED = uid("300", 0xe2);
+    const ELSEWHERE = uid("300", 0xe3);
+    const ENDED = uid("300", 0xe4);
+    const PORTAL = uid("300", 0xe5);
+    const STAFF_AND_PORTAL = uid("300", 0xe6);
+    const COLLEAGUE = uid("300", 0xe7);
+    const NOT_A_MEMBER = uid("300", 0xef);
+
+    beforeAll(async () => {
+      await asDemoTenant(async (c) => {
+        await c.query(
+          `INSERT INTO tenant_user (id, display_name, email, status) VALUES
+             ($1, 'Sid Suspended', 'sid@example.invalid', 'suspended'),
+             ($2, 'Ivy Invited', 'ivy@example.invalid', 'invited'),
+             ($3, 'Lou Lodge', 'lou@example.invalid', 'active'),
+             ($4, 'Ed Ended', 'ed@example.invalid', 'active'),
+             ($5, 'Fay Portal', 'fay@example.invalid', 'active'),
+             ($6, 'Pat Both', 'pat@example.invalid', 'active'),
+             ($7, 'Col League', 'col@example.invalid', 'active')`,
+          [SUSPENDED, INVITED, ELSEWHERE, ENDED, PORTAL, STAFF_AND_PORTAL, COLLEAGUE],
+        );
+        const careWorkerAt = (member: string, location: string, validTo: string | null = null) =>
+          c.query(
+            `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
+             SELECT $1, id, $2, now() - interval '30 days', $3::timestamptz FROM role WHERE key = 'care_worker'`,
+            [member, location, validTo],
+          );
+        await careWorkerAt(SUSPENDED, DEMO.locationId);
+        await careWorkerAt(INVITED, DEMO.locationId);
+        await careWorkerAt(ELSEWHERE, LODGE.locationId);
+        await careWorkerAt(ENDED, DEMO.locationId, ago(DAY));
+        await careWorkerAt(STAFF_AND_PORTAL, DEMO.locationId);
+        await careWorkerAt(COLLEAGUE, DEMO.locationId);
+        await c.query(
+          "INSERT INTO role_assignment (tenant_user_id, role_id) SELECT $1, id FROM role WHERE key = 'family_representative'",
+          [PORTAL],
+        );
+        const [contact] = (
+          await c.query<{ id: string }>("SELECT id FROM contact WHERE person_id = $1 LIMIT 1", [
+            resident(1),
+          ])
+        ).rows;
+        for (const member of [PORTAL, STAFF_AND_PORTAL]) {
+          await c.query(
+            "INSERT INTO family_portal_user (tenant_user_id, person_id, contact_id) VALUES ($1, $2, $3)",
+            [member, resident(1), contact?.id],
+          );
+        }
+      });
+    });
+
+    // The accounts hold nothing afterwards, so no later test routes work to them.
+    afterAll(async () => {
+      const members = [SUSPENDED, INVITED, ELSEWHERE, ENDED, PORTAL, STAFF_AND_PORTAL, COLLEAGUE];
+      await asDemoTenant(async (c) => {
+        await c.query(
+          "UPDATE role_assignment SET deleted_at = now() WHERE tenant_user_id = ANY($1::uuid[])",
+          [members],
+        );
+        await c.query(
+          `UPDATE family_portal_user SET revoked_at = now(), revoked_by = $2,
+             revoked_reason = 'Test accounts removed' WHERE tenant_user_id = ANY($1::uuid[])`,
+          [members, DEMO.users.manager.id],
+        );
+      });
+    });
+
+    const itemIn = (witnessedBy: string) =>
+      as("nurse", `/v1/people/${resident(1)}/property`, {
+        method: "POST",
+        body: {
+          description: "Gold wedding ring",
+          category: "jewellery",
+          quantity: 1,
+          receivedOn: today(),
+          acknowledgement: { signer: "person", name: "Signed", signedAt: ago(HOUR) },
+          witnessedBy,
+        },
+      });
+
+    const WORDS = "member of staff who works at this person's home and whose account is active";
+
+    it.each([
+      ["a family portal account", PORTAL],
+      ["a staff account with an open family portal link", STAFF_AND_PORTAL],
+      ["a suspended member of staff", SUSPENDED],
+      ["an invited member who has not signed in", INVITED],
+      ["staff at another home", ELSEWHERE],
+      ["staff whose role there has ended", ENDED],
+      ["someone who is not a member at all", NOT_A_MEMBER],
+      ["a member of another organisation", OTHER.managerId],
+    ])("refuses %s as the witness to an item in", async (_label, witness) => {
+      const response = await itemIn(witness);
+      expect(response.status).toBe(422);
+      expect(await detail(response)).toContain(WORDS);
+    });
+
+    it("refuses them as the witness to a return or a disposal, and accepts a colleague there", async () => {
+      const created = await itemIn(COLLEAGUE);
+      expect(created.status).toBe(201);
+      const ring = await json<PropertyItemOut>(created);
+      expect(ring.witnessedBy).toBe(COLLEAGUE);
+
+      const returned = await as("nurse", `/v1/people/${resident(1)}/property/${ring.id}/return`, {
+        method: "POST",
+        body: {
+          returnedOn: today(),
+          recipientName: "Ada Example",
+          recipientCapacity: "person",
+          signature: { signer: "person", name: "Ada Example", signedAt: ago(MIN) },
+          witnessedBy: PORTAL,
+          version: ring.version,
+        },
+      });
+      expect(returned.status).toBe(422);
+      expect(await detail(returned)).toContain(WORDS);
+
+      const disposed = await as("nurse", `/v1/people/${resident(1)}/property/${ring.id}/dispose`, {
+        method: "POST",
+        body: {
+          on: today(),
+          reason: "Broken beyond repair",
+          witnessedBy: ELSEWHERE,
+          version: ring.version,
+        },
+      });
+      expect(disposed.status).toBe(422);
+      expect(await detail(disposed)).toContain(WORDS);
+
+      // Nothing was changed by the refusals.
+      const list = await json<PropertyList>(
+        await as("nurse", `/v1/people/${resident(1)}/property`),
+      );
+      expect(list.items.find((i) => i.id === ring.id)?.status).toBe("held");
+
+      // A colleague at the home witnesses the return.
+      const handedBack = await as("nurse", `/v1/people/${resident(1)}/property/${ring.id}/return`, {
+        method: "POST",
+        body: {
+          returnedOn: today(),
+          recipientName: "Ada Example",
+          recipientCapacity: "person",
+          signature: { signer: "person", name: "Ada Example", signedAt: ago(MIN) },
+          witnessedBy: COLLEAGUE,
+          version: ring.version,
+        },
+      });
+      expect(handedBack.status).toBe(200);
+      expect((await json<PropertyItemOut>(handedBack)).returned?.witnessedBy).toBe(COLLEAGUE);
+    });
   });
 
   it("refuses property to a care worker, and hides people outside their scope", async () => {
