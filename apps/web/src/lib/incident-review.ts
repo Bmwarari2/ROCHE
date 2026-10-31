@@ -165,6 +165,7 @@ export const MANAGE_DONE = [
   // The duty of candour record and the investigation on the incident page (SAFE-007, SAFE-010).
   "candourSaved",
   "candourMoved",
+  "candourReopened",
   "investigationSaved",
   "investigationCompleted",
   "investigationReopened",
@@ -191,6 +192,7 @@ const DONE_STATUS: Record<ManageDone, readonly string[]> = {
   // Said by `followUpDoneToShow`, against the candour record or the investigation.
   candourSaved: [],
   candourMoved: [],
+  candourReopened: [],
   investigationSaved: [],
   investigationCompleted: [],
   investigationReopened: [],
@@ -219,6 +221,9 @@ export function followUpDoneToShow(
       return candourState ? done : null;
     case "candourMoved":
       return candourState && candourState !== "threshold_assessment" ? done : null;
+    // Reopened (#120 review round 3, H1): back at the decision or at telling the person.
+    case "candourReopened":
+      return candourState === "threshold_assessment" || candourState === "verbal_due" ? done : null;
     case "investigationSaved":
       return investigationStatus ? done : null;
     case "investigationCompleted":

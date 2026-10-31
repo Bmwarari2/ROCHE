@@ -4,6 +4,7 @@ import {
   CANDOUR_REASON_MIN,
   type ClassifierQuestionKey,
   candourReasonProblems,
+  candourReopenProblems,
   candourStepProblems,
   checkActivity,
   checkAdvanceCareRecord,
@@ -580,5 +581,29 @@ describe("the duty of candour record and the investigation (HZ-013, HZ-091)", ()
         `Someone affected would leave the duty of candour check: say why in at least ${CANDOUR_REASON_MIN} characters.`,
       ),
     ).toEqual(["candourPersonDropped"]);
+    // #120 review round 3: a closed incident, reopening (run in the domain), and who may take a
+    // person out of those affected; a finished record's decision has its own code.
+    expect(keysOf("The duty of candour record of a closed incident cannot be changed.")).toEqual([
+      "candourClosedIncident",
+    ]);
+    expect(at(candourReopenProblems("closed", "No.").join(" "))).toEqual({
+      reason: t("care.refusal.candourReopenReason"),
+    });
+    expect(
+      keysOf(candourReopenProblems("closed", "x".repeat(CANDOUR_REASON_MIN)).join(" ")),
+    ).toEqual(["candourReopenState"]);
+    expect(
+      keysOf("Only someone who manages incidents can take a person out of those affected."),
+    ).toEqual(["affectedManagersOnly"]);
+    expect(
+      problemMessage(
+        {
+          code: "candour_finished",
+          detail:
+            "The decision cannot change once the record is finished: reopen it first, with a reason.",
+        },
+        t,
+      ).message,
+    ).toBe(t("care.refusal.candourFinished"));
   });
 });

@@ -411,6 +411,30 @@ test("hazard HZ-013 hazard HZ-091 a decision that differs from Harbour's finding
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "candour decision differs, done, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
+
+  // New facts later: the finished record is reopened with a reason (#120 review round 3, H1).
+  const reopen = region(page, "Duty of candour").getByRole("form", { name: "Reopen the record" });
+  await reopen.getByRole("button", { name: "Reopen the record" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toBeFocused();
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("alert")
+      .getByRole("link", { name: /Say why the record is reopened, in at least 20 characters/ }),
+  ).toBeVisible();
+  await expectAccessible(page, "candour reopen, with an error");
+  await reopen
+    .getByLabel("Why is it reopened?")
+    .fill(`An X-ray has now confirmed a fracture (${RUN}).`);
+  await reopen.getByRole("button", { name: "Reopen the record" }).click();
+  await arrived(page, "Duty of candour record reopened");
+  await expect(
+    region(page, "Duty of candour").getByRole("form", { name: "Record the threshold decision" }),
+  ).toBeVisible();
+  await expectAccessible(page, "candour reopened");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectAccessible(page, "candour reopened, dark theme");
+  await page.emulateMedia({ colorScheme: "light" });
 });
 
 test("hazard HZ-013 closing names everyone still to be told when two people were harmed", async ({

@@ -15,7 +15,12 @@ import {
 import { CircleAlert, Info } from "lucide-react";
 import Link from "next/link";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
-import { type CandourChange, saveCandour, stepCandour } from "@/app/actions/incident-follow-up";
+import {
+  type CandourChange,
+  reopenCandour,
+  saveCandour,
+  stepCandour,
+} from "@/app/actions/incident-follow-up";
 import { useFieldIds } from "@/components/care/form-state";
 import { Notice } from "@/components/care/Notice";
 import {
@@ -981,6 +986,20 @@ export function CandourForms({
       ) : null}
       {record && forms.includes("followUp") ? (
         <FollowUpForm target={target} record={record} documents={documents} />
+      ) : null}
+      {record && forms.includes("reopen") ? (
+        <ReasonForm
+          title={t("safety.candour.reopen.title")}
+          intro={t("safety.candour.reopen.intro", { state: record.state })}
+          label={t("safety.candour.reopen.label")}
+          hint={t("safety.candour.reopen.hint")}
+          purpose="candourReopen"
+          submit={t("safety.candour.reopen.submit")}
+          path={pathOf(incidentId)}
+          done="candourReopened"
+          min={DISAGREE_REASON_MIN}
+          onSend={(reason) => reopenCandour(incidentId, { reason, version: record.version })}
+        />
       ) : null}
     </div>
   );

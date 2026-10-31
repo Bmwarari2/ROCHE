@@ -385,6 +385,12 @@ describe("doneToShow", () => {
     expect(followUpDoneToShow("investigationCompleted", null, "open")).toBeNull();
     expect(followUpDoneToShow("investigationReopened", null, "open")).toBe("investigationReopened");
     expect(followUpDoneToShow("closed", "closed", "completed")).toBeNull();
+    // Reopened (#120 review round 3, H1): only while it is back at the decision or telling them.
+    expect(followUpDoneToShow("candourReopened", "threshold_assessment", null)).toBe(
+      "candourReopened",
+    );
+    expect(followUpDoneToShow("candourReopened", "verbal_due", null)).toBe("candourReopened");
+    expect(followUpDoneToShow("candourReopened", "not_notifiable", null)).toBeNull();
   });
 });
 

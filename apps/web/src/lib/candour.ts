@@ -140,8 +140,11 @@ export function candourSteps(
     });
 }
 
-/** The forms the record takes at each stage: nothing once it is finished. */
-export type CandourForm = "threshold" | "verbal" | "attempt" | "written" | "followUp";
+/**
+ * The forms the record takes at each stage. A record finished as not notifiable or no contact
+ * offers only reopening it with a reason (#120 review round 3, H1); one closed, nothing.
+ */
+export type CandourForm = "threshold" | "verbal" | "attempt" | "written" | "followUp" | "reopen";
 
 export function candourForms(state: string | null): CandourForm[] {
   switch (state) {
@@ -153,6 +156,9 @@ export function candourForms(state: string | null): CandourForm[] {
     case "written_due":
     case "enquiries_open":
       return ["written", "followUp"];
+    case "not_notifiable":
+    case "no_contact":
+      return ["reopen"];
     default:
       return [];
   }

@@ -229,10 +229,11 @@ describe("candourForms and who is offered them", () => {
     ["verbal_due", ["verbal", "attempt"]],
     ["written_due", ["written", "followUp"]],
     ["enquiries_open", ["written", "followUp"]],
-    ["not_notifiable", []],
-    ["no_contact", []],
+    // A finished record offers only reopening it, with a reason (#120 review round 3, H1).
+    ["not_notifiable", ["reopen"]],
+    ["no_contact", ["reopen"]],
     ["closed", []],
-  ] as const)("at %s offers %j", (state, forms) => {
+  ] as const)("hazard HZ-013 at %s offers %j", (state, forms) => {
     expect(candourForms(state)).toEqual(forms);
   });
 

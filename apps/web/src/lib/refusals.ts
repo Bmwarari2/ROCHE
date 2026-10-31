@@ -101,7 +101,11 @@ export type RefusalKey =
   | "candourToldEarly"
   | "candourSentEarly"
   | "candourAttemptEarly"
-  | "candourPersonDropped";
+  | "candourPersonDropped"
+  | "candourClosedIncident"
+  | "candourReopenState"
+  | "candourReopenReason"
+  | "affectedManagersOnly";
 
 export interface KnownRefusal {
   readonly key: RefusalKey;
@@ -440,6 +444,27 @@ const RULES: readonly Rule[] = [
     key: "candourPersonDropped",
     fields: [],
     found: has("Someone affected would leave the duty of candour check"),
+  },
+  // #120 review round 3: a closed incident's record, reopening, and who may take a person out.
+  {
+    key: "candourClosedIncident",
+    fields: [],
+    found: has("The duty of candour record of a closed incident cannot be changed."),
+  },
+  {
+    key: "candourReopenState",
+    fields: [],
+    found: has("Only a duty of candour record finished as not notifiable or no contact"),
+  },
+  {
+    key: "candourReopenReason",
+    fields: ["reason"],
+    found: has("Say why the record is reopened"),
+  },
+  {
+    key: "affectedManagersOnly",
+    fields: [],
+    found: has("Only someone who manages incidents can take a person out of those affected."),
   },
   {
     key: "candourThreshold",

@@ -172,6 +172,23 @@ export async function stepCandour(
 }
 
 /**
+ * Reopen a record finished as not notifiable or no contact (`safety.incident.manage`), with a
+ * reason of at least 20 characters (#120 review round 3, H1).
+ */
+export async function reopenCandour(
+  incidentId: string,
+  input: { readonly reason: string; readonly version: number },
+): Promise<ActionResult<CandourView>> {
+  if (!isUuid(incidentId)) return refused(t("errors.notFound"), "not_found");
+  return sendAndRevalidate(paths(incidentId), (api) =>
+    api.POST("/v1/incidents/{id}/candour/reopen", {
+      params: { path: { id: incidentId } },
+      body: { reason: input.reason, version: input.version },
+    }),
+  );
+}
+
+/**
  * Record the investigation (`safety.incident.manage`); version 0 starts it. Each action with an
  * owner and a date becomes a task for its owner; the actions already there are sent with their
  * ids, so their tasks stay theirs.
