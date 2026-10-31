@@ -61,6 +61,7 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
@@ -254,6 +255,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
+  app.route("/", qualityFrameworkRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
