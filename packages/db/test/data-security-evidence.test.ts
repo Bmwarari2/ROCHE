@@ -16,6 +16,8 @@ const ROLE_DPO = "0199f000-0000-7000-8000-000000000b01";
 const ROLE_HOME = "0199f000-0000-7000-8000-000000000b02";
 const HASH = "a".repeat(64);
 let orgDocument = "";
+let personDocument = "";
+let incidentDocument = "";
 const app = () => db.pool("harbour_app");
 const asMember =
   (userId: string | null, tenant = TENANT_A, scope: "tenant" | "locations" = "tenant") =>
@@ -62,6 +64,15 @@ beforeAll(async () => {
       [HASH],
     );
     orgDocument = rows[0]?.id ?? "";
+    const others = await c.query<{ id: string; category: string }>(
+      `INSERT INTO document (category, title, retention_class, storage_key, content_type, size_bytes, sha256, person_id)
+       VALUES ('person_document', 'A letter', 'care_record', 'ds2', 'application/pdf', 10, $1, $2),
+              ('incident_attachment', 'Photo of the scene', 'care_record', 'ds3', 'image/jpeg', 10, $1, NULL)
+       RETURNING id, category`,
+      [HASH, a.personAda],
+    );
+    personDocument = others.rows.find((r) => r.category === "person_document")?.id ?? "";
+    incidentDocument = others.rows.find((r) => r.category === "incident_attachment")?.id ?? "";
   });
 }, 120_000);
 
@@ -144,6 +155,25 @@ describe("hazard HZ-011 data security evidence (migration 0094)", () => {
         ),
       ),
     ).rejects.toThrow(/row-level security/);
+    // Only the organisation's own documents: never a person's, nor one about an incident.
+    for (const doc of [personDocument, incidentDocument]) {
+      await expect(
+        asDpo((c) =>
+          c.query(
+            "INSERT INTO dspt_evidence (assertion_id, document_id, kind) VALUES ($1, $2, 'linked')",
+            [assertion, doc],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      await expect(
+        asDpo((c) =>
+          c.query(
+            "INSERT INTO security_certificate (kind, reference, issued_on, document_id) VALUES ('ico_registration', 'Z9', '2026-01-01', $1)",
+            [doc],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/);
+    }
     await expect(
       asDpo((c) => c.query("UPDATE dspt_evidence SET kind = 'unlinked'")),
     ).rejects.toThrow(/permission denied/);

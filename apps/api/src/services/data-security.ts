@@ -10,13 +10,15 @@ import {
   type CertificateKind,
   certificateStatus,
   dsptStatus,
+  fromUkWallClock,
   QUALITY_PHASE_2_RATE_KEYS,
   type QualityPhase2Rates,
   type RateNation,
+  RateNotFoundError,
   resolveQualityPhase2Rates,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 /**
  * Data security evidence for the API and the worker (QUAL-012; quality.md section 18): the
@@ -113,9 +115,11 @@ export async function raiseDataSecurityReminders(
   let statuses: Awaited<ReturnType<typeof dataSecurityStatuses>>;
   try {
     statuses = await dataSecurityStatuses(tx, tenantId, now);
-  } catch {
+  } catch (error) {
     // No DSPT figures for the organisation's nation (the toolkit is England's): nothing to raise.
-    return 0;
+    // Anything else fails the organisation's sweep, so the failed-job alarm sees it.
+    if (error instanceof RateNotFoundError) return 0;
+    throw error;
   }
   const wanted: {
     kind: string;
@@ -150,11 +154,21 @@ export async function raiseDataSecurityReminders(
   }
   let raised = 0;
   for (const w of wanted) {
-    const dueAt = new Date(`${w.dueOn}T23:59:00Z`);
+    // The end of the UK day it falls due (23:59 Europe/London), never after it in summer time.
+    const [y, m, d] = w.dueOn.split("-").map(Number) as [number, number, number];
+    const dueAt = fromUkWallClock(y, m, d, 23, 59);
+    // Once per kind, source and due time: two certificates expiring the same day each get one.
     const [already] = await tx
       .select({ id: task.id })
       .from(task)
-      .where(and(eq(task.kind, w.kind), eq(task.sourceType, w.sourceType), eq(task.dueAt, dueAt)))
+      .where(
+        and(
+          eq(task.kind, w.kind),
+          eq(task.sourceType, w.sourceType),
+          w.sourceId ? eq(task.sourceId, w.sourceId) : isNull(task.sourceId),
+          eq(task.dueAt, dueAt),
+        ),
+      )
       .limit(1);
     if (already) continue;
     await tx.insert(task).values({

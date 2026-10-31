@@ -721,7 +721,9 @@ and `harbour_owner`; the application never deletes.
 
 32. Everything needs `quality.dsar.manage` held across the whole organisation, as the breach
     register (platform.md rule 18): a manager who holds it for one home only is refused by the API
-    and sees nothing through row-level security (`app.holds_role_permission_at(..., NULL)`).
+    and sees nothing through row-level security (`app.holds_role_permission_at(..., NULL)`). The
+    system (no member, the organisation's view) reads all four tables, for the renewal job and the
+    organisation's full export; it never writes them.
 33. The overview (`GET /v1/data-security`) works out, on every read from the rate table, the DSPT
     status for the year in question (`dsptStatus`, rule 30), each certificate kind's status
     (`certificateStatus`, rule 31; `missing` when there is no record, never assumed current), the
@@ -729,9 +731,11 @@ and `harbour_owner`; the application never deletes.
     and links to the breach register and complaints (open breaches, those past the ICO clock, open
     complaints). The DSAR register joins when slice 15 lands.
 34. An assertion is unique per organisation, year and reference. Marking it `met` needs at least one
-    piece of evidence linked; `not_met` and `not_applicable` need notes. Evidence must be an
-    available organisation document (not a person's, not quarantined or destroyed); linking one
-    already linked, or unlinking one not linked, is refused.
+    piece of evidence linked; `not_met` and `not_applicable` need notes. Evidence, and a
+    certificate's copy, must be an available organisation document: category
+    `organisation_document`, no person, not removed, attached to nothing or only to an organisation
+    record (`app.is_organisation_document`, checked by the API and again in the RLS policies);
+    linking one already linked, or unlinking one not linked, is refused.
 35. A DSPT submission is one per year, for a year whose deadline is not more than a year away,
     submitted on a day not in the future; it may be corrected (history kept). A certificate is
     issued on a day not in the future; a stated expiry is after issue. A later record of the same
@@ -740,7 +744,10 @@ and `harbour_owner`; the application never deletes.
     submitted, one task `quality.dspt_submission` due on the deadline; when the newest certificate of
     a kind is `due_soon` or `expired`, one task `quality.certificate_renewal` due on its expiry. Each
     goes to the owner role with `quality.dsar.manage` required, carries ids only and a generic
-    title, and is raised once per deadline or expiry.
+    title, falls due at 23:59 UK time on the day, and is raised once per kind, source and due time
+    (two certificates expiring the same day each get one). A sweep that fails for any reason but a
+    missing rate fails the organisation's job, so the failed-job alarm sees it; it runs beside the
+    DoLS reminders so one failing never skips the other.
 37. Audit: every read and change writes `audit_event` with ids and codes only (never notes, titles
     or references).
 

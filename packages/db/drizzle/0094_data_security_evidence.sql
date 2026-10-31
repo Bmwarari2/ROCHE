@@ -91,8 +91,22 @@ CREATE INDEX "security_certificate_kind_idx" ON "security_certificate" USING btr
 -- Slice 32 (QUAL-012; quality.md section 18). Forced row-level security on the data security
 -- evidence: read and written only by whoever holds quality.dsar.manage across the whole
 -- organisation (as the breach register, migration 0082: a manager for one home sees nothing), and
--- read by the system (an hourly job with no member) to raise renewal tasks. Restrictive policies
+-- read by the system (the hourly renewal job and the organisation's full export, with no member). Restrictive policies
 -- bind harbour_owner as well as harbour_app (ADR-0002). Evidence links are append-only.
+-- Whether a document is one of the organisation's own, available ones (never a person's or one
+-- attached to a person's record): what evidence and certificate copies may be (security review
+-- round 1, M2). Invoker rights: it reads under the caller's row-level security.
+CREATE OR REPLACE FUNCTION app.is_organisation_document(p_document uuid) RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.document d
+     WHERE d.tenant_id = app.current_tenant_id() AND d.id = p_document
+       AND d.person_id IS NULL AND d.category = 'organisation_document'
+       AND d.status = 'available' AND d.deleted_at IS NULL
+       AND (d.subject_type IS NULL OR d.subject_type IN ('location', 'escalation_policy',
+         'statement_of_purpose_version', 'letter_template_version')))
+$$;
+--> statement-breakpoint
 -- The creator, the creation time, the organisation and removal never change (history is kept by
 -- capture_version; nothing is deleted).
 CREATE OR REPLACE FUNCTION app.data_security_guard() RETURNS trigger
@@ -145,10 +159,11 @@ CREATE POLICY tenant_isolation ON public.dspt_evidence AS PERMISSIVE FOR ALL TO 
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 CREATE POLICY dspt_evidence_read ON public.dspt_evidence AS RESTRICTIVE FOR SELECT TO harbour_app, harbour_owner
-  USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
+  USING (app.is_system() OR app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 CREATE POLICY dspt_evidence_record ON public.dspt_evidence AS RESTRICTIVE FOR INSERT TO harbour_app, harbour_owner
-  WITH CHECK (recorded_by = app.current_user_id() AND app.holds_role_permission_at('quality.dsar.manage', NULL));
+  WITH CHECK (recorded_by = app.current_user_id() AND app.holds_role_permission_at('quality.dsar.manage', NULL)
+    AND (kind = 'unlinked' OR app.is_organisation_document(document_id)));
 --> statement-breakpoint
 CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.dspt_evidence
   FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation();
@@ -202,10 +217,12 @@ CREATE POLICY security_certificate_read ON public.security_certificate AS RESTRI
 --> statement-breakpoint
 CREATE POLICY security_certificate_record ON public.security_certificate AS RESTRICTIVE FOR INSERT TO harbour_app, harbour_owner
   WITH CHECK (deleted_at IS NULL AND created_by IS NOT DISTINCT FROM app.current_user_id()
-    AND app.holds_role_permission_at('quality.dsar.manage', NULL));
+    AND app.holds_role_permission_at('quality.dsar.manage', NULL)
+    AND (document_id IS NULL OR app.is_organisation_document(document_id)));
 --> statement-breakpoint
 CREATE POLICY security_certificate_change ON public.security_certificate AS RESTRICTIVE FOR UPDATE TO harbour_app, harbour_owner
-  USING (app.holds_role_permission_at('quality.dsar.manage', NULL)) WITH CHECK (app.holds_role_permission_at('quality.dsar.manage', NULL));
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL)) WITH CHECK (app.holds_role_permission_at('quality.dsar.manage', NULL)
+    AND (document_id IS NULL OR app.is_organisation_document(document_id)));
 --> statement-breakpoint
 CREATE TRIGGER security_certificate_guard BEFORE UPDATE ON public.security_certificate
   FOR EACH ROW EXECUTE FUNCTION app.data_security_guard();

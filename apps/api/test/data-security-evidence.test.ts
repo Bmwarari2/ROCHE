@@ -102,9 +102,19 @@ describe("QUAL-012 data security evidence", () => {
       issuedOn: daysFromToday(-355),
       expiresOn: daysFromToday(10),
     });
+    // An ICO registration expiring the same day as the Plus certificate (each gets a task).
+    await record({
+      kind: "ico_registration",
+      reference: "ZA654321",
+      issuedOn: daysFromToday(-20),
+      expiresOn: daysFromToday(10),
+    });
     const after = await overview();
     expect(kind(after, "cyber_essentials")?.status).toBe("expired");
-    expect(kind(after, "ico_registration")?.status).toBe("current");
+    expect(kind(after, "ico_registration")).toMatchObject({
+      status: "due_soon",
+      expiresOn: daysFromToday(10),
+    });
     expect(kind(after, "cyber_essentials_plus")).toMatchObject({
       status: "due_soon",
       expiresOn: daysFromToday(10),
@@ -138,8 +148,8 @@ describe("QUAL-012 data security evidence", () => {
         GROUP BY kind, source_type`,
     );
     const renewals = tasks.find((t) => t.kind === "quality.certificate_renewal");
-    // Cyber Essentials (expired) and Plus (due soon); the ICO registration is current.
-    expect(renewals?.n).toBe("2");
+    // Cyber Essentials (expired), and Plus and the ICO registration, due soon on the same day.
+    expect(renewals?.n).toBe("3");
     expect(tasks.every((t) => t.n !== "0")).toBe(true);
   });
 

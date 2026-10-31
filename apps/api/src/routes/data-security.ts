@@ -24,7 +24,13 @@ import {
   type Transaction,
   tenantUser,
 } from "@harbour/db";
-import { breachClock, DATA_RIGHTS_RATE_KEYS, dsptDeadline, ukIsoDate } from "@harbour/domain";
+import {
+  breachClock,
+  DATA_RIGHTS_RATE_KEYS,
+  dsptDeadline,
+  RateNotFoundError,
+  ukIsoDate,
+} from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
@@ -134,12 +140,33 @@ async function checkOwner(tx: Tx, ownerId: string | null | undefined) {
 }
 
 /** Evidence and certificate copies are available organisation documents, never a person's. */
+/** The records an organisation document may be attached to (as routes/documents.ts). */
+const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
+  "location",
+  "escalation_policy",
+  "statement_of_purpose_version",
+  "letter_template_version",
+]);
+
 async function checkOrganisationDocument(tx: Tx, documentId: string) {
   const [d] = await tx
-    .select({ personId: document.personId, status: document.status })
+    .select({
+      personId: document.personId,
+      status: document.status,
+      category: document.category,
+      subjectType: document.subjectType,
+      deletedAt: document.deletedAt,
+    })
     .from(document)
     .where(eq(document.id, documentId));
-  if (!d || d.personId !== null || d.status !== "available") {
+  const usable =
+    d !== undefined &&
+    d.personId === null &&
+    d.category === "organisation_document" &&
+    d.status === "available" &&
+    d.deletedAt === null &&
+    (d.subjectType === null || ORGANISATION_SUBJECT_TYPES.has(d.subjectType));
+  if (!usable) {
     throw unprocessable(
       "document_not_usable",
       "Choose an available organisation document, not a person's.",
@@ -188,7 +215,8 @@ export const dataSecurityRouter = createRouter()
         let statuses: Awaited<ReturnType<typeof dataSecurityStatuses>>;
         try {
           statuses = await dataSecurityStatuses(tx, access.tenantId, now);
-        } catch {
+        } catch (error) {
+          if (!(error instanceof RateNotFoundError)) throw error;
           throw new HttpProblem(
             422,
             "rates_missing",
