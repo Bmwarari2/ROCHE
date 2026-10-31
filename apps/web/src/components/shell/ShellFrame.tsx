@@ -17,8 +17,10 @@ import {
   ClipboardList,
   CloudOff,
   FileLock,
+  FileSpreadsheet,
   FileText,
   FolderLock,
+  Gauge,
   House,
   ListChecks,
   ListTodo,
@@ -83,6 +85,10 @@ export interface ShellFrameLabels {
   readonly policies?: string | undefined;
   /** Shown only to holders of quality.dsar.manage (QUAL-012). */
   readonly dataSecurity?: string | undefined;
+  /** Shown only to holders of quality.audit.manage (QUAL-005). */
+  readonly qualityDashboard?: string | undefined;
+  /** Shown only to holders of quality.audit.manage (QUAL-006). */
+  readonly pir?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown to staff (not family portal sessions): their tasks and the team's (PLAT-011). */
@@ -337,6 +343,26 @@ export function ShellFrame({
             label: labels.dataSecurity,
             href: "/quality/data-security",
             icon: <ShieldCheck {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.qualityDashboard
+      ? [
+          {
+            id: "quality-dashboard",
+            label: labels.qualityDashboard,
+            href: "/quality/dashboard",
+            icon: <Gauge {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.pir
+      ? [
+          {
+            id: "pir",
+            label: labels.pir,
+            href: "/quality/pir",
+            icon: <FileSpreadsheet {...icon} />,
           },
         ]
       : []),

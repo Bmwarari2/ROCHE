@@ -327,10 +327,21 @@ export function dashboardIndicator(
       denominator: null,
     };
   }
-  const result = indicatorResult(definition, input, target);
-  if (result.reasonCode === "incomplete_data") {
-    return { ...result, numerator: null, denominator: null };
+  // An incomplete period says so first: "nothing to measure" over part of a period would mislead.
+  if (!(input.coverage >= 1)) {
+    return {
+      key: definition.key,
+      value: null,
+      display: null,
+      status: "no_data",
+      reason: NO_DATA_REASONS.incomplete_data,
+      reasonCode: "incomplete_data",
+      method,
+      numerator: null,
+      denominator: null,
+    };
   }
+  const result = indicatorResult(definition, input, target);
   const small = (n: number | null) => isSmallNumber(n, options.minGroupSize);
   const aboutPeople = definition.smallNumbers === "both";
   const remainder =

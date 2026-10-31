@@ -28,6 +28,8 @@ export const QUALITY_DONE = [
   "submissionRecorded",
   "submissionCorrected",
   "certificateRecorded",
+  "targetSet",
+  "targetCleared",
 ] as const;
 export type QualityDone = (typeof QUALITY_DONE)[number];
 

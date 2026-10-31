@@ -32051,6 +32051,7 @@ export interface components {
       unit: string;
       /** @enum {string} */
       direction: "lower_is_better" | "higher_is_better";
+      multiplier: number;
       method: string;
       source: string | null;
       numerator: number | null;

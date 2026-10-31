@@ -49,6 +49,8 @@ export const QualityIndicatorOut = z
     title: z.string(),
     unit: z.string(),
     direction: z.enum(["lower_is_better", "higher_is_better"]),
+    /** What the ratio is multiplied by: 1 for a count, 100 for a percentage, the bed-days base. */
+    multiplier: z.number(),
     method: z.string(),
     /** The source in words; null when Harbour does not record it yet. */
     source: z.string().nullable(),
@@ -72,6 +74,7 @@ export const QualityIndicatorOut = z
       .nullable(),
   })
   .meta({ id: "QualityIndicatorOut" });
+export type QualityIndicatorOut = z.infer<typeof QualityIndicatorOut>;
 
 export const QualityDashboardQuery = z.object({
   locationId: uuid,
@@ -89,6 +92,7 @@ export const QualityDashboard = z
     indicators: z.array(QualityIndicatorOut),
   })
   .meta({ id: "QualityDashboard" });
+export type QualityDashboard = z.infer<typeof QualityDashboard>;
 
 export const QualityIndicatorTargetOut = z
   .object({

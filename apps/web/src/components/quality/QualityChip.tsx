@@ -11,6 +11,7 @@ import {
   type LucideIcon,
   PenLine,
   Send,
+  TriangleAlert,
 } from "lucide-react";
 import type { QualityChip as Chip, QualityIcon } from "@/lib/evidence-packs";
 
@@ -25,6 +26,7 @@ const ICONS: Record<QualityIcon, LucideIcon> = {
   "circle-alert": CircleAlert,
   lock: Lock,
   link: Link2,
+  "triangle-alert": TriangleAlert,
 };
 
 /** A status on the quality screens: an icon and a word, never colour alone. */

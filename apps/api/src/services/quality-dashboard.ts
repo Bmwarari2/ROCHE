@@ -222,6 +222,7 @@ export function dashboardOut(
       title: definition.title,
       unit: definition.unit,
       direction: definition.direction,
+      multiplier: definition.multiplier,
       method: result.method,
       source: INDICATOR_SOURCES[key],
       numerator: result.numerator,

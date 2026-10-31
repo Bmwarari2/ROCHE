@@ -15,7 +15,7 @@ import { type ActionResult, problemMessage } from "./outcome";
  * at that field and the summary links to it.
  */
 export async function sendQuality<T>(
-  subject: "pack" | "sop" | "policy" | "dataSecurity",
+  subject: "pack" | "sop" | "policy" | "dataSecurity" | "target",
   paths: readonly string[],
   call: (api: ApiClient) => Promise<{ data?: T; error?: unknown }>,
   fields: Readonly<Record<string, { readonly field: string; readonly message?: string }>> = {},
@@ -40,7 +40,10 @@ export async function sendQuality<T>(
   }
 }
 
-function qualityProblem(subject: "pack" | "sop" | "policy" | "dataSecurity", error: unknown) {
+function qualityProblem(
+  subject: "pack" | "sop" | "policy" | "dataSecurity" | "target",
+  error: unknown,
+) {
   const problem = (typeof error === "object" && error !== null ? error : {}) as {
     code?: unknown;
     detail?: unknown;

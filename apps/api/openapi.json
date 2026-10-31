@@ -25442,6 +25442,9 @@
               "higher_is_better"
             ]
           },
+          "multiplier": {
+            "type": "number"
+          },
           "method": {
             "type": "string"
           },
@@ -25555,6 +25558,7 @@
           "title",
           "unit",
           "direction",
+          "multiplier",
           "method",
           "source",
           "numerator",

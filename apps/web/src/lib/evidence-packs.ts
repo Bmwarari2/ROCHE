@@ -64,7 +64,8 @@ export type QualityIcon =
   | "clock"
   | "circle-alert"
   | "lock"
-  | "link";
+  | "link"
+  | "triangle-alert";
 
 /** A status said with an icon and a word, never colour alone. */
 export interface QualityChip {
