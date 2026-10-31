@@ -347,7 +347,7 @@ describe("PLAT-014 matching columns", () => {
     }
   });
 
-  it("refuses unknown columns, a mapping to no field and two columns for one field, by position", () => {
+  it("hazard HZ-130 refuses unknown columns, a mapping to no field and two columns for one field, by position", () => {
     // A file without a header row: its first person's details become the headings.
     const result = mapImportColumns(
       ["Ada", "Example", "given_name", "Given name", "9990000018"],

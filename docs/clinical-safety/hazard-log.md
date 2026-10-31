@@ -68,6 +68,7 @@
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
+| [HZ-130](#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person) | Imported records mis-mapped, duplicated or attached to the wrong person | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-543 and H-680) | Open | None (Phase 2) | Phase 2 (slices 26, 51, 67, 79) |
 
 Thirteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -119,7 +120,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | No automatic advance after saving: the app confirms the save naming the person and returns to that person or the list | Phase 1 |
 | Design | Lists do not re-order under the user's finger while sync applies changes | Phase 1 |
 | Design | Notification deep links carry tenant and person IDs; the target screen re-validates both before rendering | Phase 1 |
-| Design | Probable duplicate check on create and import (same NHS number, or same date of birth and similar name) | Phase 1 |
+| Design | Probable duplicate check on create and import (same NHS number, or same date of birth and similar name) | Phase 1 (create); import built in Phase 2 slice 26 (HZ-130: the same NHS number or local identifier refused, the same name and date of birth where either has no NHS number warned and acknowledged) |
 | Design | eMAR requires positive identification for each administration: wristband barcode scan or photo confirmation | Phase 2 |
 | Design | Shared and kiosk devices lock after 30 seconds by default and return to user sign-in, not to the last person ([kiosk.md](../compliance/kiosk.md)) | Phase 1 |
 | Design | The room on the header comes from the dated bed history, which never puts two people in one bed; a death or discharge recorded against the wrong person is corrected with a reason (and a fresh sign-in for a death), cancelling the exit workflow and the death notification drafts ([people.md](../specs/people.md) rules 2 and 6) | Built in Phase 1 (slice 8 API) |
@@ -666,7 +667,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | The administration screen displays the person's recorded allergies next to the medicine being given. Any automatic matching of allergen to medicine ingredient needs a medical-device boundary decision first ([medical-device-boundary.md](../compliance/medical-device-boundary.md)) | Phase 2 |
 | Design | Catering allergen flags read the same allergy record (single source) | Phase 3 |
 | Design | The downtime pack lists allergies most severe first, with allergies of unknown severity among the severe, and reads "not recorded" with what to do when no allergy status is recorded ([operations.md](../specs/operations.md) rule 1) | Phase 1 (domain rules built, slice 11) |
-| Design | Import dry run lists people without an allergy status | Phase 2 |
+| Design | Import dry run lists people without an allergy status | Built in Phase 2 slice 26 (`POST /v1/imports/{id}/dry-run`: `allergyStatusUnknownRows`, and `allergiesToRecordRows` for people marked as having allergies, whose allergies a people import does not carry; a blank status imports as unknown, and a stated one is recorded as confirmed by the member who commits, at the commit, by the existing trigger; the CSO reviews this, H-680) |
 | Design | The printed transfer pack embeds Noto Sans (SIL Open Font Licence), so substances and reactions print as written in Latin, Greek and Cyrillic scripts (β-lactam, μg, Welsh ŵ and ŷ); a section holding a character the font lacks is named on the first page ([ADR-0040](../decisions/0040-transfer-pack-pdf-writer.md)) | Built in Phase 1 slice 8 |
 | Design | Who set the allergy status and when is kept on the person by a trigger on every write that touches the status or the confirmer columns (`allergy_status_confirmed_by`, `_at`): always the signed-in user and the time of the write, never values the client sends and never the last person to edit the row; both are cleared when the status is unknown. "No known allergies" prints with them, and one without a confirmer is listed on the pack's first page to check | Built in Phase 1 slice 8 (review round 3) |
 | Design | "Not recorded" is one shared status in `@harbour/ui` (`notRecorded`: the warning colour, a question mark and the words, never the clock of a due task), used for allergies and communication needs, and a link to where they are recorded when that screen is given. The design is for the CSO (H-130) | Built in Phase 1 slice 8 (review round 3; the links with the record screens) |
@@ -702,6 +703,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-007 lists the most severe allergies first, with unknown severity among the severe`; `hazard HZ-021 missing safety-critical information reads not recorded, never blank` (allergies) | Passing (Phase 1, slice 11) |
 | `apps/api/test/downtime.test.ts`: `hazard HZ-007 prints each person's own current allergies only` (inactive, resolved, refuted, entered in error, deleted and another resident's never print; an unfamiliar status prints) | Passing (Phase 1, slice 11 part 3a-1) |
 | `packages/domain/src/platform/imports.test.ts`: `hazard HZ-007 imports a blank allergy status as unknown, never as no allergies` (the import wizard, PLAT-014, Phase 2 slice 9 rules; the wizard itself is slice 26) | Passing (Phase 2 slice 9) |
+| `packages/domain/src/platform/imports.test.ts`: `hazard HZ-007 the dry run lists rows imported with allergy status unknown, and allergies to record`; `apps/api/test/imports.test.ts` (`hazard HZ-130 commits a clean batch whole, once, and undoes it once`): the dry run's lists over HTTP, a blank status stored as unknown with no confirmer, a stated one confirmed by the committing member | Passing (Phase 2 slice 26) |
 
 ---
 
@@ -2523,6 +2525,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `packages/domain/src/platform/onboarding.test.ts`: `hazard HZ-072 sample data is flagged, never mixed with real people, and removable in one step` (invented names, numbers, telephone numbers and addresses; every surface's treatment; badge and watermark; the outbound guard; every creation path refused while sample data exists; all-or-nothing removal) | Passing (Phase 1) |
 | `packages/db/test/sample-data.test.ts`: `hazard HZ-072 sample data is never mixed with real people (migration 0069)` (loads only with the permission and in the loader's name; refuses sample people beside real ones and real people beside sample ones, from any role; the flag never changes; removal only through the function, whole batch or nothing, audited, leaving every real row and the other organisation's; practice records (allergy, contact, note, chart, released hold) removed with the people and counted; an active hold or a record outside the people's own stops it; the append-only triggers still refuse every other delete; soft-deleted people still count; REPEATABLE READ refused) | Passing (Phase 1) |
 | `apps/api/test/sample-data.test.ts`: `hazard HZ-072 sample data mode (rules 29 to 32)` (permission; refused while real people exist; once only; a real person waits; a note, a chart, an allergy, a document and a released hold practised on a sample person; step-up; removed in one step with them, the document's stored file deleted from storage; a real person may then be added; audited, refusals too) | Passing (Phase 1) |
+| `apps/api/test/imports.test.ts`: `hazard HZ-072 an import waits while sample data is in place` (the import wizard's commit refused `remove_sample_data_first`, its staged rows kept; Phase 2 slice 26) | Passing (Phase 2 slice 26) |
 | `apps/api`: `hazard HZ-072 a sample incident drafts no statutory notification` | Planned: not true today (the classifier does not look at the sample flag); suppressing a statutory draft is a clinical-safety decision for the CSO (H-452). Until then the onboarding page says a draft may appear and is to be decided not required |
 | `apps/api/test/downtime.test.ts`, `letters.test.ts`, `evidence-pack-sample.test.ts`; `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-072 ...` (a sample person is marked "(Sample)" on the downtime pack, a letter's check and PDF, and an evidence pack) | Passing (Phase 1) |
 | `apps/web/e2e/sample-data.spec.ts` (Playwright with axe on every state): load after a confirmation; the banner on every screen; the "Sample" badge, an icon and a word, on each sample person in the people list and on their record; "Sample data is removed" blocking go-live while a batch is loaded; removal confirmed, refused in words without a fresh step-up, then done; `apps/web/src/components/people/PersonHeaderCompact.test.tsx` and `src/lib/people.test.ts`: `hazard HZ-072` badge and name marker | Passing (Phase 1) |
@@ -2881,10 +2884,61 @@ person receiving care.
 
 ---
 
+## HZ-130 Imported records mis-mapped, duplicated or attached to the wrong person
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-130 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | Master prompt 9.1 (migration import wizard, PLAT-014); [phase-2.md](../plans/phase-2.md) slice 26; [platform.md](../specs/platform.md) Phase 2 rules 11 to 26; [ADR-0092](../decisions/0092-import-wizard.md); related to HZ-001 (wrong person, duplicate records), HZ-007 (allergy status), HZ-011 (scope), HZ-071 (export round trip) and HZ-072 (sample data) |
+
+**Description**: when a provider moves its records into Harbour through the import wizard, a column is read as the wrong field or in the wrong format (given and family names swapped, a date of birth read month first, a code misread), the same person is created twice (twice in one file, or again beside someone already in Harbour), or an imported detail is attached to, merged into or overwrites the record of a different person. Staff then act on a record that is not the person in front of them, or on two half records of one person.
+
+**Causes**: a file with no header row or with headings Harbour reads as other fields; two columns read as one field; dates in another order or with two-digit years; an NHS number missing, mistyped or shared by two rows; a person already in Harbour (perhaps at another home of the organisation, or under a local identifier only) imported again; matching on name alone; an import that updates or merges into an existing record; a partial import that leaves some rows in and some out; a retried request that imports twice; a mistaken import that cannot be taken back, or is taken back after care has been recorded against it; a member who sees only some homes using an import to learn whether a person lives at another (HZ-011).
+
+**Effects**: a wrong-person decision or entry (HZ-001); allergies, communication needs or resuscitation decisions recorded on one of two duplicate records and missed on the other (HZ-007, HZ-015); wrong ages or dates driving reviews and validated tools; care recorded against a record that is later found to be a duplicate; a disclosure across homes.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Columns are matched to fields only by the mapping given or by the field's own key or label; a column that matches nothing, a mapping to no field, or two columns for one field refuse the whole upload, naming columns by position (never a heading, which in a file without a header row is a person's details); only matched columns are staged (platform.md rule 19) | Built in Phase 2 slice 26 (`mapImportColumns`, `POST /v1/imports`) |
+| Design | Every value is checked against data-standards.md before anything is created: dates are dd/mm/yyyy only, real, a date of birth from 1900 to today (a two-digit or mistyped year is refused); NHS numbers pass the modulus 11 check; coded fields take only their codes; a person needs an NHS number or a local identifier; control characters refused (rules 11, 12 and 20) | Built in Phase 2 (slice 9 rules, extended in slice 26) |
+| Design | Duplicates within the file: an NHS number or a local identifier on two rows refuses both rows; the same name and date of birth on two rows where either has no NHS number is a warning the committer must acknowledge (rules 12, 20 and 21) | Built in Phase 2 slice 26 |
+| Design | Never merging: a row whose NHS number or local identifier is already on a record in the organisation (any home, any status) is an error, so an import never updates, merges with or attaches anything to an existing person; the same name and date of birth as an existing person, where either has no NHS number, is a warning to acknowledge; people with different NHS numbers are different people (rule 21) | Built in Phase 2 slice 26 (`matchExistingPeople`; the dry run and the commit) |
+| Design | Matching never becomes an existence oracle: every import route needs `platform.import.run` and `people.person.create` across the whole organisation, so the importer can already see everyone matching could find; anyone else gets one answer, `organisation_wide_required`, before the request is read, whatever the file holds; another organisation's people are never read (a number used by another provider imports as new) and its batch is `not_found` like one that does not exist (rule 18; restrictive row-level security in migration 0088 as well as the API) | Built in Phase 2 slice 26 |
+| Design | A dry run before any commit, reporting every error and warning by row and field, the rows imported with allergy status unknown and the rows with allergies to record; the commit repeats the dry run with the batch locked and creates the whole batch or nothing; committing again returns the same commit, so a retried request never imports twice; people wait while sample data is in place (HZ-072) (rules 22 and 23) | Built in Phase 2 slice 26 |
+| Design | Undo within `import.undo_window_days`, once, only while every imported person is unchanged and nothing refers to any of them, removing the whole batch or nothing through `app.undo_import_batch`; after that, corrections are made record by record (rules 14 and 24) | Built in Phase 2 slice 26 |
+| Design | The web wizard shows the mapped fields with the file's own first rows beside them, read in the browser, for the importer to check before the dry run, and the report in words with icon and word for each state | Planned, Phase 2 slice 67 |
+| Design | Contacts, allergies and staff are matched to their person by NHS number or local identifier only, never by name, and refused when the person is not found; imported medicines arrive "not yet checked" (HZ-005) | Planned, Phase 2 slices 26 (later part) and 51 |
+| Process | Deployer control: before importing, the tenant checks the source system's export (date order, identifiers), and after committing signs off a sample of imported records against the source within the undo window (H-682); the per-tenant onboarding list already asks the tenant to sign off imported data | Before each real tenant's import |
+| Test | See Verification | Phase 2 |
+| Training and user documentation | Owner guide for the import wizard (slice 67): mapping, reading the dry run, acknowledging possible duplicates, checking a sample before the undo window closes | Phase 2 slice 67 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-543 and H-680).
+
+**Justification for level 3**: a file whose dates are all in month-first order with every day 12 or under, or whose given and family names are swapped consistently, passes every automated check: nothing in the values tells them apart from correct ones. Harbour lowers the likelihood (dd/mm/yyyy only, the date-of-birth bounds, the dry run, the planned side-by-side check in the wizard, undo) but the final check of a sample against the source is the deployer's (H-682).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/platform/imports.test.ts`: `hazard HZ-130 matching rows against people already in Harbour` (an NHS number or local identifier already on a record refused without saying whose; possible duplicates against existing people and between rows, warned once each; different NHS numbers never warned; `hazard HZ-130 commits only a staged, dry-run, clean batch with duplicates acknowledged`, table-driven), `hazard HZ-130 refuses unknown columns, a mapping to no field and two columns for one field, by position`, `PLAT-014 person import rules` (identifier, dates from 1900, postcode, control characters, a local identifier on two rows) and `PLAT-014 reading an import file` | Passing (Phase 2 slice 26) |
+| `packages/db/test/imports.test.ts`: `hazard HZ-130 hazard HZ-011 the import tables (migration 0088)` (only a holder across the organisation reaches a batch, its rows or its commit, whatever scope the request claims; another organisation never sees or writes them; staged rows insert-only and deleted when the batch closes; the guard's forward-only transitions, dry run first, own name, expiry only when due); `hazard HZ-130 undoing an import in the database` (permission, changed and soft-deleted refusals, a record made about a person refusing, whole batch or nothing, once, audited by count, other people and the other organisation untouched) | Passing (Phase 2 slice 26) |
+| `apps/api/test/imports.test.ts`: `hazard HZ-130 who may import` (no permission; `hazard HZ-130 refuses a holder at one home with one answer, whatever the file holds`, byte for byte the same for a number at another home and an unused one, audited; another organisation's batch and location not found); `hazard HZ-130 uploading names columns and rows by number`; `hazard HZ-130 dry run, commit and undo` (a number at another home reported, another organisation's imported as new; nothing commits with an error; step-up; whole commit, people active at the location, the allergy confirmer; idempotent commit; undo once and re-import; changed and referenced refusals; possible duplicates acknowledged; dry run first; not staged); `hazard HZ-072 an import waits while sample data is in place`; `hazard HZ-130 nothing imported is echoed in an audit event` | Passing (Phase 2 slice 26) |
+| `apps/web` Playwright: `hazard HZ-130 the wizard shows the mapping beside the file's first rows before the dry run` | Planned, Phase 2 slice 67 |
+| `apps/api`: `hazard HZ-130 an allergy or contact row is attached only to the person its identifier names, never by name` | Planned, Phase 2 (contacts and allergies import) |
+
+---
+
 ## Candidate hazards for the first CSO workshop
 
 Not yet in the log (no IDs allocated). The CSO decides at the Phase 1 SWIFT workshop whether each becomes a hazard `[CSO decision - human action]`:
 
-- Data import mapping errors beyond allergies and medicines (care-plan content, contacts, legal representatives).
+- Data import mapping errors beyond allergies and medicines (care-plan content, contacts, legal representatives). People's demographics are now HZ-130 (Phase 2 slice 26); contacts, legal representatives and care plans join it as their imports land (slice 51).
 - AI module output mistaken for clinical advice (Phase 6; scope lock in [medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 - Missed domiciliary visit not escalated (Phase 4).

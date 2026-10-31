@@ -72,12 +72,18 @@ evidence-link test made deterministic, HZ-003/008/021/027 Passing); #125 the Pha
 **In progress:** white-label branding (PLAT-002); workflow approvals and SLAs (PLAT-011 gap); API
 hardening (`x-request-id` validation, property witness must be staff at the location, retention
 destroy race and storage-before-certificate, legal holds audit); Phase 2 slice 2 (MEDS-001 domain)
-and slice 5 (SCHED-003 Working Time domain).
+and slice 5 (SCHED-003 Working Time domain). Phase 2 slice 26, the import wizard API for people
+(PLAT-014), is on `feat/platform-import-wizard` (31/10/2026; no pull request yet): migration 0088
+(merges after the lower Phase 2 numbers; 0071 to 0087 are not on `main` yet, which the journal test
+allows), ADR-0092 (proposed), HZ-130, H-680 to H-684; it adds the no-login role
+`harbour_import_owner`, so `pnpm db:bootstrap` runs before its migration in each environment
+(H-684). Its web wizard is slice 67; contacts, allergies, staff and the export round trip (HZ-071)
+are still to come.
 
 **Numbering in use:** migrations: 0071 is #123; Phase 2 owns 0072 to 0110 in the plan's merge
 order ([phase-2.md](phase-2.md)). ADRs: 0074 is #123's shift-pattern ADR; 0075 to 0079 Phase 1
 follow-ups; 0080 to 0099 Phase 2. Human actions: blocks per branch up to H-569, Phase 2 from H-510
-(plan) and H-550 per lane. Note: #50's provisional migration 0056 became 0071 and its ADR-0072
+(plan) and H-550 per lane; H-680 to H-689 are slice 26's (import wizard; H-685 to H-689 spare). Note: #50's provisional migration 0056 became 0071 and its ADR-0072
 became ADR-0074 (ADR-0072 is the MFA ADR).
 
 **Decisions waiting on people** (none block the build): H-381 safety case v0.1 and the 13 level-3

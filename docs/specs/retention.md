@@ -115,6 +115,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | Other search audit events (staff, organisation documents, no results, refusals) | audit_event for now; whether they may use security_log is for the DPO (H-121) |
 | Break-glass search records (the typed reason) | audit_event, as other break-glass records |
 | Sample data load and removal events | audit_event; sample records themselves are removed on demand, never retained |
+| `import_batch`, `import_commit` (the import wizard's record of each upload and commit; [platform.md](platform.md) rules 18 to 26, ADR-0092) | audit_event: opaque ids, counts and times only |
+| `import_row` (an upload's staged rows in quarantine: personal data that is not yet anyone's record) | Not retained: deleted, every row of the batch, in the transaction that commits, discards or expires it, and at the latest within the hour after `import.staging_expiry_days` (7 days by default, rates.md) from upload, by the hourly expiry sweep; never exported. Committed rows live on as the records they became (`person`: care_record). The DPO confirms the period (H-681) |
+| People created by an import | care_record, as any person; an undo within `import.undo_window_days` removes them outright (they were never meant to be there), and the audit events about them keep the audit_event class |
 
 ## Gaps to settle before the module that needs them ships
 

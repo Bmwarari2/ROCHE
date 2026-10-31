@@ -999,8 +999,9 @@ both; a tenant may give them to another role scoped to the organisation.
     `app.undo_import_batch`, a definer function owned by the no-login `harbour_import_owner`: the
     whole batch or nothing, re-checked under a lock; the application role never holds DELETE. Audit
     events about them stay. The window is checked by the API from the rate table.
-25. **Discard and expiry.** A staged batch may be discarded (`DELETE /v1/imports/{id}`); the nightly
-    sweep expires staged batches past `expires_at`, as the system. Either way, as at commit, the
+25. **Discard and expiry.** A staged batch may be discarded (`DELETE /v1/imports/{id}`); the hourly
+    `import-expiry` job expires staged batches past `expires_at` (on the database's clock), as the
+    system. Either way, as at commit, the
     staged rows are deleted in the same transaction and the batch row stays as the record of what
     happened.
 26. **Nothing echoed.** No error, problem, log line or audit event carries an imported value, a
@@ -1008,7 +1009,10 @@ both; a tenant may give them to another role scoped to the organisation.
     counts, and opaque ids. Audited: `platform.import.uploaded`, `platform.import.read` (list and
     batch views), `platform.import.dry_run`, `platform.import.committed`,
     `people.person.imported` (one per person), `platform.import.undone` (by the database),
-    `platform.import.discarded`, `platform.import.expired`; refusals as `denied` with their code.
+    `platform.import.discarded`, `platform.import.expired`. Refusals for a missing permission,
+    `organisation_wide_required`, a stale step-up and a batch's state (409) are audited as
+    `denied` with their code and the batch id; a file refused as malformed (422) is not, since
+    nothing was stored.
 
 **Tests (written before the code)**:
 
@@ -1043,4 +1047,6 @@ Audit events, record versions and break-glass records keep the `audit_event` cla
 [retention.md](retention.md)); deliveries and inbound data are operational and follow the class of
 the record they relate to (retention engine, Phase 1). `device_binding`, `device_session` and
 `handed_over_entry` keep the `audit_event` class; `request_quota` is operational (a row holds at most a day's hits and is overwritten in
-place).
+place). `import_batch` and `import_commit` keep the `audit_event` class; `import_row` (staged rows)
+is never retained: deleted when its batch commits, is discarded or expires, at most
+`import.staging_expiry_days` after upload (rule 25).
