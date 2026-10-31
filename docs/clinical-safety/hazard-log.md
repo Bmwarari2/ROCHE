@@ -1008,6 +1008,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/api/test/people-details.test.ts`: `hazard HZ-011 another organisation's manager finds nothing and changes nothing` (personal details and contacts read as not found from another organisation, and a change there alters nothing); a care worker reads the details and contacts of the people assigned to them only, and changes neither | Passing (Phase 1, PEOP-001) |
 | `apps/api/test/people-details.test.ts`: `hazard HZ-011 a manager of one home finds nobody at another home of the same organisation` (details and contacts not found, a change or a new contact not found); evidence of an authority only from the same person's available documents about them (another person's document, a care attachment and an unknown id refused) | Passing (Phase 1, PEOP-001 review round 1) |
 | `apps/api/test/people-enquiries.test.ts`: `hazard HZ-011 refuses an enquiry at a home outside the caller's locations as not found, and audits it` (a denied audit with the location's id; the owner, tenant-wide, may), `hazard HZ-011 answers a location outside the caller's access as not found` (the services at a location; a care worker has none) (PEOP-005 and PEOP-007 web) | Passing (Phase 1) |
+| `packages/db/test/quality-audits.test.ts`: `hazard HZ-011 who sees audits` (an audit seen only by members who run audits at its location, never started elsewhere; nothing to a care worker or another organisation across templates, schedules, audits and actions) | Passing (Phase 2, slice 19) |
 
 ---
 

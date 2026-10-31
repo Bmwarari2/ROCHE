@@ -38,6 +38,7 @@ const APPEND_ONLY_TABLES = [
   "downtime_pack",
   "evidence_pack_item",
   "framework_mapping",
+  "audit_action",
   "letter",
   "feed_item",
   "feed_item_withdrawal",

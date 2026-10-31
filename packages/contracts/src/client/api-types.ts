@@ -18306,6 +18306,929 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/quality/audit-starters": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Harbour's starter audit templates
+     * @description quality.audit.manage. Global reference data: the starter templates (medication, care plans, IPC, environment, dignity, night visit, mock inspection) mapped to the framework, for the organisation to copy and make its own.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Starter templates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditStarterList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-templates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's audit templates
+     * @description quality.audit.manage. Active and retired, by key.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Audit templates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditTemplateList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add an audit template, from a starter or your own
+     * @description quality.audit.manage. From a Harbour starter (`starterKey`; the other fields default to the starter's) or your own (kind, title, framework version and questions). The questions are checked against the framework version, which must be published (rule 8); the key is unique in the organisation. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAuditTemplate"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-templates/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Change an audit template
+     * @description quality.audit.manage, against the version read. Title, framework version and questions (rule 8); the key and kind stay. Audits already started keep the questions and framework version they started with. A retired template does not change. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateAuditTemplate"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-templates/{id}/retire": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Retire an audit template
+     * @description quality.audit.manage, against the version read. No new audits start from it; its audits and schedules stay readable. Retiring is final. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RetireAuditTemplate"];
+        };
+      };
+      responses: {
+        /** @description Retired */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-schedules": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Audit schedules, with when each is next due
+     * @description quality.audit.manage, at the locations where you hold it. Each schedule with its last completed audit, when the next is due (the schedule's own frequency in calendar months after the last, or the first due date) and whether it is overdue on today's UK date (rule 13).
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Schedules */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditScheduleList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Schedule an audit template at a location
+     * @description quality.audit.manage at the location. One schedule per template and location, every 1 to 60 months from the first due date. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAuditSchedule"];
+        };
+      };
+      responses: {
+        /** @description Scheduled */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditScheduleItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audits": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Audits and mock inspections
+     * @description quality.audit.manage, at the locations where you hold it. Newest first, at most 500, by location, kind or state.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          kind?: string;
+          state?: "in_progress" | "completed";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Audits */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Start an audit or mock inspection
+     * @description quality.audit.manage at the location. Starts from an active template, copying its questions, version and framework version, which the audit keeps (rule 4). A mock inspection starts only when its template is mapped to the framework version in force (409 otherwise). The audit date is today or earlier. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StartAudit"];
+        };
+      };
+      responses: {
+        /** @description Started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audits/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An audit with its score, method, findings and actions
+     * @description quality.audit.manage at the audit's location. Scored against the questions and framework version it started with, whatever the template now says (rule 4); the method in words beside the score; the answers that fell short by quality statement (rule 14); whether its framework version is still the one in force.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The audit */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audits/{id}/answers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Save answers to an audit in progress
+     * @description quality.audit.manage at the audit's location, against the version read. Answers (yes, partial, no, not applicable, or null to clear) are merged into those saved, for the audit's own questions only. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveAuditAnswers"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audits/{id}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Complete an audit with the self-rating and actions
+     * @description quality.audit.manage at the audit's location, against the version read. Every question answered or not applicable; an action with a description, an owner who is an active member running audits at the location and a due date on or after the audit for each answer that fell short where the question needs one (a missing due date takes the organisation's `quality.audit.action_due_days` after the audit); a self-rating on the rate table's CQC scale, given by a person and never worked out from the score (rules 10 to 12). The score is stored with its points; each action raises a task for its owner. The audit never changes afterwards. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CompleteAudit"];
+        };
+      };
+      responses: {
+        /** @description Completed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/staff-files": {
     parameters: {
       query?: never;
@@ -36079,6 +37002,253 @@ export interface components {
     RemoveEvidenceLink: {
       reason: string;
       version: number;
+    };
+    AuditStarterList: {
+      items: components["schemas"]["AuditStarter"][];
+    };
+    AuditStarter: {
+      key: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      questions: components["schemas"]["AuditQuestion"][];
+      source: string;
+    };
+    AuditQuestion: {
+      key: string;
+      text: string;
+      weight: number;
+      statementIds: string[];
+      actionRequired: boolean;
+    };
+    AuditTemplateList: {
+      items: components["schemas"]["AuditTemplateItem"][];
+    };
+    AuditTemplateItem: {
+      /** Format: uuid */
+      id: string;
+      key: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      questions: components["schemas"]["AuditQuestion"][];
+      starterKey: string | null;
+      /** @enum {string} */
+      state: "active" | "retired";
+      /** Format: date-time */
+      updatedAt: string;
+      version: number;
+    };
+    CreateAuditTemplate: {
+      key: string;
+      starterKey?: string;
+      /** @enum {string} */
+      kind?:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title?: string;
+      /** Format: uuid */
+      frameworkVersionId?: string;
+      questions?: components["schemas"]["AuditQuestion"][];
+    };
+    UpdateAuditTemplate: {
+      version: number;
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      questions: components["schemas"]["AuditQuestion"][];
+    };
+    RetireAuditTemplate: {
+      version: number;
+    };
+    AuditScheduleList: {
+      items: components["schemas"]["AuditScheduleItem"][];
+    };
+    AuditScheduleItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      templateId: string;
+      templateTitle: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      /** Format: uuid */
+      locationId: string;
+      frequencyMonths: number;
+      /** Format: date */
+      firstDueOn: string;
+      /** Format: date */
+      lastCompletedOn: string | null;
+      /** Format: date */
+      nextDueOn: string;
+      overdue: boolean;
+      version: number;
+    };
+    CreateAuditSchedule: {
+      /** Format: uuid */
+      templateId: string;
+      /** Format: uuid */
+      locationId: string;
+      frequencyMonths: number;
+      /** Format: date */
+      firstDueOn: string;
+    };
+    AuditRecordList: {
+      items: components["schemas"]["AuditRecordSummary"][];
+    };
+    AuditRecordSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      templateId: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      auditedOn: string;
+      /** @enum {string} */
+      state: "in_progress" | "completed";
+      scorePercent: number | null;
+      selfRating: number | null;
+      version: number;
+    };
+    AuditRecordDetail: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      templateId: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      auditedOn: string;
+      /** @enum {string} */
+      state: "in_progress" | "completed";
+      scorePercent: number | null;
+      selfRating: number | null;
+      version: number;
+      templateVersion: number;
+      frameworkInForce: boolean;
+      questions: components["schemas"]["AuditQuestion"][];
+      answers: {
+        [key: string]: "yes" | "partial" | "no" | "not_applicable" | null;
+      };
+      score: {
+        percent: number | null;
+        achieved: number;
+        possible: number;
+        complete: boolean;
+        unanswered: string[];
+        method: string;
+      };
+      selfRatingWords: string | null;
+      findings: {
+        statementId: string;
+        questionKeys: string[];
+      }[];
+      actions: components["schemas"]["AuditActionItem"][];
+      /** Format: uuid */
+      startedBy: string;
+      /** Format: uuid */
+      completedBy: string | null;
+      /** Format: date-time */
+      completedAt: string | null;
+    };
+    AuditActionItem: {
+      /** Format: uuid */
+      id: string;
+      questionKey: string;
+      description: string;
+      /** Format: uuid */
+      ownerId: string;
+      /** Format: date */
+      dueOn: string;
+      /** Format: uuid */
+      taskId: string | null;
+    };
+    StartAudit: {
+      /** Format: uuid */
+      templateId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      auditedOn: string;
+    };
+    SaveAuditAnswers: {
+      version: number;
+      answers: {
+        [key: string]: "yes" | "partial" | "no" | "not_applicable" | null;
+      };
+    };
+    CompleteAudit: {
+      version: number;
+      selfRating: number;
+      actions: {
+        questionKey: string;
+        description: string;
+        /** Format: uuid */
+        ownerId: string;
+        /** Format: date */
+        dueOn?: string;
+      }[];
     };
     StaffFileList: {
       items: components["schemas"]["StaffFileSummary"][];

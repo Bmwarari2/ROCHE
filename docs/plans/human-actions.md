@@ -443,6 +443,17 @@ Logged by slice 12 (the dependency tool, [scheduling.md](../specs/scheduling.md)
 | H-715 | Confirm that approving a scale version needs a second member who neither wrote nor changed it, also for a service with a single manager (the owner or a deputy approves), or allow a documented exception | CSO with Brian | `checkScaleApproval`; `app.dependency_scale_version_guard` (migration 0074) | Scale approval in a single-manager service | open |
 | H-716 | Decide what happens to the placement's free-text `dependency_category` from the admission form: retire it (expand and contract) or prefill the first category record from it, with a person checking | Brian with the DPO | `placement.dependency_category`; [data-standards.md](../specs/data-standards.md) | Nothing (it is not read by the required hours) | open |
 
+Logged by slice 19 (audit programme and mock inspections, [quality.md](../specs/quality.md)
+section 19) on 31 October 2026. H-765 to H-769 are reserved for the slice's review rounds.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-760 | Review the seven starter audit templates (medication, care plans, IPC, environment, dignity, night visit, mock inspection): question wording, weights, which questions need an action when they fall short, and the quality statements each is mapped to | Quality lead and Registered Manager at the design partner, with the CSO for medication and IPC | Migration 0081 seed; quality.md section 19 | Audits for a real tenant | open |
+| H-761 | Confirm the IPC starter is the one slice 31 should use, or supply the design partner's IPC audit to replace it | IPC lead at the design partner | Migration 0081 seed; Phase 2 slice 31 | Slice 31 | open |
+| H-762 | Decide whether an action owner without `quality.audit.manage` may complete their own audit action task (Harbour's default: the task needs it) | Quality lead with the CSO | quality.md section 19.2 | Audit actions for care staff | open |
+| H-763 | Decide what happens to an audit in progress when a new framework version takes effect (Harbour's default: it completes against the version it started with; new mock inspections need the version in force) | Quality lead | quality.md rules 4 and 14; section 19.3 | The KLOE change (H-607) | open |
+| H-764 | Supply or approve starter templates for the devolved nations' frameworks when their nation packs are loaded (CIW, Care Inspectorate, RQIA) | Brian with the quality lead | quality.md section 19.1 | Nation packs | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

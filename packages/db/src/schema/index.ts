@@ -18,6 +18,7 @@ export * from "./people";
 export * from "./people-lifecycle";
 export * from "./platform";
 export * from "./quality";
+export * from "./quality-audits";
 export * from "./quality-framework";
 export * from "./records";
 export * from "./safeguarding";
