@@ -312,4 +312,9 @@ REVOKE CREATE ON SCHEMA app FROM harbour_quality_reader;
 -- What the counts look up by (slice 47 security review, L2): corrections of a mark, and the
 -- incident workflow of an incident.
 CREATE INDEX "body_map_mark_supersedes_idx" ON "body_map_mark" USING btree ("tenant_id","supersedes_id") WHERE supersedes_id IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "workflow_instance_subject_idx" ON "workflow_instance" USING btree ("tenant_id","definition_key","subject_id");
+CREATE INDEX "workflow_instance_subject_idx" ON "workflow_instance" USING btree ("tenant_id","definition_key","subject_id");--> statement-breakpoint
+
+-- DSPT outcomes as the toolkit has published them, "standards exceeded" in earlier years (H-917,
+-- recommended answer applied 31/10/2026). Widening only: every stored outcome stays valid.
+ALTER TABLE "dspt_submission" DROP CONSTRAINT "dspt_submission_outcome";--> statement-breakpoint
+ALTER TABLE "dspt_submission" ADD CONSTRAINT "dspt_submission_outcome" CHECK (outcome IN ('standards_exceeded', 'standards_met', 'approaching_standards', 'standards_not_met'));

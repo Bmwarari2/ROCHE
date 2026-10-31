@@ -23,7 +23,12 @@ export const ASSERTION_STATUSES = [
   "not_applicable",
 ] as const;
 export type AssertionStatus = (typeof ASSERTION_STATUSES)[number];
-export const OUTCOMES = ["standards_met", "approaching_standards", "standards_not_met"] as const;
+export const OUTCOMES = [
+  "standards_exceeded",
+  "standards_met",
+  "approaching_standards",
+  "standards_not_met",
+] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 export const CERTIFICATE_KINDS = [
   "cyber_essentials",

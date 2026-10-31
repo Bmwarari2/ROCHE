@@ -17,6 +17,9 @@ import { QualityFeedback, useQualitySend } from "./QualityForms";
 
 type Direction = "lower_is_better" | "higher_is_better";
 
+/** These buttons name their indicator and place, so they wrap at 320 px (WCAG 1.4.10). */
+const WRAP = "h-auto max-w-full whitespace-normal py-2";
+
 export interface TargetFormProps {
   readonly indicatorKey: string;
   readonly indicatorTitle: string;
@@ -68,7 +71,6 @@ export function TargetForm({
       }),
     );
   };
-  const titleId = `${ids.green}-title`;
   const hint = t("quality.dashboard.targets.hint", { kind, multiplier });
   return (
     <div className="flex flex-col gap-3">
@@ -77,11 +79,12 @@ export function TargetForm({
         className="flex flex-col gap-3"
         onSubmit={onSubmit}
         noValidate
-        aria-labelledby={titleId}
+        aria-label={t("quality.dashboard.targets.formTitle", {
+          level,
+          location: locationName,
+          indicator: indicatorTitle,
+        })}
       >
-        <h4 id={titleId} className="m-0 text-body font-semibold">
-          {t("quality.dashboard.targets.formTitle", { level, location: locationName })}
-        </h4>
         <div className="flex flex-wrap gap-4">
           <TextField
             id={ids.green}
@@ -107,7 +110,7 @@ export function TargetForm({
           />
         </div>
         <div>
-          <Button type="submit" variant="primary" disabled={pending}>
+          <Button type="submit" variant="primary" disabled={pending} className={WRAP}>
             {pending
               ? t("common.saving")
               : level === "location"
@@ -129,26 +132,48 @@ export function ClearTargetButton({
   version,
   level,
   indicatorTitle,
+  locationName,
   path,
 }: {
   readonly id: string;
   readonly version: number;
   readonly level: "location" | "organisation";
   readonly indicatorTitle: string;
+  readonly locationName: string;
   readonly path: string;
 }) {
+  const ids = useFieldIds(["note"]);
   const { result, pending, send } = useQualitySend(path);
-  const label = t("quality.dashboard.targets.clear", { level, indicator: indicatorTitle });
+  const label = t("quality.dashboard.targets.clear", {
+    level,
+    location: locationName,
+    indicator: indicatorTitle,
+  });
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     send("targetCleared", () => clearIndicatorTarget(id, { expectedVersion: version }));
   };
   return (
     <div className="flex flex-col gap-2">
-      <form method="post" onSubmit={onSubmit} aria-label={label}>
-        <Button type="submit" variant="secondary" disabled={pending}>
-          {pending ? t("common.saving") : label}
-        </Button>
+      <form method="post" onSubmit={onSubmit} aria-label={label} className="flex flex-col gap-2">
+        <p id={ids.note} className="m-0 text-body-dense text-text-secondary">
+          {t("quality.dashboard.clearNote", {
+            level,
+            location: locationName,
+            indicator: indicatorTitle,
+          })}
+        </p>
+        <div>
+          <Button
+            type="submit"
+            variant="destructive"
+            disabled={pending}
+            aria-describedby={ids.note}
+            className={WRAP}
+          >
+            {pending ? t("quality.dashboard.clearing") : label}
+          </Button>
+        </div>
       </form>
       <QualityFeedback result={result} path={path} />
     </div>

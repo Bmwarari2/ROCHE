@@ -647,7 +647,7 @@ Code lists for [quality.md](quality.md) section 18 (migration 0094). Statuses ar
 | `dspt_assertion.assertion_ref` | DSPT assertion numbering | Two to four numbers separated by full stops (`1.1.1`) | Unique per organisation and year. |
 | `dspt_assertion.status` | Harbour | `not_started`, `in_progress`, `met`, `not_met`, `not_applicable` | `met` needs evidence linked; `not_met` and `not_applicable` need notes. |
 | `dspt_evidence.kind` | Harbour | `linked`, `unlinked` | Append-only; each document's latest event says whether it is evidence now; an organisation document only. |
-| `dspt_submission.outcome` | DSPT status | `standards_met`, `approaching_standards`, `standards_not_met` | `standards_not_met` is submitted but flagged. |
+| `dspt_submission.outcome` | DSPT status | `standards_exceeded` (earlier toolkit years; H-917), `standards_met`, `approaching_standards`, `standards_not_met` | `standards_not_met` is submitted but flagged. |
 | `security_certificate.kind` | NCSC Cyber Essentials; ICO data protection fee | `cyber_essentials`, `cyber_essentials_plus`, `ico_registration` | `reference` is the certificate or ICO registration number (1 to 100 characters); `expires_on` only when the certificate states it, after `issued_on`. |
 
 ## Phase 1 tables completed for the gate

@@ -32,7 +32,12 @@ export function dsptDeadline(
   return { deadline, financialYear: `${closes - 1}/${String(closes).slice(2)}` };
 }
 
-export type DsptOutcome = "standards_met" | "approaching_standards" | "standards_not_met";
+/** The toolkit's published outcomes; earlier years published "standards exceeded" (H-917). */
+export type DsptOutcome =
+  | "standards_exceeded"
+  | "standards_met"
+  | "approaching_standards"
+  | "standards_not_met";
 
 export interface DsptSubmission {
   readonly financialYear: string;

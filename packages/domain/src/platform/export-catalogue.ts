@@ -2074,6 +2074,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       outcome: {
         description: "The toolkit's outcome.",
         codes: {
+          standards_exceeded: "Standards exceeded.",
           standards_met: "Standards met.",
           approaching_standards: "Approaching standards.",
           standards_not_met: "Standards not met.",

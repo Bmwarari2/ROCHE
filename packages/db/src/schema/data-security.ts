@@ -112,7 +112,7 @@ export const dsptSubmission = pgTable(
     check("dspt_submission_year", sql`financial_year ~ ${FINANCIAL_YEAR}`),
     check(
       "dspt_submission_outcome",
-      sql`outcome IN ('standards_met', 'approaching_standards', 'standards_not_met')`,
+      sql`outcome IN ('standards_exceeded', 'standards_met', 'approaching_standards', 'standards_not_met')`,
     ),
     check(
       "dspt_submission_reference",

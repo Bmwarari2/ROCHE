@@ -245,7 +245,7 @@ export const qualityDashboardRouter = createRouter()
             throw new HttpProblem(
               422,
               "looser_than_organisation",
-              "A location's target cannot be looser than the organisation's. Ask someone who manages quality for the whole organisation.",
+              "A location's target cannot be less strict than the organisation's. Ask someone who manages quality for the whole organisation.",
             );
           }
         }

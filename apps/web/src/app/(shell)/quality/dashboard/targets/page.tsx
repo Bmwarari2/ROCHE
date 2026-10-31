@@ -125,6 +125,9 @@ export default async function IndicatorTargetsPage({ searchParams }: { searchPar
                 >
                   {t("quality.dashboard.targets.organisation")}
                 </h3>
+                <p className="m-0 text-body-dense text-text-secondary">
+                  {t("quality.dashboard.organisationOnly")}
+                </p>
                 {current(organisation)}
                 <TargetForm {...shared} level="organisation" current={organisation} />
                 {organisation ? (
@@ -133,6 +136,7 @@ export default async function IndicatorTargetsPage({ searchParams }: { searchPar
                     version={organisation.version}
                     level="organisation"
                     indicatorTitle={name}
+                    locationName={location.name}
                     path={path}
                   />
                 ) : null}
@@ -152,6 +156,7 @@ export default async function IndicatorTargetsPage({ searchParams }: { searchPar
                     version={own.version}
                     level="location"
                     indicatorTitle={name}
+                    locationName={location.name}
                     path={path}
                   />
                 ) : null}

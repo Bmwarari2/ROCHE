@@ -53,6 +53,40 @@ cut from `feat/web-policies-data-security`.
 - The API now gives each indicator's multiplier, so the screens write the method in their own
   words. An incomplete period now says so before "nothing to measure".
 
+## Recommended answers applied (owner instruction, 31/10/2026; review at testing)
+
+- H-914: the read-and-sign declaration is now "I have read and understood this version and will
+  follow it" (`quality.policies.sign.confirm`). Tests: `policies.test.ts` and the policies journey.
+- H-917: "Standards exceeded" is a DSPT outcome. It is in the contract, the domain, the web form,
+  the export catalogue and the database check (widened in migration 0108). Tests: domain
+  `dsptStatus`, the database check, the API submission and the web reader.
+
+## Accessibility review of the screens (fixed)
+
+- Targets use the status words, never colour names.
+- The month picker:
+  - its months are a fieldset, with the hint linked to it;
+  - a problem keeps the reader's months, marks the select at fault and shows a linked summary.
+- Target forms and buttons name their indicator and place. The clear button says what the
+  indicator will then be rated against, and it is destructive and says "Clearing" while it works.
+- The PIR page:
+  - each key question is one region and one table;
+  - the location and months are a heading, and "PIR" is spelled out;
+  - a "Copy figures" button says "Figures copied";
+  - the copied text names the place and months, groups the figures by key question and gives
+    why each point is still to complete.
+- Plain wording:
+  - "divided by" and "multiplied by" for the working, not symbols;
+  - "less strict", not "looser";
+  - a reason for every "No rating".
+- Smaller fixes:
+  - the targets page and the dashboard fit at 320 px;
+  - a thousand written as "1,000" is read;
+  - each percentage over 100 is flagged;
+  - ICU fallbacks are neutral.
+- Left for later: after a save, focus goes to the page heading rather than the card (shared
+  `RecordedArrival`, as noted for slice 65 part 1).
+
 ## Review fixes
 
 The security and clinical-safety reviews (before push) found no critical issues. The fixes:

@@ -200,12 +200,13 @@ describe("QUAL-012 data security evidence", () => {
     const body = {
       financialYear: before.financialYear,
       submittedOn: daysFromToday(0),
-      outcome: "standards_met",
+      // Earlier toolkit years published "standards exceeded" (H-917).
+      outcome: "standards_exceeded",
       reference: "DSPT-REF-1",
     };
-    expect((await send("POST", "/v1/data-security/dspt/submissions", "owner", body)).status).toBe(
-      201,
-    );
+    const recorded = await send("POST", "/v1/data-security/dspt/submissions", "owner", body);
+    expect(recorded.status).toBe(201);
+    expect((await json<{ outcome: string }>(recorded)).outcome).toBe("standards_exceeded");
     expect(
       await codeOf(await send("POST", "/v1/data-security/dspt/submissions", "owner", body)),
     ).toBe("already_recorded");

@@ -106,10 +106,12 @@ test("hazard HZ-128 a policy is drafted, published by a second reviewer, read an
     .click();
   await expect(main(page).getByText("To read and sign").first()).toBeVisible();
   await main(page).getByRole("button", { name: "Sign version 1" }).click();
-  await expect(main(page).getByText("Tick the box to say you have read it").first()).toBeVisible();
+  await expect(
+    main(page).getByText("Tick the box to say you have read and understood it").first(),
+  ).toBeVisible();
   await bothThemes(page, "sign refused");
   await main(page)
-    .getByRole("checkbox", { name: /I have read this version/ })
+    .getByRole("checkbox", { name: /I have read and understood this version and will follow it/ })
     .check();
   await main(page).getByRole("button", { name: "Sign version 1" }).click();
   await arrived(page, "Signed.");

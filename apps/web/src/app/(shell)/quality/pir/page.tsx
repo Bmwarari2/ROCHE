@@ -2,6 +2,7 @@ import { Button, Card, PageHeader, SelectField, TextArea } from "@harbour/ui";
 import { Info } from "lucide-react";
 import type { Metadata } from "next";
 import { Notice } from "@/components/care/Notice";
+import { CopyFigures } from "@/components/quality/CopyFigures";
 import { QualityChip } from "@/components/quality/QualityChip";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, tenantApi } from "@/lib/api";
@@ -9,6 +10,7 @@ import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { readOrFail } from "@/lib/person-record";
 import {
+  areaName,
   dashboardShown,
   PIR_AREAS,
   pirAnswer,
@@ -23,10 +25,10 @@ type Search = Promise<{ location?: string | string[] }>;
 const cell = "py-2 pe-4 text-start align-top";
 
 /**
- * The Provider Information Return prefill (QUAL-006; quality.md section 22, rule 43; HZ-129): for
+ * The Provider Information Return figures (QUAL-006; quality.md section 22, rule 43; HZ-129): for
  * one location, the last 12 whole months, each data point by CQC key question, prefilled with its
- * answer and where it comes from, or marked to complete with why. Harbour submits nothing; a plain
- * text view of the figures is given to copy into the return.
+ * answer and where it comes from, or marked to complete with why. Harbour submits nothing; the
+ * figures are given as text to copy into the return, with a button that copies them.
  */
 export default async function PirPage({ searchParams }: { searchParams: Search }) {
   const { me, locationId: shellLocation } = await getShellContext();
@@ -47,7 +49,9 @@ export default async function PirPage({ searchParams }: { searchParams: Search }
     path,
   );
   if (!pir) return <SafetyForbidden title={title} hint={hint} />;
-  const copyText = pirCopyText(pir.items, t);
+  const from = formatDate(pir.period.from) ?? "";
+  const to = formatDate(pir.period.to) ?? "";
+  const copyText = pirCopyText(pir.items, { location: location.name, from, to }, t);
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6 break-words">
@@ -66,20 +70,18 @@ export default async function PirPage({ searchParams }: { searchParams: Search }
           label={t("quality.dashboard.picker.location")}
           defaultValue={location.id}
           options={me.locations.map((l) => ({ value: l.id, label: l.name }))}
-          className="max-w-xs"
+          className="w-full min-w-0 max-w-xs"
         />
         <Button type="submit" variant="secondary">
-          {t("quality.dashboard.picker.show")}
+          {t("quality.pir.show")}
         </Button>
       </form>
 
       <div className="flex flex-col gap-2">
-        <p className="m-0 font-semibold">
-          {t("quality.pir.period", {
-            from: formatDate(pir.period.from) ?? "",
-            to: formatDate(pir.period.to) ?? "",
-          })}
-        </p>
+        <h2 className="m-0 text-title font-semibold">
+          {t("quality.pir.showing", { location: location.name, from, to })}
+        </h2>
+        <p className="m-0">{t("quality.pir.period", { from, to })}</p>
         {pir.questionSet.confirmed ? null : (
           <p className="m-0 text-body-dense text-text-secondary">{t("quality.pir.unconfirmed")}</p>
         )}
@@ -88,17 +90,17 @@ export default async function PirPage({ searchParams }: { searchParams: Search }
       {PIR_AREAS.map((area) => {
         const items = pir.items.filter((i) => i.area === area);
         if (items.length === 0) return null;
-        const areaName = t("quality.pir.area", { area });
+        const name = areaName(area, t);
         return (
-          <Card key={area} as="section" title={areaName} headingLevel={2}>
+          <Card key={area} as="div" title={name} headingLevel={3}>
             <section
               className="overflow-x-auto"
-              aria-label={areaName}
+              aria-label={t("quality.pir.scroll", { area: name })}
               // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling table is reached by keyboard (WCAG 2.1.1).
               tabIndex={0}
             >
               <table className="w-full border-collapse text-body-dense">
-                <caption className="hb-visually-hidden">{areaName}</caption>
+                <caption className="hb-visually-hidden">{name}</caption>
                 <thead>
                   <tr className="border-b border-border">
                     <th scope="col" className={`${cell} font-semibold`}>
@@ -149,14 +151,18 @@ export default async function PirPage({ searchParams }: { searchParams: Search }
       })}
 
       <Card as="section" title={t("quality.pir.copyTitle")} headingLevel={2}>
-        <TextArea
-          name="copy"
-          label={t("quality.pir.copyLabel")}
-          hint={t("quality.pir.copyHint")}
-          readOnly
-          rows={Math.max(4, copyText.split("\n").length + 1)}
-          defaultValue={copyText}
-        />
+        <div className="flex flex-col gap-3">
+          <CopyFigures text={copyText} />
+          <TextArea
+            name="copy"
+            label={t("quality.pir.copyLabel")}
+            hint={t("quality.pir.copyHint")}
+            readOnly
+            spellCheck={false}
+            rows={Math.max(4, copyText.split("\n").length + 1)}
+            defaultValue={copyText}
+          />
+        </div>
       </Card>
     </div>
   );

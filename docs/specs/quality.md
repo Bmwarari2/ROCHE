@@ -549,7 +549,7 @@ belongs to slice 47, and this slice writes the rule it will test (rule 22).
 | `quality-indicators.ts` | `IndicatorDefinition` (key, numerator and denominator descriptions, multiplier, unit, direction `lower_is_better` or `higher_is_better`, method in words), `IndicatorInput` (numerator, denominator, coverage: the share of the period and locations with data), `IndicatorTarget` (tenant targets: green and amber thresholds), `IndicatorResult` (value or null, status `green`, `amber`, `red` or `no_data`, reason, method shown) | QUAL-005 |
 | `quality-pir.ts` | `PirDataPoint` (key, CQC question area, label, source, unit), `PirValue` (value, as of, source records count, or missing with why), `PirDraft` (each data point with its value or "not available", never a guessed zero) | QUAL-006 |
 | `policies.ts` | `PolicyVersion` (policy key, version number, state `draft`, `published`, `superseded`, `retired`, change size `minor` or `major`, review due date, roles that must read it, published by and at), `PolicySignature` (staff member, version, signed at), `ReadAndSignStatus` (who must sign, who has, who is outstanding and since when, who is overdue a reminder) | QUAL-008 |
-| `quality-data-security.ts` | `DsptSubmission` (financial year, submitted on, status `standards_met`, `approaching_standards`, `standards_not_met`), `CertificateRecord` (kind `cyber_essentials`, `cyber_essentials_plus`, `ico_registration`; reference; issued on; expires on when the certificate says), `RenewalStatus` (`current`, `due_soon`, `expired`, `missing`) | QUAL-012 |
+| `quality-data-security.ts` | `DsptSubmission` (financial year, submitted on, status `standards_exceeded`, `standards_met`, `approaching_standards`, `standards_not_met`), `CertificateRecord` (kind `cyber_essentials`, `cyber_essentials_plus`, `ico_registration`; reference; issued on; expires on when the certificate says), `RenewalStatus` (`current`, `due_soon`, `expired`, `missing`) | QUAL-012 |
 
 ### 17.2 Permissions
 
@@ -819,7 +819,7 @@ and `harbour_owner`; the application never deletes.
 | --- | --- | --- |
 | `dspt_assertion` | mutable aggregate (`version`) | One DSPT assertion the organisation tracks for a financial year (`2025/26`): its reference as the toolkit numbers it (`1.1.1`), title, status (`not_started`, `in_progress`, `met`, `not_met`, `not_applicable`), notes and an owner |
 | `dspt_evidence` | append-only | Evidence linked to an assertion: an organisation document (never a person's), and later its unlinking, each with who and when; the current evidence is each document's latest event |
-| `dspt_submission` | mutable aggregate | The organisation's DSPT submission for a financial year (one per year): the day submitted, the outcome (`standards_met`, `approaching_standards`, `standards_not_met`) and the toolkit's reference |
+| `dspt_submission` | mutable aggregate | The organisation's DSPT submission for a financial year (one per year): the day submitted, the outcome (`standards_exceeded` (H-917), `standards_met`, `approaching_standards`, `standards_not_met`) and the toolkit's reference |
 | `security_certificate` | mutable aggregate | A Cyber Essentials, Cyber Essentials Plus or ICO registration record: reference (certificate number or ICO registration number), issued on, the expiry the certificate states (if any), the issuing body and a copy (an organisation document) |
 
 ### 18.2 Rules
@@ -905,7 +905,7 @@ tell that holder the screens are for whoever handles data protection for the who
 | Add a policy, start a draft (minor or major), save a draft | `quality.policy.manage` | A minor change keeps signatures and a major one asks everyone to sign again, so the form says which is which. A new draft copies the text and roles but needs its own review date before it is published |
 | Publish | `quality.policy.manage`; another person when the policy needs a second reviewer | The author of such a draft sees a notice saying someone else must publish it, not the form. A draft with no roles or no review date shows what it still needs instead of the form. The publisher ticks "I have checked this draft" |
 | Retire | `quality.policy.manage` | A reason of at least 10 characters (the contract's minimum, checked at the field) and a confirm box |
-| Sign | Any member asked to sign the version in force | "I have read this version" must be ticked |
+| Sign | Any member asked to sign the version in force | "I have read and understood this version and will follow it" must be ticked (H-914, recommended answer applied 31/10/2026) |
 | Assertions, evidence, submissions, certificates | `quality.dsar.manage` (organisation-wide) | Refusals the API names (evidence required for met, notes required, a date in the future, a short name in use) are shown at their field. Stopping the last evidence for an assertion marked met needs a box ticked first, saying it will then show as met with no evidence. Buttons name their assertion ("Save where 1.1.1 stands") |
 
 ### Tests
@@ -1054,13 +1054,15 @@ person.
 The screens for section 22, on `feat/quality-dashboard-pir`. The web holds no rules of its own;
 the API decides every one again. Status is an icon and a word, never colour alone (green "Within
 target" with a tick, amber "Close to target" with an alert, red "Outside target" with a warning
-triangle, "No rating" with a dash). Strings are `quality.dashboard.*` and `quality.pir.*`.
+triangle, "No rating" with a dash), and targets are said in the same words, never by colour name
+("within target at 100 or lower; close to target up to 250; outside target above 250"). Strings
+are `quality.dashboard.*` and `quality.pir.*`.
 
 | Route | Shows | Who sees it |
 | --- | --- | --- |
-| `/quality/dashboard?location&from&to` | A picker (a GET filter form: location, from and to months, whole months that have ended, up to 12; an unusable choice falls back to last month and says so), when the figures were counted, and ten indicator cards. Each card gives the status, the figure (or "Withheld: fewer than N", never 0), the reason when there is no rating ("No data: Harbour does not record this yet" for the five not built), and its working as a list: counted, measured against, period, source, how it is worked out and the target (with the organisation default beside a location's own) | `quality.audit.manage` (sidebar "Quality dashboard"); the API refuses a location where it is not held |
-| `/quality/dashboard/targets?location` | For each of the five indicators Harbour counts: the organisation default and the location's own target, each with a form to set it (green and amber, in the indicator's direction) and a button to clear it | As above; the API decides who may set which |
-| `/quality/pir?location` | A plain statement that Harbour does not submit the return; the 12 whole months; one table per key question (data point, answer with the records behind it, status "Prefilled" or "To complete", and where it comes from or why it is to complete); and a read-only text box of the figures to copy, prefilled first, then those to complete | As above (sidebar "PIR figures") |
+| `/quality/dashboard?location&from&to` | A picker (a GET filter form: location, and a "Months" fieldset with from and to, whole months that have ended, up to 12; an unusable choice keeps the reader's months in the selects, marks the one at fault and summarises the problem, and last month is shown), when the figures were counted, and ten indicator cards. Each card gives the status, the figure (or "Withheld: fewer than N", never 0), the reason when there is no rating ("No data: Harbour does not record this yet" for the five not built), and its working as a list: counted, measured against, period, source, how it is worked out and the target (with the organisation default beside a location's own) | `quality.audit.manage` (sidebar "Quality dashboard"); the API refuses a location where it is not held |
+| `/quality/dashboard/targets?location` | For each of the five indicators Harbour counts: the organisation default (saying only someone who manages quality for the whole organisation can change it) and the location's own target, each with a form to set it ("within target" and "close to target", in the indicator's direction; "1,000" is read as a thousand) and a button to clear it, which says what the indicator will then be rated against | As above; the API decides who may set which |
+| `/quality/pir?location` | A plain statement that Harbour does not submit the return; the location and the 12 whole months as a heading; one table per key question in one scrolling region (data point, answer with the records behind it, status "Prefilled" or "To complete", and where it comes from or why it is to complete); a "Copy figures" button that says "Figures copied", and a read-only text box of the same text (the location and months, then each key question's figures, then what to complete with why) | As above (sidebar "PIR figures") |
 
 ### Tests
 

@@ -1,6 +1,6 @@
 {
-  "id": "fb5de0bb-87e3-4d06-977f-57d745193d42",
-  "prevId": "67b7d389-9a92-48ec-b17f-0422fa19d4fd",
+  "id": "c1beb0a1-4a01-4c74-937c-54bef19573d6",
+  "prevId": "fb5de0bb-87e3-4d06-977f-57d745193d42",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8453,7 +8453,7 @@
         },
         "dspt_submission_outcome": {
           "name": "dspt_submission_outcome",
-          "value": "outcome IN ('standards_met', 'approaching_standards', 'standards_not_met')"
+          "value": "outcome IN ('standards_exceeded', 'standards_met', 'approaching_standards', 'standards_not_met')"
         },
         "dspt_submission_reference": {
           "name": "dspt_submission_reference",

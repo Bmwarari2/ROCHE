@@ -87,6 +87,17 @@ describe("hazard HZ-128 a superseded version names the version in force", () => 
   });
 });
 
+describe("read-and-sign says what signing means (H-914)", () => {
+  it("asks staff to confirm they have read and understood the version and will follow it", () => {
+    expect(t("quality.policies.sign.confirm")).toBe(
+      "I have read and understood this version and will follow it",
+    );
+    expect(t("quality.policies.sign.confirmMissing")).toBe(
+      "Tick the box to say you have read and understood it",
+    );
+  });
+});
+
 describe("reading the forms", () => {
   it("reads a draft with its roles and optional review date", () => {
     expect(

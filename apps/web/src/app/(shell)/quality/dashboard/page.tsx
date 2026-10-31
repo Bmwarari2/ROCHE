@@ -64,6 +64,12 @@ export default async function QualityDashboardPage({ searchParams }: { searchPar
   );
   if (!dashboard) return <SafetyForbidden title={title} hint={hint} />;
   const monthOptions = months.map((m) => ({ value: m.value, label: monthLabel(m.value, t) }));
+  const chosen = (value: string) =>
+    months.some((m) => m.value === value) ? value : period.from.value;
+  const problem = period.problem
+    ? t("quality.dashboard.picker.problem", { problem: period.problem })
+    : null;
+  const problemId = period.problemField === "to" ? "dashboard-to" : "dashboard-from";
   const targetsHref = `/quality/dashboard/targets?location=${location.id}`;
 
   return (
@@ -72,46 +78,65 @@ export default async function QualityDashboardPage({ searchParams }: { searchPar
 
       <Card as="section" title={t("quality.dashboard.picker.title")} headingLevel={2}>
         <form method="get" action={path} className="flex flex-col gap-4">
-          <p className="m-0 text-body-dense text-text-secondary">
-            {t("quality.dashboard.picker.hint")}
-          </p>
+          {problem ? (
+            <div role="alert" className="flex flex-col gap-2">
+              <Notice
+                icon={<CircleAlert size={20} aria-hidden="true" />}
+                title={t("quality.dashboard.picker.summary")}
+                tone="warning"
+              >
+                <p className="m-0">
+                  <a href={`#${problemId}`} className="underline">
+                    {problem}
+                  </a>
+                </p>
+                <p className="m-0">{t("quality.dashboard.picker.fallback")}</p>
+              </Notice>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-end gap-4">
             <SelectField
               name="location"
               label={t("quality.dashboard.picker.location")}
               defaultValue={location.id}
               options={me.locations.map((l) => ({ value: l.id, label: l.name }))}
-              className="max-w-xs"
+              className="w-full min-w-0 max-w-xs"
             />
-            <SelectField
-              name="from"
-              label={t("quality.dashboard.picker.from")}
-              defaultValue={period.from.value}
-              options={monthOptions}
-              className="max-w-xs"
-            />
-            <SelectField
-              name="to"
-              label={t("quality.dashboard.picker.to")}
-              defaultValue={period.to.value}
-              options={monthOptions}
-              className="max-w-xs"
-            />
+          </div>
+          <fieldset
+            className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0"
+            aria-describedby="dashboard-months-hint"
+          >
+            <legend className="mb-1 font-semibold">{t("quality.dashboard.picker.months")}</legend>
+            <p id="dashboard-months-hint" className="m-0 text-body-dense text-text-secondary">
+              {t("quality.dashboard.picker.hint")}
+            </p>
+            <div className="flex flex-wrap items-end gap-4">
+              <SelectField
+                id="dashboard-from"
+                name="from"
+                label={t("quality.dashboard.picker.from")}
+                defaultValue={chosen(period.asked.from)}
+                options={monthOptions}
+                className="w-full min-w-0 max-w-xs"
+                {...(period.problemField === "from" && problem ? { error: problem } : {})}
+              />
+              <SelectField
+                id="dashboard-to"
+                name="to"
+                label={t("quality.dashboard.picker.to")}
+                defaultValue={chosen(period.asked.to)}
+                options={monthOptions}
+                className="w-full min-w-0 max-w-xs"
+                {...(period.problemField === "to" && problem ? { error: problem } : {})}
+              />
+            </div>
+          </fieldset>
+          <div>
             <Button type="submit" variant="secondary">
               {t("quality.dashboard.picker.show")}
             </Button>
           </div>
-          {period.problem ? (
-            <Notice
-              icon={<CircleAlert size={20} aria-hidden="true" />}
-              title={t("quality.dashboard.picker.title")}
-              tone="warning"
-            >
-              <p className="m-0">
-                {t("quality.dashboard.picker.problem", { problem: period.problem })}
-              </p>
-            </Notice>
-          ) : null}
         </form>
       </Card>
 
@@ -190,13 +215,13 @@ function IndicatorCard({
         {indicator.display !== null || indicator.reasonCode === "small_number" ? (
           <p className="m-0 text-title font-semibold">{figureWords(indicator, minGroupSize, t)}</p>
         ) : null}
-        {indicator.reasonCode ? (
+        {indicator.reasonCode || indicator.status === "no_data" ? (
           <p className="m-0 max-w-prose">
-            {t("quality.dashboard.reason", { code: indicator.reasonCode })}
+            {t("quality.dashboard.reason", { code: indicator.reasonCode ?? "unknown" })}
           </p>
         ) : null}
         {built ? (
-          <dl className="m-0 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[max-content_1fr]">
+          <dl className="m-0 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
             <dt className={term}>{t("quality.dashboard.numerator", { key })}</dt>
             <dd className="m-0">{countWords(indicator.numerator, indicator, minGroupSize, t)}</dd>
             <dt className={term}>{t("quality.dashboard.denominator", { key })}</dt>

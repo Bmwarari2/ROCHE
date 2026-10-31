@@ -85,6 +85,17 @@ describe("reading the forms", () => {
     expect(readAssertionStatus(form({ status, notes }), t).ok).toBe(ok);
   });
 
+  it("takes standards exceeded as an outcome, as earlier toolkit years published it (H-917)", () => {
+    const read = readSubmission(
+      form({ ...date("submittedOn", "20", "6", "2025"), outcome: "standards_exceeded" }),
+      t,
+    );
+    expect(read).toMatchObject({ ok: true, body: { outcome: "standards_exceeded" } });
+    expect(t("quality.dataSecurity.outcome", { outcome: "standards_exceeded" })).toBe(
+      "Standards exceeded",
+    );
+  });
+
   it("reads a submission and refuses a missing outcome", () => {
     expect(
       readSubmission(

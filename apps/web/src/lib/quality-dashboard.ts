@@ -66,36 +66,55 @@ const monthIndex = (value: string) => Number(value.slice(0, 4)) * 12 + Number(va
 
 export type PeriodProblem = "order" | "tooLong" | "unknown";
 
+export interface ReadPeriod {
+  readonly from: MonthOption;
+  readonly to: MonthOption;
+  readonly problem: PeriodProblem | null;
+  /** Which select the problem is about, so its error sits there. */
+  readonly problemField: "from" | "to" | null;
+  /** What the reader chose, kept in the selects when it cannot be shown. */
+  readonly asked: { readonly from: string; readonly to: string };
+}
+
 /**
  * The period from the page's address (`from` and `to` as `YYYY-MM`): whole ended months, up to
- * 12. Last month when nothing is chosen; last month with the problem when the choice is unusable.
+ * 12. Last month when nothing is chosen; last month with the problem, and the reader's own choice
+ * kept, when the choice is unusable.
  */
 export function readPeriod(
   params: { readonly from?: string | string[]; readonly to?: string | string[] },
   today: string,
-): {
-  readonly from: MonthOption;
-  readonly to: MonthOption;
-  readonly problem: PeriodProblem | null;
-} {
+): ReadPeriod {
   const months = endedMonths(today);
   const latest = months[0] as MonthOption;
   const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
   const fromValue = one(params.from);
   const toValue = one(params.to);
+  const fallback = (problem: PeriodProblem, problemField: "from" | "to") => ({
+    from: latest,
+    to: latest,
+    problem,
+    problemField,
+    asked: { from: fromValue ?? latest.value, to: toValue ?? latest.value },
+  });
   if (fromValue === undefined && toValue === undefined) {
-    return { from: latest, to: latest, problem: null };
+    return {
+      from: latest,
+      to: latest,
+      problem: null,
+      problemField: null,
+      asked: { from: latest.value, to: latest.value },
+    };
   }
   const from = months.find((m) => m.value === fromValue);
   const to = months.find((m) => m.value === toValue);
-  if (!from || !to) return { from: latest, to: latest, problem: "unknown" };
-  if (monthIndex(from.value) > monthIndex(to.value)) {
-    return { from: latest, to: latest, problem: "order" };
-  }
+  if (!from) return fallback("unknown", "from");
+  if (!to) return fallback("unknown", "to");
+  if (monthIndex(from.value) > monthIndex(to.value)) return fallback("order", "to");
   if (monthIndex(to.value) - monthIndex(from.value) + 1 > MAX_MONTHS) {
-    return { from: latest, to: latest, problem: "tooLong" };
+    return fallback("tooLong", "from");
   }
-  return { from, to, problem: null };
+  return { from, to, problem: null, problemField: null, asked: { from: from.value, to: to.value } };
 }
 
 export function monthLabel(value: string, t: Translator): string {
@@ -172,7 +191,10 @@ export function readTarget(
   | { readonly ok: false; readonly errors: FieldErrors } {
   const errors: Record<string, string> = {};
   const number = (name: string) => {
-    const text = String(form.get(name) ?? "").trim();
+    // "1,000" is a thousand, as people write it.
+    const text = String(form.get(name) ?? "")
+      .trim()
+      .replace(/,(?=\d{3}(\D|$))/g, "");
     if (!/^\d+(\.\d+)?$/.test(text)) return null;
     const value = Number(text);
     return Number.isFinite(value) && value <= 1_000_000 ? value : null;
@@ -183,7 +205,8 @@ export function readTarget(
   if (amber === null) errors.amber = t("quality.dashboard.targets.amberMissing");
   if (green !== null && amber !== null) {
     if (indicator.percent && (green > 100 || amber > 100)) {
-      errors[green > 100 ? "green" : "amber"] = t("quality.dashboard.targets.percent");
+      if (green > 100) errors.green = t("quality.dashboard.targets.percent");
+      if (amber > 100) errors.amber = t("quality.dashboard.targets.percent");
     } else if (indicator.direction === "lower_is_better" ? green > amber : green < amber) {
       errors.green = t("quality.dashboard.targets.order", {
         direction: indicator.direction === "higher_is_better" ? "higher" : "lower",
@@ -197,6 +220,10 @@ export function readTarget(
 }
 
 export const PIR_AREAS = ["safe", "effective", "caring", "responsive", "well-led"] as const;
+
+/** A key question's name (ICU select keys take no hyphen). */
+export const areaName = (area: string, t: Translator) =>
+  t("quality.pir.area", { area: area.replace("-", "_") });
 
 /** A PIR answer in words: a number, a percentage, yes or no. */
 export function pirAnswer(
@@ -220,24 +247,38 @@ export function pirChip(status: "prefilled" | "to_complete", t: Translator): Qua
 }
 
 /**
- * The copy-friendly text: each prefilled figure on its own line, then the data points to
- * complete, in key question order.
+ * The copy-friendly text: the location and months, then each key question with its prefilled
+ * figures and, after them, its data points to complete with why.
  */
 export function pirCopyText(
   items: readonly {
     readonly key: string;
+    readonly area: string;
     readonly status: "prefilled" | "to_complete";
     readonly unit: string;
     readonly value: number | boolean | null;
+    readonly reasonCode: string | null;
   }[],
+  place: { readonly location: string; readonly from: string; readonly to: string },
   t: Translator,
 ): string {
   const label = (key: string) => t("quality.pir.label", { key });
-  const prefilled = items
-    .filter((i) => i.status === "prefilled")
-    .map((i) => t("quality.pir.copyLine", { label: label(i.key), answer: pirAnswer(i, t) ?? "" }));
-  const toComplete = items
-    .filter((i) => i.status === "to_complete")
-    .map((i) => t("quality.pir.copyToComplete", { label: label(i.key) }));
-  return [...prefilled, ...toComplete].join("\n");
+  const lines = [t("quality.pir.copyHeader", place)];
+  for (const area of PIR_AREAS) {
+    const here = items.filter((i) => i.area === area);
+    if (here.length === 0) continue;
+    lines.push("", t("quality.pir.copyArea", { area: areaName(area, t) }));
+    for (const i of here.filter((x) => x.status === "prefilled" && x.value !== null)) {
+      lines.push(t("quality.pir.copyLine", { label: label(i.key), answer: pirAnswer(i, t) ?? "" }));
+    }
+    for (const i of here.filter((x) => x.status === "to_complete" || x.value === null)) {
+      lines.push(
+        t("quality.pir.copyToComplete", {
+          label: label(i.key),
+          reason: t("quality.pir.reason", { code: i.reasonCode ?? "no_value" }),
+        }),
+      );
+    }
+  }
+  return lines.join("\n");
 }

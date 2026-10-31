@@ -32002,7 +32002,11 @@ export interface components {
       version: number;
     };
     /** @enum {string} */
-    DsptOutcome: "standards_met" | "approaching_standards" | "standards_not_met";
+    DsptOutcome:
+      | "standards_exceeded"
+      | "standards_met"
+      | "approaching_standards"
+      | "standards_not_met";
     RecordDsptSubmission: {
       financialYear: string;
       /** Format: date */

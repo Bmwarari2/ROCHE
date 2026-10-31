@@ -111,6 +111,21 @@ describe("the target form (quality.md rule 41)", () => {
   const lower: Kind = { direction: "lower_is_better", percent: false };
   const higherPercent: Kind = { direction: "higher_is_better", percent: true };
 
+  it("reads a thousand written with a comma, and flags every percentage over 100", () => {
+    expect(readTarget(form({ green: "1,000", amber: "2,500" }), lower, t)).toEqual({
+      ok: true,
+      green: 1000,
+      amber: 2500,
+    });
+    expect(readTarget(form({ green: "120", amber: "110" }), higherPercent, t)).toEqual({
+      ok: false,
+      errors: {
+        green: "Enter a percentage from 0 to 100",
+        amber: "Enter a percentage from 0 to 100",
+      },
+    });
+  });
+
   it("reads green and amber in the indicator's direction", () => {
     expect(readTarget(form({ green: "100", amber: "250" }), lower, t)).toEqual({
       ok: true,
@@ -129,25 +144,28 @@ describe("the target form (quality.md rule 41)", () => {
       "missing numbers",
       { green: "", amber: "x" },
       lower,
-      { green: "Enter a number for green", amber: "Enter a number for amber" },
+      {
+        green: "Enter a number for within target, for example 2.5",
+        amber: "Enter a number for close to target, for example 5",
+      },
     ],
     [
       "green looser than amber",
       { green: "300", amber: "100" },
       lower,
-      { green: "Green must be the same as amber or lower" },
+      { green: "Within target must be the same as close to target or lower" },
     ],
     [
       "a percentage over 100",
       { green: "120", amber: "80" },
       higherPercent,
-      { green: "A percentage is between 0 and 100" },
+      { green: "Enter a percentage from 0 to 100" },
     ],
     [
       "a negative number",
       { green: "-1", amber: "2" },
       lower,
-      { green: "Enter a number for green" },
+      { green: "Enter a number for within target, for example 2.5" },
     ],
   ])("refuses %s", (_name, entries, kind, errors) => {
     expect(readTarget(form(entries), kind, t)).toEqual({ ok: false, errors });
@@ -163,19 +181,46 @@ describe("the PIR prefill (quality.md rule 43)", () => {
     expect(pirChip("to_complete", t)).toMatchObject({ icon: "pen-line", label: "To complete" });
   });
 
-  it("puts the prefilled figures first in the text to copy, then what to complete", () => {
+  it("gives the text to copy its place, months and key questions, figures before what to complete", () => {
     const text = pirCopyText(
       [
-        { key: "agency_hours", status: "to_complete", unit: "hours", value: null },
-        { key: "incidents", status: "prefilled", unit: "count", value: 8 },
-        { key: "digital_care_records", status: "prefilled", unit: "yes_no", value: true },
+        {
+          key: "agency_hours",
+          area: "safe",
+          status: "to_complete",
+          unit: "hours",
+          value: null,
+          reasonCode: "not_built",
+        },
+        {
+          key: "incidents",
+          area: "safe",
+          status: "prefilled",
+          unit: "count",
+          value: 8,
+          reasonCode: null,
+        },
+        {
+          key: "digital_care_records",
+          area: "well-led",
+          status: "prefilled",
+          unit: "yes_no",
+          value: true,
+          reasonCode: null,
+        },
       ],
+      { location: "Harbour House", from: "01/10/2025", to: "30/09/2026" },
       t,
     );
     expect(text.split("\n")).toEqual([
+      "Harbour House, 01/10/2025 to 30/09/2026",
+      "",
+      "Safe:",
       "Incidents in the last 12 months: 8",
+      "To complete: Agency hours in the last 4 weeks. Not recorded in Harbour yet: complete it from your own records.",
+      "",
+      "Well-led:",
       "Care records kept digitally: Yes",
-      "To complete: Agency hours in the last 4 weeks",
     ]);
   });
 });
