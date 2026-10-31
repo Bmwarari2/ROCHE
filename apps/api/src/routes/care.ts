@@ -59,6 +59,8 @@ import {
   careRates,
   completeOpenTasks,
   entryTimes,
+  type IddsiLevelsAt,
+  iddsiLevelsAt,
   personContext,
   raiseCareTriggers,
   urgentAlertRecipients,
@@ -492,9 +494,16 @@ export const careRouter = createRouter()
               rates,
             });
             const profile = await careProfile(tx, personId);
+            // Food and drink are judged against the levels prescribed when they were given, not
+            // when the entry reached the server (H-166, HZ-016).
+            const iddsiThen =
+              body.values.chart === "food" || body.values.chart === "fluid_intake"
+                ? await iddsiLevelsAt(tx, profile, times.occurredAt)
+                : null;
             const { flags, triggers } = chartRules(
               body.values,
               profile,
+              iddsiThen,
               times.occurredAt,
               // An entry from a device is what was given: kept and flagged, never refused for its
               // IDDSI level (HZ-016, clinical review C3); the web form is there to put it right.
@@ -1257,19 +1266,33 @@ const IDDSI_ALERT_REASONS: Readonly<Record<string, string>> = {
 function chartRules(
   values: CreateObservation["values"],
   profile: ProfileRow,
+  iddsiThen: IddsiLevelsAt | null,
   occurredAt: Date,
   onProblem: IddsiProblemHandling,
 ): { flags: Record<string, unknown>; triggers: CareTrigger[] } {
   if (values.chart === "fluid_intake" || values.chart === "food") {
     const kind = values.chart === "food" ? "food" : "drink";
-    const prescribed =
+    const prescribedNow =
       (kind === "food" ? profile?.iddsiFoodLevel : profile?.iddsiDrinkLevel) ?? null;
+    // The level in force at the entry's own time (H-166): care given correctly before a speech
+    // and language therapy change is not flagged against the new level.
+    const prescribed = iddsiThen
+      ? kind === "food"
+        ? iddsiThen.food
+        : iddsiThen.drink
+      : prescribedNow;
+    const changedSince =
+      iddsiThen && (kind === "food" ? iddsiThen.foodChangedSince : iddsiThen.drinkChangedSince);
+    // Said on the entry, so staff still see that the person's level is different now (H-166).
+    const changed = changedSince
+      ? { iddsiChangedSince: { prescribedThen: prescribed, prescribedNow } }
+      : {};
     // A drink with no level carries no IDDSI flags when none is prescribed, as before, or when it
     // was refused: nothing was given, so there is no texture to check and nothing to alert (#26
     // review round 2, low).
     const refusedDrink = values.chart === "fluid_intake" && values.refused === true;
     if (!values.iddsiLevel && kind === "drink" && (prescribed === null || refusedDrink)) {
-      return { flags: {}, triggers: [] };
+      return { flags: { ...changed }, triggers: [] };
     }
     const check = checkIddsiEntry({
       kind,
@@ -1284,6 +1307,7 @@ function chartRules(
         iddsi: check.comparison,
         iddsiAlert: check.alertNurseInCharge,
         ...(check.problem ? { iddsiProblem: check.problem } : {}),
+        ...changed,
       },
       triggers: check.alertNurseInCharge
         ? [

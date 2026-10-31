@@ -5,6 +5,7 @@ import { paperWritten } from "@/lib/back-entry";
 import { entryAuthor } from "@/lib/care-record";
 import {
   alertRouteMessage,
+  iddsiChangedSince,
   iddsiOutcome,
   iddsiProblem,
   iddsiProblemMessage,
@@ -45,6 +46,8 @@ export function ObservationList({
         const iddsi = iddsiOutcome(item.flags);
         const problem = iddsiProblem(item.flags);
         const problemMessage = iddsiProblemMessage(item);
+        // The level changed between giving it and the entry reaching Harbour (H-166, HZ-016).
+        const levelChanged = item.superseded ? null : iddsiChangedSince(item, t);
         // Who the entry's urgent alert reached, as the API kept it (#26 review round 3).
         const alertMessage = alertRouteMessage(item.flags);
         const summary = parts.join(" · ");
@@ -145,6 +148,17 @@ export function ObservationList({
                       ? item.values.overrideReason
                       : t("common.notRecorded"),
                 })}
+              </p>
+            ) : null}
+            {levelChanged ? (
+              <p className="m-0 flex items-start gap-2 text-body-dense" data-iddsi-changed="">
+                <History
+                  size={18}
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                  className="mt-0.5 shrink-0"
+                />
+                <span>{levelChanged}</span>
               </p>
             ) : null}
             {item.chart !== "vitals" && !(problem && problemMessage) && alertMessage ? (

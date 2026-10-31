@@ -1692,6 +1692,7 @@
   "care.history.askedIn": "{question} (asked in template version {version})",
   "care.history.value": "Value",
   "care.charts.overrideGiven": "Not the prescribed level. Reason given: {reason}",
+  "care.charts.iddsiChangedSince": "Judged against the level prescribed when this was given ({given}). The prescribed level has changed since: it is now {now}.",
   "care.charts.iddsiKeptNoLevel": "No IDDSI level was recorded, though one is prescribed.",
   "care.charts.iddsiKeptNoReason": "Not the prescribed level, and no reason was recorded.",
   "care.charts.iddsiKeptUnsafeDrink": "A thinner drink than prescribed was given, with no reason recorded. It may not be safe.",

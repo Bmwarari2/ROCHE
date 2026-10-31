@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   alertRouteMessage,
   fluidDayView,
+  iddsiChangedSince,
   iddsiOutcome,
   iddsiProblem,
   iddsiProblemMessage,
@@ -271,4 +272,24 @@ describe("chart entries in words", () => {
       expect(key === null ? null : t(key)).toBe(words);
     },
   );
+});
+
+describe("hazard HZ-016 an entry judged against the level prescribed when it was given (H-166)", () => {
+  it.each<[string, "food" | "fluid_intake", Record<string, unknown>, string | null]>([
+    [
+      "a drink after a change to a thinner level",
+      "fluid_intake",
+      { iddsiChangedSince: { prescribedThen: "4", prescribedNow: "0" } },
+      "Judged against the level prescribed when this was given (Level 4 Extremely thick (green)). The prescribed level has changed since: it is now Level 0 Thin (white).",
+    ],
+    [
+      "food first prescribed after it was given",
+      "food",
+      { iddsiChangedSince: { prescribedThen: null, prescribedNow: "5" } },
+      "Judged against the level prescribed when this was given (No level prescribed). The prescribed level has changed since: it is now Level 5 Minced and moist (orange).",
+    ],
+    ["an entry with no change", "food", { iddsi: { outcome: "match" } }, null],
+  ])("hazard HZ-016 says %s", (_label, chart, flags, words) => {
+    expect(iddsiChangedSince({ chart, flags }, t)).toBe(words);
+  });
 });

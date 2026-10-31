@@ -6,6 +6,7 @@ import {
   person,
   personCareProfile,
   rateTable,
+  recordVersion,
   role,
   roleAssignment,
   type Transaction,
@@ -39,7 +40,7 @@ import {
   ukDayBounds,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
 import { accessRowsOf } from "./access-rows";
 import { roleHolders, roleInForce } from "./role-holders";
@@ -117,6 +118,61 @@ export async function careProfile(tx: Transaction, personId: string) {
     .from(personCareProfile)
     .where(eq(personCareProfile.personId, personId));
   return row ?? null;
+}
+
+type CareProfileRow = typeof personCareProfile.$inferSelect;
+
+/** The IDDSI levels prescribed at an entry's time, and whether each has changed since (H-166). */
+export interface IddsiLevelsAt {
+  readonly food: string | null;
+  readonly drink: string | null;
+  readonly foodChangedSince: boolean;
+  readonly drinkChangedSince: boolean;
+}
+
+const textOrNull = (value: unknown): string | null => (typeof value === "string" ? value : null);
+
+/**
+ * The IDDSI food and drink levels in force when the food or drink was given (H-166, HZ-016), from
+ * the care profile's history (`record_version`, a copy of the row before each change, valid until
+ * the change): the oldest copy still valid after the entry's time, or the profile as it is now when
+ * none is. An entry made before the profile existed had no level prescribed in Harbour. Each level
+ * says whether it has changed since, so the entry still tells staff the level is different now.
+ */
+export async function iddsiLevelsAt(
+  tx: Transaction,
+  profile: CareProfileRow | null,
+  at: Date,
+): Promise<IddsiLevelsAt> {
+  const now = { food: profile?.iddsiFoodLevel ?? null, drink: profile?.iddsiDrinkLevel ?? null };
+  if (!profile) return { ...now, foodChangedSince: false, drinkChangedSince: false };
+  const [version] = await tx
+    .select({ validFrom: recordVersion.validFrom, data: recordVersion.data })
+    .from(recordVersion)
+    .where(
+      and(
+        eq(recordVersion.tableName, "person_care_profile"),
+        eq(recordVersion.recordId, profile.id),
+        gt(recordVersion.validTo, at),
+      ),
+    )
+    .orderBy(asc(recordVersion.validTo))
+    .limit(1);
+  const firstFrom = version?.validFrom ?? profile.createdAt;
+  const then =
+    firstFrom.getTime() > at.getTime()
+      ? { food: null, drink: null }
+      : !version
+        ? now
+        : {
+            food: textOrNull((version.data as Record<string, unknown>).iddsi_food_level),
+            drink: textOrNull((version.data as Record<string, unknown>).iddsi_drink_level),
+          };
+  return {
+    ...then,
+    foodChangedSince: then.food !== now.food,
+    drinkChangedSince: then.drink !== now.drink,
+  };
 }
 
 export interface EntryTimes {

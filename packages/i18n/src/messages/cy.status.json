@@ -3434,6 +3434,7 @@
     "approvals.asOf",
     "approvals.itemTitle",
     "approvals.emptyTruncated",
-    "approvals.done"
+    "approvals.done",
+    "care.charts.iddsiChangedSince"
   ]
 }

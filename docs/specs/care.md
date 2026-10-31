@@ -195,8 +195,13 @@ applies). Figures come from `rate_table` by key.
    entry's problem in words with an icon, in place of the reason line, and says plainly when a
    thinner drink or more solid food may not be safe (#26 review round 2, C1). A drink recorded as
    refused (not given) needs no level and raises nothing, since there was no texture to check.
-   The level given is compared with the prescription in the care profile when the entry reaches
-   the server, not when it was given (for the CSO, H-166).
+   The level given is compared with the level prescribed when the food or drink was given, read
+   from the care profile's history (`record_version`; `iddsiLevelsAt`), so care given correctly
+   before a speech and language therapy change is not flagged against the new level; an entry made
+   before the profile existed had no level prescribed. When the level changed between the entry's
+   time and its upload, the entry keeps `flags.iddsiChangedSince` (`prescribedThen`,
+   `prescribedNow`) and the web says so with the level now, so staff still see that the person's
+   level has since changed (recommended answer to H-166, 31/10/2026; HZ-016).
    An urgent result alert (a NEWS2 band, an IDDSI entry) goes only to someone who can open the
    person's record (the database's own person scope, read for each member as at sign-in), on the
    staff and with a role in force: the nurse in charge at the location; with no one there who
