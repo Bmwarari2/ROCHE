@@ -112,14 +112,19 @@ describe("signatures, holds and certificates", () => {
   });
 
   it("keeps destruction certificates append-only", async () => {
+    const insert = `INSERT INTO destruction_certificate (record_class, subject_type, subject_ids, record_count, retention_rule, reason, method)
+           VALUES ('care_record', 'document', ARRAY[app.uuid_v7()], 1, '{"period":8,"unit":"years"}', 'Past retention', 'storage_delete')`;
+    // Only holders of platform.retention.manage issue certificates (migration 0117).
     await expect(
-      inContext(app(), ctx(TENANT_A, a.manager, "tenant"), async (c) => {
-        await c.query(
-          `INSERT INTO destruction_certificate (record_class, subject_type, subject_ids, record_count, retention_rule, reason, method)
-           VALUES ('care_record', 'document', ARRAY[app.uuid_v7()], 1, '{"period":8,"unit":"years"}', 'Past retention', 'storage_delete')`,
-        );
-        await c.query("DELETE FROM destruction_certificate");
-      }),
+      inContext(app(), ctx(TENANT_A, a.manager, "tenant"), (c) => c.query(insert)),
+    ).rejects.toThrow(/row-level security/);
+    await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
+      c.query(insert),
+    );
+    await expect(
+      inContext(app(), ctx(TENANT_A, a.manager, "tenant"), (c) =>
+        c.query("DELETE FROM destruction_certificate"),
+      ),
     ).rejects.toThrow(/permission denied/);
   });
 });
