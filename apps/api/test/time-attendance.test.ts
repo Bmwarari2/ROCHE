@@ -613,6 +613,33 @@ describe("hazard HZ-011 bank and agency clock events (ADR-0088)", () => {
     );
   });
 
+  it("hazard HZ-011 refuses a late upload after the upload grace period", async () => {
+    const old = await as("manager", `/v1/locations/${LOC}/rotas`, {
+      method: "POST",
+      body: { startsOn: inDays(-6), endsOn: inDays(-3) },
+    });
+    const oldRota = ((await old.json()) as { id: string }).id;
+    const [past] = await sql<{ id: string; version: number }>(
+      `INSERT INTO shift (rota_id, location_id, label, kind, starts_at, ends_at)
+       VALUES ($1, $2, 'Day', 'work', now() - interval '100 hours', now() - interval '96 hours')
+       RETURNING id, version`,
+      [oldRota, LOC],
+    );
+    const booked = await as("manager", `/v1/shifts/${past?.id}/booking`, {
+      method: "POST",
+      body: { workerId: ash, version: past?.version },
+    });
+    expect(booked.status).toBe(201);
+    const shiftId = past?.id as string;
+    const response = await clock("agency", {
+      kind: "out",
+      shiftId,
+      deviceTime: hoursFromNow(-96.1),
+    });
+    expect(response.status).toBe(422);
+    expect(((await response.json()) as { code: string }).code).toBe("upload_grace_ended");
+  });
+
   it("refuses an event outside any booking of theirs", async () => {
     const other = await shiftFor(-1, 6, null);
     expect((await clock("agency", { kind: "in", shiftId: other.id })).status).toBe(422);

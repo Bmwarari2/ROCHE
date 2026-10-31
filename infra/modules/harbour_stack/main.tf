@@ -93,7 +93,9 @@ module "bucket_documents" {
   force_destroy        = var.force_destroy_buckets
 }
 
-# Generated exports (DSAR bundles, tenant data exports, inspector PDFs); short-lived.
+# Generated exports. Tenant data exports and inspector PDFs (under tenants/) are short-lived and
+# expire after 30 days; issued DSAR bundles (under dsar/) are kept with their case for its
+# retention class (data_rights_case) and destroyed by the retention engine with it (#149 re-check M1).
 module "bucket_exports" {
   source = "../s3_bucket"
 
@@ -101,6 +103,7 @@ module "bucket_exports" {
   kms_key_arn                        = module.kms.key_arns["s3"]
   access_log_bucket                  = module.bucket_logs.bucket_id
   current_version_expiration_days    = 30
+  current_version_expiration_prefix  = "tenants/"
   noncurrent_version_expiration_days = 7
   force_destroy                      = var.force_destroy_buckets
 }

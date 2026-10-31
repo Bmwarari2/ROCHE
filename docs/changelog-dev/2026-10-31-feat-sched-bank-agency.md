@@ -73,3 +73,39 @@ API. The screens are slice 59 and the clock-in check is slice 30.
   - agency workers' confirmations are read by rota managers only;
   - feedback must match its booking.
 - **Docs**: ADR-0088, the spec, HZ-011, HZ-124, H-921, H-923 and H-928 updated.
+
+## Recommended answers applied (31 October 2026)
+
+The owner asked for the recommended answer to every open human question, all to be reviewed at
+testing (`docs/plans/recommended-answers.md`). Three of them change this slice:
+
+- **H-921: upload grace period.** Access still opens at the shift's start. A bank or agency
+  worker's entries recorded offline inside a booked window upload after it closes, flagged late,
+  for `access.agency.upload_grace_hours`, a new Harbour default of 72 hours that still needs
+  verifying. They are refused outside any booking or after the grace period (`agencyUploadDecision`,
+  HZ-006). Nothing can be read during the grace period.
+- **H-924: AWR break reasons and role changes.**
+  - A new append-only table `agency_awr_record`, added to migration 0104, which is not on main. It
+    holds coded break reasons, role changes with the day the worker was told in writing, and
+    withdrawals.
+  - `awrWeeksFromShifts` reads them. Jury service pauses the clock up to
+    `awr.jury_service_pause_max_weeks`, a new rate row that still needs verifying. Pregnancy and
+    maternity breaks count as worked.
+  - The clock is labelled Great Britain.
+  - Routes: `GET` and `POST /v1/agency-workers/{id}/awr-records`.
+- **H-927: unassigned warning.** While a booked bank or agency worker on a shift running now has
+  nobody assigned to them, the rota's check (`peopleUnassigned`) and the shift's handover
+  (`agencyWithoutPeople`) warn (HZ-073).
+- **Docs:** spec section 15, the hazard log (HZ-006, HZ-073), records of processing, data
+  standards, retention and the export catalogue. The three human-action rows are marked as applied.
+
+
+## Merged origin/main (batch 2)
+
+`origin/main` (migrations 0000 to 0103) is merged in. Main's journal entries win for 0000 to 0103,
+and 0104 follows them. The 0104 snapshot is the merged schema's full state. Main's own 0103 snapshot
+lags its schema (`employee_case`, `sso_provider`), and several of its snapshots share a parent, so
+`drizzle-kit generate` fails on main itself. 0104 was checked against the schema in isolation.
+
+The `agency_window` policies now say outright that a read with no member (the organisation's own
+read, as the DSAR collector uses) is not limited. Their effect is unchanged.

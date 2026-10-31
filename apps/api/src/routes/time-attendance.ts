@@ -30,6 +30,7 @@ import {
 } from "@harbour/db";
 import {
   APPROVAL_MESSAGES,
+  agencyUploadDecision,
   approvalProblem,
   type ClockFlag,
   can,
@@ -531,6 +532,26 @@ export const timeAttendanceRouter = createRouter()
                 422,
                 "no_booking",
                 "There is no booking of yours for this shift at that time.",
+              ),
+            );
+          }
+          // H-921 recommended answer: after the window closes, accepted only for the upload grace
+          // period (access.agency.upload_grace_hours), then refused with a reason, audited.
+          const grace = await rateNumber(tx, access.tenantId, "access.agency.upload_grace_hours");
+          const decision = agencyUploadDecision(
+            [{ start: s.startsAt, end: s.endsAt }],
+            deviceTime,
+            now,
+            hours,
+            grace,
+          );
+          if (!decision.accept) {
+            return refuse(
+              decision.reason,
+              new HttpProblem(
+                422,
+                decision.reason,
+                "This was recorded on a booked shift, but the time to upload it has passed. Tell the person in charge.",
               ),
             );
           }

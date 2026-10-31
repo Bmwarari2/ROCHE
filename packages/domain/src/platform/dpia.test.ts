@@ -18,6 +18,7 @@ import {
   dpiaState,
   prefillDpia,
   type RiskLevel,
+  standardRiskIds,
 } from "./dpia";
 import type { FlagKey } from "./feature-flags";
 import { builtinRole } from "./roles";
@@ -31,6 +32,9 @@ const TEMPLATE = fileURLToPath(
 const SHA = "c".repeat(64);
 /** The Phase 1 risks every tenant's DPIA carries, after any optional processing's own risk. */
 const PHASE_1_RISK_IDS = ["R13", "R14", "R15", "R16", "R17", "R18", "R19"];
+/** The Phase 2 risks every tenant's DPIA carries, after the Phase 1 risks (plan slice 84). */
+const PHASE_2_RISK_IDS = ["R20", "R21", "R22", "R23", "R24", "R25", "R26", "R27", "R28", "R29"];
+const STANDARD_AFTER_OPTIONAL = [...PHASE_1_RISK_IDS, ...PHASE_2_RISK_IDS];
 
 function accessFor(roleKey: string): EffectiveAccess {
   const role = builtinRole(roleKey);
@@ -103,12 +107,12 @@ describe("DPIA prefill", () => {
       cqcProviderId: "1-000000001",
     });
     expect(draft.sections.find((s) => s.key === "purposes")?.prefilled).toEqual({
-      purposes: ["B1", "B2", "B3", "B4", "B5", "B6", "B7"],
+      purposes: ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B16"],
     });
     expect(draft.missingConfig).toEqual([]);
     expect(draft.risks.map((r) => r.id)).toEqual([
       ...["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"],
-      ...PHASE_1_RISK_IDS,
+      ...STANDARD_AFTER_OPTIONAL,
     ]);
   });
 
@@ -119,7 +123,7 @@ describe("DPIA prefill", () => {
       ["module.domiciliary", "module.ai", "module.family_portal"],
     );
     const risks = prefillDpia(everything, NOW).risks;
-    expect(risks.map((r) => r.id)).toEqual(Array.from({ length: 19 }, (_, i) => `R${i + 1}`));
+    expect(risks.map((r) => r.id)).toEqual(Array.from({ length: 29 }, (_, i) => `R${i + 1}`));
     for (const risk of risks) expect(template).toContain(`| ${risk.id} | ${risk.risk}`);
   });
 
@@ -151,7 +155,7 @@ describe("DPIA prefill", () => {
     const draft = prefillDpia(config(extra, features), NOW);
     const optional = draft.sections.map((s) => s.key).slice(10);
     expect(optional).toEqual(sections);
-    expect(draft.risks.map((r) => r.id).slice(8, -PHASE_1_RISK_IDS.length)).toEqual(risks);
+    expect(draft.risks.map((r) => r.id).slice(8, -STANDARD_AFTER_OPTIONAL.length)).toEqual(risks);
   });
 
   it("screens for monitoring, AI and children from the configuration", () => {
@@ -369,6 +373,36 @@ describe("DPIA re-review", () => {
     ["a module switched off", dpiaBasis(config({}, [])), []],
   ])("triggers a review when %s", (_label, current, kinds) => {
     expect(dpiaReviewTriggers(signed, current, soon, RATES).map((t) => t.kind)).toEqual(kinds);
+  });
+
+  it("flags a DPIA signed before a standard risk was added, naming the new risks", () => {
+    const beforePhase2 = {
+      ...basis,
+      standardRisks: standardRiskIds().filter((id) => !PHASE_2_RISK_IDS.includes(id)),
+    };
+    expect(dpiaReviewTriggers({ signedAt, basis: beforePhase2 }, basis, soon, RATES)).toEqual([
+      { kind: "new_standard_risk", items: PHASE_2_RISK_IDS },
+    ]);
+  });
+
+  it("treats a basis saved before standard risks were recorded as covering R1 to R8 only", () => {
+    const { standardRisks: _left, ...older } = basis;
+    expect(dpiaReviewTriggers({ signedAt, basis: older }, basis, soon, RATES)).toEqual([
+      { kind: "new_standard_risk", items: [...PHASE_1_RISK_IDS, ...PHASE_2_RISK_IDS] },
+    ]);
+    const result = dpiaState(view("signed", signedAt, older), null, basis, soon, RATES);
+    expect(result.state).toBe("review_due");
+  });
+
+  it("records every standard risk in the basis, and never a conditional one", () => {
+    expect(basis.standardRisks).toEqual([
+      ...["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"],
+      ...STANDARD_AFTER_OPTIONAL,
+    ]);
+    const withAi = dpiaBasis(
+      config({ aiProvider: "bedrock_london" }, ["module.residential", "module.ai"]),
+    );
+    expect(withAi.standardRisks).not.toContain("R10");
   });
 
   it("names what is new", () => {

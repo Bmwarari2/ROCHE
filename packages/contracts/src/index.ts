@@ -179,6 +179,12 @@ export const SyncOperation = z
     data: z.record(z.string(), z.unknown()).optional(),
     /** Device clock when the batch was sent, for drift detection (HZ-010). */
     deviceSentAt: isoDateTime.optional(),
+    /**
+     * Device clock when the entry was recorded: a bank or agency worker's entry is accepted only
+     * if recorded inside a booked window, and after it closes only for the upload grace period
+     * (H-921).
+     */
+    recordedAt: isoDateTime.optional(),
   })
   .meta({ id: "SyncOperation" });
 
@@ -506,14 +512,23 @@ export * from "./agency";
 export * from "./branding";
 export * from "./care";
 export * from "./care-planning";
+export * from "./casework";
 export * from "./client-id";
+export * from "./complaints";
+export * from "./data-protection";
+export * from "./data-rights";
+export * from "./data-security";
+export * from "./deaths-missing";
 export * from "./devices";
+export * from "./disclosure";
 export * from "./dpia";
 export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";
 export * from "./escalation-policy";
 export * from "./exports";
 export * from "./family-feed";
 export * from "./handover";
+export * from "./imports";
+export * from "./induction";
 export * from "./invitations";
 export * from "./letters";
 export * from "./mca";
@@ -524,11 +539,17 @@ export * from "./pay";
 export * from "./people";
 export * from "./person-summary";
 export * from "./quality";
+export * from "./quality-audits";
+export * from "./quality-framework";
 export * from "./records";
 export * from "./rota";
+export * from "./safeguarding";
 export * from "./safety";
+export * from "./safety-outbreaks";
 export * from "./scheduling";
 export * from "./search";
+export * from "./speak-up";
+export * from "./sso";
 export * from "./staff";
 export * from "./sub-processors";
 export * from "./tasks";
@@ -552,4 +573,6 @@ export const AccountDeletionRequest = z
   })
   .meta({ id: "AccountDeletionRequest" });
 export type AccountDeletionRequest = z.infer<typeof AccountDeletionRequest>;
+export * from "./recruitment";
+export * from "./sponsorship";
 export * from "./workforce";

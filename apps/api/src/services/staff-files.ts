@@ -96,7 +96,7 @@ export function storedItem(
 }
 
 /** What a profile's items say on `today`, keyed for the API. */
-function fileState(
+export function fileState(
   profile: StaffProfileRow,
   items: readonly ComplianceItemRow[],
   today: string,

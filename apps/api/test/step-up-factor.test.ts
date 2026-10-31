@@ -51,6 +51,7 @@ function accessWith(permission: Permission, factor: FactorCase): TenantAccess {
       // Signed in a moment ago with a password: never enough on its own.
       sessionCreatedAt: NOW,
       lastActiveAt: NOW,
+      ssoTenantId: null,
     },
     memberships: [],
     effective: {

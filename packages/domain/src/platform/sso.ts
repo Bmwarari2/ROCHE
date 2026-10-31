@@ -112,3 +112,141 @@ export function ssoSessionMayUse(
   }
   return { ok: true };
 }
+
+// ------------------------------------------------------------------------------------------------
+// The connection and domains (platform.md, Phase 2: single sign-on, rules 18 and 19; slice 33)
+// ------------------------------------------------------------------------------------------------
+
+export interface SsoConnectionInput {
+  readonly issuer: string;
+  readonly discoveryUrl: string;
+  readonly clientId: string;
+  /** The private key's name in the managed secret store, never the key. */
+  readonly privateKeyRef: string;
+  readonly tokenEndpointAuthentication:
+    | "private_key_jwt"
+    | "client_secret_basic"
+    | "client_secret_post";
+  readonly allowedRoleKeys: readonly string[];
+}
+
+export type SsoConnectionProblem =
+  | "issuer_not_https"
+  | "discovery_not_https"
+  | "client_id_required"
+  | "key_ref_invalid"
+  | "client_secret_not_allowed"
+  | "roles_required"
+  | "unknown_role";
+
+/**
+ * A key's name in the managed store: under the organisation's own prefix,
+ * `harbour/sso/<tenant id>/<name>`, so one organisation can never point at another's key, and IAM
+ * can scope by it (#33 review M3).
+ */
+export const SSO_KEY_NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+export function ssoKeyRefPrefix(tenantId: string): string {
+  return `harbour/sso/${tenantId.toLowerCase()}/`;
+}
+
+export function isSsoKeyRefFor(ref: string, tenantId: string): boolean {
+  const prefix = ssoKeyRefPrefix(tenantId);
+  return ref.startsWith(prefix) && SSO_KEY_NAME.test(ref.slice(prefix.length));
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Checks a connection before it is saved (rule 18): https issuer and discovery URL, a client id,
+ * the key referred to by its store name only, `private_key_jwt` only, and known roles.
+ */
+export function checkSsoConnection(
+  input: SsoConnectionInput,
+  knownRoleKeys: readonly string[],
+  tenantId: string,
+): { readonly ok: true } | { readonly ok: false; readonly problem: SsoConnectionProblem } {
+  const refuse = (problem: SsoConnectionProblem) => ({ ok: false, problem }) as const;
+  if (!isHttpsUrl(input.issuer)) return refuse("issuer_not_https");
+  if (!isHttpsUrl(input.discoveryUrl)) return refuse("discovery_not_https");
+  if (input.clientId.trim().length === 0) return refuse("client_id_required");
+  if (input.tokenEndpointAuthentication !== "private_key_jwt")
+    return refuse("client_secret_not_allowed");
+  if (!isSsoKeyRefFor(input.privateKeyRef, tenantId)) return refuse("key_ref_invalid");
+  if (input.allowedRoleKeys.length === 0) return refuse("roles_required");
+  if (input.allowedRoleKeys.some((r) => !knownRoleKeys.includes(r))) return refuse("unknown_role");
+  return { ok: true };
+}
+
+/**
+ * Domains anyone can get an address on: verifying one would let any of its users reach the SSO
+ * check. Not exhaustive; the DNS proof is the control, this only stops an obvious mistake.
+ */
+export const PUBLIC_EMAIL_DOMAINS: readonly string[] = [
+  "aol.com",
+  "btinternet.com",
+  "gmail.com",
+  "googlemail.com",
+  "hotmail.co.uk",
+  "hotmail.com",
+  "icloud.com",
+  "live.co.uk",
+  "live.com",
+  "me.com",
+  "msn.com",
+  "nhs.net",
+  "outlook.com",
+  "proton.me",
+  "protonmail.com",
+  "sky.com",
+  "talktalk.net",
+  "virginmedia.com",
+  "yahoo.co.uk",
+  "yahoo.com",
+];
+
+const LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/** A domain an organisation may claim (rule 19), normalised to lower case. */
+export function checkSsoDomain(
+  value: string,
+):
+  | { readonly ok: true; readonly domain: string }
+  | { readonly ok: false; readonly problem: "malformed_domain" | "public_email_domain" } {
+  const domain = value.trim().toLowerCase();
+  const labels = domain.split(".");
+  if (domain.length > 253 || labels.length < 2 || !labels.every((l) => LABEL.test(l)))
+    return { ok: false, problem: "malformed_domain" };
+  if (PUBLIC_EMAIL_DOMAINS.includes(domain)) return { ok: false, problem: "public_email_domain" };
+  return { ok: true, domain };
+}
+
+/** The DNS TXT record that proves a domain (rule 19). */
+export function ssoDomainRecord(domain: string, token: string) {
+  return { name: `_harbour-verification.${domain}`, value: `harbour-verification=${token}` };
+}
+
+/** Whether the TXT records found carry the token, exactly. */
+export function ssoDomainProved(records: readonly string[], token: string): boolean {
+  const wanted = `harbour-verification=${token}`;
+  return records.some((r) => r.trim() === wanted);
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The provider id Better Auth knows an organisation's connection by. */
+export function ssoProviderId(tenantId: string): string {
+  return `harbour-${tenantId}`;
+}
+
+/** The organisation a provider id belongs to, or null for anything Harbour did not make. */
+export function tenantOfSsoProvider(providerId: string): string | null {
+  const id = providerId.startsWith("harbour-") ? providerId.slice("harbour-".length) : "";
+  return UUID.test(id) ? id : null;
+}

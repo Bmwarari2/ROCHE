@@ -57,3 +57,20 @@ The security and clinical-safety reviews were run and their findings fixed:
   by the system.
 - **Database:** definer and ACL fixes, and a cross-tenant test over all six tables.
 - **Tests:** DST tests across both clock changes.
+
+## Merged forward: bank and agency recommended answers (31 October 2026)
+
+`feat/sched-bank-agency` (H-921, H-924, H-927) is merged in. A bank or agency member's late clock
+event is now accepted only within the upload grace period (`access.agency.upload_grace_hours`)
+after their window closes. After that it is refused with `upload_grace_ended` and the refusal is
+audited. This closes the open part of the slice 30 security review (H-993). Snapshot 0109 is
+rechained to include `agency_awr_record`.
+
+
+## Merged origin/main (through feat/sched-bank-agency)
+
+Main (migrations 0000 to 0103) is merged in through the bank and agency branch. Snapshot 0109 is
+rechained onto 0104's merged state, and duplicate export catalogue entries for the rota tables
+(now on main) are removed. The timesheet, opt-out and record-version read policies now name the
+organisation's own read (`app.is_system()`) outright, for main's DSAR collector check. Their effect
+is unchanged, because the helper functions already passed it.

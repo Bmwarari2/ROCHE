@@ -84,3 +84,14 @@ I ran the security and clinical-safety reviewers and fixed what they found.
 - Human actions: H-1101, H-1102, H-1104 and H-1106 extended.
 - New domain tests for the clock-change nights.
 
+
+## Merged forward: main, bank and agency, time and attendance
+
+`feat/sched-time-attendance` is merged in, which brings in `origin/main` (migrations 0000 to 0103)
+and the bank and agency recommended answers (H-921, H-924, H-927).
+
+- **Snapshots:** rebuilt as a chain from the merged schema: 0104, then 0107 (absence), then 0109
+  (time and attendance), then 0116 (pay).
+- **Export catalogue:** duplicate entries for the rota tables (now on main) are removed.
+- **Policies:** the pay and time record-version policies name the organisation's own read
+  (`app.is_system()`) outright, for main's DSAR collector check.

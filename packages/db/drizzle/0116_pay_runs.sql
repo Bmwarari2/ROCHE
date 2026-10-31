@@ -560,7 +560,8 @@ REVOKE UPDATE, DELETE, TRUNCATE ON public.pay_run_line FROM harbour_app;
 -- Earlier versions follow the tables' own read rules: pay holders only (a member's own profile too).
 CREATE POLICY record_version_pay ON public.record_version AS RESTRICTIVE FOR SELECT
   TO harbour_app
-  USING (table_name NOT IN ('pay_rule_set', 'pay_profile', 'pay_run', 'pay_run_exception')
+  USING (app.is_system()
+    OR table_name NOT IN ('pay_rule_set', 'pay_profile', 'pay_run', 'pay_run_exception')
     OR app.reads_pay()
     OR (table_name = 'pay_profile' AND (data->>'member_id')::uuid = app.current_user_id()));
 --> statement-breakpoint
@@ -571,7 +572,8 @@ DROP POLICY record_version_time ON public.record_version;
 --> statement-breakpoint
 CREATE POLICY record_version_time ON public.record_version AS RESTRICTIVE FOR SELECT
   TO harbour_app
-  USING (table_name NOT IN ('clock_setting', 'timesheet_entry', 'working_time_opt_out')
+  USING (app.is_system()
+    OR table_name NOT IN ('clock_setting', 'timesheet_entry', 'working_time_opt_out')
     OR (table_name = 'clock_setting' AND app.reads_rota((data->>'location_id')::uuid))
     OR (table_name = 'timesheet_entry' AND ((data->>'worker_id')::uuid = app.current_user_id()
       OR app.reads_time_records((data->>'location_id')::uuid)))

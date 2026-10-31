@@ -339,6 +339,11 @@ export const RotaCheck = z
     inductionsDue: z.array(uuid),
     /** HZ-123: assignments whose member is away on the shift: counted as open, with a warning. */
     coverNeededAssignmentIds: z.array(uuid),
+    /**
+     * Assignments of booked bank or agency workers on a shift running now with nobody assigned to
+     * them (H-927; HZ-073): assign people so they can see allergies and care plans.
+     */
+    peopleUnassigned: z.array(uuid),
     /** True when any comparison is not `met` or any working time finding stands. */
     hasWarnings: z.boolean(),
     /**
