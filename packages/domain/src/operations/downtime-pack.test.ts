@@ -389,6 +389,17 @@ describe("hazard HZ-016 an unreadable IDDSI code says check the record and never
   });
 });
 
+describe("hazard HZ-072 a sample person's page says they are invented", () => {
+  it.each([
+    [true, true],
+    [false, false],
+    [undefined, false],
+  ])("sample %s prints as sample %s", (sample, printed) => {
+    const page = onlyPage(person("p-1", sample === undefined ? {} : { sample }));
+    expect(page.sample).toBe(printed);
+  });
+});
+
 describe("pack content", () => {
   it("hazard HZ-007 lists the most severe allergies first, with unknown severity among the severe", () => {
     const page = onlyPage(

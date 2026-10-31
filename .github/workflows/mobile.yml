@@ -65,7 +65,7 @@ jobs:
           script: |
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             adb shell locksettings set-pin 1111
-            ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,demo --format junit --output maestro-demo-report.xml
+            ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,demo,store-compliance --format junit --output maestro-demo-report.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:

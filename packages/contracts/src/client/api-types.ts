@@ -159,6 +159,81 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/me/account-deletion-request": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Ask for your own account to be deleted (MOB-011; App Store and Google Play)
+     * @description Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them and audits the request. Nothing is deleted, and care records never are by this route. A second request while the first is open returns the first (`already_requested`).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Already requested */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AccountDeletionRequest"];
+          };
+        };
+        /** @description Requested */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AccountDeletionRequest"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/search": {
     parameters: {
       query?: never;
@@ -11229,6 +11304,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/dols": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * DoLS requests and authorisations needing attention at a location, soonest first
+     * @description Requests waiting for an outcome, authorisations inside their first expiry reminder window and authorisations past their end, for the people the caller may see there (row-level security; HZ-020). For the role dashboards (INSI-001). Ending soonest first; requests, which have no end yet, last, oldest request first.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Authorisations */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DolsList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/dols/legal-change-review": {
     parameters: {
       query?: never;
@@ -20537,6 +20689,15 @@ export interface components {
     };
     /** @enum {string} */
     DataScope: "tenant" | "locations" | "assigned" | "none";
+    AccountDeletionRequest: {
+      /** @enum {string} */
+      status: "requested" | "already_requested";
+      /** Format: date-time */
+      requestedAt: string;
+      /** Format: date-time */
+      respondBy: string;
+      routedToManager: boolean;
+    };
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {
@@ -20770,6 +20931,7 @@ export interface components {
       /** Format: uuid */
       recordId: string;
       versions: components["schemas"]["RecordVersion"][];
+      latestChanged: string[] | null;
     };
     RecordVersion: {
       version: number;
@@ -22079,6 +22241,7 @@ export interface components {
       actionsTaken: string | null;
       /** Format: uuid */
       supersedesId: string | null;
+      staff: components["schemas"]["StaffName"][];
     };
     ReviewBreakGlassReport: {
       actionsTaken: string;
@@ -25512,6 +25675,7 @@ export interface components {
       locked: boolean;
       /** Format: date-time */
       lastOpenedAt: string | null;
+      version: number;
     };
     ComposeEvidencePack: {
       recipient: {
@@ -25933,6 +26097,7 @@ export interface components {
         preferredName: string | null;
         roomLabel: string | null;
         photoUrl: string | null;
+        sample: boolean;
       };
       channel: components["schemas"]["TemplateChannel"];
       subject: string | null;

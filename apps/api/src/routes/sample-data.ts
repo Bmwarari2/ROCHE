@@ -1,5 +1,5 @@
 import { SampleDataBatch } from "@harbour/contracts";
-import { location, person, sampleBatch } from "@harbour/db";
+import { document, location, person, sampleBatch } from "@harbour/db";
 import {
   checkSampleDataLoad,
   SAMPLE_PEOPLE,
@@ -8,7 +8,7 @@ import {
   sampleDataRefusal,
 } from "@harbour/domain";
 import { createRoute } from "@hono/zod-openapi";
-import { asc, isNull, sql } from "drizzle-orm";
+import { asc, eq, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
 import {
@@ -195,12 +195,42 @@ export const sampleDataRouter = createRouter()
           if (!open) {
             return refuse(c, access, REMOVED, sampleDataRefusal("nothing_to_remove"));
           }
+          // The stored files of the sample people's documents (every version), read before their
+          // rows go, so the bytes can be deleted once the removal has committed.
+          const files = await tx
+            .select({ key: document.storageKey })
+            .from(document)
+            .innerJoin(person, eq(person.id, document.personId))
+            .where(eq(person.sampleBatchId, open.id));
           const { rows } = await tx.execute<{ removed: number }>(
             sql`SELECT app.remove_sample_batch(${open.id}::uuid, ${c.get("requestId")}) AS removed`,
           );
-          return { batchId: open.id, people: Number(rows[0]?.removed ?? 0) };
+          return {
+            batchId: open.id,
+            people: Number(rows[0]?.removed ?? 0),
+            storageKeys: files.map((f) => f.key),
+          };
         }),
       );
-      return c.json(body, 200);
+      // Invented people's files go too (rule 32). After the commit: a failed removal leaves every
+      // file in place. A file that cannot be deleted now is logged by count only (opaque, and the
+      // data is invented); its row is gone, so nothing serves it.
+      const { storageKeys, ...removed } = body as typeof body & { storageKeys?: string[] };
+      const { storage, logger } = c.get("services");
+      let notDeleted = 0;
+      for (const key of storageKeys ?? []) {
+        try {
+          await storage.destroy(key);
+        } catch {
+          notDeleted += 1;
+        }
+      }
+      if (notDeleted > 0) {
+        logger.warn(
+          { batchId: removed.batchId, notDeleted, requestId: c.get("requestId") },
+          "sample removal left stored files",
+        );
+      }
+      return c.json(removed, 200);
     },
   );

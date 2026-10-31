@@ -125,8 +125,18 @@ export interface BreakGlassWeeklyReport {
   readonly byPerson: readonly BreakGlassPersonLine[];
   readonly byReason: readonly BreakGlassReasonLine[];
   readonly flagged: readonly BreakGlassFlagLine[];
-  /** Break-glass searches in the week (master prompt section 4: break-glass is reported weekly). */
+  /**
+   * Break-glass searches in the week that showed people at this location (master prompt section
+   * 4: break-glass is reported weekly).
+   */
   readonly searches: BreakGlassSearchSection;
+  /**
+   * The organisation's searches in the week that showed no one at any location: a tenant-level
+   * section, stored with each location's report so it is kept and reviewed with them, but read
+   * only by those whose access reaches the whole organisation (the API leaves it out, and its
+   * searchers unnamed, for anyone else; review round 1 of feat/web-break-glass-report).
+   */
+  readonly unplacedSearches: BreakGlassSearchSection;
 }
 
 function group<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
@@ -147,13 +157,15 @@ const byCountThenId =
 
 /**
  * Aggregates one week's break-glass events. `repeatThreshold` is the rate-table figure
- * `break_glass.weekly_repeat_threshold`; events outside the week are ignored.
+ * `break_glass.weekly_repeat_threshold`; events outside the week are ignored. `searches` are those
+ * that showed people at the location; `unplacedSearches` those that showed no one at any location.
  */
 export function breakGlassWeeklyReport(
   events: readonly BreakGlassEventView[],
   week: BreakGlassWeek,
   repeatThreshold: number,
   searches: readonly BreakGlassSearchView[] = [],
+  unplacedSearches: readonly BreakGlassSearchView[] = [],
 ): BreakGlassWeeklyReport {
   if (!Number.isInteger(repeatThreshold) || repeatThreshold < 2) {
     throw new RangeError("The repeat threshold must be a whole number of 2 or more.");
@@ -255,6 +267,7 @@ export function breakGlassWeeklyReport(
     byReason,
     flagged,
     searches: searchSection(searches, week, repeatThreshold),
+    unplacedSearches: searchSection(unplacedSearches, week, repeatThreshold),
   };
 }
 
