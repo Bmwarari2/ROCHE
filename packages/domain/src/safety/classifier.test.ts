@@ -642,6 +642,60 @@ describe("hazard HZ-013 harm thresholds come from the rate table", () => {
     expect(output(yes, "candour")?.reasons[0]).toMatch(/threshold decision recorded/);
   });
 
+  it.each(["harm.pain_days", "harm.psychological_harm_days", "harm.impairment_days"] as const)(
+    "hazard HZ-013 %s: reads the Reg 18 and candour thresholds apart, at and below each figure",
+    (key) => {
+      // Two different figures, so each threshold is proven on its own (#120 review round 3).
+      const own = { ...rates, candourProlongedHarmDays: 20, reg18ProlongedHarmDays: 35 };
+      const kinds = (days: number) =>
+        kindsOf(
+          classifyIncident({
+            ...input({
+              type: "medication",
+              people: [resident()],
+              answers: {
+                ...NOTHING_TO_REPORT,
+                [key]: days,
+                "candour.unintended_or_unexpected": "yes",
+              },
+            }),
+            rates: own,
+          }),
+        );
+      expect(kinds(19)).toEqual([]);
+      expect(kinds(20)).toEqual(["candour"]);
+      expect(kinds(34)).toEqual(["candour"]);
+      expect(kinds(35)).toEqual(["candour", "cqc_reg18_serious_injury"]);
+    },
+  );
+
+  it("hazard HZ-013 the recorded threshold decision wins over the answers, either way", () => {
+    const decidedAt = new Date("2026-10-15T09:00:00Z");
+    const harmed = {
+      type: "medication" as const,
+      people: [resident()],
+      answers: {
+        ...NOTHING_TO_REPORT,
+        "candour.unintended_or_unexpected": "yes" as const,
+        "harm.body_structure_changed": "yes" as const,
+      },
+    };
+    // The answers alone make it notifiable; a decision of not notifiable wins.
+    expect(kindsOf(run(harmed))).toContain("candour");
+    const no = run({ ...harmed, extra: { candourDecision: { notifiable: false, decidedAt } } });
+    expect(kindsOf(no)).not.toContain("candour");
+    expect(exclusion(no, "candour")).toMatch(/threshold decision recorded/);
+    // The answers alone do not; a decision of notifiable wins.
+    const unharmed = {
+      type: "medication" as const,
+      people: [resident()],
+      answers: { ...NOTHING_TO_REPORT, "candour.unintended_or_unexpected": "yes" as const },
+    };
+    expect(kindsOf(run(unharmed))).not.toContain("candour");
+    const yes = run({ ...unharmed, extra: { candourDecision: { notifiable: true, decidedAt } } });
+    expect(output(yes, "candour")?.reasons[0]).toMatch(/threshold decision recorded/);
+  });
+
   it("uses a tenant's own figure when the rate table has one (clock periods are never literals)", () => {
     const shorter = { ...rates, riddorReportDays: rates.riddorReportDays - 3 };
     const r = classifyIncident({ ...input(S.damagedCarpet), rates: shorter });

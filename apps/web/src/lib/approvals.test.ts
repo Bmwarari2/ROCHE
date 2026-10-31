@@ -189,7 +189,15 @@ describe("approvals screen (PLAT-011)", () => {
     [
       "what must be done first, when closing is held back (HZ-013)",
       { incident: { version: 3, status: "open", closeBlocked: true } },
-      { review: null, close: { kind: "blocked", notifications: [], questions: 0 } },
+      {
+        review: null,
+        close: {
+          kind: "blocked",
+          notifications: [],
+          questions: 0,
+          candour: { noRecord: false, open: false, stillToTell: [], unknown: false },
+        },
+      },
     ],
     ["nothing, without the incident's facts", { incident: null }, null],
     [

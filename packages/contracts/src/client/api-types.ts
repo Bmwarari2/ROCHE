@@ -12337,7 +12337,7 @@ export interface paths {
     };
     /**
      * Add to or correct an incident (the classifier runs again)
-     * @description The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope.
+     * @description The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. A change that takes someone affected out of the duty of candour check (removed, or no longer affected), whether or not a threshold decision is recorded, needs safety.incident.manage and candourReason of at least 20 characters, and is audited with the person (#120 review rounds 2 and 3).
      */
     put: {
       parameters: {
@@ -12515,7 +12515,7 @@ export interface paths {
     put?: never;
     /**
      * Close an incident (someone other than the person who raised it)
-     * @description Refused while a notification is a draft or ready, a classifier question is open or the candour record is open (incidentCloseProblems), and refused to the person who raised it (separation of duties, safety.md rule 11).
+     * @description Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).
      */
     post: {
       parameters: {
@@ -12801,7 +12801,7 @@ export interface paths {
     };
     /**
      * Record the candour threshold decision, notifications, enquiries and correspondence
-     * @description Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision).
+     * @description Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision). The relevant person must be one of the people affected and cannot change once the record is finished. A decision that differs from Harbour's finding, or changes a recorded one, needs thresholdConfirmed and a thresholdReason of at least 20 characters (audited). Times cannot be later than now; telling, sending and attempts cannot be earlier than the incident.
      */
     put: {
       parameters: {
@@ -12890,7 +12890,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Take the next candour step (candourStepProblems says what each step needs) */
+    /**
+     * Take the next candour step (candourStepProblems says what each step needs)
+     * @description Refused while the record names nobody affected. Not notifiable after Harbour drafted a candour notification needs confirmed and a reason of at least 20 characters.
+     */
     post: {
       parameters: {
         query?: never;
@@ -12907,6 +12910,96 @@ export interface paths {
       };
       responses: {
         /** @description Moved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CandourView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/incidents/{id}/candour/reopen": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reopen a duty of candour record finished as not notifiable or no contact
+     * @description With a reason of at least 20 characters, audited (candourReopenProblems; #120 review round 3, H1). Not notifiable goes back to the threshold decision and no contact to telling the person; a candour notification decided not required becomes a draft again, so its clock and the close block return. Refused on a closed incident.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReopenCandour"];
+        };
+      };
+      responses: {
+        /** @description Reopened */
         200: {
           headers: {
             [name: string]: unknown;
@@ -13034,7 +13127,10 @@ export interface paths {
         };
       };
     };
-    /** Record the investigation; each action with an owner and date becomes a task */
+    /**
+     * Record the investigation; each action with an owner and date becomes a task
+     * @description Version 0 starts the record. An open action with an owner and a due date becomes a task for its owner, who must manage incidents at the incident's location (as the task engine requires of every assignee); otherwise the save is refused. Completing it needs the findings and the lessons.
+     */
     put: {
       parameters: {
         query?: never;
@@ -26245,6 +26341,7 @@ export interface components {
       contactNotes?: string | null;
       familyInformed?: components["schemas"]["FamilyInformed"];
       people?: components["schemas"]["IncidentPersonInput"][];
+      candourReason?: string;
       version: number;
     };
     ReviewIncident: {
@@ -26357,11 +26454,18 @@ export interface components {
       enquiryResultsSharedAt?: string | null;
       correspondenceDocumentIds?: string[];
       outcome?: string | null;
+      thresholdReason?: string;
+      thresholdConfirmed?: boolean;
       version: number;
     };
     CandourStep: {
       to: components["schemas"]["CandourState"];
       reason?: string;
+      confirmed?: boolean;
+      version: number;
+    };
+    ReopenCandour: {
+      reason: string;
       version: number;
     };
     InvestigationView: {

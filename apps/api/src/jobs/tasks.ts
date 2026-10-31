@@ -27,6 +27,10 @@ import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   generateBreakGlassReports,
 } from "../services/break-glass-report";
+import {
+  CANDOUR_BLOCKED_UNROUTED_ACTION,
+  raiseCandourBlockedTasks,
+} from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
 import {
@@ -339,7 +343,8 @@ export function retryUnroutedTasks(deps: TaskDeps, now = new Date()): Promise<nu
 /**
  * The audit actions that mean no one could be told about safety work (ADR-0071 review rounds 2 to
  * 4): an overdue task, a sync task, an escalation chain step, an urgent refused-entry review, an
- * urgent result alert and a break-glass alert.
+ * urgent result alert, a break-glass alert, an overdue statutory notification and an incident the
+ * duty of candour holds open.
  */
 export const UNROUTED_ACTIONS = [
   TASK_ESCALATION_UNROUTED_ACTION,
@@ -349,6 +354,9 @@ export const UNROUTED_ACTIONS = [
   CARE_ALERT_UNROUTED_ACTION,
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   NOTIFICATION_UNROUTED_ACTION,
+  // An incident the duty of candour holds open, with no one who manages incidents there to tell
+  // (#120 review round 4, M2).
+  CANDOUR_BLOCKED_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */
@@ -478,6 +486,22 @@ export async function escalateStatutoryNotifications(
   );
   if (escalated > 0) deps.logger.info({ escalated }, "overdue statutory notifications escalated");
   return escalated;
+}
+
+/**
+ * Incidents the duty of candour has held open for longer than the organisation's period
+ * (`candour.close_blocked_days`): one urgent task each for the Registered Manager, on its own
+ * escalation ladder, every day until nothing holds it (#120 review rounds 2 and 3; HZ-013).
+ */
+export async function raiseCandourBlocked(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "candour-blocked", (tx, tenantId) =>
+    raiseCandourBlockedTasks(tx, tenantId, now, () =>
+      // Opaque ids only: which tenant has no figure for the period.
+      deps.logger.warn({ tenantId }, "candour blocked tasks not raised: no rate-table figure"),
+    ),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "incidents held open by the duty of candour");
+  return raised;
 }
 
 /** Outbreak detection across each location's infection cases (safety.md rule 7). */

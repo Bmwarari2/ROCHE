@@ -168,6 +168,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | candour.written_notification.working_days | 10 | working_days | 2000-01-01 | - | england | Tenant-configurable target, ADR-0021; regulation 20 requires "as soon as reasonably practicable"; section 21 open item | to-verify |
+| candour.close_blocked_days | 14 | days | 2000-01-01 | - | england | Harbour default (#120 review round 2, M4): an incident the duty of candour holds open (no candour record where Harbour found it may apply, the record open, or someone affected not told) for longer than this many days after it happened gets an urgent task for its Registered Manager, which the task engine escalates; tenant default | to-verify |
 | safeguarding.referral_hours | 24 | hours | 2000-01-01 | - | all | Tenant target: Care Act 2014 s.42 sets no time; the local authority's procedures usually say the same day (phase-2.md slice 7; H-590) | to-verify |
 | complaint.acknowledge_working_days | 3 | working_days | 2000-01-01 | - | all | Tenant target: Regulation 16 sets none for independent providers (phase-2.md decisions; H-590) | to-verify |
 | complaint.response_working_days | 20 | working_days | 2000-01-01 | - | all | Tenant target, as above | to-verify |
@@ -353,6 +354,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
 - `homecare.minimum_price.hourly` (34.42): stated in section 14.4 but flagged in section 21 as reported
   second-hand. The Homecare Association publishes it; it is not a gov.uk figure. Confirm against the
   Homecare Association 2026/27 publication. It is context for unit economics, not a statutory rate.
+- `candour.close_blocked_days` (14): no statutory figure. How long an incident may stay open on the
+  duty of candour before its Registered Manager is given an urgent task (safety.md section 5, part 5,
+  review round 2; HZ-013). A tenant default for the CSO to confirm (H-480).
 - `candour.written_notification.working_days` (10): regulation 20 says "as soon as reasonably
   practicable" and sets no number of days. 10 working days is a tenant-configurable target (ADR-0021),
   never presented as a statutory deadline. Brian to confirm the value to encode (Appendix open question).
