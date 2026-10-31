@@ -26,7 +26,7 @@ import {
   type UndoProblem,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import {
   AuditedRefusal,
@@ -192,7 +192,8 @@ function readUpload(body: UploadImport): Upload {
 
 /** The mapping, checked: each value a field key or null; refused without echoing a heading. */
 function readMapping(mapping: Record<string, unknown> | undefined): Record<string, string | null> {
-  const out: Record<string, string | null> = {};
+  // No prototype: a heading such as "__proto__" is a key like any other.
+  const out: Record<string, string | null> = Object.create(null);
   for (const [heading, field] of Object.entries(mapping ?? {})) {
     if (field !== null && typeof field !== "string") {
       throw problems.invalid("The mapping takes each column heading to a field key, or to null.");
@@ -347,12 +348,22 @@ export const platformImportsRouter = createRouter()
           .from(importBatch)
           .orderBy(desc(importBatch.uploadedAt), desc(importBatch.id))
           .limit(100);
-        const commits = await tx.select().from(importCommit);
+        const ids = batches.map((b) => b.id);
+        const commits =
+          ids.length > 0
+            ? await tx.select().from(importCommit).where(inArray(importCommit.batchId, ids))
+            : [];
         const byBatch = new Map(commits.map((m) => [m.batchId, m]));
+        // The undo window is read once per location (its nation's rate).
+        const windows = new Map<string, number>();
         const out = [];
         for (const batch of batches) {
-          const rates = await importRates(tx, access.tenantId, batch.locationId);
-          out.push(batchOut(batch, byBatch.get(batch.id), rates.undoWindowDays));
+          let window = windows.get(batch.locationId);
+          if (window === undefined) {
+            window = (await importRates(tx, access.tenantId, batch.locationId)).undoWindowDays;
+            windows.set(batch.locationId, window);
+          }
+          out.push(batchOut(batch, byBatch.get(batch.id), window));
         }
         await auditInTx(tx, access, {
           action: READ,
