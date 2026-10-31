@@ -22,5 +22,6 @@ export * from "./safety";
 export * from "./sample-data";
 export * from "./sub-processors";
 export * from "./sync";
+export * from "./time-attendance";
 export * from "./work";
 export * from "./workforce";

@@ -533,6 +533,13 @@
       "when": 1793477052185,
       "tag": "0104_bank_agency",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1793480057403,
+      "tag": "0109_time_attendance",
+      "breakpoints": true
     }
   ]
 }

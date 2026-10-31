@@ -52,6 +52,9 @@ const APPEND_ONLY_TABLES = [
   "roster_override",
   "location_induction",
   "agency_worker_feedback",
+  "clock_event",
+  "sleep_in_awake_period",
+  "working_time_result",
   "dependency_assessment",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */

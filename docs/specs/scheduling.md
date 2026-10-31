@@ -6,7 +6,7 @@ builds rotas, time and attendance and the pay rules engine for care homes
 is integrated, not built (section 12). Slice 5 wrote this specification and the Working Time rules
 (SCHED-003); slice 6 added the pay rules (section 4b), and the schema slices (12, 21, 27, 30, 36,
 40, 44, 46) confirm their tables against section 2. Slice 12 adds the dependency tool and the
-required care hours per shift (section 13); slice 21 adds the rota builder (section 14); slice 27 bank and agency workers (section 15). Status
+required care hours per shift (section 13); slice 21 adds the rota builder (section 14); slice 27 bank and agency workers (section 15); slice 30 time and attendance (section 16). Status
 per feature:
 [feature register](feature-register.md).
 
@@ -923,3 +923,83 @@ location).
   members unaffected; only an agency-only member registered).
 - API: `apps/api/test/agency.test.ts` (agencies and workers; booking with the rule and refusals;
   cost; AWR; induction; feedback and do not rebook; the access window through the API).
+
+## 16. Time and attendance and working-time records (slice 30; SCHED-004, SCHED-003)
+
+Master prompt section 12.3 (clock in and out, exceptions, timesheet approval, mileage; Working
+Time compliance) and 17.1 (clock in and out with device time plus server time on sync). Hazards
+HZ-124 (the rule on the day), HZ-010 (clock drift) and HZ-011. Human actions H-990 to H-999. The
+screens are slice 60, the phone's offline queue slice 71.
+
+### Schema (migration 0109)
+
+| Table | Kind | Columns | Retention class |
+| --- | --- | --- | --- |
+| `clock_setting` | mutable, one per location | `location_id`, `evidence` (`none` by default; `at_location` or `nfc` only once the employee-monitoring DPIA is approved, H-527), `nfc_tag_refs` (opaque tag ids) | `rota_and_timesheet` |
+| `clock_event` | append-only, client UUID, idempotent | `worker_id`, `kind` (`in`, `out`, `break_start`, `break_end`), `shift_id`, `location_id`, `device_time`, `recorded_at` (server), `device_id` (opaque), `evidence` (`none`, `at_location`, `nfc`), `nfc_tag_ref`, `flags` | `rota_and_timesheet` |
+| `timesheet_entry` | mutable while `draft`; fixed once `approved`; corrected by a new entry with `supersedes_id` | `worker_id`, `location_id`, `shift_id`, `kind` (shift kinds plus `travel`), `started_at`, `ended_at`, `breaks` (`[{ start, end }]`), `travel` (journey kind), `mileage_tenths` (tenths of a mile), `source` (`clock`, `manual`), `clock_in_id`, `clock_out_id`, `status` (`draft`, `approved`), `approved_by`, `approved_at`, `supersedes_id`, `correction_reason` | `rota_and_timesheet` |
+| `sleep_in_awake_period` | append-only | `timesheet_entry_id`, `started_at`, `ended_at` | `rota_and_timesheet` |
+| `working_time_opt_out` | mutable, versioned | `worker_id`, `signed_on`, `ends_on`, `notice_amount`, `notice_unit`, `notice_given_on`, `recorded_by` (never the worker) | `working_time_opt_out` |
+| `working_time_result` | append-only per run | `worker_id`, `evaluate_from`, `evaluate_to`, `findings` (as `WorkingTimeFindingItem`), `breaches`, `conditionals`, `input_hash`, `trigger` (`timesheet_approved`, `requested`) | `working_time_record` |
+
+Location evidence is never a position: the phone says only whether it was at the location (or
+read the location's NFC tag); Harbour stores that word and never coordinates or a track.
+
+### Rules
+
+1. **Clock events** (`clockFlags`): the device's time and the server's time are both kept; an
+   event whose device time is more than `sync.clock_drift_flag_minutes` before the server's is a
+   late upload, after it a device clock ahead; both are flagged, never dropped. The device's time
+   is the time worked (HZ-010: the flag shows it). An event's client id makes a replay return the
+   stored event.
+2. **Who may clock**: a member clocks only for themselves. A staff member needs
+   `scheduling.timesheet.self`. A bank or agency member needs a confirmed booking of the shift
+   (ADR-0088); an event they upload after their window has closed is accepted when its device
+   time falls in the booked shift's window, flagged `outside_access_window`, and never dropped.
+3. **The rule on the day** (HZ-124; H-920): clocking in to a shift applies the rostering rule again
+   (section 14 rule 3) on the shift's dates, with the override that already covers the assignment.
+   A bank or agency worker also needs a recorded induction at the location. Online, a blocked
+   clock-in is refused (422) and audited; a late upload is stored, flagged `not_eligible` or
+   `no_induction`, and the Registered Manager at the location gets an urgent task. Clocking in with
+   no shift of one's own is stored and flagged `no_shift`.
+4. **Timesheets** (`pairClockEvents`): clocking out makes a draft entry from the worker's open
+   clock-in, the breaks between and the clock-out, for the shift if any. Problems (a break never
+   ended, a clock-out with no clock-in) are listed and the entry stays a draft. A manager may also
+   enter one by hand (`manual`). A draft may be changed; an approved entry never.
+5. **Approval**: by a holder of `scheduling.rota.approve` at the location who is not the worker
+   (separation of duties; the database checks it too). Approving runs the working time check for
+   the worker and stores the result; a breach or conditional finding raises a task for the
+   Registered Manager. The check advises; it never blocks approval.
+6. **Corrections**: an approved entry is corrected by a new draft with `supersedes_id` and a reason;
+   once the correction is approved the original is shown struck through and never counts again.
+   Only one correction of an entry may be open.
+7. **Working time** (`checkWorkingTime`): from the worker's approved, current entries (actual
+   breaks from the clock), their opt-outs on file and the organisation's default setting
+   (section 14 rule 6 and H-832), evaluated over the approved entry's dates; the result stores
+   the findings and a hash of its inputs, so it reproduces.
+8. **Opt-outs on file**: recorded from the signed agreement by a holder of `scheduling.rota.approve`
+   who is not the worker, with its end and notice; the worker reads their own.
+9. **Exceptions**: a location's flagged clock events and drafts with problems, for the manager.
+
+### API, audit and outbox
+
+| Route | What |
+| --- | --- |
+| `POST /v1/me/clock-events` | Clock in, out or a break (own; idempotent) |
+| `GET /v1/me/timesheets?from=&to=` | Own timesheet entries |
+| `GET`, `PUT /v1/locations/{id}/clock-setting` | Clock evidence at a location |
+| `GET /v1/locations/{id}/timesheets?from=&to=` | Entries at a location |
+| `POST /v1/locations/{id}/timesheets` | A manual entry |
+| `PATCH /v1/timesheet-entries/{id}` | Change a draft |
+| `POST /v1/timesheet-entries/{id}/approve` | Approve (never one's own) |
+| `POST /v1/timesheet-entries/{id}/corrections` | Correct an approved entry |
+| `POST /v1/timesheet-entries/{id}/awake-periods` | Sleep-in awake periods |
+| `GET /v1/locations/{id}/clock-exceptions?from=&to=` | Exceptions |
+| `GET`, `POST /v1/members/{id}/working-time-opt-outs` | Opt-outs on file |
+| `GET /v1/members/{id}/working-time` | Stored results |
+
+Audit events carry ids only: `scheduling.clock.recorded`, `.refused`; `scheduling.timesheet.created`,
+`.changed`, `.approved`, `.corrected`; `scheduling.working_time.result_stored`;
+`scheduling.opt_out.recorded`, `.viewed`; `scheduling.clock_setting.changed`. Outbox:
+`scheduling.timesheet_approved` (entry, worker, location) for pay (slice 36) and
+`scheduling.working_time.finding_raised` (result, worker) for the dashboard.

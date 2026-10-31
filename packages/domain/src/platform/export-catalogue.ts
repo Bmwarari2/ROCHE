@@ -55,6 +55,8 @@ export type ExportRetention =
   | "staff_file"
   | "training_record"
   | "rota_and_timesheet"
+  | "working_time_record"
+  | "working_time_opt_out"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -3229,6 +3231,193 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       notes: { description: "The feedback, in the writer's words." },
       created_at: "exported",
       created_by: { description: "Who wrote it (tenant_user.id)." },
+    },
+  },
+  "public.clock_setting": {
+    context: "scheduling",
+    description:
+      "How clock-ins at a location are evidenced (scheduling.md section 16): none by default; at the location or an NFC tag once the DPIA allows. No personal data.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: { description: "The location (location.id)." },
+      evidence: {
+        description: "The evidence asked for at clock-in.",
+        codes: {
+          none: "None.",
+          at_location: "The phone says it is at the location (never a position).",
+          nfc: "The location's NFC tag was read.",
+        },
+      },
+      nfc_tag_refs: { description: "The location's NFC tags, by opaque reference." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.clock_event": {
+    context: "scheduling",
+    description:
+      "Clock events (append-only): in, out and breaks, with the device's and the server's time and any flags.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      worker_id: { description: "The member of staff (tenant_user.id)." },
+      kind: {
+        description: "What was recorded.",
+        codes: {
+          in: "Clock in.",
+          out: "Clock out.",
+          break_start: "Break started.",
+          break_end: "Break ended.",
+        },
+      },
+      shift_id: { description: "The shift (shift.id), if any." },
+      location_id: { description: "The location (location.id)." },
+      device_time: { description: "The device's time (UTC)." },
+      recorded_at: { description: "When the server received it (UTC)." },
+      device_id: { description: "The device, by opaque id." },
+      evidence: {
+        description: "The evidence given.",
+        codes: { none: "None.", at_location: "At the location.", nfc: "NFC tag read." },
+      },
+      nfc_tag_ref: { description: "The NFC tag read, by opaque reference." },
+      flags: {
+        description:
+          "Flags: late_upload, device_clock_ahead, outside_access_window, no_shift, not_eligible, no_induction.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.timesheet_entry": {
+    context: "scheduling",
+    description:
+      "Time worked: drafts, approved entries (never by the worker) and corrections that supersede them.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      worker_id: { description: "The member of staff (tenant_user.id)." },
+      location_id: { description: "The location (location.id)." },
+      shift_id: { description: "The shift (shift.id), if any." },
+      kind: {
+        description: "What the time was.",
+        codes: {
+          work: "Work.",
+          sleep_in: "A sleep-in.",
+          on_call_at_workplace: "On call at the workplace.",
+          on_call_away: "On call away.",
+          training: "Training.",
+          travel: "Travel.",
+        },
+      },
+      started_at: { description: "Start (UTC)." },
+      ended_at: { description: "End (UTC)." },
+      breaks: { description: "Breaks taken: [{ start, end }] (UTC)." },
+      travel: { description: "The journey, for travel." },
+      mileage_tenths: {
+        description: "Miles travelled, in tenths of a mile.",
+        unit: "tenths of a mile",
+      },
+      source: {
+        description: "Where it came from.",
+        codes: { clock: "Clock events.", manual: "Entered by a manager." },
+      },
+      clock_in_id: { description: "The clock-in (clock_event.id)." },
+      clock_out_id: { description: "The clock-out (clock_event.id)." },
+      status: {
+        description: "Whether it is approved.",
+        codes: { draft: "A draft.", approved: "Approved; fixed." },
+      },
+      approved_by: { description: "Who approved it (tenant_user.id)." },
+      approved_at: { description: "When it was approved (UTC)." },
+      supersedes_id: "exported",
+      correction_reason: { description: "Why the entry it supersedes was corrected." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.sleep_in_awake_period": {
+    context: "scheduling",
+    description: "Times a sleep-in worker was awake for the purposes of working (append-only).",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      timesheet_entry_id: { description: "The sleep-in (timesheet_entry.id)." },
+      started_at: { description: "Start (UTC)." },
+      ended_at: { description: "End (UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.working_time_opt_out": {
+    context: "scheduling",
+    description:
+      "Opt-outs of the 48-hour average on file, from the signed agreement (reg 4(1), 5).",
+    treatment: "tenant_rows",
+    retention: "working_time_opt_out",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      worker_id: { description: "The member of staff (tenant_user.id)." },
+      signed_on: { description: "When it was signed (UK date)." },
+      ends_on: { description: "The last day of an agreement for a specified period (UK date)." },
+      notice_amount: { description: "The agreement's own notice period.", unit: "days or months" },
+      notice_unit: { description: "Days or months." },
+      notice_given_on: { description: "When the worker gave notice to end it (UK date)." },
+      recorded_by: { description: "Who recorded it from the signed agreement (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.working_time_result": {
+    context: "scheduling",
+    description:
+      "Stored runs of the working time check (append-only), with the findings and a hash of the inputs.",
+    treatment: "tenant_rows",
+    retention: "working_time_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      worker_id: { description: "The member of staff (tenant_user.id)." },
+      location_id: { description: "Where the time was approved (location.id)." },
+      evaluate_from: { description: "The first UK date checked." },
+      evaluate_to: { description: "The last UK date checked." },
+      findings: { description: "The findings, each with its rule, citation and outcome." },
+      breaches: { description: "Breaches found.", unit: "findings" },
+      conditionals: { description: "Conditional findings.", unit: "findings" },
+      input_hash: { description: "A hash of the inputs, so the result reproduces." },
+      trigger: {
+        description: "What ran it.",
+        codes: { timesheet_approved: "A timesheet was approved.", requested: "Asked for." },
+      },
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.shift_template": {

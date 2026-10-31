@@ -124,6 +124,7 @@ export {
 export * from "./scheduling/pay";
 export * from "./scheduling/rates";
 export * from "./scheduling/rota";
+export * from "./scheduling/time-attendance";
 export * from "./scheduling/weekly-average";
 export * from "./scheduling/working-time";
 export * from "./scheduling/working-time-types";
