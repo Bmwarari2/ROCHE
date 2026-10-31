@@ -377,7 +377,9 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
  * batch itself. A new table that refers to a person must be added to app.sample_removal_tables()
  * or here, deliberately.
  */
-const BLOCKS_REMOVAL = ["downtime_pack", "escalation_policy_link", "outage"];
+// A data protection complaint about a sample person is a real complaint record (migration 0082):
+// its foreign key stops the removal rather than the complaint going with the sample.
+const BLOCKS_REMOVAL = ["downtime_pack", "dp_complaint", "escalation_policy_link", "outage"];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {
   const owner = () => db.pool("harbour_owner");
