@@ -107,7 +107,7 @@ names below are the concepts this contract carries and must be kept in step with
 | `given_name` | text | NHS Data Dictionary PERSON GIVEN NAME | Free text | |
 | `family_name` | text | NHS Data Dictionary PERSON FAMILY NAME | Free text | |
 | `preferred_name` | text | MODS preferred name | Free text | Shown first on point-of-care screens with the legal name beneath. |
-| `date_of_birth` | date | NHS Data Dictionary PERSON BIRTH DATE | `YYYY-MM-DD` | |
+| `date_of_birth` | date | NHS Data Dictionary PERSON BIRTH DATE | `YYYY-MM-DD` | A change through the API is from 1900-01-01 to today in the UK (PEOP-001). |
 | `sex_code` | code | NHS Data Dictionary PERSON PHENOTYPIC SEX | See sex codes below | Used only where a published validated tool or reference needs it. |
 | `gender_identity` | code | NHS Data Dictionary PERSON STATED GENDER CODE | See gender codes below | How the person describes their gender. A self-description in the person's own words belongs in About Me. |
 | `ethnic_category_code` | code | NHS Data Dictionary ETHNIC CATEGORY | A to S, Z, 99 (below) | |
@@ -217,8 +217,8 @@ illustrative: the display text is whatever the loaded concept's preferred term i
 | `role` | Harbour code list, aligned to MODS related-person roles and MCA 2005 | `next_of_kin`, `lpa_health_welfare` (lasting power of attorney for health and welfare), `lpa_property_finance` (lasting power of attorney for property and financial affairs), `deputy` (Court of Protection deputy), `imca` (independent mental capacity advocate), `advocate`, `appointee` (DWP appointee), `gp`, `social_worker`, `other` |
 | Authority evidence | Document reference, OPG reference where registered, expiry | An attorney or deputy sees only what the authority covers (section 15.1). Evidence is required before a legal role grants portal access. |
 | `authority_scope` | Mental Capacity Act 2005 (Court of Protection deputyship orders) | `personal_welfare`, `property_affairs`, `both`; null for other roles | Phase 1, deputies only. Sharing checks what the authority covers (people.md rule 13). Required for a deputy and refused for any other role (PEOP-001). |
-| `valid_until` | Date the role or authority ends | `YYYY-MM-DD` | Read as ended (`expired`) from the day after, in UK time; ended contacts stay listed, last. A sharing decision keeps the end date it was recorded with. |
-| `authority_reference`, `authority_document_id` | OPG, court or DWP reference; a document filed against the same person | Free text; reference to `document` | An attorney, deputy or appointee with neither is flagged "Evidence not recorded" (`evidenceMissing`), and nothing is shared on their authority until one is recorded (people.md rule 13). |
+| `valid_until` | Date the role or authority ends | `YYYY-MM-DD` | From 1900 to 2199. Read as ended (`expired`) from the day after, in UK time; ended contacts stay listed, last. A sharing decision keeps the end date it was recorded with, and a change that ends the authority sooner suspends it (people.md section 6). |
+| `authority_reference`, `authority_document_id` | OPG, court or DWP reference; a document filed against the same person | Free text; reference to `document` | An attorney, deputy or appointee with neither is flagged "Evidence not recorded" (`evidenceMissing`), and nothing is shared on their authority until one is recorded (people.md rule 13). The document must be an available `person_document` about the same person (checked by the API; no foreign key yet). |
 | `is_next_of_kin`, `email`, `postcode` | MODS related person | `true` or `false`; an email address; a UK postcode stored upper case with one space | More than one contact may be next of kin. |
 
 ### `allergy`

@@ -1,6 +1,6 @@
 # Person record: personal details, About me and sharing screens (PEOP-001, PEOP-003, PEOP-013)
 
-Branch `feat/web-person-details`, no PR yet.
+Branch `feat/web-person-details`, PR #119.
 
 ## What changed
 
@@ -28,8 +28,7 @@ Branch `feat/web-person-details`, no PR yet.
 
 ## What is next
 
-- When an authority on a contact changes or ends early, the decisions resting on it keep what they
-  were recorded with; re-check or flag them (HZ-022 open control).
+- A foreign key on `contact.authority_document_id` (needs a migration); removing a contact.
 - The recipient's page for an About me share link (with the portal; needs a migration like 0058).
 - Lifestyle and preference fields, the legal status code list, removing a contact, uploading
   evidence from the contact form (PLAT-009), and choosing care plan domains for a decision.
@@ -41,10 +40,27 @@ Branch `feat/web-person-details`, no PR yet.
 
 ## Tests
 
-- `apps/api/test/people-details.test.ts` (26); `apps/api/test/people-lifecycle.test.ts` (the share
-  link test checks the version).
+- `apps/api/test/people-details.test.ts` (43);
+  `packages/domain/src/people/sharing-authority-change.test.ts` (15);
+  `apps/api/test/people-lifecycle.test.ts` (the share link test checks the version).
 - `apps/web/src/lib/person-details.test.ts` and `sharing.test.ts` (38 with the copy test);
   `apps/web/src/lib/care-record.test.ts` (the three tabs).
 - Journeys with axe in light and dark themes, run locally against the dev servers:
   `apps/web/e2e/person-details.spec.ts` (4), `about-me.spec.ts` (2), `sharing.spec.ts` (2). Each
   writes only records named with the run on demo resident 6 and puts the opt-out back.
+
+## Review rounds
+
+- Round 1 (security review). M1: an NHS number on a record the caller cannot see is refused
+  without saying whose or where, audited as denied without the number, limited to three refusals
+  per member an hour, and the owner gets a duplicate-record task; one on a visible record is still
+  refused in words. M2: dates of birth from 1900 to today, end dates from 1900 to 2199, control
+  characters (including NUL) refused in every people text field, and data exceptions (SQLSTATE
+  class 22) answered as 422 in these routes. M3 (HZ-022, fail closed): a contact change that takes
+  an authority away suspends the decisions resting on it in the same transaction
+  (`authorityChangeEffects`, table-driven tests), audited `authority_changed` and published; the
+  open control is closed. L1: changing a portal member's email needs `people.sharing.manage` and
+  step-up. L2: evidence must be an available `person_document` of the same person (the missing
+  foreign key is logged). L3: real other-person and wrong-category documents, another home and a
+  discharged person's contacts tested. L4: the person row is locked when contacts change. The web
+  revocation reason now matches the API (500 characters). Main merged.
