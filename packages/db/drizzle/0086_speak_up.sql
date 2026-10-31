@@ -227,17 +227,13 @@ $$;
 CREATE TRIGGER speak_up_concern_guard BEFORE UPDATE ON public.speak_up_concern
   FOR EACH ROW EXECUTE FUNCTION app.speak_up_concern_guard();
 --> statement-breakpoint
+-- No capture_version on the silo tables: it copies the whole row into record_version, which every
+-- member of the organisation reads (ADR-0089). Each change is audited by id instead.
 CREATE TRIGGER touch_mutable BEFORE UPDATE ON public.speak_up_concern
   FOR EACH ROW EXECUTE FUNCTION app.touch_mutable();
 --> statement-breakpoint
-CREATE TRIGGER capture_version AFTER UPDATE ON public.speak_up_concern
-  FOR EACH ROW EXECUTE FUNCTION app.capture_version();
---> statement-breakpoint
 CREATE TRIGGER touch_mutable BEFORE UPDATE ON public.speak_up_case_member
   FOR EACH ROW EXECUTE FUNCTION app.touch_mutable();
---> statement-breakpoint
-CREATE TRIGGER capture_version AFTER UPDATE ON public.speak_up_case_member
-  FOR EACH ROW EXECUTE FUNCTION app.capture_version();
 --> statement-breakpoint
 DO $$
 DECLARE t text;

@@ -232,6 +232,20 @@ describe("hazard HZ-011 the speak-up silo (migration 0086, ADR-0089)", () => {
     expect(changed.rowCount).toBe(0);
   });
 
+  it("never copies a concern into the shared version history", async () => {
+    const id = await raise("confidential");
+    await asGuardian((c) =>
+      c.query(
+        "UPDATE speak_up_concern SET state = 'acknowledged', acknowledged_at = now() WHERE id = $1",
+        [id],
+      ),
+    );
+    const history = await ownerDb((c) =>
+      c.query("SELECT 1 FROM record_version WHERE table_name LIKE 'speak_up_%'"),
+    );
+    expect(history.rows).toEqual([]);
+  });
+
   it("keeps messages and reporters as written, and nothing is deleted", async () => {
     const id = await raise("named");
     await expect(
