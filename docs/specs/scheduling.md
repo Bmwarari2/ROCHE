@@ -5,7 +5,8 @@ builds rotas, time and attendance and the pay rules engine for care homes
 ([phase-2.md](../plans/phase-2.md), lane C); domiciliary visits and ECM arrive in Phase 4. Payroll
 is integrated, not built (section 12). Slice 5 wrote this specification and the Working Time rules
 (SCHED-003); slice 6 adds the pay rules to section 4, and the schema slices (12, 21, 27, 30, 36,
-40, 44, 46) confirm their tables against section 2. Status per feature:
+40, 44, 46) confirm their tables against section 2. Slice 12 adds the dependency tool and the
+required care hours per shift (section 12). Status per feature:
 [feature register](feature-register.md).
 
 ## 1. Purpose and register rows
@@ -53,6 +54,8 @@ tables the working time rules read, and where each comes from:
 | `working_time_exception` | 30 | append-only | A young worker exception (basis, reason, the two reg 27A(1) conditions) attached to a shift or entry, recorded by a manager | `working_time_record` |
 | `working_time_result` | 30 | append-only per run | The report: findings with their outcome, conditions, basis and compensatory rest owed; the averages with their working; the night worker assessment; the input hash and rate rows used, so a result reproduces | `working_time_record` |
 | `compensatory_rest` | 30 | append-only | Rest given against a conditional finding, with who confirmed it | `working_time_record` |
+| `dependency_scale`, `dependency_scale_version` | 12 | mutable, `expected_version`; a version is fixed once approved | The organisation's own dependency scale: shift periods, categories with care minutes per period, skill-mix minimums (section 12) | `organisation_document` |
+| `dependency_assessment` | 12 | append-only with `supersedes_id` | A person's category and one-to-one minutes, with the reason and who decided (section 12) | `care_record` |
 
 Excluded days for the 48-hour average come from absence and leave (slice 40): statutory annual
 leave days only (never extra contractual leave), sick leave, and maternity, paternity, adoption
@@ -74,6 +77,8 @@ permission, in the catalogue when slice 30 adds its tables. Each permission has 
 | `scheduling.rota.approve` | Approve timesheets; confirm compensatory rest given against a conditional finding; record a young worker exception | Owner, Registered Manager, deputy | Location | Phase 0 |
 | `scheduling.timesheet.self` | Own clock events, timesheets, working time summary and opt-out (read); declare hours for another employer | As today | Self | Phase 0 |
 | `scheduling.working_time.manage` | Record and withdraw opt-outs from the signed document; change the working-time setting (derogations, agreements, night time, weekly rest basis) | Owner, Registered Manager, HR | Location (setting: tenant-wide for owner) | Slice 30 |
+| `scheduling.dependency.manage` | Write, approve and archive the organisation's dependency scale (section 12) | Owner, Registered Manager, deputy | Location (the organisation-wide scale: tenant-wide only) | Slice 12 |
+| `care.dependency.assess` | Record a person's dependency category and one-to-one minutes (care record, MFA) | Owner, Registered Manager, deputy, clinical lead or nurse, team leader | Location | Slice 12 |
 
 Separation of duties: timesheet approval is by someone other than the worker (section 12.3); the
 same applies to confirming compensatory rest and recording an exception for oneself. Pay
@@ -256,8 +261,9 @@ shows the worker's own last result.
 
 ## 7. Clinical safety
 
-Staffing below the assessed need (HZ-123), an ineligible worker rostered (HZ-124) and a lone-worker
-alarm not escalated (HZ-125) are added by the slices the plan names. Agency access ends at shift end
+Staffing below the assessed need (HZ-123, added by slice 12; section 12 rules 9 to 12), an
+ineligible worker rostered (HZ-124) and a lone-worker alarm not escalated (HZ-125) are added by the
+slices the plan names. Agency access ends at shift end
 plus `access.agency.post_shift_hours` (HZ-011). The dependency tool is the tenant's own scale, not a
 clinical score ([medical-device-boundary.md](../compliance/medical-device-boundary.md) section 6).
 The Working Time checks are employment-law compliance, not a clinical control, and slice 5 adds no
@@ -269,6 +275,8 @@ the Phase 2 hazards (H-543).
 Purpose B3 in the [records of processing](../compliance/records-of-processing.md). Clock-in
 location and lone-worker check-ins fall under the employee-monitoring DPIA (section 12.4). The
 working time rules are pure functions over data other slices store; slice 5 adds no personal data.
+Slice 12 adds a person's dependency category and one-to-one minutes, which are health data (B1;
+section 12).
 Slice 30 adds the date-of-birth read (from the staff file), hours declared for other employers,
 opt-outs and results, and updates [data-standards.md](data-standards.md) and the records of
 processing. Retention: `rota_and_timesheet` (6 years), `working_time_record` (2 years) and
@@ -354,3 +362,174 @@ Rate rows added: `wtr.reference_period_weeks.special_case`, `wtr.reference_perio
 `wtr.young_worker.until_age_years`, `wtr.young_worker.restricted_*` (4 rows) and
 `wtr.young_worker.weekly_rest_reduced_min_hours`, all verified on legislation.gov.uk on 31 October
 2026.
+
+## 12. Dependency tool and required care hours (slice 12; CARE-004, SCHED-001)
+
+Master prompt sections 10.1 ("dependency (tenant-editable category scale with care hours per
+category)") and 12.3 (the safe staffing planner: "converts each person's category and 1:1 hours
+into required care hours per shift; compares with rota hours and skill mix ... shows the gap and
+the method"). Regulation 18 of the Health and Social Care Act 2008 (Regulated Activities)
+Regulations 2014 needs sufficient numbers of suitably qualified staff, deployed by a systematic
+method the provider can explain; it sets no ratio, and Harbour supplies none.
+
+**The scale is the organisation's own tool.** Harbour stores the scale the organisation writes,
+records which category each person is in and why, and adds up the organisation's own figures for
+the people living at a location. It never assesses a person, never proposes a category, never
+scores need or risk and never judges whether staffing is safe
+([medical-device-boundary.md](../compliance/medical-device-boundary.md) section 6). Every
+required-hours figure carries the scale's name, version and approval and the notice
+`DEPENDENCY_TOOL_NOTICE`: "These hours come from your organisation's own dependency scale. Harbour
+adds up the figures your organisation set; it does not assess anyone's needs or judge safe
+staffing." Harbour ships no default scale and no figure: the rate table gains no row (H-712).
+
+Slice 12 builds the rules, schema and API. The rota comparison (rota hours and skill mix against
+the requirement, with the gap shown on the rota) is slice 21; the screens are slice 59.
+
+### Schema
+
+| Table | Kind | Columns | Retention class |
+| --- | --- | --- | --- |
+| `dependency_scale` | mutable, `expected_version`, soft delete (archive) | `location_id` (null: the organisation-wide scale, used by every location without its own), `name`; one live scale per location and one organisation-wide (unique indexes); the location is fixed once made | `organisation_document` |
+| `dependency_scale_version` | mutable while `draft`, then fixed; `expected_version` | `scale_id`, `version_number` (1, 2, ...), `state` (`draft`, `approved`, `superseded`, `discarded`), `definition` (below), `author_id`, `contributor_ids` (the author and everyone who changed the draft, kept by the database), `approved_by`, `approved_at`, `superseded_at`, `discard_reason`; one draft and one approved version per scale | `organisation_document` |
+| `dependency_assessment` | append-only, client UUID, idempotent | `person_id`, `scale_id`, `scale_version_id`, `category_key`, `one_to_one` (`[{ periodKey, minutes }]`), `kind` (`initial`, `review`, `correction`), `effective_from` (UK date), `reason`, `decided_by` (the member who decided), `supersedes_id`, `created_by` (who recorded), `recorded_at`; one chain per person (one row without `supersedes_id`; each row superseded at most once) | `care_record` |
+
+The `definition` (`DependencyScaleDefinition`) is the organisation's data, checked by
+`checkScaleDefinition` and stored whole with each version:
+
+- `periods`: the shift periods the requirement is given for, `[{ key, label, startMinute }]`, in
+  order of their UK wall-clock start (minutes after midnight). Each period ends where the next one
+  starts and the last ends where the first starts the next day, so the periods cover the day with
+  no gap or overlap (for example day 08:00 and night 20:00).
+- `categories`: `[{ key, label, description, careMinutes: [{ periodKey, minutes }] }]`: care
+  minutes per person in each period, one entry for every period.
+- `skillMix`: `[{ skill, periodKey, minimumStaff }]`: the organisation's minimum number of staff
+  holding a skill on each period. Skills: `registered_nurse`, `medicines_competent`,
+  `moving_and_handling`, `driver` (`STAFFING_SKILLS`, master prompt 12.3); slice 21 reads who
+  holds them through the workforce competence port (ADR-0085).
+- `reviewIntervalDays`: how often the organisation reviews a category, or null.
+
+Keys are lower case letters, digits and underscores, starting with a letter. Scales and versions
+hold no personal data. They sync to no device in Phase 2 (a management tool on the web).
+
+### Permissions
+
+| Action | Permission | Scope |
+| --- | --- | --- |
+| Read scales and versions | Any of `scheduling.dependency.manage`, `care.dependency.assess`, `scheduling.rota.manage`, `scheduling.rota.read` | The organisation (no personal data) |
+| Make, rename, archive a scale; start, change or discard a draft | `scheduling.dependency.manage` where the scale applies: at its location, or tenant-wide for the organisation-wide scale (the database checks `app.holds_permission_at`) | Location |
+| Approve a draft | `scheduling.dependency.manage`, never by the draft's author or anyone who changed it (separation of duties, rule 4) | Location |
+| Read a person's dependency record | `care.dependency.assess` or `care.plan.read` (care record; MFA) | The permission's person scope |
+| Record a person's category | `care.dependency.assess` (care record; MFA) | The permission's person scope |
+| Required care hours for a location | `scheduling.rota.manage` and `care.plan.read` together (it lists each person's category: a care record view) | Only a scope that covers the whole location (rule 10) |
+
+### Rules
+
+1. **Definition** (`checkScaleDefinition`). At least one period and one category; period keys
+   unique, labels not blank, starts whole minutes from 0 to 1439 in strictly increasing order;
+   category keys unique, labels not blank, care minutes given once for every period and no other,
+   whole and not negative; skill-mix rows for known skills and periods, each skill once per period,
+   minimums whole and at least 1; a review interval, if any, a whole number of days of at least 1.
+   A draft may be saved with problems (they are returned); approval needs none.
+2. **Versions** (`DEPENDENCY_SCALE_WORKFLOW`). A scale starts with a draft. A draft changes only
+   against the version the editor loaded (`expected_version`); the editor joins its contributors.
+   Approval fixes it, supersedes the version in use (which keeps `approved_at` and gains
+   `superseded_at`) and applies from that instant. A draft can be discarded with a reason. Only
+   one draft and one approved version at a time. Nothing is deleted; the database refuses any
+   change to an approved, superseded or discarded version except approved to superseded.
+3. **Version in force** (`scaleVersionInForce`). For a shift period, the version approved latest
+   at or before the period's start; a period that starts before the first approval has no scale.
+4. **Approval** (`checkScaleApproval`): only a draft, with no definition problems, different from
+   the version in use, by a member who is neither its author nor a contributor. Problems:
+   `not_draft`, `invalid_scale`, `unchanged`, `author_cannot_approve` (refused 403 as separation of
+   duties; the others 422 or 409).
+5. **Which scale applies.** A location uses its own live scale, otherwise the organisation-wide
+   one. An archived scale applies nowhere; archiving needs `expected_version` and a reason.
+6. **A person's category** (`checkDependencyAssessment`). From the version in force of the scale
+   that applies at the person's location; the category key must be in that version; one-to-one
+   minutes per period for known periods only, each period once, whole and more than 0; a reason
+   (not blank) and the member who decided are required; `effective_from` is a UK date no later
+   than today. The first record is `initial`; every later one supersedes the person's current
+   record (the chain's head), sent as `supersedesId`: a stale one is refused 409 (someone else
+   recorded first). A `review` takes effect on or after the superseded record's date; a
+   `correction` replaces the superseded record from its own date (the corrected record is shown
+   struck through and is never in force). The database enforces the chain, the approved version,
+   the category and the periods again (migration 0074).
+7. **In force** (`dependencyInForce`). At an instant: of the records not corrected, the latest in
+   the chain whose `effective_from` (00:00 UK time) is at or before it.
+8. **Shift periods** (`periodWindows`). A period on a UK date starts at its wall-clock start on that
+   date and ends at the next period's start (the next day for the last). Lengths are elapsed time,
+   so a 20:00 to 08:00 night is 13 hours on 24/25 October 2026 and 11 on 28/29 March 2026; the
+   care minutes stay as the scale sets them, which the method says.
+9. **Required care hours** (`staffingRequirement`). For a location, a UK date and optionally one
+   period: the people whose record is at the location with a live status (`active`, `on_leave`,
+   `in_hospital`) now; for each period, the version in force at its start; each person's record
+   in force at its start. Required minutes = the sum over present people of their category's care
+   minutes for the period, plus their one-to-one minutes for it. The result lists minutes per
+   category (people, minutes each, minutes), one-to-one minutes per person, the period's
+   skill-mix minimums and the method in words, step by step, with the scale's name, version and
+   approval. No figure is rounded until shown.
+10. **Never a falsely low figure** (HZ-123). With no scale in force the result is `no_scale` with a
+    warning and no number, never 0. A person with no record in force, a record on another scale
+    (they moved), or a category the version in force no longer has is not counted and is named in
+    a warning, and the result is marked incomplete. A record made on an earlier version is counted
+    by its category key in the version in force and flagged for review; a record older than the
+    scale's review interval is flagged as overdue. People on leave or in hospital are not counted
+    in the required total but are listed with the minutes they would add (H-713). The API refuses
+    the requirement (403) unless the request's scope covers the whole location: a scope limited to
+    assigned people would silently leave people out.
+11. **Comparison inputs** (`compareStaffing`, for slice 21). Given the rota's care minutes on the
+    period and the number of rostered staff holding each skill: `below` when the care minutes or
+    any skill minimum fall short (with the shortfall), `incomplete` when they do not but the
+    requirement is incomplete, `met` only when the requirement is complete and nothing falls
+    short, `no_scale` when there is no scale. Every status has a word as well as an icon on screen
+    (`STAFFING_STATUS_WORDS`); the comparison advises and never blocks a rota.
+12. **Labelled as the organisation's tool.** Every requirement and comparison carries the source
+    (scale, version, approved by and when) and `DEPENDENCY_TOOL_NOTICE`; none carries a score, a
+    risk level or wording that Harbour judges the staffing. The required figure is the
+    organisation's figures added up, with the method shown.
+
+### API, audit and outbox
+
+| Route | What |
+| --- | --- |
+| `GET /v1/dependency-scales` | Scales with the version in use and the open draft, each draft with its problems |
+| `POST /v1/dependency-scales` | Make a scale (name, location or organisation-wide) with its first draft |
+| `PATCH /v1/dependency-scales/{id}` | Rename, against `version` |
+| `POST /v1/dependency-scales/{id}/archive` | Archive with a reason, against `version` |
+| `GET /v1/dependency-scales/{id}/versions` | Versions, newest first |
+| `POST /v1/dependency-scales/{id}/versions` | Start a draft from the version in use |
+| `PUT /v1/dependency-scales/{id}/versions/{versionId}` | Change a draft, against `version` |
+| `POST /v1/dependency-scales/{id}/versions/{versionId}/approve` | Approve a draft, against `version` |
+| `POST /v1/dependency-scales/{id}/versions/{versionId}/discard` | Discard a draft with a reason, against `version` |
+| `GET /v1/people/{id}/dependency` | The person's records, newest first, the one in force and the corrected ones marked |
+| `POST /v1/people/{id}/dependency` | Record a category (client `id`, idempotent: the same id and content returns the stored record) |
+| `GET /v1/locations/{id}/staffing-requirement?date=&period=` | Required care hours for each period of the date (or one) |
+
+Audit events (opaque ids only, never a category or a reason): `scheduling.dependency_scale.created`,
+`.renamed`, `.archived`, `.drafted`, `.edited`, `.approved`, `.discarded`;
+`care.dependency.recorded` and `care.dependency.viewed`; `scheduling.staffing_requirement.viewed`
+(a care-record view, with the location, date and the number of people listed). Refusals are
+audited. Outbox: `scheduling.dependency_scale_approved` (scale, version, location) and
+`care.dependency_recorded` (person, record, location) for slice 21 and the quality dashboard.
+
+### Test list
+
+- Domain (`packages/domain/src/scheduling/dependency.test.ts`, table-driven): every definition
+  problem; periods covering the day and their windows on ordinary days and both clock-change
+  days; the version in force before, at and after an approval; approval problems including author
+  and contributor; assessment problems (category, one-to-one, reason, future date, stale head,
+  initial twice, review before, correction date); the record in force with corrections and
+  reviews; the requirement for present, away, unassessed, other-scale, missing-category,
+  earlier-version and review-overdue people; no scale; the comparison statuses; the label and
+  notice on every result and no score; no figure as a literal (the existing scheduling source
+  check covers the file).
+- Database (`packages/db/test/dependency.test.ts`): cross-tenant denial on all three tables;
+  scale writes only for holders of `scheduling.dependency.manage` where the scale applies; one
+  live scale per location; versions fixed once approved; approval never by an author or a
+  contributor; assessments append-only, in the person's scope, only on an approved version with a
+  known category and periods, one chain per person.
+- API (`apps/api/test/dependency.test.ts`): the scale CRUD with `expected_version` and its audit
+  events; approval by a second member; a person's category with reason and decider, a stale head
+  refused, an idempotent replay, the view audited; the required hours with the method, the source
+  and the notice, a missing scale, an unassessed person, a scope that does not cover the location
+  refused; another organisation's ids not found.
