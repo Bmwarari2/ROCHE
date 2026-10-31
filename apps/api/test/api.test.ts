@@ -15,9 +15,11 @@ import { DEMO } from "@harbour/db/seed";
 import { offlineWindowDays, SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harbour/sync/streams";
 import { jwtVerify } from "jose";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { AUTH_MAX_BODY_BYTES } from "../src/app";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import type { TenantAccess } from "../src/http/context";
 import { recordDeviceHold } from "../src/services/device-holds";
+import { auditRowsFor, postSized } from "./support/body-size";
 import { ageSession, createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
 
 let h: Harness;
@@ -121,6 +123,35 @@ describe("authentication", () => {
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { code?: string }).code).toBe("OTP_NOT_CONFIGURED");
+  });
+
+  it("refuses a sign-in route body over 64 KiB with 413 before Better Auth reads it (security review, 31 October 2026)", async () => {
+    const signUp = {
+      email: "capped@example.invalid",
+      password: "four random harbour words",
+      name: "Cap Example",
+    };
+    for (const declared of [false, true]) {
+      const response = await postSized(
+        h,
+        "/api/auth/sign-up/email",
+        signUp,
+        AUTH_MAX_BODY_BYTES + 1,
+        `cap-auth-${declared}`,
+        declared,
+      );
+      expect(response.status).toBe(413);
+      expect(response.headers.get("content-type")).toContain("application/problem+json");
+      expect(await response.json()).toMatchObject({ status: 413, code: "too_large" });
+    }
+    const users = () =>
+      h.db.pool("harbour_auth").query('SELECT 1 FROM auth."user" WHERE email = $1', [signUp.email]);
+    expect((await users()).rowCount).toBe(0);
+    expect(await auditRowsFor(h, ["cap-auth-false", "cap-auth-true"])).toBe(0);
+    // A normal body works.
+    const created = await h.request("/api/auth/sign-up/email", { method: "POST", body: signUp });
+    expect(created.status).toBe(200);
+    expect((await users()).rowCount).toBe(1);
   });
 
   it("refuses passwords shorter than 12 characters", async () => {
