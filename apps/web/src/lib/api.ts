@@ -22,7 +22,7 @@ export const API_URL = (
 
 const TRUSTED_PROXIES = trustedProxies(process.env.TRUSTED_PROXY_CIDRS);
 
-/** The session cookie, and what the audit log records (a request id only when well formed). */
+/** The session cookie, and what the audit log records (a request id only as a UUID). */
 async function forwardedHeaders(): Promise<Record<string, string>> {
   return apiRequestHeaders(await headers(), TRUSTED_PROXIES);
 }

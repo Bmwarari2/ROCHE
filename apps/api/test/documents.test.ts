@@ -442,24 +442,19 @@ describe("legal holds and destruction (section 5.1)", () => {
   });
 
   it("audits who read the legal holds and the candidates for destruction", async () => {
-    const holds = await h.request("/v1/legal-holds", {
-      token: h.tokens.owner,
-      tenant: DEMO.tenantId,
-      headers: { "x-request-id": "holds-read-1" },
-    });
+    const holds = await as("owner", "/v1/legal-holds");
     expect(holds.status).toBe(200);
     const count = (await json<{ items: unknown[] }>(holds)).items.length;
     expect(count).toBeGreaterThan(0);
-    const candidates = await h.request("/v1/retention/candidates", {
-      token: h.tokens.owner,
-      tenant: DEMO.tenantId,
-      headers: { "x-request-id": "candidates-read-1" },
-    });
+    const candidates = await as("owner", "/v1/retention/candidates");
     expect(candidates.status).toBe(200);
+    // Each response names the id the API wrote to its audit rows.
+    const ids = [holds, candidates].map((r) => r.headers.get("x-request-id"));
     const audited = await asDemoTenant((c) =>
       c.query<{ action: string; actor: string; scope: { count: number } }>(
         `SELECT action, actor_tenant_user_id AS actor, scope FROM audit_event
-         WHERE request_id IN ('holds-read-1', 'candidates-read-1') ORDER BY seq`,
+         WHERE request_id = ANY($1::text[]) ORDER BY seq`,
+        [ids],
       ),
     );
     expect(audited.rows).toEqual([

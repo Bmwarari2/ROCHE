@@ -496,12 +496,12 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 
 - `audit_event`: append-only (no UPDATE or DELETE for the app; triggers refuse anyone else),
   SHA-256 hash chain per tenant maintained by a trigger, `app.verify_audit_chain()` for checking.
-- `request_id`: the caller's `x-request-id` only when it is a UUID or 1 to 64 letters, digits and
-  hyphens (`apps/api/src/http/request-id.ts`); anything else is replaced by a fresh UUID before the
-  request runs, and the response's `x-request-id` gives the id used. The web passes on only a
-  well-formed id (`apps/web/src/lib/request-id.ts`), so free text (or personal data) never enters
-  the hash chain and a caller cannot write arbitrary log correlation (security review, 31 October
-  2026).
+- `request_id`: always a UUID the API makes for the request, never anything the caller sent, so
+  no caller text (personal data included) enters the hash chain and no caller can reuse another
+  request's id there; the response's `x-request-id` gives it. A caller's `x-request-id` is kept
+  only in the API's log, in one `caller request id` line beside the API's id, and only when it is a
+  canonical lower-case UUID (`apps/api/src/http/request-id.ts`); the web passes on only such an id
+  (`apps/web/src/lib/request-id.ts`) (security reviews, 31 October 2026 and of #134, M4).
 - Written for: person list, view and history; break-glass; refusals (missing permission, step-up,
   not a member); notification acknowledgement; sync token issue and uploads; integration settings
   and quarantine decisions; operator requests and tenant decisions.

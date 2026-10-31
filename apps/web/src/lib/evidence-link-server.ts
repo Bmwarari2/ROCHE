@@ -43,7 +43,7 @@ const TRUSTED_PROXIES = trustedProxies(process.env.TRUSTED_PROXY_CIDRS);
 const NO_STORE = { "cache-control": "no-store" } as const;
 
 /**
- * What the API is told about the caller: the user agent, a well-formed request id and the address
+ * What the API is told about the caller: the user agent, a UUID request id and the address
  * the proxies saw (`callerHeaders`; security review, 31 October 2026).
  */
 async function forwarded(): Promise<Record<string, string>> {

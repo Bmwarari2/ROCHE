@@ -1,13 +1,13 @@
 /**
- * The request id a caller may choose: a UUID or up to 64 letters, digits and hyphens. It is
- * written to every audit row of the request (`audit_event.request_id`, append-only and
- * hash-chained) and echoed in the response, so free text in it would put whatever the caller
- * wrote (personal data included) into the audit chain for good, and let them forge the log
- * correlation (security review, 31 October 2026).
+ * Request ids (security reviews, 31 October 2026 and of #134, M4). The id on every audit row of a
+ * request (`audit_event.request_id`, append-only and hash-chained) and in the response's
+ * `x-request-id` is always one the API made itself, so nothing a caller writes (personal data, or
+ * another request's id to forge a correlation) ever reaches the audit chain. A caller's own id is
+ * kept only in the log, next to the API's, and only when it is a canonical UUID.
  */
-const REQUEST_ID = /^[A-Za-z0-9-]{1,64}$/;
+const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** The caller's request id when it is well formed, otherwise null (the API then makes its own). */
-export function requestIdOf(header: string | null | undefined): string | null {
-  return typeof header === "string" && REQUEST_ID.test(header) ? header : null;
+/** The caller's `x-request-id` when it is a canonical (lower-case) UUID, otherwise null. */
+export function callerRequestIdOf(header: string | null | undefined): string | null {
+  return typeof header === "string" && CANONICAL_UUID.test(header) ? header : null;
 }

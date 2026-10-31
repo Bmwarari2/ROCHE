@@ -41,7 +41,7 @@ export function forwardRequestHeaders(incoming: Headers): Headers {
   const out = new Headers();
   for (const [name, value] of incoming) {
     if (DROPPED_REQUEST.has(name) || name.startsWith("x-middleware-")) continue;
-    // A request id reaches the audit trail, so only a well-formed one goes on (request-id.ts).
+    // A request id goes on only as a UUID, for the API's log (request-id.ts).
     if (name === REQUEST_ID_HEADER && !wellFormedRequestId(value)) continue;
     out.append(name, value);
   }
