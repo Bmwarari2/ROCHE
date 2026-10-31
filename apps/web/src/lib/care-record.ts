@@ -26,6 +26,9 @@ export type RecordTab =
   | "activities"
   | "reviews"
   | "hospital"
+  | "pre-admission"
+  | "admission"
+  | "property"
   | "letters"
   | "family-updates"
   | "sharing"
@@ -63,6 +66,10 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "activities", needs: "care.note.read" },
   { tab: "reviews", needs: "care.plan.read" },
   { tab: "hospital", needs: "people.movement.record" },
+  // Admission and belongings (people.md rules 4 to 7; PEOP-005, PEOP-007).
+  { tab: "pre-admission", needs: "people.person.read" },
+  { tab: "admission", needs: "people.person.read" },
+  { tab: "property", needs: "people.person.read" },
   { tab: "letters", needs: "comms.letter.manage" },
   { tab: "family-updates", needs: "comms.feed.publish" },
   // Sharing decisions and share links only for those who manage them (people.md section 3).
