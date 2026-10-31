@@ -454,6 +454,17 @@ section 19) on 31 October 2026. H-765 to H-769 are reserved for the slice's revi
 | H-763 | Decide what happens to an audit in progress when a new framework version takes effect (Harbour's default: it completes against the version it started with; new mock inspections need the version in force) | Quality lead | quality.md rules 4 and 14; section 19.3 | The KLOE change (H-607) | open |
 | H-764 | Supply or approve starter templates for the devolved nations' frameworks when their nation packs are loaded (CIW, Care Inspectorate, RQIA) | Brian with the quality lead | quality.md section 19.1 | Nation packs | open |
 
+Logged by slice 64 (web screens for the framework, evidence library and audits,
+[quality.md](../specs/quality.md) section 20) on 31 October 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-850 | Try the mapping editor with the real framework (34 statements on one page) and say whether it should be split by key question | Quality lead at the design partner | quality.md section 20.1 | Mapping for a real tenant | open |
+| H-851 | Decide who an auditor may choose as an action owner when they cannot list the organisation's members (Harbour: the auditor alone, or any active member at the location for those who hold `platform.user.manage`) | Registered Manager with the quality lead | quality.md section 20.1; H-762 | Audit actions for care staff | open |
+| H-852 | Translate the new framework, evidence and audit screens into Welsh (placeholders in English are marked untranslated) | Welsh translator | `cy.json`, `cy.status.json` | Welsh tenants | open |
+| H-853 | Walk a medication and an IPC audit round on a tablet with the screens and report what slows the auditor down | Quality lead at the design partner | `/quality/audits/[id]` | Audits for a real tenant | open |
+| H-854 | Decide which other records (care notes, observations, assessments) should offer "Tag as evidence" from their own screens, beyond incidents and audits | Quality lead with the product owner | quality.md section 20.1 | Wider evidence tagging | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

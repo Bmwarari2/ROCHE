@@ -1,4 +1,4 @@
-import { Card, PageHeader, StatusChip } from "@harbour/ui";
+import { buttonClassName, Card, PageHeader, StatusChip } from "@harbour/ui";
 import { CircleAlert, Lock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -37,6 +37,7 @@ import {
 } from "@/lib/incidents";
 import { communicationSummary, personNames, sampleName } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
+import { evidenceManaged } from "@/lib/quality-programme";
 import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
@@ -188,7 +189,22 @@ export default async function IncidentPage({
         </span>
         <span aria-current="page">{title}</span>
       </nav>
-      <PageHeader eyebrow={location?.name ?? t("safety.incident.locationHidden")} title={title} />
+      <PageHeader
+        eyebrow={location?.name ?? t("safety.incident.locationHidden")}
+        title={title}
+        {...(evidenceManaged(me.permissions) && !incident.restricted
+          ? {
+              secondaryActions: (
+                <Link
+                  href={`/quality/evidence/tag?recordType=incident&recordId=${incident.id}`}
+                  className={buttonClassName({ variant: "secondary" })}
+                >
+                  {t("quality.tag.fromRecord")}
+                </Link>
+              ),
+            }
+          : {})}
+      />
       {recorded === "1" ? <RecordedArrival /> : null}
       {shownDone && recorded !== "1" ? (
         <RecordedArrival message={t("safety.manage.done", { done: shownDone })} param="done" />

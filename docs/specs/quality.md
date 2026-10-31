@@ -930,3 +930,37 @@ out a rating from a score (rule 15).
   default due date and the owner's task; the schedule counting it; a completed audit tagged as
   evidence; mock inspections refused once a later framework version is in force while past audits
   keep theirs; every change and refusal audited.
+
+## 20. Web screens: framework, evidence library and audits (slice 64; QUAL-001, QUAL-002, QUAL-004)
+
+Screens for sections 18 and 19, on the API as it stands (no API change; the contracts export a
+few more inferred types). Branch `feat/web-quality-framework-audits`.
+
+### 20.1 Screens
+
+| Path | Who | Shows and does |
+| --- | --- | --- |
+| `/quality/framework` | Anyone who works with quality evidence (section 18.2) | Framework versions, the one in force marked with an icon and a word |
+| `/quality/framework/[id]` | As above; the mapping for `quality.evidence.manage` | Key questions and statements with the source; the organisation's mapping (local title, owner role, evidence categories per statement) saved as the next version, earlier versions kept |
+| `/quality/framework/[id]/evidence-coverage` | `quality.evidence.manage` | Records per statement in the framework's order; a gap said as "No evidence" with an icon, never sorted away; a summary of how many statements have none |
+| `/quality/framework/[id]/statements/[statementId]` | `quality.evidence.manage` | The records tagged against the statement, removed tags kept with who and why; remove a tag with a reason |
+| `/quality/evidence/tag?recordType&recordId` | `quality.evidence.manage` | A record's tags (removable with a reason) and tagging it against statements of the version in force; reached from an incident (not restricted) and from a completed audit |
+| `/quality/audits` | `quality.audit.manage` | Schedules with the next due date (overdue said with the date), audits in progress, mock inspections and completed audits with their scores |
+| `/quality/audits/templates` | `quality.audit.manage` | The organisation's templates, active or retired; add one from a starter |
+| `/quality/audits/templates/[id]` | `quality.audit.manage` | Questions with weights, the statements each evidences and whether a shortfall needs an action; its schedules; schedule at a location; retire (final, confirmed) |
+| `/quality/audits/new` | `quality.audit.manage` | Start an audit or mock inspection: template, location, date (today or earlier); a mock inspection the API refuses off the framework in force is said in its words |
+| `/quality/audits/[id]` | `quality.audit.manage` at the location | Score with its method, the self-rating with its CQC words, findings by statement, actions with owners and due dates; while in progress the answers form, then completion with an action per shortfall (owner: the auditor, or a member where the reader may list members; due date optional, the tenant default otherwise) and the self-rating as a person's choice; once completed, "Tag as evidence" |
+
+The side bar gains "Framework and evidence" and "Audits". Every browser-handled form posts
+(`method="post"`); every problem is said at its field and in a summary linked to it; arrivals
+focus the page heading and say what was done.
+
+### 20.2 Tests
+
+- `apps/web/src/lib/quality-programme.test.ts`: who sees what; version and coverage statuses;
+  reading the mapping, tag, answers and completion forms; actions only where a required
+  question fell short; the self-rating choices; scores in words.
+- `apps/web/e2e/quality-programme.spec.ts` (Playwright, axe in light and dark on every state):
+  mapping a statement and reading coverage and a statement's evidence; an audit from a starter
+  through scheduling, answers, refused and then accepted completion, and tagging; a mock
+  inspection.

@@ -21,6 +21,7 @@ import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
+import { auditsShown, frameworkShown } from "@/lib/quality-programme";
 import { retentionShown } from "@/lib/retention";
 import { roundShown } from "@/lib/round";
 import { searchShown } from "@/lib/search";
@@ -90,6 +91,8 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         statementOfPurpose: statementShown(me.permissions)
           ? t("shell.nav.statementOfPurpose")
           : undefined,
+        framework: frameworkShown(me.permissions) ? t("shell.nav.framework") : undefined,
+        audits: auditsShown(me.permissions) ? t("shell.nav.audits") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
