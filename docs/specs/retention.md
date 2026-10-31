@@ -41,6 +41,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | staff_file.after_leaving | 6 | years | employment_ended_or_75th_birthday | NHS Records Management Code of Practice; master prompt 5.1, 12 | Tenant option: 6 years after employment ends. The tenant selects this row or the next one for all staff files. |
 | staff_file.to_75th_birthday | 0 | years | employment_ended_or_75th_birthday | NHS Records Management Code of Practice; master prompt 5.1, 12 | Default option (section 12 rules say staff files to the 75th birthday): kept until the person's 75th birthday, so the period after that trigger is 0. Never destroyed before employment has ended. |
 | right_to_work_copy | 2 | years | record_closed | https://www.gov.uk/check-job-applicant-right-to-work (statutory guidance); master prompt 12.1 | Copies of right-to-work documents and check results, kept during employment and for 2 years after it ends (record_closed is the employment end date). |
+| applicant.unsuccessful | 6 | months | record_closed | ICO Employment Practices Code, recruitment and selection (keep only as long as needed to answer a claim); Equality Act 2010 s.123 (six-month claim window for most claims, plus early conciliation); master prompt 12.1 | Applicants whose last application closed without being hired: their details, applications, stage history, interviews and offers. Counted from the closing date of their last application (record_closed). Equality monitoring forms follow it from the vacancy's closing date. A hired applicant's record follows the staff file instead. Harbour default for the DPO to confirm (H-732). |
+| applicant.talent_pool | 12 | months | created | UK GDPR Art 6(1)(a) and 7 (consent, withdrawable at any time); Art 5(1)(e); master prompt 12.1 | The talent pool: an applicant who agreed is kept until 12 months after the consent was recorded (created), or until they withdraw it, if later than their applicant.unsuccessful date. Harbour default for the DPO to confirm (H-732). |
 | training_record | 10 | years | created | Master prompt 5.1 | From the date the training or competence sign-off was completed. |
 | rota_and_timesheet | 6 | years | created | National Minimum Wage record-keeping; master prompt 5.1, 12 | Rotas, timesheets, clock-in events, sleep-in and travel-time records, pay calculations with their inputs. Counted from the end of the pay reference period. |
 | working_time_record | 2 | years | created | Working Time Regulations 1998 (statutory minimum); master prompt 5.1, 12 | Working-time calculations and night-work assessments, counted from when the record was made. |
@@ -92,13 +94,26 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `incident` with `retention_class` `care_record` (no notification applies), and its `incident_person`, `classifier_answer` and `investigation` rows | care_record |
 | `incident` with `retention_class` `serious_incident` (set once any notification applies), its people, answers, `candour_record` and `investigation`, and `statutory_notification` | serious_incident |
 | `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
+| `outbreak` ([safety.md](safety.md) section 11) | serious_incident, as its UKHSA report |
+| `outbreak_case` | care_record for residents; staff cases follow it for now, to be confirmed by the DPO (H-767) |
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
-| `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
+| `staff_profile`, `compliance_item` | staff_file (tenant's chosen row) |
+| `induction_plan`, `staff_checklist_item`, `shadow_shift`, `probation_review`, `care_certificate_progress`, `leaver_record`, `reference_request` (induction and leavers, slice 29; [workforce.md](workforce.md) section 2d) | staff_file (tenant's chosen row), from the leaving date; `leaver_record.staff_file_retain_until` holds the date worked out when the leaving is recorded (rule 23; the birthday age is `retention.staff_file.birthday_age`, H-874, H-875) |
+| `employee_case`, `employee_case_member`, `employee_case_hearing`, `employee_case_event` (employee relations casework, slice 39; [workforce.md](workforce.md) section 2c) | staff_file (tenant's chosen row), from the end of the employment of the member of staff the case is about; a warning that has stopped counting (`warning_expires_on`) is kept as the record of the decision, never used again; a shorter period for some cases is open (H-806). A restricted silo: the retention engine's destruction batches reach it as the system, and its certificates carry ids only |
+| `applicant`, `application`, `application_event`, `interview`, `job_offer` (slice 23) | applicant.unsuccessful, or applicant.talent_pool when later; a hired applicant's records follow the staff file |
+| `equality_monitoring` (slice 23) | applicant.unsuccessful, from the vacancy's closing date |
+| `job_template`, `vacancy` (slice 23) | organisation_document |
 | `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
 | `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |
+| `sponsored_worker`, `sponsor_absence`, `sponsor_report`, `staff_privacy_acknowledgement`, `staff_image_consent`, `ldss_claim` (slice 35) | staff_file (tenant's chosen row); as Harbour reads the guidance for sponsors, sponsor records must be kept for at least a year after sponsorship ends, which the staff file rows outlast (to confirm, H-901) |
 | `training_record`, `competence` | training_record |
+| `competence_sign_off`, `competence_withdrawal`, `revalidation_evidence` (slice 17) | training_record |
+| `supervision_record` (slice 17) | staff_file (tenant's chosen row) |
+| `training_requirement` (slice 17) | tenant configuration, kept while current; each change kept in `record_version` |
+| `task` of kind `workforce.training_expiry` or `workforce.competence_expiry` | training_record, as the record it concerns |
 | `shift`, `timesheet_entry` | rota_and_timesheet |
+| `shift_template`, `shift_pattern`, `rota`, `rota_publication`, `shift_assignment`, `roster_override` ([scheduling.md](scheduling.md) section 14, slice 21) | rota_and_timesheet; never deleted (archived, cancelled or removed with a reason); publications and overrides append-only |
 | `ledger_entry`, `invoice`, `charge_line`, `funding_arrangement` | financial_record |
 | `compliance_check` for water systems | water_hygiene_record |
 | `audit_event` | audit_event, extended by audit_event.care_record |
@@ -141,7 +156,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | Sample data load and removal events | audit_event; sample records themselves are removed on demand, never retained |
 | `dp_breach`, `processor_breach_notice`, `processor_breach_notice_ack` (slice 20, migration 0082) | dp_breach (6 years from closure of the breach; H-670) |
 | `dp_complaint` (slice 20) | data_rights_case (3 years from closure; H-670) |
-| The disclosure log (slice 41) | data_rights_case, unless it belongs to a serious incident (serious_incident) (H-525) |
+| The disclosure log (`disclosure_request`, `disclosure_item`; slice 41, migration 0103) | data_rights_case (3 years from closure), unless it belongs to a serious incident (serious_incident) (H-525). Built as serious_incident for every request: the table has no per-row class yet, so the longer period applies until one is added (follow-up) |
 | `import_batch`, `import_commit` (the import wizard's record of each upload and commit; [platform.md](platform.md) rules 18 to 26, ADR-0092) | audit_event: opaque ids, counts and times only |
 | `import_row` (an upload's staged rows in quarantine: personal data that is not yet anyone's record) | Not retained: deleted, every row of the batch, in the transaction that commits, discards or expires it, and at the latest within the hour after `import.staging_expiry_days` (7 days by default, rates.md) from upload, by the hourly expiry sweep; never exported. Committed rows live on as the records they became (`person`: care_record). The DPO confirms the period (H-681) |
 | People created by an import | care_record, as any person; an undo within `import.undo_window_days` removes them outright (they were never meant to be there), and the audit events about them keep the audit_event class |
@@ -166,6 +181,9 @@ source before a real tenant relies on it.
 
 Still open:
 
+- DSPT assertions, evidence links and submissions, and Cyber Essentials and ICO registration records
+  (slice 32, migration 0094): interim audit_event (8 years from creation) until the DPO sets periods
+  (H-810).
 - DPIA versions and sign-offs, sub-processor notice responses and onboarding decisions: interim
   audit_event (8 years from creation) until the DPO confirms a period (H-115).
 - ECM visit events (Phase 4): likely care_record and rota_and_timesheet together (longest wins).

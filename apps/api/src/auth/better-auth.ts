@@ -1,5 +1,7 @@
 import { passkey } from "@better-auth/passkey";
+import { sso } from "@better-auth/sso";
 import { betterAuthSchema } from "@harbour/db";
+import { tenantOfSsoProvider } from "@harbour/domain";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
@@ -7,14 +9,17 @@ import { bearer, twoFactor } from "better-auth/plugins";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { Config } from "../config";
+import type { SsoHooks } from "../services/sso";
 import { passwordProblem } from "./password-policy";
 import {
   clearCodeAttempts,
+  clearUserCodeAttempts,
   FACTOR_CHANGE_ROUTES,
   FACTOR_ROUTES,
   IN_SESSION_CODE_ROUTES,
   recordSessionFactor,
   reserveCodeAttempt,
+  reserveUserCodeAttempt,
   sessionMfa,
 } from "./session-factor";
 import { MOBILE_APP_ORIGIN } from "./token-exposure";
@@ -29,7 +34,49 @@ export const SESSION_UPDATE_AGE_SECONDS = 60 * 60;
  * bearer tokens for the mobile app. Runs on its own database role (harbour_auth) that can reach
  * only the auth schema. SMS is deliberately not offered as a second factor (section 5.3).
  */
-export function createAuth(config: Config, authPool: pg.Pool) {
+/**
+ * The SSO plugin's own provider routes: switched off, so only the API's `/v1/sso` routes (holders
+ * of platform.tenant.manage, with step-up) configure single sign-on (ADR-0091, rule 22).
+ */
+export const SSO_DISABLED_PATHS: readonly string[] = [
+  "/sso/register",
+  "/sso/update-provider",
+  "/sso/delete-provider",
+  "/sso/providers",
+  "/sso/get-provider",
+  "/sso/request-domain-verification",
+  "/sso/verify-domain",
+];
+
+/** SSO routes refused before Better Auth sees them: SAML, and the callback with no provider. */
+export function isBlockedSsoPath(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, "");
+  return path === "/api/auth/sso/callback" || path.startsWith("/api/auth/sso/saml2/");
+}
+
+/**
+ * The member a sign-in's second step is for: Better Auth's signed two-factor cookie names a
+ * verification row whose value is the user id (better-auth two-factor `verifyTwoFactor`). Null
+ * when there is no such cookie or row (Better Auth then refuses the request itself).
+ */
+async function signInStepMember(ctx: {
+  readonly context: {
+    readonly secret: string;
+    createAuthCookie(name: string): { readonly name: string };
+    readonly internalAdapter: {
+      findVerificationValue(identifier: string): Promise<{ readonly value: string } | null>;
+    };
+  };
+  getSignedCookie(name: string, secret: string): Promise<string | null | false | undefined>;
+}): Promise<string | null> {
+  const cookie = ctx.context.createAuthCookie("two_factor");
+  const token = await ctx.getSignedCookie(cookie.name, ctx.context.secret);
+  if (!token) return null;
+  const row = await ctx.context.internalAdapter.findVerificationValue(token);
+  return row?.value ?? null;
+}
+
+export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHooks) {
   const db = drizzle(authPool);
   const passkeyOrigin = config.webOrigins[0] ?? config.BETTER_AUTH_URL;
   // The session a request carries, resolved as the API does (cookie or bearer token). A user
@@ -52,9 +99,43 @@ export function createAuth(config: Config, authPool: pg.Pool) {
     baseURL: config.BETTER_AUTH_URL,
     basePath: "/api/auth",
     secret: config.BETTER_AUTH_SECRET,
-    database: drizzleAdapter(db, { provider: "pg", schema: betterAuthSchema }),
+    // Transactions let the SSO resolver run inside the callback (#33 review M1).
+    database: drizzleAdapter(db, { provider: "pg", schema: betterAuthSchema, transaction: true }),
     // The mobile app's deep-link scheme is an origin for Better Auth's CSRF checks.
-    trustedOrigins: [...config.webOrigins, MOBILE_APP_ORIGIN],
+    // Identity providers are never trusted origins: the plugin fetches their endpoints only when
+    // they resolve to public addresses (#33 review H1, M2). SSO_TEST_IDP_ORIGINS exists for the
+    // end-to-end test's local provider and is refused in production.
+    trustedOrigins: [...config.webOrigins, MOBILE_APP_ORIGIN, ...config.ssoTestIdpOrigins],
+    disabledPaths: [...SSO_DISABLED_PATHS],
+    // An invited member signing in with SSO for the first time gets a sign-in, which is then
+    // linked to their membership (rule 20). The account's provider id names the organisation.
+    // An SSO provider never links to an existing sign-in by email; resolveUser decides (#33 H3).
+    account: { accountLinking: { disableImplicitLinking: true } },
+    databaseHooks: {
+      // A session made by an SSO callback carries its organisation in the same insert, so the
+      // binding cannot be missing or expire before the session (#33 re-check H1).
+      session: {
+        create: {
+          before: async (session, context) => {
+            const path = context?.path ?? "";
+            if (!path.startsWith("/sso/")) return;
+            const params = (context?.params ?? {}) as { providerId?: string };
+            const tenantId = tenantOfSsoProvider(params.providerId ?? "");
+            if (!tenantId) return false;
+            return { data: { ...session, ssoTenantId: tenantId } };
+          },
+        },
+      },
+      account: {
+        create: {
+          after: async (account) => {
+            if (ssoHooks && account.providerId.startsWith("harbour-")) {
+              await ssoHooks.linkInvitedMember(account.providerId, account.userId);
+            }
+          },
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       // NCSC: at least 12 characters, a deny-list, no forced expiry; throttling, not lockout.
@@ -64,6 +145,7 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       disableSignUp: config.NODE_ENV === "production",
     },
     session: {
+      additionalFields: { ssoTenantId: { type: "string", required: false, input: false } },
       expiresIn: SESSION_EXPIRES_IN_SECONDS,
       updateAge: SESSION_UPDATE_AGE_SECONDS,
       freshAge: config.STEP_UP_WINDOW_SECONDS,
@@ -107,6 +189,22 @@ export function createAuth(config: Config, authPool: pg.Pool) {
         if (!found) {
           // Changing a factor always needs a session; a code with none is a sign-in's second step.
           if (changesFactor) throw new APIError("UNAUTHORIZED", { code: "UNAUTHORIZED" });
+          // That step counts against the member's hourly codes too (#33 re-check 3, L): the
+          // member is the one the signed two-factor cookie names, as Better Auth reads it.
+          const member = await signInStepMember(ctx);
+          if (member) {
+            const reserved = await reserveUserCodeAttempt(authPool, member);
+            if (!reserved.allowed) {
+              throw new APIError(
+                "TOO_MANY_REQUESTS",
+                {
+                  message: "Too many wrong codes. Wait a little and try again.",
+                  code: "TOO_MANY_ATTEMPTS",
+                },
+                { "retry-after": String(reserved.retryAfter) },
+              );
+            }
+          }
           return;
         }
         if (changesFactor) {
@@ -133,6 +231,18 @@ export function createAuth(config: Config, authPool: pg.Pool) {
             code: "TOO_MANY_ATTEMPTS",
           });
         } else {
+          // And one of the member's, across every session and instance (#33 re-check 2, M1).
+          const member = await reserveUserCodeAttempt(authPool, found.user.id);
+          if (!member.allowed) {
+            throw new APIError(
+              "TOO_MANY_REQUESTS",
+              {
+                message: "Too many wrong codes. Wait a little and try again.",
+                code: "TOO_MANY_ATTEMPTS",
+              },
+              { "retry-after": String(member.retryAfter) },
+            );
+          }
           const enrolled = await sessionMfa(authPool, {
             authUserId: found.user.id,
             sessionId: found.session.id,
@@ -156,6 +266,10 @@ export function createAuth(config: Config, authPool: pg.Pool) {
         if (isAPIError(ctx.context.returned)) return;
         if (existing && IN_SESSION_CODE_ROUTES.has(ctx.path)) {
           await clearCodeAttempts(authPool, existing.id);
+          await clearUserCodeAttempts(authPool, existing.userId);
+        } else if (!existing && IN_SESSION_CODE_ROUTES.has(ctx.path) && ctx.context.newSession) {
+          // A right code at sign-in clears the member's count as well.
+          await clearUserCodeAttempts(authPool, ctx.context.newSession.session.userId);
         }
         if (firstEnrolment) return;
         const session = ctx.context.newSession?.session ?? ctx.context.session?.session;
@@ -167,6 +281,27 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       twoFactor({ issuer: "Harbour" }),
       passkey({ rpID: config.PASSKEY_RP_ID, rpName: "Harbour", origin: passkeyOrigin }),
       bearer(),
+      // OpenID Connect per organisation (ADR-0091). Keys come from the managed store at sign-in;
+      // the callback runs the SSO policy (rules 15, 16, 20). Without hooks (scripts), no
+      // provider resolves and every SSO sign-in is refused.
+      sso({
+        // The provider's email_verified claim is passed to resolveUser, which refuses an
+        // unverified address (rule 15); the plugin itself would refuse every sign-in otherwise.
+        trustEmailVerified: true,
+        resolvePrivateKey: async ({ providerId }) =>
+          (await ssoHooks?.resolvePrivateKey({ providerId })) ?? {},
+        resolveUser: async (input) =>
+          ssoHooks
+            ? ssoHooks.resolveUser({
+                providerId: input.providerId,
+                accountKey: input.accountKey,
+                providerUser: {
+                  email: input.providerUser.email,
+                  emailVerified: input.providerUser.emailVerified,
+                },
+              })
+            : { action: "reject", code: "sso_off" },
+      }),
     ],
   });
   resolver.session = (headers) =>

@@ -36,6 +36,9 @@ async function sql<T = Record<string, unknown>>(text: string, params: unknown[] 
     const { rows } = await client.query(text, params);
     await client.query("COMMIT");
     return rows as T[];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     client.release();
   }

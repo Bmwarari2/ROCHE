@@ -583,3 +583,29 @@ export function checkComplaintClosure(input: {
   }
   return { ok: true };
 }
+
+// ------------------------------------------------------------------------------------------------
+// What a subject access search does not reach
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * Tables a subject access request's collection never searches, each with the words the response
+ * shows (ADR-0089, security review L7). The speak-up silo is reached only by the Freedom to Speak
+ * Up lead; a request touching it is answered by the lead separately, so the response says so rather
+ * than implying nothing is held.
+ */
+export const DSAR_NOT_SEARCHED: readonly {
+  readonly tables: readonly string[];
+  readonly reason: string;
+}[] = [
+  {
+    tables: [
+      "public.speak_up_concern",
+      "public.speak_up_reporter",
+      "public.speak_up_case_member",
+      "public.speak_up_message",
+    ],
+    reason:
+      "Not searched: restricted silo (whistleblowing and speaking up). The Freedom to Speak Up lead answers for it separately.",
+  },
+];

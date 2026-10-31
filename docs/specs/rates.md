@@ -131,6 +131,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |
 | sponsor.switching_evidence_months | 3 | months | 2025-07-22 | - | uk | master prompt 12.1 ("3-month switching evidence") | to-verify |
 | sponsor.counted_weekly_hours_max | 48 | hours | 2025-07-22 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, salary requirements (pay counted for at most 48 hours a week) | to-verify |
+| sponsor.unauthorised_absence_working_days | 10 | working_days | 2000-01-01 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, reporting duties (a sponsored worker absent without permission for more than 10 consecutive working days is reported) | to-verify |
+| sponsor.visa_expiry_warning_days | 90 | days | 2025-01-01 | - | uk | Harbour default: how far ahead a sponsored worker's visa expiry is flagged (no statutory figure) | to-verify |
 | fnc.weekly.standard | 267.68 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
 | fnc.weekly.standard | 254.06 | GBP_per_week | 2025-04-01 | 2026-03-31 | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost | verified |
 | fnc.weekly.higher | 368.24 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
@@ -181,6 +183,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ahra.response_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5) (40 days) and the Northern Ireland Order 1993 | to-verify |
 | ahra.recent_record_response_days | 21 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) (21 days where the record was made in the 40 days before the application) | to-verify |
 | ahra.recent_record_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) | to-verify |
+| speak_up.reply_token_days | 180 | days | 2000-01-01 | - | all | Harbour default: how long an anonymous reporter's reply token opens their concern after it was raised; no statutory figure (ADR-0089; H-721) | to-verify |
+| coroner.prevention_report_response_days | 56 | days | 2013-07-25 | - | england | Coroners (Investigations) Regulations 2013 reg 29(3) (a response to a prevention of future deaths report within 56 days) | to-verify |
+| coroner.prevention_report_response_days | 56 | days | 2013-07-25 | - | wales | Coroners (Investigations) Regulations 2013 reg 29(3) (a response to a prevention of future deaths report within 56 days) | to-verify |
 | candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | https://www.legislation.gov.uk/uksi/2014/2936/regulation/20 (reg 20(7) "prolonged pain" and "prolonged psychological harm", and reg 20(9)(a)(ii): a continuous period of at least 28 days); master prompt 11.1 | verified |
 | cqc.reg18.prolonged_harm_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(5)(g): prolonged pain or psychological harm, and an impairment that is not temporary, mean a continuous period of at least 28 days) | verified |
 | cqc.reg18.interruption_hours | 24 | hours | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(2)(g)(ii) and (iv): utilities, fire alarms or safety devices out for longer than a continuous period of 24 hours) | verified |
@@ -231,6 +236,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | training.default_refresh_years | 3 | years | 2000-01-01 | - | all | master prompt 12.2 (tenant may set sooner) | master-prompt |
 | training.oliver_mcgowan.refresh_years | 3 | years | 2000-01-01 | - | england | master prompt 12.2 (Oliver McGowan Code of Practice 2025) | master-prompt |
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
+| competence.default_refresh_months | 12 | months | 2000-01-01 | - | all | Harbour default for observed competences other than medicines (no statutory figure; tenant may set sooner; H-690) | to-verify |
+| retention.staff_file.birthday_age | 75 | years | 2000-01-01 | - | all | NHS Records Management Code of Practice (staff records to the 75th birthday); retention.md staff_file.to_75th_birthday | master-prompt |
 | supervision.per_year | 6 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | appraisal.per_year | 1 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | document_expiry.reminder_days.first | 90 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
@@ -361,6 +368,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
   (£12.82 an hour) as the lower going rate for occupation codes 6135 and 6136, but does not say which
   column applies to care workers, and the page shows no effective date (last updated 22 July 2025, used
   as `valid_from`). Confirm the applicable rate and its start date with the Home Office sponsor guidance.
+- `sponsor.unauthorised_absence_working_days` (10) and `sponsor.visa_expiry_warning_days` (90, a Harbour
+  default): confirm the absence reporting threshold against the current guidance for sponsors and the
+  warning window with the organisation's HR lead before the sponsor module is used (H-900, H-902).
 - `sponsor.switching_evidence_months` (3): section 12.1 asks for "3-month switching evidence" without
   defining it. It is read here as the evidence period for in-country switching into the care worker
   route. Confirm the rule and its start date before the sponsor module (Phase 2) uses it.

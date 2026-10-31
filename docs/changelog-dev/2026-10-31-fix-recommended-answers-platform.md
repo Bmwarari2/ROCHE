@@ -1,6 +1,7 @@
 # Recommended answers applied: platform, data protection, retention and scheduling items
 
-Branch `fix/recommended-answers-platform`. The owner decided on 31/10/2026 that every open human
+Branch `fix/recommended-answers-platform` (merged with `main` after Phase 2 batch 2: B14 sits
+beside B15 and B16). The owner decided on 31/10/2026 that every open human
 question takes its recommended answer now, reviewed at the testing phase. This applies the answers
 whose "Build change" is yes for H-38, H-39, H-106, H-121, H-525, H-566, H-585, H-611, H-612, H-670,
 H-700 and H-716.
@@ -56,7 +57,11 @@ H-700 and H-716.
 - H-716: drop `placement.dependency_category` in a contract migration once no supported client
   sends it.
 - H-525: `lone_worker_check_in` (3 months) differs from the `lone_worker` class (3 years) on
-  `feat/sched-lone-worker`; reconcile when that branch merges.
+  `feat/sched-lone-worker`; reconcile when that branch merges. The speak-up tables (slice 24,
+  merged with Phase 2 batch 2) still carry `complaint` under a check constraint, so moving them to
+  `whistleblowing` needs a migration (with H-721); the disclosure log (slice 41) is
+  `serious_incident` for every request until it has a per-row class that can say
+  `data_rights_case`.
 - Every applied answer is reviewed at the testing phase (DPO, CSO, adviser as named).
 
 ## Human actions logged
