@@ -16,7 +16,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Safety and notifications | `SAFE` | 11.1 | 16 | 6 | 10 | 0 |
 | Quality and governance | `QUAL` | 11.2 | 13 | 11 | 2 | 0 |
 | Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 13 | 0 | 0 |
-| Rostering, time and pay | `SCHED` | 12.3 | 12 | 11 | 1 | 0 |
+| Rostering, time and pay | `SCHED` | 12.3 | 12 | 6 | 6 | 0 |
 | Operations | `OPS` | 13 | 28 | 27 | 1 | 0 |
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
 | Communication and portals | `COMMS` | 15.1 | 8 | 4 | 4 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **168** | **65** | **0** |
+| **Total** | | | **233** | **163** | **70** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -175,12 +175,12 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | SCHED-002 | Rota builder with skills, continuity, swaps, bank and agency | 12.3 | 2 | todo | - | - | - | - |
 | SCHED-003 | Working Time compliance (48-hour average, rest, breaks, night work, under-18 rules, sleep-ins, travel time) | 12.3 | 2 | partial | [scheduling](scheduling.md#4-rules-that-are-easy-to-get-wrong) (domain rules, slice 5; schema, API and screens in slices 30 and 60) | `packages/domain/src/scheduling` (`checkWorkingTime` in `working-time.ts`; `weekly-average.ts`, `rest.ts`, `night.ts`, `young-workers.ts`, `classification.ts`, `agreements.ts`, `rates.ts`) | `packages/domain/src/scheduling/*.test.ts` (rates and no literals, classification, agreements, weekly average, rest and breaks, night, young workers, end to end) | - |
 | SCHED-004 | Time and attendance (clock in and out, exceptions, timesheet approval, mileage) | 12.3 | 2 | todo | - | - | - | - |
-| SCHED-005 | Pay rules engine with enhancements and NMW checks per pay reference period | 12.3 | 2 | todo | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/pay-rules.ts`, `packages/domain/src/scheduling/pay/nmw.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/pay-rules.test.ts`, `packages/domain/src/scheduling/pay/nmw.test.ts` | - |
-| SCHED-006 | Holiday accrual at 12.07% and rolled-up holiday pay | 12.3 | 2 | todo | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/holiday.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/holiday.test.ts` | - |
-| SCHED-007 | SSP 2026 and guaranteed-hours readiness | 12.3 | 2 | todo | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/ssp.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/ssp.test.ts` | - |
+| SCHED-005 | Pay rules engine with enhancements and NMW checks per pay reference period | 12.3 | 2 | partial | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/pay-rules.ts`, `packages/domain/src/scheduling/pay/nmw.ts`, `nmwMinutesIn` in `packages/domain/src/scheduling/classification.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/pay-rules.test.ts`, `packages/domain/src/scheduling/pay/nmw.test.ts` | - |
+| SCHED-006 | Holiday accrual at 12.07% and rolled-up holiday pay | 12.3 | 2 | partial | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/holiday.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/holiday.test.ts` | - |
+| SCHED-007 | SSP 2026 and guaranteed-hours readiness | 12.3 | 2 | partial | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/ssp.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/ssp.test.ts` | - |
 | SCHED-008 | Payroll and pension exports (Xero Payroll first, Staffology, Sage, BrightPay; auto-enrolment flags) | 12.3, 15.3 | 2 | todo | - | - | - | - |
-| SCHED-009 | Agency workers and AWR 12-week tracking | 12.3 | 2 | todo | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/awr.ts`, `packages/domain/src/scheduling/pay/auto-enrolment.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/awr.test.ts`, `packages/domain/src/scheduling/pay/auto-enrolment.test.ts` | - |
-| SCHED-010 | Absence and leave (Bradford factor, return to work, fit notes, statutory family leave) | 12.3 | 2 | todo | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/bradford.ts`, `packages/domain/src/scheduling/pay/family-pay.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/bradford.test.ts`, `packages/domain/src/scheduling/pay/family-pay.test.ts` | - |
+| SCHED-009 | Agency workers and AWR 12-week tracking | 12.3 | 2 | partial | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/awr.ts`, `packages/domain/src/scheduling/pay/auto-enrolment.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/awr.test.ts`, `packages/domain/src/scheduling/pay/auto-enrolment.test.ts` | - |
+| SCHED-010 | Absence and leave (Bradford factor, return to work, fit notes, statutory family leave) | 12.3 | 2 | partial | [scheduling](scheduling.md#4b-pay-rules-slice-6-sched-005-006-007-009-010) (rules 4b, ADR-0086, ADR-0087) | `packages/domain/src/scheduling/pay/bradford.ts`, `packages/domain/src/scheduling/pay/family-pay.ts`, `packages/domain/src/scheduling/pay/rates.ts`, `packages/domain/src/scheduling/pay/money.ts` | `packages/domain/src/scheduling/pay/bradford.test.ts`, `packages/domain/src/scheduling/pay/family-pay.test.ts` | - |
 | SCHED-011 | Staff wellbeing and voice surveys | 12.3 | 2 | todo | - | - | - | - |
 | SCHED-012 | Lone-worker check-ins, overdue alarm and panic button | 12.3 | 2 | todo | - | - | - | - |
 | OPS-001 | Bed board and occupancy | 13.1 | 3 | todo | - | - | - | - |

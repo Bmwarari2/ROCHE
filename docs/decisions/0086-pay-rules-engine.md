@@ -40,7 +40,11 @@ in the API, the worker and tests.
   and the pay rule set version with each result.
 - Money is whole pence (integers) throughout; percentages are applied once per line and rounded
   down to the penny, so the worker is never shown more than the rule gives and the rounding is
-  stated in the working.
+  stated in the working. The exception is a statutory payment whose regulations say a fraction of
+  a penny is rounded up (SSP, SSP (General) Regulations 1982 reg 11; maternity, paternity,
+  adoption, shared parental and parental bereavement pay): those are worked out exactly and
+  rounded up once per payment. What the hours must earn under the minimum wage is also rounded
+  up, never in the employer's favour.
 - Every result carries `working`: one line per step in plain English with the figure and its rate
   key or rule, and `canonicalInput`: a deterministic serialisation (sorted keys) of everything the
   result depends on. The domain does no hashing; the API stores a SHA-256 of `canonicalInput` so a

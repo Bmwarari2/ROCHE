@@ -45,3 +45,40 @@ SCHED-010 (domain rules only; no database, API or screens; no migration).
   `rates.md`; 100% lines and 97.9% branches of the folder), including the figures in force either
   side of 1 April 2026, a 29 February birthday and Northern Ireland, where holiday accrual and SSP do
   not apply yet.
+
+## Review rounds
+
+- Integration with slice 5 (#136), 31 October 2026:
+  - Human actions renumbered H-582 to H-585, as slice 5 took H-580 and H-581.
+  - `origin/feat/sched-domain-working-time` merged in, so this branch stacks on #136; the domain
+    index, rates.md, the register, STATUS, scheduling.md (slice 5's full spec with these rules as
+    section 4b) and human-actions keep both sides.
+  - Wiring: `nmwMinutesIn` (slice 5's classification, clipped to a pay reference period, this
+    employer only) gives `nmwCheck` its minutes; `nmwPayFromGross` gives it its pay, leaving out
+    mileage and on-call allowances; `hours-to-pay.test.ts` feeds a week with a sleep-in, travel and
+    another employer's hours through both. No rate key is duplicated: the NMW age rows and slice
+    5's `wtr.young_worker.until_age_years` belong to different regimes and agree on a 29 February
+    birthday (tested).
+  - Figures checked on 31 October 2026 and fixed where the law differs:
+    - SSP: the Employment Rights Act 2025 changes commenced on 6 April 2026 (S.I. 2026/373; no
+      waiting days, no lower earnings limit, a one-day period of incapacity, the lower of £123.25
+      and 80%). Payments are now rounded up to the next penny (SSP (General) Regulations 1982
+      reg 11), not down, from the exact weekly rate.
+    - Family pay: £194.32 and £187.18 verified on gov.uk; maternity pay's rate starts on
+      5 April 2026 and the others' on 6 April 2026, so maternity has its own row
+      (`smp.standard_weekly`); each payment is rounded up, as the regulations say. Rows verified;
+      H-582 closed.
+    - NMW: free accommodation now adds the offset to pay (gov.uk), which the check had left out.
+    - AWR: a break is judged as a whole under reg 7(8) and (9); a sickness break over 28 weeks now
+      resets the clock, a long break only partly for a covered reason resets it, industrial action
+      is a covered break, and protected leave within the assignment counts as weeks worked
+      (reg 7(6)). Rows verified on legislation.gov.uk.
+    - Auto-enrolment: the per-period thresholds match The Pensions Regulator's 2026-2027 table
+      and the age bands the Pensions Act 2008; rows verified; H-584 closed.
+    - Statutory figures no longer take a tenant row (only the Bradford window, a tenant default,
+      does); the no-literal test now scans the pay folder, with the money and calendar units named
+      in `money.ts` and `intervals.ts`.
+  - H-585 reworded to the three readings still open. ADR-0086's rounding bullet names the
+    round-up exceptions.
+  - Tests: the pay folder has 103 tests in 11 files (`hours-to-pay.test.ts` new); the scheduling
+    folder 262 in all.
