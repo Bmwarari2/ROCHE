@@ -533,3 +533,18 @@ audited. Outbox: `scheduling.dependency_scale_approved` (scale, version, locatio
   refused, an idempotent replay, the view audited; the required hours with the method, the source
   and the notice, a missing scale, an unassessed person, a scope that does not cover the location
   refused; another organisation's ids not found.
+
+### As built (slice 12)
+
+- Domain: `packages/domain/src/scheduling/dependency.ts`, exported from `@harbour/domain`:
+  `checkScaleDefinition`, `checkScaleApproval`, `scaleVersionInForce`, `scaleForLocation`,
+  `periodWindows`, `checkDependencyRecord`, `dependencyChain`, `currentDependency`,
+  `dependencyInForce`, `staffingRequirement`, `compareStaffing`, `formatCareMinutes`, with
+  `DEPENDENCY_TOOL_NOTICE`, `STAFFING_STATUS_WORDS` and the message tables.
+- Schema: `packages/db/src/schema/dependency.ts`; migration `0074_dependency_tool.sql` (tables,
+  RLS, `app.may_manage_dependency_scale`, the scale, version and category guards, grants, the
+  role data migration for the two new permissions and the sample-data removal list).
+- API: `apps/api/src/routes/scheduling-dependency.ts`; contracts in
+  `packages/contracts/src/scheduling.ts`.
+- The placement's free-text `dependency_category` (Phase 1 admission form) is left as it is and is
+  not read by the requirement; whether to retire it is H-716.

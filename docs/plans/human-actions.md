@@ -364,6 +364,21 @@ Logged by slice 8 (Quality Phase 2 domain rules, [quality.md](../specs/quality.m
 | H-604 | Confirm on the NCSC and ICO pages that a Cyber Essentials certificate is renewed every 12 months and the data protection fee every 12 months, and record the page and date in rates.md | Data protection lead | rates.md `cyber_essentials.certificate_valid_months`, `ico.registration.renewal_months` | Slice 32 data security evidence for a real tenant | open |
 | H-605 | Decide whether a minor policy change keeps earlier signatures (Harbour's default) or every change needs a new signature, per tenant | Quality lead at the design partner | quality.md rule 26; `packages/domain/src/quality/policies.ts` | Slice 25 read-and-sign for a real tenant | open |
 
+## Phase 2: dependency tool (slice 12)
+
+Logged by slice 12 (the dependency tool, [scheduling.md](../specs/scheduling.md) section 12) on
+31 October 2026, from the block H-710 to H-719 the lead assigned.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-710 | Rate HZ-123 (proposed initial Major / Medium / 3, target Major / Low / 3 until the rota shows the comparison, then Very low / 2) and review its controls; confirm that the dependency tool stays inside the medical-device boundary as built (the organisation's own scale, categories chosen by staff with a reason, hours added up with the method shown, no score or judgement of safe staffing) and decide whether it needs an ADR of its own (boundary section 6) | CSO | [Hazard log](../clinical-safety/hazard-log.md) HZ-123; [medical-device boundary](../compliance/medical-device-boundary.md) section 5 "Dependency tool and required care hours" and section 6; `packages/domain/src/scheduling/dependency.ts` | Required care hours for a real tenant | open |
+| H-711 | Confirm the lawful basis and special category condition for dependency categories (B1: Art 6(1)(b) or (e), Art 9(2)(h)), that the reason may hold health details, and the retention: categories `care_record`; scale versions `organisation_document`, but kept at least as long as the rotas they justified (`rota_and_timesheet`, 6 years) | DPO | [Records of processing](../compliance/records-of-processing.md) (dependency categories row and note); [retention.md](../specs/retention.md) | Dependency categories for a real tenant | open |
+| H-712 | Each organisation writes, checks and approves its own dependency scale before relying on required hours: shift periods, care minutes per category and period, one-to-one practice, skill-mix minimums and a review interval. Harbour ships no default scale and no figure | Tenant (Registered Manager with the owner) | [scheduling.md](../specs/scheduling.md) section 12; `DependencyScaleDefinition` | Required care hours for that tenant | open |
+| H-713 | Decide whether people on leave or in hospital stay out of the required total (default: not counted, listed with the hours they would add) or count until they have been away a set time | CSO with a Registered Manager | `staffingRequirement` (rule 10) | Required care hours for a real tenant | open |
+| H-714 | Decide whether two-to-one support and shared core hours (supported living, master prompt "commissioned 1:1, 2:1 and shared core hours") need modelling on the category record, or wait for the Phase 4 support-hours work | Brian | `dependency_assessment.one_to_one`; [data-standards.md](../specs/data-standards.md) dependency tool section | Supported living services | open |
+| H-715 | Confirm that approving a scale version needs a second member who neither wrote nor changed it, also for a service with a single manager (the owner or a deputy approves), or allow a documented exception | CSO with Brian | `checkScaleApproval`; `app.dependency_scale_version_guard` (migration 0074) | Scale approval in a single-manager service | open |
+| H-716 | Decide what happens to the placement's free-text `dependency_category` from the admission form: retire it (expand and contract) or prefill the first category record from it, with a person checking | Brian with the DPO | `placement.dependency_category`; [data-standards.md](../specs/data-standards.md) | Nothing (it is not read by the required hours) | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
