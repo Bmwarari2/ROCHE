@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiRequestHeaders } from "./api-headers";
+import { apiRequestHeaders, callerHeaders } from "./api-headers";
 
 const PROXIES = ["10.0.0.0/8"];
 
@@ -34,4 +34,28 @@ describe("apiRequestHeaders", () => {
       expect(out).toEqual({ cookie: "harbour.session_token=abc" });
     },
   );
+});
+
+describe("callerHeaders (the public evidence pages)", () => {
+  it("passes on the user agent, a well-formed request id and the client address, never a cookie", () => {
+    const incoming = new Headers({
+      cookie: "harbour.evidence_session=abc",
+      "user-agent": "Mozilla/5.0",
+      "x-request-id": "evidence-req-7",
+      "x-forwarded-for": "192.0.2.10, 10.0.0.5",
+    });
+    expect(callerHeaders(incoming, PROXIES)).toEqual({
+      "user-agent": "Mozilla/5.0",
+      "x-request-id": "evidence-req-7",
+      "x-forwarded-for": "192.0.2.10",
+    });
+  });
+
+  it("drops a request id that is not well formed (security review, 31 October 2026)", () => {
+    const incoming = new Headers({
+      "user-agent": "Mozilla/5.0",
+      "x-request-id": "Ada Example ada@example.invalid",
+    });
+    expect(callerHeaders(incoming, PROXIES)).toEqual({ "user-agent": "Mozilla/5.0" });
+  });
 });
