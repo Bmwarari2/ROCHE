@@ -181,7 +181,7 @@ test("hazard HZ-091 a stale investigation page is refused in words", async ({ pa
   await page.emulateMedia({ colorScheme: "light" });
 });
 
-test("hazard HZ-013 the incident trends are counts by type and month, said as counts only", async ({
+test("hazard HZ-073 the incident trends are counts by type and month, said as counts only", async ({
   page,
 }) => {
   await signIn(page, "manager@example.invalid");

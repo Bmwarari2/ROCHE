@@ -1,5 +1,5 @@
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
-import { demoPerson, expectAccessible, signIn } from "./support";
+import { demoPerson, expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
  * Phase 1: after a death on an incident (register row SAFE-008; safety.md rules 6 and 8; hazard
@@ -103,10 +103,12 @@ test("hazard HZ-013 after a death the manager sees the medical examiner pack and
   await page.emulateMedia({ colorScheme: "light" });
 });
 
-test("hazard HZ-013 a drafted LeDeR notification says to report on LeDeR's own form", async ({
+test("hazard HZ-013 a drafted LeDeR notification says to report on LeDeR's own form, then follows its status", async ({
   page,
 }) => {
-  await signIn(page, "manager@example.invalid");
+  test.setTimeout(120_000);
+  // A passkey sign-in: deciding the notification is not required needs step-up.
+  await signInWithDemoPasskey(page);
   const incident = await death(page.request, "Found in bed, not breathing", {
     learningDisability: true,
   });
@@ -133,4 +135,22 @@ test("hazard HZ-013 a drafted LeDeR notification says to report on LeDeR's own f
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "LeDeR notification, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
+
+  // Recorded as not required: the incident says so, and no longer says the person had a
+  // learning disability or was autistic (review M1).
+  const path = `${API_URL}/v1/notifications/statutory/${leder?.id}`;
+  const headers = { "x-harbour-tenant": DEMO_TENANT };
+  const current = (await (await page.request.get(path, { headers })).json()) as {
+    version: number;
+  };
+  const decided = await page.request.post(`${path}/not-required`, {
+    headers,
+    data: { reason: `Recorded twice for the same death (${RUN}).`, version: current.version },
+  });
+  expect(decided.status(), await decided.text()).toBe(200);
+  await page.goto(`/incidents/${incident.id}`);
+  const now = region(page, "After a death");
+  await expect(now.getByText("LeDeR notification recorded as not required")).toBeVisible();
+  await expect(now.getByText(/had a learning disability/)).toHaveCount(0);
+  await expectAccessible(page, "after a death, LeDeR not required");
 });

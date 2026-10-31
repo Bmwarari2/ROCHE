@@ -1,5 +1,5 @@
 import { type APIRequestContext, type Browser, expect, type Page, test } from "@playwright/test";
-import { demoPerson, expectAccessible, signIn } from "./support";
+import { demoPerson, expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
  * Phase 1: the duty of candour record on an incident (register row SAFE-007; regulation 20;
@@ -49,6 +49,10 @@ async function nurseRecords(
   browser: Browser,
   baseURL: string | undefined,
   description: string,
+  options: {
+    readonly people?: readonly string[];
+    readonly answers?: readonly { key: string; value: unknown }[];
+  } = {},
 ): Promise<string> {
   const nurse = await browser.newContext({ baseURL });
   const nursePage = await nurse.newPage();
@@ -60,7 +64,12 @@ async function nurseRecords(
     description: `${description} (${RUN}).`,
     emergencyServicesCalled: false,
     gpContacted: true,
-    people: [{ kind: "service_user", role: "affected", personId: PERSON }],
+    people: (options.people ?? [PERSON]).map((personId) => ({
+      kind: "service_user",
+      role: "affected",
+      personId,
+    })),
+    ...(options.answers ? { answers: options.answers } : {}),
   });
   await nurse.close();
   return incident.id;
@@ -103,7 +112,8 @@ test("hazard HZ-013 hazard HZ-091 the manager records the duty of candour from t
     testInfo.project.use.baseURL,
     "The evening dose was given twice",
   );
-  await signIn(page, "manager@example.invalid");
+  // A passkey sign-in: recording the candour notification at the end needs step-up.
+  await signInWithDemoPasskey(page);
   const record = await addDocument(page.request, `Note of the conversation (${RUN})`);
   const letter = await addDocument(page.request, `Candour letter (${RUN})`);
   await page.goto(`/incidents/${id}`);
@@ -237,6 +247,34 @@ test("hazard HZ-013 hazard HZ-091 the manager records the duty of candour from t
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "candour, closed, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
+
+  // The duty of candour notification is recorded with the letter's copy as its evidence, never
+  // a regulator's reference (review H2).
+  const detail = await call<{ classifier: { notifications: { id: string; kind: string }[] } }>(
+    page.request,
+    "get",
+    `/v1/incidents/${id}`,
+  );
+  const draft = detail.classifier.notifications.find((n) => n.kind === "candour");
+  expect(draft, "a candour notification draft").toBeDefined();
+  await page.goto(`/notifications/statutory/${draft?.id}`);
+  const prepare = page.getByRole("form", { name: "Prepare the notification" });
+  const boxes = prepare.getByRole("textbox");
+  for (let i = 0; i < (await boxes.count()); i += 1) {
+    await boxes.nth(i).fill(`Recorded on the duty of candour record (${RUN}).`);
+  }
+  await prepare.getByRole("button", { name: "Save and mark ready to submit" }).click();
+  await arrived(page, "Saved and marked ready to submit");
+  const submit = page.getByRole("form", { name: "Record that it was submitted" });
+  await expect(submit.getByText(/goes to the person, not a regulator/)).toBeVisible();
+  await expect(submit.getByLabel("The regulator's reference")).toHaveCount(0);
+  await submit
+    .getByRole("group", { name: "When was it submitted?" })
+    .getByRole("radio", { name: "Just now", exact: true })
+    .check();
+  await submit.getByRole("button", { name: "Record as submitted" }).click();
+  await arrived(page, "Recorded as submitted");
+  await expectAccessible(page, "candour notification recorded");
 });
 
 test("hazard HZ-013 hazard HZ-091 not notifiable takes a reason, and a stale page is refused in words", async ({
@@ -301,5 +339,131 @@ test("hazard HZ-013 hazard HZ-091 not notifiable takes a reason, and a stale pag
   ).toBeVisible();
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "candour, not notifiable, done, dark theme");
+  await page.emulateMedia({ colorScheme: "light" });
+});
+
+test("hazard HZ-013 hazard HZ-091 a decision that differs from Harbour's finding takes a reason and a tick", async ({
+  page,
+  browser,
+}, testInfo) => {
+  const id = await nurseRecords(
+    browser,
+    testInfo.project.use.baseURL,
+    "A tablet was crushed against the care plan and the person choked",
+    {
+      answers: [
+        { key: "candour.unintended_or_unexpected", value: "yes" },
+        { key: "harm.body_structure_changed", value: "yes" },
+      ],
+    },
+  );
+  await signIn(page, "manager@example.invalid");
+  await page.goto(`/incidents/${id}`);
+  const candour = region(page, "Duty of candour");
+  const threshold = candour.getByRole("form", { name: "Record the threshold decision" });
+  // Harbour's finding beside the question, and the regulation's words with the rate table's period.
+  await expect(
+    threshold.getByText(
+      "Harbour found, on the answers recorded, that this may be a notifiable safety incident.",
+    ),
+  ).toBeVisible();
+  await expect(
+    threshold.getByText(
+      /during the provision of a regulated activity.*at least \d+ continuous days/,
+    ),
+  ).toBeVisible();
+  await threshold
+    .getByRole("group", { name: "Is it a notifiable safety incident?" })
+    .getByRole("radio", { name: "No", exact: true })
+    .check();
+  await threshold
+    .getByRole("group", { name: "When was the decision made?" })
+    .getByRole("radio", { name: "Just now", exact: true })
+    .check();
+  await threshold
+    .getByLabel("Whose opinion does the decision record?")
+    .fill(`Dr Example, GP (${RUN})`);
+  await expect(threshold.getByText(/Your answer differs from what Harbour found/)).toBeVisible();
+  await threshold.getByRole("button", { name: "Save the decision" }).click();
+  const summary = page.getByRole("main").getByRole("alert");
+  await expect(summary).toBeFocused();
+  for (const words of [
+    "Say why in at least 20 characters and at most 1,000",
+    "Tick the box to confirm the decision",
+  ]) {
+    await expect(summary.getByRole("link", { name: words })).toBeVisible();
+  }
+  await expectAccessible(page, "candour decision differs, with errors");
+
+  await threshold
+    .getByLabel("Why does the decision differ?")
+    .fill(`The GP found no lasting harm after the review (${RUN}).`);
+  await threshold
+    .getByLabel(
+      "I have checked the facts with the health care professional, and this is the decision",
+    )
+    .check();
+  await threshold.getByRole("button", { name: "Save the decision" }).click();
+  await arrived(page, "Duty of candour: recorded as not notifiable");
+  await expect(
+    region(page, "Duty of candour").getByText("Not a notifiable safety incident", { exact: true }),
+  ).toBeVisible();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectAccessible(page, "candour decision differs, done, dark theme");
+  await page.emulateMedia({ colorScheme: "light" });
+});
+
+test("hazard HZ-013 closing names everyone still to be told when two people were harmed", async ({
+  page,
+  browser,
+}, testInfo) => {
+  const second = demoPerson(5);
+  const id = await nurseRecords(
+    browser,
+    testInfo.project.use.baseURL,
+    "Two people were given each other's evening medicines",
+    {
+      people: [PERSON, second],
+      answers: [
+        { key: "candour.unintended_or_unexpected", value: "yes" },
+        { key: "harm.body_structure_changed", value: "yes" },
+      ],
+    },
+  );
+  await signIn(page, "manager@example.invalid");
+  // One record, finished for the first person only (they could not be contacted).
+  const path = `/v1/incidents/${id}/candour`;
+  let view = await call<{ record: { version: number } }>(page.request, "put", path, {
+    personId: PERSON,
+    threshold: {
+      notifiable: true,
+      decidedAt: new Date(Date.now() - 600_000).toISOString(),
+      decidedBy: `A health care professional (${RUN})`,
+    },
+    version: 0,
+  });
+  view = await call(page.request, "post", `${path}/step`, {
+    to: "verbal_due",
+    version: view.record.version,
+  });
+  view = await call(page.request, "put", path, {
+    contactAttempts: [{ at: new Date().toISOString(), note: `Phoned twice, no answer (${RUN}).` }],
+    version: view.record.version,
+  });
+  await call(page.request, "post", `${path}/step`, {
+    to: "no_contact",
+    reason: "No answer after two calls.",
+    version: view.record.version,
+  });
+  await page.goto(`/incidents/${id}`);
+  const review = region(page, "Review and close");
+  await expect(review.getByText("Before it can close")).toBeVisible();
+  await expect(
+    review.getByRole("link", { name: /^Still to be told under the duty of candour: / }),
+  ).toBeVisible();
+  await expect(review.getByRole("button", { name: "Close the incident" })).toHaveCount(0);
+  await expectAccessible(page, "close, still to be told");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectAccessible(page, "close, still to be told, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
 });
