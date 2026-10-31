@@ -20351,6 +20351,535 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/imports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's imports
+     * @description platform.import.run and people.person.create across the whole organisation. The latest 100 batches, newest first: ids, counts and times, never a value. Audited (platform.import.read, the count).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Batches */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ImportBatchList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Upload a file to import
+     * @description platform.import.run and people.person.create, both across the whole organisation (403 organisation_wide_required otherwise, whatever the file holds). Takes a record type (people), a location of the organisation and either CSV text or JSON rows, matches each column to a Harbour field by the mapping or by its field key or label, and stages the matched cells in quarantine, never in anyone's record, until a dry run and a commit. A column that matches nothing, a mapping to no field or two columns for one field refuse the upload (422 columns_not_mapped); every problem names a row or column by number, never a heading or value. The batch expires import.staging_expiry_days after upload. Audited (platform.import.uploaded: batch id, rows and columns).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UploadImport"];
+        };
+      };
+      responses: {
+        /** @description Staged */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ImportBatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/imports/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * One import
+     * @description platform.import.run and people.person.create across the whole organisation. A batch of another organisation, or none, is 404 alike. Audited (platform.import.read, the batch id).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The batch */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ImportBatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    /**
+     * Discard a staged import
+     * @description platform.import.run and people.person.create across the whole organisation. Discards a staged batch: its staged rows are deleted in the same transaction and the batch is kept as the record that it was discarded. Only a staged batch (409 not_staged). Audited (platform.import.discarded: the batch id and row count).
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Discarded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ImportBatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/imports/{id}/dry-run": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Dry run an import
+     * @description platform.import.run and people.person.create across the whole organisation. Checks every staged row against data-standards.md and against the people already in the organisation, committing nothing: rows, valid rows, errors by code, each error and warning by row and field key with a code and plain words (never a value or whose record matched), the rows imported with allergy status unknown (HZ-007) and the rows with allergies to record. A row whose NHS number or local identifier is already on a record is an error (already_in_harbour); the same name and date of birth where either has no NHS number is a warning (possible_duplicate). Only a staged batch (409 not_staged). Recorded on the batch; audited (platform.import.dry_run: counts).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The report */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ImportDryRunReport"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/imports/{id}/commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Commit an import, whole
+     * @description platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only when it has had a dry run (409 dry_run_first), has no error (409 has_errors) and, when there are possible duplicates, acknowledgePossibleDuplicates (409 possible_duplicates_unacknowledged); otherwise nothing is created. Each row becomes a person at the batch's location (status active; allergy status as imported, blank as unknown). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CommitImport"];
+        };
+      };
+      responses: {
+        /** @description Committed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ImportCommitResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/imports/{id}/undo": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Undo a committed import, once
+     * @description platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the commit created through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Undone */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ImportUndoResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/operator/tenants/{tenantId}/owner-invitation": {
     parameters: {
       query?: never;
@@ -27485,6 +28014,108 @@ export interface components {
       /** Format: uuid */
       batchId: string;
       people: number;
+    };
+    /** @description One upload; never a value, a heading or a file name */
+    ImportBatch: {
+      /** Format: uuid */
+      id: string;
+      recordType: components["schemas"]["ImportRecordType"];
+      /** Format: uuid */
+      locationId: string;
+      status: components["schemas"]["ImportBatchStatus"];
+      rows: number;
+      /** Format: uuid */
+      uploadedBy: string;
+      /** Format: date-time */
+      uploadedAt: string;
+      /** Format: date-time */
+      expiresAt: string;
+      /** Format: date-time */
+      dryRunAt: string | null;
+      dryRunErrors: number | null;
+      dryRunWarnings: number | null;
+      /** Format: date-time */
+      closedAt: string | null;
+      records: number | null;
+      /** Format: date-time */
+      committedAt: string | null;
+      /** Format: date-time */
+      undoClosesAt: string | null;
+      /** Format: date-time */
+      undoneAt: string | null;
+    };
+    /**
+     * @description What a batch imports (people in slice 26)
+     * @enum {string}
+     */
+    ImportRecordType: "people";
+    /**
+     * @description Where a batch stands; forward only
+     * @enum {string}
+     */
+    ImportBatchStatus: "staged" | "committed" | "undone" | "discarded" | "expired";
+    UploadImport: {
+      recordType: components["schemas"]["ImportRecordType"];
+      /** Format: uuid */
+      locationId: string;
+      csv?: string;
+      /** @description JSON rows: each an object of column heading to text */
+      rows?: {
+        [key: string]: unknown;
+      }[];
+      /** @description Column heading to Harbour field key, or null to leave it out */
+      mapping?: {
+        [key: string]: unknown;
+      };
+    };
+    ImportBatchList: {
+      items: components["schemas"]["ImportBatch"][];
+    };
+    /** @description What committing would do now; nothing is committed by a dry run */
+    ImportDryRunReport: {
+      /** Format: uuid */
+      batchId: string;
+      rows: number;
+      validRows: number;
+      errorCount: number;
+      warningCount: number;
+      byCode: {
+        [key: string]: number;
+      };
+      mayCommit: boolean;
+      errors: components["schemas"]["ImportFinding"][];
+      warnings: components["schemas"]["ImportFinding"][];
+      truncated: boolean;
+      allergyStatusUnknownRows: number[];
+      allergiesToRecordRows: number[];
+    };
+    /** @description An error or warning at a row and field */
+    ImportFinding: {
+      row: number;
+      column: string;
+      code: string;
+      message: string;
+    };
+    ImportCommitResult: {
+      /** Format: uuid */
+      batchId: string;
+      records: number;
+      /** Format: date-time */
+      committedAt: string;
+      /** Format: date-time */
+      undoClosesAt: string;
+      replayed: boolean;
+    };
+    CommitImport: {
+      /** @default false */
+      acknowledgePossibleDuplicates: boolean;
+    };
+    ImportUndoResult: {
+      /** Format: uuid */
+      batchId: string;
+      records: number;
+      /** Format: date-time */
+      undoneAt: string;
     };
     SubProcessorNoticeAnnounced: {
       /** Format: uuid */

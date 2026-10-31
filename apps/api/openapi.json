@@ -23380,6 +23380,348 @@
           "people"
         ]
       },
+      "ImportBatch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordType": {
+            "$ref": "#/components/schemas/ImportRecordType"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ImportBatchStatus"
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uploadedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dryRunAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "dryRunErrors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "dryRunWarnings": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "records": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "committedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "undoClosesAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "undoneAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "recordType",
+          "locationId",
+          "status",
+          "rows",
+          "uploadedBy",
+          "uploadedAt",
+          "expiresAt",
+          "dryRunAt",
+          "dryRunErrors",
+          "dryRunWarnings",
+          "closedAt",
+          "records",
+          "committedAt",
+          "undoClosesAt",
+          "undoneAt"
+        ],
+        "description": "One upload; never a value, a heading or a file name"
+      },
+      "ImportRecordType": {
+        "type": "string",
+        "enum": [
+          "people"
+        ],
+        "description": "What a batch imports (people in slice 26)"
+      },
+      "ImportBatchStatus": {
+        "type": "string",
+        "enum": [
+          "staged",
+          "committed",
+          "undone",
+          "discarded",
+          "expired"
+        ],
+        "description": "Where a batch stands; forward only"
+      },
+      "UploadImport": {
+        "type": "object",
+        "properties": {
+          "recordType": {
+            "$ref": "#/components/schemas/ImportRecordType"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "csv": {
+            "type": "string",
+            "maxLength": 10000000
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "maxItems": 5000,
+            "description": "JSON rows: each an object of column heading to text"
+          },
+          "mapping": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Column heading to Harbour field key, or null to leave it out"
+          }
+        },
+        "required": [
+          "recordType",
+          "locationId"
+        ]
+      },
+      "ImportBatchList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportBatch"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ImportDryRunReport": {
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "validRows": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errorCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "warningCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "byCode": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "mayCommit": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportFinding"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportFinding"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "allergyStatusUnknownRows": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "allergiesToRecordRows": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "batchId",
+          "rows",
+          "validRows",
+          "errorCount",
+          "warningCount",
+          "byCode",
+          "mayCommit",
+          "errors",
+          "warnings",
+          "truncated",
+          "allergyStatusUnknownRows",
+          "allergiesToRecordRows"
+        ],
+        "description": "What committing would do now; nothing is committed by a dry run"
+      },
+      "ImportFinding": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "column": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "row",
+          "column",
+          "code",
+          "message"
+        ],
+        "description": "An error or warning at a row and field"
+      },
+      "ImportCommitResult": {
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "records": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "committedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "undoClosesAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "batchId",
+          "records",
+          "committedAt",
+          "undoClosesAt",
+          "replayed"
+        ]
+      },
+      "CommitImport": {
+        "type": "object",
+        "properties": {
+          "acknowledgePossibleDuplicates": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "ImportUndoResult": {
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "records": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "undoneAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "batchId",
+          "records",
+          "undoneAt"
+        ]
+      },
       "SubProcessorNoticeAnnounced": {
         "type": "object",
         "properties": {
@@ -47982,6 +48324,578 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/imports": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Upload a file to import",
+        "description": "platform.import.run and people.person.create, both across the whole organisation (403 organisation_wide_required otherwise, whatever the file holds). Takes a record type (people), a location of the organisation and either CSV text or JSON rows, matches each column to a Harbour field by the mapping or by its field key or label, and stages the matched cells in quarantine, never in anyone's record, until a dry run and a commit. A column that matches nothing, a mapping to no field or two columns for one field refuse the upload (422 columns_not_mapped); every problem names a row or column by number, never a heading or value. The batch expires import.staging_expiry_days after upload. Audited (platform.import.uploaded: batch id, rows and columns).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Staged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The organisation's imports",
+        "description": "platform.import.run and people.person.create across the whole organisation. The latest 100 batches, newest first: ids, counts and times, never a value. Audited (platform.import.read, the count).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Batches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBatchList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/imports/{id}": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "One import",
+        "description": "platform.import.run and people.person.create across the whole organisation. A batch of another organisation, or none, is 404 alike. Audited (platform.import.read, the batch id).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Discard a staged import",
+        "description": "platform.import.run and people.person.create across the whole organisation. Discards a staged batch: its staged rows are deleted in the same transaction and the batch is kept as the record that it was discarded. Only a staged batch (409 not_staged). Audited (platform.import.discarded: the batch id and row count).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discarded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/imports/{id}/dry-run": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Dry run an import",
+        "description": "platform.import.run and people.person.create across the whole organisation. Checks every staged row against data-standards.md and against the people already in the organisation, committing nothing: rows, valid rows, errors by code, each error and warning by row and field key with a code and plain words (never a value or whose record matched), the rows imported with allergy status unknown (HZ-007) and the rows with allergies to record. A row whose NHS number or local identifier is already on a record is an error (already_in_harbour); the same name and date of birth where either has no NHS number is a warning (possible_duplicate). Only a staged batch (409 not_staged). Recorded on the batch; audited (platform.import.dry_run: counts).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDryRunReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/imports/{id}/commit": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Commit an import, whole",
+        "description": "platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only when it has had a dry run (409 dry_run_first), has no error (409 has_errors) and, when there are possible duplicates, acknowledgePossibleDuplicates (409 possible_duplicates_unacknowledged); otherwise nothing is created. Each row becomes a person at the batch's location (status active; allergy status as imported, blank as unknown). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Committed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportCommitResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/imports/{id}/undo": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Undo a committed import, once",
+        "description": "platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the commit created through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Undone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportUndoResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
