@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { formatUkDateTime } from "../shared/time";
 import {
   catchUpTiming,
+  checkTaskEvidence,
   checkTaskLink,
   checkTaskTransition,
   entryPermissionTime,
   hasOccurrence,
+  isEvidenceFor,
   listMissedRounds,
   type MissedRound,
   occurrences,
@@ -643,5 +645,94 @@ describe("hazards HZ-004 and HZ-006 when permission for an entry is judged", () 
     ["no later than the server's clock (a fast device clock)", "20:03", "08:00", "20:00", "20:00"],
   ])("%s", (_label, occurred, created, now, expected) => {
     expect(entryPermissionTime(at(occurred), at(created), at(now))).toEqual(at(expected));
+  });
+});
+
+describe("checkTaskEvidence (a task completed directly with a cited record; HZ-029)", () => {
+  const news2 = { personId: "p1", kind: "news2_response", evidenceRequired: true };
+  const turns = { personId: "p1", kind: "repositioning", evidenceRequired: true };
+  const reminder = { personId: "p1", kind: "manual", evidenceRequired: false };
+  const entry = (personId: string, chart?: string) => ({ personId, chart: chart ?? null });
+
+  it.each<
+    [
+      string,
+      Parameters<typeof checkTaskEvidence>[0],
+      Parameters<typeof checkTaskEvidence>[1],
+      string | null,
+    ]
+  >([
+    [
+      "an observation for a NEWS2 task",
+      news2,
+      { type: "observation", id: "e1", found: entry("p1", "vitals") },
+      null,
+    ],
+    [
+      "a note for a NEWS2 task",
+      news2,
+      { type: "care_note", id: "e1", found: entry("p1") },
+      "evidence_not_accepted",
+    ],
+    [
+      "the chart a chart's task names",
+      turns,
+      { type: "observation", id: "e1", found: entry("p1", "repositioning") },
+      null,
+    ],
+    [
+      "another chart for a chart's task",
+      turns,
+      { type: "observation", id: "e1", found: entry("p1", "fluid_intake") },
+      "evidence_not_accepted",
+    ],
+    [
+      "an entry about another person",
+      news2,
+      { type: "observation", id: "e1", found: entry("p2", "vitals") },
+      "evidence_wrong_person",
+    ],
+    [
+      "an entry nobody can find (missing, another home's or organisation's)",
+      news2,
+      { type: "observation", id: "e1", found: null },
+      "evidence_not_found",
+    ],
+    [
+      "a type that is not evidence",
+      news2,
+      { type: "statutory_notification", id: "e1", found: entry("p1") },
+      "evidence_not_accepted",
+    ],
+    ["an id without its type", news2, { type: null, id: "e1", found: null }, "evidence_incomplete"],
+    [
+      "a note for a task that needs no evidence",
+      reminder,
+      { type: "care_note", id: "e1", found: entry("p1") },
+      null,
+    ],
+    [
+      "a note about another person, for a task that needs no evidence",
+      reminder,
+      { type: "care_note", id: "e1", found: entry("p2") },
+      "evidence_wrong_person",
+    ],
+    [
+      "an entry for a task about nobody",
+      { ...reminder, personId: null },
+      { type: "care_note", id: "e1", found: entry("p1") },
+      "evidence_wrong_person",
+    ],
+  ])("hazard HZ-029 %s", (_label, task, cited, expected) => {
+    expect(checkTaskEvidence(task, cited)).toBe(expected);
+  });
+
+  it("follows isEvidenceFor (#123): a task that needs no evidence takes any entry", () => {
+    expect(
+      isEvidenceFor({ kind: "news2_response", evidenceRequired: false }, { table: "care_note" }),
+    ).toBe(true);
+    expect(
+      isEvidenceFor({ kind: "vitals", evidenceRequired: true }, { table: "body_map_mark" }),
+    ).toBe(false);
   });
 });

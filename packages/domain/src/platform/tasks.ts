@@ -161,6 +161,98 @@ export function entryPermissionTime(occurredAt: Date, taskCreatedAt: Date, now: 
   return new Date(Math.min(recorded, now.getTime()));
 }
 
+/** The charts a task may name as its kind (`fluid_intake` and so on): its evidence is that chart. */
+export const TASK_CHART_KINDS = [
+  "fluid_intake",
+  "fluid_output",
+  "food",
+  "repositioning",
+  "bowel",
+  "weight",
+  "vitals",
+] as const;
+
+/** What an entry is, for the task it names: its table and, for an observation, its chart. */
+export interface EntryEvidence {
+  readonly table:
+    | "care_note"
+    | "observation"
+    | "body_map_mark"
+    | "activity_record"
+    | "visit_log"
+    | "assessment";
+  readonly chart?: string;
+}
+
+/**
+ * Whether an entry is the evidence a task asks for (#123 clinical review, M3; HZ-029). A task that
+ * needs no evidence takes any entry, as before. One that does is never completed by a care note
+ * (free text, which may say it was not done: that is "Not done" with a reason); a chart's task only
+ * by an entry in that chart; any other by an entry of a recording kind. An entry whose kind is not
+ * known (an older caller) is taken as before. The CSO confirms the default (H-423).
+ */
+export function isEvidenceFor(
+  task: { readonly kind: string; readonly evidenceRequired?: boolean },
+  evidence: EntryEvidence | undefined,
+): boolean {
+  if (!task.evidenceRequired || !evidence) return true;
+  if (evidence.table === "care_note") return false;
+  if ((TASK_CHART_KINDS as readonly string[]).includes(task.kind)) {
+    return evidence.table === "observation" && evidence.chart === task.kind;
+  }
+  return true;
+}
+
+/** The entries a task may cite as its evidence when it is completed directly (`EntryEvidence`). */
+export const TASK_EVIDENCE_TABLES = [
+  "care_note",
+  "observation",
+  "body_map_mark",
+  "activity_record",
+  "visit_log",
+  "assessment",
+] as const satisfies readonly EntryEvidence["table"][];
+
+export type TaskEvidenceProblem =
+  | "evidence_incomplete"
+  | "evidence_not_accepted"
+  | "evidence_not_found"
+  | "evidence_wrong_person";
+
+/**
+ * Whether the record a task cites when it is completed directly (`POST /v1/tasks/{id}/transition`)
+ * may stand as its evidence (HZ-029; HZ-001). Unlike an entry naming its task, which always names
+ * a real entry, the citation is two words in a request, so it is checked: a type and an id together,
+ * a type Harbour accepts as evidence, an entry that exists where the caller can see it (another
+ * organisation's, another home's or a missing id are all not found), about the task's own person,
+ * and, for a task that needs evidence, the evidence it asks for (`isEvidenceFor`: never a note, a
+ * chart's task only its own chart). Null when it may stand.
+ */
+export function checkTaskEvidence(
+  task: {
+    readonly personId: string | null;
+    readonly kind: string;
+    readonly evidenceRequired?: boolean;
+  },
+  cited: {
+    readonly type: string | null;
+    readonly id: string | null;
+    /** The entry as the caller's own read found it, or null when it found none. */
+    readonly found: { readonly personId: string; readonly chart?: string | null } | null;
+  },
+): TaskEvidenceProblem | null {
+  if (cited.type === null || cited.id === null) return "evidence_incomplete";
+  const table = TASK_EVIDENCE_TABLES.find((t) => t === cited.type);
+  if (!table) return "evidence_not_accepted";
+  if (!cited.found) return "evidence_not_found";
+  if (task.personId === null || cited.found.personId !== task.personId) {
+    return "evidence_wrong_person";
+  }
+  const evidence: EntryEvidence =
+    cited.found.chart != null ? { table, chart: cited.found.chart } : { table };
+  return isEvidenceFor(task, evidence) ? null : "evidence_not_accepted";
+}
+
 /**
  * What an entry does to the task it names. The entry is always kept (an entry recorded offline is
  * never lost, HZ-006), except for a task about another person (HZ-001). It completes an open task
