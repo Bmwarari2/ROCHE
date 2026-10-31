@@ -69,6 +69,7 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { policiesRouter } from "./routes/policies";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
@@ -321,6 +322,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
+  app.route("/", policiesRouter);
   app.route("/", qualityFrameworkRouter);
   app.route("/", staffFilesRouter);
   app.route("/", evidenceLinkRouter);

@@ -40,6 +40,7 @@ import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
+import { raisePolicyReminders } from "../services/policies";
 import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
 import { roleHolders, toldOf } from "../services/role-holders";
 import {
@@ -480,6 +481,17 @@ export async function remindStaffFileExpiry(deps: TaskDeps, now = new Date()): P
     raiseStaffFileReminders(tx, tenantId, now),
   );
   if (raised > 0) deps.logger.info({ raised }, "staff file expiry reminders raised");
+  return raised;
+}
+
+/**
+ * Policy read-and-sign reminders and review tasks (quality.md section 18.3; HZ-128).
+ */
+export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "policy-reminders", (tx, tenantId) =>
+    raisePolicyReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "policy reminders raised");
   return raised;
 }
 

@@ -387,6 +387,7 @@ const BLOCKS_REMOVAL = [
   "dsar_case",
   "escalation_policy_link",
   "outage",
+  "policy_version",
 ];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {

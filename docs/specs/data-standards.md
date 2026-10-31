@@ -753,6 +753,20 @@ category so a receiving system can read it.
 | `dependency_assessment.effective_from` | ISO 8601 date | `YYYY-MM-DD`, UK date, today or earlier | In force from 00:00 UK time on that date. |
 | `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
 | `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
+## Quality: policy library and read-and-sign (Phase 2, slice 25)
+Code lists for [quality.md](quality.md) section 18 (migration 0087). No national standard covers
+these fields; exported with these names.
+| `policy.policy_key` | Harbour | `^[a-z][a-z0-9_]{1,63}$`, unique in the organisation | |
+| `policy.title` | Harbour | Plain text, 2 to 160 characters | |
+| `policy.require_second_reviewer` | Harbour | Boolean | Someone other than the author publishes |
+| `policy_version.state` | Harbour | `draft`, `published`, `superseded`, `retired` | At most one `published` per policy |
+| `policy_version.change` | Harbour | `minor`, `major` | A minor change keeps earlier signatures |
+| `policy_version.change_summary` | Harbour | Plain text, 2 to 2,000 characters | The change log |
+| `policy_version.body`, `document_id` | Harbour | Plain text or Markdown up to 100,000 characters; an organisation document (PDF) | At least one |
+| `policy_version.roles` | Harbour | Role keys (`^[a-z][a-z0-9_]{1,63}$`), up to 40 | Matched against a role's key or the built-in key it is based on |
+| `policy_version.review_due_on`, `published_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
+| `policy_signature.signed_at` | Harbour | ISO 8601 UTC | One per member and version |
+| Outbox `quality.policy.published` | Harbour | `policyId`, `versionNumber`, `change` | |
 
 ## Platform operational tables (not part of the MODS export)
 

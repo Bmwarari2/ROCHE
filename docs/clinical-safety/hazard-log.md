@@ -71,6 +71,7 @@
 | [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Major / Very low / 2 (engineering proposal; the CSO rates it, H-710) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
 | [HZ-126](#hz-126-a-safeguarding-concern-not-progressed-or-protective-measures-not-visible-to-the-staff-caring-for-the-person) | A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person | Major / Medium / 3 | Major / Low / 3 until the open questions in H-599 are settled, then Very low / 2 (engineering proposal; the CSO rates it, H-595) | Open | None (Phase 2) | Phase 2 |
+| [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
 
 Fourteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-112 until its mobile control is built, and HZ-123 until the rota shows the staffing comparison) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -3051,6 +3052,47 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | `packages/db/test/safeguarding-log.test.ts`: `hazard HZ-126 a safeguarding concern is never dropped or closed without its records` (code lists in step with the domain; an unknown or empty abuse type, not referring without a reason, referring without the local authority, closing without Making Safeguarding Personal, a referral decision before it, ending before the staff question or with staff removed and no DBS decision, ending with measures not carried on, and soft-deleting an open concern are refused; every change versioned) and `hazard HZ-011 the safeguarding log is isolated by tenant and scoped as incidents` (including a raiser writing about a person they cannot see) | Passing |
 | `apps/api/test/safeguarding.test.ts`: `hazard HZ-126 anyone who works with the person can raise a concern, and only managers run the log`, `hazard HZ-126 a concern is never dropped or closed without its records` (including the raiser refused, the other managers told, the description kept), `hazard HZ-126 the log shows only the people the manage permission reaches (ADR-0071)`, `hazard HZ-126 a concern opened from a Phase 1 s.42 draft`, `hazard HZ-126 staff caring for the person see the protective measures, never the allegation`, `hazard HZ-126 an overdue referral reaches the notification centre (HZ-013)` (again each day after a manual acknowledgement; to the person's current home) | Passing |
 | The audit of an overdue concern nobody active can manage (`safety.safeguarding.unrouted`) runs only when no owner or manager holds the permission; the test checks it is counted in the daily signal, not the audit itself | Gap: needs a fixture organisation with no manager (with slice 62) |
+
+---
+
+## HZ-128 Staff follow a superseded policy or procedure
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-128 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `quality` module (lane E) |
+| Source | [phase-2.md](../plans/phase-2.md) hazards table (slices 25, 65); [quality.md](../specs/quality.md) sections 17.3 (rules 25 to 28) and 18; Regulation 17 (good governance) |
+
+**Description**: a member of staff follows an out-of-date version of a policy or procedure (for example an earlier medicines, safeguarding, infection control or escalation procedure), or does not know a policy changed, because the old version is still shown or printed as current, two versions appear to be in force, a major change was not read, or a policy passed its review date unnoticed.
+
+**Causes**: two versions published at once; a superseded version opened from a link, a download or a printed copy with nothing saying it is out of date (including a validated tool's link to the escalation policy, which points at a document, not the library; HZ-012, HZ-014); a draft's or a superseded version's PDF reached through the general document routes; a role named on a version that the organisation does not have, so nobody is asked; nobody told when a major change is published; frequent minor versions that keep resetting who is outstanding and since when; so many reminder escalations that senior staff stop reading them (HZ-008); a signature on an old version counted after a major change; a signature recorded on a draft or a superseded version; reminders that never reach the people who must read; new starters never asked to sign; review dates missed; a policy retired but still listed.
+
+**Effects**: care given against a withdrawn procedure (wrong escalation route, out-of-date medicines or infection control practice), with harm to the person; staff unaware of a safeguarding or whistleblowing route; regulatory breach (Regulation 17).
+
+**Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | At most one published version per policy, enforced by the database; publishing a new version supersedes the one before it in the same transaction, and only the state of a published version can change afterwards | Built in Phase 2 slice 25 (migration 0087) |
+| Design | A superseded or retired version is always served by the library with its state and, for a superseded one, the version in force now (also on its PDF, as response headers); the policy list shows only the version in force; the general document routes serve a policy's PDF only while it is in force and never take a new file version of it; a policy whose only version is a draft, and draft history, are hidden from staff who do not manage policies | Built in Phase 2 slice 25 (API, migration 0087); shown on every page and print in slice 65. Escalation-policy links to a superseded PDF are refused, not redirected (H-744) |
+| Design | Read-and-sign by role: everyone holding a listed role signs the version in force; a major change needs everyone to sign again, a minor one keeps the signatures on the version it superseded; new starters are due from the day their first role started; a signature is only ever on the version in force, in the signer's own name; a version naming a role the organisation does not have is not published | Built in Phase 2 slices 8 (rules) and 25 (database and API) |
+| Design | Reminders through the task engine: each outstanding member is told on the first run after they become due, then every `policy.read_and_sign.reminder_days`; a reminder is due at the next reminder (never overdue the same evening, so no escalation storm), completed only by signing (no task transition closes it), and cancelled when a newer version replaces the one it was for or the policy is retired; review tasks when a policy is due soon or overdue, for the author, the publisher or another holder of `quality.policy.manage`, only while they hold it, ended by a newer version or retirement | Built in Phase 2 slice 25 |
+| Training and user documentation | Staff are told to open policies in Harbour, not printed copies, and that a printed copy says when it was printed and which version it is | Slice 65 |
+
+**Target residual risk**: `[CSO rating - human action]`.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/quality/policies.test.ts`: `hazard HZ-128 ...` (rules 25 to 28: publication checks, minor and major changes against signatures, reminders, review status) | Passing (Phase 2 slices 8 and 25, domain) |
+| `packages/db/test/policies.test.ts`: `hazard HZ-128 ...` (one published version per policy; publishing supersedes the last; a published version fixed but for its state; no statement supersedes by setting the flag itself; a draft-only policy and draft history hidden; signatures only on the version in force, in one's own name, never changed) | Passing (Phase 2 slice 25) |
+| `apps/api/test/policies.test.ts`: `hazard HZ-128 ...` (a superseded version served with its state and the version in force, its PDF too; the list shows only the version in force; the general routes serve a policy PDF only while in force and refuse a new file version; a major change asks everyone again, a minor one does not; signing a superseded version refused; unknown roles refused; the first reminder at once, then once per interval, completed only by signing, cancelled by a newer version and by retirement; review tasks) | Passing (Phase 2 slice 25) |
+| Screens and print (state and version on every page) | Planned, slice 65 |
 
 ---
 
