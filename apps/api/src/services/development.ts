@@ -43,6 +43,8 @@ import { withSystemRights } from "./system-rights";
 export const TRAINING_EXPIRY_TASK = "workforce.training_expiry";
 export const COMPETENCE_EXPIRY_TASK = "workforce.competence_expiry";
 export const DEVELOPMENT_REMINDER_PERMISSION = "workforce.training.manage";
+/** Who the reminders go to: the built-in HR role (no person scope: the tasks are about no person). */
+export const DEVELOPMENT_REMINDER_ROLE = "hr";
 
 type Nation = "england" | "wales" | "scotland" | "northern_ireland";
 
@@ -354,7 +356,7 @@ export async function raiseDevelopmentReminders(
       sourceType: "tenant_user",
       sourceId: memberId,
       locationId: null,
-      assigneeRoleKey: "hr",
+      assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
       dueAt: ukEndOfDay(dueOn),
       priority: state.reminderDue <= nearest ? "urgent" : "routine",
       details: {

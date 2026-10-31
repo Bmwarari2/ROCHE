@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { builtinRole } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { REVIEW_TASKS } from "../src/services/care-planning";
+import {
+  DEVELOPMENT_REMINDER_PERMISSION,
+  DEVELOPMENT_REMINDER_ROLE,
+} from "../src/services/development";
 import { DISCARD_OTHERS_PERMISSION } from "../src/services/device-holds";
+import { COMPLIANCE_EXPIRY_ROLE, STAFF_FILE_MANAGE } from "../src/services/staff-files";
 import { RECORD_READ_PERMISSION } from "../src/services/staff-views";
 import { OVERDUE_FIRST_RESPONDERS } from "../src/services/tasks";
 
@@ -108,4 +113,15 @@ describe("hazard HZ-073 routed safety work reaches someone who can see it and ac
       expect(holders).toContain("clinical_lead");
     },
   );
+});
+
+describe("workforce reminders reach a role that can act on them (workforce.md section 5)", () => {
+  // These tasks are about no person and no location: the role needs the task's own permission,
+  // which also makes the task visible to it (migration 0079), not people.person.read.
+  it.each([
+    [COMPLIANCE_EXPIRY_ROLE, STAFF_FILE_MANAGE],
+    [DEVELOPMENT_REMINDER_ROLE, DEVELOPMENT_REMINDER_PERMISSION],
+  ])("%s holds %s", (roleKey, permission) => {
+    expect(bundle(roleKey)).toContain(permission);
+  });
 });
