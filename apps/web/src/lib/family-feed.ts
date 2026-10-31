@@ -55,7 +55,16 @@ export function isFamilyMember(me: { readonly permissions: readonly string[] }):
 }
 
 /** The words of the update a record would carry, for the form's field names. */
-export type FeedField = "source" | "text" | "caption" | "onlyThisPerson" | "confirmationReason";
+export type FeedField =
+  | "source"
+  | "text"
+  | "caption"
+  | "onlyThisPerson"
+  | "staffShown"
+  | "confirmationReason";
+
+/** At most this many members of staff named as shown in one photo (the API's limit). */
+export const STAFF_SHOWN_MAX = 20;
 
 const TEXT_PROBLEMS = new Set([
   "text_required",
@@ -79,6 +88,7 @@ export function feedProblemField(problem: string, kind: FeedSourceKind): FeedFie
   if (TEXT_PROBLEMS.has(problem)) return kind === "photo" ? "caption" : "text";
   if (problem === "needs_confirmation") return "confirmationReason";
   if (problem === "photo_shows_other_people") return "onlyThisPerson";
+  if (problem === "staff_not_consented") return "staffShown";
   if (UPDATE_PROBLEMS.has(problem)) return null;
   return "source";
 }
@@ -200,6 +210,8 @@ export interface FeedDraft {
   readonly text: string;
   readonly caption: string;
   readonly onlyThisPerson: boolean;
+  /** The members of staff the publisher names as shown in a photo (H-905). */
+  readonly staffShown: readonly string[];
   readonly confirmationReason: string;
 }
 
@@ -211,6 +223,7 @@ export type PublishSource =
       readonly documentId: string;
       readonly caption: string | null;
       readonly onlyThisPerson: boolean;
+      readonly staffShown: string[];
     };
 
 /** The source as the API takes it: only the fields its kind uses. */
@@ -226,6 +239,7 @@ export function publishSource(draft: FeedDraft): PublishSource {
         documentId: draft.sourceId,
         caption: draft.caption.trim() || null,
         onlyThisPerson: draft.onlyThisPerson,
+        staffShown: [...new Set(draft.staffShown)],
       };
   }
 }
@@ -240,6 +254,7 @@ export function draftProblems(
     readonly chooseSource: string;
     readonly textRequired: string;
     readonly tooLong: (max: number) => string;
+    readonly staffTooMany: string;
   },
 ): FieldProblem[] {
   const problems: FieldProblem[] = [];
@@ -252,6 +267,9 @@ export function draftProblems(
   }
   if (draft.kind === "photo" && draft.caption.trim().length > FEED_TEXT_MAX) {
     problems.push({ field: "caption", message: words.tooLong(FEED_TEXT_MAX) });
+  }
+  if (draft.kind === "photo" && new Set(draft.staffShown).size > STAFF_SHOWN_MAX) {
+    problems.push({ field: "staffShown", message: words.staffTooMany });
   }
   if (draft.confirmationReason.trim().length > CONFIRMATION_MAX) {
     problems.push({ field: "confirmationReason", message: words.tooLong(CONFIRMATION_MAX) });

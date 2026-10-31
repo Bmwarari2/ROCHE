@@ -33,6 +33,9 @@ async function owner<T = Record<string, unknown>>(text: string, values: unknown[
     const result = await client.query(text, values);
     await client.query("COMMIT");
     return result.rows as T[];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     client.release();
   }
@@ -88,6 +91,27 @@ describe("WORK-003 sponsored workers", () => {
     expect(worker.appendixDGaps).toContain("passport_or_travel_document");
     expect(worker.appendixDGaps).not.toContain("right_to_work_check");
     expect((await send("owner", URL, "POST", record)).status).toBe(409);
+  });
+
+  it("H-907 accept a UK school qualification or a professional body's assessment", async () => {
+    for (const englishEvidence of ["uk_school_qualification", "professional_body_assessment"]) {
+      const body = { ...record, expectedVersion: worker.version, endedOn: null, englishEvidence };
+      delete (body as { tenantUserId?: string }).tenantUserId;
+      const changed = await send("owner", `${URL}/${worker.id}`, "PUT", body);
+      expect(changed.status).toBe(200);
+      worker = (await changed.json()) as Worker;
+      expect((worker as unknown as { englishEvidence: string }).englishEvidence).toBe(
+        englishEvidence,
+      );
+    }
+    const wrong = {
+      ...record,
+      expectedVersion: worker.version,
+      endedOn: null,
+      englishEvidence: "ielts",
+    };
+    delete (wrong as { tenantUserId?: string }).tenantUserId;
+    expect((await send("owner", `${URL}/${worker.id}`, "PUT", wrong)).status).toBe(422);
   });
 
   it("are read with workforce.immigration.read only, never by the worker or a manager", async () => {
@@ -179,31 +203,71 @@ describe("WORK-003 sponsored workers", () => {
 
 describe("WORK-011 the staff privacy notice and image consent", () => {
   it("asks the member to acknowledge the version in force, once", async () => {
+    const insertDocument = async (category: string, title: string, version = 1) =>
+      (
+        await owner<{ id: string }>(
+          `INSERT INTO document (category, title, retention_class, storage_key, content_type,
+             size_bytes, sha256, document_version)
+           VALUES ($1, $2, 'organisation_document', 'fixture/notice', 'application/pdf', 10,
+             repeat('0', 64), $3)
+           RETURNING id`,
+          [category, title, version],
+        )
+      )[0]?.id as string;
+    const first = await insertDocument("organisation_document", "Staff privacy notice", 1);
+    const second = await insertDocument("organisation_document", "Staff privacy notice", 2);
+    const logo = await insertDocument("organisation_logo", "Logo");
+    const set = (who: string, documentId: string) =>
+      send(who, "/v1/workforce/staff-privacy-notice", "PUT", { documentId });
+
+    expect((await set("carer", first)).status).toBe(403);
+    // H-940: only an organisation document of this organisation is the notice.
+    expect((await set("owner", logo)).status).toBe(422);
+    expect((await set("owner", "0199f300-0000-7000-8000-00000000dead")).status).toBe(422);
     expect(
-      (await send("carer", "/v1/workforce/staff-privacy-notice", "PUT", { version: "2026-10" }))
-        .status,
-    ).toBe(403);
-    expect(
-      (await send("owner", "/v1/workforce/staff-privacy-notice", "PUT", { version: "2026-10" }))
-        .status,
-    ).toBe(200);
-    let mine = (await (await send("carer", "/v1/me/staff-privacy")).json()) as {
+      (await send("owner", "/v1/workforce/staff-privacy-notice", "PUT", { version: "x" })).status,
+    ).toBe(422);
+    expect((await set("owner", first)).status).toBe(200);
+    type Mine = {
       acknowledged: boolean;
       currentNoticeVersion: string;
+      notice: { documentId: string; title: string; documentVersion: number } | null;
     };
-    expect(mine).toMatchObject({ acknowledged: false, currentNoticeVersion: "2026-10" });
+    let mine = (await (await send("carer", "/v1/me/staff-privacy")).json()) as Mine;
+    expect(mine).toMatchObject({
+      acknowledged: false,
+      currentNoticeVersion: first,
+      notice: { documentId: first, title: "Staff privacy notice", documentVersion: 1 },
+    });
     const stale = await send("carer", "/v1/me/staff-privacy/acknowledgements", "POST", {
       noticeVersion: "2025-01",
     });
     expect(stale.status).toBe(409);
     for (let i = 0; i < 2; i += 1) {
       const r = await send("carer", "/v1/me/staff-privacy/acknowledgements", "POST", {
-        noticeVersion: "2026-10",
+        noticeVersion: first,
       });
       expect(r.status).toBe(200);
-      mine = (await r.json()) as typeof mine;
+      mine = (await r.json()) as Mine;
     }
     expect(mine.acknowledged).toBe(true);
+
+    // A new version of the notice is asked about afresh.
+    expect((await set("owner", second)).status).toBe(200);
+    mine = (await (await send("carer", "/v1/me/staff-privacy")).json()) as Mine;
+    expect(mine).toMatchObject({ acknowledged: false, notice: { documentVersion: 2 } });
+
+    // The database keeps the rule too.
+    await expect(
+      owner("UPDATE tenant SET staff_privacy_notice_document_id = $1 WHERE id = $2", [
+        logo,
+        DEMO.tenantId,
+      ]),
+    ).rejects.toThrow(/organisation document/);
+    const audits = await owner<{ scope: string }>(
+      "SELECT scope::text AS scope FROM audit_event WHERE action = 'workforce.staff_privacy_notice.set' AND outcome = 'denied'",
+    );
+    expect(audits.length).toBeGreaterThanOrEqual(2);
   });
 
   it("keeps the latest image decision, with no use until consent is given", async () => {

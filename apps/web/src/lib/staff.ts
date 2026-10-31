@@ -463,6 +463,8 @@ export const ENGLISH_EVIDENCE = [
   "degree_taught_in_english",
   "secure_english_language_test",
   "previous_grant",
+  "uk_school_qualification",
+  "professional_body_assessment",
 ] as const;
 export const APPENDIX_D = [
   "passport_or_travel_document",
@@ -640,11 +642,54 @@ export function readMarkReported(
   return done(problems, () => ({ reportedOn: reportedOn as string, smsReference }));
 }
 
-export function readNoticeVersion(form: FormLike, t: Translator): Read<{ version: string }> {
-  const version = text(form, "version");
-  return version.length >= 1 && version.length <= 40
-    ? { ok: true, value: { version } }
-    : { ok: false, problems: [{ field: "version", message: t("privacy.notice.versionRequired") }] };
+/** A document that may be chosen as the staff privacy notice (H-940). */
+export interface NoticeChoice {
+  readonly id: string;
+  readonly label: string;
+}
+
+/**
+ * The organisation documents that may be the staff privacy notice: available ones only, each
+ * version listed by its title and version number, newest version of each title first.
+ */
+export function noticeChoices(
+  documents: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly documentVersion: number;
+    readonly category: string;
+    readonly status: string;
+  }[],
+  t: Translator,
+): NoticeChoice[] {
+  return documents
+    .filter((d) => d.category === "organisation_document" && d.status === "available")
+    .sort(
+      (a, b) => a.title.localeCompare(b.title, "en-GB") || b.documentVersion - a.documentVersion,
+    )
+    .map((d) => ({ id: d.id, label: noticeLabel(d, t) }));
+}
+
+/** How a notice document is named to staff: its title and version. */
+export function noticeLabel(
+  notice: { readonly title: string; readonly documentVersion: number },
+  t: Translator,
+): string {
+  return t("privacy.notice.label", { title: notice.title, version: notice.documentVersion });
+}
+
+export function readNoticeDocument(
+  form: FormLike,
+  choices: readonly NoticeChoice[],
+  t: Translator,
+): Read<{ documentId: string }> {
+  const documentId = text(form, "documentId");
+  return choices.some((c) => c.id === documentId)
+    ? { ok: true, value: { documentId } }
+    : {
+        ok: false,
+        problems: [{ field: "documentId", message: t("privacy.notice.versionRequired") }],
+      };
 }
 
 const ITEM_DONE = /^item-([a-z_]+)$/;

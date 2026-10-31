@@ -1,36 +1,52 @@
 "use client";
 
-import { Button, RadioGroup, TextField } from "@harbour/ui";
+import { Button, RadioGroup, SelectField } from "@harbour/ui";
 import { Save } from "lucide-react";
-import { acknowledgeNotice, decideImageConsent, setNoticeVersion } from "@/app/actions/staff";
+import { acknowledgeNotice, decideImageConsent, setNoticeDocument } from "@/app/actions/staff";
 import { useFieldIds } from "@/components/care/form-state";
 import { t } from "@/lib/i18n";
 import { errorFor } from "@/lib/outcome";
-import { PRIVACY_PAGE, readNoticeVersion, type StaffPrivacy } from "@/lib/staff";
+import {
+  type NoticeChoice,
+  PRIVACY_PAGE,
+  readNoticeDocument,
+  type StaffPrivacy,
+} from "@/lib/staff";
 import { StaffFeedback } from "./StaffForms";
 import { useStaffForm } from "./use-staff-form";
 
 const icon = <Save size={18} strokeWidth={1.5} aria-hidden="true" />;
-const VERSION_FIELDS = ["version"] as const;
+const NOTICE_FIELDS = ["documentId"] as const;
 
-/** The organisation's staff privacy notice version in force (platform.tenant.manage). */
-export function NoticeVersionForm({ current }: { readonly current: string | null }) {
-  const ids = useFieldIds(VERSION_FIELDS);
+/**
+ * The organisation's staff privacy notice in force (platform.tenant.manage; H-940): one of its
+ * organisation documents, each version listed by title and version.
+ */
+export function NoticeDocumentForm({
+  current,
+  choices,
+}: {
+  readonly current: string | null;
+  readonly choices: readonly NoticeChoice[];
+}) {
+  const ids = useFieldIds(NOTICE_FIELDS);
   const { result, pending, submit } = useStaffForm(
-    (form) => readNoticeVersion(form, t),
-    (value) => setNoticeVersion(value),
+    (form) => readNoticeDocument(form, choices, t),
+    (value) => setNoticeDocument(value),
     { done: "notice" },
   );
+  if (choices.length === 0) return <p className="m-0">{t("privacy.notice.noDocuments")}</p>;
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
-      <TextField
-        id={ids.version}
-        name="version"
+      <SelectField
+        id={ids.documentId}
+        name="documentId"
         label={t("privacy.notice.version")}
         hint={t("privacy.notice.versionHint")}
-        defaultValue={current ?? ""}
-        autoComplete="off"
-        error={errorFor(result, "version")}
+        emptyOption={t("privacy.notice.empty")}
+        defaultValue={current && choices.some((c) => c.id === current) ? current : ""}
+        options={choices.map((c) => ({ value: c.id, label: c.label }))}
+        error={errorFor(result, "documentId")}
       />
       <div>
         <Button type="submit" disabled={pending} icon={icon}>
@@ -43,7 +59,14 @@ export function NoticeVersionForm({ current }: { readonly current: string | null
 }
 
 /** The member acknowledges the notice version in force. */
-export function AcknowledgeNoticeForm({ version }: { readonly version: string }) {
+export function AcknowledgeNoticeForm({
+  version,
+  label,
+}: {
+  readonly version: string;
+  /** How the notice is named: its title and version, or an earlier label. */
+  readonly label: string;
+}) {
   const { result, pending, submit } = useStaffForm(
     () => ({ ok: true as const, value: version }),
     (value) => acknowledgeNotice(value),
@@ -53,7 +76,7 @@ export function AcknowledgeNoticeForm({ version }: { readonly version: string })
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <div>
         <Button type="submit" disabled={pending} icon={icon}>
-          {pending ? t("common.saving") : t("privacy.notice.acknowledge", { version })}
+          {pending ? t("common.saving") : t("privacy.notice.acknowledge", { notice: label })}
         </Button>
       </div>
       <StaffFeedback result={result} path={PRIVACY_PAGE} fieldIds={{}} />

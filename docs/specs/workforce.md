@@ -360,7 +360,12 @@ an immigration adviser to confirm (H-524, H-900 to H-902).
 - `sponsor_absence`: dates (inclusive) and whether authorised.
 - `sponsor_report`: a reportable change (`SPONSOR_REPORT_KINDS`), the day it happened, and the day
   it was reported on the sponsor management system with its reference (set together).
-- `tenant.staff_privacy_notice_version`: the organisation's staff privacy notice in force.
+- `tenant.staff_privacy_notice_document_id` and `staff_privacy_notice_version`: the organisation's
+  staff privacy notice in force, an available `organisation_document` of its own (one version in
+  the document store; a composite foreign key and a trigger refuse anything else), and the label
+  members acknowledge, which is that document's id, so each new version is asked about afresh
+  (H-940, recommended answer applied 31/10/2026, review at testing). An earlier free-text label
+  stays readable.
 - `staff_privacy_acknowledgement` (append-only): a member's acknowledgement of a version, once.
 - `staff_image_consent` (append-only): a member's decision on each optional use of their photo or
   image (`IMAGE_PURPOSES`); the latest stands, and no decision means no use.
@@ -368,6 +373,13 @@ an immigration adviser to confirm (H-524, H-900 to H-902).
   status, reference, dates and reason. Harbour holds no LDSS funding figure (H-903).
 
 ### 12.2 Rules (`packages/domain/src/workforce/sponsorship.ts`, table-driven tests)
+
+- **Staff in family photos (H-905, recommended answer applied 31/10/2026, review at testing).**
+  Publishing a family feed photo names the members of staff shown in it (`staffShown`, at most
+  20, kept on `feed_item.staff_shown`). Each must have said yes to `family_feed` in My privacy,
+  read in the system's view with `imageConsent`; never asked, refused, withdrawn or not a member
+  is refused as `staff_not_consented`, naming no one. The publisher's "nobody else can be
+  recognised" check covers everyone else. Consent to another use is not consent to this one.
 
 1. Unauthorised absence for more than `sponsor.unauthorised_absence_working_days` consecutive
    working days is reportable. Weekends and the nation's bank holidays inside a spell neither count
@@ -432,8 +444,7 @@ pay or date of absence. The screens are slice 56 (section 13).
 | --- | --- |
 | No reminder task for a visa due soon or a report due | The reminder sweep, as for staff checks (slice 17) |
 | Unauthorised absence is not drawn from the rota or leave records | Rota and leave (slice 36 onward) |
-| The family feed does not yet check staff image consent before a staff photo is published | Feed publishing checks (slice 56, H-905) |
-| Sponsor records follow the staff file's retention row; any sponsor-specific minimum is unconfirmed | H-901 |
+| Sponsor records are kept 2 years after employment ends (`sponsor_record`), a reading of the guidance for sponsors to confirm with an adviser, with the Appendix D National Insurance number and payslip evidence | H-901 (recommended answer applied, review at testing) |
 
 ## 13. Web screens: staff file, compliance, sponsor and privacy (slice 56)
 
@@ -449,8 +460,8 @@ one addition: `GET /v1/workforce/staff-members`, the member picker for HR forms 
 | `/staff/{id}` | as above | The profile; each Schedule 3 item with its status, verifier, expiry and notes; a form per recordable kind (not the employment history, 13.4) and the profile form for `.manage` holders, never on one's own file; the member's privacy notice acknowledgement and image consent for `.read` holders |
 | `/staff/sponsorship` | `workforce.immigration.read` | Sponsored workers, never one's own record: visa, salary check, open reports, Appendix D gaps, absence to report; a new record for holders of `workforce.sponsor.manage` too |
 | `/staff/sponsorship/{id}` | as above | Where the record stands; reportable changes with due dates; absences; the forms to record a change (filled in from an absence warning), an absence, mark a change reported and change or end the record |
-| `/settings/privacy` (account menu, "My privacy") | `workforce.self.read` | The notice version in force and its acknowledgement; each optional image use: yes or no the first time, then one button that changes the answer and says what it does |
-| `/settings/data-protection` | `platform.tenant.manage` | The staff privacy notice version in force |
+| `/settings/privacy` (account menu, "My privacy") | `workforce.self.read` | The notice in force, named by its title and version and linked to the document, and its acknowledgement; each optional image use, saying what is shown and where, that saying no has no effect on the job and that the answer can be changed here (H-905): yes or no the first time, then one button that changes the answer and says what it does |
+| `/settings/data-protection` | `platform.tenant.manage` | The staff privacy notice in force, chosen from the organisation's documents, each version by title and number (H-940) |
 
 The module menu shows "Staff files" to staff file holders, and to sponsor-only HR it opens
 sponsored workers directly.

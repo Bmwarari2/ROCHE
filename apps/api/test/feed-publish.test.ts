@@ -487,3 +487,66 @@ describe("hazard HZ-022 previewing an update stores nothing", () => {
     );
   });
 });
+
+describe("H-905 staff shown in a family photo have said yes to family updates", () => {
+  it("refuses a photo naming staff without consent, and records who is shown when they have it", async () => {
+    // The person's own consent to photos (an earlier test withdrew it).
+    await sql(
+      `INSERT INTO consent_record (person_id, decision, outcome, given_by_kind, capacity_status, given_at, evidence)
+       VALUES ($1, 'photos', 'given', 'person', 'assumed', now(), 'Asked again in person')`,
+      [ADA],
+    );
+    const photo = await insertDocument("feed_photo", "Photo with staff");
+    const carer = DEMO.users.carer.id;
+    const source = {
+      kind: "photo",
+      documentId: photo,
+      caption: null,
+      onlyThisPerson: true,
+      staffShown: [carer],
+    };
+    const decide = (decision: string) =>
+      sql(
+        `INSERT INTO staff_image_consent (tenant_user_id, purpose, decision, decided_at)
+         VALUES ($1, 'family_feed', $2, now())`,
+        [carer, decision],
+      );
+    const refused = async () => {
+      const r = await publishFor("manager", source);
+      expect(r.status).toBe(422);
+      const [event] = await sql<{ reason: string }>(
+        "SELECT reason FROM audit_event WHERE action = 'comms.feed.publish_refused' ORDER BY occurred_at DESC LIMIT 1",
+      );
+      expect(event?.reason).toBe("staff_not_consented");
+      // The refusal names no one.
+      expect(JSON.stringify(event)).not.toContain(carer);
+    };
+    // Never asked.
+    await refused();
+    await decide("refused");
+    await refused();
+    // Consent to the newsletter is not consent to family updates.
+    await sql(
+      `INSERT INTO staff_image_consent (tenant_user_id, purpose, decision) VALUES ($1, 'newsletter', 'given')`,
+      [carer],
+    );
+    await refused();
+    await decide("given");
+    const published = await publishFor("manager", source);
+    expect(published.status).toBe(201);
+    const id = ((await published.json()) as { item: { id: string } }).item.id;
+    const [row] = await sql<{ staff_shown: string[] }>(
+      "SELECT staff_shown FROM feed_item WHERE id = $1",
+      [id],
+    );
+    expect(row?.staff_shown).toEqual([carer]);
+    // Withdrawn: no new photo of them.
+    await decide("withdrawn");
+    await refused();
+    // A photo naming no staff is unaffected.
+    const other = await insertDocument("feed_photo", "Photo without staff");
+    expect(
+      (await publishFor("manager", { ...source, documentId: other, staffShown: [] })).status,
+    ).toBe(201);
+  });
+});

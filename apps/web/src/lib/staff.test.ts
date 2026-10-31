@@ -1,16 +1,21 @@
+import { EnglishEvidence } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
 import { t } from "./i18n";
 import {
   choosableMembers,
   complianceChip,
   consentChip,
+  ENGLISH_EVIDENCE,
   fileChip,
+  noticeChoices,
+  noticeLabel,
   othersOnly,
   privacyDone,
   privacyShown,
   readAbsence,
   readComplianceItem,
   readMarkReported,
+  readNoticeDocument,
   readReport,
   readSponsoredWorker,
   readStaffFile,
@@ -343,5 +348,74 @@ describe("what a page says after a save (?done=)", () => {
     expect(sponsorDone("<script>", t)).toBeNull();
     expect(privacyDone("consent-website", t)).toBe("Your answer about the website is saved.");
     expect(privacyDone("consent-elsewhere", t)).toBeNull();
+  });
+});
+
+describe("H-940 the staff privacy notice is an organisation document and version", () => {
+  const doc = (id: string, title: string, documentVersion: number, more = {}) => ({
+    id,
+    title,
+    documentVersion,
+    category: "organisation_document",
+    status: "available",
+    ...more,
+  });
+  const choices = noticeChoices(
+    [
+      doc("a", "Staff privacy notice", 1),
+      doc("b", "Staff privacy notice", 2),
+      doc("c", "Fire policy", 1),
+      doc("d", "Quarantined", 1, { status: "quarantined" }),
+      doc("e", "Logo", 1, { category: "organisation_logo" }),
+    ],
+    t,
+  );
+
+  it("offers available organisation documents only, each version by title and number", () => {
+    expect(choices).toEqual([
+      { id: "c", label: "Fire policy, version 1" },
+      { id: "b", label: "Staff privacy notice, version 2" },
+      { id: "a", label: "Staff privacy notice, version 1" },
+    ]);
+    expect(noticeLabel({ title: "Notice", documentVersion: 3 }, t)).toBe("Notice, version 3");
+  });
+
+  it.each([
+    ["b", true],
+    ["d", false],
+    ["", false],
+    ["0199f300-0000-7000-8000-00000000dead", false],
+  ])("reads %j as a choice: %s", (documentId, ok) => {
+    const form = new FormData();
+    form.set("documentId", documentId);
+    expect(readNoticeDocument(form, choices, t).ok).toBe(ok);
+  });
+});
+
+describe("H-905 the image consent wording", () => {
+  it("says saying no has no effect on the job, and where the answer can be changed", () => {
+    const about = t("privacy.image.about");
+    expect(about).toContain("Saying no has no effect on your job.");
+    expect(about).toContain("My privacy");
+  });
+
+  it.each([
+    ["newsletter", "newsletter"],
+    ["website", "website, which anyone can see"],
+    ["social_media", "social media pages, which anyone can see"],
+    ["family_feed", "seen only by the family members"],
+  ])("says for %s what is shown and where", (purpose, where) => {
+    const question = t("privacy.image.question", { purpose });
+    expect(question).toContain("photo of you");
+    expect(question).toContain(where);
+  });
+});
+
+describe("H-907 English language evidence", () => {
+  it("offers exactly the ways the API accepts, each with words", () => {
+    expect([...ENGLISH_EVIDENCE].sort()).toEqual([...EnglishEvidence.options].sort());
+    for (const evidence of ENGLISH_EVIDENCE) {
+      expect(t("sponsor.english.name", { evidence })).not.toBe("Another way");
+    }
   });
 });

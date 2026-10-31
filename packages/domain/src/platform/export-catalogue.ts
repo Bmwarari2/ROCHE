@@ -54,6 +54,7 @@ export type ExportRetention =
   | "invitation"
   | "data_rights_case"
   | "staff_file"
+  | "sponsor_record"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -2528,6 +2529,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       confirmation_reason: { description: "Why the flagged words could be published." },
       supersedes_item_id: { description: "The update this one corrects." },
       other_people_identifiable: { description: "For a photo: whether anyone else can be seen." },
+      staff_shown: {
+        description:
+          "For a photo: the members of staff named as shown in it, each with consent to family updates when it was published.",
+      },
       created_at: "exported",
       created_by: "exported",
     },
@@ -4476,7 +4481,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Absences of sponsored workers, authorised or not, for the sponsor licence's absence monitoring (HR only).",
     treatment: "tenant_rows",
-    retention: "staff_file",
+    retention: "sponsor_record",
     personal: true,
     columns: {
       id: "exported",
@@ -4498,7 +4503,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Reportable changes for sponsored workers and when each was reported to the Home Office (HR only).",
     treatment: "tenant_rows",
-    retention: "staff_file",
+    retention: "sponsor_record",
     personal: true,
     columns: {
       id: "exported",
@@ -4533,7 +4538,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Sponsored workers: certificate of sponsorship, visa expiry, pay, English language and switching evidence, and the Appendix D records held (HR only).",
     treatment: "tenant_rows",
-    retention: "staff_file",
+    retention: "sponsor_record",
     personal: true,
     columns: {
       id: "exported",
@@ -4561,6 +4566,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           degree_taught_in_english: "Degree taught in English.",
           secure_english_language_test: "Secure English language test.",
           previous_grant: "Shown in a previous grant.",
+          uk_school_qualification:
+            "UK school qualification (GCSE, A level or Scottish Higher in English) gained while under 18.",
+          professional_body_assessment:
+            "Assessed by a regulated professional body (for example the NMC) as part of registration.",
         },
       },
       switching_evidence_on: { description: "When switching evidence was checked (UK date)." },
@@ -5079,7 +5088,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       privacy_notice_url: { description: "Where its privacy notice is published (https)." },
       dpa_signed_on: { description: "The UK date it signed the data processing agreement." },
       staff_privacy_notice_version: {
-        description: "The version of the staff privacy notice in force.",
+        description:
+          "The staff privacy notice in force, as members acknowledge it: the notice document's id, or an earlier free-text label.",
+      },
+      staff_privacy_notice_document_id: {
+        description: "The organisation document that is the staff privacy notice in force.",
       },
       uses_data_beyond_direct_care: {
         description:

@@ -7,7 +7,7 @@ import { StaffChip } from "@/components/staff/StaffChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { firstParam } from "@/lib/record-metadata";
-import { consentChip, PRIVACY_PAGE, privacyDone, privacyShown } from "@/lib/staff";
+import { consentChip, noticeLabel, PRIVACY_PAGE, privacyDone, privacyShown } from "@/lib/staff";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -33,6 +33,10 @@ export default async function PrivacyPage({
   if (!got.data) failWith(got.error, got.response, PRIVACY_PAGE);
   const privacy = got.data;
   const version = privacy.currentNoticeVersion;
+  // The notice in force is an organisation document (H-940), named by its title and version and
+  // linked; an earlier label set before that is named as it was.
+  const notice = privacy.notice;
+  const label = notice ? noticeLabel(notice, t) : (version ?? "");
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -44,12 +48,27 @@ export default async function PrivacyPage({
         <div className="flex flex-col gap-3">
           {version === null ? (
             <p className="m-0">{t("privacy.notice.none")}</p>
-          ) : privacy.acknowledged ? (
-            <p className="m-0">{t("privacy.notice.done", { version })}</p>
           ) : (
             <>
-              <p className="m-0">{t("privacy.notice.ask", { version })}</p>
-              <AcknowledgeNoticeForm version={version} />
+              {notice ? (
+                <p className="m-0">
+                  <a href={`/documents/${notice.documentId}`}>
+                    {t("privacy.notice.open", { notice: label })}
+                  </a>
+                </p>
+              ) : null}
+              {privacy.acknowledged ? (
+                <p className="m-0">{t("privacy.notice.done", { notice: label })}</p>
+              ) : (
+                <>
+                  <p className="m-0">
+                    {t(notice ? "privacy.notice.ask" : "privacy.notice.askManager", {
+                      notice: label,
+                    })}
+                  </p>
+                  <AcknowledgeNoticeForm version={version} label={label} />
+                </>
+              )}
             </>
           )}
         </div>

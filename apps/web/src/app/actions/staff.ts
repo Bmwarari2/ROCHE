@@ -207,8 +207,10 @@ export async function markReported(
   });
 }
 
-export async function setNoticeVersion(input: { version: string }): Promise<ActionResult<null>> {
-  if (!isObject(input) || typeof input.version !== "string") return notFound();
+export async function setNoticeDocument(input: {
+  documentId: string;
+}): Promise<ActionResult<null>> {
+  if (!isObject(input) || typeof input.documentId !== "string") return notFound();
   return withApi<null>(async (api) => {
     const { data, error } = await api.PUT("/v1/workforce/staff-privacy-notice", { body: input });
     if (!data) return problemOf(error);

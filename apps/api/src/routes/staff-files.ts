@@ -209,12 +209,17 @@ export const staffFilesRouter = createRouter()
       tags: ["workforce"],
       summary: "Staff to choose from",
       description:
-        "workforce.staff_file.manage, workforce.sponsor.manage or workforce.ldss.manage. Active and invited members holding a staff role in force now, organisation-wide, by display name and job title only (never an email), for the member picker on HR forms; HR roles hold no platform.user.manage.",
+        "workforce.staff_file.manage, workforce.sponsor.manage, workforce.ldss.manage or comms.feed.publish. Active and invited members holding a staff role in force now, organisation-wide, by display name and job title only (never an email), for the member picker on HR forms and for naming the staff shown in a family photo (H-905); these roles hold no platform.user.manage.",
       security,
       responses: { 200: jsonBody(StaffMemberList, "Staff"), ...errorResponses },
     }),
     async (c) => {
-      await requireAnyPermission(c, [MANAGE, "workforce.sponsor.manage", "workforce.ldss.manage"]);
+      await requireAnyPermission(c, [
+        MANAGE,
+        "workforce.sponsor.manage",
+        "workforce.ldss.manage",
+        "comms.feed.publish",
+      ]);
       const items = await withTenant(c, (tx) => currentStaff(tx));
       return c.json({ items }, 200);
     },

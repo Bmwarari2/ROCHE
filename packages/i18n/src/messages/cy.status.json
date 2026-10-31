@@ -3481,6 +3481,15 @@
     "sponsor.done",
     "privacy.image.heading",
     "privacy.image.effect",
-    "privacy.image.change"
+    "privacy.image.change",
+    "comms.feed.publish.staffShown",
+    "comms.feed.publish.staffShownHint",
+    "comms.feed.publish.staffTooMany",
+    "comms.feed.publish.staffUnavailable",
+    "privacy.notice.label",
+    "privacy.notice.open",
+    "privacy.notice.askManager",
+    "privacy.notice.empty",
+    "privacy.notice.noDocuments"
   ]
 }

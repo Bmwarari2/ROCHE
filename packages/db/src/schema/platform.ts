@@ -88,8 +88,14 @@ export const tenant = pgTable(
     sector: text("sector").notNull().default("independent"),
     privacyNoticeUrl: text("privacy_notice_url"),
     dpaSignedOn: date("dpa_signed_on"),
-    /** The version of the staff privacy notice in force (WORK-011; slice 35), set by the DPO's lead. */
+    /**
+     * The staff privacy notice in force (WORK-011; slice 35; H-940): the organisation document
+     * (a version in the document store) and the label members acknowledge, which is that
+     * document's id. The composite foreign key to document is added in SQL (migration 0106), as
+     * document refers back to tenant.
+     */
     staffPrivacyNoticeVersion: text("staff_privacy_notice_version"),
+    staffPrivacyNoticeDocumentId: uuid("staff_privacy_notice_document_id"),
     usesDataBeyondDirectCare: boolean("uses_data_beyond_direct_care"),
     marketingEnabled: boolean("marketing_enabled").notNull().default(false),
     aiFreeTextEnabled: boolean("ai_free_text_enabled").notNull().default(false),

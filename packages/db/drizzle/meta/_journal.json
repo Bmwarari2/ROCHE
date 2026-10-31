@@ -519,6 +519,13 @@
       "when": 1793474642589,
       "tag": "0097_sponsor_licence",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1793481000000,
+      "tag": "0106_staff_privacy_notice_document",
+      "breakpoints": true
     }
   ]
 }

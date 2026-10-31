@@ -5,7 +5,7 @@ import { expectAccessible, signIn } from "./support";
 /**
  * Staff files, compliance, sponsored workers and My privacy (slice 56; WORK-002, WORK-003,
  * WORK-011) against the demo tenant. The owner holds every permission, so here they act as HR:
- * they set the staff privacy notice version, keep Cat Carer's staff file and record a check, and
+ * they set the staff privacy notice (an organisation document, H-940), keep Cat Carer's staff file and record a check, and
  * keep Cat's sponsor record (absence, a change to report, marked reported). Cat acknowledges the
  * notice and decides on an image use, and is offered neither staff files nor sponsor records. The
  * Registered Manager sees staff files but no sponsor records. Each state is checked with axe in
@@ -13,7 +13,14 @@ import { expectAccessible, signIn } from "./support";
  */
 
 const RUN = randomUUID().slice(0, 8);
-const VERSION = `2026-${RUN}`;
+const NOTICE = `Staff privacy notice ${RUN}`;
+/** How the notice is named once chosen (H-940): its title and version. */
+const VERSION = `${NOTICE}, version 1`;
+const pdf = {
+  name: "staff-privacy-notice.pdf",
+  mimeType: "application/pdf",
+  buffer: Buffer.from(`%PDF-1.7\n% ${RUN}\n1 0 obj\n<<>>\nendobj\n%%EOF\n`),
+};
 const CARER = "Cat Carer";
 
 test.describe.configure({ mode: "serial" });
@@ -42,16 +49,24 @@ const daysAgo = (days: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-test("the owner sets the staff privacy notice version", async ({ page }) => {
+test("the owner sets the staff privacy notice from an organisation document", async ({ page }) => {
   await signIn(page, "owner@example.invalid");
+  await page.goto("/documents");
+  const upload = main(page).getByRole("region", { name: "Add a document" });
+  await upload.getByLabel("Title").fill(NOTICE);
+  await upload.getByLabel("File").setInputFiles(pdf);
+  await upload.getByRole("button", { name: "Upload document" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: NOTICE })).toBeFocused();
+
   await page.goto("/settings/data-protection");
   const card = main(page).getByRole("region", { name: "Staff privacy notice" });
-  await card.getByLabel("Version in force").fill(VERSION);
-  await card.getByRole("button", { name: "Save the version" }).click();
+  await card.getByLabel("Notice in force").selectOption({ label: VERSION });
+  await card.getByRole("button", { name: "Save the notice" }).click();
   await expect(
-    main(page).getByRole("status").filter({ hasText: "Staff privacy notice version saved." }),
+    main(page).getByRole("status").filter({ hasText: "Staff privacy notice saved." }),
   ).toBeVisible();
-  await bothThemes(page, "notice version set");
+  await expect(card.getByLabel("Notice in force")).toHaveValue(/^[0-9a-f-]{36}$/);
+  await bothThemes(page, "notice set");
 });
 
 test("a care worker acknowledges the notice and decides on an image use", async ({ page }) => {
@@ -63,17 +78,20 @@ test("a care worker acknowledges the notice and decides on an image use", async 
   await expect(main(page).getByRole("heading", { level: 1, name: "My privacy" })).toBeVisible();
   await bothThemes(page, "my privacy");
 
+  // The notice is linked, by its title and version (H-940).
+  await expect(main(page).getByRole("link", { name: `Open ${VERSION} (PDF)` })).toHaveAttribute(
+    "href",
+    /^\/documents\/[0-9a-f-]{36}$/,
+  );
   await main(page)
-    .getByRole("button", { name: `I have read version ${VERSION}` })
+    .getByRole("button", { name: `I have read ${VERSION}` })
     .click();
   await expect(
     main(page).getByRole("status").filter({ hasText: "Thank you. Your confirmation is saved." }),
   ).toBeVisible();
   // Focus starts at the top of what changed.
   await expect(main(page).getByRole("heading", { level: 1 })).toBeFocused();
-  await expect(
-    main(page).getByText(`You have confirmed you read version ${VERSION}.`),
-  ).toBeVisible();
+  await expect(main(page).getByText(`You have confirmed you read ${VERSION}.`)).toBeVisible();
 
   const website = main(page).getByRole("region", { name: "Photos on the website" });
   const yes = website.getByRole("radio", { name: "Yes", exact: true });
