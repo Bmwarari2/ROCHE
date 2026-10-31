@@ -107,6 +107,7 @@ export * from "./safety/medication-error";
 export * from "./safety/missing-person";
 export * from "./safety/notifications";
 export * from "./safety/outbreak";
+export * from "./safety/outbreak-management";
 export * from "./safety/phase2-rates";
 export * from "./safety/post-fall";
 export * from "./safety/questions";

@@ -533,6 +533,7 @@ export * from "./records";
 export * from "./rota";
 export * from "./safeguarding";
 export * from "./safety";
+export * from "./safety-outbreaks";
 export * from "./scheduling";
 export * from "./search";
 export * from "./speak-up";

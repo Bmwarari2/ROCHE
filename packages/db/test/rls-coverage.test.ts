@@ -43,6 +43,7 @@ const APPEND_ONLY_TABLES = [
   "evidence_pack_item",
   "framework_mapping",
   "audit_action",
+  "outbreak_case",
   "letter",
   "feed_item",
   "feed_item_withdrawal",

@@ -198,6 +198,10 @@ export const PERMISSIONS = {
     careRecord: true,
   },
   "safety.safeguarding.manage": { description: "Manage the safeguarding log", careRecord: true },
+  "safety.outbreak.manage": {
+    description: "Declare and close outbreaks, keep the case line list and the UKHSA report fields",
+    careRecord: true,
+  },
   "safety.complaint.manage": {
     description: "Manage complaints and compliments",
     careRecord: true,

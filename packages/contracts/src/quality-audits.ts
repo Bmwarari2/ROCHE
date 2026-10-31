@@ -35,6 +35,11 @@ export const AuditQuestion = z
     statementIds: z.array(statementId).max(20),
     /** A "no" or "partial" needs an action with an owner and a due date. */
     actionRequired: z.boolean(),
+    /** IPC templates: the Code of Practice criteria the question evidences (`criterion_1` to 10). */
+    ipcCriteria: z
+      .array(z.string().regex(/^criterion_(?:[1-9]|10)$/))
+      .max(10)
+      .optional(),
   })
   .meta({ id: "AuditQuestion" });
 export type AuditQuestion = z.infer<typeof AuditQuestion>;

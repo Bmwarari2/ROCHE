@@ -27,6 +27,7 @@ export * from "./recruitment";
 export * from "./rota";
 export * from "./safeguarding";
 export * from "./safety";
+export * from "./safety-outbreaks";
 export * from "./safety-records";
 export * from "./sample-data";
 export * from "./sub-processors";

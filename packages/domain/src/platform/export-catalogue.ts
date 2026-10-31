@@ -88,6 +88,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.advance_care_record",
   "public.person_care_profile",
   "public.observation",
+  "public.outbreak_case",
   "public.care_note",
   "public.body_map_mark",
   "public.assessment",
@@ -4286,6 +4287,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: { description: "Who recorded it (tenant_user.id)." },
     },
   },
+  "public.ipc_code_criterion": {
+    context: "safety",
+    description:
+      "The infection prevention and control Code of Practice criteria IPC audits are read against.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the Code of Practice criteria (migration 0093).",
+    columns: {},
+  },
   "public.job_offer": {
     context: "workforce",
     description:
@@ -4712,6 +4724,72 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       published_at: "exported",
       attempts: { description: "Relay attempts so far.", unit: "count" },
       last_error: { description: "The last relay error." },
+    },
+  },
+  "public.outbreak": {
+    context: "safety",
+    description:
+      "Outbreaks declared at a location (safety.md section 11): the illness, who declared it and when, the UKHSA report it runs on, the health protection team's reference and the closure.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      syndrome: {
+        description:
+          "The illness: acute respiratory, flu, COVID-19, diarrhoea and vomiting or other.",
+      },
+      organism: { description: "The organism a test named, as staff recorded it." },
+      state: { description: "Declared or closed." },
+      declared_at: { description: "When the outbreak was declared (instant, UTC)." },
+      declared_by: { description: "Who declared it (tenant_user.id)." },
+      notification_id: { description: "The UKHSA report it runs on (statutory_notification.id)." },
+      hpt_reference: { description: "The health protection team's reference." },
+      closed_on: { description: "When the outbreak was closed (UK calendar date)." },
+      closed_at: { description: "When the closure was recorded (instant, UTC)." },
+      closed_by: { description: "Who closed it (tenant_user.id)." },
+      closure_reason: { description: "Why it was closed, in the closer's words." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.outbreak_case": {
+    context: "safety",
+    description:
+      "An outbreak's case line list (safety.md section 11): residents and staff with symptoms, onset, tests, vaccination and outcome. Append-only: an update supersedes the person's last row.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      outbreak_id: { description: "The outbreak (outbreak.id)." },
+      case_type: { description: "Resident or staff." },
+      person_id: "exported",
+      tenant_user_id: { description: "The member of staff, for a staff case (tenant_user.id)." },
+      onset_on: { description: "When symptoms started (UK calendar date)." },
+      symptoms: { description: "Symptoms observed, as codes (cough, fever, diarrhoea and so on)." },
+      test_type: { description: "The test taken: lateral flow, PCR, stool sample or other." },
+      tested_on: { description: "When the test was taken (UK calendar date)." },
+      test_result: { description: "Not tested, pending, positive or negative." },
+      flu_vaccinated: {
+        description: "Whether the person had this season's flu vaccine: yes, no or unknown.",
+      },
+      covid_vaccinated: {
+        description: "Whether the person had a current COVID-19 vaccine: yes, no or unknown.",
+      },
+      outcome: { description: "Unwell, recovered, hospitalised or died." },
+      outcome_on: { description: "When the outcome happened (UK calendar date)." },
+      supersedes_id: "exported",
+      correction_reason: "exported",
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.person": {

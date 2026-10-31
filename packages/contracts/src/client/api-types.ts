@@ -20208,6 +20208,630 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/safety/ipc-criteria": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The IPC Code of Practice criteria
+     * @description safety.outbreak.manage or quality.audit.manage. Global reference data: the 10 criteria of the Code of Practice on the prevention and control of infections, in Harbour's summary, that IPC audit questions are mapped to.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Criteria */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["IpcCriterionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/ipc-audits/{id}/criteria": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An IPC audit read against the Code of Practice criteria
+     * @description quality.audit.manage at the audit's location. Each criterion with the questions mapped to it, the audit's own weighted score over them and the answers that fell short; a criterion no question covers has no score, so a gap shows. Only for audits of kind `ipc` (409 otherwise). Read from the questions the audit started with.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Criteria results */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["IpcAuditCriteria"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/outbreaks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Outbreaks
+     * @description safety.outbreak.manage, at the locations where you hold it. Newest first, at most 200, by location or state.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          state?: "declared" | "closed";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Outbreaks */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Declare an outbreak
+     * @description safety.outbreak.manage at the location, in England (other nations wait for their nation pack; 409). One open outbreak per illness at a location (409 otherwise). Drafts the outbreak's own UKHSA report, due without delay, so its clock shows in the notification centre (HZ-013). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DeclareOutbreak"];
+        };
+      };
+      responses: {
+        /** @description Declared */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/outbreaks/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An outbreak with its line list, report fields and report clock
+     * @description safety.outbreak.manage at the outbreak's location. Every line-list row (residents only where you can see the person), each marked current or superseded; the UKHSA report fields counted from every row, whoever is reading (people ever positive or in hospital counted once), with what is still missing, to copy into the report; the outbreak's own report with its clock; how many cases are still unwell; how many rows about residents you cannot see are counted but not listed. The view is audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The outbreak */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Record the organism or the health protection team's reference
+     * @description safety.outbreak.manage at the outbreak's location, against the version read; an open outbreak only. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateOutbreak"];
+        };
+      };
+      responses: {
+        /** @description Updated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/outbreaks/{id}/cases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a case to the line list, or update one
+     * @description safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff working there (a current role at the location or across the organisation), once per outbreak: a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordOutbreakCase"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/outbreaks/{id}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Close an outbreak
+     * @description safety.outbreak.manage at the outbreak's location, against the version read, with the date and a reason (for example agreed with the health protection team). Only once the outbreak's own UKHSA report is submitted or recorded as not needed (HZ-013; 409 otherwise); not before the day it was declared or the last case's symptoms started (counted from every row), nor in the future. Cases still unwell are said in the response, never a blocker. Final. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseOutbreak"];
+        };
+      };
+      responses: {
+        /** @description Closed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/staff-files": {
     parameters: {
       query?: never;
@@ -43236,6 +43860,7 @@ export interface components {
       weight: number;
       statementIds: string[];
       actionRequired: boolean;
+      ipcCriteria?: string[];
     };
     AuditTemplateList: {
       items: components["schemas"]["AuditTemplateItem"][];
@@ -43455,6 +44080,230 @@ export interface components {
         /** Format: date */
         dueOn?: string;
       }[];
+    };
+    IpcCriterionList: {
+      items: components["schemas"]["IpcCriterionItem"][];
+    };
+    IpcCriterionItem: {
+      id: string;
+      number: number;
+      title: string;
+      source: string;
+    };
+    IpcAuditCriteria: {
+      /** Format: uuid */
+      auditId: string;
+      criteria: {
+        id: string;
+        number: number;
+        title: string;
+        questionKeys: string[];
+        percent: number | null;
+        achieved: number;
+        possible: number;
+        fellShort: string[];
+      }[];
+      method: string;
+    };
+    OutbreakList: {
+      items: components["schemas"]["OutbreakSummary"][];
+    };
+    OutbreakSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      /** @enum {string} */
+      syndrome: "acute_respiratory" | "flu" | "covid_19" | "diarrhoea_vomiting" | "other";
+      organism: string | null;
+      /** @enum {string} */
+      state: "declared" | "closed";
+      /** Format: date-time */
+      declaredAt: string;
+      /** Format: uuid */
+      declaredBy: string;
+      /** Format: uuid */
+      notificationId: string | null;
+      hptReference: string | null;
+      /** Format: date */
+      closedOn: string | null;
+      /** Format: date-time */
+      closedAt: string | null;
+      /** Format: uuid */
+      closedBy: string | null;
+      closureReason: string | null;
+      version: number;
+    };
+    OutbreakDetail: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      /** @enum {string} */
+      syndrome: "acute_respiratory" | "flu" | "covid_19" | "diarrhoea_vomiting" | "other";
+      organism: string | null;
+      /** @enum {string} */
+      state: "declared" | "closed";
+      /** Format: date-time */
+      declaredAt: string;
+      /** Format: uuid */
+      declaredBy: string;
+      /** Format: uuid */
+      notificationId: string | null;
+      hptReference: string | null;
+      /** Format: date */
+      closedOn: string | null;
+      /** Format: date-time */
+      closedAt: string | null;
+      /** Format: uuid */
+      closedBy: string | null;
+      closureReason: string | null;
+      version: number;
+      cases: components["schemas"]["OutbreakCaseItem"][];
+      report: components["schemas"]["UkhsaReportFields"];
+      notification: components["schemas"]["StatutoryNotificationSummary"] &
+        (Record<string, never> | null);
+      stillUnwell: number;
+      rowsNotShown: number;
+    };
+    OutbreakCaseItem: {
+      /** @enum {string} */
+      caseType: "resident" | "staff";
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      tenantUserId: string | null;
+      /** Format: date */
+      onsetOn: string;
+      symptoms: (
+        | "fever"
+        | "cough"
+        | "sore_throat"
+        | "shortness_of_breath"
+        | "loss_of_taste_or_smell"
+        | "diarrhoea"
+        | "vomiting"
+        | "new_confusion"
+        | "other"
+      )[];
+      /** @enum {string|null} */
+      testType: "lateral_flow" | "pcr" | "stool_sample" | "other" | null;
+      /** Format: date */
+      testedOn: string | null;
+      /** @enum {string} */
+      testResult: "not_tested" | "pending" | "positive" | "negative";
+      /** @enum {string} */
+      fluVaccinated: "yes" | "no" | "unknown";
+      /** @enum {string} */
+      covidVaccinated: "yes" | "no" | "unknown";
+      /** @enum {string} */
+      outcome: "unwell" | "recovered" | "hospitalised" | "died";
+      /** Format: date */
+      outcomeOn: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      /** Format: uuid */
+      id: string;
+      current: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: uuid */
+      createdBy: string | null;
+    };
+    UkhsaReportFields: {
+      settingName: string;
+      postcode: string | null;
+      cqcLocationId: string | null;
+      /** @enum {string} */
+      syndrome: "acute_respiratory" | "flu" | "covid_19" | "diarrhoea_vomiting" | "other";
+      organism: string | null;
+      /** Format: date */
+      declaredOn: string;
+      residentCases: number;
+      staffCases: number;
+      /** Format: date */
+      firstOnsetOn: string | null;
+      /** Format: date */
+      latestOnsetOn: string | null;
+      tested: number;
+      positive: number;
+      pending: number;
+      hospitalised: number;
+      died: number;
+      fluVaccination: {
+        yes: number;
+        no: number;
+        unknown: number;
+      };
+      covidVaccination: {
+        yes: number;
+        no: number;
+        unknown: number;
+      };
+      missing: string[];
+      source: {
+        source: string;
+        provision: string;
+        url: string;
+      };
+    };
+    DeclareOutbreak: {
+      /** Format: uuid */
+      locationId: string;
+      /** @enum {string} */
+      syndrome: "acute_respiratory" | "flu" | "covid_19" | "diarrhoea_vomiting" | "other";
+      organism?: string;
+      hptReference?: string;
+    };
+    UpdateOutbreak: {
+      version: number;
+      organism: string | null;
+      hptReference: string | null;
+    };
+    RecordOutbreakCase: {
+      /** @enum {string} */
+      caseType: "resident" | "staff";
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      tenantUserId: string | null;
+      /** Format: date */
+      onsetOn: string;
+      symptoms: (
+        | "fever"
+        | "cough"
+        | "sore_throat"
+        | "shortness_of_breath"
+        | "loss_of_taste_or_smell"
+        | "diarrhoea"
+        | "vomiting"
+        | "new_confusion"
+        | "other"
+      )[];
+      /** @enum {string|null} */
+      testType: "lateral_flow" | "pcr" | "stool_sample" | "other" | null;
+      /** Format: date */
+      testedOn: string | null;
+      /** @enum {string} */
+      testResult: "not_tested" | "pending" | "positive" | "negative";
+      /** @enum {string} */
+      fluVaccinated: "yes" | "no" | "unknown";
+      /** @enum {string} */
+      covidVaccinated: "yes" | "no" | "unknown";
+      /** @enum {string} */
+      outcome: "unwell" | "recovered" | "hospitalised" | "died";
+      /** Format: date */
+      outcomeOn: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+    };
+    CloseOutbreak: {
+      version: number;
+      /** Format: date */
+      closedOn: string;
+      reason: string;
     };
     StaffFileList: {
       items: components["schemas"]["StaffFileSummary"][];
