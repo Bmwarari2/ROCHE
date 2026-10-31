@@ -3,7 +3,8 @@
 Master prompt sections 12.1, 12.2 and 12.4, with section 4 (roles) and 18 (data model). Phase 2
 builds the whole employee file from application to leaving ([phase-2.md](../plans/phase-2.md),
 lane B). Payroll itself is integrated, not built (section 12). Sections 2 to 4 and 9 were written by
-slice 4 (the domain rules); sections 5 to 8 grow with the schema, API and screen slices. Status per
+slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9);
+sections 5 to 8 grow with the schema, API and screen slices. Status per
 feature: [feature register](feature-register.md).
 
 ## 1. Purpose and register rows
@@ -50,6 +51,37 @@ sponsor CoS and visa expiry; expiry tasks), `training_record`, `competence` and 
 | `Registration` | `compliance_item` (kind `professional_registration`) | Body (`nmc`, `hcpc`, `swe`, `gmc`), PIN, renewal date, revalidation date, revalidation evidence counts |
 | `SponsorEvent` | sponsor records (slice 35) | Reportable change, when it happened, when it was reported |
 
+### 2a. Staff profile and pre-employment file (slice 11, migration 0073)
+
+Two tenant tables, with forced row-level security and the policies in section 3; both are mutable
+aggregates (`version`, `expected_version` on every change, earlier versions in `record_version`),
+never deleted.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `staff_profile` | `tenant_user_id` (the member of staff; one profile each), `location_id` (where they mainly work, or empty), `job_title`, `pathway_category` (Care Workforce Pathway role category, optional), `registration_body` (`nmc`, `hcpc`, `swe`, `gmc` or empty: adds professional registration), `previous_care_work` (adds conduct evidence), `date_of_birth` (optional: for the `staff_file.to_75th_birthday` retention row and the under-18 working time rules), `starts_on`, `left_on` | Keeps its member. Never written by the member themselves |
+| `compliance_item` | `staff_profile_id`, `kind` (one of the Schedule 3 items, one row per kind), `detail` (JSON, `ComplianceDetail` for the kind), `verified_on` and `verified_by` (who saw the evidence, set together), `risk_assessment_signed_on` and `_by` (DBS only), `expires_on` and `recheck_due_on` (worked out from the detail when saved, for the reminder sweep) | Keeps its profile and kind; the detail's `kind` is the row's. Verified in the verifier's own name by a holder of manage; the risk assessment signed in the signer's own name by a holder of `workforce.dbs_risk_assessment.sign`; neither ever the worker |
+
+What each kind's `detail` holds (data minimisation: only what the rule needs):
+
+| Kind | Detail | Satisfied when (rule) |
+| --- | --- | --- |
+| `identity_with_photo` | The document seen (`passport`, `photocard_driving_licence`, `national_identity_card`, `biometric_residence_permit`, `other_photo_document`); a copy may be added as an HR-only document | Verified |
+| `dbs_certificate` | Certificate level, issue date, the 12-digit number and whether it was clear or disclosed information (never what it disclosed); Update Service subscription with the last status check and result; the date of a clear adults' barred list check made before the certificate | Verified and clear (rule 3): a disclosure needs a risk assessment signed on or after the issue date; supervised-only is shown but not satisfied. No copy of the certificate is kept |
+| `conduct_in_care_work` | How many earlier care employers were asked | Verified |
+| `references` | How many references were received | Verified and at least one |
+| `relevant_qualifications` | The qualifications' names | Verified |
+| `employment_history` | History start, application month, periods (employment, education or an explained gap with its explanation) | Verified and no unexplained gap (rule 4) |
+| `health_fitness` | Declared fit, and whether adjustments were agreed (never the health details: the questionnaire is an HR-only document) | Verified and declared fit |
+| `right_to_work` | Each check: date, method (`manual_document`, `online_share_code`, `idsp`), permission (`unlimited`, `time_limited`) and the expiry of a time-limited one; never the share code | Verified and the latest check allows work (rule 2); a first check after the start date is noted |
+| `professional_registration` | Body, PIN, renewal date, revalidation date | Verified and current (rule 8) |
+
+`staffFileState` (`staff-file.ts`) works out every item on the UK date asked about: an item
+verified by the worker themselves, or on a later date, is not satisfied; satisfaction is never
+stored. HR-only documents are `document` rows of category `staff_hr_document` (subject the
+compliance item, no person); right to work copies are kept as `right_to_work_copy`, everything else
+as the staff file.
+
 Retention classes ([retention.md](retention.md)): `staff_file.after_leaving` or
 `staff_file.to_75th_birthday` (the tenant's choice) for the staff file and casework;
 `right_to_work_copy`; `training_record` for training and competence. The gaps (unsuccessful
@@ -71,6 +103,31 @@ has no routes); the matrix the API slices use:
 | Schedule and record supervision, appraisal and spot checks | `workforce.supervision.manage` | |
 | See own file, training, competence and revalidation dates | `workforce.self.read` | |
 | Roster a worker missing a required check (override) | `workforce.recruitment.manage` with a typed justification | Logged and reported (section 12 rule); scheduling reads the result through the published port (ADR-0085, slice 17) |
+
+Slice 11 adds four permissions so that HR data has its own (section 12.4), replacing
+`workforce.recruitment.manage` for the staff file (recruitment keeps applicants, slice 23):
+
+| Permission | Lets the holder | Built-in roles |
+| --- | --- | --- |
+| `workforce.staff_file.read` | See staff profiles and where each check stands, with the details | Owner, Registered Manager, deputy manager, HR |
+| `workforce.staff_file.manage` | Create and change profiles, record and verify checks (never on their own file) | Owner, Registered Manager, deputy manager, HR |
+| `workforce.hr_document.read` | Open and add HR-only staff documents; every view is audited | Owner, HR (a manager is given it by a grant or a role change) |
+| `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment for a supervised start or a disclosure (never for themselves) | Owner, Registered Manager |
+| `workforce.self.read` (existing) | See their own profile and where each of their checks stands | Every staff role |
+
+Staff files are the organisation's employment records, not people's care records, and HR functions
+are organisation-wide (master prompt section 4): a tenant or location role or a grant anywhere
+reaches every file, and so does a role with no person scope (HR's). A role scoped to assigned
+people or to the person themselves counts only for `workforce.self.read`. The DBS risk assessment
+is signed only where the worker works (or by an organisation-wide holder). Every permission above
+except `workforce.self.read` needs MFA, as care records do (`sensitive` in the catalogue): the file
+holds special category and criminal offence data. Details changed under a verification are verified
+again by whoever changed them; a signed risk assessment is never unsigned; HR-only documents on a
+holder's own file are hidden from them; earlier versions of staff files in `record_version` follow
+the files' read rule. The database enforces each row (migration 0073):
+`app.holds_staff_permission`, the read, insert and update policies, the guard triggers and the
+`document_hr_only` policy, which hides HR-only documents from everyone else whatever their document
+permissions. The general document routes never serve them and search never finds them.
 
 ## 4. Rules that are easy to get wrong
 
@@ -157,8 +214,36 @@ Rate keys in use: `training.default_refresh_years`, `training.oliver_mcgowan.ref
 
 ## 5. API and events
 
-To be written in slice 4 (operations) and slices 11, 17, 23, 29, 35, 39 and 43. Competence changes
-are published for medicines and scheduling (ADR-0085).
+Slice 11 (the staff file). Every change takes `expectedVersion` (409 when stale) and writes an
+audit event with opaque ids only; refusals are audited too. Dates are UK dates (`yyyy-mm-dd`).
+
+| Route | Permission | Does |
+| --- | --- | --- |
+| `GET /v1/workforce/staff-files` | `workforce.staff_file.read` | Every profile with its file state today: complete or not, outstanding items, items due soon |
+| `POST /v1/workforce/staff-files` | `workforce.staff_file.manage` | Create a profile for a member of staff (not oneself); 409 if they have one |
+| `GET /v1/workforce/staff-files/{id}` | `workforce.staff_file.read` | The profile, each item with its details, status and notes (`staffFileState`), and the HR-only documents' titles to holders of `workforce.hr_document.read` |
+| `PATCH /v1/workforce/staff-files/{id}` | `workforce.staff_file.manage` | Change the profile |
+| `PUT /v1/workforce/staff-files/{id}/items/{kind}` | `workforce.staff_file.manage` | Record or replace one item's details, and verify it (in the caller's name) or leave it unverified; works out `expires_on` and `recheck_due_on`, and ends open reminder tasks when the reminder date changes |
+| `POST /v1/workforce/staff-files/{id}/items/dbs_certificate/risk-assessment` | `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment, in the caller's name, never their own |
+| `POST /v1/workforce/staff-files/{id}/items/{kind}/documents` | `workforce.staff_file.manage` and `workforce.hr_document.read` | Add an HR-only document to an item (the file as the body, as the document store takes it); never to `dbs_certificate` |
+| `GET /v1/workforce/staff-files/{id}/documents/{documentId}/content` | `workforce.hr_document.read` | Open an HR-only document; every open writes `workforce.hr_document.viewed` |
+| `GET /v1/me/staff-file` | `workforce.self.read` | The member's own profile and where each of their checks stands |
+
+Audit actions: `workforce.staff_file.created`, `.updated`, `workforce.compliance_item.recorded`,
+`workforce.dbs_risk_assessment.signed`, `workforce.hr_document.added`, `workforce.hr_document.viewed`.
+
+Expiry tasks (rule 1): the `staff-file-expiry-reminders` job runs hourly. For each item with an
+expiry or a re-check date, at `document_expiry.reminder_days.first`, `.second` and `.third` days
+before it, it raises one task through the task engine (kind `workforce.compliance_expiry`, the
+generic title "Renew a staff check before it expires", no name; `requiredPermission`
+`workforce.staff_file.manage`; assigned to the `hr` role; with no location, so care staff never
+see whose check is due (organisation-wide roles do; an inbox for HR's role comes with the task
+port); source the
+compliance item, with the offset and the date in its details), once each: a task already raised
+for that item, offset and date, whatever its status, stops a second, and the job never changes the
+item. Recording the item again with a new date cancels its open reminder tasks (as the system,
+for that item only), and the new date's reminders follow. Competence changes are published for
+medicines and scheduling (ADR-0085, slice 17).
 
 ## 6. Offline behaviour
 
@@ -175,6 +260,25 @@ as its first control.
 Purpose B3 in the [records of processing](../compliance/records-of-processing.md). Section 12.4:
 staff privacy notice, staff DSARs in the section 5 workbench, HR-only immigration and sponsor
 documents, staff photo and image consent, and an employee-monitoring DPIA.
+
+The pre-employment file (slice 11) holds special category data (health: the fitness declaration
+and any health questionnaire; possibly racial or ethnic origin and religion seen on identity and
+right to work documents) and criminal offence data (the DBS check). Conditions:
+
+- Article 6(1)(c) legal obligation (Health and Social Care Act 2008 (Regulated Activities)
+  Regulations 2014 regulation 19 and Schedule 3; Immigration, Asylum and Nationality Act 2006
+  sections 15 to 25), and 6(1)(b) for the contract of employment.
+- Health: Article 9(2)(b) (employment) with DPA 2018 Schedule 1 Part 1 paragraph 1.
+- DBS: Article 10 with DPA 2018 section 10(5) and Schedule 1 Part 1 paragraph 1 (employment), and
+  Part 2 paragraph 18 (safeguarding of children and individuals at risk).
+- Both need the controller's appropriate policy document (Schedule 1 Part 4) and an entry in its
+  records of processing that says so (paragraph 41); the provider is the controller (H-576).
+
+Minimisation: no DBS certificate copy and nothing of what one disclosed (only the level, date,
+number, clear or disclosed, and the risk assessment decision; the DBS code of practice); no share
+codes; no health details, only the declaration; HR-only documents behind their own permission with
+every view audited. Retention: the staff file row the tenant chose; right to work copies
+`right_to_work_copy` ([retention.md](retention.md)).
 
 ## 9. Acceptance criteria and tests
 
@@ -201,11 +305,41 @@ Slice 4 (domain, table-driven, `packages/domain/src/workforce/*.test.ts`, covera
 - Every rule across a clock change: an instant late on the last Sunday of March or October resolves
   to the right UK date.
 
-API, web and mobile tests come with slices 11, 17, 35, 56 and 57; the Phase 2 gate needs expired
+Slice 11:
+
+- `staff-file.test.ts` (domain): every kind satisfied and not; self-verified and future-verified
+  items; a disclosure accepted only by a risk assessment signed on or after the certificate;
+  supervised only; the right to work's latest check wherever it is listed and a late first check;
+  gaps; the whole file per role; reminders on each offset, once each, and to the DBS re-check.
+- `packages/db/test/staff-file.test.ts`: another organisation's files, items and HR-only
+  documents never seen or written; HR's role with no person scope reads and writes; a location's
+  manager reads across the organisation; the worker reads only their own file and writes nothing;
+  a manager never writes their own file; verification and signing only in one's own name; the
+  sign permission; nothing deleted; earlier versions kept; HR-only documents seen and added only by
+  holders of `workforce.hr_document.read`.
+- `apps/api/test/staff-files.test.ts`: each route's permission and refusal audit; the file state;
+  stale `expectedVersion`; the HR-only document added, refused through the general routes, opened
+  and audited; the worker's own file; the reminder job raising each task once and the tasks ended
+  by a renewal.
+
+API, web and mobile tests come with slices 17, 35, 56 and 57; the Phase 2 gate needs expired
 competence to block administration (with [medicines.md](medicines.md)).
 
 ## 10. Open questions
 
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
-H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574).
+H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579).
+
+## 11. Known gaps
+
+Left open by slice 11 (its security review), each with the slice expected to close it:
+
+| Gap | Effect now | To close |
+| --- | --- | --- |
+| Expiry reminder tasks have no person and no location, and `app.task_visible` does not read `required_permission` | Organisation-wide roles see them; HR's role (scope none) does not see them in `GET /v1/tasks` | Task visibility for holders of the task's required permission (slice 17, if small) |
+| HR-only documents carry retention class `staff_file`, which has no rule of its own; the tenant's choice of `staff_file.*` and the leaving-date trigger are not in the retention engine; right to work copies' `record_closed` trigger is not handled | Nothing destroys HR-only documents or right to work copies yet | The retention engine's employment triggers (with H-575) |
+| Employment gap explanations (free text) are in `compliance_item.detail` | Readable by holders of `workforce.staff_file.read`, not HR only | Move to an HR-only field or document (slice 56, with the screens) |
+| Upload titles and file names travel in the query string, as on `/v1/documents` | They may reach proxy logs | A header or multipart field for every upload route |
+| A refused HR upload (malware, wrong type) | Not audited as `workforce.hr_document.added` denied | Wrap the document store's refusals in audited refusals |
+| The full tenant export runs as the system | Holders of `platform.export.create` export staff files and HR-only documents | Decide with the DPO whether the export needs the HR permissions too (H-577) |

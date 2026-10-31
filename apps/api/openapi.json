@@ -546,7 +546,8 @@
           "care_attachment",
           "person_document",
           "organisation_document",
-          "organisation_logo"
+          "organisation_logo",
+          "staff_hr_document"
         ]
       },
       "SearchResults": {
@@ -6848,6 +6849,20 @@
           "missedTasksNotListedBefore": {
             "type": "string",
             "format": "date"
+          },
+          "staffProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "complianceItemKind": {
+            "type": "string"
+          },
+          "reminderDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reminderDays": {
+            "type": "integer"
           }
         }
       },
@@ -19515,6 +19530,969 @@
           "comparedWithId",
           "sections",
           "registrationPrompts"
+        ]
+      },
+      "StaffFileList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffFileSummary"
+            }
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "items",
+          "asOf"
+        ]
+      },
+      "StaffFileSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "member": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "startsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "leftOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "outstanding": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplianceItemKind"
+            }
+          },
+          "dueSoon": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplianceItemKind"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "member",
+          "locationId",
+          "jobTitle",
+          "startsOn",
+          "leftOn",
+          "complete",
+          "outstanding",
+          "dueSoon"
+        ]
+      },
+      "ComplianceItemKind": {
+        "type": "string",
+        "enum": [
+          "identity_with_photo",
+          "dbs_certificate",
+          "conduct_in_care_work",
+          "references",
+          "relevant_qualifications",
+          "employment_history",
+          "health_fitness",
+          "right_to_work",
+          "professional_registration"
+        ],
+        "description": "A Schedule 3 pre-employment requirement"
+      },
+      "StaffFileItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "member": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "jobTitle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "pathwayCategory": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "registrationBody": {
+            "$ref": "#/components/schemas/RegistrationBody"
+          },
+          "previousCareWork": {
+            "type": "boolean"
+          },
+          "dateOfBirth": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "startsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "leftOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "outstanding": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplianceItemKind"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplianceItemView"
+            }
+          },
+          "documents": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/StaffHrDocument"
+            }
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "member",
+          "locationId",
+          "jobTitle",
+          "pathwayCategory",
+          "registrationBody",
+          "previousCareWork",
+          "dateOfBirth",
+          "startsOn",
+          "leftOn",
+          "complete",
+          "outstanding",
+          "items",
+          "documents",
+          "asOf"
+        ]
+      },
+      "RegistrationBody": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "nmc",
+          "hcpc",
+          "swe",
+          "gmc",
+          null
+        ]
+      },
+      "ComplianceItemView": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ComplianceItemKind"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplianceStatus"
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/ComplianceDetail"
+          },
+          "verifiedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "verifiedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "riskAssessmentSignedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "riskAssessmentSignedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "expiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "recheckDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplianceNote"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "required",
+          "status",
+          "id",
+          "version",
+          "detail",
+          "verifiedOn",
+          "verifiedBy",
+          "riskAssessmentSignedOn",
+          "riskAssessmentSignedBy",
+          "expiresOn",
+          "recheckDueOn",
+          "notes"
+        ]
+      },
+      "ComplianceStatus": {
+        "type": "string",
+        "enum": [
+          "satisfied",
+          "due_soon",
+          "expired",
+          "missing",
+          "not_required"
+        ]
+      },
+      "ComplianceDetail": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "identity_with_photo"
+                ]
+              },
+              "document": {
+                "type": "string",
+                "enum": [
+                  "passport",
+                  "photocard_driving_licence",
+                  "national_identity_card",
+                  "biometric_residence_permit",
+                  "other_photo_document"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "document"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dbs_certificate"
+                ]
+              },
+              "certificate": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "enhanced_adults_barred",
+                      "enhanced",
+                      "standard",
+                      "basic"
+                    ]
+                  },
+                  "issuedOn": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "number": {
+                    "type": "string",
+                    "pattern": "^\\d{12}$"
+                  },
+                  "result": {
+                    "type": "string",
+                    "enum": [
+                      "clear",
+                      "information_disclosed"
+                    ]
+                  }
+                },
+                "required": [
+                  "level",
+                  "issuedOn",
+                  "number",
+                  "result"
+                ]
+              },
+              "updateService": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "subscribed": {
+                    "type": "boolean"
+                  },
+                  "lastCheckedOn": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date"
+                  },
+                  "lastResult": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "no_new_information",
+                      "new_information",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "subscribed",
+                  "lastCheckedOn",
+                  "lastResult"
+                ]
+              },
+              "barredListClearOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              }
+            },
+            "required": [
+              "kind",
+              "certificate",
+              "updateService",
+              "barredListClearOn"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "conduct_in_care_work"
+                ]
+              },
+              "employersContacted": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 50
+              }
+            },
+            "required": [
+              "kind",
+              "employersContacted"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "references"
+                ]
+              },
+              "received": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20
+              }
+            },
+            "required": [
+              "kind",
+              "received"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "relevant_qualifications"
+                ]
+              },
+              "qualifications": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 160
+                },
+                "maxItems": 30
+              }
+            },
+            "required": [
+              "kind",
+              "qualifications"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "employment_history"
+                ]
+              },
+              "historyStart": {
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+              },
+              "applicationMonth": {
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+              },
+              "periods": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                    },
+                    "to": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "employment",
+                        "education",
+                        "explained_gap"
+                      ]
+                    },
+                    "explanation": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to",
+                    "kind"
+                  ]
+                },
+                "maxItems": 80
+              }
+            },
+            "required": [
+              "kind",
+              "historyStart",
+              "applicationMonth",
+              "periods"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "health_fitness"
+                ]
+              },
+              "declaredFit": {
+                "type": "boolean"
+              },
+              "adjustmentsAgreed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "declaredFit",
+              "adjustmentsAgreed"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "right_to_work"
+                ]
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "checkedOn": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "manual_document",
+                        "online_share_code",
+                        "idsp"
+                      ]
+                    },
+                    "permission": {
+                      "type": "string",
+                      "enum": [
+                        "unlimited",
+                        "time_limited"
+                      ]
+                    },
+                    "expiresOn": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    }
+                  },
+                  "required": [
+                    "checkedOn",
+                    "method",
+                    "permission",
+                    "expiresOn"
+                  ]
+                },
+                "maxItems": 40
+              }
+            },
+            "required": [
+              "kind",
+              "checks"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "professional_registration"
+                ]
+              },
+              "body": {
+                "$ref": "#/components/schemas/RegistrationBody"
+              },
+              "pin": {
+                "type": "string",
+                "pattern": "^[0-9A-Z]{4,12}$"
+              },
+              "renewalDueOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "revalidationDueOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              }
+            },
+            "required": [
+              "kind",
+              "body",
+              "pin",
+              "renewalDueOn",
+              "revalidationDueOn"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What a compliance item keeps, by its kind"
+      },
+      "ComplianceNote": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "not_verified",
+              "self_verified",
+              "dbs_supervised_only",
+              "dbs_not_clear",
+              "dbs_update_service_check_due",
+              "right_to_work_none",
+              "right_to_work_lapsed",
+              "right_to_work_checked_late",
+              "employment_gaps",
+              "registration_lapsed",
+              "health_not_declared_fit",
+              "references_none"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "dueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "lapsedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                },
+                "to": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                },
+                "months": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "months"
+              ]
+            }
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "description": "Why an item is not satisfied, or what it must say"
+      },
+      "StaffHrDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemKind": {
+            "$ref": "#/components/schemas/ComplianceItemKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "itemKind",
+          "title",
+          "contentType",
+          "sizeBytes",
+          "createdAt",
+          "status"
+        ],
+        "description": "An HR-only document's details (not its contents)"
+      },
+      "CreateStaffFile": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "jobTitle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "pathwayCategory": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "registrationBody": {
+            "$ref": "#/components/schemas/RegistrationBody"
+          },
+          "previousCareWork": {
+            "type": "boolean"
+          },
+          "dateOfBirth": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "startsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "leftOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "tenantUserId",
+          "locationId",
+          "jobTitle",
+          "pathwayCategory",
+          "registrationBody",
+          "previousCareWork",
+          "dateOfBirth",
+          "startsOn",
+          "leftOn"
+        ]
+      },
+      "UpdateStaffFile": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "jobTitle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "pathwayCategory": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "registrationBody": {
+            "$ref": "#/components/schemas/RegistrationBody"
+          },
+          "previousCareWork": {
+            "type": "boolean"
+          },
+          "dateOfBirth": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "startsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "leftOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "locationId",
+          "jobTitle",
+          "pathwayCategory",
+          "registrationBody",
+          "previousCareWork",
+          "dateOfBirth",
+          "startsOn",
+          "leftOn"
+        ]
+      },
+      "RecordComplianceItem": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "detail": {
+            "$ref": "#/components/schemas/ComplianceDetail"
+          },
+          "verifiedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "detail",
+          "verifiedOn"
+        ]
+      },
+      "SignDbsRiskAssessment": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "signedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "signedOn"
         ]
       },
       "EvidenceLinkCodeSent": {
@@ -44507,6 +45485,863 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatementOfPurposeChanges"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Staff files",
+        "description": "workforce.staff_file.read or .manage. Every staff profile with where its Schedule 3 file stands today: complete or not, outstanding items and items due soon.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staff files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Create a staff file",
+        "description": "workforce.staff_file.manage. One file per member of staff, never one's own. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStaffFile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A staff file",
+        "description": "workforce.staff_file.read or .manage. The profile and every Schedule 3 item with its details, status and notes today; the HR-only documents' details for holders of workforce.hr_document.read. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The staff file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Change a staff profile",
+        "description": "workforce.staff_file.manage, never on one's own file, against the version you loaded. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStaffFile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/items/{kind}": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a pre-employment check",
+        "description": "workforce.staff_file.manage, never on one's own file. Records or replaces one Schedule 3 item's details (the detail's kind must be the path's) and verifies it in the caller's name on a date no later than today, or leaves it unverified. An existing item needs expectedVersion. A new expiry or re-check date ends the item's open reminder tasks. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ComplianceItemKind"
+            },
+            "required": true,
+            "description": "A Schedule 3 pre-employment requirement",
+            "name": "kind",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordComplianceItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/items/dbs_certificate/risk-assessment": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Sign the DBS risk assessment",
+        "description": "workforce.dbs_risk_assessment.sign, never for oneself, in the caller's name, on a date no later than today. Lets a worker with a clear adults' barred list check start supervised before the certificate, or accepts a disclosure on a certificate already seen (workforce.md rule 3). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignDbsRiskAssessment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/items/{kind}/documents": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Add an HR-only document (the body is the file)",
+        "description": "workforce.staff_file.manage and workforce.hr_document.read, never on one's own file. Checked by its contents (JPEG, PNG, WebP or PDF), scanned and stored encrypted, as the document store does. Never to the DBS check: no certificate copy is kept. Right to work copies are kept as right_to_work_copy. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ComplianceItemKind"
+            },
+            "required": true,
+            "description": "A Schedule 3 pre-employment requirement",
+            "name": "kind",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 160
+            },
+            "required": true,
+            "name": "title",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "required": false,
+            "name": "fileName",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/pdf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffHrDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/documents/{documentId}/content": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Open an HR-only document (audited)",
+        "description": "workforce.hr_document.read. Every open is audited as workforce.hr_document.viewed.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "documentId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/staff-file": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "My staff file",
+        "description": "workforce.self.read. The member's own profile and where each of their checks stands; not the HR-only documents.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your staff file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileItem"
                 }
               }
             }

@@ -80,6 +80,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
+| `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
+| `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |
 | `training_record`, `competence` | training_record |
 | `shift`, `timesheet_entry` | rota_and_timesheet |
 | `ledger_entry`, `invoice`, `charge_line`, `funding_arrangement` | financial_record |
@@ -132,8 +134,12 @@ of the record they attach to.
   until a period is set they follow care_record with the contact. An opt-out must be remembered for
   as long as the address is held, so it is never sent to again.
 - Unsuccessful job applicants' data (Phase 2 recruitment).
-- DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
-  confirm the period before the Phase 2 pre-employment file stores them.
+- DBS certificate information: settled for slice 11 as a spec decision ([workforce.md](workforce.md)
+  section 2a), for the DPO to confirm (H-575). Following the DBS code of practice, Harbour keeps no
+  copy of a certificate and nothing of what it disclosed; the record of the check (level, issue date,
+  certificate number, clear or disclosed, Update Service status, the barred list check date and the
+  risk assessment decision) is part of the staff file and kept under `staff_file`. An upload of a
+  DBS certificate copy is refused.
 - Breach register entries and data-protection complaints (Phase 2). DSAR cases have their own
   class, data_rights_case (ADR-0090).
 - DPIA versions and sign-offs, sub-processor notice responses and onboarding decisions: interim

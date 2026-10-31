@@ -23,6 +23,7 @@ import {
   raiseReviews,
   relayOutbox,
   remindDolsExpiry,
+  remindStaffFileExpiry,
   reportBreakGlass,
   reportUnroutedDaily,
   retryUnroutedTasks,
@@ -69,6 +70,7 @@ const QUEUES = {
   taskEscalations: "task-escalations",
   careReviews: "care-reviews",
   dolsExpiry: "dols-expiry-reminders",
+  staffFileExpiry: "staff-file-expiry-reminders",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
   peopleReviews: "people-reviews",
@@ -118,6 +120,9 @@ await work(QUEUES.careReviews, async () => {
 });
 await work(QUEUES.dolsExpiry, async () => {
   await remindDolsExpiry(deps);
+});
+await work(QUEUES.staffFileExpiry, async () => {
+  await remindStaffFileExpiry(deps);
 });
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
@@ -184,6 +189,8 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 // Hourly: DoLS reminders fall due by the day; outbreak detection is a safety net behind the
 // classification that runs whenever an infection incident is recorded.
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
+// Staff check expiry reminders (workforce.md section 5), hourly at 17 past.
+await boss.schedule(QUEUES.staffFileExpiry, "17 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 // Hourly: people reviews fall due by the day; each raises one task, once.
 await boss.schedule(QUEUES.peopleReviews, "29 * * * *");

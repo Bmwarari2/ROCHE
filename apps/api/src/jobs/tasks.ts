@@ -46,6 +46,7 @@ import {
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
+import { raiseStaffFileReminders } from "../services/staff-files";
 import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import { tellAboutNotice } from "../services/sub-processors";
 import {
@@ -461,6 +462,18 @@ export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promis
     raiseDolsReminders(tx, tenantId, now),
   );
   if (raised > 0) deps.logger.info({ raised }, "DoLS expiry reminders raised");
+  return raised;
+}
+
+/**
+ * Staff check expiry reminders (workforce.md rule 1 and section 5): one task per reminder day
+ * before each expiry or DBS re-check, never twice.
+ */
+export async function remindStaffFileExpiry(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "staff-file-reminders", (tx, tenantId) =>
+    raiseStaffFileReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "staff file expiry reminders raised");
   return raised;
 }
 

@@ -661,6 +661,34 @@ a national standard beyond those named.
 | `letter_template_version` (`template_id`, `version_number`, `state`, `name`, `subject`, `body`, `author_id`, `contributor_ids`, `approved_by`, `approved_at`, `retired_by`, `retired_at`, `retirement_reason`, `discard_reason`) | Harbour (`TEMPLATE_WORKFLOW`); merge fields as `MERGE_FIELDS` above | `state` `draft`, `approved`, `superseded`, `retired`, `discarded`; `name` 1 to 200 characters, `body` 1 to 20,000, `subject` 1 to 80 (email only) | Personal data about staff only (author, contributors, approver); a template holds merge fields, never a person's details. Retention `organisation_document`. Schema `comms.ts`. |
 | `notification_preference` (`tenant_user_id`, `quiet_hours_start`, `quiet_hours_end`, `channels`) | Harbour | Quiet hours as UK wall-clock `HH:MM` (Europe/London, not UTC); `channels` JSON of channel choices per notification kind; one row per member | Personal data about the member of staff; urgent safety notifications ignore quiet hours. Retention: tenant configuration, kept while current. Schema `platform.ts`. |
 
+## Workforce: staff profile and pre-employment file (Phase 2, slice 11)
+
+Code lists for [workforce.md](workforce.md) section 2a (migration 0073). No national standard
+covers these fields; they are Harbour's, exported in the full tenant export with these names. The
+Schedule 3 items follow the Health and Social Care Act 2008 (Regulated Activities) Regulations 2014
+Schedule 3; registration bodies are the UK statutory registers.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `staff_profile.tenant_user_id` | Harbour | `tenant_user.id` | One profile per member of staff |
+| `staff_profile.job_title`, `pathway_category` | Harbour; Care Workforce Pathway role categories (DHSC) as the organisation names them | Plain text, 2 to 120 and 2 to 80 characters | |
+| `staff_profile.registration_body` | UK statutory registers | `nmc`, `hcpc`, `swe`, `gmc` or empty | Adds `professional_registration` |
+| `staff_profile.previous_care_work` | Schedule 3 paragraph 4 | Boolean | Adds `conduct_in_care_work` |
+| `staff_profile.date_of_birth`, `starts_on`, `left_on` | Harbour | `YYYY-MM-DD` (UK dates) | Date of birth optional: the 75th-birthday retention row and the under-18 rules only |
+| `compliance_item.kind` | Schedule 3 | `identity_with_photo`, `dbs_certificate`, `conduct_in_care_work`, `references`, `relevant_qualifications`, `employment_history`, `health_fitness`, `right_to_work`, `professional_registration` | One row per kind per profile |
+| `compliance_item.detail` (`identity_with_photo`) | Harbour | `document`: `passport`, `photocard_driving_licence`, `national_identity_card`, `biometric_residence_permit`, `other_photo_document` | |
+| `compliance_item.detail` (`dbs_certificate`) | DBS certificate levels | `certificate`: `level` (`enhanced_adults_barred`, `enhanced`, `standard`, `basic`), `issuedOn`, `number` (12 digits), `result` (`clear`, `information_disclosed`); `updateService`: `subscribed`, `lastCheckedOn`, `lastResult` (`no_new_information`, `new_information`); `barredListClearOn` | Never what a certificate disclosed, never a copy (retention.md) |
+| `compliance_item.detail` (`right_to_work`) | Home Office employer's guide | `checks[]`: `checkedOn`, `method` (`manual_document`, `online_share_code`, `idsp`), `permission` (`unlimited`, `time_limited`), `expiresOn` | Never the share code |
+| `compliance_item.detail` (`employment_history`) | Schedule 3 paragraph 7 | `historyStart`, `applicationMonth` (`YYYY-MM`); `periods[]`: `from`, `to` (`YYYY-MM` or null), `kind` (`employment`, `education`, `explained_gap`), `explanation` (plain text, 2 to 500 characters) | An explanation may mention health (special category) |
+| `compliance_item.detail` (`health_fitness`) | Schedule 3 paragraph 8 | `declaredFit`, `adjustmentsAgreed` (booleans) | No health details; a questionnaire is an HR-only document |
+| `compliance_item.detail` (`references`, `conduct_in_care_work`, `relevant_qualifications`) | Schedule 3 paragraphs 4 to 6 | `received` or `employersContacted` (counts); `qualifications[]` (names) | |
+| `compliance_item.detail` (`professional_registration`) | NMC, HCPC, SWE, GMC | `body`, `pin` (capitals and digits, 4 to 12), `renewalDueOn`, `revalidationDueOn` | |
+| `compliance_item.verified_on`, `verified_by` | Harbour | `YYYY-MM-DD`; `tenant_user.id` | Set together; never the worker |
+| `compliance_item.risk_assessment_signed_on`, `_by` | Harbour | `YYYY-MM-DD`; `tenant_user.id` | DBS only; never the worker |
+| `compliance_item.expires_on`, `recheck_due_on` | Harbour | `YYYY-MM-DD` | Worked out from the detail when saved |
+| `document.category` `staff_hr_document` | Harbour | JPEG, PNG, WebP or PDF up to 15 MB; subject `compliance_item` | HR-only; retention `staff_file`, or `right_to_work_copy` for right to work copies |
+| `task.details` of a `workforce.compliance_expiry` task | Harbour | `staffProfileId`, `complianceItemKind`, `reminderDueOn` (`YYYY-MM-DD`), `reminderDays` | Opaque; the title is generic |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

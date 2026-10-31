@@ -53,6 +53,7 @@ export type ExportRetention =
   | "organisation_document"
   | "invitation"
   | "data_rights_case"
+  | "staff_file"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -4426,6 +4427,91 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       lifted_at: { description: "When it was lifted (instant, UTC); empty while it lasts." },
       lifted_by: { description: "Who lifted it (tenant_user.id)." },
       lifted_reason: { description: "Why it was lifted." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.staff_profile": {
+    context: "workforce",
+    description:
+      "Each member of staff's profile for the pre-employment file (workforce.md section 2a): job title, the register the role needs, start and leaving dates.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      tenant_user_id: { description: "The member of staff the file is about (tenant_user.id)." },
+      location_id: { description: "Where they mainly work; empty for organisation-wide roles." },
+      job_title: { description: "The job title, as the organisation names it." },
+      pathway_category: { description: "The Care Workforce Pathway role category, if recorded." },
+      registration_body: {
+        description: "The professional register the role needs, if any.",
+        codes: {
+          nmc: "Nursing and Midwifery Council.",
+          hcpc: "Health and Care Professions Council.",
+          swe: "Social Work England.",
+          gmc: "General Medical Council.",
+        },
+      },
+      previous_care_work: {
+        description:
+          "Whether they have worked in health or social care before (Schedule 3 paragraph 4).",
+      },
+      date_of_birth: { description: "Date of birth, if recorded (UK date)." },
+      starts_on: { description: "First day of employment (UK date)." },
+      left_on: { description: "Last day of employment (UK date)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.compliance_item": {
+    context: "workforce",
+    description:
+      "One Schedule 3 pre-employment requirement for a member of staff (workforce.md section 2a): the check's details, who verified it and when, and the DBS risk assessment. Whether it is satisfied is worked out, not stored.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      staff_profile_id: { description: "The staff profile (staff_profile.id)." },
+      kind: {
+        description: "The Schedule 3 requirement.",
+        codes: {
+          identity_with_photo: "Proof of identity with a recent photograph.",
+          dbs_certificate: "Enhanced DBS check with the adults' barred list.",
+          conduct_in_care_work: "Conduct in earlier health or social care work and why it ended.",
+          references: "Evidence of conduct in other work (references).",
+          relevant_qualifications: "Qualifications relevant to the role.",
+          employment_history: "Full employment history with any gaps explained.",
+          health_fitness: "Declared able to do the work after reasonable adjustments.",
+          right_to_work: "Right to work in the UK.",
+          professional_registration: "Professional registration and PIN.",
+        },
+      },
+      detail: {
+        description:
+          "The check's details for its kind, as JSON (data-standards.md): never a DBS certificate's contents or health details.",
+      },
+      verified_on: { description: "The UK date the evidence was seen." },
+      verified_by: { description: "Who saw it (tenant_user.id); never the worker." },
+      risk_assessment_signed_on: {
+        description: "DBS only: the UK date the risk assessment was signed.",
+      },
+      risk_assessment_signed_by: { description: "DBS only: who signed it (tenant_user.id)." },
+      expires_on: { description: "The last valid day of an item that expires (UK date)." },
+      recheck_due_on: {
+        description: "When a DBS Update Service status check is next due (UK date).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
