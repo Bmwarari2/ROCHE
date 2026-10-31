@@ -67,6 +67,7 @@ import {
   toClassifierAnswers,
   withTenantWideScope,
 } from "../services/safety";
+import { mayBeGiven } from "../services/tasks";
 import { startWorkflow } from "../services/workflow";
 import { iso, range, SENT_AT_HEADER, withLateEntryReview } from "./care-shared";
 import {
@@ -103,6 +104,10 @@ const POINT_OF_CARE_QUESTIONS: readonly ClassifierQuestionKey[] = [
   "falls.head_injury",
   "falls.anticoagulant",
 ];
+
+/** Why an investigation action with an owner and a date cannot become that owner's task. */
+const ACTION_OWNER_REFUSED =
+  "The action's owner cannot be given its task: they do not manage incidents at this location.";
 
 type CandourRow = typeof candourRecord.$inferSelect;
 type InvestigationRow = typeof investigation.$inferSelect;
@@ -1166,6 +1171,8 @@ export const incidentsRouter = createRouter()
       path: "/v1/incidents/{id}/investigation",
       tags: ["safety"],
       summary: "Record the investigation; each action with an owner and date becomes a task",
+      description:
+        "Version 0 starts the record. An open action with an owner and a due date becomes a task for its owner, who must manage incidents at the incident's location (as the task engine requires of every assignee); otherwise the save is refused. Completing it needs the findings and the lessons.",
       security,
       request: {
         params: IncidentParam,
@@ -1202,6 +1209,20 @@ export const incidentsRouter = createRouter()
           const actionId = action.id ?? crypto.randomUUID();
           let taskId = before?.taskId ?? null;
           if (!taskId && action.status === "open" && action.ownerTenantUserId && action.dueOn) {
+            // Being the assignee lets someone complete the task, so its owner must hold the
+            // task's permission where the incident is, as the task engine requires of every
+            // assignee (HZ-091; a task its owner could never complete would sit open unseen).
+            const given = await mayBeGiven(
+              tx,
+              action.ownerTenantUserId,
+              {
+                requiredPermission: "safety.incident.manage",
+                locationId: row.locationId,
+                personId: null,
+              },
+              now,
+            );
+            if (!given) throw problems.invalid(ACTION_OWNER_REFUSED);
             const day = ukDayBounds(action.dueOn);
             const [created] = await tx
               .insert(task)

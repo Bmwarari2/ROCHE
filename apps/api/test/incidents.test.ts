@@ -873,6 +873,37 @@ describe("duty of candour and investigations", () => {
     });
     expect(complete.status).toBe(422);
   });
+
+  it("hazard HZ-091 refuses an action's task for an owner who could never complete it", async () => {
+    const incident = await created("manager", { type: "near_miss", people: [] });
+    const action = (ownerTenantUserId: string) => ({
+      action: "Replace the frayed sling.",
+      ownerTenantUserId,
+      dueOn: "2026-12-01",
+    });
+    // A care worker does not manage incidents, so the task would sit open where they cannot act.
+    const refused = await as("manager", `/v1/incidents/${incident.id}/investigation`, {
+      method: "PUT",
+      body: { actions: [action(DEMO.users.carer.id)], version: 0 },
+    });
+    expect(refused.status).toBe(422);
+    expect((await json<{ detail: string }>(refused)).detail).toBe(
+      "The action's owner cannot be given its task: they do not manage incidents at this location.",
+    );
+    const none = await as("manager", `/v1/incidents/${incident.id}/investigation`);
+    expect((await json<InvestigationView>(none)).record).toBeNull();
+    // Without a date it is no task, so anyone may own it; the nurse in charge may be given it.
+    const owned = await as("manager", `/v1/incidents/${incident.id}/investigation`, {
+      method: "PUT",
+      body: {
+        actions: [{ ...action(DEMO.users.carer.id), dueOn: null }, action(DEMO.users.nurse.id)],
+        version: 0,
+      },
+    });
+    expect(owned.status).toBe(200);
+    const view = await json<InvestigationView>(owned);
+    expect(view.record?.actions.map((a) => Boolean(a.taskId))).toEqual([false, true]);
+  });
 });
 
 describe("UKHSA outbreak detection", () => {

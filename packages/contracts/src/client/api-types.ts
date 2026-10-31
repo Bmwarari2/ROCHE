@@ -12277,7 +12277,10 @@ export interface paths {
         };
       };
     };
-    /** Record the investigation; each action with an owner and date becomes a task */
+    /**
+     * Record the investigation; each action with an owner and date becomes a task
+     * @description Version 0 starts the record. An open action with an owner and a due date becomes a task for its owner, who must manage incidents at the incident's location (as the task engine requires of every assignee); otherwise the save is refused. Completing it needs the findings and the lessons.
+     */
     put: {
       parameters: {
         query?: never;
