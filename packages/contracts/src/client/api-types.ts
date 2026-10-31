@@ -17095,6 +17095,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add or correct a supervision's note
+         * @description workforce.supervision.manage, by whoever held the supervision, never for oneself. Adds the note when there is none, or a correction superseding the note in force (append-only; the earlier note is kept and shown struck through; H-692's default, ADR-0114). Audited without the note.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    memberId: string;
+                    supervisionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveSupervisionNote"];
+                };
+            };
+            responses: {
+                /** @description The member's development record */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DevelopmentRecord"];
+                    };
+                };
+                /** @description Not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not a member, missing permission, MFA not set up or step-up needed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not found or outside your access */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Changed by someone else since you loaded it; reload and try again */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The request did not validate */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/workforce/members/{memberId}/revalidation": {
         parameters: {
             query?: never;
@@ -28430,14 +28521,18 @@ export interface components {
             /** Format: date */
             heldOn: string;
             heldBy: components["schemas"]["StaffName"];
-            note: {
-                discussion: string;
-                actions: string | null;
-                writtenBy: components["schemas"]["StaffName"];
-            } | null;
+            note: components["schemas"]["SupervisionNoteView"];
+            earlierNotes: components["schemas"]["SupervisionNoteView"][];
         };
         /** @enum {string} */
         SupervisionKind: "supervision" | "appraisal" | "spot_check";
+        SupervisionNoteView: {
+            discussion: string;
+            actions: string | null;
+            writtenBy: components["schemas"]["StaffName"];
+            /** Format: date */
+            writtenOn: string;
+        } | null;
         NextMeetingItem: {
             /** @enum {string} */
             kind: "supervision" | "appraisal";
@@ -28503,6 +28598,10 @@ export interface components {
             discussion: string;
             actions: string | null;
         } | null;
+        SaveSupervisionNote: {
+            discussion: string;
+            actions: string | null;
+        };
         PutRevalidationEvidence: {
             expectedVersion?: number;
             /** Format: date */

@@ -1,5 +1,5 @@
 {
-  "id": "148ed0ed-2199-41db-b9e7-dd740696fe7f",
+  "id": "914d2603-b631-494b-afab-6239461c5ac4",
   "prevId": "db121a31-84e8-49b7-9ec9-ab1276062a5c",
   "version": "7",
   "dialect": "postgresql",
@@ -27868,6 +27868,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "supersedes_id": {
+          "name": "supersedes_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "written_by": {
           "name": "written_by",
           "type": "uuid",
@@ -27890,8 +27896,46 @@
           "default": "app.current_user_id()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "supervision_note_original_key": {
+          "name": "supervision_note_original_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "supervision_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "supersedes_id IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
+        "supervision_note_supersedes_fk": {
+          "name": "supervision_note_supersedes_fk",
+          "tableFrom": "supervision_note",
+          "tableTo": "supervision_note",
+          "columnsFrom": [
+            "tenant_id",
+            "supersedes_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "supervision_note_supervision_fk": {
           "name": "supervision_note_supervision_fk",
           "tableFrom": "supervision_note",
@@ -27948,12 +27992,12 @@
             "id"
           ]
         },
-        "supervision_note_supervision_key": {
-          "name": "supervision_note_supervision_key",
+        "supervision_note_supersedes_key": {
+          "name": "supervision_note_supersedes_key",
           "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
-            "supervision_id"
+            "supersedes_id"
           ]
         }
       },

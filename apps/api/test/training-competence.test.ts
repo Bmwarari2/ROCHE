@@ -383,6 +383,46 @@ describe("supervision notes (slice 57; H-692's default, ADR-0114)", () => {
   });
 });
 
+describe("correcting a supervision note (slice 57, security review round 1)", () => {
+  type WithNotes = {
+    supervisions: {
+      id: string;
+      kind: string;
+      note: { discussion: string } | null;
+      earlierNotes: { discussion: string }[];
+    }[];
+  };
+  it("adds a correction that supersedes the note, keeping the earlier one", async () => {
+    const before = (await (await as("manager", `${dev(CARER)}/development`)).json()) as WithNotes;
+    const appraisal = before.supervisions.find((s) => s.kind === "appraisal");
+    expect(appraisal?.note).not.toBeNull();
+    const corrected = await as("manager", `${dev(CARER)}/supervisions/${appraisal?.id}/notes`, {
+      method: "POST",
+      body: { discussion: "Talked through night shifts; the refresher is booked.", actions: null },
+    });
+    expect(corrected.status, await corrected.clone().text()).toBe(200);
+    const after = ((await corrected.json()) as WithNotes).supervisions.find(
+      (s) => s.id === appraisal?.id,
+    );
+    expect(after?.note?.discussion).toBe("Talked through night shifts; the refresher is booked.");
+    expect(after?.earlierNotes.map((n) => n.discussion)).toEqual([appraisal?.note?.discussion]);
+  });
+
+  it("is refused to someone who did not hold the supervision, and to the member", async () => {
+    const record = (await (await as("manager", `${dev(CARER)}/development`)).json()) as WithNotes;
+    const id = record.supervisions[0]?.id;
+    const body = { discussion: "Someone else's account of the meeting.", actions: null };
+    expect(
+      (await as("owner", `${dev(CARER)}/supervisions/${id}/notes`, { method: "POST", body }))
+        .status,
+    ).toBe(403);
+    expect(
+      (await as("carer", `${dev(CARER)}/supervisions/${id}/notes`, { method: "POST", body }))
+        .status,
+    ).toBe(403);
+  });
+});
+
 describe("the organisation's training matrix (slice 57)", () => {
   type Matrix = {
     topics: string[];
@@ -419,6 +459,25 @@ describe("the organisation's training matrix (slice 57)", () => {
     for (const m of attention.members) {
       expect(m.cells.some((c) => c.status !== "valid")).toBe(true);
     }
+  });
+
+  it("filters by location, and shows no portal account", async () => {
+    const everyone = (await (
+      await as("manager", "/v1/workforce/training-matrix")
+    ).json()) as Matrix;
+    const elsewhere = (await (
+      await as(
+        "manager",
+        "/v1/workforce/training-matrix?locationId=0194d000-0000-7000-8000-00000000ffff",
+      )
+    ).json()) as Matrix;
+    expect(elsewhere.members).toEqual([]);
+    const portal = await sql<{ id: string }>(
+      `SELECT DISTINCT ra.tenant_user_id AS id FROM role_assignment ra JOIN role r ON r.id = ra.role_id
+        WHERE r.permissions && ARRAY['comms.portal.family', 'comms.portal.self']::text[]`,
+    );
+    const shown = new Set(everyone.members.map((m) => m.member.id));
+    for (const p of portal) expect(shown.has(p.id)).toBe(false);
   });
 
   it("is audited without names", async () => {

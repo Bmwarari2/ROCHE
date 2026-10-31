@@ -9,8 +9,10 @@ import {
   developmentActions,
   developmentShown,
   listOf,
+  matchesName,
   matrixCounts,
   meetingChip,
+  notNeededChip,
   OBSERVE,
   present,
   REVALIDATION_REQUIREMENTS,
@@ -21,8 +23,6 @@ import {
   TRAINING,
   trainingChip,
   ukDate,
-  visibleWindow,
-  WINDOW_THRESHOLD,
 } from "./development";
 
 const t = createTranslator("en-GB");
@@ -107,7 +107,7 @@ describe("status as an icon and a word", () => {
     ["valid", "done", "circle-check", "Up to date"],
     ["due_soon", "due", "clock", "Due soon"],
     ["expired", "overdue", "circle-alert", "Lapsed"],
-    ["missing", "overdue", "circle-minus", "Not done"],
+    ["missing", "overdue", "triangle-alert", "Not done"],
   ])("training %s", (code, status, icon, label) => {
     expect(trainingChip(code, t)).toEqual({ status, icon, label });
   });
@@ -145,25 +145,21 @@ describe("the matrix", () => {
     ).toEqual({ missing: 2, expired: 1, due_soon: 1, valid: 1 });
   });
 
-  it("draws every row of a short list", () => {
-    expect(visibleWindow(WINDOW_THRESHOLD, 5000, 700, 72)).toEqual({
-      start: 0,
-      end: WINDOW_THRESHOLD,
-      before: 0,
-      after: 0,
-    });
+  it("finds a member by any part of their name, ignoring case and accents", () => {
+    expect(matchesName("Zoë Example", "zoe")).toBe(true);
+    expect(matchesName("Ada Example", "EXAM")).toBe(true);
+    expect(matchesName("Ada Example", "ben")).toBe(false);
+    expect(matchesName("Ada Example", undefined)).toBe(true);
+    expect(matchesName("Ada Example", "  ")).toBe(true);
   });
 
-  it.each([
-    // total, scrollTop, viewport, start, end
-    [1000, 0, 720, 0, 26],
-    [1000, 7200, 720, 92, 118],
-    [1000, 72_000, 720, 992, 1000],
-  ])("windows %i rows scrolled to %i", (total, scrollTop, viewport, start, end) => {
-    const view = visibleWindow(total, scrollTop, viewport, 72);
-    expect([view.start, view.end]).toEqual([start, end]);
-    // The spacers and the drawn rows always add up to the whole list's height.
-    expect(view.before + (view.end - view.start) * 72 + view.after).toBe(total * 72);
+  it("says a topic their roles do not need in words, with its own icon", () => {
+    expect(notNeededChip(t)).toEqual({
+      status: "notApplicable",
+      icon: "circle-minus",
+      label: "Not needed for their roles",
+    });
+    expect(trainingChip("missing", t).icon).not.toBe(notNeededChip(t).icon);
   });
 });
 

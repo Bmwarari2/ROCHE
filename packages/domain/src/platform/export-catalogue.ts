@@ -4399,7 +4399,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.supervision_note": {
     context: "workforce",
     description:
-      "What was discussed at a supervision, appraisal or spot check and the actions agreed (append-only; read only by supervision holders and the member).",
+      "What was discussed at a supervision, appraisal or spot check and the actions agreed; special category content is likely (append-only; a correction supersedes the note before).",
     treatment: "tenant_rows",
     retention: "staff_file",
     personal: true,
@@ -4410,6 +4410,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       worker_id: { description: "The member of staff (tenant_user.id)." },
       discussion: { description: "What was discussed, in the writer's words." },
       actions: { description: "The actions agreed, if any." },
+      supersedes_id: { description: "The note this one corrects, if any (supervision_note.id)." },
       written_by: { description: "Who wrote it (tenant_user.id)." },
       created_at: "exported",
       created_by: "exported",

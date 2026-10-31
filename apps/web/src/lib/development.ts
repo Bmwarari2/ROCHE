@@ -89,8 +89,17 @@ export function trainingChip(status: string, t: Translator): SafetyChip {
     case "expired":
       return { status: "overdue", icon: "circle-alert", label: t("development.status.expired") };
     default:
-      return { status: "overdue", icon: "circle-minus", label: t("development.status.missing") };
+      return { status: "overdue", icon: "triangle-alert", label: t("development.status.missing") };
   }
+}
+
+/** A topic the member's roles do not need: a status of its own, with its own icon. */
+export function notNeededChip(t: Translator): SafetyChip {
+  return {
+    status: "notApplicable",
+    icon: "circle-minus",
+    label: t("development.matrix.notNeeded"),
+  };
 }
 
 /** A competence's state for the medicines gate: signed off, or why not. */
@@ -172,33 +181,14 @@ export function present<T>(items: readonly (T | null | undefined)[] | undefined)
   return (items ?? []).flatMap((item) => (item ? [item] : []));
 }
 
-/** The longest a windowed list draws at once; shorter lists draw every row. */
-export const WINDOW_THRESHOLD = 100;
-
-/**
- * Which rows of a long list to draw (a windowed list for large homes): the rows in view plus a
- * margin either side, and the space above and below that stands in for the rest.
- */
-export function visibleWindow(
-  total: number,
-  scrollTop: number,
-  viewport: number,
-  rowHeight: number,
-  overscan = 8,
-): {
-  readonly start: number;
-  readonly end: number;
-  readonly before: number;
-  readonly after: number;
-} {
-  if (total <= WINDOW_THRESHOLD) return { start: 0, end: total, before: 0, after: 0 };
-  const first = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-  const count = Math.ceil(viewport / rowHeight) + overscan * 2;
-  const end = Math.min(total, first + count);
-  return {
-    start: first,
-    end,
-    before: first * rowHeight,
-    after: (total - end) * rowHeight,
-  };
+/** Whether a member's name matches the matrix's name search (any part, ignoring case and accents). */
+export function matchesName(name: string, query: string | undefined): boolean {
+  const fold = (text: string) =>
+    text
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLocaleLowerCase("en-GB")
+      .trim();
+  const wanted = fold(query ?? "");
+  return wanted === "" || fold(name).includes(wanted);
 }

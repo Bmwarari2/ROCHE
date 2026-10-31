@@ -21007,33 +21007,13 @@
             "$ref": "#/components/schemas/StaffName"
           },
           "note": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "discussion": {
-                "type": "string",
-                "minLength": 10,
-                "maxLength": 4000
-              },
-              "actions": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "minLength": 2,
-                "maxLength": 2000
-              },
-              "writtenBy": {
-                "$ref": "#/components/schemas/StaffName"
-              }
-            },
-            "required": [
-              "discussion",
-              "actions",
-              "writtenBy"
-            ]
+            "$ref": "#/components/schemas/SupervisionNoteView"
+          },
+          "earlierNotes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupervisionNoteView"
+            }
           }
         },
         "required": [
@@ -21041,7 +21021,8 @@
           "kind",
           "heldOn",
           "heldBy",
-          "note"
+          "note",
+          "earlierNotes"
         ]
       },
       "SupervisionKind": {
@@ -21050,6 +21031,40 @@
           "supervision",
           "appraisal",
           "spot_check"
+        ]
+      },
+      "SupervisionNoteView": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "discussion": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 4000
+          },
+          "actions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 2000
+          },
+          "writtenBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "writtenOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "discussion",
+          "actions",
+          "writtenBy",
+          "writtenOn"
         ]
       },
       "NextMeetingItem": {
@@ -21349,6 +21364,28 @@
           }
         },
         "default": null,
+        "required": [
+          "discussion",
+          "actions"
+        ]
+      },
+      "SaveSupervisionNote": {
+        "type": "object",
+        "properties": {
+          "discussion": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 4000
+          },
+          "actions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 2000
+          }
+        },
         "required": [
           "discussion",
           "actions"
@@ -46910,6 +46947,114 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateSupervisionRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Add or correct a supervision's note",
+        "description": "workforce.supervision.manage, by whoever held the supervision, never for oneself. Adds the note when there is none, or a correction superseding the note in force (append-only; the earlier note is kept and shown struck through; H-692's default, ADR-0114). Audited without the note.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "supervisionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveSupervisionNote"
               }
             }
           }

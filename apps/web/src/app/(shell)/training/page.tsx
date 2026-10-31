@@ -10,7 +10,8 @@ import {
 } from "@harbour/ui";
 import { GraduationCap } from "lucide-react";
 import type { Metadata } from "next";
-import { type MatrixRow, TrainingMatrixGrid } from "@/components/development/TrainingMatrixGrid";
+import { SearchableMatrix } from "@/components/development/SearchableMatrix";
+import type { MatrixRow } from "@/components/development/TrainingMatrixGrid";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
@@ -159,11 +160,7 @@ export default async function TrainingMatrixPage({
           />
         </Card>
       ) : (
-        <TrainingMatrixGrid
-          caption={t("development.matrix.caption")}
-          columns={columns}
-          rows={rows}
-        />
+        <SearchableMatrix columns={columns} rows={rows} />
       )}
     </div>
   );

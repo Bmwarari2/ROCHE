@@ -202,7 +202,17 @@ export async function developmentRecord(
               supervisions.map((s) => s.id),
             ),
           );
-  const noteFor = (supervisionId: string) => notes.find((n) => n.supervisionId === supervisionId);
+  // The note in force is the one nothing supersedes; earlier ones are the corrected chain.
+  const superseded = new Set(notes.flatMap((n) => (n.supersedesId ? [n.supersedesId] : [])));
+  const notesFor = (supervisionId: string) => {
+    const mine = notes
+      .filter((n) => n.supervisionId === supervisionId)
+      .sort((x, y) => y.createdAt.getTime() - x.createdAt.getTime());
+    return {
+      current: mine.find((n) => !superseded.has(n.id)) ?? null,
+      earlier: mine.filter((n) => superseded.has(n.id)),
+    };
+  };
   const [evidence] = await tx
     .select()
     .from(revalidationEvidence)
@@ -319,11 +329,15 @@ export async function developmentRecord(
       kind: s.kind as "supervision" | "appraisal" | "spot_check",
       heldOn: s.heldOn,
       heldBy: names(s.heldBy),
-      note: (() => {
-        const n = noteFor(s.id);
-        return n
-          ? { discussion: n.discussion, actions: n.actions, writtenBy: names(n.writtenBy) }
-          : null;
+      ...(() => {
+        const { current, earlier } = notesFor(s.id);
+        const view = (n: (typeof notes)[number]) => ({
+          discussion: n.discussion,
+          actions: n.actions,
+          writtenBy: names(n.writtenBy),
+          writtenOn: ukIsoDate(n.createdAt),
+        });
+        return { note: current ? view(current) : null, earlierNotes: earlier.map(view) };
       })(),
     })),
     nextSupervision: next("supervision", rates.supervisionsPerYear),
@@ -525,15 +539,32 @@ export async function trainingMatrixFor(
     tx
       .select({
         memberId: roleAssignment.tenantUserId,
+        displayName: tenantUser.displayName,
         key: role.key,
         basedOn: role.basedOnKey,
         locationId: roleAssignment.locationId,
         nation: location.nation,
       })
       .from(roleAssignment)
-      .innerJoin(role, eq(role.id, roleAssignment.roleId))
-      .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
-      .leftJoin(location, eq(location.id, roleAssignment.locationId))
+      // Composite keys, as ADR-0002 joins tenant rows.
+      .innerJoin(
+        role,
+        and(eq(role.tenantId, roleAssignment.tenantId), eq(role.id, roleAssignment.roleId)),
+      )
+      .innerJoin(
+        tenantUser,
+        and(
+          eq(tenantUser.tenantId, roleAssignment.tenantId),
+          eq(tenantUser.id, roleAssignment.tenantUserId),
+        ),
+      )
+      .leftJoin(
+        location,
+        and(
+          eq(location.tenantId, roleAssignment.tenantId),
+          eq(location.id, roleAssignment.locationId),
+        ),
+      )
       .where(
         and(
           isNull(roleAssignment.deletedAt),
@@ -549,10 +580,17 @@ export async function trainingMatrixFor(
   );
   const members = new Map<
     string,
-    { keys: Set<string>; roles: Set<string>; locations: Set<string>; nation: Nation | null }
+    {
+      displayName: string;
+      keys: Set<string>;
+      roles: Set<string>;
+      locations: Set<string>;
+      nation: Nation | null;
+    }
   >();
   for (const a of assignments) {
     const m = members.get(a.memberId) ?? {
+      displayName: a.displayName,
       keys: new Set<string>(),
       roles: new Set<string>(),
       locations: new Set<string>(),
@@ -570,8 +608,15 @@ export async function trainingMatrixFor(
     .filter(([, m]) => !filter.locationId || m.locations.has(filter.locationId))
     .filter(([, m]) => !filter.roleKey || m.keys.has(filter.roleKey))
     .map(([id, m]) => ({ id, ...m, requirements: mergeRequirements(requirementRows, m.keys) }))
-    .filter((m) => m.requirements.length > 0);
-  const ids = wanted.map((m) => m.id);
+    .filter((m) => m.requirements.length > 0)
+    .sort(
+      (x, y) => x.displayName.localeCompare(y.displayName, "en-GB") || x.id.localeCompare(y.id),
+    );
+  // Capped before any record is read, so the limit protects the database as well as the page
+  // (security review round 1, low 2). The attention filter can only shorten the list.
+  const truncated = wanted.length > MATRIX_MEMBER_LIMIT;
+  const capped = wanted.slice(0, MATRIX_MEMBER_LIMIT);
+  const ids = capped.map((m) => m.id);
   const records = [];
   for (let i = 0; i < ids.length; i += 500) {
     const chunk = ids.slice(i, i + 500);
@@ -596,12 +641,18 @@ export async function trainingMatrixFor(
     rates.set(nation, loaded);
     return loaded;
   };
+  const byWorker = new Map<string, typeof records>();
+  for (const r of records) {
+    const list = byWorker.get(r.workerId) ?? [];
+    list.push(r);
+    byWorker.set(r.workerId, list);
+  }
   const names = await staffNames(tx, ids);
   const rows = [];
-  for (const m of wanted) {
+  for (const m of capped) {
     const member = names(m.id);
     if (!member) continue;
-    const mine = records.filter((r) => r.workerId === m.id);
+    const mine = byWorker.get(m.id) ?? [];
     const cells = trainingMatrix(
       m.requirements,
       mine.map((r) => ({
@@ -621,16 +672,11 @@ export async function trainingMatrixFor(
     if (filter.attention && cells.every((cell) => cell.status === "valid")) continue;
     rows.push({ member, roles: [...m.roles].sort(), locationIds: [...m.locations].sort(), cells });
   }
-  rows.sort(
-    (x, y) =>
-      x.member.displayName.localeCompare(y.member.displayName, "en-GB") ||
-      x.member.id.localeCompare(y.member.id),
-  );
   const shown = new Set(rows.flatMap((r) => r.cells.map((cell) => cell.topic)));
   return {
     asOf: today,
     topics: TRAINING_TOPICS.filter((topic) => shown.has(topic)),
-    members: rows.slice(0, MATRIX_MEMBER_LIMIT),
-    truncated: rows.length > MATRIX_MEMBER_LIMIT,
+    members: rows,
+    truncated,
   };
 }

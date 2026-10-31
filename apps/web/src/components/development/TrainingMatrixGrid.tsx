@@ -1,9 +1,6 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
 import { SafetyChip } from "@/components/safety/SafetyChip";
-import { visibleWindow } from "@/lib/development";
+import { notNeededChip } from "@/lib/development";
 import { t } from "@/lib/i18n";
 import type { SafetyChip as Chip } from "@/lib/incidents";
 
@@ -21,64 +18,46 @@ export interface MatrixRow {
   readonly cells: Readonly<Record<string, MatrixCell | undefined>>;
 }
 
-/** Each row's height in pixels: fixed, so the window knows which rows are in view. */
-const ROW_HEIGHT = 72;
-
 /**
  * The organisation's training matrix (plan slice 57; WORK-005): one row per member of staff, one
- * column per topic, each state an icon and a word (never colour alone). A large home's matrix is
- * windowed: only the rows in view are drawn, the table still says how many rows it has
- * (aria-rowcount, and each drawn row its aria-rowindex), and the header stays in view. It uses the
- * design system's table styles; the scrolling region takes focus, so it scrolls from the keyboard.
+ * column per topic, each state an icon and a word (never colour alone), in the design system's
+ * table styles with the header kept in view.
+ *
+ * Large homes: every row stays in the page, so screen reader table navigation and find-in-page
+ * reach every member of staff, and focus is never lost to a row taken away. The browser skips
+ * laying out and painting rows out of view (`content-visibility: auto` with an intrinsic size),
+ * which keeps a home of hundreds quick; the API returns at most 2,000 members (accessibility
+ * review round 1, findings 1 to 3). The scroll area keeps a focused link clear of the sticky header
+ * (scroll padding) and takes focus, so it scrolls from the keyboard.
  */
 export function TrainingMatrixGrid({
   caption,
+  captionId,
   columns,
   rows,
 }: {
   readonly caption: string;
+  readonly captionId: string;
   readonly columns: readonly { readonly topic: string; readonly label: string }[];
   readonly rows: readonly MatrixRow[];
 }) {
-  const region = useRef<HTMLDivElement>(null);
-  const captionId = useId();
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewport, setViewport] = useState(720);
-
-  useEffect(() => {
-    const el = region.current;
-    if (!el) return;
-    const measure = () => setViewport(el.clientHeight || 720);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const view = visibleWindow(rows.length, scrollTop, viewport, ROW_HEIGHT);
-  const drawn = rows.slice(view.start, view.end);
-  const span = columns.length + 1;
-
   return (
-    // As the design system's DataTable: the scroll area is a group named by the caption, and takes
-    // focus so it scrolls from the keyboard (WCAG 2.1.1).
+    // As the design system's DataTable: the scroll area is a group named by the caption.
     // biome-ignore lint/a11y/useSemanticElements: a fieldset is for form controls; this groups a table's scroll area.
     <div
-      ref={region}
-      // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling area must take focus to scroll from the keyboard.
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling area must take focus to scroll from the keyboard (WCAG 2.1.1).
       tabIndex={0}
       role="group"
       aria-labelledby={captionId}
-      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       className="hb-table__scroll"
-      style={{ maxHeight: "70vh" }}
+      style={{ maxHeight: "70vh", scrollPaddingTop: "var(--touch-target)" }}
     >
-      <table className="hb-table__table" aria-rowcount={rows.length + 1}>
+      <table className="hb-table__table">
         <caption id={captionId} className="hb-visually-hidden">
           {caption}
         </caption>
         <thead>
-          <tr aria-rowindex={1}>
+          <tr>
             <th scope="col" className="hb-table__th" style={{ minWidth: "14rem" }}>
               {t("development.matrix.member")}
             </th>
@@ -95,18 +74,11 @@ export function TrainingMatrixGrid({
           </tr>
         </thead>
         <tbody>
-          {view.before > 0 ? (
-            // biome-ignore lint/a11y/noAriaHiddenOnFocusable: a spacer row standing in for rows not drawn; it holds nothing focusable.
-            <tr aria-hidden="true">
-              <td colSpan={span} style={{ height: view.before, padding: 0 }} />
-            </tr>
-          ) : null}
-          {drawn.map((row, i) => (
+          {rows.map((row) => (
             <tr
               key={row.id}
-              aria-rowindex={view.start + i + 2}
               className="hb-table__row"
-              style={{ height: ROW_HEIGHT }}
+              style={{ contentVisibility: "auto", containIntrinsicSize: "auto 6rem" }}
             >
               <th scope="row" className="hb-table__td text-left font-normal">
                 <Link
@@ -123,29 +95,17 @@ export function TrainingMatrixGrid({
                 const cell = row.cells[column.topic];
                 return (
                   <td key={column.topic} className="hb-table__td">
-                    {cell ? (
-                      <span className="flex flex-col gap-1">
-                        <SafetyChip chip={cell.chip} />
-                        {cell.until ? (
-                          <span className="text-text-secondary">{cell.until}</span>
-                        ) : null}
-                      </span>
-                    ) : (
-                      <span className="text-text-secondary">
-                        {t("development.matrix.notNeeded")}
-                      </span>
-                    )}
+                    <span className="flex flex-col gap-1">
+                      <SafetyChip chip={cell ? cell.chip : notNeededChip(t)} />
+                      {cell?.until ? (
+                        <span className="text-text-secondary">{cell.until}</span>
+                      ) : null}
+                    </span>
                   </td>
                 );
               })}
             </tr>
           ))}
-          {view.after > 0 ? (
-            // biome-ignore lint/a11y/noAriaHiddenOnFocusable: a spacer row standing in for rows not drawn; it holds nothing focusable.
-            <tr aria-hidden="true">
-              <td colSpan={span} style={{ height: view.after, padding: 0 }} />
-            </tr>
-          ) : null}
         </tbody>
       </table>
     </div>

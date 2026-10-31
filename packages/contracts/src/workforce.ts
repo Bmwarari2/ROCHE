@@ -409,6 +409,14 @@ export const SupervisionNote = z
   })
   .meta({ id: "SupervisionNote" });
 
+/** Add the note to a supervision that has none, or correct the one in force. */
+export const SaveSupervisionNote = SupervisionNote.meta({ id: "SaveSupervisionNote" });
+
+export const SupervisionNoteView = SupervisionNote.extend({
+  writtenBy: StaffName.nullable(),
+  writtenOn: isoDate,
+}).meta({ id: "SupervisionNoteView" });
+
 export const CreateSupervisionRecord = z
   .object({
     kind: SupervisionKind,
@@ -424,8 +432,10 @@ export const SupervisionRecordItem = z
     kind: SupervisionKind,
     heldOn: isoDate,
     heldBy: StaffName.nullable(),
-    /** Null when none was written, or when the caller may not read notes. */
-    note: SupervisionNote.extend({ writtenBy: StaffName.nullable() }).nullable(),
+    /** The note in force: null when none was written, or when the caller may not read notes. */
+    note: SupervisionNoteView.nullable(),
+    /** Earlier notes it corrected, newest first: shown struck through. */
+    earlierNotes: z.array(SupervisionNoteView),
   })
   .meta({ id: "SupervisionRecordItem" });
 

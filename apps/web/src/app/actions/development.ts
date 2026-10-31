@@ -224,3 +224,21 @@ export async function saveRevalidation(
     }),
   );
 }
+
+export async function saveSupervisionNote(
+  memberId: string,
+  supervisionId: string,
+  values: Values,
+): Promise<ActionResult<unknown>> {
+  if (!isUuid(memberId) || !isUuid(supervisionId)) return bad();
+  const discussion = req(values, "discussion");
+  if (discussion.length < 10) {
+    return fieldErrors({ discussion: t("development.supervision.discussionShort") });
+  }
+  return send((api) =>
+    api.POST("/v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes", {
+      params: { path: { memberId, supervisionId } },
+      body: { discussion, actions: str(values, "actions") },
+    }),
+  );
+}

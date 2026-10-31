@@ -9,6 +9,7 @@ import {
   recordSupervision,
   recordTraining,
   saveRevalidation,
+  saveSupervisionNote,
   signOffCompetence,
   withdrawCompetence,
 } from "@/app/actions/development";
@@ -24,6 +25,7 @@ import {
   developmentActions,
   developmentShown,
   meetingChip,
+  present,
   REVALIDATION_REQUIREMENTS,
   requirementChip,
   SUPERVISION_KINDS,
@@ -50,6 +52,7 @@ function trainingFields(current?: {
       name: "topic",
       label: t("development.training.topic"),
       required: true,
+      requiredMessage: t("development.training.topicRequired"),
       emptyOption: t("development.form.choose"),
       options: codeOptions(TRAINING_TOPICS, "development.topic", t),
       ...(current ? { defaultValue: current.topic } : {}),
@@ -132,7 +135,6 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
       {self ? (
         <p className="m-0 max-w-prose text-body-dense">{t("development.record.self")}</p>
       ) : null}
-
       <section aria-labelledby="training" className="flex flex-col gap-4">
         <h2 id="training" className="m-0 text-heading-3 font-semibold">
           {t("development.training.title")}
@@ -241,7 +243,6 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
           </Card>
         ) : null}
       </section>
-
       <section aria-labelledby="competence" className="flex flex-col gap-4">
         <h2 id="competence" className="m-0 text-heading-3 font-semibold">
           {t("development.competence.title")}
@@ -337,6 +338,7 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
                                   label: t("development.competence.reason"),
                                   hint: t("development.competence.reasonHint"),
                                   required: true,
+                                  requiredMessage: t("development.competence.reasonRequired"),
                                   maxLength: 500,
                                 },
                                 {
@@ -373,6 +375,7 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
                   name: "competence",
                   label: t("development.competence.kindLabel"),
                   required: true,
+                  requiredMessage: t("development.competence.kindRequired"),
                   emptyOption: t("development.form.choose"),
                   options: codeOptions(COMPETENCES, "development.competence.kind", t),
                 },
@@ -393,7 +396,6 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
           </Card>
         ) : null}
       </section>
-
       <section aria-labelledby="supervision" className="flex flex-col gap-4">
         <h2 id="supervision" className="m-0 text-heading-3 font-semibold">
           {t("development.supervision.title")}
@@ -459,6 +461,71 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
                         ) : null}
                       </dl>
                     ) : null}
+                    {present(s.earlierNotes).length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        <h4 className="m-0 text-body-dense font-semibold">
+                          {t("development.supervision.earlier")}
+                        </h4>
+                        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                          {present(s.earlierNotes).map((n) => (
+                            <li key={`${n.writtenOn}-${n.discussion.slice(0, 16)}`}>
+                              <p className="m-0 text-body-dense text-text-secondary">
+                                {t("development.supervision.correctedOn", {
+                                  date: ukDate(n.writtenOn),
+                                })}
+                              </p>
+                              <del className="whitespace-pre-line">{n.discussion}</del>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {may.supervise && s.heldBy?.id === me.tenantUserId ? (
+                      <details>
+                        <summary className="inline-flex min-h-target cursor-pointer items-center underline">
+                          {s.note
+                            ? t("development.supervision.correctNote", {
+                                kind: codeLabel("development.supervision.kind", s.kind, t),
+                                date: ukDate(s.heldOn),
+                              })
+                            : t("development.supervision.addNote", {
+                                kind: codeLabel("development.supervision.kind", s.kind, t),
+                                date: ukDate(s.heldOn),
+                              })}
+                        </summary>
+                        <div className="pt-3">
+                          <DevelopmentForm
+                            headingLevel={4}
+                            title={
+                              s.note
+                                ? t("development.supervision.correctTitle")
+                                : t("development.supervision.addTitle")
+                            }
+                            intro={t("development.supervision.noteIntro", { name })}
+                            path={path}
+                            submit={t("development.supervision.saveNote")}
+                            done="development.supervision.noteSaved"
+                            action={saveSupervisionNote.bind(null, memberId, s.id)}
+                            fields={[
+                              {
+                                kind: "textarea",
+                                name: "discussion",
+                                label: t("development.supervision.discussion"),
+                                required: true,
+                                requiredMessage: t("development.supervision.discussionRequired"),
+                                maxLength: 4000,
+                              },
+                              {
+                                kind: "textarea",
+                                name: "actions",
+                                label: t("development.supervision.actions"),
+                                maxLength: 2000,
+                              },
+                            ]}
+                          />
+                        </div>
+                      </details>
+                    ) : null}
                   </div>
                 </Card>
               </li>
@@ -481,6 +548,7 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
                   name: "kind",
                   label: t("development.supervision.kindLabel"),
                   required: true,
+                  requiredMessage: t("development.supervision.kindRequired"),
                   emptyOption: t("development.form.choose"),
                   options: codeOptions(SUPERVISION_KINDS, "development.supervision.kind", t),
                 },

@@ -5,6 +5,7 @@ import {
   DevelopmentRecord,
   PutRevalidationEvidence,
   PutTrainingRequirement,
+  SaveSupervisionNote,
   TrainingMatrix,
   TrainingMatrixQuery,
   TrainingRequirementItem,
@@ -24,7 +25,7 @@ import {
 } from "@harbour/db";
 import { competenceRefreshMonths, competenceValidUntil, ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -77,12 +78,14 @@ const A = {
   signedOff: "workforce.competence.signed_off",
   withdrawn: "workforce.competence.withdrawn",
   supervised: "workforce.supervision.recorded",
+  noted: "workforce.supervision_note.saved",
   revalidation: "workforce.revalidation.recorded",
 } as const;
 
 const MemberParam = z.object({ memberId: z.uuid() });
 const RecordParam = z.object({ memberId: z.uuid(), recordId: z.uuid() });
 const SignOffParam = z.object({ memberId: z.uuid(), signOffId: z.uuid() });
+const SupervisionParam = z.object({ memberId: z.uuid(), supervisionId: z.uuid() });
 
 const refused = (problem: HttpProblem, action: string, id: string | null, reason: string) =>
   new AuditedRefusal(problem, {
@@ -565,6 +568,77 @@ export const developmentRouter = createRouter()
           resourceId: row?.id ?? memberId,
           // Whether a note was written, never what it says.
           scopeExtra: { memberId, kind: body.kind, note: body.note !== null },
+        });
+      });
+      return c.json(await recordFor(c, access, memberId), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes",
+      tags: ["workforce"],
+      summary: "Add or correct a supervision's note",
+      description:
+        "workforce.supervision.manage, by whoever held the supervision, never for oneself. Adds the note when there is none, or a correction superseding the note in force (append-only; the earlier note is kept and shown struck through; H-692's default, ADR-0114). Audited without the note.",
+      security,
+      request: {
+        params: SupervisionParam,
+        body: { content: { "application/json": { schema: SaveSupervisionNote } } },
+      },
+      responses: developmentResponses,
+    }),
+    async (c) => {
+      const access = await requirePermission(c, SUPERVISION);
+      const { memberId, supervisionId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      await change(c, access, A.noted, supervisionId, async (tx) => {
+        if (memberId === access.tenantUserId) throw own(A.noted, memberId);
+        const [held] = await tx
+          .select({ heldBy: supervisionRecord.heldBy })
+          .from(supervisionRecord)
+          .where(
+            and(
+              eq(supervisionRecord.id, supervisionId),
+              eq(supervisionRecord.workerId, memberId),
+              isNull(supervisionRecord.deletedAt),
+            ),
+          );
+        if (!held) throw refused(problems.notFound(), A.noted, supervisionId, "not_found");
+        if (held.heldBy !== access.tenantUserId) {
+          throw refused(
+            new HttpProblem(
+              403,
+              "not_your_supervision",
+              "Only the person who held it writes or corrects its note.",
+            ),
+            A.noted,
+            supervisionId,
+            "not_held_by_caller",
+          );
+        }
+        const existing = await tx
+          .select({ id: supervisionNote.id, supersedesId: supervisionNote.supersedesId })
+          .from(supervisionNote)
+          .where(eq(supervisionNote.supervisionId, supervisionId));
+        const superseded = new Set(
+          existing.flatMap((n) => (n.supersedesId ? [n.supersedesId] : [])),
+        );
+        const current = existing.find((n) => !superseded.has(n.id)) ?? null;
+        await tx.insert(supervisionNote).values({
+          supervisionId,
+          workerId: memberId,
+          discussion: body.discussion,
+          actions: body.actions,
+          supersedesId: current?.id ?? null,
+          writtenBy: access.tenantUserId,
+        });
+        await audit(c, tx, access, {
+          action: A.noted,
+          resourceType: "supervision_record",
+          resourceId: supervisionId,
+          // Whether it corrected a note, never what either says.
+          scopeExtra: { memberId, corrected: current !== null },
         });
       });
       return c.json(await recordFor(c, access, memberId), 200);
