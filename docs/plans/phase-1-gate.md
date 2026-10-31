@@ -12,9 +12,9 @@ request of about 600 lines) or a gate item (needs its own slice).
 | Gate item | State | Gap |
 | --- | --- | --- |
 | Maestro offline journey (iOS and Android) | Not met: paused | Mobile is paused by the owner; the journey is written but not run in CI |
-| Inspector pack export renders | Met, without a snapshot | Small: a render test of the PDF on its own, beside the API test |
+| Inspector pack export renders | Met | Done 31/10/2026: `apps/api/test/evidence-pack-pdf.test.ts` renders the PDF on its own, beside the API test |
 | WCAG scans clean | Met for every web route but two | Small: the person's history tab; gate item: choose-organisation needs a second demo tenant |
-| Every hazard-log entry has a test | Met: 45 of 45 | Small: five verification statuses are stale; one planned test waits for the task screens |
+| Every hazard-log entry has a test | Met: 45 of 45 | Stale statuses done 31/10/2026; one planned test waits for the task screens |
 | Clinical safety case v0.1 drafted | Not met | Gate item: only v0.0 (Phase 0) exists |
 | Every Phase 1 register row `done` (section 19, definition of done) | Not met: 0 of 54 | Gate items: user guides for every row; web screens for 22 rows; 4 rows `todo` |
 | Data-protection documents current | Mostly | Gate item: the DPIA template has no Phase 1 risks; small: data-standards coverage |
@@ -39,6 +39,12 @@ gate.
   through the API and database. A unit test of `renderEvidencePackPdf` on a fixed manifest
   (the watermark on every page, page count, a withheld field, a long record that wraps onto a second
   page) makes the render itself a fast, stable check. Follow-up pull request.
+- **Done 31/10/2026**: `apps/api/test/evidence-pack-pdf.test.ts` (`hazard HZ-050 the evidence pack
+  renders`, six tests) renders a fixed manifest with no database. It checks the watermark and
+  footer on every page of a long pack, withheld and redacted fields in words, a withheld value never
+  printed, records in time order, the headings in order, a well-formed PDF whose page tree matches
+  its pages, and the same bytes for the same manifest. It runs in the unit test job (CI run
+  38938760784 on `d77b416`).
 
 ## 3. WCAG scans clean
 
@@ -90,6 +96,11 @@ verification rows read for their status and for test files that do not exist.
   (`apps/web/e2e/downtime.spec.ts`), HZ-090 (`incident-forms.spec.ts`), HZ-091
   (`incident-review.spec.ts`) and HZ-013 (the same spec). Follow-up pull request: mark them
   "Passing" with the CI run.
+  - **Done 31/10/2026**. Every row naming those specs now reads "Passing" with a CI run. Some were
+    already marked with run 38932679711 on `5b3d238`. Three more were still stale and are now marked
+    with run 38938760784 on `d77b416` (e2e-web job 117100875145, 89 passed, none skipped): HZ-013's
+    `incident-forms.spec.ts` and `incident-review.spec.ts` rows, and HZ-017's `back-entry.spec.ts`
+    row.
 - **Planned test with no file**: HZ-006's design row for review-task details names
   `apps/web/e2e/tasks.spec.ts` (planned). The `TaskDetails` and `TaskEvidenceBadge` components are
   built and unit-tested, but no screen shows them. **Gate item**: it comes with the web task views
@@ -129,7 +140,7 @@ fails otherwise), and every route checks a `module.resource.action` permission
 | Row | Feature | Missing for done (besides the user guide) |
 | --- | --- | --- |
 | PLAT-002 | White-label branding | `todo`: spec, code, tests (slice 9) |
-| PLAT-006 | Break-glass and weekly report | Web: the weekly report screen; the register's tests column omits `apps/web/e2e/break-glass.spec.ts` |
+| PLAT-006 | Break-glass and weekly report | Web: the weekly report screen (tests column done 31/10/2026) |
 | PLAT-009 | Document store | Web: document list, upload and signing screens, and their journey |
 | PLAT-011 | Task and workflow engine | Web: task views (and HZ-006's planned `tasks.spec.ts`) |
 | PLAT-012 | Retention and legal hold | Web: holds, destruction candidates and certificates |
@@ -138,7 +149,7 @@ fails otherwise), and every route checks a `module.resource.action` permission
 | PLAT-018 | Help and onboarding | Welsh keys and English reasons are open before a pilot (register note) |
 | PLAT-023 | DPIA and registers | The typed name is not checked against the account (register note); the DPIA template's Phase 1 risks (section 7) |
 | PEOP-001 | Person record | Web: editing demographics, contacts and representatives; the register lists no journey |
-| PEOP-002 | Communication needs | Register lists no journey (the needs show on round, incidents and search journeys: add them) |
+| PEOP-002 | Communication needs | None beyond the user guide (tests column lists the round, incidents and search journeys, done 31/10/2026) |
 | PEOP-003 | About Me | Web: authoring and share links |
 | PEOP-005 | Pre-admission | Web: the assessment and decision |
 | PEOP-007 | Admission, rooms, property | Web: admission, room moves, property inventory, welcome checklist |
@@ -148,18 +159,18 @@ fails otherwise), and every route checks a `module.resource.action` permission
 | PEOP-013 | Sharing rules | Web: managing sharing decisions (the feed honours them; no screen records them) |
 | CARE-001 to CARE-003, CARE-007, CARE-009, CARE-010, CARE-012, CARE-014, CARE-015 | Care record | None beyond the user guide; offline parts with mobile |
 | CARE-006 | NG249 falls assessment | Register lists no journey; check the assessments journey covers it |
-| CARE-013 | Tasks, rounds, handover | Web task views; the register's tests column omits `round.spec.ts` and `handover.spec.ts` |
+| CARE-013 | Tasks, rounds, handover | Web task views (tests column done 31/10/2026) |
 | CARE-021, CARE-022 | Consent, capacity, DoLS | None beyond the user guide |
 | SAFE-001, SAFE-002 | Incidents and classifier | None beyond the user guide |
-| SAFE-003 | CQC notifications | Register's tests column omits `statutory-notifications.spec.ts` |
+| SAFE-003 | CQC notifications | None beyond the user guide (tests column done 31/10/2026) |
 | SAFE-004, SAFE-005 | RIDDOR, s.42 drafts | Shown on the notification pages; the register lists no journey |
 | SAFE-007 | Duty of candour | Web: the candour log and letters (API only) |
 | SAFE-008 | Medical examiner and LeDeR | Web: the pack and notification screens (API only) |
-| SAFE-009 | Falls and pressure-ulcer protocols | The post-fall checklist shows in `incident-forms.spec.ts`; the register lists no journey |
+| SAFE-009 | Falls and pressure-ulcer protocols | None beyond the user guide (tests column lists `incident-forms.spec.ts`, done 31/10/2026) |
 | SAFE-010 | Investigations and lessons | Web: investigation, actions and bulletins (API only) |
 | QUAL-003 | Inspector evidence pack | Web: composing, redacting and releasing (API and recipient PDF only) |
 | QUAL-009 | Statement of purpose | Web: the statement and its change tracking (API only) |
-| OPS-028 | Downtime pack | Register's tests column omits `back-entry.spec.ts` |
+| OPS-028 | Downtime pack | None beyond the user guide (tests column done 31/10/2026) |
 | COMMS-001 | Family feed | Family app mode on mobile (paused) |
 | COMMS-006, COMMS-007 | Handover acknowledgement, letter templates | None beyond the user guide |
 | INSI-001 | Role dashboards | `todo`: spec, code, tests (slice 9) |
@@ -173,7 +184,8 @@ fails otherwise), and every route checks a `module.resource.action` permission
 - PLAT-002 and INSI-001.
 
 These are slices, not fixes. The register's tests-column corrections are small and go in the hazard
-follow-up pull request.
+follow-up pull request. **Done 31/10/2026**: the tests columns of PLAT-006, CARE-013, SAFE-003,
+OPS-028, PEOP-002 and SAFE-009 name the journeys above (each file checked to exist).
 
 ## 7. Data-protection documents
 
@@ -202,11 +214,11 @@ follow-up pull request.
 
 ## Follow-up pull requests (small gaps)
 
-1. Hazard verification statuses and register test columns:
+1. **Done 31/10/2026.** Hazard verification statuses and register test columns:
    - the five stale "Written" and "Hosted CI" rows marked "Passing" with the CI run;
    - the register's tests columns given the journeys they omit (PLAT-006, CARE-013, SAFE-003,
      OPS-028, PEOP-002, SAFE-009).
-2. Evidence pack render test: a unit test of `renderEvidencePackPdf` on a fixed manifest.
+2. **Done 31/10/2026.** Evidence pack render test: a unit test of `renderEvidencePackPdf` on a fixed manifest.
 3. The person's history tab journey, with axe, in light and dark themes.
 4. data-standards rows for the eight tables in section 7.
 
