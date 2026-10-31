@@ -21,7 +21,7 @@ const FIELD_OF: Readonly<Record<string, string>> = {
   aware_at_after_notice: "awareAt",
 };
 
-/** The codes said in the catalogue's words (`dataRights.refusal`). */
+/** The codes said in the catalogue's words (`dataRights.dpRefusal`). */
 export const DATA_PROTECTION_REFUSALS = [
   "breach_closed",
   "complaint_closed",
@@ -66,7 +66,7 @@ export function dataProtectionProblem(error: unknown, t: Translator): Problem {
   const given = typeof raw === "string" ? raw : "";
   const code = GUARD.test(given) ? "not_allowed" : given;
   if (!KNOWN.has(code)) return problemMessage(error, t);
-  const message = t("dataRights.refusal", { code });
+  const message = t("dataRights.dpRefusal", { code });
   const field = FIELD_OF[code];
   return { code, message, ...(field ? { fields: { [field]: message } } : {}) };
 }

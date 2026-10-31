@@ -20,6 +20,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 66, the data rights screens** (`feat/web-data-rights`, from #149 with #156 merged
+in): Data rights in the menu for holders of `quality.dsar.manage` across the organisation, with the
+DSAR workbench (clock in words, identity, pause and extension, collection with the "not searched"
+list first, record review with other people's names marked, the response with step-up and a file
+to send), the breach register (ICO clock in words from the rate table) and data protection
+complaints (acknowledgement and update clocks). Journeys with axe in light and dark pass locally.
+Fixed on the way: the DSAR record view and bundle read every column (`to_jsonb`), which the
+invitation table's column grants refuse, so any member of staff's request failed (belongs in
+#149). Not built yet: a contact's own request, rectification decisions, correcting breach facts,
+complaint links, and a record that no longer exists (H-881). Merge order: #149, then #156, then
+this branch (the merge kept migration 0082 after 0077, with 0082's journal time after 0077's).
+
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
 

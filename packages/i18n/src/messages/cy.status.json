@@ -3020,7 +3020,7 @@
     "dataRights.breach.close.lessonsRequired",
     "dataRights.breach.close.submit",
     "dataRights.breach.close.closedAt",
-    "dataRights.refusal",
+    "dataRights.dpRefusal",
     "dataRights.complaint.description",
     "dataRights.complaint.list.title",
     "dataRights.complaint.list.empty",

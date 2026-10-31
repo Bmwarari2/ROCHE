@@ -80,8 +80,8 @@ test("the owner records, assesses, decides, reports and closes a breach", async 
   const record = region(page, "Record a breach");
   await record.getByRole("button", { name: "Record breach" }).click();
   await expect(record.getByRole("alert")).toContainText("Describe what happened");
-  await record.getByRole("heading", { name: "Record a breach" }).scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollBy(0, -80));
+  // Back to the top, so axe does not count a tab scrolled under the sticky app bar as obscured.
+  await page.evaluate(() => window.scrollTo(0, 0));
   await bothThemes(page, "record a breach refused");
   await record.getByLabel("What happened").fill(SUMMARY);
   await fillDateTime(

@@ -306,7 +306,7 @@ export function DecideBreachForm({
     if (against && !acknowledged) {
       problems.push({
         field: "acknowledgedSuggestion",
-        message: t("dataRights.refusal", { code: "acknowledgement_required" }),
+        message: t("dataRights.dpRefusal", { code: "acknowledgement_required" }),
       });
     }
     const refusal = collectedRefusal(problems);
@@ -426,7 +426,7 @@ export function ReportBreachForm({
     if ((late && delayReason.length === 0) || delayReason.length > 4000) {
       problems.push({
         field: "delayReason",
-        message: t("dataRights.refusal", { code: "delay_reason_required" }),
+        message: t("dataRights.dpRefusal", { code: "delay_reason_required" }),
       });
     }
     const refusal = collectedRefusal(problems);

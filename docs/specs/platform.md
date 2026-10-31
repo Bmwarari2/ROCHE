@@ -1056,7 +1056,7 @@ Act 2025; ICO guidance on time limits):
 
 Phase 2 slice 15 ([phase-2.md](../plans/phase-2.md), [ADR-0090](../decisions/0090-dsar-workbench-and-disclosure-collector.md)):
 the subject access request workbench, built on the slice 9 rules (`data-rights.ts`). Procedure:
-[dsar-procedure.md](../compliance/dsar-procedure.md). Screens are slice 66; this slice is schema,
+[dsar-procedure.md](../compliance/dsar-procedure.md). Screens are slice 66 (built: see the screens note at the end of this section); this slice is schema,
 rules and API. Code: `packages/db/src/schema/data-rights.ts`, migration 0077,
 `packages/domain/src/platform/dsar.ts`, `apps/api/src/routes/dsar.ts`, `apps/api/src/services/dsar.ts`.
 
@@ -1122,6 +1122,27 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
    requester's name or any record content; reads across the organisation say so (`read:
    organisation`), and viewing an item's content is also recorded against the subject (#149 L9).
 
+**Screens (slice 66).** Data rights in the menu, for holders of `quality.dsar.manage` across the
+whole organisation (`dataRightsShown`; the API and row-level security check it again), with tabs
+for requests, breaches and complaints under `/data-rights`. Requests: the list with each clock as
+an icon, a word and a sentence; recording a request (a person supported or a member of staff; a
+member of staff only when the staff list can be read, which needs `platform.user.manage`); the
+request page in work order (identity, pause and extension, finding the records with the "not
+searched" list first as a warning, each record's decision, the response); the record page (step-up)
+with other people's names marked by a bold underline and the words "Name of another person", never
+by colour alone, and listed; the response page (step-up) with the counts, the fingerprint, a JSON
+file to send and the response form; erasure assessed and portability stated. Breaches: the
+register with the ICO clock in words from `reportHours` and the clock (no figure in code), the
+stage, and each step's form only while it applies. Complaints: the list with the acknowledgement
+and update clocks in words, recording, acknowledging, updates and closing. Code:
+`apps/web/src/app/(shell)/data-rights/`, `apps/web/src/components/data-rights/`,
+`components/breaches/`, `components/dp-complaints/`, `apps/web/src/lib/dsar.ts`, `breaches.ts`,
+`dp-complaints.ts`, `data-protection-refusals.ts`; journeys `apps/web/e2e/dsar.spec.ts`,
+`breaches.spec.ts`, `dp-complaints.spec.ts` (axe in light and dark). Not on the screens yet: a
+contact's own request, recording rectification decisions, correcting a breach's facts, linking a
+complaint to a person or a breach, and deciding a collected record that no longer exists (the API
+needs its fingerprint; H-881).
+
 **Permission matrix**
 
 | Action | Permission | Notes |
@@ -1151,7 +1172,7 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
 
 ### Breach register and data protection complaints (slice 20, PLAT-022)
 
-Schema, API and audit for rules 6 to 10; the screens follow in slice 66. Migration 0082 (lane F;
+Schema, API and audit for rules 6 to 10; the screens are slice 66 (see the screens note in the DSAR workbench section). Migration 0082 (lane F;
 renumbered at merge). Procedures: [breach-response.md](../compliance/breach-response.md),
 [data-protection-complaints.md](../compliance/data-protection-complaints.md).
 

@@ -192,3 +192,8 @@ Notes: the register and complaints are reached only with `quality.dsar.manage` h
 whole organisation (owner, quality lead; never a manager for one home); every read and change is audited with ids and codes only,
 never the summary, names, contact details, reasoning or notice text. A complaint about a sample
 person stops sample data removal rather than being deleted with it.
+
+Screens (slice 66): the DSAR response file is fetched from the API and passed to the browser as a
+download by the web tier, which keeps nothing and tells the browser not to cache it (as the free
+full export does); opening a collected record and the response need a fresh step-up and are
+audited by the API. No new personal data is collected by the screens.

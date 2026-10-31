@@ -319,7 +319,7 @@ export function CloseComplaintForm({
     if (!icoRightStated) {
       problems.push({
         field: "icoRightStated",
-        message: t("dataRights.refusal", { code: "ico_right_required" }),
+        message: t("dataRights.dpRefusal", { code: "ico_right_required" }),
       });
     }
     const refusal = collectedRefusal(problems);
