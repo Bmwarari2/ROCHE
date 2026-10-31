@@ -358,7 +358,17 @@ export const careRecordsRouter = createRouter()
               .orderBy(desc(assessment.occurredAt))
               .limit(50);
             const [previous] = currentResults(history);
-            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const link = await planLink(
+              tx,
+              access,
+              body.taskId,
+              personId,
+              times.occurredAt,
+              undefined,
+              {
+                table: "assessment",
+              },
+            );
             const [inserted] = await tx
               .insert(assessment)
               .values({
@@ -655,6 +665,7 @@ export const careRecordsRouter = createRouter()
               personId,
               times.occurredAt,
               author,
+              { table: "activity_record" },
             );
             const [inserted] = await tx
               .insert(activityRecord)
@@ -910,6 +921,7 @@ export const careRecordsRouter = createRouter()
               personId,
               times.occurredAt,
               author,
+              { table: "visit_log" },
             );
             const [inserted] = await tx
               .insert(visitLog)

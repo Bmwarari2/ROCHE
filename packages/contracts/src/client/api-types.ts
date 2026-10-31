@@ -234,6 +234,329 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/branding": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's white-label name, accent and logo
+     * @description Any member: the shell shows them. Holds no personal data, so it is not audited as a view.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Branding */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set the display name and accent colour
+     * @description platform.tenant.manage. The display name is trimmed (blank uses the registered name; at most 80 characters). The accent must keep white words on it and itself at 4.5:1 on white and on black, and at 3:1 on every other surface of the light and dark themes (`checkAccent`); one that fails is refused with 422 brand_accent_contrast, saying why, and nothing is stored. Send the `version` read (409 when stale). Audited (platform.branding.updated, with the fields changed and the old and new accent), refusals too.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveBranding"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/branding/logo": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's logo (any member; the shell shows it)
+     * @description Not audited as a view: a logo is about no one and is shown on every page. 404 when there is none.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The logo */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "image/jpeg": string;
+            "image/png": string;
+            "image/webp": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set the organisation's logo (the body is the image)
+     * @description platform.tenant.manage. PNG or JPEG (never SVG), at most 512 KB, stripped of EXIF, XMP, IPTC and text chunks, checked by its contents and scanned for malware like any document. Refusals are audited. The logo is shown once it is clean; a quarantined file is kept but never shown. The previous logo stays in the document store until its retention ends. Audited (platform.branding.logo).
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "image/jpeg": string;
+          "image/png": string;
+          "image/webp": string;
+        };
+      };
+      responses: {
+        /** @description Logo stored */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DocumentItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The file is too large */
+        413: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    /**
+     * Stop showing the organisation's logo
+     * @description platform.tenant.manage. The shell shows the product name again; the file stays in the document store until its retention ends. Audited (platform.branding.logo, removed).
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Removed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/search": {
     parameters: {
       query?: never;
@@ -668,7 +991,79 @@ export interface paths {
       };
     };
     put?: never;
-    post?: never;
+    /**
+     * Record an enquiry: a new person record at enquiry (people.md rule 1)
+     * @description people.enquiry.manage at the location the enquiry is about. Names and a date of birth (1900 to today) only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later, before 1900 or before the birth. The answer is the record's id and state, never the person's details. A request sent again by the same person with the same id and details answers as the first (replayed); the same id with other details is refused with 409 `id_reused_with_different_details`; an id in use for anything else is refused (422). Refusals are audited with opaque ids.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateEnquiry"];
+        };
+      };
+      responses: {
+        /** @description Recorded (or the first copy of the same request sent again) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EnquiryRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -2355,6 +2750,83 @@ export interface paths {
         };
       };
     };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/services": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The services run at a location, for an assessment or an admission
+     * @description Organisation configuration, no personal data. For holders of people.enquiry.manage, people.admission.manage or people.person.read who work at the location; anywhere else reads as not found.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Services, by name */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ServiceList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -4598,7 +5070,7 @@ export interface paths {
     get?: never;
     /**
      * Record an item of the exit checklist as done, or not required with a reason
-     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand. 'Not required' needs a reason and is allowed only where the checklist allows it.
+     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand, even before the draft exists. A statutory notification the safety module does not draft (a regulator outside England) is recorded only by a holder of safety.notification.submit, with step-up. Residents money, deposits and the DWP need finance.ledger.approve with step-up. 'Not required' needs a reason and is allowed only where the checklist allows it.
      */
     put: {
       parameters: {
@@ -5095,7 +5567,7 @@ export interface paths {
     put?: never;
     /**
      * Lift a suspension: the sections reopen, but what happened while suspended stays closed
-     * @description Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2).
+     * @description Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2). A decision that rests on an authority is lifted only while the contact still holds it as the decision recorded (authorityHeldNow: the same kind of authority, a deputy's order of that kind, no earlier end); otherwise it is refused and the refusal audited with the reason `authority_changed` (HZ-022).
      */
     post: {
       parameters: {
@@ -5765,6 +6237,7 @@ export interface paths {
           personId?: string;
           locationId?: string;
           status?: "open" | "closed" | "any";
+          earlier?: "yes" | "no";
           from?: string;
           to?: string;
         };
@@ -6193,6 +6666,75 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workflows": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Open workflows in your scope, with their deadline state and the steps open to you
+     * @description For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Each listed permission counts only where its own scope shows the record and reaches its home (ADR-0071). Steps are taken on each record's own route, which checks its rules and separation of duties again. Records in a state whose deadline is kept on the record but not yet carried here come first, then soonest deadline first.
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in */
+          view?: components["schemas"]["WorkflowListView"];
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Workflows */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WorkflowInstanceList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -6905,6 +7447,69 @@ export interface paths {
           };
           content: {
             "application/json": components["schemas"]["RetentionCandidateList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/destruction-certificates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Destruction certificates, newest first */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Certificates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DestructionCertificateList"];
           };
         };
         /** @description Not signed in */
@@ -17002,7 +17607,7 @@ export interface paths {
     put?: never;
     /**
      * A short-lived token for the PowerSync service, scoped to tenant and assignments
-     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
      */
     post: {
       parameters: {
@@ -20620,6 +21225,395 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/details": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Personal details: demographics and the national data opt-out (PEOP-001) */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Personal details */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonDetails"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change personal details or the national data opt-out (versioned)
+     * @description Only the fields sent change; null clears an optional one. The NHS number passes the modulus 11 check and is unique in the organisation: one already on the record of someone the caller can see is refused saying so; one on a record they cannot see is refused without saying whose, audited as denied (`nhs_number_in_use`, without the number), counted against an hourly limit per member, and a task asks the owner to look for a duplicate record. A person with no NHS number needs a local identifier; a date of birth is from 1900 to today; a postcode is a full UK postcode, stored upper case with one space; text with control characters is refused. Refused once the record is read-only (people.md rule 1). Audited with the names of the fields changed.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdatePersonDetails"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonDetails"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many NHS numbers refused; wait */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/people/{id}/contacts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Key contacts and legal representatives, with their authority and end date */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Contacts */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ContactList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add a key contact or legal representative
+     * @description A deputy says what their order covers (personal welfare, property and affairs, or both). An attorney, deputy or appointee without a reference or evidence is saved, flagged as evidence missing: nothing is shared on their authority until one is recorded. Evidence is an available document already in this person's documents (category person_document). An end date is from 1900 to 2199; text with control characters is refused.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateContact"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ContactOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/contacts/{contactId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change a contact or representative (versioned)
+     * @description Only the fields sent change; null clears an optional one. A change that takes away the authority a sharing decision rests on (the contact no longer holding that kind of authority, a deputy's order no longer of that kind, the last reference or evidence removed, or the authority now ending before the decision recorded) suspends that decision in the same transaction, audited with the reason `authority_changed` and publishing people.sharing.changed (HZ-022, fail closed); the answer says how many were suspended. Changing the email address of a family member with a portal account (which the account is matched by) needs `people.sharing.manage` and a fresh sign-in. Audited with the names of the fields changed.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          contactId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateContact"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ContactSaved"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -20662,6 +21656,8 @@ export interface components {
         /** @enum {string} */
         terminology: "resident" | "client" | "person_we_support";
         brandAccent: string | null;
+        /** Format: uuid */
+        logoDocumentId: string | null;
         /** @enum {string} */
         nation: "england" | "wales" | "scotland" | "northern_ireland";
       };
@@ -20698,6 +21694,67 @@ export interface components {
       respondBy: string;
       routedToManager: boolean;
     };
+    Branding: {
+      registeredName: string;
+      displayName: string | null;
+      accent: string | null;
+      logo: {
+        /** Format: uuid */
+        documentId: string;
+        /** @enum {string} */
+        contentType: "image/jpeg" | "image/png" | "image/webp";
+      } | null;
+      version: number;
+    };
+    SaveBranding: {
+      displayName: string | null;
+      accent: string | null;
+      expectedVersion: number;
+    };
+    /** @description Document metadata; the bytes are at /content */
+    DocumentItem: {
+      /** Format: uuid */
+      id: string;
+      category: components["schemas"]["DocumentCategoryKey"];
+      title: string;
+      fileName: string | null;
+      contentType: string;
+      sizeBytes: number;
+      sha256: string;
+      documentVersion: number;
+      /** Format: uuid */
+      previousVersionId: string | null;
+      /** Format: uuid */
+      personId: string | null;
+      subjectType: string | null;
+      /** Format: uuid */
+      subjectId: string | null;
+      /** @enum {string} */
+      status: "available" | "quarantined" | "destroyed";
+      /** @enum {string} */
+      scanStatus: "clean" | "infected" | "unavailable" | "not_scanned";
+      retentionClass: string;
+      legalHold: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      signatures: {
+        signerName: string;
+        /** @enum {string} */
+        signerCapacity: "staff" | "person" | "representative";
+        statement: string;
+        /** Format: date-time */
+        signedAt: string;
+        documentSha256: string;
+      }[];
+    };
+    /** @enum {string} */
+    DocumentCategoryKey:
+      | "person_photo"
+      | "feed_photo"
+      | "care_attachment"
+      | "person_document"
+      | "organisation_document"
+      | "organisation_logo";
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {
@@ -21396,6 +22453,7 @@ export interface components {
         unitName: string | null;
         /** @enum {string} */
         status: "available" | "out_of_service" | "awaiting_clearance";
+        version: number;
         beds: {
           bed: number;
           occupied: boolean;
@@ -21430,6 +22488,43 @@ export interface components {
     UpdateWelcomeChecklistTemplate: {
       items: components["schemas"]["WelcomeChecklistDefinitionItem"][];
       version: number;
+    };
+    EnquiryRecorded: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      status: components["schemas"]["PersonStatus"];
+      /** Format: date-time */
+      statusChangedAt: string;
+      version: number;
+      replayed: boolean;
+    };
+    /** @description A new person record at `enquiry`, before the pre-admission assessment starts. The NHS number and other details follow on the record. */
+    CreateEnquiry: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: uuid */
+      locationId: string;
+      givenName: string;
+      familyName: string;
+      preferredName?: string;
+      /** Format: date */
+      dateOfBirth: string;
+      /** Format: date-time */
+      receivedAt?: string;
+    };
+    ServiceList: {
+      items: components["schemas"]["ServiceItem"][];
+    };
+    ServiceItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      name: string;
+      serviceType: string;
+      status: string;
     };
     PropertyList: {
       items: components["schemas"]["PropertyItemOut"][];
@@ -21661,6 +22756,7 @@ export interface components {
       /** Format: date-time */
       createdAt: string;
       active: boolean;
+      version: number;
     };
     AboutMeShareLinkCreated: {
       /** Format: uuid */
@@ -21681,6 +22777,7 @@ export interface components {
       /** Format: date-time */
       createdAt: string;
       active: boolean;
+      version: number;
       token: string;
     };
     CreateAboutMeShareLink: {
@@ -22297,6 +23394,8 @@ export interface components {
     };
     TaskList: {
       items: components["schemas"]["TaskItem"][];
+      truncated?: boolean;
+      earlierOmitted?: number;
     };
     TaskItem: {
       /** Format: uuid */
@@ -22484,49 +23583,59 @@ export interface components {
       reason: string;
       version: number;
     };
-    /** @description Document metadata; the bytes are at /content */
-    DocumentItem: {
+    WorkflowInstanceList: {
+      items: components["schemas"]["WorkflowInstanceItem"][];
+      truncated: boolean;
+    };
+    WorkflowInstanceItem: {
       /** Format: uuid */
       id: string;
-      category: components["schemas"]["DocumentCategoryKey"];
-      title: string;
-      fileName: string | null;
-      contentType: string;
-      sizeBytes: number;
-      sha256: string;
-      documentVersion: number;
+      definitionKey: string;
+      subjectType: string;
       /** Format: uuid */
-      previousVersionId: string | null;
+      subjectId: string;
       /** Format: uuid */
       personId: string | null;
-      subjectType: string | null;
       /** Format: uuid */
-      subjectId: string | null;
-      /** @enum {string} */
-      status: "available" | "quarantined" | "destroyed";
-      /** @enum {string} */
-      scanStatus: "clean" | "infected" | "unavailable" | "not_scanned";
-      retentionClass: string;
-      legalHold: boolean;
+      incidentId: string | null;
+      /** Format: uuid */
+      locationId: string | null;
+      state: string;
       /** Format: date-time */
-      createdAt: string;
-      signatures: {
-        signerName: string;
-        /** @enum {string} */
-        signerCapacity: "staff" | "person" | "representative";
-        statement: string;
-        /** Format: date-time */
-        signedAt: string;
-        documentSha256: string;
-      }[];
+      startedAt: string;
+      /** Format: date-time */
+      enteredStateAt: string;
+      /** Format: date-time */
+      slaDueAt: string | null;
+      slaState: components["schemas"]["WorkflowSlaState"];
+      createdBy: components["schemas"]["StaffName"];
+      permissions: string[];
+      incident: {
+        version: number;
+        status: string;
+        closeBlocked: boolean;
+      } | null;
+      moves: components["schemas"]["WorkflowMoveOption"][];
+      awaitingYourApproval: boolean;
+      raisedByYou: boolean;
     };
-    /** @enum {string} */
-    DocumentCategoryKey:
-      | "person_photo"
-      | "feed_photo"
-      | "care_attachment"
-      | "person_document"
-      | "organisation_document";
+    /**
+     * @description The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline; on_record when the deadline is kept on the record and the list does not have it (open the record to check, never read as no deadline)
+     * @enum {string}
+     */
+    WorkflowSlaState: "none" | "on_track" | "due_today" | "overdue" | "on_record";
+    WorkflowMoveOption: {
+      to: string;
+      approval: boolean;
+      requiresReason: boolean;
+      requiresStepUp: boolean;
+    };
+    /**
+     * @description approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in
+     * @default approvals
+     * @enum {string}
+     */
+    WorkflowListView: "approvals" | "all";
     DocumentList: {
       items: components["schemas"]["DocumentItem"][];
     };
@@ -22582,11 +23691,12 @@ export interface components {
       retentionClass: string;
       /** Format: date-time */
       eligibleSince: string;
+      title?: string;
+      /** Format: date-time */
+      createdAt?: string;
     };
-    /** @description Certificates per record class; skipped ids were held, not yet due or not found */
-    DestructionResult: {
-      certificates: components["schemas"]["DestructionCertificateItem"][];
-      skipped: string[];
+    DestructionCertificateList: {
+      items: components["schemas"]["DestructionCertificateItem"][];
     };
     DestructionCertificateItem: {
       /** Format: uuid */
@@ -22598,6 +23708,11 @@ export interface components {
       method: string;
       /** Format: date-time */
       executedAt: string;
+    };
+    /** @description Certificates per record class; skipped ids were held, not yet due or not found */
+    DestructionResult: {
+      certificates: components["schemas"]["DestructionCertificateItem"][];
+      skipped: string[];
     };
     DestroyDocuments: {
       documentIds: string[];
@@ -24174,6 +25289,12 @@ export interface components {
       lateAddition: boolean;
       /** Format: date-time */
       addedAt: string;
+      summary: {
+        key: string;
+        params: {
+          [key: string]: string | number;
+        };
+      } | null;
       seen: boolean;
     };
     /**
@@ -27068,6 +28189,198 @@ export interface components {
         /** @enum {string|null} */
         resolution: "objection_withdrawn" | "not_used_for_tenant" | "services_ended" | null;
       }[];
+    };
+    PersonDetails: {
+      /** Format: uuid */
+      personId: string;
+      status: components["schemas"]["PersonStatus"];
+      nhsNumber: string | null;
+      localIdentifier: string | null;
+      title: string | null;
+      givenName: string;
+      familyName: string;
+      preferredName: string | null;
+      /** Format: date */
+      dateOfBirth: string | null;
+      sexCode: string | null;
+      genderIdentity: string | null;
+      ethnicCategoryCode: string | null;
+      religion: string | null;
+      firstLanguage: string | null;
+      interpreterRequired: boolean;
+      addressLine1: string | null;
+      addressLine2: string | null;
+      town: string | null;
+      postcode: string | null;
+      gpPracticeOdsCode: string | null;
+      legalStatus: string | null;
+      nationalDataOptOut: boolean;
+      /** Format: date-time */
+      updatedAt: string;
+      /** Format: uuid */
+      updatedBy: string | null;
+      version: number;
+    };
+    UpdatePersonDetails: {
+      title?: string | null;
+      givenName?: string;
+      familyName?: string;
+      preferredName?: string | null;
+      /** Format: date */
+      dateOfBirth?: string | null;
+      nhsNumber?: string | null;
+      localIdentifier?: string | null;
+      sexCode?: components["schemas"]["PersonSexCode"];
+      genderIdentity?: components["schemas"]["PersonSexCode"];
+      ethnicCategoryCode?: components["schemas"]["EthnicCategoryCode"];
+      religion?: string | null;
+      firstLanguage?: string | null;
+      interpreterRequired?: boolean;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      town?: string | null;
+      postcode?: string | null;
+      gpPracticeOdsCode?: string | null;
+      nationalDataOptOut?: boolean;
+      version: number;
+    };
+    /** @enum {string|null} */
+    PersonSexCode: "1" | "2" | "9" | "X" | null;
+    /** @enum {string|null} */
+    EthnicCategoryCode:
+      | "99"
+      | "A"
+      | "B"
+      | "C"
+      | "D"
+      | "E"
+      | "F"
+      | "G"
+      | "H"
+      | "J"
+      | "K"
+      | "L"
+      | "M"
+      | "N"
+      | "P"
+      | "R"
+      | "S"
+      | "Z"
+      | null;
+    ContactList: {
+      items: components["schemas"]["ContactOut"][];
+    };
+    ContactOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      role: components["schemas"]["ContactRole"];
+      givenName: string;
+      familyName: string;
+      relationship: string | null;
+      phone: string | null;
+      email: string | null;
+      addressLine1: string | null;
+      town: string | null;
+      postcode: string | null;
+      isNextOfKin: boolean;
+      authorityReference: string | null;
+      /** Format: uuid */
+      authorityDocumentId: string | null;
+      /** Format: date */
+      validUntil: string | null;
+      authorityScope: components["schemas"]["AuthorityScope"];
+      notes: string | null;
+      evidenceMissing: boolean;
+      expired: boolean;
+      /** Format: date-time */
+      updatedAt: string;
+      version: number;
+    };
+    /** @enum {string} */
+    ContactRole:
+      | "next_of_kin"
+      | "lpa_health_welfare"
+      | "lpa_property_finance"
+      | "deputy"
+      | "imca"
+      | "advocate"
+      | "appointee"
+      | "gp"
+      | "social_worker"
+      | "other";
+    /** @enum {string|null} */
+    AuthorityScope: "personal_welfare" | "property_affairs" | "both" | null;
+    CreateContact: {
+      role: components["schemas"]["ContactRole"];
+      givenName: string;
+      familyName: string;
+      relationship?: string | null;
+      phone?: string | null;
+      /** Format: email */
+      email?: string | null;
+      addressLine1?: string | null;
+      town?: string | null;
+      postcode?: string | null;
+      isNextOfKin?: boolean;
+      authorityReference?: string | null;
+      /** Format: uuid */
+      authorityDocumentId?: string | null;
+      /** Format: date */
+      validUntil?: string | null;
+      authorityScope?: components["schemas"]["AuthorityScope"];
+      notes?: string | null;
+    };
+    ContactSaved: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      role: components["schemas"]["ContactRole"];
+      givenName: string;
+      familyName: string;
+      relationship: string | null;
+      phone: string | null;
+      email: string | null;
+      addressLine1: string | null;
+      town: string | null;
+      postcode: string | null;
+      isNextOfKin: boolean;
+      authorityReference: string | null;
+      /** Format: uuid */
+      authorityDocumentId: string | null;
+      /** Format: date */
+      validUntil: string | null;
+      authorityScope: components["schemas"]["AuthorityScope"];
+      notes: string | null;
+      evidenceMissing: boolean;
+      expired: boolean;
+      /** Format: date-time */
+      updatedAt: string;
+      version: number;
+      suspendedDecisions: number;
+    };
+    UpdateContact: {
+      role?: components["schemas"]["ContactRole"];
+      givenName?: string;
+      familyName?: string;
+      relationship?: string | null;
+      phone?: string | null;
+      /** Format: email */
+      email?: string | null;
+      addressLine1?: string | null;
+      town?: string | null;
+      postcode?: string | null;
+      isNextOfKin?: boolean;
+      authorityReference?: string | null;
+      /** Format: uuid */
+      authorityDocumentId?: string | null;
+      /** Format: date */
+      validUntil?: string | null;
+      authorityScope?: components["schemas"]["AuthorityScope"];
+      notes?: string | null;
+      version: number;
     };
   };
   responses: never;

@@ -1713,6 +1713,7 @@ describe("hazard HZ-022 sharing is closed by default", () => {
     expect(created.status).toBe(201);
     const link = await json<AboutMeShareLinkCreated>(created);
     expect(link.active).toBe(true);
+    expect(link.version).toBe(1);
     const stored = await asDemoTenant((c) =>
       c.query<{ token_hash: string }>("SELECT token_hash FROM about_me_share_link WHERE id = $1", [
         link.id,
@@ -1724,10 +1725,11 @@ describe("hazard HZ-022 sharing is closed by default", () => {
     expect(JSON.stringify(await json<AboutMeShareLinkList>(listed))).not.toContain(link.token);
     const revoked = await as("manager", `${path}/${link.id}/revoke`, {
       method: "POST",
-      body: { reason: "No longer needed", version: 1 },
+      body: { reason: "No longer needed", version: link.version },
     });
     expect(revoked.status).toBe(200);
-    expect((await json<AboutMeShareLinkList["items"][number]>(revoked)).active).toBe(false);
+    const after = await json<AboutMeShareLinkList["items"][number]>(revoked);
+    expect(after).toMatchObject({ active: false, version: link.version + 1 });
   });
 });
 
@@ -2219,6 +2221,26 @@ describe("people.md rule 12: residents' money at exit (separation of duties)", (
     expect(await moneyItem()).toMatchObject({ status: "done", doneBy: DEMO.users.owner.id });
   });
 
+  it("refuses to drop the money from the plan when the departure is recorded, without a fresh sign-in", async () => {
+    await setSessionAge("manager", 60);
+    const dropped = await as("manager", `/v1/people/${NEWCOMER}/status`, {
+      method: "POST",
+      body: {
+        to: "discharged",
+        exitKind: "discharge",
+        effectiveAt: new Date().toISOString(),
+        reason: "Going home",
+        exit: { holdsResidentsMoney: false },
+        version: (await summary(NEWCOMER, "owner")).version,
+      },
+    });
+    await setSessionAge("manager", 0);
+    expect(dropped.status).toBe(403);
+    expect(await code(dropped)).toBe("finance_flag_change");
+    expect(await auditCount("people.person.status.discharged", NEWCOMER, "denied")).toBe(1);
+    expect((await moneyItem())?.owner).toBe("finance");
+  });
+
   it("cancels the planned discharge with a reason", async () => {
     const exit = (await json<ExitView>(await as("manager", exitPath))).exit;
     const cancelled = await as("manager", `${exitPath}/moves`, {
@@ -2302,6 +2324,21 @@ describe("people.md rules 11 and 12: a death, its notifications and its correcti
       await as("manager", `/v1/locations/${DEMO.locationId}/beds`),
     );
     expect(board.rooms.find((r) => r.label === "5")?.status).toBe("awaiting_clearance");
+    // The board gives the room's version, so its clearance can be recorded from it.
+    expect(board.rooms.find((r) => r.label === "5")?.version).toBeGreaterThanOrEqual(1);
+    // HZ-013: before the safety module drafts the regulator's notification, nobody ticks it by
+    // hand: not the nurse (no notification permission), not a manager (it follows its draft).
+    const before = (await json<ExitView>(await as("manager", `/v1/people/${resident(5)}/exit`)))
+      .exit;
+    const early = before?.checklist.find((i) => i.key === "regulator_death_notification");
+    expect(early).toMatchObject({ status: "pending", derived: false });
+    const tick = (user: "nurse" | "manager") =>
+      as(user, `/v1/people/${resident(5)}/exit/items/regulator_death_notification`, {
+        method: "PUT",
+        body: { status: "done", version: early?.version },
+      });
+    expect((await tick("nurse")).status).toBe(403);
+    expect([403, 422]).toContain((await tick("manager")).status);
     await drainOutbox();
     const exit = (await json<ExitView>(await as("manager", `/v1/people/${resident(5)}/exit`))).exit;
     expect(exit?.kind).toBe("death");
