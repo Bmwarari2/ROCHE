@@ -84,7 +84,8 @@ export default async function SubmissionsPage({
                   })}
                 </span>
                 <details>
-                  <summary className="inline-flex min-h-target cursor-pointer items-center underline">
+                  {/* list-item keeps the open and closed marker; padding keeps the target 44 px tall. */}
+                  <summary className="min-h-target cursor-pointer py-3 font-semibold">
                     {t("quality.dataSecurity.submissions.correctOpen", { year: s.financialYear })}
                   </summary>
                   <div className="pt-4">

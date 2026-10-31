@@ -131,8 +131,10 @@ export default async function AssertionsPage({
                           </span>
                           <UnlinkEvidenceButton
                             assertionId={a.id}
+                            assertionRef={a.assertionRef}
                             documentId={e.documentId}
                             title={name}
+                            lastForMet={a.status === "met" && a.evidence.length === 1}
                             path={path}
                           />
                         </li>

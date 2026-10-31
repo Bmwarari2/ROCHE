@@ -25,6 +25,9 @@ type Done = ActionResult<{ readonly id: string }>;
 const idOnly = <T extends { id: string } | null>(r: ActionResult<T>): Done =>
   r.ok ? { ok: true, data: { id: r.data?.id ?? "" } } : r;
 const ASSERTIONS = [BASE, `${BASE}/assertions`];
+const notFuture = (field: string, subject: string) => ({
+  date_in_future: { field, message: t("quality.dataSecurity.form.notFuture", { subject }) },
+});
 
 export async function recordAssertion(body: unknown): Promise<Done> {
   const parsed = RecordDsptAssertion.safeParse(body);
@@ -41,11 +44,15 @@ export async function changeAssertion(id: string, body: unknown): Promise<Done> 
   const parsed = ChangeDsptAssertion.safeParse(body);
   if (!parsed.success) return invalid();
   return idOnly(
-    await sendQuality("dataSecurity", ASSERTIONS, (api) =>
-      api.POST("/v1/data-security/dspt/assertions/{id}/status", {
-        params: { path: { id } },
-        body: parsed.data,
-      }),
+    await sendQuality(
+      "dataSecurity",
+      ASSERTIONS,
+      (api) =>
+        api.POST("/v1/data-security/dspt/assertions/{id}/status", {
+          params: { path: { id } },
+          body: parsed.data,
+        }),
+      { evidence_required: { field: "status" }, notes_required: { field: "notes" } },
     ),
   );
 }
@@ -79,8 +86,11 @@ export async function recordSubmission(body: unknown): Promise<Done> {
   const parsed = RecordDsptSubmission.safeParse(body);
   if (!parsed.success) return invalid();
   return idOnly(
-    await sendQuality("dataSecurity", [BASE, `${BASE}/submissions`], (api) =>
-      api.POST("/v1/data-security/dspt/submissions", { body: parsed.data }),
+    await sendQuality(
+      "dataSecurity",
+      [BASE, `${BASE}/submissions`],
+      (api) => api.POST("/v1/data-security/dspt/submissions", { body: parsed.data }),
+      notFuture("submittedOn", t("quality.dataSecurity.form.submittedSubject")),
     ),
   );
 }
@@ -90,11 +100,15 @@ export async function correctSubmission(id: string, body: unknown): Promise<Done
   const parsed = CorrectDsptSubmission.safeParse(body);
   if (!parsed.success) return invalid();
   return idOnly(
-    await sendQuality("dataSecurity", [BASE, `${BASE}/submissions`], (api) =>
-      api.POST("/v1/data-security/dspt/submissions/{id}/correct", {
-        params: { path: { id } },
-        body: parsed.data,
-      }),
+    await sendQuality(
+      "dataSecurity",
+      [BASE, `${BASE}/submissions`],
+      (api) =>
+        api.POST("/v1/data-security/dspt/submissions/{id}/correct", {
+          params: { path: { id } },
+          body: parsed.data,
+        }),
+      notFuture("submittedOn", t("quality.dataSecurity.form.submittedSubject")),
     ),
   );
 }
@@ -103,8 +117,11 @@ export async function recordCertificate(body: unknown): Promise<Done> {
   const parsed = RecordSecurityCertificate.safeParse(body);
   if (!parsed.success) return invalid();
   return idOnly(
-    await sendQuality("dataSecurity", [BASE, `${BASE}/certificates`], (api) =>
-      api.POST("/v1/data-security/certificates", { body: parsed.data }),
+    await sendQuality(
+      "dataSecurity",
+      [BASE, `${BASE}/certificates`],
+      (api) => api.POST("/v1/data-security/certificates", { body: parsed.data }),
+      notFuture("issuedOn", t("quality.dataSecurity.form.issuedSubject")),
     ),
   );
 }

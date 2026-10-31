@@ -61,7 +61,9 @@ async function ownerPublishes(browser: Browser, info: TestInfo, words: string) {
   await main(page)
     .getByRole("checkbox", { name: /I have checked this draft/ })
     .check();
-  await main(page).getByRole("button", { name: "Publish" }).click();
+  await main(page)
+    .getByRole("button", { name: /^Publish version/ })
+    .click();
   await arrived(page, words);
   await bothThemes(page, "published by the owner");
   await context.close();
@@ -103,13 +105,13 @@ test("hazard HZ-128 a policy is drafted, published by a second reviewer, read an
     .getByRole("link", { name: `${POLICY}, version 1` })
     .click();
   await expect(main(page).getByText("To read and sign").first()).toBeVisible();
-  await main(page).getByRole("button", { name: "Sign" }).click();
+  await main(page).getByRole("button", { name: "Sign version 1" }).click();
   await expect(main(page).getByText("Tick the box to say you have read it").first()).toBeVisible();
   await bothThemes(page, "sign refused");
   await main(page)
     .getByRole("checkbox", { name: /I have read this version/ })
     .check();
-  await main(page).getByRole("button", { name: "Sign" }).click();
+  await main(page).getByRole("button", { name: "Sign version 1" }).click();
   await arrived(page, "Signed.");
   await expect(main(page).getByText("Signed by you")).toBeVisible();
   await expect(main(page).getByRole("heading", { name: "Who has read and signed" })).toBeVisible();
@@ -133,6 +135,25 @@ test("hazard HZ-128 a policy is drafted, published by a second reviewer, read an
   await page.reload();
   await expect(main(page).getByText("Superseded: version 2 is in force")).toBeVisible();
   await bothThemes(page, "version 1 superseded");
+
+  // Retiring asks for a reason of the length the API takes, said at the field.
+  await main(page).getByLabel("Why retire it", { exact: true }).fill("Old");
+  await main(page).getByRole("checkbox", { name: "I understand this cannot be undone" }).check();
+  await main(page).getByRole("button", { name: "Retire policy" }).click();
+  await expect(
+    main(page).getByText("Give a reason of at least 10 characters").first(),
+  ).toBeVisible();
+  await main(page)
+    .getByLabel("Why retire it", { exact: true })
+    .fill("Replaced by the new lone working procedure");
+  await main(page).getByRole("button", { name: "Retire policy" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
+  await expect(
+    main(page).getByText("This policy has been retired.", { exact: false }),
+  ).toBeVisible();
+  // Version 1 no longer names a version in force: none is.
+  await expect(main(page).getByText("Superseded. No version is in force now.")).toBeVisible();
+  await bothThemes(page, "policy retired");
 });
 
 test("data security: an assertion, a certificate and this year's submission", async ({ page }) => {
@@ -141,6 +162,8 @@ test("data security: an assertion, a certificate and this year's submission", as
   await signIn(page, "owner@example.invalid");
   await page.getByRole("link", { name: "Data security" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Data security" })).toBeVisible();
+  // A kind with no record is said as missing, never as current.
+  await expect(main(page).getByText("Missing: no record").first()).toBeVisible();
   await bothThemes(page, "data security overview");
 
   await main(page).getByRole("link", { name: "View the assertions" }).click();
@@ -157,17 +180,14 @@ test("data security: an assertion, a certificate and this year's submission", as
     name: new RegExp(`^${ref.replaceAll(".", "\\.")}:`),
   });
   await card.getByRole("radio", { name: "Met", exact: true }).check();
-  await card.getByRole("button", { name: "Save" }).click();
+  await card.getByRole("button", { name: `Save where ${ref} stands` }).click();
   await expect(card.getByText(/evidence/i).first()).toBeVisible();
-  // The refusal scrolls its card's radios up under the sticky app bar, where axe counts them as
-  // obscured targets; checked with the page heading in view, as a person returning to it would.
-  await page.getByRole("heading", { level: 1 }).scrollIntoViewIfNeeded();
   await bothThemes(page, "met refused without evidence");
   await card.getByRole("radio", { name: "Not applicable" }).check();
-  await card.getByRole("button", { name: "Save" }).click();
+  await card.getByRole("button", { name: `Save where ${ref} stands` }).click();
   await expect(card.getByText("Add notes to say why").first()).toBeVisible();
   await card.getByLabel("Notes", { exact: true }).fill("We hold no paper records at this location");
-  await card.getByRole("button", { name: "Save" }).click();
+  await card.getByRole("button", { name: `Save where ${ref} stands` }).click();
   await arrived(page, "Assertion updated.");
   await bothThemes(page, "assertion updated");
 

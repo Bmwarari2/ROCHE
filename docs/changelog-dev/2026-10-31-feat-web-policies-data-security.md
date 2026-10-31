@@ -25,6 +25,20 @@ and PIR screens wait for slice 47.
   instead of "could not save just now".
 - `e2e/support.ts` `settleAnimations` no longer waits on animations in content that is not
   rendered (inside a closed `<details>`), which never finish and hung the journey.
+- The accessibility review's fixes:
+  - `@harbour/ui` `base.css` sets `scroll-padding-top` to the app bar's height. A field reached
+    from an error summary no longer stops under the sticky bar (WCAG 2.4.11), and the journey's
+    workaround is gone.
+  - Retiring checks the contract's 10-character minimum at the field.
+  - A retired policy says so; superseded versions say none is in force.
+  - API refusals sit at their fields (evidence, notes, future dates, a short name in use).
+  - A draft that cannot be published yet says what it needs.
+  - Stopping the last evidence for a met assertion needs a confirm box.
+  - Buttons name what they act on.
+  - Each policy page has its own title.
+  - Older certificate records say "Replaced by a newer record".
+  - Counts read as one phrase.
+  - Heading levels, the roles hint and the plural are fixed, and `<details>` keeps its marker.
 
 ## Merge notes
 
@@ -37,8 +51,14 @@ and PIR screens wait for slice 47.
 
 - A dev database that applied later migrations before 0071 skips 0071 (Drizzle compares `when`
   with the last applied migration), so its columns are missing. Here it was applied by hand.
-- After a refusal scrolls the page, the sticky app bar can cover form controls, which axe reports
-  as a target-size problem. The journey checks with the heading in view.
+- From the accessibility review, left for later:
+  - After saving on the assertions page, focus returns to the h1 rather than the card just saved.
+    `RecordedArrival` is shared, so an optional focus target belongs in its own change.
+  - `RecordedArrival` mounts its `role="status"` already filled in, which some screen readers do
+    not announce (H-919).
+  - "Registered Manager" is in title case next to "Deputy manager"; the repository mixes both, so
+    this needs one decision.
+  - The policy short name could be worked out from the title.
 
 ## Human actions logged
 
@@ -46,6 +66,9 @@ and PIR screens wait for slice 47.
 
 ## Tests
 
-- Web unit tests 1463 passed (including `policies.test.ts` and `data-security.test.ts`), i18n 48
-  passed. Biome and typecheck are clean.
-- `e2e/policies-data-security.spec.ts`: 2 passed, with axe in light and dark themes.
+- Web unit tests 1474 passed (including `policies.test.ts` and `data-security.test.ts`), i18n 48
+  passed and ui 350 passed. Biome and typecheck are clean.
+- `e2e/policies-data-security.spec.ts`: 2 passed, with axe in light and dark themes. It covers:
+  - the retire reason refused, then the retirement;
+  - "Missing: no record" on the overview;
+  - the refused state checked as it falls.

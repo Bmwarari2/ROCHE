@@ -56,9 +56,16 @@ export default async function DataSecurityPage() {
           </p>
           <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
             {ASSERTION_STATUSES.map((status) => (
-              <li key={status} className="flex items-center gap-2">
-                <QualityChip chip={assertionChip(status, t)} />
-                <span>{dspt.assertions.byStatus[status] ?? 0}</span>
+              <li key={status}>
+                <QualityChip
+                  chip={{
+                    ...assertionChip(status, t),
+                    label: t("quality.dataSecurity.dspt.statusCount", {
+                      status,
+                      count: dspt.assertions.byStatus[status] ?? 0,
+                    }),
+                  }}
+                />
               </li>
             ))}
           </ul>

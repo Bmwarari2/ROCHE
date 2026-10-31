@@ -889,11 +889,11 @@ its decisions into words. Status is shown as an icon plus a word, every form pos
 | --- | --- | --- |
 | `/policies` | "To read and sign" (from `/v1/me/policies`: the versions in force the reader's role must sign and has not), then the library: each policy's version in force, its review status (current, due soon, overdue, no review date) and whether the reader has signed | Every member (sidebar "Policies") |
 | `/policies/new` | A new policy: title, short name, whether someone else must publish it, and its first draft | `quality.policy.manage` |
-| `/policies/[id]` | The version in force (text or organisation document, roles who must sign, review date) with the sign form; for managers, who has read and signed; the draft (edit, publish); every version with its state, where a superseded one says "Superseded: version N is in force" (HZ-128); retire | Every member; the manager parts to `quality.policy.manage` |
+| `/policies/[id]` | The version in force (text or organisation document, roles who must sign, review date) with the sign form; for managers, who has read and signed; the draft (edit, publish); every version with its state, where a superseded one says "Superseded: version N is in force" (HZ-128), or "No version is in force now" once the policy is retired; retire | Every member; the manager parts to `quality.policy.manage` |
 | `/quality/data-security` | The DSPT for this financial year (submitted, due, due soon, overdue, with the deadline), Cyber Essentials, Cyber Essentials Plus and the ICO registration (current, due soon, expired, or "Missing: no record", never current), and counts of assertions by status with "met without evidence" counted apart | `quality.dsar.manage` across the organisation (sidebar "Data security") |
 | `/quality/data-security/assertions?year=` | The year's assertions with their status and evidence; add an assertion, change its status (notes for not met and not applicable), link and unlink organisation documents | As above |
 | `/quality/data-security/submissions` | One submission per financial year; record this year's, correct an earlier one (the earlier values stay in its history) | As above |
-| `/quality/data-security/certificates` | Every certificate and registration newest first; record one (expiry after issue) | As above |
+| `/quality/data-security/certificates` | Every certificate and registration newest first, the newest of each kind with its status and older ones "Replaced by a newer record"; record one (expiry after issue, never issued in the future) | As above |
 
 The data security API refuses a location-scoped holder (`requireOrganisationWide`), so the pages
 tell that holder the screens are for whoever handles data protection for the whole organisation.
@@ -903,10 +903,10 @@ tell that holder the screens are for whoever handles data protection for the who
 | Action | Permission (API) | The screen |
 | --- | --- | --- |
 | Add a policy, start a draft (minor or major), save a draft | `quality.policy.manage` | A minor change keeps signatures and a major one asks everyone to sign again, so the form says which is which. A new draft copies the text and roles but needs its own review date before it is published |
-| Publish | `quality.policy.manage`; another person when the policy needs a second reviewer | The author of such a draft sees a notice saying someone else must publish it, not the form; the publisher ticks "I have checked this draft" |
-| Retire | `quality.policy.manage` | A reason and a confirm box |
+| Publish | `quality.policy.manage`; another person when the policy needs a second reviewer | The author of such a draft sees a notice saying someone else must publish it, not the form. A draft with no roles or no review date shows what it still needs instead of the form. The publisher ticks "I have checked this draft" |
+| Retire | `quality.policy.manage` | A reason of at least 10 characters (the contract's minimum, checked at the field) and a confirm box |
 | Sign | Any member asked to sign the version in force | "I have read this version" must be ticked |
-| Assertions, evidence, submissions, certificates | `quality.dsar.manage` (organisation-wide) | Refusals the API names in its own words (evidence required for met, notes required) are shown in those words |
+| Assertions, evidence, submissions, certificates | `quality.dsar.manage` (organisation-wide) | Refusals the API names (evidence required for met, notes required, a date in the future, a short name in use) are shown at their field. Stopping the last evidence for an assertion marked met needs a box ticked first, saying it will then show as met with no evidence. Buttons name their assertion ("Save where 1.1.1 stands") |
 
 ### Tests
 

@@ -31,8 +31,12 @@ const done =
 export async function createPolicy(body: unknown): Promise<Done> {
   const parsed = CreatePolicy.safeParse(body);
   if (!parsed.success) return invalid();
-  const result = await sendQuality("policy", [LIBRARY], (api) =>
-    api.POST("/v1/policies", { body: parsed.data }),
+  // The only conflict a new policy meets is a short name already in use.
+  const result = await sendQuality(
+    "policy",
+    [LIBRARY],
+    (api) => api.POST("/v1/policies", { body: parsed.data }),
+    { invalid_state: { field: "policyKey", message: t("quality.policies.form.keyTaken") } },
   );
   return result.ok ? { ok: true, data: { id: result.data.id } } : result;
 }

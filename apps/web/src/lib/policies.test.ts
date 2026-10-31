@@ -2,6 +2,7 @@ import type { PolicyItem } from "@harbour/contracts";
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
+  draftUnready,
   inForceFor,
   policiesManaged,
   readDraft,
@@ -148,5 +149,39 @@ describe("reading the forms", () => {
     });
     const bad = readNewPolicy(form({ policyKey: "Safe guarding", title: "S" }), t);
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe("hazard HZ-128 a retired policy leaves nothing in force", () => {
+  it("names no version when the one a superseded version points at is not there", () => {
+    const old = version({ id: "v1", state: "superseded", supersededBy: "v9" });
+    expect(inForceFor({ versions: [old] }, old)).toBeNull();
+  });
+  it("says retired, not yet to come, when no version is in force", () => {
+    expect(t("quality.policies.retiredNone")).toBe(
+      "No version is in force. This policy has been retired.",
+    );
+    expect(t("quality.policies.log.supersededNone")).toBe(
+      "Superseded. No version is in force now.",
+    );
+  });
+});
+
+describe("what a draft needs before it is published", () => {
+  it.each([
+    { roles: [], reviewDueOn: null, expected: "both" },
+    { roles: [], reviewDueOn: "2027-10-01", expected: "roles" },
+    { roles: ["care_worker"], reviewDueOn: null, expected: "review" },
+    { roles: ["care_worker"], reviewDueOn: "2027-10-01", expected: null },
+  ])("roles $roles and review $reviewDueOn give $expected", ({ roles, reviewDueOn, expected }) => {
+    expect(draftUnready({ roles, reviewDueOn })).toBe(expected);
+  });
+  it("counts who has signed in plain English", () => {
+    expect(t("quality.policies.status.summary", { signed: 1, required: 1 })).toBe(
+      "1 of 1 person asked has signed.",
+    );
+    expect(t("quality.policies.status.summary", { signed: 2, required: 5 })).toBe(
+      "2 of 5 people asked have signed.",
+    );
   });
 });

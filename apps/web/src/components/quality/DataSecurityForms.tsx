@@ -1,6 +1,14 @@
 "use client";
 
-import { Button, DateInput, RadioGroup, SelectField, TextArea, TextField } from "@harbour/ui";
+import {
+  Button,
+  Checkbox,
+  DateInput,
+  RadioGroup,
+  SelectField,
+  TextArea,
+  TextField,
+} from "@harbour/ui";
 import type { FormEvent } from "react";
 import {
   changeAssertion,
@@ -41,12 +49,23 @@ const dateLabels = {
 
 type Document = { readonly id: string; readonly title: string };
 
-function Heading({ id, title, intro }: { id: string; title: string; intro?: string }) {
+function Heading({
+  id,
+  title,
+  intro,
+  level = 3,
+}: {
+  id: string;
+  title: string;
+  intro?: string;
+  level?: 3 | 4;
+}) {
+  const Tag = level === 4 ? "h4" : "h3";
   return (
     <div className="flex flex-col gap-1">
-      <h3 id={id} className="m-0 text-body font-semibold">
+      <Tag id={id} className="m-0 text-body font-semibold">
         {title}
-      </h3>
+      </Tag>
       {intro ? (
         <p className="m-0 max-w-prose text-body-dense text-text-secondary">{intro}</p>
       ) : null}
@@ -174,7 +193,9 @@ export function AssertionStatusForm({
         />
         <div>
           <Button type="submit" variant="primary" disabled={pending}>
-            {pending ? t("common.saving") : t("quality.dataSecurity.assertion.save")}
+            {pending
+              ? t("common.saving")
+              : t("quality.dataSecurity.assertion.save", { ref: assertion.assertionRef })}
           </Button>
         </div>
       </form>
@@ -218,6 +239,7 @@ export function LinkEvidenceForm({
       >
         <Heading
           id={titleId}
+          level={4}
           title={t("quality.dataSecurity.evidence.linkTitle", { ref: assertionRef })}
         />
         <SelectField
@@ -231,7 +253,9 @@ export function LinkEvidenceForm({
         />
         <div>
           <Button type="submit" variant="secondary" disabled={pending}>
-            {pending ? t("common.saving") : t("quality.dataSecurity.evidence.link")}
+            {pending
+              ? t("common.saving")
+              : t("quality.dataSecurity.evidence.link", { ref: assertionRef })}
           </Button>
         </div>
       </form>
@@ -240,34 +264,65 @@ export function LinkEvidenceForm({
   );
 }
 
+/**
+ * Stops using a document as evidence. When it is the last evidence for an assertion marked met, a
+ * box must be ticked first: the assertion will then show as met with no evidence.
+ */
 export function UnlinkEvidenceButton({
   assertionId,
+  assertionRef,
   documentId,
   title,
+  lastForMet,
   path,
 }: {
   readonly assertionId: string;
+  readonly assertionRef: string;
   readonly documentId: string;
   readonly title: string;
+  readonly lastForMet: boolean;
   readonly path: string;
 }) {
-  const { result, pending, send } = useQualitySend(path);
+  const ids = useFieldIds(["confirm"]);
+  const { result, pending, send, fail } = useQualitySend(path);
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    if (lastForMet && data.get("confirm") !== "yes") {
+      return fail({
+        confirm: t("quality.dataSecurity.evidence.unlinkLastError", { ref: assertionRef }),
+      });
+    }
     send("evidenceUnlinked", () => unlinkEvidence(assertionId, documentId));
   };
+  const name = t("quality.dataSecurity.evidence.unlink", { title, ref: assertionRef });
+  const confirmError = errorFor(result, "confirm");
   return (
     <div className="flex flex-col gap-2">
       <form
         method="post"
         onSubmit={onSubmit}
-        aria-label={t("quality.dataSecurity.evidence.unlinkFor", { title })}
+        noValidate
+        aria-label={name}
+        className="flex flex-col gap-2"
       >
-        <Button type="submit" variant="secondary" disabled={pending}>
-          {pending ? t("common.saving") : t("quality.dataSecurity.evidence.unlink", { title })}
-        </Button>
+        {lastForMet ? (
+          <Checkbox
+            id={ids.confirm}
+            name="confirm"
+            value="yes"
+            label={t("quality.dataSecurity.evidence.unlinkLast", { ref: assertionRef })}
+            required
+            {...(confirmError ? { error: confirmError } : {})}
+          />
+        ) : null}
+        <div>
+          <Button type="submit" variant="secondary" disabled={pending}>
+            {pending ? t("common.saving") : name}
+          </Button>
+        </div>
       </form>
-      <QualityFeedback result={result} path={path} />
+      <QualityFeedback result={result} path={path} fieldIds={ids} />
     </div>
   );
 }

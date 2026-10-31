@@ -22,7 +22,13 @@ import {
 import { useFieldIds } from "@/components/care/form-state";
 import { characterCount, t } from "@/lib/i18n";
 import { errorFor, partsFor } from "@/lib/outcome";
-import { POLICY_ROLES, readDraft, readNewPolicy, SUMMARY_MAX } from "@/lib/policies";
+import {
+  POLICY_ROLES,
+  RETIRE_REASON_MIN,
+  readDraft,
+  readNewPolicy,
+  SUMMARY_MAX,
+} from "@/lib/policies";
 import { dateBoxesOf } from "@/lib/uk-time";
 import { QualityFeedback, QualityReasonForm, useQualitySend } from "./QualityForms";
 
@@ -116,9 +122,12 @@ function DraftFields({
           error={errorFor(result, "documentId")}
         />
       ) : null}
-      <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+      <fieldset
+        className="m-0 flex flex-col gap-2 border-0 p-0"
+        aria-describedby={`${ids.change}-roles-hint`}
+      >
         <legend className="mb-1 font-semibold">{t("quality.policies.form.roles")}</legend>
-        <p className="m-0 text-body-dense text-text-secondary">
+        <p id={`${ids.change}-roles-hint`} className="m-0 text-body-dense text-text-secondary">
           {t("quality.policies.form.rolesHint")}
         </p>
         {POLICY_ROLES.map((role) => (
@@ -398,7 +407,9 @@ export function PublishForm({
         />
         <div>
           <Button type="submit" variant="primary" disabled={pending}>
-            {pending ? t("common.saving") : t("quality.policies.publish.submit")}
+            {pending
+              ? t("common.saving")
+              : t("quality.policies.publish.submit", { n: draft.versionNumber })}
           </Button>
         </div>
       </form>
@@ -424,6 +435,7 @@ export function RetirePolicyForm({
       path={path}
       done="policyRetired"
       confirm={t("quality.policies.retire.confirm")}
+      min={RETIRE_REASON_MIN}
       onSend={(reason) => retirePolicy(policy.id, { expectedVersion: policy.version, reason })}
     />
   );
@@ -470,7 +482,9 @@ export function SignForm({
         />
         <div>
           <Button type="submit" variant="primary" disabled={pending}>
-            {pending ? t("common.saving") : t("quality.policies.sign.submit")}
+            {pending
+              ? t("common.saving")
+              : t("quality.policies.sign.submit", { n: version.versionNumber })}
           </Button>
         </div>
       </form>

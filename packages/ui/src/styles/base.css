@@ -8,6 +8,9 @@
     text-size-adjust: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* A field reached from an error summary or a fragment stops below the sticky app bar, never
+       under it (WCAG 2.4.11). */
+    scroll-padding-top: calc(var(--nav-height) + 8px);
   }
 
   body {

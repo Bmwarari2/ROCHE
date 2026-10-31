@@ -81,9 +81,24 @@ export function inForceFor(
   return policy.versions.find((v) => v.id === version.supersededBy) ?? null;
 }
 
+/** What a draft still needs before it can be published: roles, a review date, both or nothing. */
+export function draftUnready(draft: {
+  readonly roles: readonly string[];
+  readonly reviewDueOn: string | null;
+}): "roles" | "review" | "both" | null {
+  const noRoles = draft.roles.length === 0;
+  const noReview = draft.reviewDueOn === null;
+  if (noRoles && noReview) return "both";
+  if (noRoles) return "roles";
+  if (noReview) return "review";
+  return null;
+}
+
 export const SUMMARY_MAX = 2000;
 export const BODY_MAX = 100_000;
 export const TITLE_MAX = 160;
+/** The fewest characters the API takes for a reason to retire a policy (the RetirePolicy contract). */
+export const RETIRE_REASON_MIN = 10;
 
 export interface DraftBody {
   readonly change: "minor" | "major";

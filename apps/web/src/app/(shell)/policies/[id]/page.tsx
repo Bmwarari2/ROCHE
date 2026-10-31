@@ -20,6 +20,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { readOrFail } from "@/lib/person-record";
 import {
+  draftUnready,
   inForceFor,
   policiesManaged,
   reviewChip,
@@ -28,7 +29,22 @@ import {
 } from "@/lib/policies";
 import { qualityDone } from "@/lib/quality-done";
 
-export const metadata: Metadata = { title: t("quality.policies.detailTitle") };
+/** The policy's own title in the browser tab, so each policy page is told apart (WCAG 2.4.2). */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  if (!isUuid(id)) return { title: t("quality.policies.detailTitle") };
+  const api = await tenantApi();
+  const { data } = await api.GET("/v1/policies/{id}", { params: { path: { id } } });
+  return {
+    title: data
+      ? t("quality.policies.pageTitle", { title: data.title })
+      : t("quality.policies.detailTitle"),
+  };
+}
 
 /**
  * One policy (QUAL-008; rules 25 to 28; HZ-128): the version in force with its text or document,
@@ -72,6 +88,8 @@ export default async function PolicyPage({
   const done = qualityDone((await searchParams).done);
   const sign = signChip(policy, t);
   const authorOfDraft = draft !== null && draft.authorId === me.tenantUserId;
+  // What a draft still needs before it can be published (rule 25), said before the publish form.
+  const unready = draft ? draftUnready(draft) : null;
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6 break-words">
@@ -141,7 +159,11 @@ export default async function PolicyPage({
             ) : null}
           </div>
         ) : (
-          <p className="m-0">{t("quality.policies.notYetPublished")}</p>
+          <p className="m-0">
+            {policy.retiredAt
+              ? t("quality.policies.retiredNone")
+              : t("quality.policies.notYetPublished")}
+          </p>
         )}
       </Card>
 
@@ -154,8 +176,8 @@ export default async function PolicyPage({
                 required: readAndSign.required,
               })}
             </p>
-            <section aria-labelledby="outstanding" className="flex flex-col gap-2">
-              <h3 id="outstanding" className="m-0 text-body font-semibold">
+            <section aria-labelledby="read-sign-outstanding" className="flex flex-col gap-2">
+              <h3 id="read-sign-outstanding" className="m-0 text-body font-semibold">
                 {t("quality.policies.status.outstanding", {
                   count: readAndSign.outstanding.length,
                 })}
@@ -175,8 +197,8 @@ export default async function PolicyPage({
                 </ul>
               )}
             </section>
-            <section aria-labelledby="signed" className="flex flex-col gap-2">
-              <h3 id="signed" className="m-0 text-body font-semibold">
+            <section aria-labelledby="read-sign-signed" className="flex flex-col gap-2">
+              <h3 id="read-sign-signed" className="m-0 text-body font-semibold">
                 {t("quality.policies.status.signed", { count: readAndSign.signed.length })}
               </h3>
               {readAndSign.signed.length === 0 ? (
@@ -209,6 +231,15 @@ export default async function PolicyPage({
                   title={t("quality.policies.publish.secondReviewerTitle")}
                 >
                   <p className="m-0">{t("quality.policies.publish.secondReviewer")}</p>
+                </Notice>
+              ) : unready ? (
+                <Notice
+                  icon={<Info size={20} aria-hidden="true" />}
+                  title={t("quality.policies.publish.missingTitle")}
+                >
+                  <p className="m-0">
+                    {t("quality.policies.publish.missing", { missing: unready })}
+                  </p>
                 </Notice>
               ) : (
                 <PublishForm policyId={id} draft={draft} path={path} />
@@ -243,9 +274,11 @@ export default async function PolicyPage({
                     })}
                   </span>
                 ) : null}
-                {now ? (
+                {version.state === "superseded" ? (
                   <span className="font-semibold">
-                    {t("quality.policies.log.supersededBy", { n: now.versionNumber })}
+                    {now
+                      ? t("quality.policies.log.supersededBy", { n: now.versionNumber })
+                      : t("quality.policies.log.supersededNone")}
                   </span>
                 ) : null}
                 {version.retiredReason ? (

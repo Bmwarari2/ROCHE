@@ -6,7 +6,7 @@ import { QualityChip } from "@/components/quality/QualityChip";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, tenantApi } from "@/lib/api";
-import { dataSecurityShown, renewalChip } from "@/lib/data-security";
+import { dataSecurityShown, latestOfKind, renewalChip, replacedChip } from "@/lib/data-security";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { readOrFail } from "@/lib/person-record";
@@ -40,6 +40,9 @@ export default async function CertificatesPage({
   if (!list || !now)
     return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const documents = docs.data?.items.filter((d) => d.status === "available") ?? [];
+  const items = list.items.flatMap((c) => (c ? [c] : []));
+  const latest = latestOfKind(items);
+  const kindStatus = new Map(now.certificates.map((c) => [c.kind, c.status] as const));
   const done = qualityDone((await searchParams).done);
 
   return (
@@ -75,15 +78,20 @@ export default async function CertificatesPage({
           <p className="m-0">{t("quality.dataSecurity.certificates.none")}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
-            {list.items
-              .flatMap((c) => (c ? [c] : []))
-              .map((c) => (
+            {items.map((c) => {
+              const status = kindStatus.get(c.kind);
+              return (
                 <li key={c.id} className="flex flex-col gap-1 border-b border-border pb-3">
                   <span className="font-semibold">
                     {t("quality.dataSecurity.certificates.item", {
                       kind: c.kind,
                       reference: c.reference,
                     })}
+                  </span>
+                  <span>
+                    <QualityChip
+                      chip={latest.has(c.id) && status ? renewalChip(status, t) : replacedChip(t)}
+                    />
                   </span>
                   <span className="text-body-dense text-text-secondary">
                     {t("quality.dataSecurity.certificates.dates", {
@@ -101,7 +109,8 @@ export default async function CertificatesPage({
                     </Link>
                   ) : null}
                 </li>
-              ))}
+              );
+            })}
           </ul>
         )}
       </Card>

@@ -5,12 +5,14 @@ import {
   dataSecurityShown,
   dsptChip,
   isFinancialYear,
+  latestOfKind,
   metWithoutEvidence,
   readAssertion,
   readAssertionStatus,
   readCertificate,
   readSubmission,
   renewalChip,
+  replacedChip,
 } from "./data-security";
 
 const t = createTranslator("en-GB");
@@ -110,5 +112,53 @@ describe("reading the forms", () => {
     expect(early.ok).toBe(false);
     if (!early.ok)
       expect(early.errors.expiresOn).toBe("The expiry date must be after the date issued");
+  });
+});
+
+describe("never a future date, and older records said as replaced", () => {
+  const now = new Date("2026-10-31T12:00:00Z");
+  it("refuses a submission dated tomorrow", () => {
+    const read = readSubmission(
+      form({ ...date("submittedOn", "1", "11", "2026"), outcome: "standards_met" }),
+      t,
+      now,
+    );
+    expect(read).toMatchObject({
+      ok: false,
+      errors: { submittedOn: "The date submitted cannot be in the future" },
+    });
+  });
+  it("takes a submission dated today", () => {
+    const read = readSubmission(
+      form({ ...date("submittedOn", "31", "10", "2026"), outcome: "standards_met" }),
+      t,
+      now,
+    );
+    expect(read.ok).toBe(true);
+  });
+  it("refuses a certificate issued tomorrow", () => {
+    const read = readCertificate(
+      form({ kind: "cyber_essentials", reference: "CE-1", ...date("issuedOn", "1", "11", "2026") }),
+      [],
+      t,
+      now,
+    );
+    expect(read).toMatchObject({
+      ok: false,
+      errors: { issuedOn: "The date issued cannot be in the future" },
+    });
+  });
+  it("keeps only the newest record of each kind as the one its status is about", () => {
+    const latest = latestOfKind([
+      { id: "a", kind: "cyber_essentials", issuedOn: "2026-05-01" },
+      { id: "b", kind: "cyber_essentials", issuedOn: "2025-05-01" },
+      { id: "c", kind: "ico_registration", issuedOn: "2024-01-01" },
+    ]);
+    expect([...latest].sort()).toEqual(["a", "c"]);
+    expect(replacedChip(t)).toEqual({
+      status: "neutral",
+      icon: "circle-minus",
+      label: "Replaced by a newer record",
+    });
   });
 });

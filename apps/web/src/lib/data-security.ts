@@ -2,7 +2,7 @@ import type { Translator } from "@harbour/i18n";
 import type { QualityChip } from "./evidence-packs";
 import type { FormValues } from "./incident-forms";
 import type { FieldErrors } from "./outcome";
-import { readDateField } from "./uk-time";
+import { readDateField, ukToday } from "./uk-time";
 
 /**
  * The data security evidence screens (quality.md section 22; QUAL-012): where the DSPT, Cyber
@@ -58,6 +58,30 @@ export function renewalChip(
     missing: { status: "overdue", icon: "circle-alert" },
   } as const;
   return { ...look[status], label: t("quality.dataSecurity.renewal", { status }) };
+}
+
+/**
+ * Each record's place: the newest of its kind (latest issued; the first listed on a tie) is the
+ * one the kind's status is about, and every older one is said as replaced, so it is never read
+ * as current.
+ */
+export function latestOfKind(
+  records: readonly { readonly id: string; readonly kind: string; readonly issuedOn: string }[],
+): ReadonlySet<string> {
+  const newest = new Map<string, { id: string; issuedOn: string }>();
+  for (const r of records) {
+    const seen = newest.get(r.kind);
+    if (!seen || r.issuedOn > seen.issuedOn) newest.set(r.kind, { id: r.id, issuedOn: r.issuedOn });
+  }
+  return new Set([...newest.values()].map((r) => r.id));
+}
+
+export function replacedChip(t: Translator): QualityChip {
+  return {
+    status: "neutral",
+    icon: "circle-minus",
+    label: t("quality.dataSecurity.certificates.replaced"),
+  };
 }
 
 export function assertionChip(status: AssertionStatus, t: Translator): QualityChip {
@@ -131,6 +155,7 @@ export function readAssertionStatus(
 export function readSubmission(
   form: FormValues,
   t: Translator,
+  now: Date = new Date(),
 ): Read<{ submittedOn: string; outcome: Outcome; reference: string | null }> {
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
@@ -141,6 +166,10 @@ export function readSubmission(
   if (!on.ok) {
     errors.submittedOn = on.message;
     parts.submittedOn = on.parts;
+  } else if (on.date && on.date > ukToday(now)) {
+    errors.submittedOn = t("quality.dataSecurity.form.notFuture", {
+      subject: t("quality.dataSecurity.form.submittedSubject"),
+    });
   }
   const outcome = String(form.get("outcome") ?? "");
   if (!(OUTCOMES as readonly string[]).includes(outcome))
@@ -159,6 +188,7 @@ export function readCertificate(
   form: FormValues,
   documents: readonly string[],
   t: Translator,
+  now: Date = new Date(),
 ): Read<{
   kind: CertificateKind;
   reference: string;
@@ -182,6 +212,10 @@ export function readCertificate(
   if (!issued.ok) {
     errors.issuedOn = issued.message;
     parts.issuedOn = issued.parts;
+  } else if (issued.date && issued.date > ukToday(now)) {
+    errors.issuedOn = t("quality.dataSecurity.form.notFuture", {
+      subject: t("quality.dataSecurity.form.issuedSubject"),
+    });
   }
   const expires = readDateField(form, "expiresOn", {
     subject: t("quality.dataSecurity.form.expiresSubject"),
