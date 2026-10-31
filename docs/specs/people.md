@@ -423,8 +423,9 @@ and a value Postgres cannot store is refused in words; versioned, and refused on
 read-only, rule 1). An NHS number already on the record of someone the caller can see is refused
 saying so. One on a record they cannot see (another home, a closed record) is refused without
 saying whose or where, audited as denied (`nhs_number_in_use`, never the number), counted against
-three such refusals per member an hour (after which that member changes no NHS number for the
-hour), and one task asks the owner, who works across the organisation, to look for a duplicate
+three such refusals per member an hour (each NHS number change is counted before the lookup, in its
+own transaction, and given back unless it is such a refusal, so parallel requests cannot pass the
+limit together; after three that member changes no NHS number for the hour), and one task asks the owner, who works across the organisation, to look for a duplicate
 record (HZ-001, HZ-011) and `GET`, `POST` and `PATCH /v1/people/{id}/contacts` (key contacts and legal
 representatives: an attorney, deputy or appointee with neither a reference nor evidence is saved
 and flagged `evidenceMissing`; a deputy says what their order covers and only a deputy has an
@@ -437,7 +438,10 @@ the authority a sharing decision rests on (`authorityChangeEffects`: no longer t
 authority, a deputy's order no longer of that kind, the last reference or evidence removed, or an
 end before the one the decision recorded) suspends every such decision not yet ended in the same
 transaction, audited `authority_changed` and publishing `people.sharing.changed`; the answer says
-how many (`suspendedDecisions`), and a manager reviews them on the sharing tab (HZ-022). Changing the
+how many (`suspendedDecisions`), and a manager reviews them on the sharing tab (HZ-022). A decision
+already suspended has the change audited; lifting any suspension checks that the contact still
+holds the authority as recorded (`authorityHeldNow`) and is refused, audited `authority_changed`,
+when it does not. Changing the
 email address a family member's portal account is matched by needs `people.sharing.manage` and a
 fresh sign-in. Share links return their `version`, which a revocation sends back (reason up to 500
 characters). Tests:

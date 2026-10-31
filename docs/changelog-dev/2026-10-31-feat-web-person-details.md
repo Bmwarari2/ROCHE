@@ -40,8 +40,8 @@ Branch `feat/web-person-details`, PR #119.
 
 ## Tests
 
-- `apps/api/test/people-details.test.ts` (43);
-  `packages/domain/src/people/sharing-authority-change.test.ts` (15);
+- `apps/api/test/people-details.test.ts` (47);
+  `packages/domain/src/people/sharing-authority-change.test.ts` (23);
   `apps/api/test/people-lifecycle.test.ts` (the share link test checks the version).
 - `apps/web/src/lib/person-details.test.ts` and `sharing.test.ts` (38 with the copy test);
   `apps/web/src/lib/care-record.test.ts` (the three tabs).
@@ -64,3 +64,10 @@ Branch `feat/web-person-details`, PR #119.
   foreign key is logged). L3: real other-person and wrong-category documents, another home and a
   discharged person's contacts tested. L4: the person row is locked when contacts change. The web
   revocation reason now matches the API (500 characters). Main merged.
+- Round 2 (security re-check). The NHS number limit is reserved before the lookup and given
+  back unless the refusal counts, so parallel requests cannot all pass it (a concurrency test);
+  counting that fails refuses with 503 rather than looking. Lifting a suspension re-checks the
+  authority against the contact (`authorityHeldNow`) and is refused, audited `authority_changed`,
+  when it has gone; an authority change on an already-suspended decision is audited. The portal
+  email refusals are thrown as `AuditedRefusal` and written after the transaction (S-L7), the
+  missing permission now audited too.
