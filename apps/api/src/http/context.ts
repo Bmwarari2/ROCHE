@@ -76,8 +76,6 @@ export interface Services {
   readonly scanner: MalwareScanPort;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
-  /** Per-user limit on recording an enquiry, which could otherwise probe NHS numbers (HZ-011). */
-  readonly enquiryLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */
   readonly handoverCompileLimiter: RateLimiter;
   readonly accountDeletionLimiter: RateLimiter;

@@ -79,13 +79,15 @@ async function admit(
   givenName: string,
 ): Promise<{ readonly id: string; readonly roomId: string }> {
   const now = () => new Date().toISOString();
-  const created = await call<Summary>(page, "POST", "/v1/people", {
+  // The enquiry route answers with the record's id and state only (people-enquiries.ts).
+  const recorded = await call<{ id: string }>(page, "POST", "/v1/people", {
     locationId: LOCATION,
     givenName,
     familyName: `Example ${RUN}`,
     dateOfBirth: "1936-04-04",
   });
-  const id = created.id;
+  const id = recorded.id;
+  const created = await call<Summary>(page, "GET", `/v1/people/${id}`);
   await call(page, "POST", `/v1/people/${id}/status`, {
     to: "pre_admission",
     effectiveAt: now(),

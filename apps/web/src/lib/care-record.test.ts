@@ -53,6 +53,9 @@ describe("record tabs", () => {
       "activities",
       "reviews",
       "hospital",
+      "pre-admission",
+      "admission",
+      "property",
       "letters",
       "family-updates",
       "leaving",
@@ -79,6 +82,9 @@ describe("record tabs", () => {
       "charts",
       "body-map",
       "activities",
+      "pre-admission",
+      "admission",
+      "property",
       "leaving",
       "history",
     ]);
@@ -86,19 +92,59 @@ describe("record tabs", () => {
     // Letters only for those who make them (comms.letter.manage), never from reading the record.
     expect(
       visibleTabs(PERSON, ["people.person.read", "comms.letter.manage"]).map((v) => v.tab),
-    ).toEqual(["overview", "details", "about-me", "letters", "leaving", "history"]);
+    ).toEqual([
+      "overview",
+      "details",
+      "about-me",
+      "pre-admission",
+      "admission",
+      "property",
+      "letters",
+      "leaving",
+      "history",
+    ]);
     // Family updates only for those who publish them (comms.feed.publish).
     expect(
       visibleTabs(PERSON, ["people.person.read", "comms.feed.publish"]).map((v) => v.tab),
-    ).toEqual(["overview", "details", "about-me", "family-updates", "leaving", "history"]);
+    ).toEqual([
+      "overview",
+      "details",
+      "about-me",
+      "pre-admission",
+      "admission",
+      "property",
+      "family-updates",
+      "leaving",
+      "history",
+    ]);
     // The hospital tab only for those who send people to hospital (people.movement.record).
     expect(
       visibleTabs(PERSON, ["people.person.read", "people.movement.record"]).map((v) => v.tab),
-    ).toEqual(["overview", "details", "about-me", "hospital", "leaving", "history"]);
+    ).toEqual([
+      "overview",
+      "details",
+      "about-me",
+      "hospital",
+      "pre-admission",
+      "admission",
+      "property",
+      "leaving",
+      "history",
+    ]);
     // Sharing decisions only for those who manage them (people.sharing.manage), never from reading.
     expect(
       visibleTabs(PERSON, ["people.person.read", "people.sharing.manage"]).map((v) => v.tab),
-    ).toEqual(["overview", "details", "about-me", "leaving", "sharing", "history"]);
+    ).toEqual([
+      "overview",
+      "details",
+      "about-me",
+      "pre-admission",
+      "admission",
+      "property",
+      "leaving",
+      "sharing",
+      "history",
+    ]);
   });
 
   it("checks permissions by name", () => {

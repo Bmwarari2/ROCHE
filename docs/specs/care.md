@@ -1661,8 +1661,7 @@ through recorded sharing decisions ([people.md](people.md)).
     care still take no client id, so a retried save there can record twice
     (HZ-029), for their owners in `people` and `platform`: admission decisions, bed moves,
     reviews, care plan changes, sharing decisions, About Me share links, tasks and task series,
-    exits, enquiries (`POST /v1/people`; a retried enquiry with an NHS number is refused as a
-    duplicate, one without can record the person twice) and document uploads.
+    exits and document uploads.
   - The NEWS2 total, the RCP's response and the workings are returned on read and shown on saved
     entries; this is not a gap.
   - Risk template titles and questions, and refusal details, come in English only, so a Welsh shell

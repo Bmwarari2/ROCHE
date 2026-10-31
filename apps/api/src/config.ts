@@ -60,8 +60,6 @@ const Env = z.object({
    * reads a shift's records at a location (the worker compiles every handover anyway).
    */
   HANDOVER_COMPILE_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(12),
-  /** Per-user limit on recording an enquiry (`POST /v1/people`), which can probe NHS numbers. */
-  ENQUIRY_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(10),
   /**
    * Account deletion requests a member may send in 24 hours (MOB-011): each new one raises a task
    * and an email for a manager, so a member cannot flood them. A product setting, not a statutory

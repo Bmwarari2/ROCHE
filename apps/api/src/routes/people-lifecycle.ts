@@ -10,7 +10,6 @@ import {
   ConfirmAdmissionCondition,
   CreateAdmissionDecision,
   CreateBedMove,
-  CreateEnquiry,
   PersonStatusChange,
   PersonStatusChangeResult,
   PersonSummary,
@@ -60,16 +59,14 @@ import {
   preAdmissionCompleteness,
   roomLabelOn,
   ukIsoDate,
-  validateNhsNumber,
   type WelcomeChecklistItemDefinition,
   welcomeChecklistStatus,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
-import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
+import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import { permissionsReaching, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import { requireWithinLimit } from "../http/rate-limit";
 import { publish } from "../outbox";
 import {
   currentPlacement,
@@ -94,7 +91,6 @@ import { personSummaries } from "./people";
 import {
   audit,
   changeStatus,
-  dbCode,
   invalidOnForeignKey,
   iso,
   PersonParam,
@@ -108,14 +104,6 @@ import {
  * to admit, admission into a dated bed, bed moves and the bed board, room clearance after a death,
  * and the welcome checklist. Every rule is the domain's; reads and writes are audited by record id.
  */
-
-const NHS_NUMBER_KEY = "person_tenant_nhs_number_key";
-
-/** The constraint a unique violation names. */
-function constraintOf(error: unknown): string | undefined {
-  const e = error as { constraint?: string; cause?: { constraint?: string } };
-  return e.constraint ?? e.cause?.constraint;
-}
 
 /** The flags whose return finance confirms (residents' money, deposits, the DWP). */
 const FINANCE_FLAGS = new Set(["holdsResidentsMoney", "holdsDeposit", "homeIsDwpAppointee"]);
@@ -147,22 +135,6 @@ async function plannedFlagChanges(
     flag,
     to: details?.[flag] ?? false,
   }));
-}
-
-const INVALID_NHS_NUMBER = "Enter a valid NHS number, or leave it out.";
-
-/** An NHS number already recorded: by someone the caller can see, or not. */
-class DuplicateNhsNumber extends Error {
-  constructor(readonly visible: boolean) {
-    super("duplicate NHS number");
-    this.name = "DuplicateNhsNumber";
-  }
-}
-
-/** The database's refusal of a real person while sample data is loaded (migration 0069). */
-function sampleRefusal(error: unknown): boolean {
-  const e = error as { message?: string; cause?: { message?: string } };
-  return (e.cause?.message ?? e.message) === "remove_sample_data_first";
 }
 
 const DecisionParams = PersonParam.extend({ decisionId: z.uuid() });
@@ -524,110 +496,6 @@ async function summaryOf(tx: Transaction, personId: string): Promise<PersonSumma
 // ------------------------------------------------------------------------------------------------
 
 export const peopleLifecycleRouter = createRouter()
-  .openapi(
-    createRoute({
-      method: "post",
-      path: "/v1/people",
-      tags: ["people"],
-      summary: "Record an enquiry: a new person at the start of the lifecycle (people.md rule 1)",
-      description:
-        "people.person.create, with the location in the caller's scope (otherwise 404). The person starts as `enquiry`, which takes contact details and the enquiry only. An NHS number must have ten digits and a valid check digit. A real person waits while sample data is loaded (409 remove_sample_data_first). An NHS number already recorded for someone the caller can see is refused (409 nhs_number_in_use, HZ-001); one recorded only for someone outside their scope is refused in the same words as an invalid number (422), so the refusal confirms nothing about people they cannot see (HZ-011). Both refusals are audited (denied, without the number). At most ENQUIRY_REQUESTS_PER_MINUTE a user a minute (429). Audited (people.person.create, the person's id only).",
-      security,
-      request: { body: { content: { "application/json": { schema: CreateEnquiry } } } },
-      responses: { 201: jsonBody(PersonSummary, "Recorded"), ...errorResponses },
-    }),
-    async (c) => {
-      const access = await requirePermission(c, "people.person.create");
-      // An NHS number is a probe for who is recorded where: a per-user limit (HZ-011).
-      await requireWithinLimit(c.get("services").db, access, c.get("services").enquiryLimiter);
-      const body = c.req.valid("json");
-      requireLocationInScope(access, body.locationId);
-      if (body.dateOfBirth && body.dateOfBirth > ukIsoDate(new Date())) {
-        throw problems.invalid("The date of birth cannot be in the future.");
-      }
-      let nhsNumber: string | null = null;
-      if (body.nhsNumber) {
-        const check = validateNhsNumber(body.nhsNumber);
-        if (!check.valid) throw problems.invalid(INVALID_NHS_NUMBER);
-        nhsNumber = check.value;
-      }
-      let summary: PersonSummary;
-      try {
-        summary = await withTenant(c, async (tx) => {
-          const [home] = await tx
-            .select({ id: location.id })
-            .from(location)
-            .where(and(eq(location.id, body.locationId), isNull(location.deletedAt)));
-          if (!home) throw problems.notFound();
-          // Someone the caller can see (row-level security in their scope) already has the number.
-          if (nhsNumber) {
-            const [seen] = await tx
-              .select({ id: person.id })
-              .from(person)
-              .where(eq(person.nhsNumber, nhsNumber))
-              .limit(1);
-            if (seen) throw new DuplicateNhsNumber(true);
-          }
-          const [created] = await tx
-            .insert(person)
-            .values({
-              locationId: home.id,
-              status: "enquiry",
-              givenName: body.givenName,
-              familyName: body.familyName,
-              preferredName: body.preferredName ?? null,
-              dateOfBirth: body.dateOfBirth ?? null,
-              nhsNumber,
-            })
-            .returning({ id: person.id })
-            .catch((error: unknown) => {
-              // The number belongs to someone the caller cannot see.
-              if (dbCode(error) === "23505" && constraintOf(error) === NHS_NUMBER_KEY) {
-                throw new DuplicateNhsNumber(false);
-              }
-              if (sampleRefusal(error)) {
-                throw new HttpProblem(
-                  409,
-                  "remove_sample_data_first",
-                  "The person was not recorded.",
-                  "Remove the sample data before recording real people.",
-                );
-              }
-              throw error;
-            });
-          if (!created) throw problems.conflict();
-          await audit(c, tx, access, {
-            action: "people.person.create",
-            resourceType: "person",
-            resourceId: created.id,
-          });
-          const [out] = await personSummaries(tx, [created.id]);
-          if (!out) throw problems.notFound();
-          return out;
-        });
-      } catch (error) {
-        if (!(error instanceof DuplicateNhsNumber)) throw error;
-        // Audited outside the failed transaction; never the number itself.
-        await writeAudit(c.get("services").appPool, access, {
-          action: "people.person.create",
-          outcome: "denied",
-          resourceType: "person",
-          reason: error.visible ? "nhs_number_in_use" : "nhs_number_in_use_out_of_scope",
-          requestId: c.get("requestId"),
-        });
-        // Out of scope: the same words as a mistyped number, so the refusal confirms nothing
-        // about people at homes the caller cannot see (HZ-011).
-        if (!error.visible) throw problems.invalid(INVALID_NHS_NUMBER);
-        throw new HttpProblem(
-          409,
-          "nhs_number_in_use",
-          "The person was not recorded.",
-          "Someone with this NHS number is already recorded. Search for them instead of recording them again.",
-        );
-      }
-      return c.json(summary, 201);
-    },
-  )
   .openapi(
     createRoute({
       method: "post",

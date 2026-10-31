@@ -669,8 +669,8 @@ export interface paths {
     };
     put?: never;
     /**
-     * Record an enquiry: a new person at the start of the lifecycle (people.md rule 1)
-     * @description people.person.create, with the location in the caller's scope (otherwise 404). The person starts as `enquiry`, which takes contact details and the enquiry only. An NHS number must have ten digits and a valid check digit. A real person waits while sample data is loaded (409 remove_sample_data_first). An NHS number already recorded for someone the caller can see is refused (409 nhs_number_in_use, HZ-001); one recorded only for someone outside their scope is refused in the same words as an invalid number (422), so the refusal confirms nothing about people they cannot see (HZ-011). Both refusals are audited (denied, without the number). At most ENQUIRY_REQUESTS_PER_MINUTE a user a minute (429). Audited (people.person.create, the person's id only).
+     * Record an enquiry: a new person record at enquiry (people.md rule 1)
+     * @description people.enquiry.manage at the location the enquiry is about. Names and a date of birth (1900 to today) only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later, before 1900 or before the birth. The answer is the record's id and state, never the person's details. A request sent again by the same person with the same id and details answers as the first (replayed); the same id with other details is refused with 409 `id_reused_with_different_details`; an id in use for anything else is refused (422). Refusals are audited with opaque ids.
      */
     post: {
       parameters: {
@@ -685,13 +685,13 @@ export interface paths {
         };
       };
       responses: {
-        /** @description Recorded */
+        /** @description Recorded (or the first copy of the same request sent again) */
         201: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PersonSummary"];
+            "application/json": components["schemas"]["EnquiryRecorded"];
           };
         };
         /** @description Not signed in */
@@ -705,6 +705,24 @@ export interface paths {
         };
         /** @description Not a member, missing permission, MFA not set up or step-up needed */
         403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -2409,6 +2427,83 @@ export interface paths {
         };
       };
     };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/services": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The services run at a location, for an assessment or an admission
+     * @description Organisation configuration, no personal data. For holders of people.enquiry.manage, people.admission.manage or people.person.read who work at the location; anywhere else reads as not found.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Services, by name */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ServiceList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -21541,16 +21636,6 @@ export interface components {
       justification: string;
       reasonCode?: components["schemas"]["BreakGlassReasonCode"];
     };
-    CreateEnquiry: {
-      /** Format: uuid */
-      locationId: string;
-      givenName: string;
-      familyName: string;
-      preferredName?: string;
-      /** Format: date */
-      dateOfBirth?: string;
-      nhsNumber?: string;
-    };
     PersonStatusChangeResult: {
       /** Format: uuid */
       personId: string;
@@ -22017,6 +22102,43 @@ export interface components {
     UpdateWelcomeChecklistTemplate: {
       items: components["schemas"]["WelcomeChecklistDefinitionItem"][];
       version: number;
+    };
+    EnquiryRecorded: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      status: components["schemas"]["PersonStatus"];
+      /** Format: date-time */
+      statusChangedAt: string;
+      version: number;
+      replayed: boolean;
+    };
+    /** @description A new person record at `enquiry`, before the pre-admission assessment starts. The NHS number and other details follow on the record. */
+    CreateEnquiry: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: uuid */
+      locationId: string;
+      givenName: string;
+      familyName: string;
+      preferredName?: string;
+      /** Format: date */
+      dateOfBirth: string;
+      /** Format: date-time */
+      receivedAt?: string;
+    };
+    ServiceList: {
+      items: components["schemas"]["ServiceItem"][];
+    };
+    ServiceItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      name: string;
+      serviceType: string;
+      status: string;
     };
     PropertyList: {
       items: components["schemas"]["PropertyItemOut"][];
