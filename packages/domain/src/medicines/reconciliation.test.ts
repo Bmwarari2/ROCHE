@@ -351,6 +351,26 @@ describe("a completed reconciliation is the plan the API applies", () => {
     ).toMatchObject({ ok: true, plan: { stops: [{ entryId: "entry-alen" }] } });
   });
 
+  it("hazard HZ-121 a start may keep that day's earlier doses due, with the reason, carried into the plan", () => {
+    const today = { ...newDraft, startsAt: new Date("2026-11-03T00:00:00Z") };
+    const reason = "Not given on the ward this morning, the letter says";
+    expect(
+      completeReconciliation(
+        completion({
+          itemDecisions: [
+            { kind: "start", itemId: "item-levo", draft: today, earlierDosesDueReason: reason },
+          ],
+        }),
+      ),
+    ).toMatchObject({
+      ok: true,
+      plan: { starts: [{ itemId: "item-levo", earlierDosesDueReason: reason }] },
+    });
+    expect(
+      completeReconciliation(completion({ itemDecisions: [{ ...startLevo, draft: today }] })),
+    ).toMatchObject({ ok: true, plan: { starts: [{ earlierDosesDueReason: null }] } });
+  });
+
   it("records a source line not started, with the reason", () => {
     const notStarted: ItemDecision = {
       kind: "not_started",
@@ -1222,6 +1242,162 @@ describe("hazard HZ-121 continuing a medicine with a change or stop scheduled ne
     expect(problems(completion({ entryVersions: (id) => versions[id] ?? [] }))).toEqual([
       "continue_with_later_scheduled",
     ]);
+  });
+});
+
+describe("hazard HZ-121 a change with a version or stop scheduled before the reconciliation handles it", () => {
+  const changeLine = { ...PARA_LINE, says: "change" as const };
+  const rec = { ...reconciliation, items: [changeLine, ALEN_STOP_LINE, LEVO_LINE] };
+  const change = (
+    startsAt: string,
+    extra: Partial<Extract<EntryDecision, { kind: "change" }>> = {},
+  ): EntryDecision => ({
+    kind: "change",
+    entryId: "entry-para",
+    itemIds: ["item-para"],
+    draft: { ...draftOf(PRODUCT.paracetamolTablets), startsAt: new Date(startsAt) },
+    ...extra,
+  });
+  const withVersions = (para: MarEntry[]) => {
+    const versions: Record<string, MarEntry[]> = { ...VERSIONS, "entry-para": para };
+    return (decision: EntryDecision) =>
+      completion({
+        reconciliation: rec,
+        entryVersions: (id) => versions[id] ?? [],
+        entryDecisions: [decision, stopAlen],
+      });
+  };
+  const v2From11 = () => {
+    const c = changeMarEntry(
+      [entry({ product: PRODUCT.paracetamolTablets }, "entry-para")],
+      draft({ startsAt: new Date("2026-11-10T00:00:00Z") }),
+      TABLET_FACTS,
+      {
+        id: "entry-para-2",
+        by: NURSE,
+        at: new Date("2026-11-02T10:00:00Z"),
+        origin: "transcribed",
+      },
+    );
+    if (!c.ok) throw new Error("change refused");
+    return [c.replaced, c.next];
+  };
+
+  it("a version scheduled for 10/11 is shown when the change starts on 12/11, until someone says why it stands", () => {
+    const input = withVersions(v2From11());
+    const result = completeReconciliation(input(change("2026-11-12T00:00:00Z")));
+    expect(result).toMatchObject({
+      ok: false,
+      issues: [{ problem: "change_with_later_scheduled", entryId: "entry-para" }],
+    });
+    if (!result.ok)
+      expect(result.issues[0]?.message).toBe(
+        "Version 2 starts 10/11/2026 00:00, recorded before this reconciliation, and this change keeps it. Check it against the sources: start the change before a scheduled version to withdraw it, with the reason, or say why it still stands.",
+      );
+    const kept = "The GP's change from 10/11 stands until the letter's dose from 12/11";
+    expect(
+      completeReconciliation(input(change("2026-11-12T00:00:00Z", { scheduledStillStands: kept }))),
+    ).toMatchObject({
+      ok: true,
+      plan: { changes: [{ entryId: "entry-para", scheduledStillStands: kept }] },
+    });
+  });
+
+  it("a change starting before the scheduled version withdraws it, with the reason, and needs nothing more", () => {
+    const input = withVersions(v2From11());
+    expect(problems(input(change("2026-11-04T00:00:00Z")))).toEqual(["change_refused"]);
+    expect(
+      completeReconciliation(
+        input(
+          change("2026-11-04T00:00:00Z", {
+            withdrawLaterReason: "The letter replaces the GP's change",
+          }),
+        ),
+      ),
+    ).toMatchObject({
+      ok: true,
+      plan: { changes: [{ withdrawLaterReason: "The letter replaces the GP's change" }] },
+    });
+  });
+
+  it("a stop recorded for 20/11 is shown, because the change keeps it, until someone says why it stands", () => {
+    const stopped = stopMarEntry([entry({ product: PRODUCT.paracetamolTablets }, "entry-para")], {
+      by: NURSE,
+      at: new Date("2026-11-02T10:00:00Z"),
+      effectiveAt: new Date("2026-11-20T00:00:00Z"),
+      reason: "Review: stop",
+      source: { kind: "prescription", reference: "Prescription, 02/11/2026", documentId: null },
+    });
+    if (!stopped.ok) throw new Error("stop refused");
+    const input = withVersions([stopped.stopped as MarEntry]);
+    const result = completeReconciliation(input(change("2026-11-04T00:00:00Z")));
+    expect(result.ok ? "" : result.issues[0]?.message).toMatch(
+      /^A stop is recorded from 20\/11\/2026 00:00, recorded before this reconciliation, and this change keeps it\./,
+    );
+    expect(result.ok ? "" : result.issues[0]?.message).toContain(
+      "a change never cancels a stop, so say why it still stands, or stop the medicine instead.",
+    );
+    expect(
+      problems(
+        input(
+          change("2026-11-04T00:00:00Z", { scheduledStillStands: "The review on 20/11 stands" }),
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("hazard HZ-121 a letter that extends a course starts a new entry from the course end", () => {
+  const course = entry(
+    { product: PRODUCT.paracetamolTablets, stopsAt: new Date("2026-11-10T00:00:00Z") },
+    "entry-para",
+  );
+  const versions: Record<string, MarEntry[]> = { ...VERSIONS, "entry-para": [course] };
+  const extendLine = line(
+    "item-extend",
+    "letter",
+    "change",
+    "Paracetamol 500mg 2 QDS: extend the course to 14/11",
+    PRODUCT.paracetamolTablets,
+  );
+  const input = (startsAt: string, earlier: (p: DmdProductRef) => readonly MarEntry[]) =>
+    completion({
+      reconciliation: {
+        ...reconciliation,
+        items: [PARA_LINE, extendLine, ALEN_STOP_LINE, LEVO_LINE],
+      },
+      entryVersions: (id) => versions[id] ?? [],
+      earlierEntries: earlier,
+      itemDecisions: [
+        startLevo,
+        {
+          kind: "start",
+          itemId: "item-extend",
+          draft: {
+            ...draftOf(PRODUCT.paracetamolTablets),
+            startsAt: new Date(startsAt),
+            stopsAt: new Date("2026-11-14T00:00:00Z"),
+          },
+        },
+      ],
+    });
+  const earlierCourse = (p: DmdProductRef) =>
+    p.vmpId === PRODUCT.paracetamolTablets.vmpId ? [course] : [];
+
+  it("continues the course to 10/11 and starts the extension from 10/11 on the letter's line", () => {
+    expect(completeReconciliation(input("2026-11-10T00:00:00Z", earlierCourse))).toMatchObject({
+      ok: true,
+      plan: {
+        continued: ["entry-para"],
+        starts: [{ itemId: "item-levo" }, { itemId: "item-extend" }],
+      },
+    });
+  });
+
+  it("refuses an extension that starts before the course ends, as the same product twice", () => {
+    expect(problems(input("2026-11-09T00:00:00Z", earlierCourse))).toEqual(["start_refused"]);
+    expect(problems(input("2026-11-09T00:00:00Z", () => []))).toEqual(["duplicate_product"]);
+    expect(problems(input("2026-11-10T00:00:00Z", () => []))).toEqual([]);
   });
 });
 

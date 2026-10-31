@@ -325,6 +325,12 @@ export interface MarEntry extends MarEntryDraft {
    * day's doses (rule 6c).
    */
   readonly correctedPartWayThrough: string | null;
+  /**
+   * Set when a new entry recorded part-way through a day keeps that day's earlier doses due, with
+   * the reason (the same-day route): that day it carries a notice to check with the nurse in
+   * charge. Otherwise no dose is due before the entry was recorded.
+   */
+  readonly earlierDosesDue: { readonly date: string; readonly reason: string } | null;
 }
 
 export type MarEntryResult =
@@ -348,6 +354,12 @@ export interface NewEntryMeta extends TranscriptionMeta {
    */
   readonly earlierEntries: readonly MarEntry[];
   readonly reanchorReason?: string | null;
+  /**
+   * Why the doses earlier on the day the entry is recorded, from its start, may still be needed
+   * (for example "Not given at home this morning, her daughter says"): with it they stay due, with
+   * a notice that day; without it no dose is due before the entry is recorded.
+   */
+  readonly earlierDosesDueReason?: string | null;
 }
 
 function fail(problem: MarEntryProblem, message: string): { ok: false; issues: MarEntryIssue[] } {
@@ -375,7 +387,22 @@ function newEntry(draft: MarEntryDraft, meta: TranscriptionMeta): MarEntry {
     reanchor: null,
     withdrawn: null,
     correctedPartWayThrough: null,
+    earlierDosesDue: null,
   };
+}
+
+const later = (a: Date, b: Date) => (a.getTime() >= b.getTime() ? a : b);
+
+/**
+ * The first instant a dose of an entry may be due: its start, but never before it was recorded,
+ * so a new entry recorded at 14:00 has no 08:00 dose that day; unless it was recorded with that
+ * day's earlier doses kept due (`earlierDosesDue`), when they count from 00:00 that day.
+ */
+export function marEntryDosesFrom(entry: MarEntry): Date {
+  return later(
+    entry.startsAt,
+    entry.earlierDosesDue ? ukStartOfDay(entry.earlierDosesDue.date) : entry.transcribedAt,
+  );
 }
 
 const live = (versions: readonly MarEntry[]) => versions.filter((v) => v.withdrawn === null);
@@ -437,7 +464,9 @@ function countRule(
  * refused while an entry of the same dm+d product (VMP) is in force for the person then or later:
  * that entry is changed instead (H-553). A restart of a product the person had before keeps that
  * medicine's day count (rule 6a), and starts on a day with no dose already due under the entry
- * that stopped, so no dose is given twice (rule 6c).
+ * that stopped, so no dose is given twice (rule 6c). No dose is due before the entry is recorded
+ * (`marEntryDosesFrom`), unless the transcription says why that day's earlier doses may still be
+ * needed (`earlierDosesDueReason`, the same-day route).
  */
 export function transcribeMarEntry(
   draft: MarEntryDraft,
@@ -459,17 +488,26 @@ export function transcribeMarEntry(
       `${draft.product.name} is already on the MAR from ${formatUkDateTime(inForce.startsAt)}. Change that entry, or stop it first.`,
     );
   }
-  const day = ukDateOf(draft.startsAt);
-  const dueEarlier = dosesIn(earlier, { from: ukStartOfDay(day), to: draft.startsAt });
+  const recordedOrStart = later(draft.startsAt, meta.at);
+  const day = ukDateOf(recordedOrStart);
+  const dueEarlier = dosesIn(earlier, { from: ukStartOfDay(day), to: recordedOrStart });
   if (dueEarlier.length > 0) {
     return fail(
       "restart_from_tomorrow",
       `A dose was due at ${formatUkTime(dueEarlier[0]?.dueAt as Date)} that day under the entry that stopped. Start the new entry from 00:00 the next day, so no dose is given twice.`,
     );
   }
-  const count = countRule(earlier, draft, meta);
+  const reason = blank(meta.earlierDosesDueReason)
+    ? null
+    : (meta.earlierDosesDueReason as string).trim();
+  const earlierDosesDue =
+    reason !== null && draft.startsAt.getTime() < meta.at.getTime()
+      ? { date: ukDateOf(meta.at), reason }
+      : null;
+  const entry: MarEntry = { ...newEntry(draft, meta), earlierDosesDue };
+  const count = countRule(earlier, { ...draft, startsAt: marEntryDosesFrom(entry) }, meta);
   if ("issue" in count) return { ok: false, issues: [count.issue] };
-  return { ok: true, entry: { ...newEntry(draft, meta), reanchor: count.reanchor } };
+  return { ok: true, entry: { ...entry, reanchor: count.reanchor } };
 }
 
 export interface SecondCheckInput {
@@ -789,8 +827,8 @@ export function marEntryEnd(entry: MarEntry): Date | null {
 }
 
 /**
- * The regular doses an entry has on the MAR in [from, to); none for a when-required medicine or a
- * withdrawn version.
+ * The regular doses an entry has on the MAR in [from, to), from `marEntryDosesFrom`; none for a
+ * when-required medicine or a withdrawn version.
  */
 export function marEntryDoses(
   entry: MarEntry,
@@ -799,7 +837,34 @@ export function marEntryDoses(
   if (entry.directions.kind !== "regular" || entry.withdrawn !== null) return [];
   return expandSchedule(
     entry.directions.schedule,
-    { startsAt: entry.startsAt, endsAt: marEntryEnd(entry) },
+    { startsAt: marEntryDosesFrom(entry), endsAt: marEntryEnd(entry) },
+    window,
+  );
+}
+
+/**
+ * The dose times in [from, to) between an entry's start and when it was recorded: not due, and
+ * shown on the MAR as "Before this entry was recorded: not due" (`MAR_ENTRY_NOTICES.beforeRecorded`).
+ */
+export function marEntryTimesBeforeRecorded(
+  entry: MarEntry,
+  window: { readonly from: Date; readonly to: Date },
+): readonly MarDose[] {
+  const dosesFrom = marEntryDosesFrom(entry);
+  if (
+    entry.directions.kind !== "regular" ||
+    entry.withdrawn !== null ||
+    dosesFrom.getTime() === entry.startsAt.getTime()
+  ) {
+    return [];
+  }
+  const end = marEntryEnd(entry);
+  return expandSchedule(
+    entry.directions.schedule,
+    {
+      startsAt: entry.startsAt,
+      endsAt: end && end.getTime() < dosesFrom.getTime() ? end : dosesFrom,
+    },
     window,
   );
 }
@@ -818,6 +883,9 @@ export const MAR_ENTRY_NOTICES = {
     "A change starts tomorrow: check today's remaining doses with the nurse in charge.",
   correctedToday:
     "Corrected part-way through today: check today's doses with the nurse in charge before giving the rest.",
+  beforeRecorded: "Before this entry was recorded: not due",
+  earlierDosesToday:
+    "Recorded part-way through today with today's earlier doses kept due: check with the nurse in charge whether each was given before giving it.",
   variableDose:
     "Variable dose: give only the dose the checked dosing record gives for the day. With none, do not give: ask the prescriber for today's dose, record it on the dosing record for a second person to check, and tell the nurse in charge.",
 } as const;
@@ -879,7 +947,9 @@ export function marEntryStatus(
     ? MAR_ENTRY_NOTICES.changeTomorrow
     : entry.correctedPartWayThrough === today
       ? MAR_ENTRY_NOTICES.correctedToday
-      : null;
+      : entry.earlierDosesDue?.date === today
+        ? MAR_ENTRY_NOTICES.earlierDosesToday
+        : null;
   const join = (notice: string | null) =>
     [notice, dayNotice, ending].filter(Boolean).join(" ") || null;
   let status: MarEntryStatus;
