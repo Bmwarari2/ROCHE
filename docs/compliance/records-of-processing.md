@@ -175,6 +175,10 @@ Notes:
   to read people, across the whole organisation may import, so matching never discloses a person
   at another home or one the importer could not otherwise see (HZ-130).
   The DPO confirms the staging period and that the DPIA covers the migration (H-681, R26).
+  The web wizard reads the file in the importer's browser to show its column headings and first
+  three rows beside each field (HZ-130); only the upload sends it, through the web tier's own
+  upload route (UK region only, ADR-0001) to the API, as the request body, never stored, cached or
+  logged on the web tier. Nothing in the address or a log names a person (H-890).
 - This register is prefilled in-app from `PROCESSING_PURPOSES` in `packages/domain/src/platform/processing-register.ts`, which a test keeps in step with the B1 to B10 rows above.
 
 ### B11. Transfers (Art 30(1)(e))

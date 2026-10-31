@@ -393,6 +393,23 @@ Logged by slice 8 (Quality Phase 2 domain rules, [quality.md](../specs/quality.m
 | H-584 | Confirm the auto-enrolment thresholds per weekly and monthly pay reference period (trigger £192 and £833, lower level £120 and £520) and the age bands (16, 22 to state pension age, 74) against The Pensions Regulator's table | Brian (or a payroll adviser) | `auto_enrolment.*` rows; `autoEnrolmentCategory` | Auto-enrolment flags (SCHED-009) | done 31/10/2026: the per-period thresholds match The Pensions Regulator's 2026-2027 table and the age bands the Pensions Act 2008 ss 1 and 3 (at least 16 and under 75; at least 22 and under pensionable age); rows now `verified` (Claude Code) |
 | H-585 | Confirm three pay readings with an employment adviser (the two first logged here were settled from the regulations on 31/10/2026: SSP is rounded up to the penny, SSP (General) Regulations 1982 reg 11; an AWR sickness break over 28 weeks resets the clock, AWR 2010 reg 7(9)(a)): (1) `sickPay` takes one number of qualifying days a week, while s 157(3) divides by the qualifying days in each week beginning Sunday, so slice 36 must split a spell where the pattern changes; (2) which weeks of pregnancy, maternity, adoption or paternity leave the AWR clock deems worked (reg 7(6): the assignment's original or likely length) and how jury service (reg 7(8)(e)) is recorded; (3) for the minimum wage, the sleep-in flat allowance counts as pay and an on-call allowance for time at home does not (`nmwPayFromGross`) | Brian with an employment adviser (H-529) | `sickPay`, `awrClock` and `nmwPayFromGross` in `packages/domain/src/scheduling/pay/`; [scheduling.md](../specs/scheduling.md) section 4b rules 2, 4 and 6 | SSP, AWR and NMW checks for a real tenant (SCHED-005, SCHED-007, SCHED-009) | open |
 
+## Phase 2: web import wizard (slice 67)
+
+Logged by slice 67 (PLAT-014 web wizard) on 31 October 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-890 | Confirm with the DPO that showing the file's first three rows beside each column in the importer's browser (to check the mapping, HZ-130) is acceptable, and that the web tier passing the file through without keeping it needs no DPIA change | DPO lead | records-of-processing.md (import wizard note); `apps/web/src/lib/imports.ts` | DPIA sign-off for the import | open |
+| H-891 | Review the wizard's words with the CSO: what adding the people does, the possible duplicate tick boxes, the no-undo acceptance and the allergy status checks listed after adding | CSO | hazard HZ-130; `import.*` strings in en-GB.json | Clinical safety case sign-off | open |
+| H-892 | Try the wizard with the design partner's real export (in a demonstration organisation, with invented or test data only) and record what the mapping needed | Brian with the design partner | platform.md rules 18 to 26 | Onboarding the design partner | open |
+| H-893 | Write the owner guide section for the import wizard: mapping, reading the check, ticking possible duplicates, checking a sample, recording allergy statuses, why undo ends when phones sync (slice 83) | Brian | HZ-130 training control; phase-2.md slice 83 | User guides | open |
+| H-894 | Translate the import wizard's strings into Welsh (listed as untranslated in cy.status.json) | Welsh translator | packages/i18n/src/messages/cy.json | Welsh launch | open |
+| H-895 | Decide whether a one-home manager should be told who may import (the page today says only that they do not have access) | Brian with the design partner | `/settings/import` | None (default applied) | open |
+| H-896 | Decide whether the wizard should keep the dry run's report on the batch so it can be read again after leaving the page (today it is shown once per check and the check can be run again) | Brian | `apps/web/src/components/imports/ImportReview.tsx` | None (default applied) | open |
+| H-897 | Run the import journeys on a phone-width screen (slice 74) and with a screen reader, and record the result | Accessibility lead | `apps/web/e2e/import.spec.ts` | Slice 74 | open |
+| H-898 | Agree the import file limits shown to people (5,000 rows, the 12 MiB upload) with the design partner, and whether a larger home needs more | Brian with the design partner | `IMPORT_LIMITS`; `IMPORT_UPLOAD_MAX_BYTES` | None (default applied) | open |
+| H-899 | Confirm that the SSO settings screens (the other half of slice 67) wait for the SSO API, and schedule them | Brian | phase-2.md slice 67 | SSO settings screens | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

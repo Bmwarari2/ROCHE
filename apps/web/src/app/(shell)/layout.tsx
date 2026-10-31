@@ -17,6 +17,7 @@ import { exportShown } from "@/lib/exports";
 import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
 import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
+import { importShown } from "@/lib/imports";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
@@ -92,6 +93,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
+        dataImport: importShown(me.permissions) ? t("shell.nav.import") : undefined,
         dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,
         branding: brandingShown(me.permissions) ? t("shell.nav.branding") : undefined,
         breakGlassReport: breakGlassReportShown(me.permissions)
