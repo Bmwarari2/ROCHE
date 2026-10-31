@@ -96,7 +96,7 @@ export function parseDoseQuantity(text: string): ParsedDoseQuantity {
   if (fraction.length > DOSE_MAX_DECIMALS) {
     return refuse(
       "too_many_decimals",
-      `Write the dose with at most ${DOSE_MAX_DECIMALS} decimal places, in a smaller unit if the product has one.`,
+      `Write the dose with at most ${DOSE_MAX_DECIMALS} decimal places. If the source document has more, ask the prescriber or pharmacist before transcribing it.`,
     );
   }
   if (whole.length > DOSE_MAX_INTEGER_DIGITS) {
@@ -151,9 +151,10 @@ function plural(word: string): string {
   return `${word}s`;
 }
 
-/** The unit's name for display: in full where the BNF asks, plural unless the quantity is 1. */
-export function doseUnitName(unit: DoseUnit, one: boolean): string {
-  const name = unit.name.trim();
+/** The "per" part of a compound unit, written in full and singular ("hour", "microgram"). */
+const PER_UNITS: Readonly<Record<string, string>> = { h: "hour", hr: "hour", hrs: "hour" };
+
+function simpleUnitName(name: string, one: boolean): string {
   const key = name.toLowerCase();
   const full = FULL_NAME_UNITS[key];
   if (full) return one ? full[0] : full[1];
@@ -164,13 +165,44 @@ export function doseUnitName(unit: DoseUnit, one: boolean): string {
   return [...words, plural(last)].join(" ");
 }
 
+/** A unit that is a measured amount of something, such as "5ml spoonful": its size and its noun. */
+const SIZED_UNIT = /^(\d+(?:\.\d+)?)\s*([a-z\u00b5\u03bc.]+)\s+(.+)$/i;
+
+/**
+ * The unit's name for display: in full where the BNF asks, plural unless the quantity is 1. A
+ * compound unit keeps its parts in full ("micrograms/hour" for "mcg/hr"); a measured unit puts a
+ * space between its size and unit ("5 ml spoonfuls").
+ */
+export function doseUnitName(unit: DoseUnit, one: boolean): string {
+  const name = unit.name.trim().replace(/\s+/g, " ");
+  const slash = name.indexOf("/");
+  if (slash > 0) {
+    const per = name.slice(slash + 1).trim();
+    const perName = FULL_NAME_UNITS[per.toLowerCase()]?.[0] ?? PER_UNITS[per.toLowerCase()] ?? per;
+    return `${simpleUnitName(name.slice(0, slash).trim(), one)}/${perName}`;
+  }
+  const sized = SIZED_UNIT.exec(name);
+  if (sized) {
+    const [, size, sizeUnit, noun] = sized as unknown as [string, string, string, string];
+    return `${size} ${simpleUnitName(sizeUnit, true)} ${simpleUnitName(noun, one)}`;
+  }
+  return simpleUnitName(name, one);
+}
+
+/** "2 tablets", or "2 × 5 ml spoonfuls" for a measured unit, so the size is never read as part of the number. */
+function quantityWithUnit(quantity: string, unit: DoseUnit, one: boolean): string {
+  const name = doseUnitName(unit, one);
+  return /^\d/.test(name) ? `${quantity} \u00d7 ${name}` : `${quantity} ${name}`;
+}
+
 /** A dose in words for the MAR, the round and every print ("0.5 micrograms", "1 to 2 tablets"). */
 export function formatDose(dose: Dose): string {
   if (dose.kind === "amount") {
-    return `${formatDoseQuantity(dose.quantity)} ${doseUnitName(dose.unit, dose.quantity === 1)}`;
+    return quantityWithUnit(formatDoseQuantity(dose.quantity), dose.unit, dose.quantity === 1);
   }
   if (dose.kind === "range") {
-    return `${formatDoseQuantity(dose.from)} to ${formatDoseQuantity(dose.to)} ${doseUnitName(dose.unit, dose.to === 1)}`;
+    const range = `${formatDoseQuantity(dose.from)} to ${formatDoseQuantity(dose.to)}`;
+    return quantityWithUnit(range, dose.unit, dose.to === 1);
   }
   return `As on the current dosing record, in ${doseUnitName(dose.unit, false)}`;
 }

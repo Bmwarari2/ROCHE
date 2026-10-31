@@ -110,7 +110,11 @@ the nurse in charge rather than choosing. In a reconciliation a person decides e
 the MAR and every line in the sources; Harbour never infers a stop from a medicine missing from a
 letter, never pairs a line with an entry itself, and shows a difference on a link the person made by
 dm+d identity only (another VMP, another brand of the same VMP, or not coded), never by comparing
-ingredients. Allergies in the sources are compared with the recorded allergies by the person, who
+ingredients; a medicine started while an entry for the same VMP continues is flagged as a possible
+duplicate by that identity alone, and another product with the same ingredient is never flagged
+(#135 review). Which sources can show that a medicine continues is a record-keeping rule about the
+document (the discharge letter, a prescription or the GP record), not a judgement about the
+medicine. Allergies in the sources are compared with the recorded allergies by the person, who
 confirms it; Harbour matches no allergen (the section 6 grey area, decided in ADR-0082 with slice 3).
 The time-critical and minimum-interval rules (ADR-0082) are slice 3's and are not in this slice.
 

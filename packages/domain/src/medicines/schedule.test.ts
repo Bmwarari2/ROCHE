@@ -13,6 +13,7 @@ import {
   clockChangesIn,
   describeSchedule,
   expandSchedule,
+  keepsCount,
   type MarDose,
   marCycle,
   marCycleContaining,
@@ -124,7 +125,7 @@ describe("hazard HZ-003 expands every supported frequency into the correct doses
     ],
     [
       "every other day",
-      { kind: "every_n_days", intervalDays: 2 },
+      { kind: "every_n_days", intervalDays: 2, anchorOn: "2026-11-02" },
       ["08:00"],
       Math.ceil(days / 2),
       "02/11/2026 08:00",
@@ -132,7 +133,7 @@ describe("hazard HZ-003 expands every supported frequency into the correct doses
     ],
     [
       "every 3 days",
-      { kind: "every_n_days", intervalDays: 3 },
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
       ["09:00"],
       Math.ceil(days / 3),
       "02/11/2026 09:00",
@@ -140,7 +141,7 @@ describe("hazard HZ-003 expands every supported frequency into the correct doses
     ],
     [
       "weekly on Monday",
-      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 1 },
+      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 1, anchorOn: "2026-11-02" },
       ["07:00"],
       days / 7,
       "02/11/2026 07:00",
@@ -148,7 +149,7 @@ describe("hazard HZ-003 expands every supported frequency into the correct doses
     ],
     [
       "weekly on Monday and Thursday",
-      { kind: "weekly", weekdays: ["thu", "mon"], intervalWeeks: 1 },
+      { kind: "weekly", weekdays: ["thu", "mon"], intervalWeeks: 1, anchorOn: "2026-11-02" },
       ["07:00"],
       (2 * days) / 7,
       "02/11/2026 07:00",
@@ -156,7 +157,7 @@ describe("hazard HZ-003 expands every supported frequency into the correct doses
     ],
     [
       "fortnightly on Wednesday",
-      { kind: "weekly", weekdays: ["wed"], intervalWeeks: 2 },
+      { kind: "weekly", weekdays: ["wed"], intervalWeeks: 2, anchorOn: "2026-11-02" },
       ["10:00"],
       Math.ceil(days / 14),
       "04/11/2026 10:00",
@@ -185,28 +186,89 @@ describe("hazard HZ-003 expands every supported frequency into the correct doses
     expect(doses).toEqual(sorted);
   });
 
-  it("counts every other day from the day the medicine starts, not the cycle", () => {
-    const startsAt = fromUkWallClock(2026, 11, 3, 12, 0);
-    const doses = expandSchedule(
-      schedule({ kind: "every_n_days", intervalDays: 2 }),
-      { startsAt, endsAt: null },
-      november,
-    );
-    expect(doses.slice(0, 3).map(uk)).toEqual([
-      "05/11/2026 08:00",
-      "07/11/2026 08:00",
-      "09/11/2026 08:00",
-    ]);
-  });
+  it.each([
+    ["2026-11-02", ["04/11/2026 08:00", "06/11/2026 08:00", "08/11/2026 08:00"]],
+    ["2026-11-03", ["05/11/2026 08:00", "07/11/2026 08:00", "09/11/2026 08:00"]],
+  ])(
+    "hazard HZ-003 counts every other day from its anchor %s, never from when the entry starts",
+    (anchorOn, first) => {
+      const startsAt = fromUkWallClock(2026, 11, 3, 12, 0);
+      const doses = expandSchedule(
+        schedule({ kind: "every_n_days", intervalDays: 2, anchorOn }),
+        { startsAt, endsAt: null },
+        november,
+      );
+      expect(doses.slice(0, 3).map(uk)).toEqual(first);
+    },
+  );
 
-  it("counts fortnights from the week the medicine starts", () => {
-    const startsAt = fromUkWallClock(2026, 11, 10, 9, 0);
-    const doses = expandSchedule(
-      schedule({ kind: "weekly", weekdays: ["mon", "fri"], intervalWeeks: 2 }),
-      { startsAt, endsAt: null },
-      november,
-    );
-    expect(doses.map(uk)).toEqual(["13/11/2026 08:00", "23/11/2026 08:00", "27/11/2026 08:00"]);
+  it.each([
+    ["2026-11-09", ["13/11/2026 08:00", "23/11/2026 08:00", "27/11/2026 08:00"]],
+    ["2026-11-02", ["16/11/2026 08:00", "20/11/2026 08:00"]],
+  ])(
+    "hazard HZ-003 counts fortnights from the week of its anchor %s, never from when the entry starts",
+    (anchorOn, doses) => {
+      const startsAt = fromUkWallClock(2026, 11, 10, 9, 0);
+      const pattern: SchedulePattern = {
+        kind: "weekly",
+        weekdays: ["mon", "fri"],
+        intervalWeeks: 2,
+        anchorOn,
+      };
+      expect(
+        expandSchedule(schedule(pattern), { startsAt, endsAt: null }, november).map(uk),
+      ).toEqual(doses);
+    },
+  );
+
+  it.each<[SchedulePattern, SchedulePattern, boolean]>([
+    [
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-08" },
+      true,
+    ],
+    [
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-03" },
+      false,
+    ],
+    [
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
+      { kind: "every_n_days", intervalDays: 4, anchorOn: "2026-11-02" },
+      false,
+    ],
+    [
+      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-02" },
+      { kind: "weekly", weekdays: ["tue"], intervalWeeks: 2, anchorOn: "2026-11-20" },
+      true,
+    ],
+    [
+      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-02" },
+      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-09" },
+      false,
+    ],
+    [
+      { kind: "every_n_days", intervalDays: 14, anchorOn: "2026-11-02" },
+      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-02" },
+      false,
+    ],
+    [
+      { kind: "every_day" },
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-05" },
+      true,
+    ],
+    [
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
+      { kind: "every_day" },
+      true,
+    ],
+    [
+      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 1, anchorOn: "2026-11-02" },
+      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 1, anchorOn: "2026-11-05" },
+      true,
+    ],
+  ])("a change from %o to %o keeps the day count: %s", (before, after, kept) => {
+    expect(keepsCount(before, after)).toBe(kept);
   });
 
   it("starts at the time the medicine starts and ends before it stops", () => {
@@ -263,9 +325,15 @@ describe("hazard HZ-003 expands every supported frequency into the correct doses
 
 describe("hazard HZ-005 non-daily schedules show the day on every MAR row", () => {
   it.each<[string, SchedulePattern]>([
-    ["every other day", { kind: "every_n_days", intervalDays: 2 }],
-    ["weekly", { kind: "weekly", weekdays: ["mon", "thu"], intervalWeeks: 1 }],
-    ["fortnightly", { kind: "weekly", weekdays: ["wed"], intervalWeeks: 2 }],
+    ["every other day", { kind: "every_n_days", intervalDays: 2, anchorOn: "2026-11-02" }],
+    [
+      "weekly",
+      { kind: "weekly", weekdays: ["mon", "thu"], intervalWeeks: 1, anchorOn: "2026-11-02" },
+    ],
+    [
+      "fortnightly",
+      { kind: "weekly", weekdays: ["wed"], intervalWeeks: 2, anchorOn: "2026-11-02" },
+    ],
     ["monthly", { kind: "monthly", dayOfMonth: 15 }],
   ])("%s: every dose names its day", (_name, pattern) => {
     const doses = expandSchedule(schedule(pattern), fromStart, november);
@@ -289,24 +357,24 @@ describe("hazard HZ-005 non-daily schedules show the day on every MAR row", () =
   it.each<[SchedulePattern, string]>([
     [{ kind: "every_day" }, "2 tablets every day at 08:00 and 20:00"],
     [
-      { kind: "weekly", weekdays: ["thu", "mon"], intervalWeeks: 1 },
+      { kind: "weekly", weekdays: ["thu", "mon"], intervalWeeks: 1, anchorOn: "2026-11-02" },
       "2 tablets every Monday and Thursday at 08:00 and 20:00",
     ],
     [
-      { kind: "weekly", weekdays: ["wed"], intervalWeeks: 2 },
-      "2 tablets every other week on Wednesday at 08:00 and 20:00, from the week of 02/11/2026",
+      { kind: "weekly", weekdays: ["wed"], intervalWeeks: 2, anchorOn: "2026-11-02" },
+      "2 tablets every other week on Wednesday at 08:00 and 20:00, counting from the week of 02/11/2026",
     ],
     [
-      { kind: "weekly", weekdays: ["sun"], intervalWeeks: 4 },
-      "2 tablets every 4 weeks on Sunday at 08:00 and 20:00, from the week of 02/11/2026",
+      { kind: "weekly", weekdays: ["sun"], intervalWeeks: 4, anchorOn: "2026-11-02" },
+      "2 tablets every 4 weeks on Sunday at 08:00 and 20:00, counting from the week of 02/11/2026",
     ],
     [
-      { kind: "every_n_days", intervalDays: 2 },
-      "2 tablets every other day at 08:00 and 20:00, from Monday 02/11/2026",
+      { kind: "every_n_days", intervalDays: 2, anchorOn: "2026-11-02" },
+      "2 tablets every other day at 08:00 and 20:00, counting from Monday 02/11/2026",
     ],
     [
-      { kind: "every_n_days", intervalDays: 3 },
-      "2 tablets every 3 days at 08:00 and 20:00, from Monday 02/11/2026",
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
+      "2 tablets every 3 days at 08:00 and 20:00, counting from Monday 02/11/2026",
     ],
     [{ kind: "monthly", dayOfMonth: 1 }, "2 tablets once a month on day 1 at 08:00 and 20:00"],
     [
@@ -318,7 +386,7 @@ describe("hazard HZ-005 non-daily schedules show the day on every MAR row", () =
       { time: "20:00", dose: two },
       { time: "08:00", dose: two },
     ];
-    expect(describeSchedule({ pattern, times }, november.from)).toBe(words);
+    expect(describeSchedule({ pattern, times })).toBe(words);
   });
 
   it("gives each time's dose when they differ", () => {
@@ -327,17 +395,17 @@ describe("hazard HZ-005 non-daily schedules show the day on every MAR row", () =
       { time: "20:00", dose: one },
     ];
     expect(
-      describeSchedule(
-        { pattern: { kind: "weekly", weekdays: ["mon"], intervalWeeks: 1 }, times },
-        november.from,
-      ),
+      describeSchedule({
+        pattern: { kind: "weekly", weekdays: ["mon"], intervalWeeks: 1, anchorOn: "2026-11-02" },
+        times,
+      }),
     ).toBe("Every Monday: 08:00 2 tablets; 20:00 1 tablet");
     expect(
-      describeSchedule(
-        { pattern: { kind: "every_n_days", intervalDays: 2 }, times },
-        november.from,
-      ),
-    ).toBe("Every other day, from Monday 02/11/2026: 08:00 2 tablets; 20:00 1 tablet");
+      describeSchedule({
+        pattern: { kind: "every_n_days", intervalDays: 2, anchorOn: "2026-11-02" },
+        times,
+      }),
+    ).toBe("Every other day, counting from Monday 02/11/2026: 08:00 2 tablets; 20:00 1 tablet");
   });
 });
 
@@ -431,12 +499,26 @@ describe("schedules a MAR entry can hold", () => {
     [schedule({ kind: "every_day" }, at("8:00")), ["bad_time"]],
     [schedule({ kind: "every_day" }, at("24:00")), ["bad_time"]],
     [schedule({ kind: "every_day" }, at("08:00", "08:00")), ["duplicate_time"]],
-    [schedule({ kind: "every_n_days", intervalDays: 1 }), ["bad_interval"]],
-    [schedule({ kind: "every_n_days", intervalDays: 2.5 }), ["bad_interval"]],
-    [schedule({ kind: "weekly", weekdays: ["mon"], intervalWeeks: 0 }), ["bad_interval"]],
-    [schedule({ kind: "weekly", weekdays: [], intervalWeeks: 1 }), ["no_weekdays"]],
+    [schedule({ kind: "every_n_days", intervalDays: 1, anchorOn: "2026-11-02" }), ["bad_interval"]],
     [
-      schedule({ kind: "weekly", weekdays: ["monday" as "mon"], intervalWeeks: 1 }),
+      schedule({ kind: "every_n_days", intervalDays: 2.5, anchorOn: "2026-11-02" }),
+      ["bad_interval"],
+    ],
+    [
+      schedule({ kind: "weekly", weekdays: ["mon"], intervalWeeks: 0, anchorOn: "2026-11-02" }),
+      ["bad_interval"],
+    ],
+    [
+      schedule({ kind: "weekly", weekdays: [], intervalWeeks: 1, anchorOn: "2026-11-02" }),
+      ["no_weekdays"],
+    ],
+    [
+      schedule({
+        kind: "weekly",
+        weekdays: ["monday" as "mon"],
+        intervalWeeks: 1,
+        anchorOn: "2026-11-02",
+      }),
       ["bad_weekday"],
     ],
     [schedule({ kind: "monthly", dayOfMonth: 0 }), ["bad_day_of_month"]],
@@ -447,7 +529,12 @@ describe("schedules a MAR entry can hold", () => {
       ]),
       ["unit_not_permitted"],
     ],
-    [schedule({ kind: "every_n_days", intervalDays: 2 }), []],
+    [schedule({ kind: "every_n_days", intervalDays: 2, anchorOn: "02/11/2026" }), ["bad_anchor"]],
+    [
+      schedule({ kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-02-30" }),
+      ["bad_anchor"],
+    ],
+    [schedule({ kind: "every_n_days", intervalDays: 2, anchorOn: "2026-11-02" }), []],
   ])("%o has problems %o", (s, problems) => {
     expect(checkSchedule(s, permitted).map((i) => i.problem)).toEqual(problems);
   });

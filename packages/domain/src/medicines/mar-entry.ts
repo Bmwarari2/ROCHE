@@ -21,6 +21,7 @@ import { checkDose, type Dose, type DoseUnit } from "./dose";
 import {
   checkSchedule,
   expandSchedule,
+  keepsCount,
   type MarDose,
   type RegularSchedule,
   type ScheduleProblem,
@@ -99,6 +100,8 @@ export type MarEntryProblem =
   | "entry_closed"
   | "different_person"
   | "change_in_past"
+  | "count_reanchored"
+  | "entry_ended"
   | "stop_in_past"
   | "reason_required";
 
@@ -216,6 +219,8 @@ export interface MarEntry extends MarEntryDraft {
   readonly replacedById: string | null;
   /** When the newer version takes over; this entry's doses end there. */
   readonly replacedFrom: Date | null;
+  /** Set when this version deliberately moved the day count of an every-n-days or fortnightly pattern. */
+  readonly reanchor: { readonly by: string; readonly at: Date; readonly reason: string } | null;
 }
 
 export type MarEntryResult =
@@ -256,6 +261,7 @@ export function transcribeMarEntry(
       stop: null,
       replacedById: null,
       replacedFrom: null,
+      reanchor: null,
     },
   };
 }
@@ -273,11 +279,17 @@ export interface SecondCheckInput {
 
 /**
  * Records the second check. The checker is a different person from the transcriber, holds
- * current medicines competence and has compared the entry with the source document.
+ * current medicines competence and has compared the entry with the source document. An entry with
+ * a stop or a replacement still to come is checked as any other while it is in force, so a future
+ * change never leaves the current version unchecked (and held, under that policy) until then.
  */
 export function recordSecondCheck(entry: MarEntry, check: SecondCheckInput): MarEntryResult {
-  if (entry.state !== "not_yet_checked") {
-    return fail("not_awaiting_check", "This entry is not waiting for a check.");
+  if (entry.secondCheck !== null) {
+    return fail("not_awaiting_check", "This entry has already been checked.");
+  }
+  const end = marEntryEnd(entry);
+  if (end && check.at.getTime() >= end.getTime()) {
+    return fail("entry_ended", "This entry has ended. Check the entry in force instead.");
   }
   if (check.by === entry.transcribedBy) {
     return fail(
@@ -304,7 +316,11 @@ export function recordSecondCheck(entry: MarEntry, check: SecondCheckInput): Mar
     ok: true,
     entry: {
       ...entry,
-      state: check.outcome === "matches_source" ? "checked" : "difference_found",
+      state: closed(entry)
+        ? entry.state
+        : check.outcome === "matches_source"
+          ? "checked"
+          : "difference_found",
       secondCheck: {
         by: check.by,
         at: check.at,
@@ -323,16 +339,23 @@ export type MarEntryChange =
   | { readonly ok: true; readonly replaced: MarEntry; readonly next: MarEntry }
   | { readonly ok: false; readonly issues: readonly MarEntryIssue[] };
 
+/** A change's details: who and when, and the reason when it deliberately moves the day count. */
+export interface ChangeMeta extends TranscriptionMeta {
+  readonly reanchorReason?: string | null;
+}
+
 /**
  * A change (dose, time, product, anything) is a new version, "Not yet checked", that replaces the
  * entry from the moment it takes effect (`draft.startsAt`, now or later). The old version keeps
- * its doses before then; nothing is edited in place.
+ * its doses before then; nothing is edited in place. An every-n-days or fortnightly count carries
+ * over (the draft keeps the pattern's `anchorOn`): a change that moves it is refused unless the
+ * prescriber's new pattern re-anchors it on purpose, said in `reanchorReason` and recorded.
  */
 export function changeMarEntry(
   entry: MarEntry,
   draft: MarEntryDraft,
   facts: DmdProductFacts,
-  meta: TranscriptionMeta,
+  meta: ChangeMeta,
 ): MarEntryChange {
   if (closed(entry)) return fail("entry_closed", "This entry has been stopped or replaced.");
   if (draft.personId !== entry.personId) {
@@ -346,10 +369,26 @@ export function changeMarEntry(
   }
   const created = transcribeMarEntry(draft, facts, meta);
   if (!created.ok) return created;
+  const before = entry.directions.kind === "regular" ? entry.directions.schedule.pattern : null;
+  const after = draft.directions.kind === "regular" ? draft.directions.schedule.pattern : null;
+  const reanchored = before !== null && after !== null && !keepsCount(before, after);
+  if (reanchored && blank(meta.reanchorReason)) {
+    return fail(
+      "count_reanchored",
+      "This change moves the days the dose is counted from. Keep the count from the current entry, or say why the prescriber's new pattern starts a new count.",
+    );
+  }
   return {
     ok: true,
     replaced: { ...entry, state: "replaced", replacedById: meta.id, replacedFrom: draft.startsAt },
-    next: { ...created.entry, version: entry.version + 1, replacesId: entry.id },
+    next: {
+      ...created.entry,
+      version: entry.version + 1,
+      replacesId: entry.id,
+      reanchor: reanchored
+        ? { by: meta.by, at: meta.at, reason: (meta.reanchorReason as string).trim() }
+        : null,
+    },
   };
 }
 
@@ -417,6 +456,13 @@ export function marEntryStatus(
   now: Date,
   policy: UncheckedEntryPolicy,
 ): MarEntryStatus {
+  if (now.getTime() < entry.startsAt.getTime()) {
+    return {
+      words: "Not started yet",
+      mayGive: false,
+      notice: `Starts ${formatUkDateTime(entry.startsAt)}. Until then, give only from the entry in force.`,
+    };
+  }
   const end = marEntryEnd(entry);
   if (end && now.getTime() >= end.getTime()) {
     const words =

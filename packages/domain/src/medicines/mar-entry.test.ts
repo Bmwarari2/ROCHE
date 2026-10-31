@@ -31,6 +31,8 @@ import {
 } from "./mar-entry";
 
 const checkedAt = new Date("2026-11-01T11:00:00Z");
+/** The fixture entries start at 00:00 on 02/11/2026; this is a time they are in force. */
+const inForce = new Date("2026-11-02T09:00:00Z");
 const goodCheck: SecondCheckInput = {
   by: CHECKER,
   at: checkedAt,
@@ -48,10 +50,12 @@ const prn: MarEntryDraft["directions"] = {
   kind: "when_required",
   dose: { kind: "range", from: 1, to: 2, unit: UNIT.tablet },
 };
-const day = (d: number) => ({
-  from: fromUkWallClock(2026, 11, d, 0, 0),
-  to: fromUkWallClock(2026, 11, d + 1, 0, 0),
-});
+/** 00:00 UK time on a day of November 2026 (past the 30th it runs into December). */
+const midnight = (d: number) => {
+  const x = new Date(Date.UTC(2026, 10, d));
+  return fromUkWallClock(x.getUTCFullYear(), x.getUTCMonth() + 1, x.getUTCDate(), 0, 0);
+};
+const day = (d: number) => ({ from: midnight(d), to: midnight(d + 1) });
 
 describe("a MAR entry is a dm+d product with structured doses and its source document", () => {
   it("accepts a complete entry", () => {
@@ -159,7 +163,7 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
         entry: { state: "not_yet_checked", origin, version: 1, secondCheck: null },
       });
       if (result.ok)
-        expect(marEntryStatus(result.entry, checkedAt, "give_with_notice").words).toBe(
+        expect(marEntryStatus(result.entry, inForce, "give_with_notice").words).toBe(
           "Not yet checked",
         );
     },
@@ -174,7 +178,7 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
       outcome: "matches_source",
       difference: null,
     });
-    expect(marEntryStatus(e, checkedAt, "hold_until_checked")).toEqual({
+    expect(marEntryStatus(e, inForce, "hold_until_checked")).toEqual({
       words: "Checked",
       mayGive: true,
       notice: null,
@@ -218,7 +222,7 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
   });
 
   it("by default an entry awaiting its check may be given, with the notice beside it (H-550)", () => {
-    expect(marEntryStatus(entry(), checkedAt, "give_with_notice")).toEqual({
+    expect(marEntryStatus(entry(), inForce, "give_with_notice")).toEqual({
       words: "Not yet checked",
       mayGive: true,
       notice: MAR_ENTRY_NOTICES.notYetChecked,
@@ -226,7 +230,7 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
   });
 
   it("a tenant that holds unchecked entries sees why it may not be given", () => {
-    expect(marEntryStatus(entry(), checkedAt, "hold_until_checked")).toEqual({
+    expect(marEntryStatus(entry(), inForce, "hold_until_checked")).toEqual({
       words: "Not yet checked",
       mayGive: false,
       notice: MAR_ENTRY_NOTICES.holdUntilChecked,
@@ -242,7 +246,7 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
     if (!result.ok) throw new Error("check refused");
     expect(result.entry.state).toBe("difference_found");
     expect(result.entry.secondCheck?.difference).toBe("Letter says 1 tablet");
-    expect(marEntryStatus(result.entry, checkedAt, "give_with_notice")).toEqual({
+    expect(marEntryStatus(result.entry, inForce, "give_with_notice")).toEqual({
       words: "Check found a difference",
       mayGive: false,
       notice: MAR_ENTRY_NOTICES.differenceFound,
@@ -419,5 +423,176 @@ describe("stopping and changing an entry", () => {
       ORAL,
       TRANSCRIBER,
     ]);
+  });
+});
+
+const every3 = (anchorOn: string): MarEntryDraft["directions"] => ({
+  kind: "regular",
+  schedule: {
+    pattern: { kind: "every_n_days", intervalDays: 3, anchorOn },
+    times: [{ time: "08:00", dose: { kind: "amount", quantity: 1, unit: UNIT.tablet } }],
+  },
+});
+const fortnightly = (anchorOn: string): MarEntryDraft["directions"] => ({
+  kind: "regular",
+  schedule: {
+    pattern: { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn },
+    times: [{ time: "08:00", dose: { kind: "amount", quantity: 1, unit: UNIT.tablet } }],
+  },
+});
+const meta = (at: Date) => ({ id: "entry-2", by: TRANSCRIBER, at, origin: "transcribed" as const });
+const datesOf = (entries: MarEntry[], from: number, to: number) =>
+  entries.flatMap((e) =>
+    marEntryDoses(e, { from: day(from).from, to: day(to).to }).map((d) => d.date),
+  );
+
+describe("hazard HZ-003 hazard HZ-004 a change keeps the day count of an every-n-days or fortnightly medicine", () => {
+  const original = checked(entry({ directions: every3("2026-11-02") }));
+
+  it.each([
+    [7, 0],
+    [9, 0],
+  ])(
+    "a dose every 3 days from Monday 02/11, changed at %i:%i on Tuesday 03/11, is next due on Thursday 05/11",
+    (hour, minute) => {
+      const at = fromUkWallClock(2026, 11, 3, hour, minute);
+      const next = draft({ directions: every3("2026-11-02"), startsAt: at });
+      const change = changeMarEntry(original, next, TABLET_FACTS, meta(at));
+      if (!change.ok) throw new Error("change refused");
+      expect(datesOf([change.replaced, change.next], 2, 9)).toEqual([
+        "2026-11-02",
+        "2026-11-05",
+        "2026-11-08",
+      ]);
+      expect(change.next.reanchor).toBeNull();
+    },
+  );
+
+  it("refuses a change that moves the count, unless the prescriber's new pattern starts a new count, which is recorded", () => {
+    const at = fromUkWallClock(2026, 11, 3, 7, 0);
+    const moved = draft({ directions: every3("2026-11-03"), startsAt: at });
+    expect(changeMarEntry(original, moved, TABLET_FACTS, meta(at))).toMatchObject({
+      ok: false,
+      issues: [{ problem: "count_reanchored" }],
+    });
+    const blankReason = { ...meta(at), reanchorReason: " " };
+    expect(changeMarEntry(original, moved, TABLET_FACTS, blankReason)).toMatchObject({ ok: false });
+    const reason = "GP letter 03/11: new patch applied today, then every 3 days";
+    const change = changeMarEntry(original, moved, TABLET_FACTS, {
+      ...meta(at),
+      reanchorReason: reason,
+    });
+    if (!change.ok) throw new Error("change refused");
+    expect(change.next.reanchor).toEqual({ by: TRANSCRIBER, at, reason });
+    expect(datesOf([change.replaced, change.next], 2, 9)).toEqual([
+      "2026-11-02",
+      "2026-11-03",
+      "2026-11-06",
+      "2026-11-09",
+    ]);
+  });
+
+  it("keeps a fortnightly count across a change, so the next dose is not a week late", () => {
+    const monday = checked(entry({ directions: fortnightly("2026-11-02") }));
+    const at = fromUkWallClock(2026, 11, 10, 9, 0);
+    const kept = draft({ directions: fortnightly("2026-11-02"), startsAt: at });
+    const change = changeMarEntry(monday, kept, TABLET_FACTS, meta(at));
+    if (!change.ok) throw new Error("change refused");
+    expect(datesOf([change.replaced, change.next], 2, 30)).toEqual([
+      "2026-11-02",
+      "2026-11-16",
+      "2026-11-30",
+    ]);
+    const moved = draft({ directions: fortnightly("2026-11-09"), startsAt: at });
+    expect(changeMarEntry(monday, moved, TABLET_FACTS, meta(at))).toMatchObject({
+      ok: false,
+      issues: [{ problem: "count_reanchored" }],
+    });
+  });
+
+  it("needs no reason when a daily medicine becomes every 3 days, or the count is kept", () => {
+    const at = fromUkWallClock(2026, 11, 3, 9, 0);
+    const fromDaily = draft({ directions: every3("2026-11-05"), startsAt: at });
+    expect(changeMarEntry(checked(), fromDaily, TABLET_FACTS, meta(at))).toMatchObject({
+      ok: true,
+    });
+    const sameCount = draft({ directions: every3("2026-11-08"), startsAt: at });
+    expect(changeMarEntry(original, sameCount, TABLET_FACTS, meta(at))).toMatchObject({ ok: true });
+  });
+});
+
+describe("hazard HZ-005 a future stop or replacement leaves the entry checkable while it is in force", () => {
+  const now = new Date("2026-11-04T09:00:00Z");
+  const check = { ...goodCheck, at: now };
+
+  it("checks an unchecked entry whose stop is still to come, and holds it no longer", () => {
+    const stopped = stopMarEntry(entry(), {
+      by: CHECKER,
+      at: now,
+      effectiveAt: new Date("2026-11-11T12:00:00Z"),
+      reason: "Course ends",
+      source: SOURCE,
+    });
+    if (!stopped.ok) throw new Error("stop refused");
+    expect(marEntryStatus(stopped.entry, now, "hold_until_checked").mayGive).toBe(false);
+    const result = recordSecondCheck(stopped.entry, check);
+    if (!result.ok) throw new Error("check refused");
+    expect(result.entry).toMatchObject({ state: "stopped", secondCheck: { by: CHECKER } });
+    expect(marEntryStatus(result.entry, now, "hold_until_checked")).toEqual({
+      words: "Checked",
+      mayGive: true,
+      notice: "Stops from 11/11/2026 12:00.",
+    });
+  });
+
+  it("checks an unchecked entry whose replacement starts next week", () => {
+    const later = new Date("2026-11-11T00:00:00Z");
+    const change = changeMarEntry(entry(), draft({ startsAt: later }), TABLET_FACTS, meta(now));
+    if (!change.ok) throw new Error("change refused");
+    const result = recordSecondCheck(change.replaced, check);
+    expect(result).toMatchObject({
+      ok: true,
+      entry: { state: "replaced", secondCheck: { by: CHECKER } },
+    });
+    if (result.ok)
+      expect(marEntryStatus(result.entry, now, "hold_until_checked").mayGive).toBe(true);
+  });
+
+  it("refuses a check once the entry has ended", () => {
+    const ended = entry({ stopsAt: new Date("2026-11-03T00:00:00Z") });
+    expect(recordSecondCheck(ended, check)).toMatchObject({
+      ok: false,
+      issues: [{ problem: "entry_ended" }],
+    });
+  });
+});
+
+describe("hazard HZ-004 only the version in force may be given", () => {
+  it("a when-required medicine changed from tomorrow: today only the old version, tomorrow only the new", () => {
+    const v1 = checked(entry({ directions: prn }));
+    const tomorrow = new Date("2026-11-05T00:00:00Z");
+    const changedAt = new Date("2026-11-04T10:00:00Z");
+    const change = changeMarEntry(
+      v1,
+      draft({ directions: prn, startsAt: tomorrow }),
+      TABLET_FACTS,
+      meta(changedAt),
+    );
+    if (!change.ok) throw new Error("change refused");
+    const today = new Date("2026-11-04T12:00:00Z");
+    expect(marEntryStatus(change.replaced, today, "give_with_notice")).toMatchObject({
+      mayGive: true,
+      notice: "Replaced from 05/11/2026 00:00.",
+    });
+    expect(marEntryStatus(change.next, today, "give_with_notice")).toEqual({
+      words: "Not started yet",
+      mayGive: false,
+      notice: "Starts 05/11/2026 00:00. Until then, give only from the entry in force.",
+    });
+    expect(marEntryStatus(change.replaced, tomorrow, "give_with_notice").mayGive).toBe(false);
+    expect(marEntryStatus(change.next, tomorrow, "give_with_notice")).toMatchObject({
+      words: "Not yet checked",
+      mayGive: true,
+    });
   });
 });

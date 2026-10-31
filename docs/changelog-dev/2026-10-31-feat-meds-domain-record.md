@@ -63,6 +63,29 @@ Branch `feat/meds-domain-record`.
 - H-552 (CSO with a pharmacist): the reconciliation rules and the NICE SC1 reading.
 - H-553 (CSO with a pharmacist): the MAR schedule model and the clock-change collision rule.
 
+## Review rounds
+
+- Round 1 (clinical-safety review of #135: 2 High, 5 Medium, 4 Low), fixed with ordinary commits
+  on the branch:
+  - High 1: every-n-days and fortnightly patterns count from their own `anchorOn` date, never
+    from a version's start; a change carries the count, and one that moves it is refused unless
+    the prescriber's new pattern starts a new count, with the reason recorded (`reanchor`). A patch
+    every 3 days from 02/11 changed at 07:00 or 09:00 on 03/11 is next due 05/11.
+  - High 2: a continue needs a line that shows what is prescribed now (on a return with a
+    discharge letter, the letter's line); labels, the previous MAR or the family alone need a note
+    and the prescriber or clinician who confirmed it (`confirmedWith`).
+  - Medium 3: an entry with a stop or replacement still to come stays checkable while in force.
+  - Medium 4: only the version in force may be given ("Not started yet" before its start).
+  - Medium 5: a stop links the line that says so, from a document; absence is a query.
+  - Medium 6: a start of a dm+d VMP already on the MAR is flagged as a possible duplicate and
+    needs a note; by identity only.
+  - Medium 7: the dosing record for variable doses is logged as an open HZ-005 control for slice 3
+    (domain) and slice 16 (storage), with no dose recorded against a variable entry until then.
+  - Low 8 to 11: "2 × 5 ml spoonfuls" and "12 micrograms/hour"; the decimals message asks the
+    prescriber or pharmacist instead of inviting a conversion; medicines.md says slice 16 reads
+    competence from the workforce port on the server; the blocker tests carry "hazard HZ-121".
+  - Hazard log HZ-003, HZ-004, HZ-005 and HZ-121 and human actions H-550 to H-553 updated.
+
 ## Tests
 
 - `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`,
