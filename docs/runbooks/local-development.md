@@ -67,6 +67,7 @@ because the PowerSync rules engine uses `using` declarations (configured in each
 | New migration | `cd packages/db && npx drizzle-kit generate --name=<change>` (see the `add-migration` skill) |
 | Reset the local database | `pnpm db:reset && pnpm db:migrate && pnpm db:seed` |
 | Run the export worker's job once (no worker running; the export journey does this) | `pnpm --filter @harbour/api exports:run` |
+| Build the weekly break-glass report once (last week; `--this-week` reports the week in progress, as the break-glass report journey does) | `pnpm --filter @harbour/api break-glass-report:run` |
 | Regenerate the OpenAPI document and typed client | `pnpm --filter @harbour/api openapi && pnpm --filter @harbour/contracts generate:client` |
 | Regenerate the permission matrix | `pnpm --filter @harbour/domain permissions:doc` |
 | Storybook | `pnpm storybook` |

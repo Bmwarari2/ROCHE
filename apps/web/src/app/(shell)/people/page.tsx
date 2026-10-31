@@ -1,8 +1,9 @@
-import { EmptyState, PageHeader } from "@harbour/ui";
+import { ButtonLink, EmptyState, PageHeader } from "@harbour/ui";
 import { Lock } from "lucide-react";
 import type { Metadata } from "next";
 import { PeopleTable } from "@/components/people/PeopleTable";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
+import { can } from "@/lib/care-record";
 import { peopleLabel, t } from "@/lib/i18n";
 import { toPersonListItem } from "@/lib/people";
 
@@ -45,6 +46,14 @@ export default async function PeoplePage() {
         eyebrow={location ? location.name : me.tenant.name}
         title={title}
         description={t("people.list.count", { count: people.length })}
+        // The reviews tracker (PEOP-008) for those who read care plans.
+        secondaryActions={
+          can(me.permissions, "care.plan.read") ? (
+            <ButtonLink href="/people/reviews" variant="secondary">
+              {t("people.reviews.tracker.link")}
+            </ButtonLink>
+          ) : undefined
+        }
       />
       <PeopleTable
         people={people}
