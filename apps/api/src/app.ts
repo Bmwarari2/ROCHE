@@ -24,6 +24,7 @@ import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
+import { deathsMissingRouter } from "./routes/deaths-missing";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
@@ -302,6 +303,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", mcaRouter);
   app.route("/", incidentsRouter);
   app.route("/", statutoryNotificationsRouter);
+  app.route("/", deathsMissingRouter);
   app.route("/", operationsRouter);
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);

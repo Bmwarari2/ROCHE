@@ -33,6 +33,11 @@ import {
   draftDeathNotifications,
   withdrawDeathNotifications,
 } from "../services/death-notifications";
+import {
+  openDeathRecord,
+  raiseHerbertReviews,
+  withdrawDeathRecord,
+} from "../services/deaths-missing";
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
@@ -480,6 +485,21 @@ export async function escalateStatutoryNotifications(
   return escalated;
 }
 
+/**
+ * Herbert Protocol profiles past their review get a review task each (slice 37; HZ-127), escalated
+ * by the task engine when overdue.
+ */
+export async function raiseHerbertProfileReviews(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const raised = await eachTenant(deps, "herbert-profile-reviews", (tx, tenantId) =>
+    raiseHerbertReviews(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "Herbert Protocol profile reviews raised");
+  return raised;
+}
+
 /** Outbreak detection across each location's infection cases (safety.md rule 7). */
 export async function detectOutbreaks(deps: TaskDeps, now = new Date()): Promise<number> {
   const drafted = await eachTenant(deps, "outbreak-detection", (tx, tenantId) =>
@@ -705,9 +725,11 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       async (event) => {
         const exitRecordId = exitIdOf(event.payload);
         if (!exitRecordId) return;
-        await inTenant(event.tenantId, (tx) =>
-          draftDeathNotifications(tx, event.tenantId, exitRecordId, new Date()),
-        );
+        await inTenant(event.tenantId, async (tx) => {
+          await draftDeathNotifications(tx, event.tenantId, exitRecordId, new Date());
+          // The death record: the judgement, the steps and the mortality review (slice 37).
+          await openDeathRecord(tx, event.tenantId, exitRecordId);
+        });
       },
     ],
     [
@@ -715,9 +737,10 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       async (event) => {
         const exitRecordId = exitIdOf(event.payload);
         if (!exitRecordId || (event.payload as { from?: unknown }).from !== "deceased") return;
-        await inTenant(event.tenantId, (tx) =>
-          withdrawDeathNotifications(tx, exitRecordId, new Date()),
-        );
+        await inTenant(event.tenantId, async (tx) => {
+          await withdrawDeathNotifications(tx, exitRecordId, new Date());
+          await withdrawDeathRecord(tx, exitRecordId);
+        });
       },
     ],
   ]);
