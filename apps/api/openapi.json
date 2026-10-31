@@ -1187,15 +1187,21 @@
               "$ref": "#/components/schemas/RecordVersion"
             }
           },
-          "current": {
-            "type": "object",
-            "additionalProperties": {}
+          "latestChanged": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
           "table",
           "recordId",
-          "versions"
+          "versions",
+          "latestChanged"
         ],
         "description": "Human-readable history of a mutable record"
       },

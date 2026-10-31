@@ -625,7 +625,7 @@ describe("staff names on records (care.md section 5)", () => {
     expect(task.completedByStaff).toBeNull();
   });
 
-  it("names who changed a record in its history", async () => {
+  it("hazard HZ-024 names who changed a record in its history and what the latest change altered", async () => {
     const risk = await json<RiskAssessmentItem>(
       await as("manager", `/v1/people/${resident(1)}/risk-assessments`, {
         method: "POST",
@@ -642,9 +642,32 @@ describe("staff names on records (care.md section 5)", () => {
     expect(history.versions[0]?.changedByStaff).toMatchObject({
       displayName: DEMO.users.manager.name,
     });
-    // The record as it is now, stored like the versions, so the latest change can be marked.
+    // Which fields the latest change altered, as keys only: never the record as it is now.
     expect(history.versions[0]?.data).toMatchObject({ id: risk.id, status: "active" });
-    expect(history.current).toMatchObject({ id: risk.id, status: "closed" });
+    expect(history.latestChanged).toEqual(expect.arrayContaining(["status", "closed_reason"]));
+    expect(history.latestChanged).not.toContain("hazard");
+    expect(history.latestChanged).not.toContain("answers");
+    expect(history).not.toHaveProperty("current");
+  });
+
+  it("hazard HZ-024 shows a removed record's history only to those who may read the audit log", async () => {
+    const risk = await json<RiskAssessmentItem>(
+      await as("manager", `/v1/people/${resident(1)}/risk-assessments`, {
+        method: "POST",
+        body: riskBody(),
+      }),
+    );
+    const path = `/v1/people/${resident(1)}/care-history/risk_assessment/${risk.id}`;
+    // The care worker (assigned to resident 1) reads care plans but not the audit log.
+    expect((await as("carer", path)).status).toBe(200);
+    await asDemoTenant((c) =>
+      c.query("UPDATE risk_assessment SET deleted_at = now() WHERE id = $1", [risk.id]),
+    );
+    // Removed, the record is gone from ordinary reads, its history included.
+    expect((await as("carer", path)).status).toBe(404);
+    const history = await json<RecordHistory>(await as("manager", path));
+    expect(history.versions.map((v) => v.data.deleted_at)).toEqual([null]);
+    expect(history.latestChanged).toContain("deleted_at");
   });
 });
 

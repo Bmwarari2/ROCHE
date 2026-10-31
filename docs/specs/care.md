@@ -531,7 +531,12 @@ its reason) are append-only with device ids. `GET`, `POST` and `PUT /v1/people/{
 record ReSPECT, DNACPR, ADRT and advance care plans (a new record supersedes the active one of its
 kind; withdrawal needs a reason), and the person summary carries the resuscitation status in force,
 or `not_recorded` (HZ-015). `GET /v1/people/{id}/care-history/{table}/{recordId}` shows earlier
-versions of the mutable records. Every write for a discharged, deceased or archived person is
+versions of the mutable records, under the permission the record's own read route needs
+(`care.plan.read`; `care.dols.manage` for a DoLS legal-change review). A removed (soft-deleted)
+record's history is found only by those whose `platform.audit.read` reaches the person. With the
+versions it sends `latestChanged`, the field keys where the newest version differs from the record
+as it is now (keys only; null when the record was saved again while it was read), as does
+`GET /v1/people/{id}/history` (HZ-024). Every write for a discharged, deceased or archived person is
 refused, except activities, visits and assessments about an event at or before the exit, which
 follow rule 3 as the charts do (slice 8). Outbox events `care.plan.published` and `care.assessment.completed` are written.
 

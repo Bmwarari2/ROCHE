@@ -439,10 +439,12 @@ export const RecordHistory = z
     recordId: uuid,
     versions: z.array(RecordVersion),
     /**
-     * The record as it is now, stored the way versions are, so the newest earlier version can show
-     * what the latest change altered. Present only when there is at least one earlier version.
+     * The stored field keys the latest change altered: where the newest earlier version differs
+     * from the record as it is now. Empty when there is no earlier version; null when the record
+     * was saved again while it was read, so nothing could be compared. Keys only, never the current
+     * values (the record's own route shows those, under its own permission).
      */
-    current: z.record(z.string(), z.unknown()).optional(),
+    latestChanged: z.array(z.string()).nullable(),
   })
   .meta({ id: "RecordHistory", description: "Human-readable history of a mutable record" });
 export type RecordHistory = z.infer<typeof RecordHistory>;

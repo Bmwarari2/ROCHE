@@ -34,6 +34,7 @@ import { publish } from "../outbox";
 import { BREAK_GLASS_ALERT_UNROUTED_ACTION } from "../services/break-glass-report";
 import { resuscitationFor } from "../services/care-planning";
 import { contentHeaders, readDocumentContent } from "../services/documents";
+import { latestChanged } from "../services/record-history";
 import { roleHolders } from "../services/role-holders";
 import { staffNames } from "../services/staff";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
@@ -284,7 +285,8 @@ export const peopleRouter = createRouter()
       const access = await requirePermission(c, "people.person.read");
       const { id } = c.req.valid("param");
       const history = await withTenant(c, async (tx) => {
-        // The row as stored, in the same shape the version trigger keeps (to_jsonb of the row).
+        // The row as stored, in the shape the version trigger keeps (to_jsonb of the row), only to
+        // work out what the latest change altered; it is never sent.
         const [visible] = await tx
           .select({ id: person.id, data: sql<Record<string, unknown>>`to_jsonb(${person})` })
           .from(person)
@@ -313,7 +315,7 @@ export const peopleRouter = createRouter()
           changedByStaff: staff(v.changedBy),
           data: v.data as Record<string, unknown>,
         }));
-        return { versions: items, current: items.length > 0 ? visible.data : undefined };
+        return { versions: items, latestChanged: latestChanged(items, visible.data) };
       });
       if (!history) throw problems.notFound();
       return c.json({ table: "person", recordId: id, ...history }, 200);

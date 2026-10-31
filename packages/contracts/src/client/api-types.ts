@@ -20770,9 +20770,7 @@ export interface components {
       /** Format: uuid */
       recordId: string;
       versions: components["schemas"]["RecordVersion"][];
-      current?: {
-        [key: string]: unknown;
-      };
+      latestChanged: string[] | null;
     };
     RecordVersion: {
       version: number;
