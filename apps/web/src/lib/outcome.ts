@@ -110,6 +110,11 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     case "dpia_not_signable":
     case "decision_not_recordable":
       return { code, message: detail || t("care.errors.invalid") };
+    // White-label branding (PLAT-002): the API says why the accent fails and which colour works.
+    case "brand_accent_contrast": {
+      const message = detail || t("branding.accent.notAColour");
+      return { code, message, fields: { accent: message } };
+    }
     // Sample data mode (platform-completions.md rules 30 and 32; HZ-072): plain words for each
     // refusal, from the catalogue.
     case "real_people_exist":

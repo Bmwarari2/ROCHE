@@ -2,16 +2,22 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { resolveRate } from "../platform/rates";
 import {
+  ALERT_REASON_CODES,
   type AlertNotification,
   acknowledgementState,
   alertConditions,
+  alertNews2FromFlags,
+  alertReasonFromFlags,
+  alertSummaryCode,
   checkHandoverKeepsItems,
   checkHandoverNote,
   compileHandover,
+  HANDOVER_ALERT_KINDS,
   HANDOVER_CLOSED_MESSAGE,
   HANDOVER_NOTE_TAGS,
   HANDOVER_NOTIFICATION_KIND,
   HANDOVER_RATE_KEYS,
+  HANDOVER_SUMMARY_KEYS,
   HANDOVER_UNACKNOWLEDGED_KIND,
   type HandoverItem,
   type HandoverSources,
@@ -243,6 +249,7 @@ const task = (id: string, extra: Partial<HandoverTaskSource>): HandoverTaskSourc
   id,
   personId: "p2",
   kind: "care.repositioning",
+  title: "Reposition",
   status: "open",
   priority: "routine",
   evidenceRequired: false,
@@ -255,10 +262,25 @@ const task = (id: string, extra: Partial<HandoverTaskSource>): HandoverTaskSourc
 
 const sources: HandoverSources = {
   observations: [
-    { id: "o-high", personId: "p1", news2Band: "high", refused: false, ...during },
+    {
+      id: "o-high",
+      personId: "p1",
+      chart: "vital_signs",
+      news2Band: "high",
+      news2Score: 7,
+      refused: false,
+      ...during,
+    },
     { id: "o-single3", personId: "p2", news2Band: "low_medium", refused: false, ...during },
     { id: "o-low", personId: "p3", news2Band: "low", refused: false, ...during },
-    { id: "o-refused", personId: "p3", news2Band: null, refused: true, ...during },
+    {
+      id: "o-refused",
+      personId: "p3",
+      chart: "fluid_intake",
+      news2Band: null,
+      refused: true,
+      ...during,
+    },
     {
       id: "o-before",
       personId: "p1",
@@ -281,7 +303,17 @@ const sources: HandoverSources = {
     { id: "i-fall", personIds: ["p1", "p2"], type: "fall", ...during },
     { id: "i-utility", personIds: [], type: "utility_failure", ...during },
   ],
-  bodyMapMarks: [{ id: "m-1", personId: "p3", ...during }],
+  bodyMapMarks: [
+    {
+      id: "m-1",
+      personId: "p3",
+      markType: "bruise",
+      view: "front",
+      region: "forearm",
+      side: "left",
+      ...during,
+    },
+  ],
   notes: [
     { id: "n-fall", personId: "p4", tags: ["fall"], ...during },
     { id: "n-refusal", personId: "p4", tags: ["refusal", "personal_care"], ...during },
@@ -292,6 +324,9 @@ const sources: HandoverSources = {
   alerts: [
     {
       id: "a-urgent",
+      kind: "care.urgent_result",
+      reason: "news2_threshold",
+      news2: { score: 7, band: "high" },
       personId: "p1",
       severity: "urgent",
       createdAt: t("2026-10-11T09:02:00Z"),
@@ -327,7 +362,7 @@ const sources: HandoverSources = {
     },
   ],
   tasks: [
-    task("t-overdue", { windowEnd: t("2026-10-11T12:30:00Z") }),
+    task("t-overdue", { windowEnd: t("2026-10-11T12:30:00Z"), fromEarlierPlan: true }),
     task("t-overdue-no-window", { dueAt: t("2026-10-11T09:00:00Z") }),
     task("t-done", {
       status: "done",
@@ -341,6 +376,8 @@ const sources: HandoverSources = {
     }),
     task("t-skipped-urgent", {
       kind: "care.news2_response",
+      statusReason: "Asleep, will turn at 14:00",
+      planAction: "Turn every two hours, left and right",
       status: "skipped",
       priority: "urgent",
       closedAt: t("2026-10-11T10:00:00Z"),
@@ -359,6 +396,7 @@ const sources: HandoverSources = {
     task("t-must", {
       personId: "p3",
       kind: "care.dietitian_referral",
+      title: "Refer to the dietitian",
       dueAt: t("2026-10-12T09:00:00Z"),
       createdAt: t("2026-10-11T09:05:00Z"),
     }),
@@ -448,6 +486,121 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
       compiledAt,
     );
     expect(compiled.map((i) => [i.kind, i.sourceId])).toEqual([["flagged_note", "tagged"]]);
+  });
+
+  it.each([
+    // What each kind of item says, from its source, as a catalogue key and parameters (H-300).
+    ["fall", "i-fall", "handover.summary.fall", { source: "incident" }],
+    ["fall", "n-fall", "handover.summary.fall", { source: "care_note" }],
+    ["news2", "o-high", "handover.summary.news2", { band: "high", scored: "yes", score: 7 }],
+    ["news2", "o-synced-late", "handover.summary.news2", { band: "medium", scored: "no" }],
+    ["incident", "i-utility", "handover.summary.incident", { type: "utility_failure" }],
+    [
+      "alert",
+      "a-urgent",
+      "handover.summary.alert",
+      // What was found, as published, never "needs a response now" (#123 clinical review, M6).
+      {
+        alert: "care_urgent_result",
+        reason: "news2_threshold",
+        scored: "yes",
+        score: 7,
+        band: "high",
+      },
+    ],
+    [
+      "alert",
+      "a-unacknowledged",
+      "handover.summary.alert",
+      { alert: "other", reason: "other", scored: "no" },
+    ],
+    [
+      "body_map_mark",
+      "m-1",
+      "handover.summary.bodyMapMark",
+      { markType: "bruise", view: "front", region: "forearm", side: "left" },
+    ],
+    ["flagged_note", "n-flagged", "handover.summary.flaggedNote", {}],
+    [
+      "overdue_task",
+      "t-overdue",
+      "handover.summary.overdueTask",
+      { title: "Reposition", planAction: "", earlierPlan: "yes" },
+    ],
+    [
+      "unfinished_task",
+      "t-unfinished",
+      "handover.summary.unfinishedTask",
+      { title: "Reposition", planAction: "", earlierPlan: "no" },
+    ],
+    [
+      "must_follow_up",
+      "t-must",
+      "handover.summary.mustFollowUp",
+      { title: "Refer to the dietitian", planAction: "", earlierPlan: "no" },
+    ],
+    [
+      "skipped_task",
+      "t-skipped-urgent",
+      "handover.summary.skippedTask",
+      {
+        title: "Reposition",
+        planAction: "Turn every two hours, left and right",
+        earlierPlan: "no",
+        status: "skipped",
+        reason: "Asleep, will turn at 14:00",
+      },
+    ],
+    [
+      "skipped_task",
+      "t-skipped-evidence",
+      "handover.summary.skippedTask",
+      { title: "Reposition", planAction: "", earlierPlan: "no", status: "cancelled", reason: "" },
+    ],
+    [
+      "refusal",
+      "o-refused",
+      "handover.summary.refusal",
+      { source: "observation", chart: "fluid_intake" },
+    ],
+    ["refusal", "n-refusal", "handover.summary.refusal", { source: "care_note", chart: "other" }],
+  ] as const)("hazard HZ-018 words a %s item from %s as %s", (kind, sourceId, key, params) => {
+    const item = items.find((i) => i.kind === kind && i.sourceId === sourceId);
+    expect(item?.summary).toEqual({ key, params });
+    expect(HANDOVER_SUMMARY_KEYS[kind]).toBe(key);
+  });
+
+  it("gives every compiled item a summary, and a late addition keeps its own", () => {
+    expect(items.every((i) => i.summary?.key === HANDOVER_SUMMARY_KEYS[i.kind])).toBe(true);
+    const later = refreshHandover(
+      items,
+      shift,
+      {
+        ...sources,
+        bodyMapMarks: [
+          ...sources.bodyMapMarks,
+          {
+            id: "m-late",
+            personId: "p3",
+            markType: "skin_tear",
+            view: "back",
+            region: "heel",
+            side: "right",
+            ...during,
+          },
+        ],
+      },
+      compiledAt,
+    );
+    expect(later.added.map((i) => [i.sourceId, i.summary?.params])).toEqual([
+      ["m-late", { markType: "skin_tear", view: "back", region: "heel", side: "right" }],
+    ]);
+  });
+
+  it("makes a catalogue choice of any alert kind", () => {
+    expect(alertSummaryCode("care.urgent_result")).toBe("care_urgent_result");
+    expect(alertSummaryCode("sync.revoked-device")).toBe("sync_revoked_device");
+    expect(alertSummaryCode(undefined)).toBe("other");
   });
 
   it("compiles an empty shift to an empty handover", () => {
@@ -651,6 +804,7 @@ describe("hazard HZ-018 an urgent alert is one item however many people it reach
     expect(alerts).toEqual([
       {
         id: "n-lead",
+        kind: "care.urgent_result",
         personId: "p1",
         severity: "urgent",
         createdAt: t("2026-10-11T09:02:00Z"),
@@ -658,6 +812,7 @@ describe("hazard HZ-018 an urgent alert is one item however many people it reach
       },
       {
         id: "n-other",
+        kind: "care.urgent_result",
         personId: "p2",
         severity: "urgent",
         createdAt: t("2026-10-11T09:05:00Z"),
@@ -1054,5 +1209,71 @@ describe("hazards HZ-018 and HZ-008 a late addition always reaches someone who c
         canSee,
       }),
     ).toEqual({ notices: [], unheard: [] });
+  });
+});
+
+describe("hazard HZ-018 an alert's summary says what it is about (#50 review round 1, clinical M2)", () => {
+  it.each([
+    [{ news2: { band: "high", score: 7 } }, "news2_threshold"],
+    [{ iddsiAlert: true, iddsiProblem: "level_not_recorded" }, "iddsi_level_not_recorded"],
+    // Food as well as drink (#123 clinical review, M5).
+    [
+      { chart: "food", iddsiAlert: true, iddsiProblem: "level_not_recorded" },
+      "iddsi_level_not_recorded",
+    ],
+    [{ chart: "food", iddsiAlert: true }, "iddsi_unsafe_level"],
+    [{ iddsiAlert: true }, "iddsi_unsafe_level"],
+    [{ iddsiAlert: false }, undefined],
+    [null, undefined],
+  ])("reads the trigger of a care result from its observation's flags: %o", (flags, reason) => {
+    expect(alertReasonFromFlags(flags)).toBe(reason);
+  });
+
+  it.each([
+    [{ news2: { score: 7, band: "high" } }, { score: 7, band: "high" }],
+    [{ news2: { score: 3, band: "low_medium" } }, { score: 3, band: "low_medium" }],
+    [{ news2: { score: "7", band: "high" } }, undefined],
+    [{ news2: { score: 7, band: "very high" } }, undefined],
+    [{ iddsiAlert: true }, undefined],
+  ])(
+    "reads a NEWS2 alert's score and band from its observation's flags: %o (#123 clinical review, M6)",
+    (flags, news2) => {
+      expect(alertNews2FromFlags(flags)).toEqual(news2);
+    },
+  );
+
+  it("carries the reason from any copy of the alert, and never whether anyone acknowledged it", () => {
+    const [alert] = alertConditions([
+      {
+        id: "n-1",
+        kind: "care.urgent_result",
+        severity: "urgent",
+        sourceType: "observation",
+        sourceId: "o-1",
+        personId: "p1",
+        createdAt: t("2026-10-11T09:00:00Z"),
+        acknowledgedAt: null,
+        reason: "iddsi_unsafe_level",
+      },
+    ]);
+    const [item] = compileHandover(shift, { ...empty, alerts: alert ? [alert] : [] }, compiledAt);
+    expect(item?.summary).toEqual({
+      key: "handover.summary.alert",
+      params: { alert: "care_urgent_result", reason: "iddsi_unsafe_level", scored: "no" },
+    });
+  });
+
+  it("lists every urgent alert kind and care result code a summary words", () => {
+    expect(HANDOVER_ALERT_KINDS).toContain("platform.task.overdue");
+    expect(HANDOVER_ALERT_KINDS).toContain("care.dols.expiring");
+    expect([...ALERT_REASON_CODES].sort()).toEqual(
+      [
+        "iddsi_level_not_recorded",
+        "iddsi_prescribed_unreadable",
+        "iddsi_reason_missing",
+        "iddsi_unsafe_level",
+        "news2_threshold",
+      ].sort(),
+    );
   });
 });

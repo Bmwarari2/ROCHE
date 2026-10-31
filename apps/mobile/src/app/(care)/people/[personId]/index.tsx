@@ -6,7 +6,7 @@ import { FlatList, View } from "react-native";
 import { useVault } from "../../../../app-state/vault";
 import type { EntryItem } from "../../../../care/entry-view";
 import { recentEntries } from "../../../../care/entry-view";
-import { useTenantId } from "../../../../care/hooks";
+import { useRoundTaskFor, useTenantId } from "../../../../care/hooks";
 import {
   MARKS_SQL,
   type MarkRow,
@@ -15,6 +15,7 @@ import {
   OBSERVATIONS_SQL,
   type ObservationRow,
   observationParams,
+  TASK_EVIDENCE_SQL,
 } from "../../../../care/queries";
 import { Card } from "../../../../components/Card";
 import { CarePersonHeader, useCarePerson } from "../../../../components/CarePersonHeader";
@@ -42,9 +43,27 @@ export default function PersonScreen() {
   const theme = useTheme();
   const router = useRouter();
   const vault = useVault();
-  const { personId } = useLocalSearchParams<{ personId: string }>();
+  const { personId, task } = useLocalSearchParams<{
+    personId: string;
+    task?: string;
+  }>();
   const id = typeof personId === "string" ? personId : "";
+  // Came from the round to record the entry a task asks for: the new entry answers that task,
+  // and only the first: once one is saved here, later entries are not tagged with it (HZ-029).
+  // Only a task this device holds for this person, still open: never one named by a link alone,
+  // and never its words from the route (#123 security review, M2).
   const tenantId = useTenantId();
+  const roundTask = useRoundTaskFor(id, typeof task === "string" && task ? task : null, {
+    includeAnswered: true,
+  });
+  const askedTask = roundTask?.id ?? null;
+  const evidenceParams = useMemo(() => [tenantId, askedTask ?? ""], [tenantId, askedTask]);
+  const { data: evidence } = useQuery<{ count: number }>(TASK_EVIDENCE_SQL, evidenceParams);
+  // Answered once an entry for it is saved here, and still after that entry uploads and its
+  // synced copy no longer names the task (#123 clinical review, M1).
+  const evidenceWaiting = askedTask !== null && Number(evidence[0]?.count ?? 0) > 0;
+  const taskAnswered = askedTask !== null && (evidenceWaiting || roundTask?.answered === true);
+  const forTask = taskAnswered ? null : askedTask;
   const { person } = useCarePerson(id);
   // Recording is offered only where the user's care.note.write reaches the person, as the sync
   // token says, per person for those assigned to them; the API decides either way (review rounds
@@ -73,8 +92,11 @@ export default function PersonScreen() {
       screen: "note" | "chart" | "body-map" | "care-plan" | "risks",
       extra: Record<string, string> = {},
     ) =>
-      router.push({ pathname: `/people/[personId]/${screen}`, params: { personId: id, ...extra } }),
-    [router, id],
+      router.push({
+        pathname: `/people/[personId]/${screen}`,
+        params: { personId: id, ...(forTask && !extra.correct ? { task: forTask } : {}), ...extra },
+      }),
+    [router, id, forTask],
   );
   const correct = useCallback(
     (item: EntryItem) => {
@@ -106,6 +128,20 @@ export default function PersonScreen() {
             {person ? (
               <>
                 <Card title={t("mobile.person.actions")}>
+                  {askedTask && mayRecord ? (
+                    <Text testID="person-for-task">
+                      {t(
+                        evidenceWaiting
+                          ? "mobile.person.forTaskRecorded"
+                          : taskAnswered
+                            ? "mobile.person.forTaskSent"
+                            : "mobile.person.forTask",
+                        {
+                          title: roundTask?.title ?? "",
+                        },
+                      )}
+                    </Text>
+                  ) : null}
                   {mayRecord ? (
                     <>
                       <Button

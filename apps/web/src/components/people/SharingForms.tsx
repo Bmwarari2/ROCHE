@@ -165,7 +165,7 @@ export function SharingDecisionForm({
     <InlineSection open={t("people.sharing.form.title")}>
       {(close) => (
         <>
-          <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+          <form method="post" className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
             <h4 className="m-0 text-body font-semibold">{t("people.sharing.form.title")}</h4>
             <RadioGroup<RecipientKind>
               id={ids.recipientKind}

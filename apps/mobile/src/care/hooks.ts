@@ -3,6 +3,8 @@
  * the upload queue count, refused uploads, and saving an entry to the encrypted database (from where
  * PowerSync's persistent upload queue sends it, surviving an app restart).
  */
+
+import { type EntryEvidence, isEvidenceFor } from "@harbour/domain";
 import {
   DEVICE_WRITABLE_TABLES,
   type OfflineWindowTable,
@@ -12,9 +14,12 @@ import { usePowerSync, useQuery } from "@powersync/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "../app-state/session";
 import { useVault } from "../app-state/vault";
+import { appEnv } from "../config/app-env";
+import { demoWriteScope } from "../demo/demo-data";
 import { sha256Base64 } from "../platform/digest";
 import { newEntryId } from "../platform/ids";
 import { useWriteScope } from "../sync/write-scope-store";
+import { type AnsweredState, rememberAnsweredStatements } from "./answered-tasks";
 import { type EntryContext, type EntryRow, type FieldError, insertStatement } from "./entries";
 import {
   CARE_PROFILE_SQL,
@@ -22,6 +27,7 @@ import {
   HELD_COUNT_SQL,
   PERSON_CONTEXT_SQL,
   type PersonContextRow,
+  ROUND_TASK_FOR_PERSON_SQL,
   UPLOAD_ISSUES_SQL,
   type UploadIssueRow,
 } from "./queries";
@@ -29,6 +35,7 @@ import {
   acknowledgementInsert,
   checkTaskMove,
   type HandoverToAcknowledge,
+  moveRefusal,
   type ShownItem,
   type TaskMoveTo,
   type TaskToMove,
@@ -83,10 +90,78 @@ export function useCareProfile(personId: string): CareProfileRow | null {
   return data[0] ?? null;
 }
 
-/** What a new entry for this person needs: tenant, person, location, author and a UUIDv7. */
-export function useEntryContext(personId: string): EntryContext {
+/**
+ * The round task a route asks an entry to answer, checked against this device: synced here, in the
+ * tenant, about this person, open and not already marked here. Null otherwise, so neither a link
+ * from outside nor a stale route can tag an entry to the wrong round, and its title is the synced
+ * one (#123 security review, M2; HZ-004, HZ-029).
+ */
+export function useRoundTaskFor(
+  personId: string,
+  taskId: string | null,
+  options: { readonly includeAnswered?: boolean } = {},
+): {
+  readonly id: string;
+  readonly title: string | null;
+  /** An entry saved here answers it (waiting to upload, or Harbour has it), not refused. */
+  readonly answered: boolean;
+  readonly kind: string | null;
+  readonly evidenceRequired: boolean;
+} | null {
   const tenantId = useTenantId();
   const { me } = useSession();
+  const userId = me?.tenantUserId ?? "";
+  const params = useMemo(
+    () => [userId, tenantId, taskId ?? "", personId],
+    [userId, tenantId, taskId, personId],
+  );
+  const { data } = useQuery<{
+    id: string;
+    title: string | null;
+    kind: string | null;
+    evidence_required: number | null;
+    answered_state: AnsweredState;
+  }>(ROUND_TASK_FOR_PERSON_SQL, params);
+  const found = taskId ? data[0] : undefined;
+  if (!taskId || !found) return null;
+  // Answered by an entry saved here, and not refused: never tag a second one (#123 clinical
+  // review, M1 and its re-check). Kept in the database, so a restart does not forget it.
+  const answered = found.answered_state === "answered";
+  if (answered && !options.includeAnswered) return null;
+  return {
+    id: found.id,
+    title: found.title,
+    answered,
+    kind: found.kind,
+    evidenceRequired: found.evidence_required === 1,
+  };
+}
+
+/**
+ * What a new entry for this person needs: tenant, person, location, author and a UUIDv7, and the
+ * round's task it answers when the carer came from the round to record it (`taskId`, sent with
+ * the entry so the API completes the task; screens gate item (f)).
+ */
+export function useEntryContext(
+  personId: string,
+  requestedTaskId: string | null = null,
+  evidence: EntryEvidence | null = null,
+): EntryContext {
+  const tenantId = useTenantId();
+  const { me } = useSession();
+  // Only a task this device holds, about this person and still open (#123 security review, M2),
+  // and only when this entry is the evidence it asks for: never a note, and for a chart's task only
+  // that chart (#123 clinical review, M3; HZ-029). Otherwise the entry is saved without the task.
+  const roundTask = useRoundTaskFor(personId, requestedTaskId);
+  const taskId =
+    roundTask &&
+    evidence &&
+    isEvidenceFor(
+      { kind: roundTask.kind ?? "", evidenceRequired: roundTask.evidenceRequired },
+      evidence,
+    )
+      ? roundTask.id
+      : null;
   const params = useMemo(() => [tenantId, personId], [tenantId, personId]);
   const { data } = useQuery<PersonContextRow>(PERSON_CONTEXT_SQL, params);
   const locationId = data[0]?.location_id ?? null;
@@ -103,41 +178,91 @@ export function useEntryContext(personId: string): EntryContext {
       windowDays,
       clockToleranceMinutes,
       newId: newEntryId,
+      taskId,
     }),
-    [tenantId, personId, locationId, userId, windowDays, clockToleranceMinutes],
+    [tenantId, personId, locationId, userId, windowDays, clockToleranceMinutes, taskId],
   );
 }
 
 /** Writes one entry in its own transaction: one entry, one upload. */
 export function useSaveEntry(): (table: OfflineWindowTable, row: EntryRow) => Promise<void> {
   const db = usePowerSync();
+  const { me } = useSession();
+  const userId = me?.tenantUserId ?? null;
   return useCallback(
     async (table, row) => {
       const statement = insertStatement(table, row);
+      // The task this entry answers is kept as answered by this member, in the same transaction,
+      // so it holds after the entry uploads and after a restart (#123 clinical review, M1).
+      const taskId = (row as { task_id?: unknown }).task_id;
+      const entryId = (row as { id?: unknown }).id;
+      const answer =
+        typeof taskId === "string" && taskId && typeof entryId === "string" && userId
+          ? rememberAnsweredStatements({
+              tenantUserId: userId,
+              taskId,
+              entryTable: table,
+              entryId,
+              at: new Date(),
+            })
+          : [];
       await db.writeTransaction(async (tx) => {
         await tx.execute(statement.sql, statement.params);
+        for (const extra of answer) await tx.execute(extra.sql, extra.params);
       });
     },
-    [db],
+    [db, userId],
+  );
+}
+
+/**
+ * Why this member may not act on a round task here, by the same rule as a move (`moveRefusal`),
+ * so the evidence path refuses where "Done" would (#123 clinical review, L1); null when they may.
+ * The person's home is the synced row's, as the round query reads it.
+ */
+export function useTaskRefusal(): (
+  task: TaskToMove,
+  personLocationId: string | null,
+) => FieldError | null {
+  const { me } = useSession();
+  const userId = me?.tenantUserId ?? null;
+  const tokenScope = useWriteScope();
+  const scope = tokenScope ?? (appEnv.demoMode ? demoWriteScope : null);
+  return useCallback(
+    (task, personLocationId) => {
+      const key = moveRefusal(task, { userId, scope, personLocationId, newId: newEntryId });
+      return key ? { key } : null;
+    },
+    [userId, scope],
   );
 }
 
 /**
  * Marks a task done or not done on this device (round-actions.ts): the problem to show, or null
  * once the move is written and waiting to upload. Only where the server would take it, from the
- * member and the write scope (never while either is unknown). A write that fails locally is thrown.
+ * member and the write scope (never while either is unknown). The person's home is read here from
+ * the synced person row, never taken from the caller, so a row still loading is refused rather
+ * than let through (#36 review round 2). A write that fails locally is thrown.
  */
 export function useMoveTask(): (
   task: TaskToMove,
   draft: { readonly to: TaskMoveTo; readonly reason: string },
-  personLocationId: string | null,
 ) => Promise<FieldError | null> {
   const db = usePowerSync();
   const { me } = useSession();
   const userId = me?.tenantUserId ?? null;
-  const scope = useWriteScope();
+  const tokenScope = useWriteScope();
+  // The demo has no sync token: its member may record about everyone at the demo home.
+  const scope = tokenScope ?? (appEnv.demoMode ? demoWriteScope : null);
   return useCallback(
-    async (task, draft, personLocationId) => {
+    async (task, draft) => {
+      const person = task.person_id
+        ? await db.getOptional<{ location_id: string | null }>(
+            "SELECT location_id FROM person WHERE tenant_id = ? AND id = ?",
+            [task.tenant_id, task.person_id],
+          )
+        : null;
+      const personLocationId = person?.location_id ?? null;
       const check = checkTaskMove(
         task,
         draft,
