@@ -64,6 +64,7 @@ export * from "./platform/dpia";
 export * from "./platform/export";
 export * from "./platform/feature-flags";
 export * from "./platform/forms";
+export * from "./platform/image-metadata";
 export * from "./platform/imports";
 export * from "./platform/invitations";
 export * from "./platform/notifications";

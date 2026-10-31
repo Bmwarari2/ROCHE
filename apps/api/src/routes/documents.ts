@@ -77,6 +77,8 @@ const UPLOAD_PERMISSION: Record<DocumentCategoryKey, Permission> = {
   care_attachment: "care.note.write",
   person_document: "people.person.update",
   organisation_document: "platform.document.manage",
+  // Set only through PUT /v1/branding/logo, which this route refuses (PLAT-002).
+  organisation_logo: "platform.tenant.manage",
 };
 
 const RETENTION_PERMISSION: Permission = "platform.retention.manage";
@@ -119,6 +121,8 @@ export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | 
   person_document: "people.person.read",
   care_attachment: "care.note.read",
   organisation_document: null,
+  // Served only by GET /v1/branding/logo, to any member; never by the document routes (PLAT-002).
+  organisation_logo: null,
 };
 
 /**
@@ -144,6 +148,7 @@ const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
   person_document: "people.person.update",
   care_attachment: "care.note.write",
   organisation_document: null,
+  organisation_logo: null,
 };
 
 /** An organisation's document: no person, and its category says so. Anything else about no one is not served. */
@@ -239,6 +244,10 @@ export const documentsRouter = createRouter()
     async (c) => {
       const q = c.req.valid("query");
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
+      // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
+      if (q.category === "organisation_logo") {
+        throw problems.invalid("Upload the organisation's logo on the branding page.");
+      }
       // A subject is named by its type and id together (review round 3).
       if (q.subjectId && !q.subjectType) {
         throw problems.invalid("Say what kind of record the document is attached to.");
