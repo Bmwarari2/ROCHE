@@ -315,11 +315,19 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.hr_document.read",
       "workforce.training.manage",
       "workforce.supervision.manage",
-      "workforce.casework.manage",
       "workforce.competence.observe",
       "insights.dashboard.read",
       "platform.search.use",
     ],
+  },
+  {
+    key: "employee_relations_lead",
+    name: "Employee relations caseworker",
+    description:
+      "Opens grievance, disciplinary, capability, sickness and probation cases; reads only cases they are named on.",
+    scopeKind: "none",
+    // A silo role carries nothing else (ADR-0089; workforce.md section 3).
+    permissions: ["workforce.casework.manage"],
   },
   {
     key: "quality_lead",

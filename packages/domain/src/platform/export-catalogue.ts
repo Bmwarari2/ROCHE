@@ -2669,6 +2669,50 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.employee_case": {
+    context: "workforce",
+    description:
+      "Employee relations cases (workforce.md section 2c; special category and allegations of criminal conduct): type, the member of staff, stage, outcome, appeal, suspension and the DBS and regulator referral decisions.",
+    treatment: "not_exported",
+    retention: "staff_file",
+    personal: true,
+    reasonNotExported:
+      "A restricted silo (ADR-0089): only the members named on a case may read it, so the organisation-wide export, which the owner requests, never carries it. The case members export their cases separately (H-805).",
+    columns: {},
+  },
+  "public.employee_case_event": {
+    context: "workforce",
+    description:
+      "The timeline of each employee relations case (workforce.md rule 15): stage changes, members, hearings, suspension, referrals and members' notes.",
+    treatment: "not_exported",
+    retention: "staff_file",
+    personal: true,
+    reasonNotExported:
+      "A restricted silo (ADR-0089): only the members named on a case may read it, so the organisation-wide export, which the owner requests, never carries it. The case members export their cases separately (H-805).",
+    columns: {},
+  },
+  "public.employee_case_hearing": {
+    context: "workforce",
+    description:
+      "Investigation meetings, hearings and appeal hearings of employee relations cases (workforce.md rule 18): invitation, lead, date and whether the employee was accompanied.",
+    treatment: "not_exported",
+    retention: "staff_file",
+    personal: true,
+    reasonNotExported:
+      "A restricted silo (ADR-0089): only the members named on a case may read it, so the organisation-wide export, which the owner requests, never carries it. The case members export their cases separately (H-805).",
+    columns: {},
+  },
+  "public.employee_case_member": {
+    context: "workforce",
+    description:
+      "Who is named on each employee relations case, in which part (workforce.md rule 16); membership is what lets them read it.",
+    treatment: "not_exported",
+    retention: "staff_file",
+    personal: true,
+    reasonNotExported:
+      "A restricted silo (ADR-0089): only the members named on a case may read it, so the organisation-wide export, which the owner requests, never carries it. The case members export their cases separately (H-805).",
+    columns: {},
+  },
   "public.entry_device_deletion_flag": {
     context: "care",
     description:
@@ -2713,16 +2757,13 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.equality_monitoring": {
     context: "workforce",
     description:
-      "Anonymous equality monitoring forms for a vacancy (workforce.md rule 12; special category data): the answers only (no date, a random id), never linked to an applicant. Read in the product only as suppressed counts; exported to the organisation as its own data (H-734).",
-    treatment: "tenant_rows",
+      "Anonymous equality monitoring forms for a vacancy (workforce.md rule 12; special category data): the answers only (no date, a random id), never linked to an applicant. Read only as suppressed counts.",
+    treatment: "not_exported",
     retention: "applicant.unsuccessful",
     personal: true,
-    columns: {
-      id: { description: "A random id (never time-ordered)." },
-      tenant_id: "exported",
-      vacancy_id: { description: "The vacancy (vacancy.id)." },
-      answers: { description: "The answers given, by question (JSON); every answer optional." },
-    },
+    reasonNotExported:
+      "No role reads a form row by row, the export included (migration 0085): the organisation sees its monitoring only as each vacancy's suppressed counts. Whether forms join the export is open (H-734).",
+    columns: {},
   },
   "public.evidence_link": {
     context: "quality",

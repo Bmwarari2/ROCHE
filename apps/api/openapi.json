@@ -25454,6 +25454,1016 @@
           "questions"
         ]
       },
+      "CaseList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CaseSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseType": {
+            "$ref": "#/components/schemas/CaseType"
+          },
+          "subjectTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/CaseStage"
+          },
+          "stageSince": {
+            "type": "string",
+            "format": "date"
+          },
+          "openedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "myRoles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseMemberRole"
+            }
+          },
+          "suspended": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "caseType",
+          "subjectTenantUserId",
+          "stage",
+          "stageSince",
+          "openedOn",
+          "myRoles",
+          "suspended",
+          "version"
+        ]
+      },
+      "CaseType": {
+        "type": "string",
+        "enum": [
+          "grievance",
+          "disciplinary",
+          "capability",
+          "sickness_absence",
+          "probation"
+        ]
+      },
+      "CaseStage": {
+        "type": "string",
+        "enum": [
+          "open",
+          "investigation",
+          "hearing",
+          "outcome",
+          "appeal",
+          "closed"
+        ]
+      },
+      "CaseMemberRole": {
+        "type": "string",
+        "enum": [
+          "case_manager",
+          "investigator",
+          "hearing_chair",
+          "appeal_chair",
+          "note_taker",
+          "hr_adviser"
+        ]
+      },
+      "CaseDetail": {
+        "type": "object",
+        "properties": {
+          "case": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "caseType": {
+                "$ref": "#/components/schemas/CaseType"
+              },
+              "subjectTenantUserId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "stage": {
+                "$ref": "#/components/schemas/CaseStage"
+              },
+              "stageSince": {
+                "type": "string",
+                "format": "date"
+              },
+              "openedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "myRoles": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CaseMemberRole"
+                }
+              },
+              "suspended": {
+                "type": "boolean"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "summary": {
+                "type": "string"
+              },
+              "subjectRegistered": {
+                "type": "boolean"
+              },
+              "outcome": {
+                "$ref": "#/components/schemas/CaseOutcome"
+              },
+              "outcomeDecidedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "warningExpiresOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "appealOutcome": {
+                "$ref": "#/components/schemas/AppealOutcome"
+              },
+              "appealDecidedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "suspendedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "suspensionReviewOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "suspensionReviewOverdue": {
+                "type": "boolean"
+              },
+              "closedReason": {
+                "$ref": "#/components/schemas/CaseClosingReason"
+              },
+              "closedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "safeguardingIncidentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "id",
+              "caseType",
+              "subjectTenantUserId",
+              "stage",
+              "stageSince",
+              "openedOn",
+              "myRoles",
+              "suspended",
+              "version",
+              "summary",
+              "subjectRegistered",
+              "outcome",
+              "outcomeDecidedOn",
+              "warningExpiresOn",
+              "appealOutcome",
+              "appealDecidedOn",
+              "suspendedOn",
+              "suspensionReviewOn",
+              "suspensionReviewOverdue",
+              "closedReason",
+              "closedOn",
+              "safeguardingIncidentId"
+            ]
+          },
+          "referrals": {
+            "type": "object",
+            "properties": {
+              "dbs": {
+                "type": "object",
+                "properties": {
+                  "due": {
+                    "type": "boolean"
+                  },
+                  "decision": {
+                    "$ref": "#/components/schemas/ReferralDecision"
+                  },
+                  "referredOn": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date"
+                  },
+                  "reason": {
+                    "$ref": "#/components/schemas/ReferralNotRequiredReason"
+                  }
+                },
+                "required": [
+                  "due",
+                  "decision",
+                  "referredOn",
+                  "reason"
+                ]
+              },
+              "regulator": {
+                "type": "object",
+                "properties": {
+                  "due": {
+                    "type": "boolean"
+                  },
+                  "decision": {
+                    "$ref": "#/components/schemas/ReferralDecision"
+                  },
+                  "referredOn": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date"
+                  },
+                  "reason": {
+                    "$ref": "#/components/schemas/ReferralNotRequiredReason"
+                  }
+                },
+                "required": [
+                  "due",
+                  "decision",
+                  "referredOn",
+                  "reason"
+                ]
+              }
+            },
+            "required": [
+              "dbs",
+              "regulator"
+            ]
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseMember"
+            }
+          },
+          "hearings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseHearing"
+            }
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseEvent"
+            }
+          },
+          "daysAtStage": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "case",
+          "referrals",
+          "members",
+          "hearings",
+          "timeline",
+          "daysAtStage"
+        ]
+      },
+      "CaseOutcome": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "upheld",
+          "partly_upheld",
+          "not_upheld",
+          "no_action",
+          "first_written_warning",
+          "final_written_warning",
+          "action_short_of_dismissal",
+          "dismissal",
+          "improvement_plan",
+          "redeployment",
+          "support_plan",
+          "reasonable_adjustments",
+          "passed",
+          "extended",
+          "not_passed",
+          null
+        ],
+        "description": "Which apply depends on the case type (rule 15)"
+      },
+      "AppealOutcome": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "upheld",
+          "partly_upheld",
+          "not_upheld",
+          null
+        ]
+      },
+      "CaseClosingReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "outcome_accepted",
+          "appeal_decided",
+          "resolved_informally",
+          "no_case_to_answer",
+          "withdrawn",
+          "left_employment",
+          null
+        ]
+      },
+      "ReferralDecision": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "referred",
+          "not_required",
+          null
+        ]
+      },
+      "ReferralNotRequiredReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "harm_test_not_met",
+          "not_regulated_activity",
+          "referred_by_another_body",
+          "other_recorded_in_case",
+          null
+        ]
+      },
+      "CaseMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "$ref": "#/components/schemas/CaseMemberRole"
+          },
+          "independenceException": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "no_other_manager_available",
+              null
+            ]
+          },
+          "addedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "removedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "tenantUserId",
+          "role",
+          "independenceException",
+          "addedBy",
+          "removedAt",
+          "version"
+        ]
+      },
+      "CaseHearing": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/HearingKind"
+          },
+          "ledBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "issueSetOut": {
+            "type": "boolean"
+          },
+          "evidenceShared": {
+            "type": "boolean"
+          },
+          "companionRightGiven": {
+            "type": "boolean"
+          },
+          "state": {
+            "$ref": "#/components/schemas/HearingState"
+          },
+          "heldOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "accompanied": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "postponedReason": {
+            "$ref": "#/components/schemas/PostponementReason"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "ledBy",
+          "invitedOn",
+          "scheduledAt",
+          "issueSetOut",
+          "evidenceShared",
+          "companionRightGiven",
+          "state",
+          "heldOn",
+          "accompanied",
+          "postponedReason",
+          "version"
+        ]
+      },
+      "HearingKind": {
+        "type": "string",
+        "enum": [
+          "investigation_meeting",
+          "hearing",
+          "appeal_hearing"
+        ]
+      },
+      "HearingState": {
+        "type": "string",
+        "enum": [
+          "scheduled",
+          "held",
+          "not_attended",
+          "postponed",
+          "cancelled"
+        ]
+      },
+      "PostponementReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "companion_unavailable",
+          "employee_unwell",
+          "employer_request",
+          "other",
+          null
+        ]
+      },
+      "CaseEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "fromStage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseStage"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "toStage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseStage"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "occurredOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recordedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "fromStage",
+          "toStage",
+          "occurredOn",
+          "body",
+          "recordedBy",
+          "recordedAt"
+        ]
+      },
+      "OpenCase": {
+        "type": "object",
+        "properties": {
+          "caseType": {
+            "$ref": "#/components/schemas/CaseType"
+          },
+          "subjectTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 10000
+          },
+          "openedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "caseType",
+          "subjectTenantUserId",
+          "summary",
+          "openedOn"
+        ]
+      },
+      "NameCaseMember": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "$ref": "#/components/schemas/CaseMemberRole"
+          },
+          "independenceException": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "no_other_manager_available",
+              null
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "tenantUserId",
+          "role"
+        ]
+      },
+      "RemoveCaseMember": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "MoveCase": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "expectedVersion": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "on": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "expectedVersion",
+              "on"
+            ]
+          },
+          {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "investigation"
+                    ]
+                  }
+                },
+                "required": [
+                  "to"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "hearing"
+                    ]
+                  }
+                },
+                "required": [
+                  "to"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "outcome"
+                    ]
+                  },
+                  "outcome": {
+                    "$ref": "#/components/schemas/CaseOutcome"
+                  },
+                  "warningExpiresOn": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date",
+                    "default": null
+                  },
+                  "appealRightGiven": {
+                    "type": "boolean"
+                  },
+                  "noHearingReason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "employee_repeatedly_did_not_attend",
+                      null
+                    ],
+                    "default": null
+                  }
+                },
+                "required": [
+                  "to",
+                  "outcome",
+                  "appealRightGiven"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "appeal"
+                    ]
+                  },
+                  "grounds": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 10000
+                  }
+                },
+                "required": [
+                  "to",
+                  "grounds"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "closed"
+                    ]
+                  },
+                  "reason": {
+                    "$ref": "#/components/schemas/CaseClosingReason"
+                  },
+                  "appealOutcome": {
+                    "$ref": "#/components/schemas/AppealOutcome"
+                  }
+                },
+                "required": [
+                  "to",
+                  "reason"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "ArrangeHearing": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/HearingKind"
+          },
+          "ledBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "issueSetOut": {
+            "type": "boolean"
+          },
+          "evidenceShared": {
+            "type": "boolean"
+          },
+          "companionRightGiven": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "ledBy",
+          "invitedOn",
+          "scheduledAt",
+          "issueSetOut",
+          "evidenceShared",
+          "companionRightGiven"
+        ]
+      },
+      "UpdateHearing": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "held",
+              "not_attended",
+              "postponed",
+              "cancelled",
+              "scheduled"
+            ]
+          },
+          "heldOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          },
+          "accompanied": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null
+          },
+          "postponedReason": {
+            "$ref": "#/components/schemas/PostponementReason"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "state"
+        ]
+      },
+      "ChangeSuspension": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "start",
+              "review",
+              "end"
+            ]
+          },
+          "on": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "kind",
+          "on"
+        ]
+      },
+      "RecordReferral": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "body": {
+            "type": "string",
+            "enum": [
+              "dbs",
+              "regulator"
+            ]
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReferralDecision"
+          },
+          "referredOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ReferralNotRequiredReason"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "body",
+          "decision"
+        ]
+      },
+      "LinkSafeguarding": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "incidentId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "incidentId"
+        ]
+      },
+      "AddCaseNote": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "occurredOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "body",
+          "occurredOn"
+        ]
+      },
       "TrainingRequirementList": {
         "type": "object",
         "properties": {
@@ -62414,6 +63424,1120 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "My employee relations cases",
+        "description": "Any member of staff, with MFA. Only the cases the caller is named on (ADR-0089): no role reaches any other, the owner and the Registered Manager included. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cases",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Open an employee relations case",
+        "description": "workforce.casework.manage (a silo permission, MFA). Opens a grievance, disciplinary, capability, sickness absence or probation case about another member of staff and names the caller its first case manager. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenCase"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "An employee relations case",
+        "description": "A member of the case, with MFA: the case, its members, hearings, referral decisions and timeline. Not found for anyone else. Every view is audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/members": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Name a member of a case",
+        "description": "A case manager of the case. Never the member of staff it is about, never oneself; the investigation, hearing and appeal are taken by different people unless the exception is recorded (rule 16). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameCaseMember"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/members/{memberId}/remove": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Remove a member from a case",
+        "description": "A case manager of the case, with expectedVersion (the membership's). The member then reads nothing of the case; the last case manager stays. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveCaseMember"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/move": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Move a case on",
+        "description": "With expectedVersion. A case manager starts the investigation, moves to a hearing, records an appeal and closes the case; the hearing chair decides the outcome; the appeal chair decides the appeal as the case closes (rule 15). Closing needs any due DBS and regulator referral decisions recorded (rule 17). Audited with codes only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveCase"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/hearings": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Arrange a meeting or hearing",
+        "description": "A case manager. An investigation meeting is led by the investigator, a hearing by the hearing chair and an appeal hearing by the appeal chair; a hearing needs the issue in writing, the evidence (disciplinary and capability) and the right to be accompanied, for a later date (rule 18). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArrangeHearing"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/hearings/{hearingId}": {
+      "patch": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record what happened at a meeting or hearing",
+        "description": "The case manager or the member leading it, with expectedVersion (the hearing's): held (with the date and whether the employee was accompanied), not attended, postponed with a reason, rearranged or cancelled. A held, unattended or cancelled one is final. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "hearingId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHearing"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/suspension": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Suspend, review a suspension or end it",
+        "description": "A case manager of a disciplinary case, with expectedVersion. A precaution, never a sanction: it carries the date it is next reviewed and ends before the case closes (rule 18). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSuspension"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/referrals": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a DBS or regulator referral decision",
+        "description": "A case manager, with expectedVersion: referred on a date, or not required with a reason (rule 17). The decision is the people's; Harbour refers nobody. Audited with codes only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordReferral"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/safeguarding-link": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Link the case to a safeguarding concern",
+        "description": "A case manager who can see the concern in the safeguarding log, with expectedVersion. Set once. The safeguarding log learns nothing of the case. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkSafeguarding"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/cases/{id}/notes": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Add a note to a case's timeline",
+        "description": "Any member of the case, in their own name, until it closes. Notes are never changed or deleted. Audited without the text.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCaseNote"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -24,6 +24,7 @@ import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
+import { caseworkRouter } from "./routes/casework";
 import { complaintsRouter } from "./routes/complaints";
 import { dataProtectionRouter } from "./routes/data-protection";
 import { developmentRouter } from "./routes/development";
@@ -358,6 +359,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", qualityAuditsRouter);
   app.route("/", staffFilesRouter);
   app.route("/", recruitmentRouter);
+  app.route("/", caseworkRouter);
   app.route("/", developmentRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);

@@ -22260,6 +22260,1015 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/cases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * My employee relations cases
+     * @description Any member of staff, with MFA. Only the cases the caller is named on (ADR-0089): no role reaches any other, the owner and the Registered Manager included. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The cases */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Open an employee relations case
+     * @description workforce.casework.manage (a silo permission, MFA). Opens a grievance, disciplinary, capability, sickness absence or probation case about another member of staff and names the caller its first case manager. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["OpenCase"];
+        };
+      };
+      responses: {
+        /** @description Opened */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An employee relations case
+     * @description A member of the case, with MFA: the case, its members, hearings, referral decisions and timeline. Not found for anyone else. Every view is audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/members": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Name a member of a case
+     * @description A case manager of the case. Never the member of staff it is about, never oneself; the investigation, hearing and appeal are taken by different people unless the exception is recorded (rule 16). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NameCaseMember"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/members/{memberId}/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Remove a member from a case
+     * @description A case manager of the case, with expectedVersion (the membership's). The member then reads nothing of the case; the last case manager stays. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RemoveCaseMember"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/move": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Move a case on
+     * @description With expectedVersion. A case manager starts the investigation, moves to a hearing, records an appeal and closes the case; the hearing chair decides the outcome; the appeal chair decides the appeal as the case closes (rule 15). Closing needs any due DBS and regulator referral decisions recorded (rule 17). Audited with codes only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["MoveCase"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/hearings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Arrange a meeting or hearing
+     * @description A case manager. An investigation meeting is led by the investigator, a hearing by the hearing chair and an appeal hearing by the appeal chair; a hearing needs the issue in writing, the evidence (disciplinary and capability) and the right to be accompanied, for a later date (rule 18). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ArrangeHearing"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/hearings/{hearingId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Record what happened at a meeting or hearing
+     * @description The case manager or the member leading it, with expectedVersion (the hearing's): held (with the date and whether the employee was accompanied), not attended, postponed with a reason, rearranged or cancelled. A held, unattended or cancelled one is final. Audited.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          hearingId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateHearing"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/suspension": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Suspend, review a suspension or end it
+     * @description A case manager of a disciplinary case, with expectedVersion. A precaution, never a sanction: it carries the date it is next reviewed and ends before the case closes (rule 18). Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeSuspension"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/referrals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record a DBS or regulator referral decision
+     * @description A case manager, with expectedVersion: referred on a date, or not required with a reason (rule 17). The decision is the people's; Harbour refers nobody. Audited with codes only.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordReferral"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/safeguarding-link": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Link the case to a safeguarding concern
+     * @description A case manager who can see the concern in the safeguarding log, with expectedVersion. Set once. The safeguarding log learns nothing of the case. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["LinkSafeguarding"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/cases/{id}/notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a note to a case's timeline
+     * @description Any member of the case, in their own name, until it closes. Notes are never changed or deleted. Audited without the text.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AddCaseNote"];
+        };
+      };
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/training-requirements": {
     parameters: {
       query?: never;
@@ -41691,6 +42700,316 @@ export interface components {
           [key: string]: number | "fewer_than_min";
         } | null;
       }[];
+    };
+    CaseList: {
+      items: components["schemas"]["CaseSummary"][];
+    };
+    CaseSummary: {
+      /** Format: uuid */
+      id: string;
+      caseType: components["schemas"]["CaseType"];
+      /** Format: uuid */
+      subjectTenantUserId: string;
+      stage: components["schemas"]["CaseStage"];
+      /** Format: date */
+      stageSince: string;
+      /** Format: date */
+      openedOn: string;
+      myRoles: components["schemas"]["CaseMemberRole"][];
+      suspended: boolean;
+      version: number;
+    };
+    /** @enum {string} */
+    CaseType: "grievance" | "disciplinary" | "capability" | "sickness_absence" | "probation";
+    /** @enum {string} */
+    CaseStage: "open" | "investigation" | "hearing" | "outcome" | "appeal" | "closed";
+    /** @enum {string} */
+    CaseMemberRole:
+      | "case_manager"
+      | "investigator"
+      | "hearing_chair"
+      | "appeal_chair"
+      | "note_taker"
+      | "hr_adviser";
+    CaseDetail: {
+      case: {
+        /** Format: uuid */
+        id: string;
+        caseType: components["schemas"]["CaseType"];
+        /** Format: uuid */
+        subjectTenantUserId: string;
+        stage: components["schemas"]["CaseStage"];
+        /** Format: date */
+        stageSince: string;
+        /** Format: date */
+        openedOn: string;
+        myRoles: components["schemas"]["CaseMemberRole"][];
+        suspended: boolean;
+        version: number;
+        summary: string;
+        subjectRegistered: boolean;
+        outcome: components["schemas"]["CaseOutcome"];
+        /** Format: date */
+        outcomeDecidedOn: string | null;
+        /** Format: date */
+        warningExpiresOn: string | null;
+        appealOutcome: components["schemas"]["AppealOutcome"];
+        /** Format: date */
+        appealDecidedOn: string | null;
+        /** Format: date */
+        suspendedOn: string | null;
+        /** Format: date */
+        suspensionReviewOn: string | null;
+        suspensionReviewOverdue: boolean;
+        closedReason: components["schemas"]["CaseClosingReason"];
+        /** Format: date */
+        closedOn: string | null;
+        /** Format: uuid */
+        safeguardingIncidentId: string | null;
+      };
+      referrals: {
+        dbs: {
+          due: boolean;
+          decision: components["schemas"]["ReferralDecision"];
+          /** Format: date */
+          referredOn: string | null;
+          reason: components["schemas"]["ReferralNotRequiredReason"];
+        };
+        regulator: {
+          due: boolean;
+          decision: components["schemas"]["ReferralDecision"];
+          /** Format: date */
+          referredOn: string | null;
+          reason: components["schemas"]["ReferralNotRequiredReason"];
+        };
+      };
+      members: components["schemas"]["CaseMember"][];
+      hearings: components["schemas"]["CaseHearing"][];
+      timeline: components["schemas"]["CaseEvent"][];
+      daysAtStage: number | null;
+    };
+    /**
+     * @description Which apply depends on the case type (rule 15)
+     * @enum {string|null}
+     */
+    CaseOutcome:
+      | "upheld"
+      | "partly_upheld"
+      | "not_upheld"
+      | "no_action"
+      | "first_written_warning"
+      | "final_written_warning"
+      | "action_short_of_dismissal"
+      | "dismissal"
+      | "improvement_plan"
+      | "redeployment"
+      | "support_plan"
+      | "reasonable_adjustments"
+      | "passed"
+      | "extended"
+      | "not_passed"
+      | null;
+    /** @enum {string|null} */
+    AppealOutcome: "upheld" | "partly_upheld" | "not_upheld" | null;
+    /** @enum {string|null} */
+    CaseClosingReason:
+      | "outcome_accepted"
+      | "appeal_decided"
+      | "resolved_informally"
+      | "no_case_to_answer"
+      | "withdrawn"
+      | "left_employment"
+      | null;
+    /** @enum {string|null} */
+    ReferralDecision: "referred" | "not_required" | null;
+    /** @enum {string|null} */
+    ReferralNotRequiredReason:
+      | "harm_test_not_met"
+      | "not_regulated_activity"
+      | "referred_by_another_body"
+      | "other_recorded_in_case"
+      | null;
+    CaseMember: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      tenantUserId: string;
+      role: components["schemas"]["CaseMemberRole"];
+      /** @enum {string|null} */
+      independenceException: "no_other_manager_available" | null;
+      /** Format: uuid */
+      addedBy: string;
+      /** Format: date-time */
+      removedAt: string | null;
+      version: number;
+    };
+    CaseHearing: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["HearingKind"];
+      /** Format: uuid */
+      ledBy: string;
+      /** Format: date */
+      invitedOn: string;
+      /** Format: date-time */
+      scheduledAt: string;
+      issueSetOut: boolean;
+      evidenceShared: boolean;
+      companionRightGiven: boolean;
+      state: components["schemas"]["HearingState"];
+      /** Format: date */
+      heldOn: string | null;
+      accompanied: boolean | null;
+      postponedReason: components["schemas"]["PostponementReason"];
+      version: number;
+    };
+    /** @enum {string} */
+    HearingKind: "investigation_meeting" | "hearing" | "appeal_hearing";
+    /** @enum {string} */
+    HearingState: "scheduled" | "held" | "not_attended" | "postponed" | "cancelled";
+    /** @enum {string|null} */
+    PostponementReason:
+      | "companion_unavailable"
+      | "employee_unwell"
+      | "employer_request"
+      | "other"
+      | null;
+    CaseEvent: {
+      /** Format: uuid */
+      id: string;
+      kind: string;
+      fromStage: components["schemas"]["CaseStage"] & (string | null);
+      toStage: components["schemas"]["CaseStage"] & (string | null);
+      /** Format: date */
+      occurredOn: string;
+      body: string | null;
+      /** Format: uuid */
+      recordedBy: string;
+      /** Format: date-time */
+      recordedAt: string;
+    };
+    OpenCase: {
+      caseType: components["schemas"]["CaseType"];
+      /** Format: uuid */
+      subjectTenantUserId: string;
+      summary: string;
+      /** Format: date */
+      openedOn: string;
+    };
+    NameCaseMember: {
+      /** Format: uuid */
+      tenantUserId: string;
+      role: components["schemas"]["CaseMemberRole"];
+      /**
+       * @default null
+       * @enum {string|null}
+       */
+      independenceException: "no_other_manager_available" | null;
+    };
+    RemoveCaseMember: {
+      expectedVersion: number;
+    };
+    MoveCase: {
+      expectedVersion: number;
+      /** Format: date */
+      on: string;
+    } & (
+      | {
+          /** @enum {string} */
+          to: "investigation";
+        }
+      | {
+          /** @enum {string} */
+          to: "hearing";
+        }
+      | {
+          /** @enum {string} */
+          to: "outcome";
+          outcome: components["schemas"]["CaseOutcome"];
+          /**
+           * Format: date
+           * @default null
+           */
+          warningExpiresOn: string | null;
+          appealRightGiven: boolean;
+          /**
+           * @default null
+           * @enum {string|null}
+           */
+          noHearingReason: "employee_repeatedly_did_not_attend" | null;
+        }
+      | {
+          /** @enum {string} */
+          to: "appeal";
+          grounds: string;
+        }
+      | {
+          /** @enum {string} */
+          to: "closed";
+          reason: components["schemas"]["CaseClosingReason"];
+          appealOutcome?: components["schemas"]["AppealOutcome"];
+        }
+    );
+    ArrangeHearing: {
+      kind: components["schemas"]["HearingKind"];
+      /** Format: uuid */
+      ledBy: string;
+      /** Format: date */
+      invitedOn: string;
+      /** Format: date-time */
+      scheduledAt: string;
+      issueSetOut: boolean;
+      evidenceShared: boolean;
+      companionRightGiven: boolean;
+    };
+    UpdateHearing: {
+      expectedVersion: number;
+      /** @enum {string} */
+      state: "held" | "not_attended" | "postponed" | "cancelled" | "scheduled";
+      /**
+       * Format: date
+       * @default null
+       */
+      heldOn: string | null;
+      /** @default null */
+      accompanied: boolean | null;
+      postponedReason?: components["schemas"]["PostponementReason"];
+      /** Format: date-time */
+      scheduledAt?: string;
+    };
+    ChangeSuspension: {
+      expectedVersion: number;
+      /** @enum {string} */
+      kind: "start" | "review" | "end";
+      /** Format: date */
+      on: string;
+      /**
+       * Format: date
+       * @default null
+       */
+      reviewOn: string | null;
+    };
+    RecordReferral: {
+      expectedVersion: number;
+      /** @enum {string} */
+      body: "dbs" | "regulator";
+      decision: components["schemas"]["ReferralDecision"];
+      /**
+       * Format: date
+       * @default null
+       */
+      referredOn: string | null;
+      reason?: components["schemas"]["ReferralNotRequiredReason"];
+    };
+    LinkSafeguarding: {
+      expectedVersion: number;
+      /** Format: uuid */
+      incidentId: string;
+    };
+    AddCaseNote: {
+      body: string;
+      /** Format: date */
+      occurredOn: string;
     };
     TrainingRequirementList: {
       items: components["schemas"]["TrainingRequirementItem"][];

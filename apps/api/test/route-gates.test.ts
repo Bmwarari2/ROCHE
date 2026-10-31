@@ -23,6 +23,10 @@ import { type AppEnv, SCOPE_WITHOUT_PERMISSION, useScopeOf } from "../src/http/c
 const GATES = new Set(["requirePermission", "requireAnyPermission", "useScopeOf"]);
 const DATABASE = new Set(["withTenant", "withRequestContext"]);
 
+/** Employee relations casework (ADR-0089): membership of the case opens it, never a permission. */
+const CASE_MEMBER =
+  "a case member's route: MFA, and row-level security opens only the cases the member is named on (migration 0101)";
+
 const UNGATED: Readonly<Record<string, string>> = {
   "GET /v1/me": "the member's own memberships and roles; scope 'none'",
   "GET /v1/branding":
@@ -47,6 +51,17 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /v1/sync/device-report":
     "any member reports what their device holds; written in the system's view (HZ-006)",
   "POST /v1/sync/upload": "refuses every operation (no writable synced tables); audits the count",
+  "GET /v1/workforce/cases": CASE_MEMBER,
+  "GET /v1/workforce/cases/{id}": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/members": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/members/{memberId}/remove": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/move": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/hearings": CASE_MEMBER,
+  "PATCH /v1/workforce/cases/{id}/hearings/{hearingId}": CASE_MEMBER,
+  "PUT /v1/workforce/cases/{id}/suspension": CASE_MEMBER,
+  "PUT /v1/workforce/cases/{id}/referrals": CASE_MEMBER,
+  "PUT /v1/workforce/cases/{id}/safeguarding-link": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/notes": CASE_MEMBER,
   "POST /p/evidence/code":
     "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
   "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",

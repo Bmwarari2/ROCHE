@@ -9,6 +9,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  */
 
 const APPEND_ONLY_TABLES = [
+  "employee_case_event",
   "audit_event",
   "record_version",
   "workflow_transition",
@@ -59,6 +60,18 @@ const APPEND_ONLY_TABLES = [
   "application_event",
   "interview",
   "equality_monitoring",
+];
+/**
+ * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the
+ * organisation reads; each change is audited by id instead (speak-up.test.ts and casework.test.ts
+ * prove it).
+ */
+const UNVERSIONED_SILO_TABLES = [
+  "employee_case",
+  "employee_case_member",
+  "employee_case_hearing",
+  "speak_up_concern",
+  "speak_up_case_member",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
@@ -179,14 +192,13 @@ describe("hazard HZ-011 row-level security coverage", () => {
     const { rows } = await db.pool("harbour_owner").query<{ table_name: string }>(
       `SELECT c.table_name FROM information_schema.columns c
        WHERE c.table_schema = 'public' AND c.column_name = 'version'
-         -- The speak-up silo keeps no history in record_version, which every member reads
-         -- (ADR-0089); speak-up.test.ts proves it.
-         AND c.table_name NOT IN ('tenant_group', 'operator_user', 'speak_up_concern',
-           'speak_up_case_member')
+         AND c.table_name NOT IN ('tenant_group', 'operator_user')
+         AND NOT (c.table_name = ANY ($1))
          AND NOT EXISTS (
            SELECT 1 FROM pg_trigger t JOIN pg_class k ON k.oid = t.tgrelid
            WHERE k.relname = c.table_name AND t.tgname = 'capture_version'
          )`,
+      [UNVERSIONED_SILO_TABLES],
     );
     expect(rows.map((r) => r.table_name)).toEqual([]);
   });

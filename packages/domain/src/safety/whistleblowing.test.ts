@@ -69,10 +69,10 @@ describe("the speak-up silo (ADR-0089)", () => {
       if (role.key === "speak_up_guardian") {
         expect(role.permissions).toEqual(["safety.speak_up.manage"]);
       } else {
-        expect(
-          role.permissions.filter((p) => isSiloPermission(p)),
-          role.key,
-        ).toEqual([]);
+        // Another silo's role (casework) carries only its own silo permission.
+        const silo = role.permissions.filter((p) => isSiloPermission(p));
+        expect(silo, role.key).not.toContain("safety.speak_up.manage");
+        if (silo.length > 0) expect(role.permissions, role.key).toEqual(silo);
       }
     }
   });
@@ -86,7 +86,7 @@ describe("the speak-up silo (ADR-0089)", () => {
 
   it("moves every step with the lead's own permission", () => {
     expect(new Set(SPEAK_UP_WORKFLOW.transitions.map((t) => t.permission))).toEqual(
-      new Set(SILO_PERMISSIONS),
+      new Set(SILO_PERMISSIONS.filter((p) => p === "safety.speak_up.manage")),
     );
   });
 });

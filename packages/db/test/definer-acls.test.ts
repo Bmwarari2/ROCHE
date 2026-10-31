@@ -35,6 +35,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.task_from_earlier_plan(uuid, uuid)": [],
   // Applicant tracking (migration 0085): equality monitoring counts, never rows (rule 12).
   "app.equality_monitoring_counts(uuid)": ["harbour_app"],
+  // Employee relations casework (migration 0101): whether the session's member is on a case.
+  "app.casework_member(uuid, text[])": ["harbour_app"],
+  "app.open_employee_case(text, uuid, text, date)": ["harbour_app"],
   "app.sweep_expired_invitations()": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins()": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).

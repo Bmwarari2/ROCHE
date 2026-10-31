@@ -1,5 +1,6 @@
 export * from "./auth";
 export * from "./care";
+export * from "./casework";
 export * from "./comms";
 export * from "./data-protection";
 export * from "./data-rights";
