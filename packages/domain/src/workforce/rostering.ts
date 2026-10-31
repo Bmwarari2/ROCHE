@@ -2,6 +2,7 @@ import type { CompetenceGate } from "./competence";
 import type { CompetenceDecision } from "./competence-port";
 import type { DbsClearance } from "./dbs";
 import { mayWork, type RightToWorkStatus } from "./right-to-work";
+import { neverOverridable, neverOverridableRefusal } from "./roster-checks";
 
 /**
  * The rule that a worker without a required check cannot be rostered (workforce.md rule 10;
@@ -47,9 +48,14 @@ export type RosterDecision =
   | {
       readonly allowed: false;
       readonly blockers: readonly RosterBlocker[];
-      /** Whether a manager may override these blockers (never with a right to work blocker). */
+      /** Whether a manager may override these blockers (`neverOverridable`; H-830). */
       readonly overridable: boolean;
-      readonly overrideRefused?: "justification_required" | "right_to_work" | "not_active";
+      readonly overrideRefused?:
+        | "justification_required"
+        | "right_to_work"
+        | "not_active"
+        | "no_dbs"
+        | "registration";
     };
 
 /** The shortest justification that counts: a short sentence, not a tick (a product rule). */
@@ -78,13 +84,15 @@ export function rosterDecision(
 ): RosterDecision {
   const blockers = rosterBlockers(input);
   if (blockers.length === 0) return { allowed: true, overridden: [] };
-  const overridable = !blockers.some((b) => b.kind === "right_to_work" || b.kind === "not_active");
+  const overridable = !blockers.some(neverOverridable);
   if (!override) return { allowed: false, blockers, overridable };
   if (!overridable) {
-    const refused = blockers.some((b) => b.kind === "right_to_work")
-      ? "right_to_work"
-      : "not_active";
-    return { allowed: false, blockers, overridable, overrideRefused: refused };
+    return {
+      allowed: false,
+      blockers,
+      overridable,
+      overrideRefused: neverOverridableRefusal(blockers),
+    };
   }
   if (override.justification.trim().length < MIN_OVERRIDE_JUSTIFICATION) {
     return { allowed: false, blockers, overridable, overrideRefused: "justification_required" };

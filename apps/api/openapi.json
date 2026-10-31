@@ -19638,9 +19638,10 @@
           "employment_history",
           "health_fitness",
           "right_to_work",
-          "professional_registration"
+          "professional_registration",
+          "driving_for_work"
         ],
-        "description": "A Schedule 3 pre-employment requirement"
+        "description": "A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)"
       },
       "StaffFileItem": {
         "type": "object",
@@ -20212,6 +20213,18 @@
                   "null"
                 ],
                 "format": "date"
+              },
+              "nmcPart": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "nurse",
+                  "midwife",
+                  "nursing_associate",
+                  null
+                ]
               }
             },
             "required": [
@@ -20220,6 +20233,40 @@
               "pin",
               "renewalDueOn",
               "revalidationDueOn"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "driving_for_work"
+                ]
+              },
+              "licenceCheckedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "categories": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9+]{0,3}$"
+                },
+                "minItems": 1,
+                "maxItems": 20
+              },
+              "insuranceExpiresOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "kind",
+              "licenceCheckedOn",
+              "categories",
+              "insuranceExpiresOn"
             ]
           },
           {
@@ -20245,7 +20292,9 @@
               "employment_gaps",
               "registration_lapsed",
               "health_not_declared_fit",
-              "references_none"
+              "references_none",
+              "driving_not_current",
+              "nmc_part_missing"
             ]
           },
           "reason": {
@@ -20942,13 +20991,17 @@
           },
           "heldBy": {
             "$ref": "#/components/schemas/StaffName"
+          },
+          "notes": {
+            "$ref": "#/components/schemas/SupervisionNotes"
           }
         },
         "required": [
           "id",
           "kind",
           "heldOn",
-          "heldBy"
+          "heldBy",
+          "notes"
         ]
       },
       "SupervisionKind": {
@@ -20957,6 +21010,50 @@
           "supervision",
           "appraisal",
           "spot_check"
+        ]
+      },
+      "SupervisionNotes": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "maxItems": 20
+          },
+          "actionsAgreed": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "nextDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "topics",
+          "actionsAgreed",
+          "nextDueOn",
+          "note"
         ]
       },
       "NextMeetingItem": {
@@ -21045,6 +21142,27 @@
           "confirmation": {
             "type": "boolean"
           },
+          "reviewState": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitted",
+              "reviewed"
+            ]
+          },
+          "reviewedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "confirmedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "confirmedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "daysLeft": {
             "type": "integer"
           },
@@ -21071,6 +21189,10 @@
           "healthAndCharacter",
           "professionalIndemnity",
           "confirmation",
+          "reviewState",
+          "reviewedBy",
+          "confirmedBy",
+          "confirmedOn",
           "daysLeft",
           "outstanding",
           "ready"
@@ -21225,6 +21347,9 @@
           "heldOn": {
             "type": "string",
             "format": "date"
+          },
+          "notes": {
+            "$ref": "#/components/schemas/SupervisionNotes"
           }
         },
         "required": [
@@ -21277,7 +21402,7 @@
           "professionalIndemnity": {
             "type": "boolean"
           },
-          "confirmation": {
+          "submit": {
             "type": "boolean"
           }
         },
@@ -21290,8 +21415,46 @@
           "reflectiveAccounts",
           "reflectiveDiscussion",
           "healthAndCharacter",
-          "professionalIndemnity",
-          "confirmation"
+          "professionalIndemnity"
+        ]
+      },
+      "ReviewRevalidation": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cycleDueOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "cycleDueOn"
+        ]
+      },
+      "ConfirmRevalidation": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cycleDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "confirmedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "cycleDueOn",
+          "confirmedOn"
         ]
       },
       "EvidenceLinkCodeSent": {
@@ -27703,8 +27866,7 @@
             "default": false
           },
           "countsAsCare": {
-            "type": "boolean",
-            "default": true
+            "type": "boolean"
           }
         },
         "required": [
@@ -28273,8 +28435,7 @@
                 "default": false
               },
               "countsAsCare": {
-                "type": "boolean",
-                "default": true
+                "type": "boolean"
               }
             },
             "required": [
@@ -29094,6 +29255,7 @@
           "maternity",
           "paternity",
           "adoption",
+          "parental_bereavement",
           "unpaid",
           "other"
         ]
@@ -29104,6 +29266,7 @@
           "requested",
           "approved",
           "declined",
+          "postponed",
           "cancelled",
           "recorded"
         ]
@@ -29237,6 +29400,31 @@
               "format": "date"
             }
           },
+          "carersLeave": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "takenDays": {
+                "type": "integer"
+              },
+              "allowanceDays": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "overAllowance": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "takenDays",
+              "allowanceDays",
+              "overAllowance"
+            ]
+          },
           "fitNotes": {
             "type": [
               "array",
@@ -29272,6 +29460,7 @@
           "bradfordExcluded",
           "coverNeeded",
           "fitNoteUncoveredDays",
+          "carersLeave",
           "fitNotes",
           "returnToWork",
           "bradfordExcludedReason"
@@ -29416,7 +29605,8 @@
             "type": "string",
             "enum": [
               "approve",
-              "decline"
+              "decline",
+              "postpone"
             ]
           },
           "reason": {
@@ -48642,7 +48832,7 @@
               "$ref": "#/components/schemas/ComplianceItemKind"
             },
             "required": true,
-            "description": "A Schedule 3 pre-employment requirement",
+            "description": "A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)",
             "name": "kind",
             "in": "path"
           }
@@ -48849,7 +49039,7 @@
               "$ref": "#/components/schemas/ComplianceItemKind"
             },
             "required": true,
-            "description": "A Schedule 3 pre-employment requirement",
+            "description": "A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)",
             "name": "kind",
             "in": "path"
           },
@@ -49802,7 +49992,7 @@
           "workforce"
         ],
         "summary": "Record a supervision, appraisal or spot check",
-        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.",
+        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. Optional `notes` (topics, actions agreed, next date, a note; never health detail) are read only by the supervisor, the supervisee and holders of workforce.hr_document.read (H-692). Audited, never the notes.",
         "security": [
           {
             "bearerAuth": []
@@ -49901,7 +50091,7 @@
           "workforce"
         ],
         "summary": "Record revalidation evidence for a cycle",
-        "description": "workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Audited.",
+        "description": "workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Never the confirmation (POST .../revalidation/confirmation) and never once reviewed. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -49926,6 +50116,292 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PutRevalidationEvidence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/revalidation": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record your own revalidation evidence",
+        "description": "workforce.self.read. A registered nurse enters their own counts and declarations (never the reflective text), and may send them for HR to review with `submit` (H-693). Never the confirmation, never once reviewed. The nurse stays responsible for revalidating with the NMC. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutRevalidationEvidence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/revalidation/review": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Mark revalidation evidence as reviewed",
+        "description": "workforce.training.manage, never for oneself, against expectedVersion. The counts are then fixed; only the confirmation may follow (H-693). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRevalidation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/revalidation/confirmation": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record that you confirmed a nurse's revalidation",
+        "description": "The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Harbour only tracks it: the nurse revalidates with the NMC. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRevalidation"
               }
             }
           }
@@ -59526,8 +60002,8 @@
         "tags": [
           "scheduling"
         ],
-        "summary": "Approve or decline a leave request",
-        "description": "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline needs a reason. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
+        "summary": "Approve, decline or postpone a leave request",
+        "description": "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
         "security": [
           {
             "bearerAuth": []

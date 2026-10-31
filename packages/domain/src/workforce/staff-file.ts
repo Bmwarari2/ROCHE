@@ -6,7 +6,9 @@ import { reminderDays, type WorkforceRates } from "./rates";
 import { type Registration, registrationCurrent } from "./registration";
 import { checkedLate, mayWork, type RightToWorkCheck, rightToWorkStatus } from "./right-to-work";
 import {
+  type ComplianceItemKindCode,
   type RoleRegistration,
+  SCHEDULE3_ITEMS,
   type Schedule3Item,
   type Schedule3ItemKind,
   type Schedule3State,
@@ -89,7 +91,53 @@ export type ComplianceDetail =
       readonly pin: string;
       readonly renewalDueOn: string;
       readonly revalidationDueOn: string | null;
+      /**
+       * The part of the NMC register (H-835): only the nurse part counts as a registered nurse on
+       * duty; a nursing associate never does. Null for other registers, and for an NMC entry
+       * recorded before the part was asked (which then counts as no nurse).
+       */
+      readonly nmcPart?: NmcPart | null;
+    }
+  | {
+      /**
+       * Driving for work (H-835): the licence checked with the DVLA (the date and the categories,
+       * never the licence number or the check code) and business-use insurance seen, with its
+       * expiry. Counts as a driver only while both are current.
+       */
+      readonly kind: "driving_for_work";
+      readonly licenceCheckedOn: string;
+      readonly categories: readonly string[];
+      readonly insuranceExpiresOn: string;
     };
+
+export type NmcPart = "nurse" | "midwife" | "nursing_associate";
+
+/**
+ * Whether a driving-for-work check is current on a UK date (H-835): the DVLA licence check made
+ * within `workforce.driving_licence_check_months` before it, and the insurance not yet expired.
+ * `until` is the earlier of the two last days.
+ */
+export function drivingCurrent(
+  detail: Extract<ComplianceDetail, { kind: "driving_for_work" }>,
+  today: string,
+  rates: Pick<WorkforceRates, "drivingLicenceCheckMonths">,
+): { readonly current: boolean; readonly until: string } {
+  const licenceUntil = addMonthsIso(detail.licenceCheckedOn, rates.drivingLicenceCheckMonths);
+  const until = licenceUntil < detail.insuranceExpiresOn ? licenceUntil : detail.insuranceExpiresOn;
+  return { current: detail.licenceCheckedOn <= today && today <= until, until };
+}
+
+/** The UK date `months` after another, the day before the same date (the last day covered). */
+function addMonthsIso(isoDate: string, months: number): string {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, last));
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 
 export interface StoredComplianceItem {
   readonly detail: ComplianceDetail;
@@ -124,11 +172,14 @@ export type ComplianceNote =
   | { readonly code: "right_to_work_checked_late"; readonly checkedOn: string }
   | { readonly code: "employment_gaps"; readonly gaps: readonly Gap[] }
   | { readonly code: "registration_lapsed" }
+  /** An NMC registration without its register part: it does not count as a registered nurse. */
+  | { readonly code: "nmc_part_missing" }
   | { readonly code: "health_not_declared_fit" }
-  | { readonly code: "references_none" };
+  | { readonly code: "references_none" }
+  | { readonly code: "driving_not_current" };
 
 export interface ComplianceItemView {
-  readonly kind: Schedule3ItemKind;
+  readonly kind: ComplianceItemKindCode;
   readonly satisfied: boolean;
   /** The last valid day of an item that expires (right to work, registration). */
   readonly expiresOn: string | null;
@@ -234,6 +285,17 @@ export function complianceItemView(
         ruleMet = false;
         notes.push({ code: "registration_lapsed" });
       }
+      // Fails safe, and says so (H-835; clinical safety review of the recommended answers).
+      if (detail.body === "nmc" && !detail.nmcPart) notes.push({ code: "nmc_part_missing" });
+      break;
+    }
+    case "driving_for_work": {
+      const current = drivingCurrent(detail, today, rates);
+      expiresOn = current.until;
+      if (!current.current) {
+        ruleMet = false;
+        notes.push({ code: "driving_not_current" });
+      }
       break;
     }
     case "employment_history": {
@@ -268,6 +330,9 @@ export function complianceItemView(
   return { kind: detail.kind, satisfied: verified && ruleMet, expiresOn, recheckDueOn, notes };
 }
 
+const isSchedule3Kind = (kind: ComplianceItemKindCode): kind is Schedule3ItemKind =>
+  (SCHEDULE3_ITEMS as readonly string[]).includes(kind);
+
 export interface StaffFileState extends Schedule3State {
   readonly views: readonly ComplianceItemView[];
 }
@@ -283,12 +348,19 @@ export function staffFileState(
   rates: WorkforceRates,
 ): StaffFileState {
   const views = items.map((item) => complianceItemView(item, profile, today, rates));
-  const schedule3: Schedule3Item[] = views.map((view, i) => ({
-    kind: view.kind,
-    satisfied: view.satisfied,
-    expiresOn: view.expiresOn,
-    remindersSent: items[i]?.remindersSent ?? [],
-  }));
+  // Only Schedule 3 items make a complete file; a driving check is extra (H-835).
+  const schedule3: Schedule3Item[] = views.flatMap((view, i) =>
+    isSchedule3Kind(view.kind)
+      ? [
+          {
+            kind: view.kind,
+            satisfied: view.satisfied,
+            expiresOn: view.expiresOn,
+            remindersSent: items[i]?.remindersSent ?? [],
+          },
+        ]
+      : [],
+  );
   const state = schedule3State(
     { registration: profile.registration, previousCareWork: profile.previousCareWork },
     schedule3,

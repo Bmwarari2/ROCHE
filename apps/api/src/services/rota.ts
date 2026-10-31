@@ -176,10 +176,10 @@ export async function shiftEligibility(
 }
 
 /**
- * The dependency-scale skills a member holds for a whole shift: a registered nurse when their role
- * is on the NMC register and the registration is current, medicines and moving and handling from
- * the competence port, each on every UK date the shift touches. Nothing yet records who may drive
- * (H-835) or which part of the NMC register a nurse is on (H-835), so nobody counts as a driver.
+ * The dependency-scale skills a member holds for a whole shift, on every UK date it touches: a
+ * registered nurse only for a current registration on the nurse part of the NMC register (a
+ * nursing associate never counts; H-835), a driver only while a verified driving-for-work check is
+ * current (H-835), and medicines and moving and handling from the competence port.
  */
 export async function workerSkills(
   tx: Transaction,
@@ -190,6 +190,7 @@ export async function workerSkills(
 ): Promise<StaffingSkill[]> {
   const instants = [row.startsAt, lastInstant(row.endsAt)];
   let nurse = true;
+  let driver = true;
   for (const at of instants) {
     const { profile, checks } = await staffFileChecks(
       tx,
@@ -201,7 +202,9 @@ export async function workerSkills(
     nurse &&=
       profile?.registrationBody === "nmc" &&
       checks.registrationCurrent === true &&
+      checks.registeredNurse &&
       checks.memberActive;
+    driver &&= checks.driver && checks.memberActive;
   }
   const held = async (c: Competence) => {
     for (const at of instants) {
@@ -211,6 +214,7 @@ export async function workerSkills(
   };
   const skills: StaffingSkill[] = [];
   if (nurse) skills.push("registered_nurse");
+  if (driver) skills.push("driver");
   if (await held("medicines_administration")) skills.push("medicines_competent");
   if (await held("moving_and_handling_hoist")) skills.push("moving_and_handling");
   return skills;

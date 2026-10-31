@@ -36,8 +36,12 @@ const ShiftShapeFields = {
   requiredCompetences: z.array(Competence).max(8).default([]),
   requiredSkills: z.array(StaffingSkill).max(4).default([]),
   supervised: z.boolean().default(false),
-  /** The organisation counts it as care on the floor (false for housekeeping, kitchen, office). */
-  countsAsCare: z.boolean().default(true),
+  /**
+   * The organisation counts it as care on the floor (false for housekeeping, kitchen, office).
+   * Left out, it is true, except for a supervised or shadowing shift, which counts only when the
+   * organisation chooses (H-830).
+   */
+  countsAsCare: z.boolean().optional(),
 };
 
 export const CreateShiftTemplate = z

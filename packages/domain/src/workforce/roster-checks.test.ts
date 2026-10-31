@@ -288,8 +288,20 @@ describe("hazard HZ-124 one decision across the dates a shift touches", () => {
     ],
     ["the blocker shown, overridden", [[comp], [comp]], ok, { allowed: true }],
     [
+      "hazard HZ-124 a registration lapsing overnight is never overridden (H-830)",
+      [[], [{ kind: "registration" } as RosterBlocker]],
+      { ...ok, blockerKeys: ["registration"] },
+      { allowed: false, overridable: false, overrideRefused: "registration" },
+    ],
+    [
+      "hazard HZ-124 no DBS certificate is never overridden (H-830)",
+      [[{ kind: "dbs", reason: "no_certificate" } as RosterBlocker]],
+      { ...ok, blockerKeys: ["dbs:no_certificate"] },
+      { allowed: false, overridable: false, overrideRefused: "no_dbs" },
+    ],
+    [
       "a blocker not shown when overriding",
-      [[comp], [{ kind: "registration" } as RosterBlocker]],
+      [[comp], [{ kind: "dbs_supervised_only" } as RosterBlocker]],
       ok,
       { overrideRefused: "blockers_changed" },
     ],
@@ -301,5 +313,53 @@ describe("hazard HZ-124 one decision across the dates a shift touches", () => {
     ],
   ] as const)("hazard HZ-124 %s", (_, perDay, override, expected) => {
     expect(combinedRosterDecision(perDay, override, 10)).toMatchObject(expected);
+  });
+});
+
+describe("hazard HZ-123 H-835 who counts as a registered nurse or a driver", () => {
+  const part = (nmcPart: "nurse" | "midwife" | "nursing_associate" | null): ComplianceDetail => ({
+    ...(registration("2027-03-31") as Extract<
+      ComplianceDetail,
+      { kind: "professional_registration" }
+    >),
+    nmcPart,
+  });
+  it.each<[string, ComplianceDetail, boolean]>([
+    ["the nurse part of the register", part("nurse"), true],
+    ["a nursing associate, never", part("nursing_associate"), false],
+    ["a midwife", part("midwife"), false],
+    ["an NMC entry recorded before the part was asked", part(null), false],
+  ])("hazard HZ-123 %s", (_name, detail, expected) => {
+    const checks = rosterChecks(
+      nurse,
+      [item(dbs), item(rtw(null)), item(detail)],
+      DAY,
+      rates,
+      ACTIVE,
+    );
+    expect(checks.registeredNurse).toBe(expected);
+  });
+
+  const driving = (licenceCheckedOn: string, insuranceExpiresOn: string): ComplianceDetail => ({
+    kind: "driving_for_work",
+    licenceCheckedOn,
+    categories: ["B"],
+    insuranceExpiresOn,
+  });
+  it.each<[string, StoredComplianceItem[], boolean]>([
+    ["a licence check and insurance in date", [item(driving("2026-06-01", "2027-01-31"))], true],
+    ["the insurance expired", [item(driving("2026-06-01", "2026-11-01"))], false],
+    ["the licence check too old", [item(driving("2025-10-01", "2027-01-31"))], false],
+    ["checked after the day", [item(driving("2026-11-03", "2027-01-31"))], false],
+    [
+      "not verified by someone else",
+      [item(driving("2026-06-01", "2027-01-31"), { verifiedBy: WORKER })],
+      false,
+    ],
+    ["no check at all", [], false],
+  ])("hazard HZ-123 a driver: %s", (_name, items, expected) => {
+    expect(
+      rosterChecks(carer, [item(dbs), item(rtw(null)), ...items], DAY, rates, ACTIVE).driver,
+    ).toBe(expected);
   });
 });

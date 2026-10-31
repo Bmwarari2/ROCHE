@@ -15965,7 +15965,7 @@ export interface paths {
         header?: never;
         path: {
           id: string;
-          /** @description A Schedule 3 pre-employment requirement */
+          /** @description A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work) */
           kind: components["schemas"]["ComplianceItemKind"];
         };
         cookie?: never;
@@ -16151,7 +16151,7 @@ export interface paths {
         header?: never;
         path: {
           id: string;
-          /** @description A Schedule 3 pre-employment requirement */
+          /** @description A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work) */
           kind: components["schemas"]["ComplianceItemKind"];
         };
         cookie?: never;
@@ -16974,7 +16974,7 @@ export interface paths {
     put?: never;
     /**
      * Record a supervision, appraisal or spot check
-     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.
+     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. Optional `notes` (topics, actions agreed, next date, a note; never health detail) are read only by the supervisor, the supervisee and holders of workforce.hr_document.read (H-692). Audited, never the notes.
      */
     post: {
       parameters: {
@@ -17063,7 +17063,7 @@ export interface paths {
     get?: never;
     /**
      * Record revalidation evidence for a cycle
-     * @description workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Audited.
+     * @description workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Never the confirmation (POST .../revalidation/confirmation) and never once reviewed. Audited.
      */
     put: {
       parameters: {
@@ -17137,6 +17137,274 @@ export interface paths {
       };
     };
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/revalidation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record your own revalidation evidence
+     * @description workforce.self.read. A registered nurse enters their own counts and declarations (never the reflective text), and may send them for HR to review with `submit` (H-693). Never the confirmation, never once reviewed. The nurse stays responsible for revalidating with the NMC. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PutRevalidationEvidence"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/revalidation/review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mark revalidation evidence as reviewed
+     * @description workforce.training.manage, never for oneself, against expectedVersion. The counts are then fixed; only the confirmation may follow (H-693). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReviewRevalidation"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/revalidation/confirmation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record that you confirmed a nurse's revalidation
+     * @description The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Harbour only tracks it: the nurse revalidates with the NMC. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ConfirmRevalidation"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -25787,8 +26055,8 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Approve or decline a leave request
-     * @description scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline needs a reason. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.
+     * Approve, decline or postpone a leave request
+     * @description scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.
      */
     post: {
       parameters: {
@@ -31957,7 +32225,7 @@ export interface components {
       dueSoon: components["schemas"]["ComplianceItemKind"][];
     };
     /**
-     * @description A Schedule 3 pre-employment requirement
+     * @description A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)
      * @enum {string}
      */
     ComplianceItemKind:
@@ -31969,7 +32237,8 @@ export interface components {
       | "employment_history"
       | "health_fitness"
       | "right_to_work"
-      | "professional_registration";
+      | "professional_registration"
+      | "driving_for_work";
     StaffFileItem: {
       /** Format: uuid */
       id: string;
@@ -32110,6 +32379,17 @@ export interface components {
           renewalDueOn: string;
           /** Format: date */
           revalidationDueOn: string | null;
+          /** @enum {string|null} */
+          nmcPart?: "nurse" | "midwife" | "nursing_associate" | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "driving_for_work";
+          /** Format: date */
+          licenceCheckedOn: string;
+          categories: string[];
+          /** Format: date */
+          insuranceExpiresOn: string;
         }
       | null;
     /** @description Why an item is not satisfied, or what it must say */
@@ -32127,7 +32407,9 @@ export interface components {
         | "employment_gaps"
         | "registration_lapsed"
         | "health_not_declared_fit"
-        | "references_none";
+        | "references_none"
+        | "driving_not_current"
+        | "nmc_part_missing";
       reason?: string;
       /** Format: date */
       dueOn?: string;
@@ -32308,9 +32590,17 @@ export interface components {
       /** Format: date */
       heldOn: string;
       heldBy: components["schemas"]["StaffName"];
+      notes: components["schemas"]["SupervisionNotes"];
     };
     /** @enum {string} */
     SupervisionKind: "supervision" | "appraisal" | "spot_check";
+    SupervisionNotes: {
+      topics: string[];
+      actionsAgreed: string | null;
+      /** Format: date */
+      nextDueOn: string | null;
+      note: string | null;
+    } | null;
     NextMeetingItem: {
       /** @enum {string} */
       kind: "supervision" | "appraisal";
@@ -32334,6 +32624,12 @@ export interface components {
       healthAndCharacter: boolean;
       professionalIndemnity: boolean;
       confirmation: boolean;
+      /** @enum {string} */
+      reviewState: "draft" | "submitted" | "reviewed";
+      reviewedBy: components["schemas"]["StaffName"];
+      confirmedBy: components["schemas"]["StaffName"];
+      /** Format: date */
+      confirmedOn: string | null;
       daysLeft: number;
       outstanding: string[];
       ready: boolean;
@@ -32369,6 +32665,7 @@ export interface components {
       kind: components["schemas"]["SupervisionKind"];
       /** Format: date */
       heldOn: string;
+      notes?: components["schemas"]["SupervisionNotes"];
     };
     PutRevalidationEvidence: {
       expectedVersion?: number;
@@ -32382,7 +32679,19 @@ export interface components {
       reflectiveDiscussion: boolean;
       healthAndCharacter: boolean;
       professionalIndemnity: boolean;
-      confirmation: boolean;
+      submit?: boolean;
+    };
+    ReviewRevalidation: {
+      expectedVersion: number;
+      /** Format: date */
+      cycleDueOn: string;
+    };
+    ConfirmRevalidation: {
+      expectedVersion: number;
+      /** Format: date */
+      cycleDueOn: string;
+      /** Format: date */
+      confirmedOn: string;
     };
     /** @description Whether the email with the code was sent */
     EvidenceLinkCodeSent: {
@@ -34069,8 +34378,7 @@ export interface components {
       requiredSkills: components["schemas"]["StaffingSkill"][];
       /** @default false */
       supervised: boolean;
-      /** @default true */
-      countsAsCare: boolean;
+      countsAsCare?: boolean;
     };
     ArchiveRotaItem: {
       version: number;
@@ -34223,8 +34531,7 @@ export interface components {
           requiredSkills: components["schemas"]["StaffingSkill"][];
           /** @default false */
           supervised: boolean;
-          /** @default true */
-          countsAsCare: boolean;
+          countsAsCare?: boolean;
         };
     CancelShift: {
       version: number;
@@ -34431,10 +34738,11 @@ export interface components {
       | "maternity"
       | "paternity"
       | "adoption"
+      | "parental_bereavement"
       | "unpaid"
       | "other";
     /** @enum {string} */
-    AbsenceState: "requested" | "approved" | "declined" | "cancelled" | "recorded";
+    AbsenceState: "requested" | "approved" | "declined" | "postponed" | "cancelled" | "recorded";
     NewAbsence: {
       /** Format: uuid */
       memberId?: string;
@@ -34475,6 +34783,11 @@ export interface components {
       bradfordExcluded: boolean;
       coverNeeded: number;
       fitNoteUncoveredDays: string[] | null;
+      carersLeave: {
+        takenDays: number;
+        allowanceDays: number | null;
+        overAllowance: boolean;
+      } | null;
       fitNotes: components["schemas"]["FitNoteItem"][] | null;
       returnToWork: components["schemas"]["ReturnToWorkItem"];
       bradfordExcludedReason: string | null;
@@ -34522,7 +34835,7 @@ export interface components {
     DecideAbsence: {
       version: number;
       /** @enum {string} */
-      decision: "approve" | "decline";
+      decision: "approve" | "decline" | "postpone";
       reason?: string;
     };
     CancelAbsence: {

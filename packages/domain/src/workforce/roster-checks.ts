@@ -6,6 +6,7 @@ import {
   type ComplianceDetail,
   complianceItemView,
   dbsRecordOf,
+  drivingCurrent,
   type StaffProfileFacts,
   type StoredComplianceItem,
 } from "./staff-file";
@@ -26,6 +27,13 @@ export interface RosterChecks {
   readonly registrationCurrent: boolean | null;
   /** The member works for the organisation on the day (security review round 1, H1). */
   readonly memberActive: boolean;
+  /**
+   * A current NMC registration on the nurse part of the register (H-835): a registered nurse for
+   * the staffing scale. A nursing associate or a midwife is not.
+   */
+  readonly registeredNurse: boolean;
+  /** A verified driving-for-work check, current on the day (H-835). */
+  readonly driver: boolean;
 }
 
 /** The member's standing in the organisation, from `tenant_user` and the staff profile. */
@@ -68,6 +76,8 @@ export function rosterChecks(
       rightToWork: { kind: "none" },
       registrationCurrent: null,
       memberActive,
+      registeredNurse: false,
+      driver: false,
     };
   }
   const verified = items.filter((i) => verifiedBy(i, profile.workerId, day));
@@ -113,7 +123,19 @@ export function rosterChecks(
             complianceItemView(item, profile, day, rates).satisfied,
         );
 
-  return { dbs, rightToWork, registrationCurrent, memberActive };
+  const registeredNurse =
+    profile.registration === "nmc" &&
+    of("professional_registration").some(
+      (item) =>
+        item.detail.body === "nmc" &&
+        item.detail.nmcPart === "nurse" &&
+        complianceItemView(item, profile, day, rates).satisfied,
+    );
+  const driver = of("driving_for_work").some(
+    (item) => drivingCurrent(item.detail, day, rates).current,
+  );
+
+  return { dbs, rightToWork, registrationCurrent, memberActive, registeredNurse, driver };
 }
 
 /**
@@ -134,9 +156,30 @@ export function blockerKey(blocker: RosterBlocker): string {
   }
 }
 
-/** Blockers no override ever covers: illegal working, and a member not working for the organisation. */
+/**
+ * Blockers no override ever covers: illegal working, a member not working for the organisation,
+ * no DBS certificate at all (the lawful supervised start is an Adult First check with a signed risk
+ * assessment, `dbs_supervised_only`), and a lapsed or missing registration (a lapsed registrant may
+ * not work in the registered role). H-830; ADR-0099 records the departure from master prompt
+ * section 12.
+ */
 export function neverOverridable(blocker: RosterBlocker): boolean {
-  return blocker.kind === "right_to_work" || blocker.kind === "not_active";
+  return (
+    blocker.kind === "right_to_work" ||
+    blocker.kind === "not_active" ||
+    blocker.kind === "registration" ||
+    (blocker.kind === "dbs" && blocker.reason === "no_certificate")
+  );
+}
+
+/** Which refusal an override of never-overridable blockers gets, the most serious first. */
+export function neverOverridableRefusal(
+  blockers: readonly RosterBlocker[],
+): "right_to_work" | "not_active" | "no_dbs" | "registration" {
+  if (blockers.some((b) => b.kind === "right_to_work")) return "right_to_work";
+  if (blockers.some((b) => b.kind === "not_active")) return "not_active";
+  if (blockers.some((b) => b.kind === "dbs" && b.reason === "no_certificate")) return "no_dbs";
+  return "registration";
 }
 
 /**
@@ -179,6 +222,8 @@ export function combinedRosterDecision(
         | "justification_required"
         | "right_to_work"
         | "not_active"
+        | "no_dbs"
+        | "registration"
         | "blockers_changed";
     } {
   const byKey = new Map<string, RosterBlocker>();
@@ -188,10 +233,12 @@ export function combinedRosterDecision(
   const overridable = !blockers.some(neverOverridable);
   if (!override) return { allowed: false, blockers, overridable };
   if (!overridable) {
-    const refused = blockers.some((b) => b.kind === "right_to_work")
-      ? "right_to_work"
-      : "not_active";
-    return { allowed: false, blockers, overridable, overrideRefused: refused };
+    return {
+      allowed: false,
+      blockers,
+      overridable,
+      overrideRefused: neverOverridableRefusal(blockers),
+    };
   }
   if (!sameBlockers(override.blockerKeys, [...byKey.keys()])) {
     return { allowed: false, blockers, overridable, overrideRefused: "blockers_changed" };

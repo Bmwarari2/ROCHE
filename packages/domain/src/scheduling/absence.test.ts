@@ -1,16 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import {
+  ABSENCE_KINDS,
+  type AbsenceKind,
+  type AbsenceState,
   absenceDays,
   absentOn,
   assignmentsNeedingCover,
   bradfordDays,
+  carersLeaveTaken,
   checkAbsenceMove,
   checkNewAbsence,
   fitNoteNeeded,
   periodsOfIncapacity,
   qualifyingDaysIn,
   resolveAbsenceRates,
+  STATUTORY_LEAVE_KINDS,
 } from "./absence";
 
 /** Absence and leave (scheduling.md section 15; SCHED-010; HZ-123, HZ-124). Invented people. */
@@ -22,10 +27,16 @@ const MO = "0194d000-0000-7000-8000-0000000003a2";
 
 describe("the figures come from the rate table, Great Britain only", () => {
   it("reads them for England", () => {
-    expect(rates).toEqual({ selfCertificationDays: 7, piwMinDays: 4, piwLinkWeeks: 8 });
+    expect(rates).toEqual({
+      carersLeaveWeeks: 1,
+      selfCertificationDays: 7,
+      piwMinDays: 4,
+      piwLinkWeeks: 8,
+    });
   });
   it("has none for Northern Ireland, whose SSP is separate", () => {
     expect(resolveAbsenceRates(readRateTable(), "northern_ireland", TODAY, null)).toEqual({
+      carersLeaveWeeks: null,
       selfCertificationDays: null,
       piwMinDays: null,
       piwLinkWeeks: null,
@@ -249,5 +260,99 @@ describe("rule 5: the Bradford factor's days", () => {
       TODAY,
     );
     expect(days).toEqual(["2026-10-05", "2026-10-06"]);
+  });
+});
+
+describe("H-970 statutory leave is never declined; carer's and parental leave only postponed", () => {
+  const move = (kind: AbsenceKind, to: AbsenceState, reason: string | null = "Rota is short") =>
+    checkAbsenceMove({ from: "requested", to, memberId: ADA, actorId: MO, reason, kind });
+  it.each<[AbsenceKind, AbsenceState, string | null]>([
+    ["maternity", "declined", "not_declinable"],
+    ["paternity", "declined", "not_declinable"],
+    ["adoption", "declined", "not_declinable"],
+    ["parental_bereavement", "declined", "not_declinable"],
+    ["carers_leave", "declined", "not_declinable"],
+    ["parental_leave", "declined", "not_declinable"],
+    ["annual_leave", "declined", null],
+    ["carers_leave", "postponed", null],
+    ["parental_leave", "postponed", null],
+    ["annual_leave", "postponed", "not_postponable"],
+    ["maternity", "postponed", "not_postponable"],
+    ["maternity", "approved", null],
+    ["parental_bereavement", "approved", null],
+  ])("%s to %s", (kind, to, expected) => {
+    expect(move(kind, to)).toBe(expected);
+  });
+  it("a postponement needs a reason and someone other than the member", () => {
+    expect(move("carers_leave", "postponed", null)).toBe("reason_required");
+    expect(
+      checkAbsenceMove({
+        from: "requested",
+        to: "postponed",
+        memberId: ADA,
+        actorId: ADA,
+        reason: "Moving it",
+        kind: "carers_leave",
+      }),
+    ).toBe("decider_is_member");
+  });
+  it("parental bereavement is a kind of its own", () => {
+    expect(ABSENCE_KINDS).toContain("parental_bereavement");
+    expect(STATUTORY_LEAVE_KINDS).toContain("parental_bereavement");
+  });
+});
+
+describe("H-970 carer's leave taken in any 12 months (advisory)", () => {
+  const leave = (startsOn: string, endsOn: string, state: AbsenceState = "approved") => ({
+    kind: "carers_leave" as AbsenceKind,
+    state,
+    startsOn,
+    endsOn,
+  });
+  it.each<[string, ReturnType<typeof leave>[], number, boolean]>([
+    ["none", [], 0, false],
+    ["three days", [leave("2026-06-01", "2026-06-03")], 3, false],
+    ["a full week", [leave("2026-06-01", "2026-06-07")], 7, false],
+    [
+      "more than a week",
+      [leave("2026-06-01", "2026-06-05"), leave("2026-09-01", "2026-09-05")],
+      10,
+      true,
+    ],
+    ["older than 12 months is not counted", [leave("2025-10-01", "2025-10-30")], 0, false],
+    [
+      "the day 12 months ago is not counted, the day after is",
+      [leave("2025-10-31", "2025-11-01")],
+      1,
+      false,
+    ],
+    [
+      "a request not yet decided is not counted",
+      [leave("2026-06-01", "2026-06-03", "requested")],
+      0,
+      false,
+    ],
+    [
+      "a postponed request is not counted",
+      [leave("2026-06-01", "2026-06-03", "postponed")],
+      0,
+      false,
+    ],
+  ])("%s", (_name, absences, taken, over) => {
+    const out = carersLeaveTaken(absences, "2026-10-31", { carersLeaveWeeks: 1 });
+    expect(out).toEqual({ takenDays: taken, allowanceDays: 7, overAllowance: over });
+  });
+  it("has no allowance where the nation has no row", () => {
+    expect(carersLeaveTaken([], "2026-10-31", { carersLeaveWeeks: null })).toEqual({
+      takenDays: 0,
+      allowanceDays: null,
+      overAllowance: false,
+    });
+  });
+  it("on 29 February, counts from the day after 1 March a year before", () => {
+    const out = carersLeaveTaken([leave("2027-03-01", "2027-03-02")], "2028-02-29", {
+      carersLeaveWeeks: 1,
+    });
+    expect(out.takenDays).toBe(1);
   });
 });

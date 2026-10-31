@@ -36,6 +36,7 @@ export const ABSENCE_KIND_CODES = [
   "maternity",
   "paternity",
   "adoption",
+  "parental_bereavement",
   "unpaid",
   "other",
 ] as const;
@@ -43,9 +44,22 @@ export const ABSENCE_STATE_CODES = [
   "requested",
   "approved",
   "declined",
+  "postponed",
   "cancelled",
   "recorded",
 ] as const;
+
+/** Statutory leave kinds, never declined (`STATUTORY_LEAVE_KINDS` in packages/domain; H-970). */
+export const STATUTORY_LEAVE_CODES = [
+  "maternity",
+  "paternity",
+  "adoption",
+  "parental_bereavement",
+  "carers_leave",
+  "parental_leave",
+] as const;
+/** Of those, the kinds an employer may postpone as the law allows (`POSTPONABLE_KINDS`). */
+export const POSTPONABLE_LEAVE_CODES = ["carers_leave", "parental_leave"] as const;
 
 const staffRef = (name: string, t: { tenantId: AnyPgColumn }, column: AnyPgColumn) =>
   foreignKey({
@@ -76,7 +90,7 @@ export const absence = pgTable(
     state: text("state").notNull(),
     decidedBy: uuid("decided_by"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
-    /** Why it was declined or cancelled: words about the rota, never about health. */
+    /** Why it was declined, postponed or cancelled: words about the rota, never about health. */
     decisionReason: text("decision_reason"),
     /** When the member's own statement for the first days of a sickness was taken. */
     selfCertifiedAt: timestamp("self_certified_at", { withTimezone: true }),
@@ -99,18 +113,25 @@ export const absence = pgTable(
     ),
     check(
       "absence_decision",
-      sql`(state NOT IN ('approved', 'declined') OR (decided_by IS NOT NULL AND decided_at IS NOT NULL))
+      sql`(state NOT IN ('approved', 'declined', 'postponed') OR (decided_by IS NOT NULL AND decided_at IS NOT NULL))
         AND (state NOT IN ('requested', 'recorded') OR (decided_by IS NULL AND decided_at IS NULL))`,
     ),
     // The approver is never the member (separation of duties).
     check("absence_decider_is_member", sql`decided_by IS DISTINCT FROM member_id`),
     check(
       "absence_reason",
-      sql`(state <> 'declined' OR decision_reason IS NOT NULL)
+      sql`(state NOT IN ('declined', 'postponed') OR decision_reason IS NOT NULL)
         AND (decision_reason IS NULL OR char_length(btrim(decision_reason)) BETWEEN 3 AND 500)
         AND (bradford_excluded_reason IS NULL OR (kind = 'sickness' AND char_length(btrim(bradford_excluded_reason)) BETWEEN 3 AND 500))`,
     ),
     check("absence_self_certified", sql`self_certified_at IS NULL OR kind = 'sickness'`),
+    // Statutory leave is never declined; carer's and unpaid parental leave may only be postponed
+    // (H-970; scheduling.md section 15 rule 1).
+    check(
+      "absence_statutory",
+      sql`(state <> 'declined' OR kind NOT IN (${sqlList(STATUTORY_LEAVE_CODES)}))
+        AND (state <> 'postponed' OR kind IN (${sqlList(POSTPONABLE_LEAVE_CODES)}))`,
+    ),
   ],
 );
 

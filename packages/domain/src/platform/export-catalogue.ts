@@ -4801,7 +4801,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.supervision_record": {
     context: "workforce",
     description:
-      "Supervisions, appraisals and spot checks held (workforce.md section 2b); no notes.",
+      "Supervisions, appraisals and spot checks held (workforce.md section 2b); what each covered is in supervision_note (H-692).",
     treatment: "tenant_rows",
     retention: "staff_file",
     personal: true,
@@ -4827,6 +4827,26 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.supervision_note": {
+    context: "workforce",
+    description:
+      "What a supervision or appraisal covered: topics, actions agreed, the next date and an optional note (H-692; read only by the supervisor, the supervisee and HR).",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      supervision_id: { description: "The supervision it records (supervision_record.id)." },
+      worker_id: { description: "The supervisee (tenant_user.id)." },
+      held_by: { description: "The supervisor who held it (tenant_user.id)." },
+      topics: { description: "The topics discussed, as short phrases." },
+      actions_agreed: { description: "The actions agreed, in the supervisor's words." },
+      next_due_on: { description: "The UK date of the next one, if agreed." },
+      note: { description: "An optional note; never health detail (that goes in an HR document)." },
+      created_at: "exported",
+    },
+  },
   "public.revalidation_evidence": {
     context: "workforce",
     description: "NMC revalidation evidence counts per member and cycle (workforce.md rule 8).",
@@ -4849,6 +4869,20 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       professional_indemnity: { description: "Whether professional indemnity is confirmed." },
       confirmation: { description: "Whether confirmation is done." },
+      review_state: {
+        description: "Where the evidence is in its review (H-693).",
+        codes: {
+          draft: "Being filled in by the nurse or HR.",
+          submitted: "Sent by the nurse for HR to review.",
+          reviewed: "Checked by HR; only the confirmation may follow.",
+        },
+      },
+      reviewed_by: { description: "Who reviewed it in HR (tenant_user.id)." },
+      reviewed_at: { description: "When it was reviewed (UTC)." },
+      confirmed_by: {
+        description: "The confirmer, in their own name and never the nurse (tenant_user.id).",
+      },
+      confirmed_on: { description: "The UK date of the confirmation discussion." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

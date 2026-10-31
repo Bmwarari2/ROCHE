@@ -1,4 +1,5 @@
 import { DEMO } from "@harbour/db/seed";
+import { withAdminClient } from "@harbour/db/testing";
 import { ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { outboxHandlers } from "../src/jobs/tasks";
@@ -551,5 +552,78 @@ describe("hazard HZ-123 a cover need raises a task for the home's rota managers"
       [event?.payload.coverNeedId],
     );
     expect(after).toHaveLength(1);
+  });
+});
+
+describe("H-970 statutory leave is never declined; carer's and parental leave may be postponed", () => {
+  const ask = async (kind: string, from: number, to: number) =>
+    (await (
+      await post("carer", "/v1/absences", {
+        locationId: LOC,
+        kind,
+        startsOn: inDays(from),
+        endsOn: inDays(to),
+      })
+    ).json()) as Absence;
+
+  it("refuses to decline maternity or carer's leave, and postpones carer's leave with a reason", async () => {
+    const maternity = await ask("maternity", 120, 300);
+    const declined = await post("manager", `/v1/absences/${maternity.id}/decision`, {
+      version: maternity.version,
+      decision: "decline",
+      reason: "Short-staffed that month",
+    });
+    expect(declined.status).toBe(422);
+    expect(await codeOf(declined)).toBe("absence_not_declinable");
+    const carers = await ask("carers_leave", 90, 91);
+    const notDeclined = await post("manager", `/v1/absences/${carers.id}/decision`, {
+      version: carers.version,
+      decision: "decline",
+      reason: "Short-staffed that week",
+    });
+    expect(await codeOf(notDeclined)).toBe("absence_not_declinable");
+    const noReason = await post("manager", `/v1/absences/${carers.id}/decision`, {
+      version: carers.version,
+      decision: "postpone",
+    });
+    expect(await codeOf(noReason)).toBe("absence_reason_required");
+    const postponed = await post("manager", `/v1/absences/${carers.id}/decision`, {
+      version: carers.version,
+      decision: "postpone",
+      reason: "Two others are away that week; please ask again for the week after",
+    });
+    expect(postponed.status).toBe(200);
+    expect(((await postponed.json()) as Absence).state).toBe("postponed");
+    // Annual leave cannot be postponed, only approved or declined; the database agrees.
+    const annual = await ask("annual_leave", 95, 96);
+    const wrong = await post("manager", `/v1/absences/${annual.id}/decision`, {
+      version: annual.version,
+      decision: "postpone",
+      reason: "Please ask again later",
+    });
+    expect(await codeOf(wrong)).toBe("absence_not_postponable");
+    // The database refuses a declined statutory leave however it is written.
+    await expect(
+      withAdminClient(
+        (c) =>
+          c.query(
+            `INSERT INTO absence (tenant_id, member_id, location_id, kind, starts_on, ends_on, state,
+               decided_by, decided_at, decision_reason)
+             VALUES ($1, $2, $3, 'maternity', $4, $5, 'declined', $6, now(), 'Declined anyway')`,
+            [DEMO.tenantId, CARER, LOC, inDays(200), inDays(300), DEMO.users.manager.id],
+          ),
+        h.db.name,
+      ),
+    ).rejects.toThrow(/absence_statutory/);
+  });
+
+  it("takes parental bereavement leave as its own kind, and shows carer's leave taken as advice", async () => {
+    const bereavement = await ask("parental_bereavement", 130, 136);
+    expect(bereavement.state).toBe("requested");
+    const carers = await ask("carers_leave", 140, 142);
+    const detail = (await (await as("manager", `/v1/absences/${carers.id}`)).json()) as {
+      carersLeave: { takenDays: number; allowanceDays: number | null; overAllowance: boolean };
+    };
+    expect(detail.carersLeave).toEqual({ takenDays: 0, allowanceDays: 7, overAllowance: false });
   });
 });

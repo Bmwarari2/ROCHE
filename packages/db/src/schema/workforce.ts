@@ -10,6 +10,7 @@ import {
   jsonb,
   pgTable,
   text,
+  timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -27,7 +28,7 @@ import { location, tenantUser } from "./platform";
  * only by a holder of `workforce.dbs_risk_assessment.sign`. The database enforces the same.
  */
 
-/** `SCHEDULE3_ITEMS` in packages/domain, kept in step by test/staff-file.test.ts. */
+/** `COMPLIANCE_ITEMS` in packages/domain, kept in step by test/staff-file.test.ts. */
 export const COMPLIANCE_ITEM_KINDS = [
   "identity_with_photo",
   "dbs_certificate",
@@ -38,6 +39,7 @@ export const COMPLIANCE_ITEM_KINDS = [
   "health_fitness",
   "right_to_work",
   "professional_registration",
+  "driving_for_work",
 ] as const;
 
 /** Professional registers a role may need (`RoleRegistration` in packages/domain). */
@@ -307,6 +309,43 @@ export const supervisionRecord = pgTable(
   ],
 );
 
+/**
+ * What a supervision or appraisal covered (H-692, recommended answer applied 31/10/2026): a short
+ * structured record (topics, actions agreed, next date) with an optional note, read only by the
+ * supervisor who held it, the supervisee and holders of `workforce.hr_document.read`. Any health
+ * detail goes into an HR-only document, not here. Append-only; follows the staff file retention.
+ */
+export const supervisionNote = pgTable(
+  "supervision_note",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    supervisionId: uuid("supervision_id").notNull(),
+    workerId: uuid("worker_id").notNull(),
+    heldBy: uuid("held_by").notNull().default(sql`app.current_user_id()`),
+    topics: text("topics").array().notNull().default(sql`'{}'`),
+    actionsAgreed: text("actions_agreed"),
+    nextDueOn: date("next_due_on"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("supervision_note_supervision_key").on(t.tenantId, t.supervisionId),
+    foreignKey({
+      name: "supervision_note_supervision_fk",
+      columns: [t.tenantId, t.supervisionId],
+      foreignColumns: [supervisionRecord.tenantId, supervisionRecord.id],
+    }),
+    workerRef("supervision_note_worker_fk", t, t.workerId),
+    workerRef("supervision_note_held_by_fk", t, t.heldBy),
+    check(
+      "supervision_note_sizes",
+      sql`cardinality(topics) <= 20 AND (actions_agreed IS NULL OR char_length(actions_agreed) <= 2000)
+        AND (note IS NULL OR char_length(note) <= 4000)`,
+    ),
+  ],
+);
+
 export const revalidationEvidence = pgTable(
   "revalidation_evidence",
   {
@@ -323,10 +362,36 @@ export const revalidationEvidence = pgTable(
     healthAndCharacter: boolean("health_and_character").notNull().default(false),
     professionalIndemnity: boolean("professional_indemnity").notNull().default(false),
     confirmation: boolean("confirmation").notNull().default(false),
+    /**
+     * H-693: `draft` while the nurse (or HR) fills it in, `submitted` when the nurse sends it for
+     * review, `reviewed` once HR has checked it (then only the confirmation may change).
+     */
+    reviewState: text("review_state").notNull().default("draft"),
+    reviewedBy: uuid("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /** The confirmer, in their own name and never the nurse (NMC revalidation guidance). */
+    confirmedBy: uuid("confirmed_by"),
+    confirmedOn: date("confirmed_on"),
     ...mutableColumns(),
   },
   (t) => [
     unique("revalidation_evidence_tenant_id_id_key").on(t.tenantId, t.id),
+    workerRef("revalidation_evidence_reviewed_by_fk", t, t.reviewedBy),
+    workerRef("revalidation_evidence_confirmed_by_fk", t, t.confirmedBy),
+    check(
+      "revalidation_evidence_review_state",
+      sql`review_state IN ('draft', 'submitted', 'reviewed')`,
+    ),
+    check(
+      "revalidation_evidence_reviewed",
+      sql`(review_state = 'reviewed') = (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+        AND reviewed_by IS DISTINCT FROM worker_id`,
+    ),
+    check(
+      "revalidation_evidence_confirmed",
+      sql`confirmation = (confirmed_by IS NOT NULL AND confirmed_on IS NOT NULL)
+        AND confirmed_by IS DISTINCT FROM worker_id`,
+    ),
     unique("revalidation_evidence_cycle_key").on(t.tenantId, t.workerId, t.cycleDueOn),
     workerRef("revalidation_evidence_worker_fk", t, t.workerId),
     check(

@@ -731,7 +731,8 @@ one at a time; an override is for a live assignment of its worker, made in the s
    role's own register, counting only items verified by someone other than the member; and each
    competence the shift needs from the competence port, which blocks if the sign-off has lapsed by
    then or now. No staff file means no DBS and no right to work. A blocked member is refused (422
-   `not_eligible`; `right_to_work` or `not_active` when those block, never overridable) unless a
+   `not_eligible`; `right_to_work`, `not_active`, `no_dbs` or `registration` when those block,
+   never overridable: H-830, ADR-0099) unless a
    holder of `scheduling.rota.approve` at the location overrides with a justification and the
    blocker keys they were shown (each with its reason: `dbs:<reason>`, `competence:<name>:<reason>`);
    if the blockers have changed since, the override is refused (409 `blockers_changed`). Never for
@@ -747,8 +748,10 @@ one at a time; an override is for a live assignment of its worker, made in the s
 5. **The rota against the requirement** (HZ-123; `staffingProvided` then `compareStaffing`): per
    date of the rota and each shift period of the scale in force, the care minutes of assigned
    `work` shifts the organisation counts as care (`counts_as_care`; not housekeeping, kitchen or
-   office) inside the period less each shift's break in proportion, and for each skill the fewest
-   holders on shift at any moment of the period (`fewestPresent`: a handover overlap or two
+   office; a supervised or shadowing shift or template is not counted unless the organisation says
+   so, as `countsAsCare` defaults to false when `supervised` is true: H-830) inside the period less each shift's break in proportion, and for each skill the fewest
+   holders on shift at any moment of the period (a registered nurse only on the nurse part of the
+   NMC register, a driver only with a current driving-for-work check: H-835; `fewestPresent`: a handover overlap or two
    holders one after the other never count as two); shifts of the neighbouring rotas at the
    location that reach into the period count too; open shifts, sleep-ins, on-call and training give
    no care minutes. The comparison carries the requirement's source, notice, method and every
@@ -870,11 +873,19 @@ reads it.
 
 1. **Requests and approvals.** A member asks for leave for themselves at a home where they hold a
    role (`requested`); a holder of `scheduling.rota.approve` there approves or declines it, never
-   their own, a decline with a reason. A rota manager records a sickness or leave for a member
+   their own, a decline with a reason. Statutory leave is never declined (H-970, recommended answer
+   applied 31/10/2026): maternity, paternity, adoption and parental bereavement leave are notified
+   and approved or recorded; carer's leave and unpaid parental leave may only be postponed as the law
+   allows (`postponed`, with a reason; the member asks again for the later dates). The database
+   refuses a decline of these kinds and a postponement of any other (`absence_statutory`). A rota manager records a sickness or leave for a member
    (`recorded`). The member cancels their own request before it is decided; a manager cancels an
    approved or recorded absence with a reason.
 2. **Kinds** (`ABSENCE_KINDS`): `annual_leave`, `sickness`, `compassionate`, `carers_leave`,
-   `parental_leave`, `maternity`, `paternity`, `adoption`, `unpaid`, `other`. Only `sickness` takes
+   `parental_leave`, `maternity`, `paternity`, `adoption`, `parental_bereavement`, `unpaid`,
+   `other`. Compassionate leave stays the organisation's own policy until bereavement leave under
+   the Employment Rights Act 2025 commences. A carer's leave request shows the days of carer's leave
+   approved or recorded in the last 12 months against `carers_leave.weeks_per_12_months` (Carer's
+   Leave Regulations 2024; `carersLeaveTaken`), advisory for the approver and never a refusal. Only `sickness` takes
    self-certification, fit notes, return to work, SSP and the Bradford factor; only the leave kinds
    are requested.
 3. **Self-certification and fit notes.** A sickness of up to `ssp.self_certification_days`

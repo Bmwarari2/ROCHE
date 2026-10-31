@@ -17,10 +17,29 @@ export const ABSENCE_KINDS = [
   "maternity",
   "paternity",
   "adoption",
+  "parental_bereavement",
   "unpaid",
   "other",
 ] as const;
 export type AbsenceKind = (typeof ABSENCE_KINDS)[number];
+
+/**
+ * Statutory leave, never declined (H-970, recommended answer applied 31/10/2026): maternity,
+ * paternity, adoption and parental bereavement leave are notified and recorded; carer's leave
+ * (Carer's Leave Regulations 2024) and unpaid parental leave may only be postponed as the law
+ * allows. Compassionate leave stays the organisation's own policy until bereavement leave under
+ * the Employment Rights Act 2025 commences.
+ */
+export const STATUTORY_LEAVE_KINDS: readonly AbsenceKind[] = [
+  "maternity",
+  "paternity",
+  "adoption",
+  "parental_bereavement",
+  "carers_leave",
+  "parental_leave",
+];
+/** The statutory kinds an employer may postpone (never decline). */
+export const POSTPONABLE_KINDS: readonly AbsenceKind[] = ["carers_leave", "parental_leave"];
 
 /** Kinds a member asks for (sickness is recorded, never requested). */
 export const REQUESTABLE_KINDS: readonly AbsenceKind[] = ABSENCE_KINDS.filter(
@@ -31,6 +50,7 @@ export const ABSENCE_STATES = [
   "requested",
   "approved",
   "declined",
+  "postponed",
   "cancelled",
   "recorded",
 ] as const;
@@ -41,10 +61,11 @@ export const AWAY_STATES: readonly AbsenceState[] = ["approved", "recorded"];
 
 /** Where an absence may move (rule 1); nothing moves back. */
 const MOVES: Readonly<Record<AbsenceState, readonly AbsenceState[]>> = {
-  requested: ["approved", "declined", "cancelled"],
+  requested: ["approved", "declined", "postponed", "cancelled"],
   approved: ["cancelled"],
   recorded: ["cancelled"],
   declined: [],
+  postponed: [],
   cancelled: [],
 };
 
@@ -54,7 +75,9 @@ export type AbsenceProblem =
   | "reason_required"
   | "ends_before_start"
   | "sickness_not_requested"
-  | "leave_needs_end";
+  | "leave_needs_end"
+  | "not_declinable"
+  | "not_postponable";
 
 /** Whether a state change is allowed, and by whom (rule 1). */
 export function checkAbsenceMove(input: {
@@ -63,13 +86,24 @@ export function checkAbsenceMove(input: {
   readonly memberId: string;
   readonly actorId: string;
   readonly reason: string | null;
+  /** The kind of absence; statutory leave is never declined (H-970). */
+  readonly kind?: AbsenceKind;
 }): AbsenceProblem | null {
   if (!MOVES[input.from].includes(input.to)) return "wrong_state";
-  if ((input.to === "approved" || input.to === "declined") && input.actorId === input.memberId) {
+  if (input.to === "declined" && input.kind && STATUTORY_LEAVE_KINDS.includes(input.kind)) {
+    return "not_declinable";
+  }
+  if (input.to === "postponed" && !(input.kind && POSTPONABLE_KINDS.includes(input.kind))) {
+    return "not_postponable";
+  }
+  const decides = input.to === "approved" || input.to === "declined" || input.to === "postponed";
+  if (decides && input.actorId === input.memberId) {
     return "decider_is_member";
   }
   const needsReason =
-    input.to === "declined" || (input.to === "cancelled" && input.from !== "requested");
+    input.to === "declined" ||
+    input.to === "postponed" ||
+    (input.to === "cancelled" && input.from !== "requested");
   if (needsReason && !input.reason?.trim()) return "reason_required";
   return null;
 }
@@ -96,6 +130,8 @@ export function absenceDays(startsOn: string, endsOn: string | null, today: stri
 }
 
 export interface AbsenceRates {
+  /** Carer's leave a member may take in any 12 months, in weeks (`carers_leave.weeks_per_12_months`). */
+  readonly carersLeaveWeeks: number | null;
   /** Days of sickness the member's own statement covers (`ssp.self_certification_days`). */
   readonly selfCertificationDays: number | null;
   /** The shortest period of incapacity for work (`ssp.piw_min_days`). */
@@ -105,6 +141,7 @@ export interface AbsenceRates {
 }
 
 export const ABSENCE_RATE_KEYS = {
+  carersLeaveWeeks: "carers_leave.weeks_per_12_months",
   selfCertificationDays: "ssp.self_certification_days",
   piwMinDays: "ssp.piw_min_days",
   piwLinkWeeks: "ssp.piw_link_weeks",
@@ -126,6 +163,7 @@ export function resolveAbsenceRates(
     }
   };
   return {
+    carersLeaveWeeks: read(ABSENCE_RATE_KEYS.carersLeaveWeeks),
     selfCertificationDays: read(ABSENCE_RATE_KEYS.selfCertificationDays),
     piwMinDays: read(ABSENCE_RATE_KEYS.piwMinDays),
     piwLinkWeeks: read(ABSENCE_RATE_KEYS.piwLinkWeeks),
@@ -289,4 +327,58 @@ export function bradfordDays(
         .flatMap((a) => absenceDays(a.startsOn, a.endsOn, today)),
     ),
   ].sort();
+}
+
+/** The same calendar date a year earlier (29 February becomes 1 March). */
+function sameDayLastYear(isoDate: string): string {
+  const cut = isoDate.indexOf("-");
+  const monthDay = isoDate.slice(cut);
+  const year = String(Number(isoDate.slice(0, cut)) - 1);
+  const leap = new Date(`${year}${monthDay}T12:00:00Z`);
+  return Number.isNaN(leap.getTime()) ||
+    leap.toISOString().slice(cut) !== `${monthDay}T12:00:00.000Z`
+    ? plusDays(`${year}-02-28`, 1)
+    : `${year}${monthDay}`;
+}
+
+export interface CarersLeaveTaken {
+  /** Days of carer's leave approved or recorded in the 12 months up to and including `today`. */
+  readonly takenDays: number;
+  /** The days the rate table allows in any 12 months, or null where the nation has no row. */
+  readonly allowanceDays: number | null;
+  /** Advisory only: never refuses a request (the law sets the entitlement, H-970). */
+  readonly overAllowance: boolean;
+}
+
+/**
+ * Carer's leave taken in any 12 months against the rate table's allowance (H-970; Carer's Leave
+ * Regulations 2024, to verify): an advisory count for the approver, from the calendar days of
+ * approved or recorded carer's leave whose days fall in the 12 months ending `today`. A week of
+ * leave is counted as seven calendar days; the regulations count it in the member's working week,
+ * which the approver checks.
+ */
+export function carersLeaveTaken(
+  absences: readonly {
+    readonly kind: AbsenceKind;
+    readonly state: AbsenceState;
+    readonly startsOn: string;
+    readonly endsOn: string | null;
+  }[],
+  today: string,
+  rates: Pick<AbsenceRates, "carersLeaveWeeks">,
+): CarersLeaveTaken {
+  const yearAgo = plusDays(sameDayLastYear(today), 1);
+  const days = new Set(
+    absences
+      .filter((a) => a.kind === "carers_leave" && AWAY_STATES.includes(a.state))
+      .flatMap((a) => absenceDays(a.startsOn, a.endsOn, today))
+      .filter((d) => d >= yearAgo && d <= today),
+  );
+  const allowanceDays =
+    rates.carersLeaveWeeks === null ? null : rates.carersLeaveWeeks * DAYS_PER_WEEK;
+  return {
+    takenDays: days.size,
+    allowanceDays,
+    overAllowance: allowanceDays !== null && days.size > allowanceDays,
+  };
 }

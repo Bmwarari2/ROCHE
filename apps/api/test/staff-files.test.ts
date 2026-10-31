@@ -364,3 +364,52 @@ describe("expiry reminders through the task engine (workforce.md rule 1)", () =>
     expect(await remindStaffFileExpiry(deps())).toBe(0);
   });
 });
+
+describe("H-835 driving for work and the NMC register part", () => {
+  it("records a driving check, never the licence number, current while both dates hold", async () => {
+    const saved = await record("manager", "driving_for_work", {
+      detail: {
+        kind: "driving_for_work",
+        licenceCheckedOn: today(),
+        categories: ["B"],
+        insuranceExpiresOn: inDays(90),
+      },
+      verifiedOn: today(),
+    });
+    expect(saved.status).toBe(200);
+    const file = (await saved.json()) as FileBody;
+    const driving = item(file, "driving_for_work");
+    expect(driving.required).toBe(false);
+    expect(driving.status).toBe("satisfied");
+    expect(driving.expiresOn).toBe(inDays(90));
+    // Never part of a complete file.
+    expect(file.outstanding).not.toContain("driving_for_work");
+    const lapsed = await record("manager", "driving_for_work", {
+      detail: {
+        kind: "driving_for_work",
+        licenceCheckedOn: inDays(-400),
+        categories: ["B"],
+        insuranceExpiresOn: inDays(90),
+      },
+      verifiedOn: today(),
+      expectedVersion: driving.version,
+    });
+    const lapsedView = item((await lapsed.json()) as FileBody, "driving_for_work");
+    expect(lapsedView.status).toBe("expired");
+    expect(lapsedView.notes.map((n) => n.code)).toContain("driving_not_current");
+  });
+
+  it("needs the part of the NMC register for an NMC registration", async () => {
+    const without = await record("manager", "professional_registration", {
+      detail: {
+        kind: "professional_registration",
+        body: "nmc",
+        pin: "99A9999E",
+        renewalDueOn: inDays(300),
+        revalidationDueOn: inDays(300),
+      },
+      verifiedOn: today(),
+    });
+    expect(without.status).toBe(422);
+  });
+});

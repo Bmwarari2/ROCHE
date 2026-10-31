@@ -19,16 +19,18 @@ CREATE TABLE "absence" (
 	"version" integer DEFAULT 1 NOT NULL,
 	"deleted_at" timestamp with time zone,
 	CONSTRAINT "absence_tenant_id_id_key" UNIQUE("tenant_id","id"),
-	CONSTRAINT "absence_kind" CHECK (kind IN ('annual_leave', 'sickness', 'compassionate', 'carers_leave', 'parental_leave', 'maternity', 'paternity', 'adoption', 'unpaid', 'other')),
-	CONSTRAINT "absence_state" CHECK (state IN ('requested', 'approved', 'declined', 'cancelled', 'recorded')),
+	CONSTRAINT "absence_kind" CHECK (kind IN ('annual_leave', 'sickness', 'compassionate', 'carers_leave', 'parental_leave', 'maternity', 'paternity', 'adoption', 'parental_bereavement', 'unpaid', 'other')),
+	CONSTRAINT "absence_state" CHECK (state IN ('requested', 'approved', 'declined', 'postponed', 'cancelled', 'recorded')),
 	CONSTRAINT "absence_dates" CHECK ((ends_on IS NULL OR ends_on >= starts_on) AND (ends_on IS NOT NULL OR kind = 'sickness')),
-	CONSTRAINT "absence_decision" CHECK ((state NOT IN ('approved', 'declined') OR (decided_by IS NOT NULL AND decided_at IS NOT NULL))
+	CONSTRAINT "absence_decision" CHECK ((state NOT IN ('approved', 'declined', 'postponed') OR (decided_by IS NOT NULL AND decided_at IS NOT NULL))
         AND (state NOT IN ('requested', 'recorded') OR (decided_by IS NULL AND decided_at IS NULL))),
 	CONSTRAINT "absence_decider_is_member" CHECK (decided_by IS DISTINCT FROM member_id),
-	CONSTRAINT "absence_reason" CHECK ((state <> 'declined' OR decision_reason IS NOT NULL)
+	CONSTRAINT "absence_reason" CHECK ((state NOT IN ('declined', 'postponed') OR decision_reason IS NOT NULL)
         AND (decision_reason IS NULL OR char_length(btrim(decision_reason)) BETWEEN 3 AND 500)
         AND (bradford_excluded_reason IS NULL OR (kind = 'sickness' AND char_length(btrim(bradford_excluded_reason)) BETWEEN 3 AND 500))),
-	CONSTRAINT "absence_self_certified" CHECK (self_certified_at IS NULL OR kind = 'sickness')
+	CONSTRAINT "absence_self_certified" CHECK (self_certified_at IS NULL OR kind = 'sickness'),
+	CONSTRAINT "absence_statutory" CHECK ((state <> 'declined' OR kind NOT IN ('maternity', 'paternity', 'adoption', 'parental_bereavement', 'carers_leave', 'parental_leave'))
+        AND (state <> 'postponed' OR kind IN ('carers_leave', 'parental_leave')))
 );
 --> statement-breakpoint
 CREATE TABLE "fit_note" (
@@ -171,11 +173,11 @@ BEGIN
     RAISE EXCEPTION 'absence_fixed' USING ERRCODE = 'check_violation';
   END IF;
   IF NEW.state IS DISTINCT FROM OLD.state THEN
-    IF NOT ((OLD.state = 'requested' AND NEW.state IN ('approved', 'declined', 'cancelled'))
+    IF NOT ((OLD.state = 'requested' AND NEW.state IN ('approved', 'declined', 'postponed', 'cancelled'))
         OR (OLD.state IN ('approved', 'recorded') AND NEW.state = 'cancelled')) THEN
       RAISE EXCEPTION 'absence_wrong_state' USING ERRCODE = 'check_violation';
     END IF;
-    IF NEW.state IN ('approved', 'declined') THEN
+    IF NEW.state IN ('approved', 'declined', 'postponed') THEN
       IF NEW.decided_by IS DISTINCT FROM me THEN
         RAISE EXCEPTION 'absence_decider_not_you' USING ERRCODE = 'check_violation';
       END IF;
@@ -196,7 +198,7 @@ BEGIN
        OR NOT app.holds_permission_at('workforce.hr_document.read', OLD.location_id)) THEN
     RAISE EXCEPTION 'absence_bradford_not_yours' USING ERRCODE = 'check_violation';
   END IF;
-  IF OLD.state IN ('declined', 'cancelled') THEN
+  IF OLD.state IN ('declined', 'postponed', 'cancelled') THEN
     RAISE EXCEPTION 'absence_closed' USING ERRCODE = 'check_violation';
   END IF;
   -- A member changes nothing on an absence but cancelling their own request.
@@ -428,3 +430,232 @@ GRANT EXECUTE ON FUNCTION app.raise_cover_need(uuid, uuid) TO harbour_app;
 -- security review of the cover task, finding 4).
 CREATE UNIQUE INDEX task_cover_need_key ON public.task (tenant_id, source_id)
   WHERE kind = 'scheduling.cover_needed' AND source_type = 'shift_cover_need' AND deleted_at IS NULL;
+--> statement-breakpoint
+
+-- H-830 (recommended answer applied 31/10/2026; ADR-0099): no override covers a member with no
+-- DBS certificate at all (an Adult First check with a signed risk assessment is the lawful
+-- supervised start) or a lapsed or missing registration. As migration 0083's guard, with the keys
+-- refused here as well as in the domain (`neverOverridable`).
+CREATE OR REPLACE FUNCTION app.roster_override_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF 'dbs:no_certificate' = ANY (NEW.blocker_keys) OR 'registration' = ANY (NEW.blocker_keys) THEN
+    RAISE EXCEPTION 'roster_override_never_allowed' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.shift_assignment a
+    WHERE a.tenant_id = NEW.tenant_id AND a.id = NEW.assignment_id AND a.deleted_at IS NULL
+      AND a.location_id = NEW.location_id AND a.worker_id = NEW.worker_id
+      AND a.created_at = now()) THEN
+    RAISE EXCEPTION 'An override is for a live assignment of its worker at its location'
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+
+-- Columns and table for H-692, H-693 and H-835 (generated by Drizzle).
+CREATE TABLE "supervision_note" (
+	"id" uuid PRIMARY KEY DEFAULT app.uuid_v7() NOT NULL,
+	"tenant_id" uuid DEFAULT app.current_tenant_id() NOT NULL,
+	"supervision_id" uuid NOT NULL,
+	"worker_id" uuid NOT NULL,
+	"held_by" uuid DEFAULT app.current_user_id() NOT NULL,
+	"topics" text[] DEFAULT '{}' NOT NULL,
+	"actions_agreed" text,
+	"next_due_on" date,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "supervision_note_supervision_key" UNIQUE("tenant_id","supervision_id"),
+	CONSTRAINT "supervision_note_sizes" CHECK (cardinality(topics) <= 20 AND (actions_agreed IS NULL OR char_length(actions_agreed) <= 2000)
+        AND (note IS NULL OR char_length(note) <= 4000))
+);
+--> statement-breakpoint
+ALTER TABLE "compliance_item" DROP CONSTRAINT "compliance_item_kind";
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD COLUMN "review_state" text DEFAULT 'draft' NOT NULL;
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD COLUMN "reviewed_by" uuid;
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD COLUMN "reviewed_at" timestamp with time zone;
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD COLUMN "confirmed_by" uuid;
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD COLUMN "confirmed_on" date;
+--> statement-breakpoint
+ALTER TABLE "supervision_note" ADD CONSTRAINT "supervision_note_supervision_fk" FOREIGN KEY ("tenant_id","supervision_id") REFERENCES "public"."supervision_record"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "supervision_note" ADD CONSTRAINT "supervision_note_worker_fk" FOREIGN KEY ("tenant_id","worker_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "supervision_note" ADD CONSTRAINT "supervision_note_held_by_fk" FOREIGN KEY ("tenant_id","held_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD CONSTRAINT "revalidation_evidence_reviewed_by_fk" FOREIGN KEY ("tenant_id","reviewed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD CONSTRAINT "revalidation_evidence_confirmed_by_fk" FOREIGN KEY ("tenant_id","confirmed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "compliance_item" ADD CONSTRAINT "compliance_item_kind" CHECK (kind IN ('identity_with_photo', 'dbs_certificate', 'conduct_in_care_work', 'references', 'relevant_qualifications', 'employment_history', 'health_fitness', 'right_to_work', 'professional_registration', 'driving_for_work'));
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD CONSTRAINT "revalidation_evidence_review_state" CHECK (review_state IN ('draft', 'submitted', 'reviewed'));
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD CONSTRAINT "revalidation_evidence_reviewed" CHECK ((review_state = 'reviewed') = (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+        AND reviewed_by IS DISTINCT FROM worker_id);
+--> statement-breakpoint
+-- An earlier confirmation names no confirmer, so it is cleared, to be confirmed again in the
+-- confirmer's own name (H-693; never attributed to whoever last edited the record).
+UPDATE public.revalidation_evidence SET confirmation = false WHERE confirmation;
+--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD CONSTRAINT "revalidation_evidence_confirmed" CHECK (confirmation = (confirmed_by IS NOT NULL AND confirmed_on IS NOT NULL)
+        AND confirmed_by IS DISTINCT FROM worker_id);
+
+--> statement-breakpoint
+
+-- Recommended answers applied 31/10/2026 (review at testing): H-692, H-693 and H-835. The
+-- columns and table above are Drizzle's; what follows is the security that goes with them.
+-- H-692: supervision notes are read only by the supervisor who held the supervision, the
+-- supervisee, and holders of workforce.hr_document.read; written once by the supervisor, with the
+-- supervision, never for themselves.
+ALTER TABLE public.supervision_note ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+ALTER TABLE public.supervision_note FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE POLICY tenant_isolation ON public.supervision_note AS PERMISSIVE FOR ALL TO PUBLIC
+  USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+--> statement-breakpoint
+CREATE POLICY supervision_note_read ON public.supervision_note AS RESTRICTIVE FOR SELECT
+  TO harbour_app, harbour_owner
+  USING ((app.is_system() OR held_by = app.current_user_id() OR worker_id = app.current_user_id()
+      OR app.holds_staff_permission('workforce.hr_document.read'))
+    -- Never once its supervision was removed (recorded in error, the wrong person).
+    AND EXISTS (SELECT 1 FROM public.supervision_record r
+      WHERE r.tenant_id = supervision_note.tenant_id AND r.id = supervision_note.supervision_id
+        AND r.deleted_at IS NULL));
+--> statement-breakpoint
+CREATE POLICY supervision_note_insert ON public.supervision_note AS RESTRICTIVE FOR INSERT
+  TO harbour_app, harbour_owner
+  WITH CHECK (held_by = app.current_user_id() AND worker_id <> app.current_user_id()
+    AND EXISTS (SELECT 1 FROM public.supervision_record r
+      WHERE r.tenant_id = supervision_note.tenant_id AND r.id = supervision_note.supervision_id
+        AND r.held_by = app.current_user_id() AND r.worker_id = supervision_note.worker_id));
+--> statement-breakpoint
+CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.supervision_note
+  FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation();
+--> statement-breakpoint
+CREATE TRIGGER append_only_truncate BEFORE TRUNCATE ON public.supervision_note
+  FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation();
+--> statement-breakpoint
+GRANT SELECT, INSERT ON public.supervision_note TO harbour_app;
+--> statement-breakpoint
+REVOKE UPDATE, DELETE, TRUNCATE ON public.supervision_note FROM harbour_app;
+--> statement-breakpoint
+-- Earlier versions of a supervision record carry nothing of its note; the note has no versions.
+
+-- H-693: a registered nurse writes their own revalidation evidence (never the confirmation, never
+-- the review); HR (workforce.training.manage) writes and reviews it for someone else; the
+-- confirmation is recorded only by the confirmer, in their own name, never the nurse (HR or a line
+-- manager holding workforce.supervision.manage).
+DROP POLICY revalidation_evidence_insert ON public.revalidation_evidence;
+--> statement-breakpoint
+DROP POLICY revalidation_evidence_update ON public.revalidation_evidence;
+--> statement-breakpoint
+CREATE POLICY revalidation_evidence_insert ON public.revalidation_evidence AS RESTRICTIVE FOR INSERT
+  TO harbour_app
+  WITH CHECK (app.is_system()
+    OR (app.holds_staff_permission('workforce.training.manage') AND worker_id <> app.current_user_id())
+    OR (worker_id = app.current_user_id() AND app.holds_staff_permission('workforce.self.read')
+      AND NOT confirmation AND review_state IN ('draft', 'submitted')));
+--> statement-breakpoint
+CREATE POLICY revalidation_evidence_update ON public.revalidation_evidence AS RESTRICTIVE FOR UPDATE
+  TO harbour_app
+  USING (app.is_system()
+    OR ((app.holds_staff_permission('workforce.training.manage')
+        OR app.holds_staff_permission('workforce.supervision.manage'))
+      AND worker_id <> app.current_user_id())
+    OR (worker_id = app.current_user_id() AND app.holds_staff_permission('workforce.self.read')))
+  WITH CHECK (app.is_system()
+    OR ((app.holds_staff_permission('workforce.training.manage')
+        OR app.holds_staff_permission('workforce.supervision.manage'))
+      AND worker_id <> app.current_user_id())
+    OR (worker_id = app.current_user_id() AND app.holds_staff_permission('workforce.self.read')));
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION app.revalidation_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  me uuid := app.current_user_id();
+  hr boolean := app.holds_staff_permission('workforce.training.manage');
+  was_confirmed boolean := TG_OP = 'UPDATE' AND OLD.confirmation;
+  was_state text := CASE WHEN TG_OP = 'UPDATE' THEN OLD.review_state ELSE 'draft' END;
+  confirmation_changed boolean := TG_OP = 'UPDATE' AND (
+    NEW.confirmation IS DISTINCT FROM OLD.confirmation
+    OR NEW.confirmed_by IS DISTINCT FROM OLD.confirmed_by
+    OR NEW.confirmed_on IS DISTINCT FROM OLD.confirmed_on);
+  counts_changed boolean := TG_OP = 'INSERT' OR (
+    NEW.practice_hours, NEW.cpd_hours, NEW.participatory_cpd_hours, NEW.feedback_pieces,
+    NEW.reflective_accounts, NEW.reflective_discussion, NEW.health_and_character,
+    NEW.professional_indemnity, NEW.cycle_due_on, NEW.review_state, NEW.reviewed_by,
+    NEW.reviewed_at)
+  IS DISTINCT FROM (
+    OLD.practice_hours, OLD.cpd_hours, OLD.participatory_cpd_hours, OLD.feedback_pieces,
+    OLD.reflective_accounts, OLD.reflective_discussion, OLD.health_and_character,
+    OLD.professional_indemnity, OLD.cycle_due_on, OLD.review_state, OLD.reviewed_by,
+    OLD.reviewed_at);
+BEGIN
+  -- No bypass for the system: nothing writes revalidation evidence without a member (security
+  -- review of the recommended answers, finding 5).
+  IF me IS NULL THEN
+    RAISE EXCEPTION 'revalidation_needs_a_member' USING ERRCODE = 'check_violation';
+  END IF;
+  -- The nurse never touches the confirmation, nor writes once reviewed.
+  IF me = NEW.worker_id THEN
+    IF NEW.confirmation OR confirmation_changed OR NEW.review_state = 'reviewed'
+        OR was_state = 'reviewed' THEN
+      RAISE EXCEPTION 'revalidation_nurse_cannot' USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+  -- Someone confirming without HR rights changes the confirmation only (a line manager).
+  IF NOT hr AND counts_changed THEN
+    RAISE EXCEPTION 'revalidation_confirmer_confirms_only' USING ERRCODE = 'check_violation';
+  END IF;
+  -- The confirmation is the confirmer's, in their own name, never the nurse's, and follows the
+  -- review; only HR takes one back.
+  IF NEW.confirmation AND NOT was_confirmed THEN
+    IF NEW.confirmed_by IS DISTINCT FROM me OR NEW.review_state <> 'reviewed' THEN
+      RAISE EXCEPTION 'revalidation_confirmer_not_you' USING ERRCODE = 'check_violation';
+    END IF;
+  ELSIF confirmation_changed AND NOT (was_confirmed AND NOT NEW.confirmation AND hr) THEN
+    RAISE EXCEPTION 'revalidation_confirmation_fixed' USING ERRCODE = 'check_violation';
+  END IF;
+  -- HR reviews someone else's evidence, in their own name.
+  IF NEW.review_state = 'reviewed' AND was_state <> 'reviewed' THEN
+    IF NOT hr OR NEW.reviewed_by IS DISTINCT FROM me THEN
+      RAISE EXCEPTION 'revalidation_reviewer_not_you' USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  -- Once reviewed, the counts are fixed: only the confirmation may follow.
+  IF TG_OP = 'UPDATE' AND OLD.review_state = 'reviewed' AND counts_changed THEN
+    RAISE EXCEPTION 'revalidation_reviewed_fixed' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER revalidation_guard BEFORE INSERT OR UPDATE ON public.revalidation_evidence
+  FOR EACH ROW EXECUTE FUNCTION app.revalidation_guard();
+--> statement-breakpoint
+
+-- H-830: supervised templates, and supervised shifts not yet published, that counted as care by the
+-- earlier default stop counting until the organisation says so; published shifts are left for the
+-- manager to review (clinical safety review of the recommended answers, finding 2; H-839).
+ALTER TABLE public.shift_template NO FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
+ALTER TABLE public.shift NO FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
+UPDATE public.shift_template SET counts_as_care = false WHERE supervised AND counts_as_care;
+--> statement-breakpoint
+UPDATE public.shift SET counts_as_care = false
+  WHERE supervised AND counts_as_care AND published_at IS NULL AND deleted_at IS NULL;
+--> statement-breakpoint
+ALTER TABLE public.shift_template FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
+ALTER TABLE public.shift FORCE ROW LEVEL SECURITY;

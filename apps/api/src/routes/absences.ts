@@ -36,6 +36,7 @@ import {
   bradfordDays,
   bradfordFactor,
   can,
+  carersLeaveTaken,
   checkAbsenceMove,
   checkNewAbsence,
   fitNoteNeeded,
@@ -110,6 +111,7 @@ const A = {
   recorded: "scheduling.absence.recorded",
   approved: "scheduling.absence.approved",
   declined: "scheduling.absence.declined",
+  postponed: "scheduling.absence.postponed",
   cancelled: "scheduling.absence.cancelled",
   ended: "scheduling.absence.ended",
   excluded: "scheduling.absence.bradford_excluded",
@@ -139,6 +141,9 @@ const PROBLEM_WORDS: Record<string, string> = {
   ends_before_start: "The last day cannot be before the first day.",
   sickness_not_requested: "A sickness is recorded by a manager, not asked for.",
   leave_needs_end: "Leave needs a last day.",
+  not_declinable:
+    "Statutory leave cannot be declined. Carer's leave and parental leave may be postponed as the law allows.",
+  not_postponable: "Only carer's leave and parental leave can be postponed.",
 };
 const refusal = (code: string) =>
   new HttpProblem(422, `absence_${code}`, PROBLEM_WORDS[code] ?? "That is not allowed.");
@@ -314,8 +319,41 @@ async function detailOf(tx: Tx, access: TenantAccess, row: AbsenceRow) {
     hr && row.kind === "sickness"
       ? await tx.select().from(returnToWork).where(eq(returnToWork.absenceId, row.id))
       : [];
+  // Carer's leave taken in the last 12 months against the rate table's allowance (H-970):
+  // advisory for the approver, never a refusal.
+  let carersLeave: ReturnType<typeof carersLeaveTaken> | null = null;
+  if (row.kind === "carers_leave") {
+    const today = ukIsoDate(new Date());
+    const rates = resolveAbsenceRates(
+      await rateRows(tx, Object.values(ABSENCE_RATE_KEYS)),
+      await nationOf(tx),
+      today,
+      access.tenantId,
+    );
+    const theirs = await tx
+      .select({
+        kind: absence.kind,
+        state: absence.state,
+        startsOn: absence.startsOn,
+        endsOn: absence.endsOn,
+      })
+      .from(absence)
+      .where(
+        and(
+          eq(absence.memberId, row.memberId),
+          eq(absence.kind, "carers_leave"),
+          isNull(absence.deletedAt),
+        ),
+      );
+    carersLeave = carersLeaveTaken(
+      theirs.map((t) => ({ ...t, kind: t.kind as AbsenceKind, state: t.state as AbsenceState })),
+      today,
+      rates,
+    );
+  }
   return {
     ...item,
+    carersLeave,
     fitNotes: notes ? notes.map(fitNoteOut) : null,
     returnToWork: rtw ? rtwOut(rtw) : null,
     bradfordExcludedReason: hr ? row.bradfordExcludedReason : null,
@@ -339,6 +377,7 @@ async function move(
     memberId: row.memberId,
     actorId: access.tenantUserId,
     reason,
+    kind: row.kind as AbsenceKind,
   });
   if (problem) throw refusal(problem);
   const [saved] = await tx
@@ -503,9 +542,9 @@ export const absencesRouter = createRouter()
       method: "post",
       path: "/v1/absences/{id}/decision",
       tags,
-      summary: "Approve or decline a leave request",
+      summary: "Approve, decline or postpone a leave request",
       description:
-        "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline needs a reason. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
+        "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
       security,
       request: versioned(DecideAbsence),
       responses: absenceResponses,
@@ -517,14 +556,19 @@ export const absencesRouter = createRouter()
       const out = await inTx(c, async (tx) => {
         const row = await loadAbsence(tx, id);
         requireLocationInScope(access, row.locationId);
-        const to = body.decision === "approve" ? "approved" : "declined";
+        const to =
+          body.decision === "approve"
+            ? "approved"
+            : body.decision === "postpone"
+              ? "postponed"
+              : "declined";
         const saved = await move(tx, access, row, body.version, to, body.reason ?? null, {
           decidedBy: access.tenantUserId,
           decidedAt: new Date(),
         });
         const raised = to === "approved" ? await raiseCoverNeeds(tx, saved) : 0;
         await audit(c, tx, access, {
-          action: to === "approved" ? A.approved : A.declined,
+          action: to === "approved" ? A.approved : to === "postponed" ? A.postponed : A.declined,
           resourceType: "absence",
           resourceId: id,
           scopeExtra: { coverNeeds: raised },

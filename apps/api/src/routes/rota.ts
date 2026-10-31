@@ -36,6 +36,7 @@ import {
   COMPETENCES,
   checkPattern,
   checkShiftShape,
+  neverOverridableRefusal,
   noticeMinutes,
   PATTERN_MESSAGES,
   type PatternEntry,
@@ -431,6 +432,23 @@ async function doubleBooked(tx: Transaction, workerId: string, s: ShiftRow): Pro
   return rows.some((r) => r.startsAt < s.endsAt && s.startsAt < r.endsAt);
 }
 
+/** A supervised or shadowing shift counts as care only when the organisation says so (H-830). */
+const defaultCountsAsCare = (given: boolean | undefined, supervised: boolean) =>
+  given ?? !supervised;
+
+/** What a refusal says (H-830: no DBS and a lapsed registration join the right to work). */
+const NEVER_OVERRIDABLE_WORDS: Readonly<Record<string, string>> = {
+  right_to_work:
+    "This member cannot be put on this shift: there is no right to work on record for the day. This cannot be overridden.",
+  not_active:
+    "This member is not working for your organisation on the day. This cannot be overridden.",
+  no_dbs:
+    "This member cannot be put on this shift: there is no DBS certificate on record. An Adult First check with a signed risk assessment lets them start on supervised shifts. This cannot be overridden.",
+  registration:
+    "This member cannot be put on this shift: the registration their role needs is not current. This cannot be overridden.",
+};
+const NOT_ELIGIBLE_WORDS = "This member cannot be put on this shift without a manager's override.";
+
 export const rotaRouter = createRouter()
   // ----------------------------------------------------------------------------------------
   // Templates and patterns
@@ -493,7 +511,11 @@ export const rotaRouter = createRouter()
         async (tx) => {
           const [made] = await tx
             .insert(shiftTemplate)
-            .values({ locationId: id, ...body })
+            .values({
+              locationId: id,
+              ...body,
+              countsAsCare: defaultCountsAsCare(body.countsAsCare, body.supervised),
+            })
             .returning();
           if (!made) throw new Error("template not stored");
           await audit(c, tx, access, {
@@ -866,6 +888,8 @@ export const rotaRouter = createRouter()
                 requiredCompetences: t.requiredCompetences,
                 requiredSkills: t.requiredSkills,
                 supervised: t.supervised,
+                // As the template says (H-830; clinical safety review of the recommended answers).
+                countsAsCare: t.countsAsCare,
               };
             })
             .filter((v): v is NonNullable<typeof v> => v !== null);
@@ -920,7 +944,12 @@ export const rotaRouter = createRouter()
           if (body.date < row.startsOn || body.date > row.endsOn) {
             throw problems.invalid("The shift must start on one of the rota's dates.");
           }
-          let shape: ShiftShape & { supervised: boolean; label: string; templateId: string | null };
+          let shape: ShiftShape & {
+            supervised: boolean;
+            countsAsCare: boolean;
+            label: string;
+            templateId: string | null;
+          };
           if ("templateId" in body) {
             const [t] = await tx
               .select()
@@ -942,7 +971,11 @@ export const rotaRouter = createRouter()
           } else {
             const problem = shapeProblems(body);
             if (problem) throw problems.invalid(problem);
-            shape = { ...body, templateId: null };
+            shape = {
+              ...body,
+              countsAsCare: defaultCountsAsCare(body.countsAsCare, body.supervised),
+              templateId: null,
+            };
           }
           const times = shiftTimes(body.date, shape.startMinute, shape.endMinute);
           const now = new Date();
@@ -960,6 +993,7 @@ export const rotaRouter = createRouter()
               requiredCompetences: [...shape.requiredCompetences],
               requiredSkills: [...shape.requiredSkills],
               supervised: shape.supervised,
+              countsAsCare: shape.countsAsCare,
               changedAfterPublishAt: row.publishedAt ? now : null,
             })
             .returning();
@@ -1190,11 +1224,9 @@ export const rotaRouter = createRouter()
                 ),
               };
             }
-            const code = decision.blockers.some((b) => b.kind === "right_to_work")
-              ? "right_to_work"
-              : decision.blockers.some((b) => b.kind === "not_active")
-                ? "not_active"
-                : "not_eligible";
+            const code: string = decision.overridable
+              ? "not_eligible"
+              : neverOverridableRefusal(decision.blockers);
             await audit(c, tx, access, {
               action: A.assigned,
               outcome: "denied",
@@ -1207,11 +1239,7 @@ export const rotaRouter = createRouter()
               refused: new HttpProblem(
                 422,
                 code,
-                code === "right_to_work"
-                  ? "This member cannot be put on this shift: there is no right to work on record for the day. This cannot be overridden."
-                  : code === "not_active"
-                    ? "This member is not working for your organisation on the day. This cannot be overridden."
-                    : "This member cannot be put on this shift without a manager's override.",
+                NEVER_OVERRIDABLE_WORDS[code] ?? NOT_ELIGIBLE_WORDS,
                 words,
               ),
             };

@@ -23,6 +23,7 @@ export const AbsenceKind = z
     "maternity",
     "paternity",
     "adoption",
+    "parental_bereavement",
     "unpaid",
     "other",
   ])
@@ -30,7 +31,7 @@ export const AbsenceKind = z
 export type AbsenceKind = z.infer<typeof AbsenceKind>;
 
 export const AbsenceState = z
-  .enum(["requested", "approved", "declined", "cancelled", "recorded"])
+  .enum(["requested", "approved", "declined", "postponed", "cancelled", "recorded"])
   .meta({ id: "AbsenceState" });
 
 export const AbsenceItem = z
@@ -90,7 +91,11 @@ export const NewAbsence = z
 export const DecideAbsence = z
   .object({
     version,
-    decision: z.enum(["approve", "decline"]),
+    /**
+     * `decline` is refused for statutory leave (H-970); `postpone` is for carer's and unpaid
+     * parental leave only, with a reason (the member asks again for the later dates).
+     */
+    decision: z.enum(["approve", "decline", "postpone"]),
     reason: reason.optional(),
   })
   .meta({ id: "DecideAbsence" });
@@ -170,6 +175,17 @@ export const ReturnToWorkItem = z
 
 /** An absence with its health records, for holders of workforce.hr_document.read. */
 export const AbsenceDetail = AbsenceItem.extend({
+  /**
+   * For carer's leave: the days approved or recorded in the last 12 months against the rate
+   * table's allowance (H-970). Advisory for the approver; never a refusal.
+   */
+  carersLeave: z
+    .object({
+      takenDays: z.number().int(),
+      allowanceDays: z.number().int().nullable(),
+      overAllowance: z.boolean(),
+    })
+    .nullable(),
   fitNotes: z.array(FitNoteItem).nullable(),
   returnToWork: ReturnToWorkItem.nullable(),
   bradfordExcludedReason: z.string().nullable(),

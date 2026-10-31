@@ -1,4 +1,4 @@
-import { SCHEDULE3_ITEMS } from "@harbour/domain";
+import { COMPLIANCE_ITEMS } from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { COMPLIANCE_ITEM_KINDS, REGISTRATION_BODIES } from "../src/schema";
@@ -160,7 +160,7 @@ afterAll(async () => {
 
 describe("the staff file schema is in step with packages/domain", () => {
   it("lists the Schedule 3 items and registers", () => {
-    expect([...COMPLIANCE_ITEM_KINDS]).toEqual([...SCHEDULE3_ITEMS]);
+    expect([...COMPLIANCE_ITEM_KINDS]).toEqual([...COMPLIANCE_ITEMS]);
     expect([...REGISTRATION_BODIES]).toEqual(["nmc", "hcpc", "swe", "gmc"]);
   });
 });

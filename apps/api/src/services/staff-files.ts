@@ -13,12 +13,12 @@ import {
   task,
 } from "@harbour/db";
 import {
+  COMPLIANCE_ITEMS,
   type ComplianceDetail,
   complianceItemView,
   complianceReminderDue,
   requiredItems,
   resolveWorkforceRates,
-  SCHEDULE3_ITEMS,
   type StaffProfileFacts,
   type StoredComplianceItem,
   staffFileState,
@@ -148,16 +148,22 @@ export function staffFileItem(
 ): StaffFileItem {
   const { live, state } = fileState(profile, items, today, rates);
   const required = new Set(requiredItems(profileFacts(profile)));
-  const views = SCHEDULE3_ITEMS.map((kind) => {
+  // Every kind the file keeps: the Schedule 3 items, and checks beyond it (driving for work,
+  // H-835), which a file never needs to be complete but which show when recorded.
+  const views = COMPLIANCE_ITEMS.map((kind) => {
     const index = live.findIndex((i) => i.kind === kind);
     const row = index >= 0 ? live[index] : undefined;
     const view = index >= 0 ? state.views[index] : undefined;
-    const status = required.has(kind)
+    const status = (required as ReadonlySet<string>).has(kind)
       ? (state.items.find((i) => i.kind === kind)?.status ?? "missing")
-      : "not_required";
+      : view
+        ? view.satisfied
+          ? "satisfied"
+          : "expired"
+        : "not_required";
     return {
       kind,
-      required: required.has(kind),
+      required: (required as ReadonlySet<string>).has(kind),
       status,
       id: row?.id ?? null,
       version: row?.version ?? null,
