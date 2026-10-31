@@ -83,3 +83,18 @@ Branch `feat/web-incident-follow-up`, PR #120.
   the learning disability and autism question. Journeys: two candour journeys added (a decision
   differing from Harbour's finding; two people harmed), the candour notification recorded without a
   reference, and the LeDeR prompt after "not required".
+- Round 2 (clinical re-check), fail safe: one candour record covers only the person it names,
+  whatever it decides, so "not notifiable" for one person never clears another, with one person
+  affected as with several; the relevant person must be one of the people affected (API, step and
+  picker), and a finished record's person cannot change; the API, not only the web, asks a tick and
+  a reason of at least 20 characters for a decision that differs from Harbour's finding or changes
+  a recorded one, and for "not notifiable" after a drafted candour notification, and audits the
+  reason; once a decision is recorded, dropping someone affected from the incident or the candour
+  check needs a reason, audited with the person's opaque id; an incident the duty of candour holds
+  open longer than `candour.close_blocked_days` (rate table, Harbour default 14, to verify) gives
+  the Registered Manager an urgent task that escalates; told, sent and attempt times before the
+  incident are refused; the regulation 20(9) hint quotes "or are likely to experience" and (b)(ii);
+  `incidentManageView` requires the candour record (#130 note in the spec). Hazard log: HZ-013 and
+  HZ-091 round 1 rows corrected (the reason was web-only) and round 2 controls and tests added.
+  H-480 gains the CSO questions (g) to (k). Tests: domain `workflows.test.ts`, five API tests,
+  two web review tests, the refusal mappings, and the two-people journey asserting the name.

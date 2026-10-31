@@ -188,9 +188,11 @@ until their nation pack (Phase 7) and never a partial answer.
 11. **Separation of duties**: the person who raised an incident cannot close it, and an incident
     cannot close while a notification is a draft or ready, a classifier question is open, the
     candour record is open, the duty of candour may apply (Harbour found it, or the decision says
-    notifiable) and no candour record has finished, or more than one person we support was affected
-    and not each has a finished record of their own (`incidentCloseProblems`, `candourCloseBlock`;
-    #120 review H1 and H2).
+    notifiable) and no candour record has finished, or any person we support affected has no
+    finished candour record of their own: one record covers only the person it names, whatever it
+    decides (`incidentCloseProblems`, `candourCloseBlock`; #120 review H1 and H2, round 2 M1 and
+    M2). An incident the duty of candour holds open longer than `candour.close_blocked_days` days
+    after it happened gives its Registered Manager an urgent task, which escalates (round 2 M4).
 12. **Falls protocol**: a fall creates the post-fall checklist (injury check, observations, GP
     contact, the NG249 falls pathway, bone health) as tasks. Head injury, or current anticoagulant
     or antiplatelet treatment other than aspirin alone (NICE NG232 1.2.4), or either not yet ruled
@@ -455,6 +457,52 @@ in words; after a save the page opens again with focus on its heading and says w
   owner.
 - **Trends**: "500 or more" throughout; a reader who sees only their own people is told the counts
   leave out incidents they cannot see.
+
+**Review round 2 (#120, clinical re-check)**, fail safe:
+
+- **One decision, one person** (M1): a candour record covers only the person it names, whatever it
+  decides, so "not notifiable" for one person never clears another. Every person affected without a
+  finished record of their own is named as still to be told and the incident cannot close; with one
+  record per incident, an incident that affected two or more people cannot close here until one
+  record per person is built (H-480).
+- **The relevant person is one of those affected** (M2), with one person affected as with several:
+  `PUT /v1/incidents/{id}/candour` refuses a relevant person who is not one of the people we support
+  recorded as affected (someone lawfully acting on their behalf is told in their place under
+  regulation 20(7) and recorded on the same record, not named as the relevant person); the record
+  moves on (`POST .../candour/step`) only while it names one of them; a finished record's person
+  cannot change. The web's picker lists only the people affected.
+- **Reasons in the API** (M3): a threshold decision that differs from Harbour's finding
+  (`candourFindingOf` on the stored classification, the function the web uses) or changes a
+  recorded decision is refused without `thresholdConfirmed` and a `thresholdReason` of at least 20
+  characters (`candourReasonProblems`, `CANDOUR_REASON_MIN`); the reason is kept in the audit event.
+  The "not notifiable" step after Harbour drafted a candour notification needs `confirmed` and the
+  same reason.
+- **Leaving the candour check** (M4): once a threshold decision is recorded, `PUT
+  /v1/incidents/{id}` refuses a change that removes someone affected, or changes their kind or role
+  so they are no longer affected, unless `candourReason` has at least 20 characters, and audits
+  `safety.incident.candour_person_dropped` with the person's opaque id, the reason and the
+  incident.
+- **Stuck incidents have an owner** (M4): the worker's hourly `candour-blocked-incidents` job gives
+  each incident not closed, more than `candour.close_blocked_days` days after it happened (rate
+  table; Harbour default 14, to verify, H-480), that the duty of candour holds open
+  (`candourCloseBlock`) one urgent task (`safety.candour_close_blocked`, for `safety.incident.manage`
+  holders in the Registered Manager role), which the task engine escalates when overdue. Closing the
+  incident finishes it, and so does the next run once nothing holds the incident. Submitting the
+  candour notification ends that notification's overdue alerts, never this task.
+- **Times** (L5): the times they were told, the letter was sent and an attempt was made cannot be
+  earlier than the incident.
+- **The threshold question** follows regulation 20(9) closely: an impairment "which has lasted, or
+  is likely to last" for the continuous period; prolonged pain or psychological harm "which they
+  have experienced, or are likely to experience" for it; and (b) treatment to prevent their death,
+  "or any injury which, if left untreated, would lead to one or more of the outcomes in (a)".
+- **The family feed** (`apps/api/src/services/feed-publish.ts`) holds publishing for a person with
+  an open incident whose family is not recorded as told, or with their own candour record open. It
+  is not a candour control: a person still to be told with no record of their own, on an incident
+  whose family is recorded as told, does not hold it (for H-480).
+- **Across pull requests**: `incidentManageView(incident, viewer, candourRecord)` now requires the
+  candour record (`null` for none, `"unread"` when the read failed), so a page that leaves it out
+  fails to type-check rather than offering close while someone is still to be told. #130's approvals
+  page calls it with two arguments: whichever of #120 and #130 merges second passes the record.
 
 Gaps logged, no API change: the API does not assemble the medical examiner pack or record which
 sections were sent (`missingPackSections` is unused), and the web has no medicines or diagnoses
