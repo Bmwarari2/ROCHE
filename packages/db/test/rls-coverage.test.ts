@@ -46,6 +46,9 @@ const APPEND_ONLY_TABLES = [
   "dcb0160_record",
   "sub_processor_notice",
   "sub_processor_response",
+  // Deaths and missing persons (slice 37, migration 0099).
+  "death_step",
+  "missing_event",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
