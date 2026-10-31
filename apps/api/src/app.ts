@@ -66,6 +66,7 @@ import {
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
+import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
@@ -281,6 +282,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorInvitationsRouter);
   app.route("/", operatorSubProcessorsRouter);
   app.route("/", peopleDetailsRouter);
+  app.route("/", schedulingDependencyRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
