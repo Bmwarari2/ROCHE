@@ -238,6 +238,40 @@ describe("fetchCredentials", () => {
     ]);
   });
 
+  it("hazard HZ-018 passes on the handover reach and each nation's shift pattern from each new token (ADR-0074)", async () => {
+    const claims = {
+      handover_shifts: { england: { day: 480, night: 1200 }, wales: { day: 1 } },
+      handover_location_ids: ["loc-north"],
+      handover_assigned: false,
+    };
+    const jwt = [
+      Buffer.from("{}").toString("base64url"),
+      Buffer.from(JSON.stringify(claims)).toString("base64url"),
+      "signature",
+    ].join(".");
+    const { fetch } = fakeFetch([
+      json({ token: jwt, endpoint: "https://sync.example.invalid", expiresAt: null }),
+    ]);
+    const patterns: unknown[] = [];
+    const reading = new HarbourConnector({
+      apiUrl: API,
+      fetch,
+      getToken: async () => "tok",
+      getTenantId: () => TENANT,
+      onSessionRevoked: () => undefined,
+      onHandoverConfig: (config) => patterns.push(config),
+    });
+    await reading.fetchCredentials();
+    // Wales's figures cannot be read, so it is left out and the phone says it cannot tell there.
+    expect(patterns).toEqual([
+      {
+        shifts: { england: { day: 480, night: 1200 } },
+        locationIds: ["loc-north"],
+        assigned: false,
+      },
+    ]);
+  });
+
   it("hazard HZ-040 names the device when it asks for credentials, so the server knows who has used it (security review round 7, M1)", async () => {
     const credentials = {
       token: "jwt",
