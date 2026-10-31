@@ -5,7 +5,8 @@ builds the whole employee file from application to leaving ([phase-2.md](../plan
 lane B). Payroll itself is integrated, not built (section 12). Sections 2 to 4 and 9 were written by
 slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9)
 slice 23 (applicant tracking: sections 2b, 4 rules 11 to 13, 5, 8 and 9) and slice 39 (employee
-relations casework: sections 2c, 3, 4 rules 14 to 18, 5, 8, 9 and 11);
+relations casework: sections 2c, 3, 4 rules 14 to 18, 5, 8, 9 and 11) and slice 29 (induction,
+the Care Certificate and leavers: sections 2d, 3, 4 rules 19 to 23, 5, 8, 9 and 11);
 sections 5 to 8 grow with the schema, API and screen slices. Status per
 feature: [feature register](feature-register.md).
 
@@ -125,6 +126,25 @@ tables with forced row-level security, read only by the members named on a case.
 | `employee_case_hearing` | `case_id`, `kind` (`investigation_meeting`, `hearing`, `appeal_hearing`), `led_by`, `invited_on`, `scheduled_at`, `issue_set_out`, `evidence_shared`, `companion_right_given`, `state`, `held_on`, `accompanied`, `postponed_reason` | Mutable. Led by the member in the matching role; a held, unattended or cancelled one is final |
 | `employee_case_event` | `case_id`, `kind`, `from_stage`, `to_stage`, `occurred_on`, `body` (a note or the appeal grounds only), `recorded_by` | Append-only: the timeline. Written in one's own name, never after the case closes |
 
+### 2d. Induction, the Care Certificate and leavers (slice 29, migration 0091)
+
+WORK-004 and WORK-013: from the accepted offer to the end of probation (a checklist, policy
+read-and-sign at induction, shadow shifts, probation reviews and the decision), the Care
+Certificate's 16 standards, and leaving (the record, a checklist, access ended at the end of the
+leaving day, the exit interview, references and how long the staff file is kept). Seven tenant
+tables with forced row-level security, each belonging to a staff profile and following the staff
+file's rules (section 3). TUPE import comes with slice 51.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `induction_plan` | `staff_profile_id` (one each), `care_certificate_held` (already holds it, or the Level 2 Adult Social Care Certificate), `probation_ends_on`, `probation_outcome`, `_decided_on`, `_decided_by` | Mutable; a probation passed or not passed stays decided |
+| `staff_checklist_item` | `staff_profile_id`, `checklist` (`induction`, `leaving`), `kind` (the ticked items, `TICKED_INDUCTION_ITEMS`, `TICKED_LEAVER_ITEMS`), `done_on`, `done_by` | Append-only, once per item, in the ticker's own name |
+| `shadow_shift` | `staff_profile_id`, `shift_on`, `location_id`, `shadowed_id` (the colleague shadowed), `recorded_by` | Append-only; never shadowing oneself |
+| `probation_review` | `staff_profile_id`, `review_on`, `reviewer_id`, `outcome` (`on_track`, `concerns`), `notes` | Append-only, in the reviewer's own name |
+| `care_certificate_progress` | `staff_profile_id`, `standard_id` (`cc01` to `cc16`), `knowledge_assessed_on`, `_by`, `observed_on`, `_by` | Mutable once: the observation is added to the assessment and then never changes; neither by the worker |
+| `leaver_record` | `staff_profile_id` (one each), `leaving_on`, `reason` (`LEAVING_REASONS`), `access_removed_at`, `_by` (empty for the sweep), `exit_interview` (`not_offered`, `offered`, `declined`, `held`), `exit_interview_on`, `exit_interview_summary`, `staff_file_retain_until` | Mutable; the date and reason stay; ended access stays ended; the exit interview only moves forward. Recording one sets the staff profile's `left_on` |
+| `reference_request` | `staff_profile_id`, `requested_on`, `requester` (an organisation, never a person's name), `kind` (`factual`, `conduct`), `state` (`requested`, `sent`, `declined`), `sent_on`, `sent_by`, `declined_reason` | Mutable once: answered once, sent in the sender's own name |
+
 ## 3. Permissions
 
 In the catalogue since Phase 0 ([permissions.md](permissions.md)): `workforce.recruitment.manage`,
@@ -182,6 +202,14 @@ member may do on a case comes from their part on it (rule 16), not from a permis
 | Decide the outcome | The hearing chair |
 | Decide the appeal (as the case closes) | The appeal chair |
 | Record what happened at a meeting or hearing | The member leading it, or a case manager |
+
+Slice 29 adds no permission. Induction and leaving are the staff file's: read with
+`workforce.staff_file.read` (and the worker's own with `workforce.self.read`), written with
+`workforce.staff_file.manage`, never on one's own file. A Care Certificate standard is assessed by
+a holder of `.manage` or of `workforce.competence.observe`, and observed only by a holder of
+`workforce.competence.observe`, never the worker; an assessor reads Care Certificate progress
+across the organisation but nothing else of the staff file. Ending a leaver's access at once
+needs `.manage`; the sweep does it as the system.
 
 Staff files are the organisation's employment records, not people's care records, and HR functions
 are organisation-wide (master prompt section 4): a tenant or location role or a grant anywhere
@@ -346,7 +374,42 @@ whatever the clock change.
     facts are established and never a sanction: it always carries its next review date, is
     shown as overdue in words the day after, and ends before the case closes.
 
-Rate keys in use: `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
+19. **The induction checklist** (`induction.ts`, `inductionState`). Ticked by hand: the contract
+    issued, system access set up, uniform and badge, the induction at the location, the fire
+    safety briefing and shadowing signed off. Worked out: the pre-employment checks (the staff file
+    complete, rule 1), policy read-and-sign (every published policy the worker's roles need signed,
+    quality.md rule 26, counted by `app.induction_policy_signing` without reading anyone's
+    signatures), the Care Certificate (all 16 standards, or not needed when already held) and
+    probation (passed). An item due before the start date is overdue from the start date while
+    outstanding; the probation decision from the day after probation was due to end. Status is a
+    word and an icon, never colour alone.
+20. **The Care Certificate** (`checkStandardChange`, `careCertificateProgress`). Its 16 standards
+    by id and short title only (`CARE_CERTIFICATE_STANDARDS`; the text is Skills for Care's,
+    H-531, H-871). Each is first assessed for knowledge, then the worker is observed competent in
+    practice; each step by someone other than the worker, in their own name, never before the
+    start date or after today, never twice; the observation only by a holder of
+    `workforce.competence.observe`, never before the knowledge assessment. Complete once all 16
+    are competent, on the last observation's date.
+21. **Shadow shifts and probation** (`checkSupervisedEntry`, `checkProbationDecision`). A shadow
+    shift is with a colleague, never the worker; a probation review and the decision are by
+    someone other than the worker, never before the start date. Probation is passed, extended to a
+    later date (and decided again), or not passed. A probation not passed is a dismissal decision
+    made through an employee relations case of type `probation` (rule 15); the plan only notes it.
+22. **Leaving** (`checkLeaving`, `accessRemovalDue`, `checkExitInterview`, `leaverState`). The
+    leaving date is on or after the start, recorded once, by someone other than the leaver. Access
+    ends at the end of the leaving day: the hourly sweep ends it from the UK day after
+    (`app.end_leaver_access`: the member is marked as left, so they hold nothing; their roles end
+    now and their grants are revoked; their open invitations end), or a manager ends it at once.
+    The exit interview moves from not offered to offered, then declined or held (with its date and
+    a summary the leaver may see). A reference request names the organisation asking; it is sent
+    once, in the sender's own name, or declined with a reason. Leaving items are overdue from the
+    day after the leaving date.
+23. **Keeping the staff file** (`staffFileRetainUntil`). From the leaving date: the organisation's
+    own `staff_file.after_leaving` row when it set one (6 years by default), otherwise the default
+    to the later of leaving and the birthday at `retention.staff_file.birthday_age` (75); with no
+    date of birth the file is kept and the date left empty for a person to decide (H-874).
+
+Rate keys in use: `retention.staff_file.birthday_age`, `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
 `competence.medicines.refresh_months`, `supervision.per_year`, `appraisal.per_year`,
 `document_expiry.reminder_days.first`, `.second`, `.third`, `nmc.revalidation.cycle_years`,
 `nmc.revalidation.practice_hours`, `nmc.revalidation.cpd_hours`,
@@ -436,6 +499,28 @@ Audit actions: `workforce.case.opened`, `.listed`, `.viewed`, `.member_named`, `
 `.safeguarding_linked`, `.note_added`. No outbox event is published: nothing outside the case
 learns of it.
 
+Slice 29 (induction, the Care Certificate and leavers). Changes take `expectedVersion` where the
+record is mutable; refusals are audited; audit events carry the staff file's id and codes only,
+never notes, the exit interview summary or the requester. The routes are under
+`/v1/workforce/staff-files/{id}`:
+
+| Route | Permission | Does |
+| --- | --- | --- |
+| `GET .../induction`; `GET /v1/me/induction` | `workforce.staff_file.read`; `workforce.self.read` | The checklist with each status, read-and-sign counts, the Care Certificate, shadow shifts and probation |
+| `PUT .../induction` | `.manage` | The plan: probation end date, Care Certificate already held |
+| `POST .../induction/items/{kind}` | `.manage` | Tick an item, in the caller's name |
+| `POST .../induction/shadow-shifts`; `POST .../induction/probation-reviews`; `POST .../induction/probation-decision` | `.manage` | Rule 21 |
+| `PUT .../care-certificate/{standardId}` | `.manage` or `workforce.competence.observe` | Assess knowledge, then observe (observers only); returns the Care Certificate alone |
+| `GET`, `POST .../leaving` | `.read`; `.manage` | The leaving; recording it sets `left_on` and the keep-until date |
+| `POST .../leaving/items/{kind}`; `PUT .../leaving/exit-interview`; `POST .../leaving/end-access` | `.manage` | Rule 22 |
+| `POST .../references`; `PATCH .../references/{referenceId}` | `.manage` | A reference request and its answer |
+
+Audit actions: `workforce.induction.viewed`, `.plan_set`, `.item_ticked`, `.shadow_shift`,
+`.probation_review`, `.probation_decided`, `workforce.care_certificate.recorded`,
+`workforce.leaving.viewed`, `.recorded`, `.item_ticked`, `.exit_interview`, `.access_ended`
+(by the sweep with no actor), `workforce.reference.requested`, `.answered`. The
+`leaver-access` job runs hourly at 7 past.
+
 ## 6. Offline behaviour
 
 Section 17.1: e-learning modules downloaded in advance are completed offline (plan slice 72).
@@ -499,6 +584,16 @@ only; who accompanied the employee is never recorded; the case is left out of th
 organisation-wide export (H-805). Retention: with the staff file, from the end of the member of
 staff's employment ([retention.md](retention.md); H-806). The DPIA's R21 (a silo reached by a
 wider role, or the subject of a case disclosed) is answered by the silo and its tests.
+
+Induction and leaving (slice 29) are purpose B3, part of the staff file: probation review notes and
+the exit interview summary are free text that may hold opinions about the worker (and, rarely,
+health); reference requests name the organisation asking, never a person. Lawful basis Article
+6(1)(b) (the contract) and 6(1)(f) (running induction and fair references); the Care Certificate
+evidences training the Health and Social Care Act 2008 (Regulated Activities) Regulations 2014
+regulation 18 requires (6(1)(c)). Minimisation: Care Certificate standards stored by id only; no
+reference text is stored (only that one was sent, when and by whom); assessors see only the Care
+Certificate. Retention: the staff file row (rule 23; [retention.md](retention.md)), from the
+leaving date. The worker sees their own induction, probation reviews and exit interview summary.
 
 ## 9. Acceptance criteria and tests
 
@@ -588,12 +683,33 @@ Slice 39:
   involved, the DBS decision and the suspension ended, to the appeal decided; stale versions; a
   member removed; audit events with ids and codes only.
 
+Slice 29:
+
+- `induction.test.ts` (domain, table-driven): the 16 standards; each Care Certificate step and its
+  refusals (the worker, the future, before the start, twice, observation before knowledge or by a
+  non-observer); completion; every induction item's status and when it is overdue; probation
+  decisions; shadow shifts and reviews; leaving; access due from the day after; the exit
+  interview; the leaving checklist; the staff file's keep-until date with and without a date of
+  birth.
+- `packages/db/test/induction.test.ts`: another organisation reads nothing; HR reads and writes,
+  the worker reads their own and writes nothing, HR never writes its own file; an assessor sees
+  the Care Certificate and nothing else; entries in one's own name; never shadowing oneself;
+  append-only rows never changed; observations only by observers and never changed; a passed
+  probation stays; read-and-sign counted for HR and the worker, refused to others; access ended
+  once, by HR, never by the leaver or an assessor; the exit interview only forward; a reference
+  answered once in the sender's name.
+- `apps/api/test/induction.test.ts`: the permissions and audited refusals; the checklist and its
+  statuses; the plan, ticks, shadowing, reviews and the probation decision with stale versions
+  refused; the Care Certificate by an assessor, never the worker; leaving with the keep-until date,
+  the exit interview, a reference, access ended at once (and the leaver then holding nothing) and
+  by the sweep the day after, once; audit events with ids and codes only.
+
 ## 10. Open questions
 
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
 H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 23:
-H-730 to H-735; slice 39: H-800 to H-809).
+H-730 to H-735; slice 39: H-800 to H-809; slice 29: H-870 to H-879).
 
 ## 11. Known gaps
 
@@ -617,3 +733,8 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Casework is left out of the organisation-wide export and reaches a staff DSAR only through a case member (slice 39) | The provider cannot export its casework in one step | H-805 |
 | Migration 0101 carries its own silo guards for `workforce.casework.manage`; migration 0086 (speak-up) carries the same for `safety.speak_up.manage` | Two sets of guard triggers, one per silo permission | Fold both into `app.silo_permissions()` once both are merged |
 | Opening a case tells the opener whether the member of staff is on a professional register (`subject_registered`, copied from the staff file, which the caseworker role cannot read) (slice 39) | A caseworker learns one fact of a colleague's staff file by opening a case about them; every opening is audited | Accepted: rule 17 needs it; reviewed with the screens (slice 58) |
+| Read-and-sign at induction counts the published policies the worker's roles need now (slice 29) | A policy published later joins the count; who has not signed which policy is the policy library's view (quality.md) | Nothing to close; documented |
+| Shadow shifts are recorded by HR, not by the colleague shadowed, and are not linked to the rota (slice 29) | The shift is the manager's account | Link to rota shifts (slice 17's rota port) |
+| A leaving date, once recorded, is not corrected (slice 29) | A wrong date needs support to correct it, with the audit trail | A correction that records the change and recomputes access and retention (slice 58) |
+| Device sessions of a leaver are not ended by the sweep (slice 29) | The member holds nothing once left (no role is counted), so the API refuses them; a Care mode device keeps their unsent entries | Revoke the leaver's devices with the sweep (with platform device management) |
+| The keep-until date is worked out once, when the leaving is recorded (slice 29) | A later change of the organisation's retention row or date of birth does not move it | The retention engine's employment triggers (with H-575) |

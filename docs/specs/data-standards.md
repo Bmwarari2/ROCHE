@@ -737,6 +737,24 @@ these fields; exported with these names.
 | `policy_signature.signed_at` | Harbour | ISO 8601 UTC | One per member and version |
 | Outbox `quality.policy.published` | Harbour | `policyId`, `versionNumber`, `change` | |
 
+## Workforce: induction, the Care Certificate and leavers (Phase 2, slice 29)
+
+Code lists for [workforce.md](workforce.md) section 2d (migration 0091). Harbour's own fields; the
+Care Certificate standards are Skills for Care's, stored by id with a short title only (H-531,
+H-871).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `care_certificate_progress.standard_id` | Care Certificate (Skills for Care), 16 standards | `cc01` Understand your role, `cc02` Your personal development, `cc03` Duty of care, `cc04` Equality, diversity, inclusion and human rights, `cc05` Work in a person-centred way, `cc06` Communication, `cc07` Privacy and dignity, `cc08` Fluids and nutrition, `cc09` Awareness of mental health and dementia, `cc10` Safeguarding adults, `cc11` Safeguarding children, `cc12` Basic life support, `cc13` Health and safety, `cc14` Handling information, `cc15` Infection prevention and control, `cc16` Awareness of learning disability and autism | Titles to confirm (H-871) |
+| `care_certificate_progress.knowledge_assessed_on`, `observed_on` | Harbour | `YYYY-MM-DD` (UK dates) | Observation on or after the assessment |
+| `staff_checklist_item.checklist`, `kind` | Harbour | `induction`: `contract_issued`, `system_access_set_up`, `uniform_and_badge`, `location_induction`, `fire_safety_briefing`, `shadowing_signed_off`; `leaving`: `property_returned`, `final_pay_notified` | H-870, H-873 |
+| `induction_plan.probation_outcome` | Harbour | `passed`, `extended`, `not_passed` | Not passed goes through a probation case |
+| `probation_review.outcome` | Harbour | `on_track`, `concerns` | Notes up to 4,000 characters |
+| `leaver_record.reason` | Harbour (ASC-WDS leaving reasons to map later) | `resignation`, `end_of_fixed_term`, `retirement`, `dismissal`, `redundancy`, `tupe_transfer_out`, `death_in_service`, `other` | H-873 |
+| `leaver_record.exit_interview` | Harbour | `not_offered`, `offered`, `declined`, `held` | Forward only |
+| `leaver_record.staff_file_retain_until` | Records Management Code of Practice | `YYYY-MM-DD` or empty | Rule 23 |
+| `reference_request.kind`, `state`, `declined_reason` | Harbour; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct`; `requested`, `sent`, `declined`; `no_consent_to_share`, `not_employed_here`, `duplicate_request` | H-876 |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
