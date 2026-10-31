@@ -59,7 +59,7 @@ describe("no working time or pay figure is a literal in the scheduling source", 
   );
   const UNITS: Readonly<Record<string, readonly number[]>> = {
     "intervals.ts": [7, 12, 24, 60, 1000],
-    "pay/money.ts": [100],
+    "pay/money.ts": [100, 10],
   };
 
   function numbersIn(code: string): number[] {

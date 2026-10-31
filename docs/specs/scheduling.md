@@ -6,7 +6,7 @@ builds rotas, time and attendance and the pay rules engine for care homes
 is integrated, not built (section 12). Slice 5 wrote this specification and the Working Time rules
 (SCHED-003); slice 6 added the pay rules (section 4b), and the schema slices (12, 21, 27, 30, 36,
 40, 44, 46) confirm their tables against section 2. Slice 12 adds the dependency tool and the
-required care hours per shift (section 13); slice 21 adds the rota builder (section 14); slice 27 bank and agency workers (section 15); slice 30 time and attendance (section 16). Status
+required care hours per shift (section 13); slice 21 adds the rota builder (section 14); slice 27 bank and agency workers (section 15); slice 30 time and attendance (section 16); slice 40 absence and leave (section 17); slice 36 pay calculation runs (section 18). Status
 per feature:
 [feature register](feature-register.md).
 
@@ -1135,3 +1135,117 @@ a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` 
   resolving them; recording a sickness; fit note upload and open audited; return to work; the
   Bradford factor with its working; SSP working; assigning onto an absence refused; the rota check
   counting a cover need as open with a warning).
+
+## 18. Pay calculation runs (slice 36; SCHED-005, SCHED-006, SCHED-007)
+
+Master prompt section 12.3 (pay rules, NMW per pay reference period, holiday accrual, SSP) and
+section 18 (reproducible pay). The slice 6 rules (section 12, rules 4b) applied to approved time
+(section 16) and recorded absence (section 17). Pay does not touch care, so no new clinical
+hazard: HZ-011 (one organisation's records never reach another) applies, and the clinical safety
+review confirms the boundary. Human actions H-1100 to H-1109. The
+payroll export file is slice 76 (only its port is here); the screens are slice 60.
+
+### Schema (migration 0116)
+
+| Table | Kind | Columns | Retention class |
+| --- | --- | --- | --- |
+| `pay_rule_set` | versioned; mutable while `draft`, fixed once `approved` | `name`, `version`, `effective_from`, `role_rates` (pence an hour by role key), `enhancements` (kind, `percent` or `flat_per_hour`, value), `stack_enhancements`, `sleep_in_flat_pence`, `mileage_pence_per_mile`, `on_call_flat_pence`, `night_start_minute`, `night_end_minute`, `bank_holidays` (dates), `overtime_after_minutes` (per pay period), `rolled_up_holiday`, `status`, `approved_by`, `approved_at` | `rota_and_timesheet` (a run cites it) |
+| `pay_profile` | mutable, versioned, one per member | `member_id`, `frequency` (`weekly`, `monthly`), `role_key`, `apprenticeship_started_on`, `irregular_hours`, `leave_year_start`, `qualifying_weekdays` (ISO weekdays), `ssp_average_weekly_earnings_pence`, `state_pension_age_on` | `staff_file` |
+| `pay_run` | mutable while `draft`; fixed once `locked` | `frequency`, `period_start`, `period_end`, `kind` (`regular`, `correction`), `corrects_run_id`, `rule_set_id`, `nation`, `rate_rows` (the rate table rows used), `calculation` (a counter), `calculated_at`, `calculated_by`, `status` (`draft`, `locked`), `locked_by`, `locked_at` | `rota_and_timesheet` |
+| `pay_run_line` | append-only, one per member per calculation | `run_id`, `calculation`, `member_id`, the figures (pence and minutes), `nmw_band`, `ae_category`, `working` (lines in words), `inputs` (the canonical inputs), `input_hash` | `rota_and_timesheet` |
+| `pay_run_exception` | one per finding per calculation; open until overridden | `run_id`, `calculation`, `member_id`, `kind`, `ref` (an opaque id), `status` (`open`, `overridden`), `override_reason`, `overridden_by`, `overridden_at` | `rota_and_timesheet` |
+
+No figure in a pay rule set is statutory: they are the organisation's own rates. Statutory figures
+(NMW, holiday accrual, SSP, auto-enrolment, AWR) come only from the rate table, and a run stores
+the rows it used, so it reproduces whatever the table says later.
+
+### Rules
+
+1. **Rule sets**: a draft is written by a holder of `scheduling.pay.manage`; it is approved by a
+   holder of `scheduling.pay.approve` who neither wrote nor last changed it, and is then fixed. A
+   change is a new version. A run uses the approved version in force on the period's first day.
+2. **Pay profiles**: each member who is paid has one (frequency, role, qualifying days, the
+   inputs the statutory rules need). The date of birth comes from the staff file. Bank workers
+   are paid in the run; agency workers are paid by their agency, so their line pays nothing and
+   shows their AWR clock (rule 7) and hours, for checking the agency's invoice.
+3. **What a run counts** (`payRunLine`): only approved, current timesheet entries (section 16 rule
+   6) that start in the period, and recorded or approved sickness (section 17). A draft entry in
+   the period is an `unapproved_timesheet` exception. Paid time is work, training, on-call at the
+   workplace and travel between assignments, less breaks; each stretch is split at UK midnight and
+   at the rule set's night window, and gets the night, weekend (Saturday or Sunday, UK date) and
+   bank holiday enhancements that apply; minutes past `overtime_after_minutes` in the period get
+   the overtime enhancement. A sleep-in pays the flat allowance, on-call away the on-call
+   allowance, travel entries their mileage. Gross pay is the slice 6 rule (`grossPay`).
+4. **Minimum wage** (slice 6 rule 2): the hours that count are `nmwMinutesIn` over the period
+   (sleep-ins with their awake times, travel between assignments); the band from the date of birth
+   on the period's first day. A shortfall is added as its own top-up line and raises a
+   `below_nmw` exception, so the run is looked at before anyone is paid.
+5. **Holiday** (slice 6 rule 3): for an irregular-hours or part-year worker whose leave year began
+   on or after 1 April 2024, the accrual on the hours paid, and rolled-up holiday pay as its own
+   line when the rule set uses it (on basic pay, premiums and the sleep-in allowance; never
+   mileage). The yearly ledger (28 days, rounding) is H-1103.
+6. **SSP** (slice 6 rule 4): qualifying days of sickness in the period that fall in a period of
+   incapacity for work (section 17 rule 6), less days the member worked; the days already paid in
+   that period of incapacity before this pay period count towards the limit. With no average
+   weekly earnings on the profile, an `ssp_earnings_missing` exception.
+7. **AWR** (slice 6 rule 6): for an agency worker, the clock from their bookings (section 15), shown
+   on their line; qualifying is said, never acted on.
+8. **Auto-enrolment** (slice 6 rule 7): the category from age, state pension age and earnings
+   (gross less mileage) for a weekly or monthly period, and qualifying earnings; a flag only.
+9. **Exceptions**: `unapproved_timesheet`, `no_pay_profile`, `no_role_rate`, `no_date_of_birth`,
+   `below_nmw`, `ssp_earnings_missing`, `rate_missing`. Each blocks locking until the cause is put
+   right and the run recalculated, or a holder of `scheduling.pay.approve` overrides it with a
+   reason (never their own line's). An override carries to a recalculation only while the line's
+   inputs are unchanged.
+10. **Reproducible**: each line stores its canonical inputs and their SHA-256, and the run the rate
+    rows; recalculating a line from what is stored gives the same figures (`verify`).
+11. **Draft, check and lock**: a holder of `scheduling.pay.manage` drafts and calculates; a holder
+    of `scheduling.pay.approve` who neither created nor last calculated the run checks it and locks
+    it, with no open exception. A locked run, its lines and exceptions never change.
+12. **Corrections**: a correction run for a locked run's period recalculates it from today's
+    approved time; each line shows the difference from the locked run it corrects (or that run's
+    latest locked correction). A locked run is never edited. One open correction per run.
+13. **Organisation-wide**: pay is the employer's, so the pay permissions count only when held for
+    the whole organisation (a tenant-wide role or one with no location scope, such as Finance); a
+    location's manager sees no pay. A member reads their own locked lines.
+14. **Export port**: a locked run's lines are offered to the payroll export (slice 76) through the
+    `scheduling.pay_run_locked` outbox event and the `PayrollExport` port; nothing is sent here.
+
+### Permissions
+
+| Permission | Allows | Held by (built-in roles) | Scope |
+| --- | --- | --- | --- |
+| `scheduling.pay.manage` | Write pay rule sets and profiles; draft and calculate runs | Owner, Finance (Registered Manager and deputy only with a tenant-wide grant) | Organisation |
+| `scheduling.pay.approve` | Approve rule sets; check and lock runs; override exceptions | Owner, Finance | Organisation |
+
+### API, audit and outbox
+
+| Route | What |
+| --- | --- |
+| `GET`, `POST /v1/pay-rule-sets`; `PATCH /v1/pay-rule-sets/{id}`; `POST .../approve` | Rule sets |
+| `GET`, `PUT /v1/members/{id}/pay-profile` | A member's pay profile |
+| `GET`, `POST /v1/pay-runs`; `GET /v1/pay-runs/{id}` | Runs with their lines and exceptions |
+| `POST /v1/pay-runs/{id}/calculate` | Calculate (or recalculate) a draft |
+| `POST /v1/pay-run-exceptions/{id}/override` | Override with a reason |
+| `POST /v1/pay-runs/{id}/lock` | Check and lock |
+| `POST /v1/pay-runs/{id}/corrections` | A correction run |
+| `GET /v1/pay-runs/{id}/lines/{lineId}/verify` | Recalculate a line from its stored inputs |
+| `GET /v1/me/pay-lines` | Own lines in locked runs |
+
+Audit events carry ids only (never figures): `scheduling.pay_rule_set.created`, `.changed`,
+`.approved`; `scheduling.pay_profile.changed`, `.viewed`; `scheduling.pay_run.created`,
+`.calculated`, `.viewed`, `.locked`; `scheduling.pay_exception.overridden`. Outbox:
+`scheduling.pay_run_locked` (run, period, kind) for the export (slice 76).
+
+### Test list
+
+- Domain, table-driven: splitting at midnight and the night window, weekend and bank holiday,
+  overtime past the threshold, breaks; NMW top-up and exception; holiday accrual and rolled-up pay;
+  SSP days less days worked and days already paid; auto-enrolment flags; agency lines; each
+  exception; corrections' difference; the same inputs give the same hash; no literal figures.
+- Database: cross-tenant denial for all five tables; a location manager sees no pay; a rule set
+  approved by its author is refused; a locked run, its lines and exceptions never change; lines
+  and exceptions append-only; one regular run per period; one open correction.
+- API: a run from approved time only; a draft timesheet blocks; override with a reason, never on
+  one's own line; lock by a second person only; a correction shows the difference; verify
+  reproduces; the member reads their own locked line.
