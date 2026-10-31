@@ -718,7 +718,9 @@ describe("warnings and the timeline", () => {
 
 describe("the casework silo (ADR-0089; workforce.md section 3)", () => {
   it("is held only by the caseworker role, which carries nothing else", () => {
-    const holders = BUILTIN_ROLES.filter((r) => r.permissions.some((p) => isSiloPermission(p)));
+    const holders = BUILTIN_ROLES.filter((r) =>
+      r.permissions.some((p) => isSiloPermission(p) && p === "workforce.casework.manage"),
+    );
     expect(holders.map((r) => r.key)).toEqual(["employee_relations_lead"]);
     expect(holders[0]?.permissions).toEqual(["workforce.casework.manage"]);
     expect(SILO_PERMISSIONS).toContain("workforce.casework.manage");

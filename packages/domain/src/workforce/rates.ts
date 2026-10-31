@@ -10,6 +10,7 @@ export const WORKFORCE_RATE_KEYS = {
   trainingDefaultRefreshYears: "training.default_refresh_years",
   oliverMcGowanRefreshYears: "training.oliver_mcgowan.refresh_years",
   medicinesCompetenceRefreshMonths: "competence.medicines.refresh_months",
+  competenceDefaultRefreshMonths: "competence.default_refresh_months",
   supervisionsPerYear: "supervision.per_year",
   appraisalsPerYear: "appraisal.per_year",
   reminderDaysFirst: "document_expiry.reminder_days.first",

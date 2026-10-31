@@ -49,7 +49,8 @@ describe("seed", () => {
     expect(counts).toEqual({
       people: 6,
       rooms: 60,
-      roles: 22,
+      // The built-in roles, with the speak-up guardian (0086) and the caseworker (0101).
+      roles: 23,
       rates: rates.length,
       bankHolidays: holidays.length,
     });

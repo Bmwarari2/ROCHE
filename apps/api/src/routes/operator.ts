@@ -16,8 +16,9 @@ import { and, count, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
 import { sessionFactorState } from "../auth/session-factor";
-import type { AppEnv } from "../http/context";
+import { type AppEnv, SSO_OFF } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 /** Why an approved casework support ticket cannot be used now (app.operator_appoint_case_manager). */
 const SUPPORT_TICKET_REFUSALS = new Set([
@@ -27,8 +28,6 @@ const SUPPORT_TICKET_REFUSALS = new Set([
   "case_has_manager",
   "manager_not_allowed",
 ]);
-
-import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 /**
  * Thapsus operator console API (section 9.1). Operators are Better Auth identities listed in
@@ -48,6 +47,8 @@ export const operatorMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => 
     .from(operatorUser)
     .where(eq(operatorUser.authUserId, session.authUserId));
   if (!op?.active) throw problems.forbidden();
+  // Operators never use an organisation's single sign-on (#33 re-check 2).
+  if (session.ssoTenantId !== null) throw SSO_OFF();
   // As for members: only a session signed in or confirmed with a second factor (ADR-0072).
   const { mfa, stepUpFresh } = await sessionFactorState(
     authPool,

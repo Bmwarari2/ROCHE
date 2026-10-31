@@ -55,9 +55,23 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   ],
   "app.sub_processor_objections(uuid, text)": ["harbour_operator"],
   "app.resolve_sub_processor_objection(uuid, uuid, text, text)": ["harbour_operator"],
+  // Processor breach notices (slice 20, migration 0082).
+  "app.send_processor_breach_notice(uuid, uuid, text, text, integer, integer, text, text, text, text, text)":
+    ["harbour_operator"],
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
+  // Import wizard (Phase 2 slice 26, migration 0088).
+  "app.undo_import_batch(uuid, text)": ["harbour_app"],
+  // The speak-up silo (ADR-0089, migration 0086).
+  "app.raise_speak_up(uuid, text, text, text)": ["harbour_app"],
+  "app.set_speak_up_lead(uuid, boolean)": ["harbour_app"],
+  // Runs as harbour_silo_owner so speak-up events hidden from the reader still verify.
+  "app.verify_audit_chain()": ["harbour_app", "harbour_owner"],
+  // Single sign-on (migration 0095): the callback's facts and the invited member's link.
+  "app.sso_sign_in_facts(text, text)": ["harbour_app"],
+  "app.link_sso_member(text, text)": ["harbour_app"],
+  "app.sso_key_ref(text)": ["harbour_app"],
 };
 
 let db: TestDatabase;

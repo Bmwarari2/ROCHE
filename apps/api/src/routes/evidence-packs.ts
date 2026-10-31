@@ -63,6 +63,7 @@ import {
   type StoredField,
   writeBundle,
 } from "../services/evidence-pack";
+import { inForceStatementIds } from "../services/quality-framework";
 import {
   conflictResponse,
   createRouter,
@@ -197,6 +198,36 @@ const releaseProblem = (problems_: readonly EvidencePackReleaseProblem[]): HttpP
   return stateConflict(detail);
 };
 
+/**
+ * Quality statement ids come from the framework in force (slice 14, ADR-0096): a statement or key
+ * question of CQC's version in force, while the pack is England-only (as its rate lookups are). With
+ * no version in force the ids stay opaque. A refusal names the ids it did not know.
+ */
+async function checkStatementIds(
+  tx: Transaction,
+  action: string,
+  packId: string | null,
+  ids: readonly string[] | null,
+): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const known = await inForceStatementIds(tx, "cqc");
+  if (!known) return;
+  const unknown = ids.filter((id) => !known.has(id));
+  if (unknown.length === 0) return;
+  throw new AuditedRefusal(
+    problems.invalid(
+      `Choose quality statements from the framework in use. Not known: ${unknown.join(", ")}.`,
+    ),
+    {
+      action,
+      outcome: "denied",
+      resourceType: "evidence_pack",
+      ...(packId ? { resourceId: packId } : {}),
+      reason: "unknown_quality_statement",
+    },
+  );
+}
+
 export const evidencePacksRouter = createRouter()
   .openapi(
     createRoute({
@@ -256,6 +287,7 @@ export const evidencePacksRouter = createRouter()
         );
       }
       const detail = await change(c, access, A.composed, null, async (tx) => {
+        await checkStatementIds(tx, A.composed, null, body.qualityStatementIds);
         // Everyone in scope must be someone the composer can see; every location must exist.
         const seen = await tx
           .select({ id: person.id })
@@ -367,6 +399,12 @@ export const evidencePacksRouter = createRouter()
       const body = c.req.valid("json");
       const detail = await change(c, access, A.itemsAdded, id, async (tx) => {
         const row = await packFor(tx, A.itemsAdded, id, { version: body.version, state: "draft" });
+        await checkStatementIds(
+          tx,
+          A.itemsAdded,
+          id,
+          body.items.flatMap((i) => i.qualityStatementIds),
+        );
         const present = new Set(
           (await currentItems(tx, id)).map((i) => `${i.recordType}:${i.recordId}`),
         );

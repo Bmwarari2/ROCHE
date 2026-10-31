@@ -13,6 +13,8 @@ const APPEND_ONLY_TABLES = [
   "shadow_shift",
   "probation_review",
   "employee_case_event",
+  "staff_privacy_acknowledgement",
+  "staff_image_consent",
   "audit_event",
   "record_version",
   "workflow_transition",
@@ -41,6 +43,9 @@ const APPEND_ONLY_TABLES = [
   "entry_device_deletion_flag",
   "downtime_pack",
   "evidence_pack_item",
+  "framework_mapping",
+  "audit_action",
+  "outbreak_case",
   "letter",
   "feed_item",
   "feed_item_withdrawal",
@@ -50,16 +55,34 @@ const APPEND_ONLY_TABLES = [
   "dcb0160_record",
   "sub_processor_notice",
   "sub_processor_response",
+  "competence_sign_off",
+  "competence_withdrawal",
+  "rota_publication",
+  "roster_override",
+  "policy_signature",
+  "processor_breach_notice",
+  "processor_breach_notice_ack",
+  "dependency_assessment",
   "application_event",
   "interview",
   "equality_monitoring",
-  "policy_signature",
+  "dspt_evidence",
+  // Deaths and missing persons (slice 37, migration 0099).
+  "death_step",
+  "missing_event",
 ];
 /**
  * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the
- * organisation reads; each change is audited by id instead.
+ * organisation reads; each change is audited by id instead (speak-up.test.ts and casework.test.ts
+ * prove it).
  */
-const UNVERSIONED_SILO_TABLES = ["employee_case", "employee_case_member", "employee_case_hearing"];
+const UNVERSIONED_SILO_TABLES = [
+  "employee_case",
+  "employee_case_member",
+  "employee_case_hearing",
+  "speak_up_concern",
+  "speak_up_case_member",
+];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
 const GLOBAL_REFERENCE_TABLES = ["form_template", "rate_table", "retention_class"];

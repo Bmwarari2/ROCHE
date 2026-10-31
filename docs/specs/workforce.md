@@ -3,8 +3,8 @@
 Master prompt sections 12.1, 12.2 and 12.4, with section 4 (roles) and 18 (data model). Phase 2
 builds the whole employee file from application to leaving ([phase-2.md](../plans/phase-2.md),
 lane B). Payroll itself is integrated, not built (section 12). Sections 2 to 4 and 9 were written by
-slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9)
-slice 23 (applicant tracking: sections 2b, 4 rules 11 to 13, 5, 8 and 9) and slice 39 (employee
+slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9),
+slice 23 (applicant tracking: sections 2b, 4 rules 11 to 13, 5, 8 and 9), slice 39 (employee
 relations casework: sections 2c, 3, 4 rules 14 to 18, 5, 8, 9 and 11) and slice 29 (induction,
 the Care Certificate and leavers: sections 2d, 3, 4 rules 19 to 23, 5, 8, 9 and 11);
 sections 5 to 8 grow with the schema, API and screen slices. Status per
@@ -84,6 +84,27 @@ verified by the worker themselves, or on a later date, is not satisfied; satisfa
 stored. HR-only documents are `document` rows of category `staff_hr_document` (subject the
 compliance item, no person); right to work copies are kept as `right_to_work_copy`, everything else
 as the staff file.
+
+### 2b. Training, competence, supervision and revalidation (slice 17, migration 0079)
+
+Keyed by the member of staff (`worker_id`, a `tenant_user` id), not the staff profile, so a
+training or supervision lead reads them without the pre-employment file. Forced row-level
+security on every table; the policies in section 3.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `training_requirement` | `role_key` (a role's key), `topic` (`TRAINING_TOPICS`), `refresh_years` (the organisation's own, or empty for the default), `tier` (1 or 2, Oliver McGowan only), `active` | One per role and topic; the matrix of a member is every active requirement of their roles in force. Mutable, never deleted |
+| `training_record` | `worker_id`, `topic`, `tier`, `completed_on`, `expires_on` (a certificate's own last valid day), `provider` | Mutable with history (a correction is a change with `expected_version`); never by the worker |
+| `competence_sign_off` | `worker_id`, `competence` (`COMPETENCES`), `observed_on`, `observer_id`, `valid_until` (the day before observed plus the competence's refresh months) | Append-only. Observed in the observer's own name by a holder of `workforce.competence.observe`, never the worker, on a day no later than today |
+| `competence_withdrawal` | `sign_off_id` (one each), `reason` (at least 10 characters), `withdrawn_by` | Append-only; by a holder of `workforce.competence.observe` or `workforce.training.manage`, never the worker |
+| `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. No notes are kept (a supervision's notes stay with the supervisor's own records until slice 57) |
+| `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker |
+
+Competences (`COMPETENCES` in `packages/domain/src/workforce/competence-port.ts`):
+`medicines_administration`, `controlled_drugs`, `insulin_administration`,
+`epilepsy_rescue_medication` (medicines: refreshed every `competence.medicines.refresh_months`),
+`moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` (every
+`competence.default_refresh_months`, a Harbour default to verify, H-690).
 
 Retention classes ([retention.md](retention.md)): `staff_file.after_leaving` or
 `staff_file.to_75th_birthday` (the tenant's choice) for the staff file and casework;
@@ -172,6 +193,14 @@ Slice 11 adds four permissions so that HR data has its own (section 12.4), repla
 | `workforce.hr_document.read` | Open and add HR-only staff documents; every view is audited | Owner, HR (a manager is given it by a grant or a role change) |
 | `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment for a supervised start or a disclosure (never for themselves) | Owner, Registered Manager |
 | `workforce.self.read` (existing) | See their own profile and where each of their checks stands | Every staff role |
+
+Slice 17 adds no permission. Training, competence, supervision and revalidation rows are read by
+holders of `workforce.training.manage`, `workforce.competence.observe`,
+`workforce.supervision.manage` or `workforce.staff_file.read` (organisation-wide, as the staff
+file), and by the member for their own (`workforce.self.read`); written as section 2b says, never
+by the member about themselves. None of them is special category data, so they need MFA only where
+the role does. Medicines and scheduling never read these tables: they ask the competence port
+(ADR-0085).
 
 Slice 23 adds no permission: applicant tracking uses `workforce.recruitment.manage` (Owner,
 Registered Manager, deputy manager and HR in the built-in roles), as section 12.1 intends, and the
@@ -455,6 +484,34 @@ audit event with opaque ids only; refusals are audited too. Dates are UK dates (
 Audit actions: `workforce.staff_file.created`, `.updated`, `workforce.compliance_item.recorded`,
 `workforce.dbs_risk_assessment.signed`, `workforce.hr_document.added`, `workforce.hr_document.viewed`.
 
+Slice 17 (training, competence, supervision, revalidation; members by `tenant_user` id):
+
+| Route | Permission | Does |
+| --- | --- | --- |
+| `GET /v1/workforce/training-requirements` | `workforce.training.manage` | The organisation's matrix: requirements by role |
+| `PUT /v1/workforce/training-requirements` | `workforce.training.manage` | Add or change one role and topic's requirement (`expectedVersion` when it exists) |
+| `GET /v1/workforce/members/{memberId}/development` | read (section 3, as the database counts it: a reader whose permission comes only from a role scoped to assigned people or to the person gets 404) | The member's training matrix today (`trainingMatrix`), records, competences with their state, next supervision and appraisal after the last one held (`nextMeeting`; none before the first, since the start date is in the staff file), and the revalidation plan (`revalidationPlan`) |
+| `POST /v1/workforce/members/{memberId}/training-records` | `workforce.training.manage` | Record training |
+| `PATCH /v1/workforce/members/{memberId}/training-records/{recordId}` | `workforce.training.manage` | Correct a record (`expectedVersion`) |
+| `POST /v1/workforce/members/{memberId}/competences` | `workforce.competence.observe` | Sign off an observed competence in the caller's name; publishes `workforce.competence.changed` |
+| `POST /v1/workforce/members/{memberId}/competences/{signOffId}/withdraw` | `workforce.competence.observe` or `workforce.training.manage` | Withdraw a sign-off with a reason; publishes `workforce.competence.changed` |
+| `POST /v1/workforce/members/{memberId}/supervisions` | `workforce.supervision.manage` | Record a supervision, appraisal or spot check held by the caller |
+| `PUT /v1/workforce/members/{memberId}/revalidation` | `workforce.training.manage` | Record revalidation evidence for a cycle |
+| `GET /v1/me/development` | `workforce.self.read` | The member's own development record |
+
+The competence port (ADR-0085): `competencePort(tx, memberId, competence, at)` in
+`apps/api/src/services/competence-port.ts`, for medicines and scheduling on the server; it reads
+that member's unwithdrawn sign-offs with the system's rights for that one question and returns
+`competenceDecision` (allowed until a date, or blocked as `missing`, `expired` or `withdrawn`).
+No route takes a competence from the client.
+
+Training and competence reminders: the same hourly job raises a task (kind
+`workforce.training_expiry` or `workforce.competence_expiry`, generic title, assigned to the `hr`
+role, no person or location) at each document-expiry reminder day before a required topic's or a
+competence's valid-until date, once each. Task visibility (migration 0079): a task about no person
+and no location whose required permission is a workforce one is visible to holders of that
+permission, so HR's role sees its reminders; without MFA a session does not list staff file tasks.
+
 Expiry tasks (rule 1): the `staff-file-expiry-reminders` job runs hourly. For each item with an
 expiry or a re-check date, at `document_expiry.reminder_days.first`, `.second` and `.third` days
 before it, it raises one task through the task engine (kind `workforce.compliance_expiry`, the
@@ -582,7 +639,27 @@ Section 17.1: e-learning modules downloaded in advance are completed offline (pl
 
 Expired competence that fails to block an action is a hazard (HZ-119, added by slice 3); a worker
 rostered without a required check is HZ-124, in the hazard log from slice 4 with the rostering rule
-as its first control.
+as its first control. Slice 17 adds controls to both: the stored sign-offs with the database's
+guards (observer's own name, the permission, never self, never in the future, append-only,
+withdrawal), the competence port that medicines and scheduling call on the server (ADR-0085), and
+the expiry reminders. HZ-124's verification rows are in the hazard log; HZ-119 is being written by
+slice 3, so its rows from this slice are listed here for that entry:
+
+| Test (slice 17) | For HZ-119 |
+| --- | --- |
+| `packages/domain/src/workforce/competence-port.test.ts`: `hazard HZ-119 ...` (allowed through the valid-until day, expired from the day after; a withdrawal blocks the competence until a new observation on or after it, whatever older sign-offs say; missing; future sign-offs ignored; a device's time can only block; the UK day across the autumn clock change) | Passing (slice 17) |
+| `packages/db/test/training-competence.test.ts`: `hazard HZ-119 ...` (a sign-off only in the observer's own name, by a holder of the observe permission, never self, never dated in the future, never before a withdrawal, valid exactly until the day before its refresh whoever inserts it, never changed or deleted; a withdrawal never by the worker) | Passing (slice 17) |
+| `apps/api/test/training-competence.test.ts`: `hazard HZ-119 ...` (the port blocks missing, expired and withdrawn competence, a backdated re-sign-off and a device's earlier time, and allows a valid one, about another member whose training the caller cannot read; a sign-off changes the answer at once) | Passing (slice 17) |
+
+Decisions for the CSO from the slice 17 review are in H-691: whether a withdrawal blocks the
+competence as a whole (built so: the safer reading), which time medicines and the rota pass,
+retiring `competenceGate`, whether a later, shorter refresh applies to sign-offs already made, who
+receives competence reminders, and the month-end rule (31 March plus a month is valid until 29
+April; 29 February plus a year until 27 February, always on the short side).
+
+The competence catalogue is the organisation's own record of observed practice, not a clinical
+judgement about a person receiving care: it stays inside the medical-device boundary
+([medical-device-boundary.md](../compliance/medical-device-boundary.md); re-checked for slice 17).
 
 ## 8. Data protection
 
@@ -690,7 +767,18 @@ Slice 11:
   and audited; the worker's own file; the reminder job raising each task once and the tasks ended
   by a renewal.
 
-API, web and mobile tests come with slices 17, 35, 56 and 57; the Phase 2 gate needs expired
+Slice 17:
+
+- `competence-port.test.ts` (domain): the decision through the valid-until day, expired,
+  withdrawn, missing, future sign-offs; refresh months per competence from the rate table.
+- `packages/db/test/training-competence.test.ts`: another organisation's rows never seen; readers
+  and writers per section 3; the member reads only their own and writes nothing; sign-offs and
+  withdrawals append-only and guarded; task visibility for workforce reminders.
+- `apps/api/test/training-competence.test.ts`: each route's permission and audit; the matrix with
+  Oliver McGowan tiers; the port; the outbox events; the reminders once each; HR sees its
+  reminders.
+
+API, web and mobile tests come with slices 35, 56 and 57; the Phase 2 gate needs expired
 competence to block administration (with [medicines.md](medicines.md)).
 
 Slice 23:
@@ -761,8 +849,8 @@ Slice 29:
 
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
-H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 23:
-H-730 to H-735; slice 39: H-800 to H-809; slice 29: H-870 to H-879).
+H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 17: H-690
+to H-693; slice 23: H-730 to H-735; slice 39: H-800 to H-809; slice 29: H-870 to H-879).
 
 ## 11. Known gaps
 
@@ -770,10 +858,15 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 
 | Gap | Effect now | To close |
 | --- | --- | --- |
+| Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
+| Supervision and appraisal due dates raise no tasks yet | Shown in the development record only | Slice 57 (the supervision screens and their reminders) |
+| Revalidation evidence is recorded by HR, not by the nurse | A nurse cannot record their own evidence | Self-service with review (slice 57, H-693) |
+| Reminders cover upcoming expiry only: required training never done, a member with no records, and an expired or withdrawn competence raise no task (the matrix and the port show them) | HR sees them in the development record, not in tasks | Slice 57 with the matrix screens (H-691) |
+| `withSystemRights` answers the port's and the record's narrow questions inside the caller's transaction; callers must await it alone | A concurrent query on the same transaction would run with the system's rights | Security-definer functions owned by a NOLOGIN role (ADR-0002), before slice 22 calls the port |
+| A location's team leader (`workforce.competence.observe`) reads development records and signs off competence across the organisation; the rule that an observer holds a valid sign-off for the same competence where the tenant requires it is not built | Wider than need-to-know; withdrawal reasons are free text | DPO decision (H-694); the observer rule in slice 57 |
 | Equality monitoring forms are entered by staff (slice 23) | Someone with `workforce.recruitment.manage` could add made-up forms before the counts are released, to lift a small count above the minimum; each form added is audited | Applicants submit their own form through a one-time link with their application (slice 58), and staff entry is withdrawn |
 | An applicant's earlier versions in `record_version` keep their names and contact details (slice 23) | Redaction after `retain_until`, and withdrawing talent pool consent, leave those copies; no job redacts applicants yet | The retention sweep redacts the applicant and their versions together (with the retention engine's destruction batches) |
 | Talent pool consent is recorded by staff with no evidence of the applicant's agreement (slice 23) | The consent's source is not kept | The applicant gives it themselves through the same link (slice 58), or the form records how it was given |
-| Expiry reminder tasks have no person and no location, and `app.task_visible` does not read `required_permission` | Organisation-wide roles see them; HR's role (scope none) does not see them in `GET /v1/tasks` | Task visibility for holders of the task's required permission (slice 17, if small) |
 | HR-only documents carry retention class `staff_file`, which has no rule of its own; the tenant's choice of `staff_file.*` and the leaving-date trigger are not in the retention engine; right to work copies' `record_closed` trigger is not handled | Nothing destroys HR-only documents or right to work copies yet | The retention engine's employment triggers (with H-575) |
 | Employment gap explanations (free text) are in `compliance_item.detail` | Readable by holders of `workforce.staff_file.read`, not HR only | Move to an HR-only field or document (slice 56, with the screens) |
 | Upload titles and file names travel in the query string, as on `/v1/documents` | They may reach proxy logs | A header or multipart field for every upload route |
@@ -796,3 +889,94 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Linking a safeguarding concern to a case has no screen (slice 58) | The API route exists; the timeline shows a link made there | A picker for the safeguarding concerns the member may read (with the safety screens) |
 | The demo seed has no casework holder (slice 58) | The web journeys cover the silo (no entry, nothing shown) and recruitment; running a case is covered by the API tests | A demo caseworker in the e2e seed (H-936) |
 | Welsh copy for the workforce screens (slice 58) | Welsh shows the English words, marked untranslated | Translation (H-939) |
+
+## 12. Sponsor licence, staff data protection and LDSS (slice 35, migration 0097)
+
+Register rows WORK-003, WORK-007 and WORK-011 (section 12 of the master prompt). Harbour keeps the
+sponsor's records and clocks; it never decides a worker's immigration status. Every figure comes
+from the rate table; the rules are Harbour's reading of the Home Office guidance for sponsors, for
+an immigration adviser to confirm (H-524, H-900 to H-902).
+
+### 12.1 Records
+
+- `sponsored_worker`: the certificate of sponsorship (number, date), SOC 2020 code, route, visa
+  expiry, contracted weekly hours, guaranteed yearly pay, how English language was shown, the date
+  switching evidence was checked, which Appendix D records are held, and whether sponsorship has
+  ended. One active record per member. Mutable, versioned.
+- `sponsor_absence`: dates (inclusive) and whether authorised.
+- `sponsor_report`: a reportable change (`SPONSOR_REPORT_KINDS`), the day it happened, and the day
+  it was reported on the sponsor management system with its reference (set together).
+- `tenant.staff_privacy_notice_version`: the organisation's staff privacy notice in force.
+- `staff_privacy_acknowledgement` (append-only): a member's acknowledgement of a version, once.
+- `staff_image_consent` (append-only): a member's decision on each optional use of their photo or
+  image (`IMAGE_PURPOSES`); the latest stands, and no decision means no use.
+- `ldss_claim`: a Learning and Development Support Scheme claim for a member's course, with its
+  status, reference, dates and reason. Harbour holds no LDSS funding figure (H-903).
+
+### 12.2 Rules (`packages/domain/src/workforce/sponsorship.ts`, table-driven tests)
+
+1. Unauthorised absence for more than `sponsor.unauthorised_absence_working_days` consecutive
+   working days is reportable. Weekends and the nation's bank holidays inside a spell neither count
+   nor break it; an authorised day breaks it. The change happens on the working day the limit is
+   passed, and the report is due `sponsor.change_report_working_days` working days later (rule 9).
+2. A visa is `due_soon` from `sponsor.visa_expiry_warning_days` before it expires and `expired`
+   after the expiry date.
+3. Appendix D gaps are the items of `APPENDIX_D_ITEMS` not held.
+4. The salary check is rule 9's `salaryCheck`, shown on every record.
+5. LDSS claims move planned to submitted (reference and date) or withdrawn; submitted to paid
+   (date), rejected or withdrawn (a reason); rejected back to submitted. Paid and withdrawn are
+   final.
+6. A member has acknowledged the notice only when they acknowledged the version in force; a
+   changed notice asks again.
+
+### 12.3 Permissions
+
+| Action | Permission | Built-in roles | Database |
+| --- | --- | --- | --- |
+| Read sponsor records, absences, reports, their versions | `workforce.immigration.read` (sensitive) | Owner, HR; not the Registered Manager | Restrictive read policies; never one's own |
+| Record or change them | `workforce.sponsor.manage` (sensitive) | Owner, HR | Insert and update policies; never one's own |
+| Set the staff privacy notice version | `platform.tenant.manage` | Owner | Tenant isolation |
+| Acknowledge the notice, decide on image use | `workforce.self.read` (one's own only) | Staff roles | Insert only for one's own member id; no update or delete |
+| Read a member's acknowledgements and image consent | `workforce.staff_file.read` | Managers, HR | Read policy: own, staff file holders, the organisation's system context |
+| LDSS claims | `workforce.ldss.manage` | Owner, Registered Manager, HR | Read: own or holders; write: holders |
+
+No role may delete these rows. The organisation's system context (the full export and the DSAR
+collector) reads them, so a staff DSAR finds the sponsor record, acknowledgements, image consent and
+LDSS claims. Absences and reports link to the sponsor record, not to a member, so the DSAR workbench
+lists them under "not searched"; the reviewer reads them from the sponsor record.
+
+### 12.4 API
+
+`GET`/`POST /v1/workforce/sponsored-workers`, `PUT /v1/workforce/sponsored-workers/{id}`,
+`POST /v1/workforce/sponsored-workers/{id}/absences`, `POST .../{id}/reports`,
+`POST /v1/workforce/sponsor-reports/{id}/reported`; `PUT /v1/workforce/staff-privacy-notice`,
+`GET /v1/me/staff-privacy`, `POST /v1/me/staff-privacy/acknowledgements`,
+`POST /v1/me/staff-image-consent`, `GET /v1/workforce/members/{id}/staff-privacy`;
+`GET`/`POST /v1/workforce/ldss-claims`, `POST /v1/workforce/ldss-claims/{id}/status`. Every write
+and every read of sponsor records or a member's choices is audited
+(`workforce.sponsored_worker.*`, `workforce.sponsor_absence.recorded`,
+`workforce.sponsor_report.*`, `workforce.staff_privacy_notice.*`,
+`workforce.staff_image_consent.decided`, `workforce.staff_privacy.viewed`,
+`workforce.ldss_claim.*`) with opaque ids and codes only: never a certificate number, reference,
+pay or date of absence. Screens follow with slice 56.
+
+### 12.5 Tests
+
+- `packages/domain/src/workforce/sponsorship.test.ts`: absence runs across weekends, bank holidays
+  and authorised days; visa windows; Appendix D gaps; every LDSS transition; acknowledgement of the
+  version in force; the latest image decision.
+- `packages/db/test/sponsorship.test.ts`: cross-tenant denial; HR only and never one's own; the
+  worker sees none of their sponsor records; shape checks; versions hidden like the records; no
+  delete; acknowledgements and consent made only by the member, append-only, read by HR; LDSS for
+  holders, read by the member.
+- `apps/api/test/sponsorship.test.ts`: each route's permission, own records refused, the clocks,
+  stale versions, ids-only audit, and a staff DSAR collecting the new tables.
+
+### 12.6 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| No reminder task for a visa due soon or a report due | The reminder sweep, as for staff checks (slice 17) |
+| Unauthorised absence is not drawn from the rota or leave records | Rota and leave (slice 36 onward) |
+| The family feed does not yet check staff image consent before a staff photo is published | Feed publishing checks (slice 56, H-905) |
+| Sponsor records follow the staff file's retention row; any sponsor-specific minimum is unconfirmed | H-901 |

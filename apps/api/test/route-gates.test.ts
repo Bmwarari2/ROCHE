@@ -68,6 +68,16 @@ const UNGATED: Readonly<Record<string, string>> = {
     "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
   "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",
   "GET /p/evidence/bundle": "a public evidence pack link: the signed session cookie's link alone",
+  "POST /p/speak-up/{tenantId}":
+    "an anonymous speak-up concern (ADR-0089): no member; writes one concern, reads nothing back",
+  "POST /p/speak-up/{tenantId}/thread":
+    "an anonymous speak-up concern: the reply token's hash opens that concern alone (migration 0086)",
+  "POST /p/speak-up/{tenantId}/messages":
+    "an anonymous speak-up concern: the reply token's hash opens that concern alone (migration 0086)",
+  "POST /v1/speak-up":
+    "any member raises a concern (ADR-0089); the silo's policies, not a scope, decide what it reads",
+  "GET /v1/speak-up/mine": "the member's own concerns (speak_up_reporter policy, migration 0086)",
+  "POST /v1/speak-up/mine/{id}/messages": "the member's own concern (speak_up_reporter policy)",
   "POST /operator/tenants": "an operator route behind the operator middleware, not a tenant route",
   "POST /operator/tenants/{tenantId}/support-access": "an operator route (support access request)",
   "POST /operator/sub-processor-notices":

@@ -60,7 +60,10 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
     p !== "finance.ledger.record" &&
     p !== "quality.evidence.read" &&
     // HR-only staff documents stay with HR (workforce.md section 3); a manager is granted them.
-    p !== "workforce.hr_document.read",
+    p !== "workforce.hr_document.read" &&
+    // So do immigration and sponsor licence records (section 12.4).
+    p !== "workforce.immigration.read" &&
+    p !== "workforce.sponsor.manage",
 ).concat([
   "platform.user.manage",
   "platform.audit.read",
@@ -144,8 +147,10 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     permissions: [
       ...pointOfCare,
       "care.plan.write",
+      "care.dependency.assess",
       "care.capacity.write",
       "care.dols.manage",
+      "safety.outbreak.manage",
       "care.respect.record",
       "care.delegated.signoff",
       "medicines.record.manage",
@@ -172,6 +177,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     scopeKind: "location",
     permissions: [
       ...pointOfCare,
+      "care.dependency.assess",
       "medicines.cd.witness",
       "medicines.cd.administer",
       "workforce.competence.observe",
@@ -311,6 +317,9 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.staff_file.read",
       "workforce.staff_file.manage",
       "workforce.hr_document.read",
+      "workforce.immigration.read",
+      "workforce.sponsor.manage",
+      "workforce.ldss.manage",
       "workforce.training.manage",
       "workforce.supervision.manage",
       "workforce.competence.observe",
@@ -405,6 +414,15 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     scopeKind: "none",
     requiresExpiry: true,
     permissions: ["quality.evidence.read"],
+  },
+  {
+    // A silo role (ADR-0089): the speak-up permission and nothing else, so no wider role reaches
+    // concerns; the database refuses it to anyone who manages users or roles.
+    key: "speak_up_guardian",
+    name: "Freedom to Speak Up lead",
+    description: "Receives and manages speak-up concerns, named, confidential or anonymous.",
+    scopeKind: "tenant",
+    permissions: ["safety.speak_up.manage"],
   },
 ];
 

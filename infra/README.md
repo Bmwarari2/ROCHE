@@ -215,6 +215,8 @@ sign-in throttling counts each client address rather than one shared bucket), `P
 `DATABASE_APP_URL`, `DATABASE_AUTH_URL`, `DATABASE_OPERATOR_URL`, `DATABASE_WORKER_URL` (the API
 refuses to start in production without any of the four), `BETTER_AUTH_SECRET`,
 `EVIDENCE_LINK_SECRET` (the evidence pack code and link session key; refused in production if unset),
+`SPEAK_UP_THROTTLE_SECRET` (keys the network hash in the public speak-up limits, ADR-0089; refused in
+production if unset),
 `SYNC_SIGNING_KEY_PEM`, `SYNC_SIGNING_KEY_ID`,
 `HARBOUR_DB_PASSWORD_HARBOUR_APP`, `HARBOUR_DB_PASSWORD_HARBOUR_AUTH`,
 `HARBOUR_DB_PASSWORD_HARBOUR_WORKER`.

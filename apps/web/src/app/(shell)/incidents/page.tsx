@@ -60,11 +60,16 @@ export default async function IncidentsPage() {
           ) : null
         }
         secondaryActions={
-          can(me.permissions, "safety.incident.manage") ? (
-            <ButtonLink href="/notifications/statutory" variant="secondary">
-              {t("safety.notifications.title")}
+          <>
+            {can(me.permissions, "safety.incident.manage") ? (
+              <ButtonLink href="/notifications/statutory" variant="secondary">
+                {t("safety.notifications.title")}
+              </ButtonLink>
+            ) : null}
+            <ButtonLink href="/incidents/trends" variant="secondary">
+              {t("safety.trends.title")}
             </ButtonLink>
-          ) : null
+          </>
         }
       />
       {data.truncated ? (

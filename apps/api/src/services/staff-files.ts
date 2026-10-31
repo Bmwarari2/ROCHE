@@ -30,6 +30,7 @@ import {
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { rateRows } from "./rates";
 import { NO_STAFF, type StaffLookup, staffNames } from "./staff";
+import { withSystemRights } from "./system-rights";
 
 /**
  * The staff profile and pre-employment file (workforce.md sections 2a and 5; WORK-002): the
@@ -250,15 +251,7 @@ export function namesFor(
  * cancels them as the system would, for this item only, and the transaction's context is put back.
  */
 export async function endItemReminders(tx: Transaction, itemId: string): Promise<number> {
-  const saved = await tx.execute<{ user_id: string | null; scope: string | null }>(
-    sql`SELECT current_setting('app.user_id', true) AS user_id,
-               current_setting('app.scope', true) AS scope`,
-  );
-  const before = saved.rows[0];
-  await tx.execute(
-    sql`SELECT set_config('app.user_id', '', true), set_config('app.scope', 'tenant', true)`,
-  );
-  try {
+  return withSystemRights(tx, async () => {
     const ended = await tx
       .update(task)
       .set({ status: "cancelled", statusReason: "Ended: the check was recorded again" })
@@ -272,12 +265,7 @@ export async function endItemReminders(tx: Transaction, itemId: string): Promise
       )
       .returning({ id: task.id });
     return ended.length;
-  } finally {
-    await tx.execute(
-      sql`SELECT set_config('app.user_id', ${before?.user_id ?? ""}, true),
-                 set_config('app.scope', ${before?.scope || "none"}, true)`,
-    );
-  }
+  });
 }
 
 /**

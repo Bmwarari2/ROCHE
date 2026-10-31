@@ -1,0 +1,4 @@
+Given name,Family name,DOB,NHS number,Local identifier,Allergy status,Room
+Ida,Importfixture,14/03/1938,9990010005,,no_known_allergies,12
+Jon,Importfixture,02/09/1941,9990010072,,has_allergies,14
+Jon,Importfixture,02/09/1941,,IMPORT-FIXTURE-1,,15

@@ -24,5 +24,5 @@ lead. You cannot review a report that counts your own use of break-glass: someon
 
 ## Good to know
 
-- Openings from the web are all counted under "No reason chosen", because the web form asks only
-  for a typed reason.
+- Openings are counted by the reason chosen when the record was opened. Openings from before the
+  form asked for one are counted under "No reason chosen".

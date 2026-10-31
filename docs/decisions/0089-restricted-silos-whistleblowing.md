@@ -93,6 +93,37 @@ guards and the token rules. `apps/api/test/speak-up.test.ts` proves that nothing
 anonymous reporter reaches audit or outbox, and that the reply token works only hashed and only in
 a body.
 
+### Amendment: security review of slice 24 (31 October 2026)
+
+- **Flooding (H1).** Public requests are counted in Postgres (`speak_up_intake`), so every instance
+  and every deploy shares the counts. There are three buckets:
+  - per network: an IPv6 /64 or an IPv4 address, held only as an HMAC keyed by
+    `SPEAK_UP_THROTTLE_SECRET` from the managed store and the UK date (L6);
+  - per organisation per minute, which also covers requests with no usable address;
+  - anonymous concerns per organisation per UK day.
+
+  Past the daily limit the lead's list says "possible flood". The list pages by cursor. Windows
+  that have passed are swept hourly by the worker.
+- **Body size (M2).** `/p/speak-up/*` takes bodies up to 48 KiB (the longest concern), not the
+  4 KiB public cap.
+- **Timing through audit (M3).** Audit events about a concern (`resource_type =
+  'speak_up_concern'`) are read only by the lead (restrictive policy `audit_speak_up_silo`). They
+  stay in the organisation's hash chain, append-only. `app.verify_audit_chain` runs as
+  `harbour_silo_owner`, so the chain verifies for every reader without showing them the events.
+- **Role edits (M4).** Editing a role someone holds is checked as appointing them would be. The
+  silo guards run as definer, so a caller's scope never hides an assignment from them.
+- **Appointing the lead (L5).** `app.set_speak_up_lead` (and `PUT /v1/speak-up/lead`) lets a
+  member who manages users appoint or remove the lead without holding the silo permission. The
+  guards still refuse self-appointment and a lead who manages users or roles.
+- **Robustness (L7).**
+  - A named or confidential concern and its reporter are written only by `app.raise_speak_up`,
+    in one step; no transaction-age test remains.
+  - The silo's policies bind `harbour_owner` as well as `harbour_app`.
+  - Subject access collection lists the silo as "not searched: restricted silo"
+    (`DSAR_NOT_SEARCHED`).
+  - Reply tokens expire `speak_up.reply_token_days` after the concern is raised (a rate-table row
+    marked to verify).
+
 ## More information
 
 ADR-0050 (public evidence links: the model for an unauthenticated, token-bound session),

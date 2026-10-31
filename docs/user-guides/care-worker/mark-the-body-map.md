@@ -25,9 +25,11 @@ managers.
 ## Important
 
 - A pressure ulcer of category 2 or worse, or a bruise whose cause is not known, sets a task for a
-  manager to report an incident and work through the safeguarding decision guide. **Tell the nurse
-  in charge straight away as well.** Harbour does not tell you the task was set.
-- Answer the category and cause questions even though the form does not mark them as needed.
+  manager to report an incident and work through the safeguarding decision guide. **Tell the person
+  in charge straight away as well.** After saving, Harbour says "Mark saved. Any follow-up tasks
+  will appear on the task list."; a mark recorded as healed sets no task.
+- The category, the medical device question and the bruise question must be answered before the
+  mark is saved.
 
 ## Good to know
 

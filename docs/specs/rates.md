@@ -131,6 +131,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |
 | sponsor.switching_evidence_months | 3 | months | 2025-07-22 | - | uk | master prompt 12.1 ("3-month switching evidence") | to-verify |
 | sponsor.counted_weekly_hours_max | 48 | hours | 2025-07-22 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, salary requirements (pay counted for at most 48 hours a week) | to-verify |
+| sponsor.unauthorised_absence_working_days | 10 | working_days | 2000-01-01 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, reporting duties (a sponsored worker absent without permission for more than 10 consecutive working days is reported) | to-verify |
+| sponsor.visa_expiry_warning_days | 90 | days | 2025-01-01 | - | uk | Harbour default: how far ahead a sponsored worker's visa expiry is flagged (no statutory figure) | to-verify |
 | fnc.weekly.standard | 267.68 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
 | fnc.weekly.standard | 254.06 | GBP_per_week | 2025-04-01 | 2026-03-31 | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost | verified |
 | fnc.weekly.higher | 368.24 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
@@ -156,6 +158,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | dp_complaint.update_interval_months | 1 | months | 2026-06-19 | - | uk | docs/compliance/data-protection-complaints.md section 2 (keep the complainant informed at least monthly; tenant default, the Act says only "keep informed") | to-verify |
 | dsar.due_soon_days | 7 | days | 2018-05-25 | - | uk | Harbour default for the "due soon" warning on the DSAR register (no statutory figure) | to-verify |
 | import.undo_window_days | 7 | days | 2026-10-31 | - | all | Harbour default for undoing an import batch (phase-2.md slice 9, ADR-0092; no statutory figure) | to-verify |
+| import.staging_expiry_days | 7 | days | 2026-10-31 | - | all | Harbour default for data minimisation: how long an uploaded import's staged rows are kept before they are deleted unless committed or discarded first (platform.md rule 19, ADR-0092; UK GDPR Art 5(1)(c) and (e); no statutory figure) | to-verify |
 | reg14.absence_notice_days | 28 | days | 2000-01-01 | - | england | master prompt 11.2 (CQC Registration Regulations 2009 reg 14) | master-prompt |
 | cqc.statement_of_purpose.revision_notice_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/12 (reg 12(3): written details of any revision to the statement of purpose to the Commission within 28 days of the revision); master prompt 11.2 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | england | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
@@ -168,6 +171,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | candour.written_notification.working_days | 10 | working_days | 2000-01-01 | - | england | Tenant-configurable target, ADR-0021; regulation 20 requires "as soon as reasonably practicable"; section 21 open item | to-verify |
+| candour.close_blocked_days | 14 | days | 2000-01-01 | - | england | Harbour default (#120 review round 2, M4): an incident the duty of candour holds open (no candour record where Harbour found it may apply, the record open, or someone affected not told) for longer than this many days after it happened gets an urgent task for its Registered Manager, which the task engine escalates; tenant default | to-verify |
 | safeguarding.referral_hours | 24 | hours | 2000-01-01 | - | all | Tenant target: Care Act 2014 s.42 sets no time; the local authority's procedures usually say the same day (phase-2.md slice 7; H-590) | to-verify |
 | complaint.acknowledge_working_days | 3 | working_days | 2000-01-01 | - | all | Tenant target: Regulation 16 sets none for independent providers (phase-2.md decisions; H-590) | to-verify |
 | complaint.response_working_days | 20 | working_days | 2000-01-01 | - | all | Tenant target, as above | to-verify |
@@ -179,6 +183,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ahra.response_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5) (40 days) and the Northern Ireland Order 1993 | to-verify |
 | ahra.recent_record_response_days | 21 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) (21 days where the record was made in the 40 days before the application) | to-verify |
 | ahra.recent_record_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) | to-verify |
+| speak_up.reply_token_days | 180 | days | 2000-01-01 | - | all | Harbour default: how long an anonymous reporter's reply token opens their concern after it was raised; no statutory figure (ADR-0089; H-721) | to-verify |
+| coroner.prevention_report_response_days | 56 | days | 2013-07-25 | - | england | Coroners (Investigations) Regulations 2013 reg 29(3) (a response to a prevention of future deaths report within 56 days) | to-verify |
+| coroner.prevention_report_response_days | 56 | days | 2013-07-25 | - | wales | Coroners (Investigations) Regulations 2013 reg 29(3) (a response to a prevention of future deaths report within 56 days) | to-verify |
 | candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | https://www.legislation.gov.uk/uksi/2014/2936/regulation/20 (reg 20(7) "prolonged pain" and "prolonged psychological harm", and reg 20(9)(a)(ii): a continuous period of at least 28 days); master prompt 11.1 | verified |
 | cqc.reg18.prolonged_harm_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(5)(g): prolonged pain or psychological harm, and an impairment that is not temporary, mean a continuous period of at least 28 days) | verified |
 | cqc.reg18.interruption_hours | 24 | hours | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(2)(g)(ii) and (iv): utilities, fire alarms or safety devices out for longer than a continuous period of 24 hours) | verified |
@@ -229,6 +236,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | training.default_refresh_years | 3 | years | 2000-01-01 | - | all | master prompt 12.2 (tenant may set sooner) | master-prompt |
 | training.oliver_mcgowan.refresh_years | 3 | years | 2000-01-01 | - | england | master prompt 12.2 (Oliver McGowan Code of Practice 2025) | master-prompt |
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
+| competence.default_refresh_months | 12 | months | 2000-01-01 | - | all | Harbour default for observed competences other than medicines (no statutory figure; tenant may set sooner; H-690) | to-verify |
 | retention.staff_file.birthday_age | 75 | years | 2000-01-01 | - | all | NHS Records Management Code of Practice (staff records to the 75th birthday); retention.md staff_file.to_75th_birthday | master-prompt |
 | supervision.per_year | 6 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | appraisal.per_year | 1 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
@@ -344,16 +352,28 @@ literals, and tests assert against the table, not a literal (section 7, section 
   figure (Phase 2 slice 9). The Act sets only the 30-day acknowledgement and "keep informed"; the
   DSAR warning and the import undo window are product choices. A tenant may override each; the DPO
   confirms the defaults (H-610).
+- `import.staging_expiry_days` (7): how long an uploaded import's staged rows (personal data in
+  quarantine, never yet anyone's record) are kept before the nightly sweep deletes them, unless the
+  batch is committed or discarded first, which deletes them at once (Phase 2 slice 26). A data
+  minimisation default, not a statutory figure: long enough to correct a file over a working week,
+  short enough that an abandoned upload does not linger. A tenant may shorten it; the DPO confirms
+  it (H-681).
 - `sponsor.salary_floor.care_worker_hourly` (12.82): the gov.uk going-rates page lists £25,000 a year
   (£12.82 an hour) as the lower going rate for occupation codes 6135 and 6136, but does not say which
   column applies to care workers, and the page shows no effective date (last updated 22 July 2025, used
   as `valid_from`). Confirm the applicable rate and its start date with the Home Office sponsor guidance.
+- `sponsor.unauthorised_absence_working_days` (10) and `sponsor.visa_expiry_warning_days` (90, a Harbour
+  default): confirm the absence reporting threshold against the current guidance for sponsors and the
+  warning window with the organisation's HR lead before the sponsor module is used (H-900, H-902).
 - `sponsor.switching_evidence_months` (3): section 12.1 asks for "3-month switching evidence" without
   defining it. It is read here as the evidence period for in-country switching into the care worker
   route. Confirm the rule and its start date before the sponsor module (Phase 2) uses it.
 - `homecare.minimum_price.hourly` (34.42): stated in section 14.4 but flagged in section 21 as reported
   second-hand. The Homecare Association publishes it; it is not a gov.uk figure. Confirm against the
   Homecare Association 2026/27 publication. It is context for unit economics, not a statutory rate.
+- `candour.close_blocked_days` (14): no statutory figure. How long an incident may stay open on the
+  duty of candour before its Registered Manager is given an urgent task (safety.md section 5, part 5,
+  review round 2; HZ-013). A tenant default for the CSO to confirm (H-480).
 - `candour.written_notification.working_days` (10): regulation 20 says "as soon as reasonably
   practicable" and sets no number of days. 10 working days is a tenant-configurable target (ADR-0021),
   never presented as a statutory deadline. Brian to confirm the value to encode (Appendix open question).
