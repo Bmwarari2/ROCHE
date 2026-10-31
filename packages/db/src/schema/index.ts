@@ -22,6 +22,7 @@ export * from "./onboarding";
 export * from "./operations";
 export * from "./operator";
 export * from "./pay";
+export * from "./payroll-export";
 export * from "./people";
 export * from "./people-lifecycle";
 export * from "./platform";

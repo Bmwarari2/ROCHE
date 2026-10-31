@@ -112,6 +112,14 @@ const Env = z.object({
    * refuses anything but `aws`; no key is ever stored in the database.
    */
   SSO_KEY_STORE: z.enum(["aws", "memory"]).default("memory"),
+  /**
+   * Payroll export to Xero Payroll UK (scheduling.md section 19 rule 8): `mock` records batches and
+   * calls nothing, with tokens from PAYROLL_TEST_TOKENS (a JSON map of secret name to token);
+   * `off` refuses every API export. The live client is not built yet (H-1190), so production
+   * accepts only `off`.
+   */
+  PAYROLL_XERO: z.enum(["off", "mock"]).default("mock"),
+  PAYROLL_TEST_TOKENS: z.string().default("{}"),
   SSO_TEST_KEYS: z.string().default("{}"),
   /**
    * DNS proofs and OpenID discovery: the network, or in tests SSO_MOCK_TXT (JSON map of record
@@ -205,6 +213,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (!parsed.S3_EXPORTS_BUCKET) throw new Error("S3_EXPORTS_BUCKET must be set in production");
     if (parsed.SSO_KEY_STORE !== "aws") throw new Error("SSO_KEY_STORE must be aws in production");
+    if (parsed.PAYROLL_XERO !== "off") throw new Error("PAYROLL_XERO must be off in production");
     if (parsed.SSO_LOOKUPS !== "system")
       throw new Error("SSO_LOOKUPS must be system in production");
     if (parsed.SSO_TEST_IDP_ORIGINS !== "") {

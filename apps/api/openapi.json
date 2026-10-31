@@ -46012,6 +46012,12 @@
               "null"
             ],
             "format": "date"
+          },
+          "payrollReference": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -46025,7 +46031,8 @@
           "leaveYearStart",
           "qualifyingWeekdays",
           "sspAverageWeeklyEarningsPence",
-          "statePensionAgeOn"
+          "statePensionAgeOn",
+          "payrollReference"
         ]
       },
       "PayFrequency": {
@@ -46113,6 +46120,14 @@
               "null"
             ],
             "format": "date",
+            "default": null
+          },
+          "payrollReference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$",
             "default": null
           }
         },
@@ -46624,6 +46639,256 @@
         },
         "required": [
           "items"
+        ]
+      },
+      "PayrollExportList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayrollExportItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PayrollExportItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calculation": {
+            "type": "integer"
+          },
+          "format": {
+            "$ref": "#/components/schemas/PayrollFormat"
+          },
+          "formatVersion": {
+            "type": "integer"
+          },
+          "lineCount": {
+            "type": "integer"
+          },
+          "contentSha256": {
+            "type": "string"
+          },
+          "reexport": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "generated",
+              "sent",
+              "failed"
+            ]
+          },
+          "externalRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exportedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "calculation",
+          "format",
+          "formatVersion",
+          "lineCount",
+          "contentSha256",
+          "reexport",
+          "outcome",
+          "externalRef",
+          "exportedBy",
+          "exportedAt"
+        ]
+      },
+      "PayrollFormat": {
+        "type": "string",
+        "enum": [
+          "xero_payroll_uk",
+          "staffology_csv",
+          "sage_csv",
+          "brightpay_csv"
+        ]
+      },
+      "PayrollExportResult": {
+        "type": "object",
+        "properties": {
+          "export": {
+            "$ref": "#/components/schemas/PayrollExportItem"
+          },
+          "file": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "contentType": {
+                "type": "string",
+                "enum": [
+                  "text/csv; charset=utf-8"
+                ]
+              },
+              "content": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fileName",
+              "contentType",
+              "content"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "export",
+          "file",
+          "message"
+        ]
+      },
+      "NewPayrollExport": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/PayrollFormat"
+          },
+          "confirmReexport": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "format"
+        ]
+      },
+      "PayrollConnectionList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayrollConnectionItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PayrollConnectionItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "xero_payroll_uk"
+            ]
+          },
+          "externalOrganisationId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "disconnected"
+            ]
+          },
+          "connectedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "disconnectedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "externalOrganisationId",
+          "status",
+          "connectedBy",
+          "connectedAt",
+          "disconnectedAt",
+          "version"
+        ],
+        "description": "Never the secret or a token"
+      },
+      "NewPayrollConnection": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "xero_payroll_uk"
+            ]
+          },
+          "externalOrganisationId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,64}$"
+          },
+          "secretRef": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,99}$"
+          }
+        },
+        "required": [
+          "provider",
+          "externalOrganisationId",
+          "secretRef"
+        ]
+      },
+      "DisconnectPayroll": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
         ]
       }
     },
@@ -99243,6 +99508,417 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-runs/{id}/exports": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "A pay run's exports to payroll",
+        "description": "finance.payroll.export with the right to read pay, both for the whole organisation. Each export with its format, line count, SHA-256 and whether it was a re-export.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollExportList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Export a locked pay run to payroll",
+        "description": "finance.payroll.export with a fresh sign-in and the right to read pay, both for the whole organisation. Only a locked run's current calculation; every member needs a payroll reference (422 payroll_reference_missing); a second export of the same calculation needs confirmReexport (409 reexport_needs_confirming) and is flagged. A file format returns the file, made from the locked run and never stored; Xero Payroll UK needs the organisation's connection (409 integration_not_connected). Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewPayrollExport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Exported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollExportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payroll-connections": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "The organisation's payroll provider connections",
+        "description": "finance.payroll.export for the whole organisation. Never a secret or a token.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollConnectionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Record a payroll provider connection",
+        "description": "finance.payroll.export with a fresh sign-in, for the whole organisation, after the OAuth handshake has stored the tokens in the managed secret store under secretRef (the handshake itself comes with the live client, H-1190). One connection per provider. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewPayrollConnection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollConnectionItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payroll-connections/{id}/disconnect": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Disconnect a payroll provider",
+        "description": "finance.payroll.export with a fresh sign-in, for the whole organisation, against version. Final; connecting again makes a new connection. The secret is removed from the managed store separately (H-1190). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisconnectPayroll"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Disconnected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollConnectionItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

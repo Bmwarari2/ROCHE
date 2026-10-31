@@ -70,3 +70,8 @@ Sources: [Bedrock model and region support](https://docs.aws.amazon.com/bedrock/
 | --- | --- | --- |
 | 11 October 2026 | Register created (Phase 0) | Not applicable (no live tenants) |
 | 11 October 2026 | Pending entries for family notifications: SES for family email and a UK SMS gateway (Phase 1, slice 12) | Not applicable (no live tenants); notice due before they process family data |
+
+## Payroll providers (Phase 2, slice 76; ADR-0097)
+
+An organisation's payroll provider (Xero Payroll UK, Staffology, Sage or BrightPay) is the organisation's own processor, under the organisation's own contract with it: not a Thapsus sub-processor (H-520 recommended answer, applied 31/10/2026; the DPO confirms it at testing). Harbour sends a locked pay run's figures to it only when someone in the organisation exports them, with step-up. A file export is downloaded by that person and moved by the organisation. The Xero Payroll UK adapter sends over its API to the organisation's own Xero account, with tokens the organisation granted, kept in the managed secret store. Before the adapter is switched on, the DPO records where Xero processes the data and the transfer mechanism if it is outside the UK (H-1192). What leaves is the payroll reference, hours, pay elements, the total, holiday accrued and the auto-enrolment flags: never a name, date of birth, NI number, bank detail or health information.
+

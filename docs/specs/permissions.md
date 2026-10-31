@@ -154,7 +154,7 @@ that home only.
 | `finance.ledger.record` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `finance.ledger.approve` | yes |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `finance.reporting.read` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
-| `finance.payroll.export` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
+| `finance.payroll.export` | yes |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `comms.message.send` |  |  | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  | yes |  |  |  |  |  |  |  | yes |  |  |
 | `comms.portal.family` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |
 | `comms.portal.self` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |

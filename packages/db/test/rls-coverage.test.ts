@@ -9,6 +9,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  */
 
 const APPEND_ONLY_TABLES = [
+  "payroll_export",
   "staff_checklist_item",
   "shadow_shift",
   "probation_review",

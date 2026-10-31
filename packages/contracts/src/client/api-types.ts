@@ -46437,6 +46437,376 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/pay-runs/{id}/exports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A pay run's exports to payroll
+     * @description finance.payroll.export with the right to read pay, both for the whole organisation. Each export with its format, line count, SHA-256 and whether it was a re-export.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Exports */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayrollExportList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Export a locked pay run to payroll
+     * @description finance.payroll.export with a fresh sign-in and the right to read pay, both for the whole organisation. Only a locked run's current calculation; every member needs a payroll reference (422 payroll_reference_missing); a second export of the same calculation needs confirmReexport (409 reexport_needs_confirming) and is flagged. A file format returns the file, made from the locked run and never stored; Xero Payroll UK needs the organisation's connection (409 integration_not_connected). Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewPayrollExport"];
+        };
+      };
+      responses: {
+        /** @description Exported */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayrollExportResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/payroll-connections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's payroll provider connections
+     * @description finance.payroll.export for the whole organisation. Never a secret or a token.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Connections */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayrollConnectionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a payroll provider connection
+     * @description finance.payroll.export with a fresh sign-in, for the whole organisation, after the OAuth handshake has stored the tokens in the managed secret store under secretRef (the handshake itself comes with the live client, H-1190). One connection per provider. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewPayrollConnection"];
+        };
+      };
+      responses: {
+        /** @description Connected */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayrollConnectionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/payroll-connections/{id}/disconnect": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Disconnect a payroll provider
+     * @description finance.payroll.export with a fresh sign-in, for the whole organisation, against version. Final; connecting again makes a new connection. The secret is removed from the managed store separately (H-1190). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DisconnectPayroll"];
+        };
+      };
+      responses: {
+        /** @description Disconnected */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayrollConnectionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -58819,6 +59189,7 @@ export interface components {
       sspAverageWeeklyEarningsPence: number | null;
       /** Format: date */
       statePensionAgeOn: string | null;
+      payrollReference: string | null;
     };
     /** @enum {string|null} */
     PayFrequency: "weekly" | "monthly" | null;
@@ -58853,6 +59224,8 @@ export interface components {
        * @default null
        */
       statePensionAgeOn: string | null;
+      /** @default null */
+      payrollReference: string | null;
     };
     PayRunList: {
       items: components["schemas"]["PayRunItem"][];
@@ -58988,6 +59361,74 @@ export interface components {
         /** Format: date-time */
         lockedAt: string;
       }[];
+    };
+    PayrollExportList: {
+      items: components["schemas"]["PayrollExportItem"][];
+    };
+    PayrollExportItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      runId: string;
+      calculation: number;
+      format: components["schemas"]["PayrollFormat"];
+      formatVersion: number;
+      lineCount: number;
+      contentSha256: string;
+      reexport: boolean;
+      /** @enum {string} */
+      outcome: "generated" | "sent" | "failed";
+      externalRef: string | null;
+      /** Format: uuid */
+      exportedBy: string;
+      /** Format: date-time */
+      exportedAt: string;
+    };
+    /** @enum {string} */
+    PayrollFormat: "xero_payroll_uk" | "staffology_csv" | "sage_csv" | "brightpay_csv";
+    PayrollExportResult: {
+      export: components["schemas"]["PayrollExportItem"];
+      file: {
+        fileName: string;
+        /** @enum {string} */
+        contentType: "text/csv; charset=utf-8";
+        content: string;
+      } | null;
+      message: string;
+    };
+    NewPayrollExport: {
+      format: components["schemas"]["PayrollFormat"];
+      /** @default false */
+      confirmReexport: boolean;
+    };
+    PayrollConnectionList: {
+      items: components["schemas"]["PayrollConnectionItem"][];
+    };
+    /** @description Never the secret or a token */
+    PayrollConnectionItem: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      provider: "xero_payroll_uk";
+      externalOrganisationId: string;
+      /** @enum {string} */
+      status: "connected" | "disconnected";
+      /** Format: uuid */
+      connectedBy: string;
+      /** Format: date-time */
+      connectedAt: string;
+      /** Format: date-time */
+      disconnectedAt: string | null;
+      version: number;
+    };
+    NewPayrollConnection: {
+      /** @enum {string} */
+      provider: "xero_payroll_uk";
+      externalOrganisationId: string;
+      secretRef: string;
+    };
+    DisconnectPayroll: {
+      version: number;
     };
   };
   responses: never;

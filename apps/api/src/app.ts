@@ -16,6 +16,11 @@ import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import {
+  MemoryPayrollSecretStore,
+  MockXeroPayrollClient,
+  XeroPayrollAdapter,
+} from "./integrations/payroll/xero";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { absencesRouter } from "./routes/absences";
@@ -64,6 +69,7 @@ import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
 import { outbreaksRouter } from "./routes/outbreaks";
 import { payRouter } from "./routes/pay";
+import { payrollExportRouter } from "./routes/payroll-export";
 import { peopleRouter } from "./routes/people";
 import { peopleDetailsRouter } from "./routes/people-details";
 import { peopleEnquiriesRouter } from "./routes/people-enquiries";
@@ -152,6 +158,8 @@ export interface AppHandle {
   readonly app: ReturnType<typeof createRouter>;
   readonly services: Services;
   readonly signer: SyncTokenSigner;
+  /** What the Xero mock was handed (development and tests; scheduling.md section 19 rule 8). */
+  readonly payrollMock: MockXeroPayrollClient;
   close(): Promise<void>;
 }
 
@@ -169,6 +177,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   );
   const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
   const ssoKeys = createSsoKeyStore(config);
+  const payrollMockClient = new MockXeroPayrollClient();
   const services: Services = {
     config,
     logger,
@@ -184,6 +193,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     ssoKeys,
     txtLookup: createTxtLookup(config),
     oidcDiscovery: createOidcDiscovery(config),
+    payrollXero:
+      config.PAYROLL_XERO === "mock"
+        ? new XeroPayrollAdapter(
+            payrollMockClient,
+            new MemoryPayrollSecretStore(
+              JSON.parse(config.PAYROLL_TEST_TOKENS) as Record<string, string>,
+            ),
+          )
+        : null,
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
     transferPackLimiter: new RateLimiter(
@@ -432,6 +450,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", timeAttendanceRouter);
   app.route("/", absencesRouter);
   app.route("/", payRouter);
+  app.route("/", payrollExportRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
@@ -479,6 +498,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     app,
     services,
     signer,
+    payrollMock: payrollMockClient,
     close: async () => {
       await Promise.all([appPool.end(), authPool.end(), operatorPool.end()]);
     },

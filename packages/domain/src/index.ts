@@ -134,6 +134,7 @@ export {
   nightMinutes,
 } from "./scheduling/night";
 export * from "./scheduling/pay";
+export * from "./scheduling/payroll-export";
 export * from "./scheduling/rates";
 export * from "./scheduling/rota";
 export * from "./scheduling/time-attendance";

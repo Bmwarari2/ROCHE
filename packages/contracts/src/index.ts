@@ -536,6 +536,7 @@ export * from "./members";
 export * from "./onboarding";
 export * from "./operations";
 export * from "./pay";
+export * from "./payroll-export";
 export * from "./people";
 export * from "./person-summary";
 export * from "./quality";

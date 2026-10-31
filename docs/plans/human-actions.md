@@ -690,3 +690,17 @@ Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the 
 assessment ([template](../clinical-safety/dcb0160-deployment-template.md)), enrol shared devices in
 MDM, sign off imported data, confirm photos for every person, approve role design and run the
 [tenant onboarding](../runbooks/tenant-onboarding.md) checklist.
+
+## Phase 2: payroll and pension exports (slice 76)
+
+Logged by slice 76 (SCHED-008, [scheduling.md](../specs/scheduling.md) section 19, ADR-0097) on 31 October 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1190 | Register the Xero developer app (Payroll UK scopes), build the live `XeroPayrollClient` and the OAuth handshake against Xero's sandbox (tokens written to the managed secret store under the connection's `secret_ref`, refreshed there), the live secret store adapter, and removing the secret when a connection is disconnected; until then `PAYROLL_XERO` is `off` in production and only the mock exists | Brian | `apps/api/src/integrations/payroll/xero.ts`; H-518 | Xero exports | open |
+| H-1191 | Verify the Staffology, Sage and BrightPay file layouts (`PAYROLL_FORMATS`, version 1) with each provider's import guide and a test import, and the pay element codes each organisation uses; bump the format version for any change | Brian with a design partner's payroll lead | `packages/domain/src/scheduling/payroll-export/payroll-export.ts`; H-519 | File exports | open |
+| H-1192 | Confirm with the DPO that each payroll provider is the organisation's own processor (H-520 recommended answer), and before the Xero adapter is switched on record where Xero processes the data and the transfer mechanism if outside the UK; update the DPIA R25 row | DPO | `docs/compliance/sub-processors.md`, ADR-0097 | Switching on Xero | open |
+| H-1193 | Decide how corrections after an export reach payroll: a correction run is exported as its own run today, and payroll must not apply both; consider showing the difference only (H-999) | Brian with payroll | scheduling.md section 19 rule 6 | Payroll corrections | open |
+| H-1194 | Decide whether the auto-enrolment flags should also go to a pension provider (none is integrated) and whether the export needs the pension scheme's own reference | Brian with the employer's pension adviser | scheduling.md section 19 rule 4 | Pension integration | open |
+| H-1195 | Build the export screens: choose a format, confirm a re-export, download the file, connect and disconnect Xero, and add each member's payroll reference on the pay profile | Brian | scheduling.md section 19 | Export screens | open |
+

@@ -1280,3 +1280,134 @@ Audit events carry ids only (never figures): `scheduling.pay_rule_set.created`, 
 - API: a run from approved time only; a draft timesheet blocks; override with a reason, never on
   one's own line; lock by a second person only; a correction shows the difference; verify
   reproduces; the member reads their own locked line.
+
+## 19. Payroll and pension exports (slice 76; SCHED-008; ADR-0013, ADR-0097)
+
+A locked pay run (section 18) leaves Harbour only when someone exports it, explicitly, in one of
+four ways: to Xero Payroll UK through its adapter, or as a file for Staffology, Sage or BrightPay.
+Harbour calculates nothing here. It sends the run's own figures, with the pension auto-enrolment
+flags, to the organisation's payroll provider. The provider is the organisation's own processor
+(ADR-0097; H-520), and the organisation runs payroll and pensions.
+
+### Schema (migration 0127)
+
+- `pay_profile.payroll_reference`: the organisation's own works number for the member in its
+  payroll, or the employee id the provider gives. Up to 40 characters, unique in the organisation.
+  It is the only way a line names the member in an export.
+- `payroll_connection`:
+  - `provider` (`xero_payroll_uk`);
+  - `external_organisation_id` (the provider's id for the organisation);
+  - `secret_ref`, the name of the Secret Manager secret holding the OAuth tokens (never a token);
+  - `status` (`connected`, `disconnected`);
+  - `connected_by`, `connected_at`, `disconnected_at`;
+  - the mutable columns.
+
+  There is at most one connected row per provider. Disconnecting is final; connecting again makes
+  a new row.
+- `payroll_export`, append-only:
+  - `run_id` and `calculation` (the run's calculation exported);
+  - `format` (`xero_payroll_uk`, `staffology_csv`, `sage_csv`, `brightpay_csv`) and
+    `format_version`;
+  - `line_count` and `content_sha256` (the SHA-256 of what was produced);
+  - `reexport` (another export of the same run's calculation came before) and `outcome`
+    (`generated`, `sent`, `failed`);
+  - `external_ref` (the provider's batch id, if any);
+  - `exported_by`, `exported_at`.
+
+  The file itself is never stored: it is made again, identically, from the locked run.
+
+### Rules
+
+1. **Only a locked run.** An export reads the run's lines for its current calculation and only
+   while the run is `locked`. The database refuses an export record for any other run, or for a
+   calculation that is not the run's.
+2. **Explicit, by a holder, with step-up.** Exporting needs `finance.payroll.export` for the whole
+   organisation (as section 18 rule 13), the right to read pay, and a sign-in within the step-up
+   window. Nothing exports on its own: the `scheduling.pay_run_locked` event is not consumed.
+3. **Every line needs a payroll reference.** A run with any member missing one is refused
+   (`payroll_reference_missing`). The refusal lists the members by id, so HR can add them.
+4. **What leaves.**
+   - Per line: the payroll reference, paid hours and each pay element in pence as pounds (basic,
+     premiums, sleep-ins, on-call, mileage, the minimum wage top-up, rolled-up holiday pay, SSP),
+     the total, and the holiday accrued.
+   - Pension: the auto-enrolment category (`eligible_jobholder`, `non_eligible_jobholder`,
+     `entitled_worker`) and qualifying earnings. These are flags for the organisation's own
+     pension process; Harbour makes no pension provider call.
+   - Never a name, date of birth, address, NI number, bank detail, health information or the
+     working.
+5. **Reproducible** (`buildPayrollExport`). The same locked run and format always give the same
+   content and the same SHA-256, in an order fixed by the payroll reference, so an export can be
+   checked later against its record.
+6. **Re-export is allowed, and flagged.** Exporting a run's calculation again needs
+   `confirmReexport: true` (409 `reexport_needs_confirming` otherwise). The record is marked
+   `reexport`, and the audit and the response say so, so payroll is not paid twice by mistake.
+7. **Formats** (`PAYROLL_FORMATS`). Each format has its own columns and version. The Staffology,
+   Sage and BrightPay layouts follow their published import guides as Harbour read them and are to
+   verify with each provider (H-1191). Each is UTF-8 CSV with a header row, and every cell is quoted
+   and escaped against spreadsheet formula injection.
+8. **Xero Payroll UK** (`XeroPayrollAdapter` behind `PayrollExportPort`).
+   - The adapter needs a connected `payroll_connection`; with none, Xero exports are refused
+     (`integration_not_connected`).
+   - It reads the tokens through the secret store by `secret_ref`, never from the database, and
+     sends one pay-run batch of timesheet and earnings lines.
+   - Only a contract-tested mock exists until the Xero developer app is registered and the provider
+     is assessed (H-518, H-1190). The live client is not built.
+   - The integration is off until an organisation connects it.
+9. **Connecting and disconnecting.** A holder of `finance.payroll.export` across the organisation,
+   with step-up, records a connection after the OAuth handshake. The handshake itself comes with
+   the live client (H-1190). Both are audited.
+
+### Permissions
+
+| Action | Permission |
+| --- | --- |
+| Export a locked run; list a run's exports | `finance.payroll.export` across the organisation (step-up for exporting), with `scheduling.pay.manage` or `scheduling.pay.approve` to read the run |
+| Connect or disconnect a payroll provider | `finance.payroll.export` across the organisation (step-up) |
+| Set a member's payroll reference | `scheduling.pay.manage` (the pay profile route) |
+
+`finance.payroll.export` becomes a step-up permission.
+
+### API
+
+- `GET /v1/pay-runs/{id}/exports` lists the run's exports.
+- `POST /v1/pay-runs/{id}/exports` takes `{ format, confirmReexport? }`. It returns the export
+  record. A file format also returns `{ fileName, contentType, content }`; a Xero export returns
+  the outcome and the provider's reference.
+- `GET /v1/payroll-connections`, `POST /v1/payroll-connections` and
+  `POST /v1/payroll-connections/{id}/disconnect`.
+
+### Audit
+
+Audit events carry ids only, never a figure or a reference:
+- `scheduling.payroll_export.created`, with the run, the format, the line count, `reexport` and
+  the outcome;
+- `.refused`, with the reason;
+- `scheduling.payroll_connection.connected` and `.disconnected`, with the provider.
+
+### Test list
+
+- Domain (`payroll-export.test.ts`, table-driven):
+  - each format's header and rows;
+  - pence as pounds, negative and zero;
+  - order by reference;
+  - the same input giving the same SHA-256;
+  - formula-injection escaping;
+  - the auto-enrolment flags;
+  - a missing reference refused.
+- Database (`payroll-export.test.ts`):
+  - cross-tenant denial;
+  - an export only of a locked run's current calculation;
+  - only holders of the permission across the organisation;
+  - append-only exports;
+  - one connected row per provider, with no token column;
+  - the payroll reference unique.
+- API (`payroll-export.test.ts`):
+  - the flow from a locked run to a file;
+  - step-up required;
+  - a draft run refused;
+  - a missing reference refused;
+  - a re-export needing confirmation and flagged;
+  - reproducibility (the same SHA-256 twice);
+  - Xero refused until connected, then sent through the mock with the right batch;
+  - another organisation's run not found;
+  - audit with ids only.

@@ -122,11 +122,23 @@ export const payProfile = pgTable(
     qualifyingWeekdays: integer("qualifying_weekdays").array().notNull().default(sql`'{}'`),
     sspAverageWeeklyEarningsPence: integer("ssp_average_weekly_earnings_pence"),
     statePensionAgeOn: date("state_pension_age_on"),
+    /**
+     * The organisation's own works number, or the payroll provider's employee id (scheduling.md
+     * section 19 rule 3; migration 0127): the only way an export names the member.
+     */
+    payrollReference: text("payroll_reference"),
     ...mutableColumns(),
   },
   (t) => [
     unique("pay_profile_tenant_id_id_key").on(t.tenantId, t.id),
     unique("pay_profile_member_key").on(t.tenantId, t.memberId),
+    uniqueIndex("pay_profile_payroll_reference_key")
+      .on(t.tenantId, t.payrollReference)
+      .where(sql`payroll_reference IS NOT NULL`),
+    check(
+      "pay_profile_payroll_reference",
+      sql`payroll_reference IS NULL OR payroll_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$'`,
+    ),
     staffRef("pay_profile_member_fk", t, t.memberId),
     check("pay_profile_frequency", sql`frequency IN (${sqlList(PAY_FREQUENCY_CODES)})`),
     check("pay_profile_employment", sql`employment IN (${sqlList(PAY_EMPLOYMENT_CODES)})`),

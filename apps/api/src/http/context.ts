@@ -43,6 +43,7 @@ import { endSsoSession, sessionFactorState, sessionSsoTenant } from "../auth/ses
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
+import type { XeroPayrollAdapter } from "../integrations/payroll/xero";
 import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
@@ -88,6 +89,8 @@ export interface Services {
   readonly txtLookup: TxtLookup;
   /** OpenID discovery when a connection is saved (ADR-0091). */
   readonly oidcDiscovery: OidcDiscovery;
+  /** Xero Payroll UK, or null when it is off (scheduling.md section 19 rule 8). */
+  readonly payrollXero: XeroPayrollAdapter | null;
   /** Feature flags through OpenFeature (catalogue, the organisation's rows, optional Flagsmith). */
   readonly flags: FlagService;
   readonly storage: DocumentStoragePort;

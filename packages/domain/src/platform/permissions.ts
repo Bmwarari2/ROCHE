@@ -336,7 +336,11 @@ export const PERMISSIONS = {
     stepUp: true,
   },
   "finance.reporting.read": { description: "Read location P&L and fee analytics" },
-  "finance.payroll.export": { description: "Export approved timesheets to payroll" },
+  "finance.payroll.export": {
+    description:
+      "Export a locked pay run to the organisation's payroll provider, and connect or disconnect the provider",
+    stepUp: true,
+  },
   // comms
   "comms.message.send": { description: "Send internal messages and announcements" },
   "comms.portal.family": { description: "Use the family portal for one person" },
