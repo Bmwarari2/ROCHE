@@ -75,6 +75,7 @@ import { policiesRouter } from "./routes/policies";
 import { qualityAuditsRouter } from "./routes/quality-audits";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
+import { rotaRouter } from "./routes/rota";
 import { roundsRouter } from "./routes/rounds";
 import { safeguardingRouter } from "./routes/safeguarding";
 import { sampleDataRouter } from "./routes/sample-data";
@@ -371,6 +372,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorBreachNoticesRouter);
   app.route("/", peopleDetailsRouter);
   app.route("/", schedulingDependencyRouter);
+  app.route("/", rotaRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

@@ -528,6 +528,7 @@ export * from "./quality";
 export * from "./quality-audits";
 export * from "./quality-framework";
 export * from "./records";
+export * from "./rota";
 export * from "./safeguarding";
 export * from "./safety";
 export * from "./scheduling";

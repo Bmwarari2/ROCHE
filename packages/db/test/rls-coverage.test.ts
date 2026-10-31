@@ -50,6 +50,8 @@ const APPEND_ONLY_TABLES = [
   "sub_processor_response",
   "competence_sign_off",
   "competence_withdrawal",
+  "rota_publication",
+  "roster_override",
   "policy_signature",
   "processor_breach_notice",
   "processor_breach_notice_ack",

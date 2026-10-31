@@ -6,6 +6,7 @@ export * from "./expiry";
 export * from "./rates";
 export * from "./registration";
 export * from "./right-to-work";
+export * from "./roster-checks";
 export * from "./rostering";
 export * from "./schedule3";
 export * from "./sponsor";
