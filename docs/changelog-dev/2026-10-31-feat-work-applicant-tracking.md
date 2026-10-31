@@ -47,10 +47,16 @@ Branch `feat/work-applicant-tracking`, stacked on `feat/work-staff-profile` (sli
 
 ## Tests
 
-- `packages/domain/src/workforce/recruitment.test.ts` (41), `packages/db/test/applicant-tracking.test.ts`
-  (10), `apps/api/test/recruitment.test.ts` (11); RLS coverage, definer ACLs, migration journal,
-  tenant export, seed, staff files and route gates re-run.
+- `packages/domain/src/workforce/recruitment.test.ts` (42), `packages/db/test/applicant-tracking.test.ts`
+  (11), `apps/api/test/recruitment.test.ts` (11); RLS coverage, definer ACLs, migration journal,
+  tenant export, seed, isolation (now pinning equality monitoring as unreadable), staff files and
+  route gates re-run; the full database suite (726) passes.
 
 ## Review rounds
 
-- None yet.
+- Self-review (security reviewer agent): equality monitoring forms are added only once the vacancy
+  has closed and before its counts are released (released once, `vacancy.equality_summarised_at`),
+  with a random id and no date; counts from 1 to 4 never leave the database function; a lone small
+  count takes the next smallest with it; interview panels must be members of staff; a lost race on
+  talent pool consent is a 409. Known gaps logged in workforce.md section 11 (staff-entered forms,
+  `record_version` copies of contact details, consent evidence).

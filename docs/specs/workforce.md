@@ -106,7 +106,7 @@ kept for a short period after an unsuccessful application (retention class
 | `application_event` | `application_id`, `from_stage`, `to_stage`, `reason`, `occurred_at` | Append-only: the stage history |
 | `interview` | `application_id`, `held_on`, `panel` (1 to 5 members of staff), `scores` (each values question 1 to 4), `notes`, `recommendation` (`proceed`, `do_not_proceed`) | Append-only; a later interview is a new row |
 | `job_offer` | `application_id` (one each), `made_on`, `proposed_start_on`, `conditions` (the Schedule 3 items the role needs, `requiredItems`), `status` (`made`, `accepted`, `declined`, `withdrawn`), `responded_on`, `staff_profile_id` | Mutable; accepted only with the member of staff the profile is for |
-| `equality_monitoring` | `vacancy_id`, `answers` (age band, sex, gender identity matches sex registered at birth, ethnic group, disability, religion, sexual orientation; each with `prefer_not_to_say`), `submitted_on` | Insert only; never linked to an applicant or application; nobody reads a row, only the counts (rule 12) |
+| `equality_monitoring` | `vacancy_id`, `answers` (age band, sex, gender identity matches sex registered at birth, ethnic group, disability, religion, sexual orientation; each with `prefer_not_to_say`); a random id and no date | Insert only, once the vacancy has closed and before its counts are released (`vacancy.equality_summarised_at`); never linked to an applicant or application; nobody reads a row, only the counts (rule 12) |
 
 ## 3. Permissions
 
@@ -243,10 +243,15 @@ whatever the clock change.
     creates their staff profile; declining or withdrawing closes the application. Closed stages
     never reopen; a new application is made instead.
 12. **Equality monitoring** (`equalityMonitoringSummary`). Special category data, kept apart from
-    the application and reported only as counts for a vacancy, each count below
-    `EQUALITY_MONITORING_MIN_COUNT` (5) shown as "fewer than 5", and a whole question withheld
-    when fewer than that many answered it, so no applicant can be picked out. Answers are
-    optional, and `prefer_not_to_say` is always offered.
+    the application (a random id, no date) and reported only as counts for a vacancy. Forms are
+    added together once applications have closed, so their timing says nothing about which
+    application each came with; the counts are released once the vacancy has closed, and no form
+    is added after, so counts read before and after a form can never be compared. A count below
+    `EQUALITY_MONITORING_MIN_COUNT` (5) never leaves the database (`app.equality_monitoring_counts`
+    returns it as null) and reads "fewer than 5"; a lone small count in a question takes the next
+    smallest shown count with it (complementary suppression); a question with no count at the
+    minimum, or a vacancy with fewer forms, shows nothing. Answers are optional, and
+    `prefer_not_to_say` is always offered.
 13. **Keeping applicants' data** (`applicantRetainUntil`). While any application is open the
     applicant is kept. When the last one closes unsuccessfully, the applicant is kept until the
     closing date plus the `applicant.unsuccessful` period (retention.md), or the end of the
@@ -445,6 +450,9 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 
 | Gap | Effect now | To close |
 | --- | --- | --- |
+| Equality monitoring forms are entered by staff (slice 23) | Someone with `workforce.recruitment.manage` could add made-up forms before the counts are released, to lift a small count above the minimum; each form added is audited | Applicants submit their own form through a one-time link with their application (slice 58), and staff entry is withdrawn |
+| An applicant's earlier versions in `record_version` keep their names and contact details (slice 23) | Redaction after `retain_until`, and withdrawing talent pool consent, leave those copies; no job redacts applicants yet | The retention sweep redacts the applicant and their versions together (with the retention engine's destruction batches) |
+| Talent pool consent is recorded by staff with no evidence of the applicant's agreement (slice 23) | The consent's source is not kept | The applicant gives it themselves through the same link (slice 58), or the form records how it was given |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` does not read `required_permission` | Organisation-wide roles see them; HR's role (scope none) does not see them in `GET /v1/tasks` | Task visibility for holders of the task's required permission (slice 17, if small) |
 | HR-only documents carry retention class `staff_file`, which has no rule of its own; the tenant's choice of `staff_file.*` and the leaving-date trigger are not in the retention engine; right to work copies' `record_closed` trigger is not handled | Nothing destroys HR-only documents or right to work copies yet | The retention engine's employment triggers (with H-575) |
 | Employment gap explanations (free text) are in `compliance_item.detail` | Readable by holders of `workforce.staff_file.read`, not HR only | Move to an HR-only field or document (slice 56, with the screens) |

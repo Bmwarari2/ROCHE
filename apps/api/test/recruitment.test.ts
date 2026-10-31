@@ -343,15 +343,25 @@ describe("rule 13: how long an unsuccessful applicant is kept", () => {
 });
 
 describe("rule 12: equality monitoring counted, never read", () => {
-  it("adds anonymous forms and reports suppressed counts", async () => {
+  it("adds forms only once the vacancy closes, and releases suppressed counts once", async () => {
     const path = `/v1/workforce/vacancies/${vacancyId}/equality-monitoring`;
+    // While applications are open, no form is added and no count is released.
+    expect(
+      (await as("manager", path, { method: "POST", body: { answers: { sex: "female" } } })).status,
+    ).toBe(422);
+    expect((await as("manager", path)).status).toBe(422);
+    const [vac] = await sql<{ version: number }>("SELECT version FROM vacancy WHERE id = $1", [
+      vacancyId,
+    ]);
+    const closed = await as("manager", `/v1/workforce/vacancies/${vacancyId}`, {
+      method: "PATCH",
+      body: { status: "closed", expectedVersion: vac?.version },
+    });
+    expect(closed.status).toBe(200);
     const forms = [
-      { sex: "female", disability: "no" },
-      { sex: "female", disability: "no" },
-      { sex: "female", disability: "no" },
-      { sex: "female", disability: "prefer_not_to_say" },
-      { sex: "female" },
-      { sex: "male" },
+      ...Array.from({ length: 5 }, () => ({ sex: "female", disability: "no" })),
+      ...Array.from({ length: 5 }, () => ({ sex: "male" })),
+      { sex: "female", disability: "yes" },
     ];
     for (const answers of forms) {
       expect((await as("manager", path, { method: "POST", body: { answers } })).status).toBe(204);
@@ -364,13 +374,21 @@ describe("rule 12: equality monitoring counted, never read", () => {
       minimumShown: number;
       questions: { question: string; counts: Record<string, number | string> | null }[];
     }>(await as("manager", path));
-    expect(summary.forms).toBe(6);
-    expect(summary.questions.find((q) => q.question === "sex")?.counts).toMatchObject({
-      female: 5,
-      male: "fewer_than_min",
+    expect(summary.forms).toBe(11);
+    expect(summary.questions.find((q) => q.question === "sex")?.counts).toEqual({
+      female: 6,
+      male: 5,
+      prefer_not_to_say: 0,
     });
-    // Four answered the disability question: under the minimum, so nothing about it is shown.
-    expect(summary.questions.find((q) => q.question === "disability")?.counts).toBeNull();
+    // One small disability count (yes, 1): the next smallest (no, 5) is hidden with it.
+    expect(summary.questions.find((q) => q.question === "disability")?.counts).toMatchObject({
+      yes: "fewer_than_min",
+      no: "fewer_than_min",
+    });
+    // Released once: no form is added after, so counts before and after can never be compared.
+    expect(
+      (await as("manager", path, { method: "POST", body: { answers: { sex: "female" } } })).status,
+    ).toBe(422);
     expect((await as("carer", path)).status).toBe(403);
   });
 });

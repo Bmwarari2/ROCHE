@@ -115,6 +115,11 @@ export const vacancy = pgTable(
     opensOn: date("opens_on").notNull(),
     closesOn: date("closes_on"),
     status: text("status").notNull().default("draft"),
+    /**
+     * When the equality monitoring counts were first released (rule 12): no form is added after
+     * it, so counts read before and after a form can never be compared.
+     */
+    equalitySummarisedAt: timestamp("equality_summarised_at", { withTimezone: true }),
     ...mutableColumns(),
   },
   (t) => [
@@ -281,8 +286,8 @@ export const equalityMonitoring = pgTable(
     vacancyId: uuid("vacancy_id").notNull(),
     /** `{ question: answer }`, every answer optional; never linked to an applicant. */
     answers: jsonb("answers").notNull(),
-    /** The UK date only: no time, so a form cannot be matched to an application by when it came. */
-    submittedOn: date("submitted_on").notNull(),
+    // No date or time: forms are added after the vacancy closes, and a date would only help match
+    // a form to an application (rule 12).
   },
   (t) => [
     ref("equality_monitoring_vacancy_fk", t, t.vacancyId, vacancy),

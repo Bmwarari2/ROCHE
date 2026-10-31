@@ -17265,7 +17265,7 @@ export interface paths {
     };
     /**
      * Equality monitoring counts for a vacancy
-     * @description workforce.recruitment.manage. Counts per question and answer; any count under the minimum reads fewer_than_min, and a question fewer people answered than that is withheld, so no applicant can be picked out (rule 12). Audited.
+     * @description workforce.recruitment.manage, once the vacancy has closed. Releases the counts, after which no form is added. Counts per question and answer; a count under the minimum reads fewer_than_min (the database never returns it), a lone small count takes the next smallest with it, and a question with no count at the minimum is withheld, so no applicant can be picked out (rule 12). Audited.
      */
     get: {
       parameters: {
@@ -17328,7 +17328,7 @@ export interface paths {
     put?: never;
     /**
      * Add an anonymous equality monitoring form
-     * @description workforce.recruitment.manage. Every answer optional, prefer_not_to_say always accepted. Kept with the vacancy and the UK date only, never linked to an applicant; nobody reads a form, only the counts. Audited without the answers.
+     * @description workforce.recruitment.manage. Once the vacancy has closed and before its counts are released: forms are added together, not as applications arrive. Every answer optional, prefer_not_to_say always accepted. Kept with the vacancy only (no date, a random id), never linked to an applicant; nobody reads a form, only the counts. Audited without the answers.
      */
     post: {
       parameters: {

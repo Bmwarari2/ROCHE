@@ -686,7 +686,8 @@ of the census for England and Wales (H-733).
 | `job_offer.conditions` | Schedule 3 | JSON array of `compliance_item.kind` codes | Listed as outstanding on the staff file |
 | `job_offer.status` | Harbour | `made`, `accepted`, `declined`, `withdrawn` | |
 | `equality_monitoring.answers` | Equality Act 2010 protected characteristics; census for England and Wales categories | `age_band` (`16_24` to `65_plus`), `sex`, `gender_same_as_registered_at_birth`, `ethnic_group` (`asian`, `black`, `mixed`, `white`, `other`), `disability`, `religion`, `sexual_orientation`; each also `prefer_not_to_say`; all optional | Special category; counts only, under 5 suppressed (H-731, H-733) |
-| `equality_monitoring.id`, `submitted_on` | Harbour | Random UUID (never time-ordered); `YYYY-MM-DD` | No link to the applicant |
+| `equality_monitoring.id` | Harbour | Random UUID (never time-ordered); no date is kept | No link to the applicant |
+| `vacancy.equality_summarised_at` | Harbour | ISO 8601 UTC | When the counts were first released; no form after |
 
 ## Platform operational tables (not part of the MODS export)
 

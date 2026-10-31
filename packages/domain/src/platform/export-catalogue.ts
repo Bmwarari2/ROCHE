@@ -4415,6 +4415,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       opens_on: { description: "The UK date applications open." },
       closes_on: { description: "The UK date applications close, if set." },
       status: { description: "draft, open, closed, filled or withdrawn." },
+      equality_summarised_at: {
+        description:
+          "When the equality monitoring counts were first released; no form is added after.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -4551,7 +4555,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.equality_monitoring": {
     context: "workforce",
     description:
-      "Anonymous equality monitoring forms for a vacancy (workforce.md rule 12; special category data): the answers and the UK date only, never linked to an applicant. Read in the product only as suppressed counts; exported to the organisation as its own data (H-734).",
+      "Anonymous equality monitoring forms for a vacancy (workforce.md rule 12; special category data): the answers only (no date, a random id), never linked to an applicant. Read in the product only as suppressed counts; exported to the organisation as its own data (H-734).",
     treatment: "tenant_rows",
     retention: "applicant.unsuccessful",
     personal: true,
@@ -4560,7 +4564,6 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       tenant_id: "exported",
       vacancy_id: { description: "The vacancy (vacancy.id)." },
       answers: { description: "The answers given, by question (JSON); every answer optional." },
-      submitted_on: { description: "The UK date the form was added." },
     },
   },
   "public.statement_of_purpose_version": {

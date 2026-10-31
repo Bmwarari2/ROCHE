@@ -284,32 +284,51 @@ export type SuppressedCount = number | "fewer_than_min";
 
 export interface EqualityQuestionSummary {
   readonly question: EqualityQuestion;
-  /** Null when fewer than the minimum answered the question: nothing about it is shown. */
+  /** Null when no answer reached the minimum, or there were too few forms: nothing is shown. */
   readonly counts: Readonly<Record<string, SuppressedCount>> | null;
 }
 
 /**
- * Counts per answer for each question, with small numbers suppressed: a count under the minimum
- * reads as "fewer than", and a question fewer people answered than the minimum is withheld whole
- * (rule 12; DPIA risk R29).
+ * Counts per answer for each question, with small numbers suppressed (rule 12; DPIA risk R29). A
+ * count of 1 up to the minimum arrives as null (the database suppresses it before anyone sees it)
+ * or as a number under the minimum, and reads as "fewer than". When a question has exactly one
+ * such cell, its smallest shown non-zero cell is suppressed too, so the small one cannot be worked
+ * out by subtracting the others from the number of forms (complementary suppression). A question
+ * with no cell at or above the minimum, or a vacancy with fewer forms than that, shows nothing.
  */
 export function equalityMonitoringSummary(
-  counts: readonly { readonly question: string; readonly answer: string; readonly n: number }[],
+  counts: readonly {
+    readonly question: string;
+    readonly answer: string;
+    readonly n: number | null;
+  }[],
   min: number = EQUALITY_MONITORING_MIN_COUNT,
 ): { readonly forms: SuppressedCount; readonly questions: readonly EqualityQuestionSummary[] } {
+  const small = (n: number | null) => n === null || (n > 0 && n < min);
+  const formsRow = counts.find((c) => c.question === "__forms");
+  const forms: SuppressedCount =
+    formsRow === undefined ? 0 : small(formsRow.n) ? "fewer_than_min" : (formsRow.n ?? 0);
   const questions = (Object.keys(EQUALITY_QUESTIONS) as EqualityQuestion[]).map((question) => {
+    if (forms === "fewer_than_min") return { question, counts: null };
     const rows = counts.filter((c) => c.question === question);
-    const answered = rows.reduce((sum, r) => sum + r.n, 0);
-    if (answered < min) return { question, counts: null };
-    const out: Record<string, SuppressedCount> = {};
-    for (const answer of [...EQUALITY_QUESTIONS[question], PREFER_NOT_TO_SAY]) {
-      const n = rows.find((r) => r.answer === answer)?.n ?? 0;
-      out[answer] = n > 0 && n < min ? "fewer_than_min" : n;
+    const answers = [...EQUALITY_QUESTIONS[question], PREFER_NOT_TO_SAY];
+    const values = answers.map((answer) => {
+      const row = rows.find((r) => r.answer === answer);
+      return { answer, n: row === undefined ? 0 : row.n };
+    });
+    if (!values.some((v) => v.n !== null && v.n >= min)) return { question, counts: null };
+    const hidden = new Set(values.filter((v) => small(v.n)).map((v) => v.answer));
+    if (hidden.size === 1) {
+      const next = values
+        .filter((v) => !hidden.has(v.answer) && v.n !== null && v.n > 0)
+        .sort((a, b) => (a.n ?? 0) - (b.n ?? 0))[0];
+      if (next) hidden.add(next.answer);
     }
+    const out: Record<string, SuppressedCount> = {};
+    for (const v of values) out[v.answer] = hidden.has(v.answer) ? "fewer_than_min" : (v.n ?? 0);
     return { question, counts: out };
   });
-  const forms = counts.find((c) => c.question === "__forms")?.n ?? 0;
-  return { forms: forms > 0 && forms < min ? "fewer_than_min" : forms, questions };
+  return { forms, questions };
 }
 
 // ------------------------------------------------------------------------------------------------

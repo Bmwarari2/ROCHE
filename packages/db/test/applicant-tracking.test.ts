@@ -103,14 +103,18 @@ beforeAll(async () => {
        VALUES ($1, $2, '2026-10-20', ARRAY[$3::uuid], '{"q1":3,"q2":4}'::jsonb, 'proceed')`,
       [INTERVIEW, APPLICATION, a.manager],
     );
+    // Forms are added once applications have closed (rule 12).
+    await c.query("UPDATE vacancy SET status = 'closed' WHERE id = $1", [VACANCY]);
     for (const answers of [
       { sex: "female", disability: "no" },
+      { sex: "female" },
+      { sex: "female" },
+      { sex: "female" },
       { sex: "female" },
       { sex: "male", disability: "prefer_not_to_say" },
     ]) {
       await c.query(
-        `INSERT INTO equality_monitoring (vacancy_id, answers, submitted_on)
-         VALUES ($1, $2::jsonb, '2026-10-21')`,
+        `INSERT INTO equality_monitoring (vacancy_id, answers) VALUES ($1, $2::jsonb)`,
         [VACANCY, JSON.stringify(answers)],
       );
     }
@@ -194,22 +198,52 @@ describe("rule 12: equality monitoring is counted, never read", () => {
     });
   });
 
+  it("takes forms only after applications close and before the counts are released", async () => {
+    await inContext(app(), ctx(TENANT_B, b.manager, "none"), async (c) => {
+      // Another organisation's vacancy B is open: no form, and no counts yet.
+      await expect(
+        c.query(`INSERT INTO equality_monitoring (vacancy_id, answers) VALUES ($1, '{}'::jsonb)`, [
+          B_VACANCY,
+        ]),
+      ).rejects.toThrow(/row-level security/);
+    });
+    await inContext(app(), ctx(TENANT_B, b.manager, "none"), async (c) => {
+      await expect(
+        c.query("SELECT * FROM app.equality_monitoring_counts($1)", [B_VACANCY]),
+      ).rejects.toThrow(/once the vacancy has closed/);
+    });
+    await inContext(app(), ctx(TENANT_B, b.manager, "none"), async (c) => {
+      await c.query(
+        "UPDATE vacancy SET status = 'closed', equality_summarised_at = now() WHERE id = $1",
+        [B_VACANCY],
+      );
+    });
+    await inContext(app(), ctx(TENANT_B, b.manager, "none"), async (c) => {
+      await expect(
+        c.query(`INSERT INTO equality_monitoring (vacancy_id, answers) VALUES ($1, '{}'::jsonb)`, [
+          B_VACANCY,
+        ]),
+      ).rejects.toThrow(/row-level security/);
+    });
+  });
+
   it("counts a vacancy's answers for HR, and for nobody else", async () => {
     const rows = await asHr((c) =>
-      c.query<{ question: string; answer: string; n: string }>(
+      c.query<{ question: string; answer: string; n: string | null }>(
         "SELECT question, answer, n FROM app.equality_monitoring_counts($1) ORDER BY question, answer",
         [VACANCY],
       ),
     );
     const counts = Object.fromEntries(
-      rows.rows.map((r) => [`${r.question}:${r.answer}`, Number(r.n)]),
+      rows.rows.map((r) => [`${r.question}:${r.answer}`, r.n === null ? Number.NaN : Number(r.n)]),
     );
-    expect(counts).toMatchObject({
-      "__forms:": 3,
-      "sex:female": 2,
-      "sex:male": 1,
-      "disability:no": 1,
-      "disability:prefer_not_to_say": 1,
+    // Counts from 1 to 4 never leave the database: they come back as null.
+    expect(counts).toEqual({
+      "__forms:": 6,
+      "sex:female": 5,
+      "sex:male": Number.NaN,
+      "disability:no": Number.NaN,
+      "disability:prefer_not_to_say": Number.NaN,
     });
     await asCarer(async (c) => {
       await expect(

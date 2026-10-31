@@ -214,28 +214,55 @@ describe("interviews and offers", () => {
 });
 
 describe("equalityMonitoringSummary (rule 12; DPIA risk R29)", () => {
-  it("shows counts, suppresses those under 5 and withholds a question too few answered", () => {
+  it("shows counts, suppresses small ones and one more beside a lone small one", () => {
     const summary = equalityMonitoringSummary([
-      { question: "__forms", answer: "", n: 12 },
+      { question: "__forms", answer: "", n: 14 },
       { question: "sex", answer: "female", n: 8 },
-      { question: "sex", answer: "male", n: 3 },
-      { question: "sex", answer: PREFER_NOT_TO_SAY, n: 1 },
-      { question: "disability", answer: "yes", n: 2 },
-      { question: "disability", answer: "no", n: 1 },
+      { question: "sex", answer: "male", n: 5 },
+      // The database sends a count from 1 to 4 as null.
+      { question: "sex", answer: PREFER_NOT_TO_SAY, n: null },
+      { question: "disability", answer: "yes", n: null },
+      { question: "disability", answer: "no", n: null },
     ]);
-    expect(summary.forms).toBe(12);
-    const sex = summary.questions.find((q) => q.question === "sex");
-    expect(sex?.counts).toEqual({
+    expect(summary.forms).toBe(14);
+    // One small cell: the smallest shown one (male, 5) is suppressed too, so the small one cannot
+    // be worked out from the number of forms.
+    expect(summary.questions.find((q) => q.question === "sex")?.counts).toEqual({
       female: 8,
       male: "fewer_than_min",
       [PREFER_NOT_TO_SAY]: "fewer_than_min",
     });
-    // Three people answered the disability question: nothing about it is shown.
+    // No disability answer reached 5: nothing about the question is shown.
     expect(summary.questions.find((q) => q.question === "disability")?.counts).toBeNull();
     expect(summary.questions.map((q) => q.question)).toEqual(Object.keys(EQUALITY_QUESTIONS));
   });
 
-  it("suppresses the number of forms itself when under 5", () => {
+  it("leaves two or more small cells as they are, and shows zeros", () => {
+    const sex = equalityMonitoringSummary([
+      { question: "__forms", answer: "", n: 9 },
+      { question: "sex", answer: "female", n: 6 },
+      { question: "sex", answer: "male", n: 2 },
+      { question: "sex", answer: PREFER_NOT_TO_SAY, n: 1 },
+    ]).questions.find((q) => q.question === "sex");
+    expect(sex?.counts).toEqual({
+      female: 6,
+      male: "fewer_than_min",
+      [PREFER_NOT_TO_SAY]: "fewer_than_min",
+    });
+    const none = equalityMonitoringSummary([
+      { question: "__forms", answer: "", n: 6 },
+      { question: "sex", answer: "female", n: 6 },
+    ]).questions.find((q) => q.question === "sex");
+    expect(none?.counts).toEqual({ female: 6, male: 0, [PREFER_NOT_TO_SAY]: 0 });
+  });
+
+  it("shows nothing for a vacancy with fewer than 5 forms", () => {
+    const few = equalityMonitoringSummary([
+      { question: "__forms", answer: "", n: null },
+      { question: "sex", answer: "female", n: 5 },
+    ]);
+    expect(few.forms).toBe("fewer_than_min");
+    expect(few.questions.every((q) => q.counts === null)).toBe(true);
     expect(equalityMonitoringSummary([{ question: "__forms", answer: "", n: 2 }]).forms).toBe(
       "fewer_than_min",
     );

@@ -31,6 +31,7 @@ import {
   retentionClass,
   staffProfile,
   type Transaction,
+  tenantUser,
   vacancy,
 } from "@harbour/db";
 import {
@@ -912,6 +913,19 @@ export const recruitmentRouter = createRouter()
             "held_in_future",
           );
         }
+        const members = await tx
+          .select({ id: tenantUser.id })
+          .from(tenantUser)
+          .where(inArray(tenantUser.id, body.panel));
+        if (new Set(members.map((m) => m.id)).size !== new Set(body.panel).size) {
+          throw refused(
+            problems.invalid("Choose the panel from this organisation's members of staff."),
+            A.interview,
+            "application",
+            id,
+            "panel_not_members",
+          );
+        }
         const loaded = await loadApplication(tx, A.interview, id);
         await moveApplication(
           c,
@@ -1140,7 +1154,13 @@ export const recruitmentRouter = createRouter()
               ? { talentPoolUntil: until.toISOString().slice(0, 10), talentPoolConsentedAt: now }
               : { talentPoolUntil: null, talentPoolConsentedAt: null },
           )
-          .where(and(eq(applicant.id, id), eq(applicant.version, body.expectedVersion)));
+          .where(and(eq(applicant.id, id), eq(applicant.version, body.expectedVersion)))
+          .returning({ id: applicant.id })
+          .then((rows) => {
+            if (rows.length === 0) {
+              throw refused(problems.conflict(), A.talentPool, "applicant", id, "version_conflict");
+            }
+          });
         await refreshRetainUntil(tx, id);
         const [after] = await tx.select().from(applicant).where(eq(applicant.id, id));
         await audit(c, tx, access, {
@@ -1164,7 +1184,7 @@ export const recruitmentRouter = createRouter()
       tags: ["workforce"],
       summary: "Add an anonymous equality monitoring form",
       description:
-        "workforce.recruitment.manage. Every answer optional, prefer_not_to_say always accepted. Kept with the vacancy and the UK date only, never linked to an applicant; nobody reads a form, only the counts. Audited without the answers.",
+        "workforce.recruitment.manage. Once the vacancy has closed and before its counts are released: forms are added together, not as applications arrive. Every answer optional, prefer_not_to_say always accepted. Kept with the vacancy only (no date, a random id), never linked to an applicant; nobody reads a form, only the counts. Audited without the answers.",
       security,
       request: {
         params: IdParam,
@@ -1180,12 +1200,25 @@ export const recruitmentRouter = createRouter()
         throw problems.invalid("Answer only the questions asked, with the answers offered.");
       }
       await change(c, access, A.monitoringAdded, async (tx) => {
-        const [vac] = await tx.select({ id: vacancy.id }).from(vacancy).where(eq(vacancy.id, id));
+        const [vac] = await tx.select().from(vacancy).where(eq(vacancy.id, id));
         if (!vac) throw refused(problems.notFound(), A.monitoringAdded, "vacancy", id, "not_found");
+        // Rule 12: forms are added together once applications have closed (so their timing says
+        // nothing about which application each came with), and never after the counts are out.
+        if (vac.status === "draft" || vac.status === "open" || vac.equalitySummarisedAt) {
+          throw refused(
+            problems.invalid(
+              vac.equalitySummarisedAt
+                ? "The counts for this vacancy are out: no more forms can be added."
+                : "Add equality monitoring forms once the vacancy has closed.",
+            ),
+            A.monitoringAdded,
+            "vacancy",
+            id,
+            vac.equalitySummarisedAt ? "already_summarised" : "vacancy_open",
+          );
+        }
         // No RETURNING: the application role may add a form but never read one back.
-        await tx
-          .insert(equalityMonitoring)
-          .values({ vacancyId: id, answers: body.answers, submittedOn: today() });
+        await tx.insert(equalityMonitoring).values({ vacancyId: id, answers: body.answers });
         await audit(c, tx, access, {
           action: A.monitoringAdded,
           resourceType: "vacancy",
@@ -1202,7 +1235,7 @@ export const recruitmentRouter = createRouter()
       tags: ["workforce"],
       summary: "Equality monitoring counts for a vacancy",
       description:
-        "workforce.recruitment.manage. Counts per question and answer; any count under the minimum reads fewer_than_min, and a question fewer people answered than that is withheld, so no applicant can be picked out (rule 12). Audited.",
+        "workforce.recruitment.manage, once the vacancy has closed. Releases the counts, after which no form is added. Counts per question and answer; a count under the minimum reads fewer_than_min (the database never returns it), a lone small count takes the next smallest with it, and a question with no count at the minimum is withheld, so no applicant can be picked out (rule 12). Audited.",
       security,
       request: { params: IdParam },
       responses: {
@@ -1215,9 +1248,19 @@ export const recruitmentRouter = createRouter()
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
       const summary = await withTenant(c, async (tx) => {
-        const [vac] = await tx.select({ id: vacancy.id }).from(vacancy).where(eq(vacancy.id, id));
+        const [vac] = await tx.select().from(vacancy).where(eq(vacancy.id, id));
         if (!vac) throw problems.notFound();
-        const { rows } = await tx.execute<{ question: string; answer: string; n: string }>(
+        if (vac.status === "draft" || vac.status === "open") {
+          throw problems.invalid("The counts are released once the vacancy has closed.");
+        }
+        // Released once: no form is added after this (rule 12).
+        if (!vac.equalitySummarisedAt) {
+          await tx
+            .update(vacancy)
+            .set({ equalitySummarisedAt: new Date() })
+            .where(eq(vacancy.id, id));
+        }
+        const { rows } = await tx.execute<{ question: string; answer: string; n: string | null }>(
           sql`SELECT question, answer, n FROM app.equality_monitoring_counts(${id}::uuid)`,
         );
         await audit(c, tx, access, {
@@ -1226,7 +1269,11 @@ export const recruitmentRouter = createRouter()
           resourceId: id,
         });
         return equalityMonitoringSummary(
-          rows.map((r) => ({ question: r.question, answer: r.answer, n: Number(r.n) })),
+          rows.map((r) => ({
+            question: r.question,
+            answer: r.answer,
+            n: r.n === null ? null : Number(r.n),
+          })),
         );
       });
       return c.json(

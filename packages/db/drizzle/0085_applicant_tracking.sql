@@ -63,7 +63,6 @@ CREATE TABLE "equality_monitoring" (
 	"tenant_id" uuid DEFAULT app.current_tenant_id() NOT NULL,
 	"vacancy_id" uuid NOT NULL,
 	"answers" jsonb NOT NULL,
-	"submitted_on" date NOT NULL,
 	CONSTRAINT "equality_monitoring_answers" CHECK (jsonb_typeof(answers) = 'object')
 );
 --> statement-breakpoint
@@ -141,6 +140,7 @@ CREATE TABLE "vacancy" (
 	"opens_on" date NOT NULL,
 	"closes_on" date,
 	"status" text DEFAULT 'draft' NOT NULL,
+	"equality_summarised_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -165,7 +165,8 @@ ALTER TABLE "vacancy" ADD CONSTRAINT "vacancy_template_fk" FOREIGN KEY ("tenant_
 ALTER TABLE "vacancy" ADD CONSTRAINT "vacancy_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "applicant_email_idx" ON "applicant" USING btree ("tenant_id","email");--> statement-breakpoint
 CREATE INDEX "application_event_application_idx" ON "application_event" USING btree ("tenant_id","application_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "equality_monitoring_vacancy_idx" ON "equality_monitoring" USING btree ("tenant_id","vacancy_id");--> statement-breakpoint
+CREATE INDEX "equality_monitoring_vacancy_idx" ON "equality_monitoring" USING btree ("tenant_id","vacancy_id");
+--> statement-breakpoint
 
 -- Applicant tracking (slice 23; workforce.md sections 2b, 3 and rules 11 to 13; WORK-001): the
 -- ADR-0002 patterns. Read and written only by holders of workforce.recruitment.manage, held
@@ -211,9 +212,16 @@ $$;
 --> statement-breakpoint
 
 -- Equality monitoring forms are added by a holder of the permission; nobody reads one.
+-- Forms are added only once applications have closed and before the counts are first released
+-- (rule 12): not one at a time as applications arrive, which would let the audit trail's timing
+-- match a form to an application, and never after the counts were read, which would let counts
+-- read before and after a form give its answers away.
 CREATE POLICY equality_monitoring_add ON public.equality_monitoring AS RESTRICTIVE FOR INSERT
   TO harbour_app
-  WITH CHECK (app.holds_staff_permission('workforce.recruitment.manage'));
+  WITH CHECK (app.holds_staff_permission('workforce.recruitment.manage')
+    AND EXISTS (SELECT 1 FROM public.vacancy v
+                WHERE v.id = vacancy_id AND v.status <> 'open' AND v.status <> 'draft'
+                  AND v.equality_summarised_at IS NULL));
 --> statement-breakpoint
 CREATE POLICY equality_monitoring_unread ON public.equality_monitoring AS RESTRICTIVE FOR SELECT
   TO harbour_app USING (false);
@@ -275,8 +283,11 @@ REVOKE SELECT, UPDATE, DELETE, TRUNCATE ON public.equality_monitoring FROM harbo
 
 -- The counts of one vacancy's equality monitoring answers, per question and answer, with the
 -- number of forms as question '__forms'. Only for a holder of workforce.recruitment.manage in the
--- session's organisation; the API suppresses small counts before anyone sees them (rule 12).
--- Runs as its owner to read rows nobody else may; the tenant policy still applies.
+-- session's organisation, and only once the vacancy is no longer open. A count from 1 to 4 comes
+-- back as NULL ("fewer than 5", EQUALITY_MONITORING_MIN_COUNT in packages/domain, kept in step by
+-- test/applicant-tracking.test.ts), so no caller ever sees a small number; the API suppresses
+-- further (complementary cells, rule 12). Runs as its owner to read rows nobody else may; the
+-- tenant policy still applies.
 CREATE OR REPLACE FUNCTION app.equality_monitoring_counts(p_vacancy_id uuid)
 RETURNS TABLE (question text, answer text, n bigint)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
@@ -285,15 +296,24 @@ BEGIN
     RAISE EXCEPTION 'Equality monitoring counts need workforce.recruitment.manage'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
+  IF EXISTS (SELECT 1 FROM public.vacancy v
+             WHERE v.tenant_id = app.current_tenant_id() AND v.id = p_vacancy_id
+               AND v.status IN ('draft', 'open')) THEN
+    RAISE EXCEPTION 'Equality monitoring counts are released once the vacancy has closed'
+      USING ERRCODE = 'object_not_in_prerequisite_state';
+  END IF;
   RETURN QUERY
-    SELECT '__forms'::text, ''::text, count(*)
-      FROM public.equality_monitoring m
-     WHERE m.tenant_id = app.current_tenant_id() AND m.vacancy_id = p_vacancy_id
-    UNION ALL
-    SELECT a.key, a.value, count(*)
-      FROM public.equality_monitoring m, jsonb_each_text(m.answers) a
-     WHERE m.tenant_id = app.current_tenant_id() AND m.vacancy_id = p_vacancy_id
-     GROUP BY a.key, a.value;
+    SELECT q.question, q.answer, CASE WHEN q.n = 0 OR q.n >= 5 THEN q.n END
+      FROM (
+        SELECT '__forms'::text AS question, ''::text AS answer, count(*) AS n
+          FROM public.equality_monitoring m
+         WHERE m.tenant_id = app.current_tenant_id() AND m.vacancy_id = p_vacancy_id
+        UNION ALL
+        SELECT a.key, a.value, count(*)
+          FROM public.equality_monitoring m, jsonb_each_text(m.answers) a
+         WHERE m.tenant_id = app.current_tenant_id() AND m.vacancy_id = p_vacancy_id
+         GROUP BY a.key, a.value
+      ) q;
 END
 $$;
 --> statement-breakpoint
