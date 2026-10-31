@@ -138,6 +138,10 @@ describe("the round view (care.md rule 8; CARE-013)", () => {
       `/people/${ADA}`,
     );
     expect(recordHref({ kind: "review", evidenceType: null, personId: null })).toBeNull();
+    // hazard HZ-020: a DoLS expiry reminder opens the person's DoLS register.
+    expect(recordHref({ kind: "care.dols_expiry", evidenceType: null, personId: ADA })).toBe(
+      `/people/${ADA}/dols`,
+    );
   });
 
   it("hazard HZ-003 reads the round again when a task's state can next change, or within 5 minutes", () => {
