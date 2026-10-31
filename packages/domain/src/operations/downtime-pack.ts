@@ -226,6 +226,11 @@ export interface DowntimePersonInput {
   readonly givenName: string;
   readonly familyName: string;
   readonly preferredName: string | null;
+  /**
+   * An invented sample person (platform-completions.md rule 29; HZ-072): their page says so, so
+   * practice data on paper is never taken for a real person.
+   */
+  readonly sample?: boolean;
   /** yyyy-mm-dd */
   readonly dateOfBirth: string | null;
   readonly nhsNumber: string | null;
@@ -336,6 +341,8 @@ export interface DowntimePersonPage {
   readonly personId: string;
   /** "Example, Ada (Addie)": family name first, so the printed pack reads like a register. */
   readonly displayName: string;
+  /** An invented sample person: the printed page says "Sample" beside the name (HZ-072). */
+  readonly sample: boolean;
   readonly dateOfBirth: string | null;
   readonly nhsNumber: string | null;
   readonly roomLabel: string | null;
@@ -737,6 +744,7 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
   return {
     personId: person.personId,
     displayName: displayName(person),
+    sample: person.sample === true,
     dateOfBirth: person.dateOfBirth,
     nhsNumber: person.nhsNumber,
     roomLabel: person.roomLabel,

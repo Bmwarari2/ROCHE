@@ -8,6 +8,8 @@ import type { SafetyChip } from "./incidents";
  */
 
 export const ONBOARDING_PAGE = "/settings/onboarding";
+/** The sample data section, where a step-up for removing sample data comes back to. */
+export const SAMPLE_DATA_SECTION = `${ONBOARDING_PAGE}#sample-data`;
 export const MANAGE = "platform.onboarding.manage";
 
 export function onboardingShown(permissions: readonly string[]): boolean {

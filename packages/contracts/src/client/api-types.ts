@@ -26006,6 +26006,7 @@ export interface components {
         preferredName: string | null;
         roomLabel: string | null;
         photoUrl: string | null;
+        sample: boolean;
       };
       channel: components["schemas"]["TemplateChannel"];
       subject: string | null;

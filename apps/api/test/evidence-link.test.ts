@@ -18,6 +18,13 @@ const SECRET = "test-evidence-link-secret-0123456789abcdef";
 const as = (who: string, path: string, init: { method?: string; body?: unknown } = {}) =>
   h.request(path, { ...init, token: h.tokens[who], tenant: DEMO.tenantId });
 const post = (path: string, body: unknown) => h.request(path, { method: "POST", body });
+/** The text with one base64url character replaced by a different one, at `index`. */
+function changeOneCharacter(text: string, index: number): string {
+  const at = Math.max(0, Math.min(index, text.length - 1));
+  const replacement = text[at] === "A" ? "B" : "A";
+  return `${text.slice(0, at)}${replacement}${text.slice(at + 1)}`;
+}
+
 const open = (cookie?: string) =>
   h.request("/p/evidence/bundle", cookie ? { headers: { cookie } } : {});
 
@@ -286,10 +293,16 @@ describe("hazard HZ-050 one-time codes lock the link for good", () => {
     const session = cookieOf(verified);
     // The cookie names its own link only, sealed and signed: any change to it opens nothing.
     const [name, value] = session.split("=");
-    const [iv, sealed, signature] = (value ?? "").split(".");
-    const flipped = `${sealed?.slice(0, -2)}${sealed?.endsWith("A") ? "B" : "A"}${sealed?.slice(-1)}`;
+    const [iv = "", sealed = "", signature = ""] = (value ?? "").split(".");
+    // Each tampered part always differs from the original: the old flip wrote "A" over a
+    // character that could already be "A" (about 1 cookie in 64, as the IV is random), which left
+    // the cookie unchanged and let it open (the failure seen once on #87).
+    const flipped = changeOneCharacter(sealed, sealed.length - 2);
+    const forged = changeOneCharacter(signature, 0);
+    expect(flipped).not.toBe(sealed);
+    expect(forged).not.toBe(signature);
     expect((await open(`${name}=${iv}.${flipped}.${signature}`)).status).toBe(401);
-    expect((await open(`${name}=${iv}.${sealed}.${signature?.slice(1)}x`)).status).toBe(401);
+    expect((await open(`${name}=${iv}.${sealed}.${forged}`)).status).toBe(401);
     const opened = await open(session);
     expect(opened.status).toBe(200);
     expect(pdfText(new Uint8Array(await opened.arrayBuffer()))).toContain(`Pack ${first.packId}`);
