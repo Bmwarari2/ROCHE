@@ -52,6 +52,7 @@ export type ExportRetention =
   | "evidence_pack"
   | "organisation_document"
   | "invitation"
+  | "training_record"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -4282,6 +4283,92 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.policy": {
+    context: "quality",
+    description:
+      "The organisation's policies (quality.md section 18): key, title and whether a second reviewer publishes.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      policy_key: { description: "The policy's key in the organisation." },
+      title: { description: "The policy's title." },
+      require_second_reviewer: {
+        description: "Whether someone other than the author publishes it.",
+      },
+      retired_at: { description: "When the policy was retired." },
+      retired_reason: { description: "Why it was retired." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.policy_version": {
+    context: "quality",
+    description:
+      "Versions of each policy (quality.md section 18; HZ-128): content, the change log, who must read it, the review date and who published it. At most one published at a time.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      policy_id: { description: "The policy (policy.id)." },
+      version_number: { description: "The version's number in the policy.", unit: "version" },
+      state: {
+        description: "Where the version stands.",
+        codes: {
+          draft: "Being written.",
+          published: "In force.",
+          superseded: "Replaced by a later version.",
+          retired: "The policy was retired.",
+        },
+      },
+      change: {
+        description: "Whether the change is minor (earlier signatures still count) or major.",
+        codes: { minor: "Minor change.", major: "Major change." },
+      },
+      change_summary: { description: "What changed (the change log)." },
+      body: { description: "The policy's text, if written in Harbour." },
+      document_id: { description: "The policy's PDF, if uploaded (document.id)." },
+      roles: { description: "The role keys whose holders must read and sign it." },
+      review_due_on: { description: "When it is due for review (UK date)." },
+      author_id: { description: "Who wrote it (tenant_user.id)." },
+      published_by: { description: "Who published it (tenant_user.id)." },
+      published_on: { description: "When it was published (UK date)." },
+      published_at: "exported",
+      superseded_at: { description: "When a later version replaced it." },
+      retired_reason: { description: "Why it was retired." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.policy_signature": {
+    context: "quality",
+    description:
+      "Read-and-sign records: who read and signed which policy version, and when (append-only).",
+    treatment: "tenant_rows",
+    retention: "training_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      policy_version_id: { description: "The version signed (policy_version.id)." },
+      signer_id: { description: "Who signed (tenant_user.id)." },
+      signed_at: { description: "When they signed." },
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.statement_of_purpose_version": {
