@@ -72,7 +72,26 @@ export const DOCUMENT_CATEGORIES = {
     retentionClass: "organisation_document",
     inline: false,
   },
+  /**
+   * An HR-only document in a worker's pre-employment file (workforce.md section 2a; WORK-002,
+   * WORK-011): identity, right to work, qualifications, references and health declarations.
+   * Opened and added only through the staff file routes by holders of
+   * `workforce.hr_document.read`, every view audited; never served by the general document
+   * routes, never searchable. Never a DBS certificate (retention.md). Right to work copies are
+   * kept as `right_to_work_copy`.
+   */
+  staff_hr_document: {
+    label: "HR-only staff document (identity, right to work, health declaration)",
+    contentTypes: [...IMAGES, "application/pdf"],
+    maxBytes: 15 * MB,
+    personRequired: false,
+    retentionClass: "staff_file",
+    inline: false,
+  },
 } as const satisfies Record<string, DocumentCategory>;
+
+/** The categories the general document routes serve: everything but HR-only staff documents. */
+export type GeneralDocumentCategory = Exclude<DocumentCategoryKey, "staff_hr_document">;
 
 export type DocumentCategoryKey = keyof typeof DOCUMENT_CATEGORIES;
 

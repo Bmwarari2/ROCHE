@@ -491,6 +491,13 @@
       "when": 1792169579986,
       "tag": "0070_break_glass_search",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793454663895,
+      "tag": "0073_staff_profile",
+      "breakpoints": true
     }
   ]
 }

@@ -20,3 +20,4 @@ export * from "./sample-data";
 export * from "./sub-processors";
 export * from "./sync";
 export * from "./work";
+export * from "./workforce";

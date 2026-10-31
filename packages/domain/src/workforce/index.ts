@@ -8,5 +8,6 @@ export * from "./right-to-work";
 export * from "./rostering";
 export * from "./schedule3";
 export * from "./sponsor";
+export * from "./staff-file";
 export * from "./supervision";
 export * from "./training";

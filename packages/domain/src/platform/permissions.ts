@@ -222,6 +222,21 @@ export const PERMISSIONS = {
   "workforce.supervision.manage": { description: "Schedule and record supervisions" },
   "workforce.casework.manage": { description: "Manage employee relations casework" },
   "workforce.self.read": { description: "Read own training, documents and pay" },
+  "workforce.staff_file.read": {
+    description:
+      "Read staff profiles and where each pre-employment check stands (not the HR-only documents)",
+  },
+  "workforce.staff_file.manage": {
+    description: "Record staff profiles and pre-employment checks (never one's own)",
+  },
+  "workforce.hr_document.read": {
+    description:
+      "Open and add HR-only staff documents (identity, right to work, health); every view is audited",
+  },
+  "workforce.dbs_risk_assessment.sign": {
+    description:
+      "Sign the DBS risk assessment that lets a worker start supervised or accepts a disclosure",
+  },
   // scheduling
   "scheduling.rota.read": { description: "Read rotas" },
   "scheduling.rota.manage": { description: "Build and publish rotas" },

@@ -23,6 +23,7 @@ import {
 import {
   checkSignature,
   type DocumentCategoryKey,
+  type GeneralDocumentCategory,
   isUnderLegalHold,
   narrowestScope,
   type Permission,
@@ -70,7 +71,7 @@ import {
  * about a person need the person's permissions and follow their scope.
  */
 
-const UPLOAD_PERMISSION: Record<DocumentCategoryKey, Permission> = {
+const UPLOAD_PERMISSION: Record<GeneralDocumentCategory, Permission> = {
   person_photo: "people.person.update",
   feed_photo: "comms.feed.publish",
   care_attachment: "care.note.write",
@@ -112,7 +113,7 @@ const RECORD_READ: Permission = "people.person.read";
  * is about no one and is read by any member of the organisation, as before: staff must be able to
  * open the escalation and other policies they follow (HZ-014).
  */
-export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+export const DOCUMENT_READ_PERMISSION: Record<GeneralDocumentCategory, Permission | null> = {
   person_photo: "people.person.read",
   feed_photo: "people.person.read",
   person_document: "people.person.read",
@@ -137,7 +138,7 @@ const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
  * signature is a write, so it needs the category's update permission where it reaches the person,
  * never only a read permission (which a break-glass record can open).
  */
-const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+const SIGN_PERMISSION: Record<GeneralDocumentCategory, Permission | null> = {
   person_photo: "people.person.update",
   feed_photo: "comms.feed.publish",
   person_document: "people.person.update",
@@ -182,7 +183,8 @@ async function requireRead(
 ): Promise<TenantAccess> {
   if (organisationDocument(row)) return c.get("access");
   if (!servable(row)) throw problems.notFound();
-  const permission = DOCUMENT_READ_PERMISSION[row.category as DocumentCategoryKey] ?? RECORD_READ;
+  const permission =
+    DOCUMENT_READ_PERMISSION[row.category as GeneralDocumentCategory] ?? RECORD_READ;
   const access = await requirePermission(c, RECORD_READ);
   return permission === RECORD_READ ? access : requirePermission(c, permission);
 }
@@ -237,6 +239,10 @@ export const documentsRouter = createRouter()
     }),
     async (c) => {
       const q = c.req.valid("query");
+      // HR-only staff documents go only through the staff file (workforce.md section 5).
+      if (q.category === "staff_hr_document") {
+        throw problems.invalid("Add HR-only staff documents from the worker's staff file.");
+      }
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
       // A subject is named by its type and id together (review round 3).
       if (q.subjectId && !q.subjectType) {
@@ -443,7 +449,7 @@ export const documentsRouter = createRouter()
       if (!found || found.status === "destroyed" || !servable(found)) throw problems.notFound();
       const access = await requirePermission(
         c,
-        UPLOAD_PERMISSION[found.category as DocumentCategoryKey],
+        UPLOAD_PERMISSION[found.category as GeneralDocumentCategory],
       );
       const previous = await withTenant(c, (tx) => findDocument(tx, id));
       if (!previous || previous.status === "destroyed" || !servable(previous)) {
@@ -505,7 +511,7 @@ export const documentsRouter = createRouter()
       // Signing a document about a person is a write: its category's update permission must reach
       // the person, found again in that narrowed scope; a break-glass record never opens it
       // (review round 2, S2-M1). An organisation's document is signed by any member, as before.
-      const sign = SIGN_PERMISSION[read.category as DocumentCategoryKey] ?? null;
+      const sign = SIGN_PERMISSION[read.category as GeneralDocumentCategory] ?? null;
       let row = read;
       if (read.personId !== null) {
         if (sign === null) throw problems.notFound();
