@@ -25,6 +25,7 @@ import { roundShown } from "@/lib/round";
 import { searchShown } from "@/lib/search";
 import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
+import { caseworkShown, recruitmentShown, staffShown } from "@/lib/workforce";
 
 /** "CQC location 1-000000001", for the location switcher. */
 function locationDescription(location: LocationSummary): string | undefined {
@@ -83,6 +84,10 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
         documents: isFamilyMember(me) ? undefined : t("shell.nav.documents"),
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
+        recruitment: recruitmentShown(me.permissions) ? t("shell.nav.recruitment") : undefined,
+        staff: staffShown(me.permissions) ? t("shell.nav.staff") : undefined,
+        // A restricted silo (ADR-0089): only holders of the silo permission see it here.
+        cases: caseworkShown(me.permissions) ? t("shell.nav.cases") : undefined,
         evidencePacks: evidencePacksShown(me.permissions)
           ? t("shell.nav.evidencePacks")
           : undefined,

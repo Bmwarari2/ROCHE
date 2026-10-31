@@ -12,6 +12,7 @@ import {
 import {
   Archive,
   Bell,
+  Briefcase,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
@@ -19,6 +20,7 @@ import {
   FileText,
   FolderLock,
   House,
+  IdCard,
   ListChecks,
   ListTodo,
   Lock,
@@ -30,6 +32,7 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  ShieldEllipsis,
   Stamp,
   TriangleAlert,
   UserPlus,
@@ -74,6 +77,10 @@ export interface ShellFrameLabels {
   readonly search?: string | undefined;
   /** Shown only to people who write, approve or send from letter templates. */
   readonly letters?: string | undefined;
+  /** Workforce (plan slice 58): recruitment, staff (induction and leaving), employee relations. */
+  readonly recruitment?: string | undefined;
+  readonly staff?: string | undefined;
+  readonly cases?: string | undefined;
   /** Shown only to holders of quality.evidence_pack.compose or .release (QUAL-003). */
   readonly evidencePacks?: string | undefined;
   /** Shown only to those who write, approve or send the statement of purpose (QUAL-009). */
@@ -133,6 +140,15 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/approvals")) return "approvals";
   if (pathname.startsWith("/letters")) return "letters";
+  if (
+    pathname.startsWith("/workforce/vacancies") ||
+    pathname.startsWith("/workforce/applications") ||
+    pathname.startsWith("/workforce/job-templates")
+  ) {
+    return "recruitment";
+  }
+  if (pathname.startsWith("/workforce/staff")) return "staff";
+  if (pathname.startsWith("/workforce/cases")) return "cases";
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/documents")) return "documents";
   if (pathname.startsWith("/search")) return "search";
@@ -294,6 +310,29 @@ export function ShellFrame({
       : []),
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
+      : []),
+    ...(labels.recruitment
+      ? [
+          {
+            id: "recruitment",
+            label: labels.recruitment,
+            href: "/workforce/vacancies",
+            icon: <Briefcase {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.staff
+      ? [{ id: "staff", label: labels.staff, href: "/workforce/staff", icon: <IdCard {...icon} /> }]
+      : []),
+    ...(labels.cases
+      ? [
+          {
+            id: "cases",
+            label: labels.cases,
+            href: "/workforce/cases",
+            icon: <ShieldEllipsis {...icon} />,
+          },
+        ]
       : []),
     ...(labels.evidencePacks
       ? [
