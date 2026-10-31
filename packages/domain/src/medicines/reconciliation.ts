@@ -34,9 +34,11 @@ import {
   type MarEntry,
   type MarEntryDraft,
   type MarEntryIssue,
+  type MarEntryStop,
   type MarSourceDocument,
   type MarSourceKind,
   type MedicinesCompetence,
+  marEntryEnd,
   stopMarEntry,
   transcribeMarEntry,
   versionInForceAt,
@@ -143,6 +145,12 @@ export type EntryDecision =
       readonly reanchorReason?: string | null;
       /** Why a version scheduled to start later is withdrawn by this change (rule 6b). */
       readonly withdrawLaterReason?: string | null;
+      /**
+       * Why a version or stop scheduled before this reconciliation, which this change keeps (a
+       * version starting before the change, a stop still to come), still stands against the
+       * sources; without it the change is refused.
+       */
+      readonly scheduledStillStands?: string | null;
     }
   | {
       readonly kind: "stop";
@@ -162,6 +170,8 @@ export type ItemDecision =
       readonly draft: ReconciliationDraft;
       /** Why a restart of a product the person had before starts a new day count (rule 6a). */
       readonly reanchorReason?: string | null;
+      /** Why the doses earlier on the day it is recorded may still be needed (the same-day route, rule 6). */
+      readonly earlierDosesDueReason?: string | null;
     }
   | { readonly kind: "not_started"; readonly itemId: string; readonly reason: string }
   | { readonly kind: "query"; readonly itemId: string; readonly question: string };
@@ -233,6 +243,7 @@ export type ReconciliationProblem =
   | "change_different_product"
   | "change_not_shown_current"
   | "change_refused"
+  | "change_with_later_scheduled"
   | "stop_needs_source_item"
   | "stop_not_shown_current"
   | "stop_needs_reason"
@@ -262,6 +273,7 @@ export interface ReconciliationPlan {
     readonly draft: MarEntryDraft;
     readonly reanchorReason: string | null;
     readonly withdrawLaterReason: string | null;
+    readonly scheduledStillStands: string | null;
   }[];
   /** Stops from when the reconciliation completes, through `stopMarEntry`. */
   readonly stops: readonly {
@@ -275,6 +287,7 @@ export interface ReconciliationPlan {
     readonly itemId: string;
     readonly draft: MarEntryDraft;
     readonly reanchorReason: string | null;
+    readonly earlierDosesDueReason: string | null;
   }[];
   readonly notStarted: readonly { readonly itemId: string; readonly reason: string }[];
   readonly completedBy: string;
@@ -324,14 +337,39 @@ export function entriesToReconcile(
   }));
 }
 
-/** What is scheduled for a medicine after an instant: a later version, or a stop still to come. */
-function scheduledAfter(versions: readonly MarEntry[], at: Date): string | null {
-  const later = versions
-    .filter((v) => v.withdrawn === null && v.startsAt.getTime() > at.getTime())
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0];
-  if (later) return `Version ${later.version} starts ${formatUkDateTime(later.startsAt)}`;
-  const stop = versionInForceAt(versions, at)?.stop;
-  return stop ? `A stop is recorded from ${formatUkDateTime(stop.effectiveAt)}` : null;
+/** What was scheduled for a medicine after an instant: later versions, and the first stop still to come. */
+function scheduledAfter(
+  versions: readonly MarEntry[],
+  at: Date,
+): { readonly versions: readonly MarEntry[]; readonly stop: MarEntryStop | null } {
+  const live = versions.filter((v) => v.withdrawn === null);
+  const stop =
+    live
+      .map((v) => v.stop)
+      .filter((st): st is MarEntryStop => st !== null && st.effectiveAt.getTime() > at.getTime())
+      .sort((a, b) => a.effectiveAt.getTime() - b.effectiveAt.getTime())[0] ?? null;
+  return {
+    versions: live
+      .filter((v) => v.startsAt.getTime() > at.getTime())
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
+    stop,
+  };
+}
+
+/** The scheduled items in words, joined: "Version 2 starts ...; a stop is recorded from ...". */
+function scheduledWords(versions: readonly MarEntry[], stop: MarEntryStop | null): string | null {
+  const words = [
+    ...versions.map((v) => `Version ${v.version} starts ${formatUkDateTime(v.startsAt)}`),
+    ...(stop ? [`a stop is recorded from ${formatUkDateTime(stop.effectiveAt)}`] : []),
+  ].join("; ");
+  return words === "" ? null : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** When a medicine's last live version ends; null when it has no end. */
+function chainEnd(versions: readonly MarEntry[]): Date | null {
+  const ends = versions.filter((v) => v.withdrawn === null).map((v) => marEntryEnd(v));
+  if (ends.length === 0 || ends.some((e) => e === null)) return null;
+  return new Date(Math.max(...ends.map((e) => (e as Date).getTime())));
 }
 
 /** How a source line differs from the MAR entry it is linked to, by dm+d identity only. */
@@ -474,6 +512,8 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
     return full;
   };
 
+  /** When each changed entry ends after the plan, for the duplicate check. */
+  const changedEnds = new Map<string, Date | null>();
   const plan = {
     continued: [] as string[],
     changes: [] as ReconciliationPlan["changes"][number][],
@@ -549,7 +589,8 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
             "A linked line names another brand of this medicine. Say why the MAR entry continues unchanged, or record a change.",
         });
       } else {
-        const scheduled = scheduledAfter(input.entryVersions(entryId), input.completedAt);
+        const later = scheduledAfter(input.entryVersions(entryId), input.completedAt);
+        const scheduled = scheduledWords(later.versions, later.stop);
         if (scheduled && blank(decision.scheduledStillStands)) {
           add({
             problem: "continue_with_later_scheduled",
@@ -599,6 +640,15 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
             input.dmdFacts(draft.product),
             { ...dryRun, id: `planned-${entryId}`, reanchorReason, withdrawLaterReason },
           );
+          const later = scheduledAfter(input.entryVersions(entryId), input.completedAt);
+          const withdrawn = new Set(tried.ok ? tried.withdrawn.map((v) => v.id) : []);
+          const keptVersions = later.versions.filter((v) => !withdrawn.has(v.id));
+          const keeps = scheduledWords(keptVersions, later.stop);
+          const handle =
+            keptVersions.length > 0
+              ? "start the change before a scheduled version to withdraw it, with the reason, or say why it still stands."
+              : "a change never cancels a stop, so say why it still stands, or stop the medicine instead.";
+          const scheduledStillStands = reasonOrNull(decision.scheduledStillStands);
           if (!tried.ok) {
             add({
               problem: "change_refused",
@@ -606,7 +656,22 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
               draftIssues: tried.issues,
               message: tried.issues.map((i) => i.message).join(" "),
             });
-          } else plan.changes.push({ entryId, draft, reanchorReason, withdrawLaterReason });
+          } else if (keeps && scheduledStillStands === null) {
+            add({
+              problem: "change_with_later_scheduled",
+              entryId,
+              message: `${keeps}, recorded before this reconciliation, and this change keeps it. Check it against the sources: ${handle}`,
+            });
+          } else {
+            plan.changes.push({
+              entryId,
+              draft,
+              reanchorReason,
+              withdrawLaterReason,
+              scheduledStillStands,
+            });
+            changedEnds.set(entryId, marEntryEnd(tried.next));
+          }
         }
       }
     } else {
@@ -710,12 +775,14 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
     } else {
       const draft = draftFor(decision.draft, sources.get(item.sourceId), { itemId });
       const reanchorReason = reasonOrNull(decision.reanchorReason);
+      const earlierDosesDueReason = reasonOrNull(decision.earlierDosesDueReason);
       if (draft) {
         const tried = transcribeMarEntry(draft, input.dmdFacts(draft.product), {
           ...dryRun,
           id: `planned-${itemId}`,
           earlierEntries: input.earlierEntries(draft.product),
           reanchorReason,
+          earlierDosesDueReason,
         });
         if (!tried.ok) {
           add({
@@ -724,23 +791,32 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
             draftIssues: tried.issues,
             message: tried.issues.map((i) => i.message).join(" "),
           });
-        } else plan.starts.push({ itemId, draft, reanchorReason });
+        } else plan.starts.push({ itemId, draft, reanchorReason, earlierDosesDueReason });
       }
     }
   }
 
   // One entry per dm+d product (VMP) on the MAR after the plan, by identity, never by ingredient
-  // (H-553): a start beside an entry of the same VMP that continues, changes or starts is refused.
+  // (H-553): a start beside an entry of the same VMP that continues or changes is refused unless it
+  // starts on or after that entry's end (a course extended by the source, rule 10), and so is a
+  // second start of it.
   const kept = [
-    ...plan.continued.map((id) => entries.get(id)?.product.vmpId),
-    ...plan.changes.map((c) => c.draft.product.vmpId),
+    ...plan.continued.map((id) => ({
+      vmpId: entries.get(id)?.product.vmpId,
+      end: chainEnd(input.entryVersions(id)),
+    })),
+    ...plan.changes.map((c) => ({
+      vmpId: c.draft.product.vmpId,
+      end: changedEnds.get(c.entryId) ?? null,
+    })),
   ];
   plan.starts.forEach((start, i) => {
     const vmpId = start.draft.product.vmpId;
-    if (
-      kept.includes(vmpId) ||
-      plan.starts.slice(0, i).some((s) => s.draft.product.vmpId === vmpId)
-    ) {
+    const overlaps = kept.some(
+      (k) =>
+        k.vmpId === vmpId && (k.end === null || k.end.getTime() > start.draft.startsAt.getTime()),
+    );
+    if (overlaps || plan.starts.slice(0, i).some((s) => s.draft.product.vmpId === vmpId)) {
       add({
         problem: "duplicate_product",
         itemId: start.itemId,

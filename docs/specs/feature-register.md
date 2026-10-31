@@ -9,12 +9,12 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 
 | Module | Prefix | Sections | Rows | todo | partial | done |
 | --- | --- | --- | --- | --- | --- | --- |
-| Platform core | `PLAT` | 9.1 | 23 | 6 | 17 | 0 |
+| Platform core | `PLAT` | 9.1 | 23 | 3 | 20 | 0 |
 | Service-user lifecycle | `PEOP` | 9.2 | 13 | 4 | 9 | 0 |
 | Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 9 | 13 | 0 |
 | Medicines | `MEDS` | 10.2-10.3 | 14 | 13 | 1 | 0 |
 | Safety and notifications | `SAFE` | 11.1 | 16 | 6 | 10 | 0 |
-| Quality and governance | `QUAL` | 11.2 | 13 | 11 | 2 | 0 |
+| Quality and governance | `QUAL` | 11.2 | 13 | 4 | 9 | 0 |
 | Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 13 | 0 | 0 |
 | Rostering, time and pay | `SCHED` | 12.3 | 12 | 11 | 1 | 0 |
 | Operations | `OPS` | 13 | 28 | 27 | 1 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **168** | **65** | **0** |
+| **Total** | | | **233** | **157** | **76** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -4,7 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 0% done** (0 of 233 register rows `done`; 65 `partial`, 168 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
@@ -80,9 +80,16 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
 - `feat/meds-domain-record` (slice 2, lane A, MEDS-001 `partial`): `medicines.md` written in full;
   `packages/domain/src/medicines/` (dm+d identifiers, structured doses, schedules over the MAR cycle
   with clock changes, MAR entry states and the second check, reconciliation); HZ-121 added; HZ-003,
-  HZ-005 and HZ-009 domain tests passing; human actions H-550 to H-553. The overall counts above
-  were corrected to the register's (they said 60 `partial` and 173 `todo`). Next in lane A:
-  slice 3 (administration, PRN and CD rules, ADR-0082), then slice 10 (dm+d reference data).
+  HZ-005 and HZ-009 domain tests passing; human actions H-550 to H-553. PR #135, after five
+  clinical review rounds: one version in force at a time; the day count kept from the last dose
+  due; source lines that say what they mean; refusals in place of the complicated version
+  sequences (no change part-way through a day with doses, later versions withdrawn only with a
+  reason, a change keeping the product and its course end, one entry per product); corrections
+  that take effect at once; no dose due before an entry was recorded; and a reconciliation that
+  checks what was scheduled and lets a letter extend a course. The overall counts above, and the
+  register's Platform core and Quality rows (which `main` had left at 6 and 11 `todo`), now match
+  the register's rows. Next in lane A: slice 3 (administration, PRN and CD rules, ADR-0082), then
+  slice 10 (dm+d reference data).
 
 **Numbering in use:** migrations: 0071 is #123; Phase 2 owns 0072 to 0110 in the plan's merge
 order ([phase-2.md](phase-2.md)). ADRs: 0074 is #123's shift-pattern ADR; 0075 to 0079 Phase 1

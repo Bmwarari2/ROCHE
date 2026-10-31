@@ -156,13 +156,30 @@ Branch `feat/meds-domain-record`.
     `entriesToReconcile` lists the entries to decide on from dates over every version, never by
     state, and the `currentEntries` comment now says so.
   - H-550 and H-553 carry the new defaults as questions.
+- Fourth review follow-up (P6) and fifth clinical review (2 Medium):
+  - P6: no dose of a new entry is due before it was recorded (`marEntryDosesFrom`); the earlier
+    times are listed for the MAR as "Before this entry was recorded: not due"
+    (`marEntryTimesBeforeRecorded`). If a dose earlier that day may still be needed, the
+    transcription gives the reason (`earlierDosesDueReason`, the same-day route): that day's
+    earlier doses stay due, with a notice that day to check with the nurse in charge. A
+    reconciliation start can give the same reason. The property test now backdates restarts and
+    checks no dose is due before its entry was recorded.
+  - M1: a course the discharge letter extends is continued (or changed) to its end and started
+    again from then on the letter's line; a start of the same product on or after the end the
+    existing entry has after the plan is no longer a duplicate. A change still never extends a
+    course end (H-553 asks whether that is acceptable with a single letter line).
+  - M2: a change that keeps a version or stop scheduled before the reconciliation is refused,
+    naming each (`change_with_later_scheduled`), until the change starts before the scheduled
+    version and withdraws it with the reason, or the decision says why what it keeps still stands
+    (`scheduledStillStands`, carried into the plan).
+  - STATUS and the register's summary rows now match the register (76 `partial`, 157 `todo`).
 
 ## Tests
 
 - `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`,
-  `reconciliation.test.ts`: 338 tests after the fourth review, passing under `TZ=UTC`,
-  `TZ=Europe/London` and `TZ=America/New_York`; medicines coverage 99.37% of lines. Whole domain
-  package: 5,217 tests, 99.70% line coverage under each of the three time zones
-  (`pnpm --filter @harbour/domain test:coverage`). The reviewer's probes and fuzzer (seeds 7, 11
-  and 23, 9,000 sequences) run clean.
+  `reconciliation.test.ts`: 349 tests after the fifth review, passing under `TZ=UTC`,
+  `TZ=Europe/London` and `TZ=America/New_York`; medicines coverage 99.10% of lines. Whole domain
+  package: 5,228 tests, 99.67% line coverage under each of the three time zones
+  (`pnpm --filter @harbour/domain test:coverage`). The reviewer's probes (rounds 4 and 5) and
+  fuzzer (seeds 7, 11 and 23, 9,000 sequences) run clean.
 - `pnpm lint`, the domain typecheck and the markdown link check run clean.

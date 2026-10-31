@@ -25,8 +25,10 @@ import {
   type MarEntryStop,
   type MarSourceKind,
   marEntryDoses,
+  marEntryDosesFrom,
   marEntryEnd,
   marEntryStatus,
+  marEntryTimesBeforeRecorded,
   recordSecondCheck,
   type SecondCheckInput,
   stopMarEntry,
@@ -700,7 +702,7 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
     const HOUR = 3_600_000;
     const DAY = 24 * HOUR;
     const choices = [daily("08:00"), daily("20:00"), daily("08:00", "18:00"), prn];
-    for (let run = 0; run < 40; run++) {
+    for (let run = 0; run < 60; run++) {
       let versions: MarEntry[] = [entry()];
       /** Each stop, and the step it was recorded at: it covers the entries recorded before it. */
       const stops: { effectiveAt: Date; step: number }[] = [];
@@ -723,7 +725,7 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
         const ends = (start: Date) =>
           stopsAt && stopsAt.getTime() > start.getTime() ? stopsAt : null;
         const action = random();
-        if (action < 0.4) {
+        if (action < 0.35) {
           const current = versionInForceAt(versions, when);
           if (random() < 0.3 && current && current.secondCheck === null) {
             const differs = recordSecondCheck(current, {
@@ -760,10 +762,31 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
             ]);
           }
         } else if (action < 0.85) {
+          // Some restarts start before they are recorded (earlier today, or days before), some
+          // keeping that day's earlier doses due with a reason.
+          const lastEnd = Math.max(
+            ...versions
+              .filter((v) => v.withdrawn === null)
+              .map((v) => marEntryEnd(v)?.getTime() ?? Number.POSITIVE_INFINITY),
+          );
+          const backdated = random() < 0.85 && lastEnd < now;
+          const earliest = Math.max(lastEnd, now - 60 * HOUR);
+          const startsAt = backdated
+            ? random() < 0.5 && ukStartOfDay(ukDateOf(when)).getTime() >= earliest
+              ? ukStartOfDay(ukDateOf(when))
+              : new Date(earliest + Math.floor(random() * ((now - earliest) / HOUR)) * HOUR)
+            : takesEffect;
           const result = transcribeMarEntry(
-            draft({ directions: pick(choices), startsAt: takesEffect, stopsAt: ends(takesEffect) }),
+            draft({ directions: pick(choices), startsAt, stopsAt: ends(startsAt) }),
             TABLET_FACTS,
-            { ...newMeta, id, at: when, earlierEntries: versions },
+            {
+              ...newMeta,
+              id,
+              at: when,
+              earlierEntries: versions,
+              earlierDosesDueReason:
+                backdated && random() < 0.5 ? "Not given before admission, the family says" : null,
+            },
           );
           if (result.ok) {
             recordedAtStep.set(id, step);
@@ -801,7 +824,7 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
       // given, the one in force, and never one that started before a stop recorded by then.
       const instants = new Set<number>();
       for (const v of versions) {
-        for (const edge of [v.startsAt, marEntryEnd(v), v.stopsAt]) {
+        for (const edge of [v.startsAt, marEntryEnd(v), v.stopsAt, marEntryDosesFrom(v)]) {
           if (!edge) continue;
           for (const shift of [-HOUR, -1, 0, 1, HOUR]) instants.add(edge.getTime() + shift);
         }
@@ -835,14 +858,26 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
           marEntryDoses(v, { from, to }).map((dose) => ({ v, dose })),
         );
         for (const { v, dose } of doses) {
+          // No dose is due before its entry was recorded, or before 00:00 that day with a reason.
+          const recorded = v.earlierDosesDue
+            ? ukStartOfDay(v.earlierDosesDue.date)
+            : v.transcribedAt;
+          expect(dose.dueAt.getTime(), label(dose.dueAt)).toBeGreaterThanOrEqual(
+            recorded.getTime(),
+          );
           expect(versionInForceAt(versions, dose.dueAt)?.id, label(dose.dueAt)).toBe(v.id);
           expect(afterStop(v, dose.dueAt.getTime()), label(dose.dueAt)).toBe(false);
           expect(afterCourseEnd(v, dose.dueAt.getTime()), label(dose.dueAt)).toBe(false);
         }
-        if (!live.some((v) => inside(v.startsAt) || inside(marEntryEnd(v)))) {
+        if (
+          !live.some(
+            (v) => inside(v.startsAt) || inside(marEntryEnd(v)) || inside(marEntryDosesFrom(v)),
+          )
+        ) {
           const whole = versionInForceAt(versions, from);
           const expected =
-            whole?.directions.kind === "regular"
+            whole?.directions.kind === "regular" &&
+            marEntryDosesFrom(whole).getTime() <= from.getTime()
               ? expandSchedule(
                   whole.directions.schedule,
                   { startsAt: from, endsAt: null },
@@ -869,11 +904,14 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
                 );
             } else expect(thatDay, label(v.replacedFrom)).toEqual([]);
           }
-          if (v.replacesId === null && inside(v.startsAt)) {
+          const recordedOrStart = new Date(
+            Math.max(v.startsAt.getTime(), v.transcribedAt.getTime()),
+          );
+          if (v.replacesId === null && inside(recordedOrStart)) {
             const earlier = live
               .filter((e) => e.id !== v.id)
-              .flatMap((e) => marEntryDoses(e, { from, to: v.startsAt }));
-            expect(earlier, label(v.startsAt)).toEqual([]);
+              .flatMap((e) => marEntryDoses(e, { from, to: recordedOrStart }));
+            expect(earlier, label(recordedOrStart)).toEqual([]);
           }
         }
       }
@@ -1104,12 +1142,14 @@ describe("hazard HZ-003 hazard HZ-004 a change takes effect from 00:00 on a day 
   ] as const)(
     "on the day %s, a change from 00:00 gives that day's doses as the new schedule does",
     (_name, year, month, date, times) => {
-      const old = checked(
-        entry({
-          directions: daily("01:30", "08:00"),
-          startsAt: fromUkWallClock(year, month, date - 5, 0, 0),
-        }),
+      const startsAt = fromUkWallClock(year, month, date - 5, 0, 0);
+      const recorded = transcribeMarEntry(
+        draft({ directions: daily("01:30", "08:00"), startsAt }),
+        TABLET_FACTS,
+        { ...newMeta, id: "entry-1", at: new Date(startsAt.getTime() - 3_600_000) },
       );
+      if (!recorded.ok) throw new Error("transcription refused");
+      const old = checked(recorded.entry);
       const iso = `${year}-${String(month).padStart(2, "0")}-${date}`;
       const dayBefore = fromUkWallClock(year, month, date - 1, 10, 0);
       const midday = fromUkWallClock(year, month, date, 12, 0);
@@ -1251,6 +1291,84 @@ describe("hazard HZ-005 a version replaced from tomorrow tells staff to check to
       notice:
         "A change starts tomorrow: check today's remaining doses with the nurse in charge. Replaced from 06/11/2026 00:00.",
     });
+  });
+});
+
+describe("hazard HZ-003 hazard HZ-004 a new entry's doses are never due before it was recorded", () => {
+  const record = (startsAt: Date, when: Date, earlierDosesDueReason: string | null = null) => {
+    const result = transcribeMarEntry(draft({ startsAt }), TABLET_FACTS, {
+      ...newMeta,
+      id: "entry-new",
+      at: when,
+      earlierEntries: [],
+      earlierDosesDueReason,
+    });
+    if (!result.ok) throw new Error(result.issues.map((i) => i.message).join(" "));
+    return result.entry;
+  };
+  const times = (doses: readonly { dueAt: Date }[]) => doses.map((d) => formatUkTime(d.dueAt));
+
+  it("an entry recorded at 14:00 from 00:00 has no 08:00 dose that day: the MAR says it was before the entry was recorded", () => {
+    const e = record(midnight(5), at(5, 14));
+    expect(marEntryDosesFrom(e)).toEqual(at(5, 14));
+    expect(times(marEntryDoses(e, day(5)))).toEqual(["18:00"]);
+    expect(times(marEntryTimesBeforeRecorded(e, day(5)))).toEqual(["08:00"]);
+    expect(MAR_ENTRY_NOTICES.beforeRecorded).toBe("Before this entry was recorded: not due");
+    expect(times(marEntryDoses(e, day(6)))).toEqual(["08:00", "18:00"]);
+    expect(marEntryTimesBeforeRecorded(e, day(6))).toEqual([]);
+    expect(marEntryStatus(e, at(5, 15), "give_with_notice").notice).toBe(
+      MAR_ENTRY_NOTICES.notYetChecked,
+    );
+  });
+
+  it("an entry that started days before it was recorded has no dose due on those days", () => {
+    const e = record(midnight(3), at(5, 14));
+    expect(datesOf([e], 3, 5)).toEqual(["2026-11-05"]);
+    expect(marEntryTimesBeforeRecorded(e, { from: day(3).from, to: day(5).to })).toHaveLength(5);
+  });
+
+  it("keeps that day's earlier doses due through the same-day route, with a reason and a notice that day", () => {
+    const reason = "Not given at home this morning, her daughter says";
+    const e = record(midnight(3), at(5, 14), reason);
+    expect(e.earlierDosesDue).toEqual({ date: "2026-11-05", reason });
+    expect(datesOf([e], 3, 4)).toEqual([]);
+    expect(times(marEntryDoses(e, day(5)))).toEqual(["08:00", "18:00"]);
+    expect(times(marEntryTimesBeforeRecorded(e, { from: day(3).from, to: day(5).to }))).toEqual([
+      "08:00",
+      "18:00",
+      "08:00",
+      "18:00",
+    ]);
+    expect(marEntryStatus(e, at(5, 15), "give_with_notice").notice).toBe(
+      `${MAR_ENTRY_NOTICES.notYetChecked} ${MAR_ENTRY_NOTICES.earlierDosesToday}`,
+    );
+    expect(MAR_ENTRY_NOTICES.earlierDosesToday).toContain("check with the nurse in charge");
+    expect(marEntryStatus(e, at(6, 8), "give_with_notice").notice).toBe(
+      MAR_ENTRY_NOTICES.notYetChecked,
+    );
+  });
+
+  it("ignores the reason for an entry that starts after it is recorded", () => {
+    expect(record(midnight(6), at(5, 14), "Not needed").earlierDosesDue).toBeNull();
+  });
+
+  it("never keeps an earlier dose due when the entry that stopped had a dose earlier that day", () => {
+    const stopped = stopMarEntry([checked()], {
+      by: CHECKER,
+      at: at(5, 9),
+      effectiveAt: at(5, 9),
+      reason: "Withheld until review",
+      source: SOURCE,
+    });
+    if (!stopped.ok) throw new Error("stop refused");
+    expect(
+      transcribeMarEntry(draft({ startsAt: at(5, 9) }), TABLET_FACTS, {
+        ...newMeta,
+        at: at(5, 14),
+        earlierEntries: [stopped.stopped as MarEntry],
+        earlierDosesDueReason: "Restarted after review",
+      }),
+    ).toMatchObject({ ok: false, issues: [{ problem: "restart_from_tomorrow" }] });
   });
 });
 
