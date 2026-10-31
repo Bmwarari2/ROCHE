@@ -6124,6 +6124,75 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workflows": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Open workflows in your scope, with their deadline state and the steps open to you
+     * @description For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Steps are taken on each record's own route, which checks its rules and separation of duties again. Soonest deadline first.
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in */
+          view?: components["schemas"]["WorkflowListView"];
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Workflows */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WorkflowInstanceList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/documents": {
     parameters: {
       query?: never;
@@ -22323,6 +22392,51 @@ export interface components {
       reason: string;
       version: number;
     };
+    WorkflowInstanceList: {
+      items: components["schemas"]["WorkflowInstanceItem"][];
+      truncated: boolean;
+    };
+    WorkflowInstanceItem: {
+      /** Format: uuid */
+      id: string;
+      definitionKey: string;
+      subjectType: string;
+      /** Format: uuid */
+      subjectId: string;
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      incidentId: string | null;
+      /** Format: uuid */
+      locationId: string | null;
+      state: string;
+      /** Format: date-time */
+      enteredStateAt: string;
+      /** Format: date-time */
+      slaDueAt: string | null;
+      slaState: components["schemas"]["WorkflowSlaState"];
+      createdBy: components["schemas"]["StaffName"];
+      moves: components["schemas"]["WorkflowMoveOption"][];
+      awaitingYourApproval: boolean;
+      raisedByYou: boolean;
+    };
+    /**
+     * @description The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline
+     * @enum {string}
+     */
+    WorkflowSlaState: "none" | "on_track" | "due_today" | "overdue";
+    WorkflowMoveOption: {
+      to: string;
+      approval: boolean;
+      requiresReason: boolean;
+      requiresStepUp: boolean;
+    };
+    /**
+     * @description approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in
+     * @default approvals
+     * @enum {string}
+     */
+    WorkflowListView: "approvals" | "all";
     /** @description Document metadata; the bytes are at /content */
     DocumentItem: {
       /** Format: uuid */
