@@ -186,7 +186,7 @@ comes with slice 15.
 | Thapsus's breach notices to the organisation as processor (Art 33(2); DPA clause 8.2) and their acknowledgement | Categories and approximate numbers of people affected, no names; the Thapsus contact; the staff member acknowledging | Art 6(1)(c) legal obligation | None expected (the notice carries no personal data of the people affected) | The organisation's data protection lead and owners | Interim `audit_event` (H-670) |
 | Handling data protection complaints (DPA 2018 as amended by the Data (Use and Access) Act 2025): who complained, about what, acknowledgement, contacts, outcome | Complainants (name, how to reach them), the data subject when it is someone the organisation supports (by reference), staff handling it | Art 6(1)(c) legal obligation (the duty to facilitate, acknowledge and respond to complaints) | Where the complaint reveals health data: as for the breach register `[DPO to confirm]` | The complainant; the ICO if they complain on | Interim `audit_event` (H-670) |
 
-Notes: the register and complaints are reached only with `quality.dsar.manage` (owner, Registered
-Manager, deputy manager, quality lead); every read and change is audited with ids and codes only,
+Notes: the register and complaints are reached only with `quality.dsar.manage` held across the
+whole organisation (owner, quality lead; never a manager for one home); every read and change is audited with ids and codes only,
 never the summary, names, contact details, reasoning or notice text. A complaint about a sample
 person stops sample data removal rather than being deleted with it.

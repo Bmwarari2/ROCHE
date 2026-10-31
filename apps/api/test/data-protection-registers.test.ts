@@ -1,7 +1,9 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { HttpProblem } from "../src/http/problem";
 import { outboxHandlers, relayOutbox } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
+import { dbRefusal } from "../src/routes/data-protection";
 import { createHarness, type Harness, OTHER } from "./support/harness";
 
 /**
@@ -93,7 +95,10 @@ async function record(awareHoursAgo: number, who = "owner"): Promise<Breach> {
 
 describe("PLAT-022 the breach register", () => {
   it("is for holders of quality.dsar.manage only, in their own organisation", async () => {
-    expect((await get("/v1/data-protection/breaches", "manager")).status).toBe(200);
+    // The Registered Manager holds it for one home only (#149 High): refused, in words.
+    const home = await get("/v1/data-protection/breaches", "manager");
+    expect(home.status).toBe(403);
+    expect((await get("/v1/data-protection/complaints", "manager")).status).toBe(403);
     expect((await get("/v1/data-protection/breaches", "quality")).status).toBe(200);
     expect((await get("/v1/data-protection/breaches", "carer")).status).toBe(403);
     expect((await get("/v1/data-protection/breaches", "nurse")).status).toBe(403);
@@ -177,7 +182,7 @@ describe("PLAT-022 the breach register", () => {
   it("needs reasons for a late ICO report, a finished notice, and every step before closing", async () => {
     const b = await record(90);
     let cur = await json<Breach>(
-      await send("POST", `/v1/data-protection/breaches/${b.id}/assessment`, "manager", {
+      await send("POST", `/v1/data-protection/breaches/${b.id}/assessment`, "quality", {
         expectedVersion: b.version,
         factors: FACTORS,
       }),
@@ -185,7 +190,7 @@ describe("PLAT-022 the breach register", () => {
     const notDecided = await send(
       "POST",
       `/v1/data-protection/breaches/${b.id}/ico-report`,
-      "manager",
+      "quality",
       {
         expectedVersion: cur.version,
         reportedAt: hoursAgo(1),
@@ -194,21 +199,21 @@ describe("PLAT-022 the breach register", () => {
     );
     expect(await codeOf(notDecided)).toBe("not_decided_to_report");
     cur = await json<Breach>(
-      await send("POST", `/v1/data-protection/breaches/${b.id}/decision`, "manager", {
+      await send("POST", `/v1/data-protection/breaches/${b.id}/decision`, "quality", {
         expectedVersion: cur.version,
         reportToIco: true,
         tellIndividuals: true,
         reasoning: "Special category data went outside the organisation.",
       }),
     );
-    const late = await send("POST", `/v1/data-protection/breaches/${b.id}/ico-report`, "manager", {
+    const late = await send("POST", `/v1/data-protection/breaches/${b.id}/ico-report`, "quality", {
       expectedVersion: cur.version,
       reportedAt: hoursAgo(1),
       icoReference: "IC-123456",
     });
     expect(await codeOf(late)).toBe("delay_reason_required");
     cur = await json<Breach>(
-      await send("POST", `/v1/data-protection/breaches/${b.id}/ico-report`, "manager", {
+      await send("POST", `/v1/data-protection/breaches/${b.id}/ico-report`, "quality", {
         expectedVersion: cur.version,
         reportedAt: hoursAgo(1),
         icoReference: "IC-123456",
@@ -216,24 +221,24 @@ describe("PLAT-022 the breach register", () => {
       }),
     );
     expect(cur.clock.state).toBe("reported_late");
-    const moved = await send("POST", `/v1/data-protection/breaches/${b.id}/facts`, "manager", {
+    const moved = await send("POST", `/v1/data-protection/breaches/${b.id}/facts`, "quality", {
       expectedVersion: cur.version,
       awareAt: hoursAgo(100),
     });
     expect(await codeOf(moved)).toBe("aware_at_fixed");
-    const closeEarly = await send("POST", `/v1/data-protection/breaches/${b.id}/close`, "manager", {
+    const closeEarly = await send("POST", `/v1/data-protection/breaches/${b.id}/close`, "quality", {
       expectedVersion: cur.version,
       lessons: "Check the address before sending care notes by email.",
     });
     expect(await codeOf(closeEarly)).toBe("not_told");
     const draft = await json<{ notice: string }>(
-      await get(`/v1/data-protection/breaches/${b.id}/subject-notice-draft`, "manager"),
+      await get(`/v1/data-protection/breaches/${b.id}/subject-notice-draft`, "quality"),
     );
     expect(draft.notice).toContain("What happened");
     const unfinished = await send(
       "POST",
       `/v1/data-protection/breaches/${b.id}/individuals-told`,
-      "manager",
+      "quality",
       {
         expectedVersion: cur.version,
         notice: draft.notice,
@@ -242,20 +247,20 @@ describe("PLAT-022 the breach register", () => {
     );
     expect(await codeOf(unfinished)).toBe("notice_unfinished");
     cur = await json<Breach>(
-      await send("POST", `/v1/data-protection/breaches/${b.id}/individuals-told`, "manager", {
+      await send("POST", `/v1/data-protection/breaches/${b.id}/individuals-told`, "quality", {
         expectedVersion: cur.version,
         notice: draft.notice.replace(/\[Write [^\]]*\]/g, "Details written by the lead."),
         toldOn: today(),
       }),
     );
     const closed = await json<Breach>(
-      await send("POST", `/v1/data-protection/breaches/${b.id}/close`, "manager", {
+      await send("POST", `/v1/data-protection/breaches/${b.id}/close`, "quality", {
         expectedVersion: cur.version,
         lessons: "Check the address before sending care notes by email.",
       }),
     );
     expect(closed.status).toBe("closed");
-    const after = await send("POST", `/v1/data-protection/breaches/${b.id}/facts`, "manager", {
+    const after = await send("POST", `/v1/data-protection/breaches/${b.id}/facts`, "quality", {
       expectedVersion: closed.version,
       summary: "Trying to change it afterwards.",
     });
@@ -320,7 +325,7 @@ describe("PLAT-022 Thapsus's breach notice", () => {
     const again = await send(
       "POST",
       `/v1/data-protection/breach-notices/${noticeId}/acknowledge`,
-      "manager",
+      "quality",
     );
     expect(await codeOf(again)).toBe("already_acknowledged");
     const followUp = await h.request("/operator/breach-notices", {
@@ -416,5 +421,33 @@ describe("PLAT-022 data protection complaints", () => {
       ]),
     );
     expect(JSON.stringify(audit)).not.toMatch(/Eve Example|example\.invalid|mother's records/);
+  });
+});
+
+describe("PLAT-022 database refusals are said plainly", () => {
+  it.each([
+    [{ code: "23514", message: "dp_breach_decider_not_you" }, 422, "dp_breach_decider_not_you"],
+    [
+      { code: "23514", message: 'new row violates check constraint "dp_breach_reported"' },
+      422,
+      "not_allowed",
+    ],
+    [{ code: "23503", message: "insert violates foreign key" }, 422, "not_found"],
+    [
+      { code: "42501", message: "new row violates row-level security policy" },
+      403,
+      "missing_permission",
+    ],
+  ])("%o", (error, status, code) => {
+    const refusal = dbRefusal(error);
+    expect(refusal).toBeInstanceOf(HttpProblem);
+    expect(refusal).toMatchObject({ status, code });
+    // The database's message (which may hold values) is never passed on.
+    expect((refusal as HttpProblem).title).not.toContain("violates");
+  });
+
+  it("passes anything else on unchanged, for the logged 500", () => {
+    const other = new Error("connection reset");
+    expect(dbRefusal(other)).toBe(other);
   });
 });

@@ -36,6 +36,7 @@ import {
   noticeHasPrompts,
   type RateNation,
   resolveOptionalRate,
+  scopeFor,
   subjectNoticeDraft,
   ukIsoDate,
 } from "@harbour/domain";
@@ -54,6 +55,7 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
+import { dbCode } from "./people-shared";
 
 /**
  * The breach register, Thapsus's processor breach notices and data protection complaints
@@ -102,6 +104,49 @@ async function locationExists(tx: Tx, id: string | null | undefined) {
   if (!id) return;
   const [l] = await tx.select({ id: location.id }).from(location).where(eq(location.id, id));
   if (!l) throw unprocessable("location_not_found", "That location is not in this organisation.");
+}
+
+/**
+ * `quality.dsar.manage` across the whole organisation (security review, #149 High): the register
+ * and complaints are the organisation's data protection function, so a Registered Manager or
+ * deputy who holds it for one home only is refused here, as row-level security refuses them
+ * (`app.holds_role_permission_at(..., NULL)`, migration 0082).
+ */
+async function requireOrganisationWide(c: Context<AppEnv>): Promise<TenantAccess> {
+  const access = await requirePermission(c, PERMISSION);
+  if (scopeFor(access.effective, PERMISSION).scope !== "tenant") {
+    throw new HttpProblem(
+      403,
+      "missing_permission",
+      "The breach register and data protection complaints are for people who handle data protection for the whole organisation.",
+    );
+  }
+  return access;
+}
+
+/**
+ * A tenant transaction whose database refusals are said plainly: a check or guard (23514) is a
+ * 422 with the guard's code when it gave one, a missing reference (23503) a 422, a row-level
+ * security refusal (42501) a 403. The values never reach the logs (app.ts logs codes only).
+ */
+export function dbRefusal(error: unknown): unknown {
+  const code = dbCode(error);
+  const message = (error as { message?: string }).message ?? "";
+  if (code === "23514") {
+    const guard = /^(dp_breach|dp_complaint)_[a-z_]+$/.test(message) ? message : "not_allowed";
+    return unprocessable(guard, "That change is not allowed for this record.");
+  }
+  if (code === "23503") return unprocessable("not_found", "Something it refers to was not found.");
+  if (code === "42501") return problems.forbidden();
+  return error;
+}
+
+async function dpTransaction<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  try {
+    return await withTenant(c, fn);
+  } catch (error) {
+    throw dbRefusal(error);
+  }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -432,8 +477,8 @@ export const dataProtectionRouter = createRouter()
       responses: { 200: jsonBody(BreachList, "The register"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
-      const result = await withTenant(c, async (tx) => {
+      const access = await requireOrganisationWide(c);
+      const result = await dpTransaction(c, async (tx) => {
         const t = await tenantOf(tx, access);
         const fetched = await tx
           .select()
@@ -474,13 +519,13 @@ export const dataProtectionRouter = createRouter()
       responses: { 201: jsonBody(BreachOut, "Recorded"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const body = c.req.valid("json");
       const now = new Date();
       if (new Date(body.awareAt) > now || (body.occurredAt && new Date(body.occurredAt) > now)) {
         throw unprocessable("time_in_future", "Times cannot be in the future.");
       }
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         await locationExists(tx, body.locationId);
         const [row] = await tx
           .insert(dpBreach)
@@ -511,9 +556,9 @@ export const dataProtectionRouter = createRouter()
       responses: { 200: jsonBody(BreachOut, "The breach"), ...errorResponses, ...notFoundResponse },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const row = await loadBreach(tx, id);
         await breachAudit(c, tx, access, "viewed", id);
         return oneBreach(tx, access, row);
@@ -537,7 +582,7 @@ export const dataProtectionRouter = createRouter()
       responses: breachResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
@@ -547,7 +592,7 @@ export const dataProtectionRouter = createRouter()
       ) {
         throw unprocessable("time_in_future", "Times cannot be in the future.");
       }
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         await locationExists(tx, body.locationId);
         // Art 33(2): an entry Thapsus opened was known no later than its first notice.
         const [first] = await tx
@@ -616,11 +661,11 @@ export const dataProtectionRouter = createRouter()
       responses: breachResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const suggestion = assessBreach(body.factors);
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const saved = await changeBreach(
           tx,
           id,
@@ -666,10 +711,10 @@ export const dataProtectionRouter = createRouter()
       responses: breachResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const saved = await changeBreach(
           tx,
           id,
@@ -737,14 +782,14 @@ export const dataProtectionRouter = createRouter()
       responses: breachResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const reportedAt = new Date(body.reportedAt);
       if (reportedAt > new Date())
         throw unprocessable("time_in_future", "Times cannot be in the future.");
       let late = false;
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const t = await tenantOf(tx, access);
         const before = await loadBreach(tx, id);
         const hours = await reportHoursFor(
@@ -811,9 +856,9 @@ export const dataProtectionRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
-      const notice = await withTenant(c, async (tx) => {
+      const notice = await dpTransaction(c, async (tx) => {
         const row = await loadBreach(tx, id);
         const t = await tenantOf(tx, access);
         await breachAudit(c, tx, access, "notice_drafted", id);
@@ -843,7 +888,7 @@ export const dataProtectionRouter = createRouter()
       responses: breachResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       if (body.toldOn > ukIsoDate(new Date())) {
@@ -855,7 +900,7 @@ export const dataProtectionRouter = createRouter()
           "Replace every part in square brackets before recording the notice.",
         );
       }
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const saved = await changeBreach(
           tx,
           id,
@@ -892,10 +937,10 @@ export const dataProtectionRouter = createRouter()
       responses: breachResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const saved = await changeBreach(
           tx,
           id,
@@ -940,9 +985,9 @@ export const dataProtectionRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const [notice] = await tx
           .select()
           .from(processorBreachNotice)
@@ -984,8 +1029,8 @@ export const dataProtectionRouter = createRouter()
       responses: { 200: jsonBody(ComplaintList, "Complaints"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
-      const result = await withTenant(c, async (tx) => {
+      const access = await requireOrganisationWide(c);
+      const result = await dpTransaction(c, async (tx) => {
         const fetched = await tx
           .select()
           .from(dpComplaint)
@@ -1017,13 +1062,13 @@ export const dataProtectionRouter = createRouter()
       responses: { 201: jsonBody(ComplaintOut, "Recorded"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const body = c.req.valid("json");
       if (body.receivedOn > ukIsoDate(new Date())) {
         throw unprocessable("date_in_future", "The day received cannot be in the future.");
       }
       if (body.personId) await requirePermission(c, "people.person.read");
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         await locationExists(tx, body.locationId);
         if (body.breachId) {
           const [b] = await tx
@@ -1084,9 +1129,9 @@ export const dataProtectionRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const row = await loadComplaint(tx, id);
         await complaintAudit(c, tx, access, "viewed", id);
         return oneComplaint(tx, access, row);
@@ -1110,10 +1155,10 @@ export const dataProtectionRouter = createRouter()
       responses: complaintResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const saved = await changeComplaint(
           tx,
           id,
@@ -1148,10 +1193,10 @@ export const dataProtectionRouter = createRouter()
       responses: complaintResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const saved = await changeComplaint(
           tx,
           id,
@@ -1189,7 +1234,7 @@ export const dataProtectionRouter = createRouter()
       responses: complaintResponses,
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireOrganisationWide(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const closure = checkComplaintClosure({
@@ -1197,7 +1242,7 @@ export const dataProtectionRouter = createRouter()
         icoRightStated: body.icoRightStated,
       });
       if (!closure.ok) throw unprocessable(closure.problem, closure.message);
-      const out = await withTenant(c, async (tx) => {
+      const out = await dpTransaction(c, async (tx) => {
         const saved = await changeComplaint(
           tx,
           id,

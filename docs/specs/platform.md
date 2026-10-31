@@ -963,9 +963,13 @@ renumbered at merge). Procedures: [breach-response.md](../compliance/breach-resp
 
 **Rules**
 
-18. Every breach is recorded (rule 7). Recording one needs `quality.dsar.manage`; so do reading and
-    every change. The register is organisation-wide: the data protection function is the
-    organisation's, not a location's (a location is recorded when there is one).
+18. Every breach is recorded (rule 7). Recording one needs `quality.dsar.manage` held across the
+    whole organisation; so do reading and every change. The register is the organisation's data
+    protection function, not a location's: someone who holds the permission for one home only (a
+    Registered Manager or deputy) is refused by the API (403) and sees nothing through row-level
+    security (`app.holds_role_permission_at(..., NULL)`; #149 security review). A location is
+    recorded when there is one. Database refusals are said plainly: a check or guard (23514) is a
+    422 with the guard's code, a missing reference (23503) a 422; logs carry codes, never values.
 19. The ICO clock is `breachClock` over `aware_at` and `ico.breach.report_hours` from the rate table,
     worked out when read, never stored. `aware_at` may be corrected only until the ICO report is
     recorded; it may move later only before the decision, and never later than Thapsus's first
@@ -1007,12 +1011,13 @@ renumbered at merge). Procedures: [breach-response.md](../compliance/breach-resp
 
 | Action | Permission | Notes |
 | --- | --- | --- |
-| Read the breach register, a breach, processor notices; record, assess, decide, report, tell, close a breach; acknowledge a notice | `quality.dsar.manage` | RLS checks it again |
-| Read, record, acknowledge, contact and close a complaint | `quality.dsar.manage` | RLS checks it again |
+| Read the breach register, a breach, processor notices; record, assess, decide, report, tell, close a breach; acknowledge a notice | `quality.dsar.manage`, organisation-wide | RLS checks it again, binding `harbour_owner` too |
+| Read, record, acknowledge, contact and close a complaint | `quality.dsar.manage`, organisation-wide | RLS checks it again |
 | Send a processor breach notice | operator admin, fresh step-up | definer function, not a tenant permission |
 
-Built-in roles holding `quality.dsar.manage`: owner, registered manager, deputy manager, quality lead.
-Each of them already needs MFA through their care-record permissions, so the permission is not
+Built-in roles holding `quality.dsar.manage` organisation-wide: owner and quality lead (a Registered
+Manager or deputy holds it only for their home unless their assignment is organisation-wide, and is
+refused here). Each of them already needs MFA through their care-record permissions, so the permission is not
 itself marked as a care record; a custom role holding it alone would not force MFA (a decision for
 slice 15, which also uses it). Row-level security counts the permission through roles
 (`app.holds_role_permission_somewhere`), so a time-boxed grant of it alone reads an empty register:

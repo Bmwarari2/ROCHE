@@ -161,7 +161,10 @@ CREATE INDEX "processor_breach_notice_breach_idx" ON "processor_breach_notice" U
 -- express: forced row-level security, permission policies, guards on closed records, append-only
 -- notices and acknowledgements, grants, record history, and the definer function Thapsus uses to
 -- send a processor breach notice. The register and complaints are the organisation's data
--- protection function: whoever holds quality.dsar.manage through a role, anywhere.
+-- protection function: whoever holds quality.dsar.manage through a role across the whole
+-- organisation (app.holds_role_permission_at with no location). A Registered Manager or deputy
+-- holds it for one home only and sees none of it (security review, #149 High). Restrictive
+-- policies bind harbour_owner as well as harbour_app (ADR-0002).
 
 -- Breach register entries.
 ALTER TABLE public.dp_breach ENABLE ROW LEVEL SECURITY;
@@ -171,18 +174,18 @@ ALTER TABLE public.dp_breach FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON public.dp_breach AS PERMISSIVE FOR ALL TO PUBLIC
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
-CREATE POLICY breach_read ON public.dp_breach AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (app.holds_role_permission_somewhere('quality.dsar.manage'));
+CREATE POLICY breach_read ON public.dp_breach AS RESTRICTIVE FOR SELECT TO harbour_app, harbour_owner
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
-CREATE POLICY breach_record ON public.dp_breach AS RESTRICTIVE FOR INSERT TO harbour_app
+CREATE POLICY breach_record ON public.dp_breach AS RESTRICTIVE FOR INSERT TO harbour_app, harbour_owner
   WITH CHECK (source = 'tenant' AND status = 'open' AND factors IS NULL AND decided_at IS NULL
     AND reported_at IS NULL AND individuals_told_on IS NULL AND closed_at IS NULL
     AND deleted_at IS NULL AND created_by IS NOT DISTINCT FROM app.current_user_id()
-    AND app.holds_role_permission_somewhere('quality.dsar.manage'));
+    AND app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
-CREATE POLICY breach_change ON public.dp_breach AS RESTRICTIVE FOR UPDATE TO harbour_app
-  USING (app.holds_role_permission_somewhere('quality.dsar.manage'))
-  WITH CHECK (app.holds_role_permission_somewhere('quality.dsar.manage'));
+CREATE POLICY breach_change ON public.dp_breach AS RESTRICTIVE FOR UPDATE TO harbour_app, harbour_owner
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL))
+  WITH CHECK (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 -- Rules 19, 20 and 23: the source, creator and removal never change; awareness only until the
 -- ICO report is recorded, never later once decided, and never later than Thapsus's first notice
@@ -253,7 +256,7 @@ CREATE POLICY tenant_isolation ON public.processor_breach_notice AS PERMISSIVE F
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 CREATE POLICY notice_read ON public.processor_breach_notice AS RESTRICTIVE FOR SELECT
-  TO harbour_app USING (app.holds_role_permission_somewhere('quality.dsar.manage'));
+  TO harbour_app, harbour_owner USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.processor_breach_notice
   FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation();
@@ -276,12 +279,12 @@ CREATE POLICY tenant_isolation ON public.processor_breach_notice_ack AS PERMISSI
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 CREATE POLICY ack_read ON public.processor_breach_notice_ack AS RESTRICTIVE FOR SELECT
-  TO harbour_app USING (app.holds_role_permission_somewhere('quality.dsar.manage'));
+  TO harbour_app, harbour_owner USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 CREATE POLICY ack_write ON public.processor_breach_notice_ack AS RESTRICTIVE FOR INSERT
-  TO harbour_app
+  TO harbour_app, harbour_owner
   WITH CHECK (acknowledged_by = app.current_user_id()
-    AND app.holds_role_permission_somewhere('quality.dsar.manage'));
+    AND app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.processor_breach_notice_ack
   FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation();
@@ -302,17 +305,17 @@ ALTER TABLE public.dp_complaint FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON public.dp_complaint AS PERMISSIVE FOR ALL TO PUBLIC
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
-CREATE POLICY complaint_read ON public.dp_complaint AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (app.holds_role_permission_somewhere('quality.dsar.manage'));
+CREATE POLICY complaint_read ON public.dp_complaint AS RESTRICTIVE FOR SELECT TO harbour_app, harbour_owner
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
-CREATE POLICY complaint_record ON public.dp_complaint AS RESTRICTIVE FOR INSERT TO harbour_app
+CREATE POLICY complaint_record ON public.dp_complaint AS RESTRICTIVE FOR INSERT TO harbour_app, harbour_owner
   WITH CHECK (status = 'open' AND closed_on IS NULL AND deleted_at IS NULL
     AND created_by IS NOT DISTINCT FROM app.current_user_id()
-    AND app.holds_role_permission_somewhere('quality.dsar.manage'));
+    AND app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
-CREATE POLICY complaint_change ON public.dp_complaint AS RESTRICTIVE FOR UPDATE TO harbour_app
-  USING (app.holds_role_permission_somewhere('quality.dsar.manage'))
-  WITH CHECK (app.holds_role_permission_somewhere('quality.dsar.manage'));
+CREATE POLICY complaint_change ON public.dp_complaint AS RESTRICTIVE FOR UPDATE TO harbour_app, harbour_owner
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL))
+  WITH CHECK (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 -- Rule 25: a closed complaint never changes; the creator and removal never change; whoever
 -- closes it is the person doing it.

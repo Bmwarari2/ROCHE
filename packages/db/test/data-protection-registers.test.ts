@@ -27,6 +27,13 @@ const asCarer = asMember(a.carer);
 const asOtherDpo = asMember(ids.b.manager, TENANT_B);
 const ownerDb = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), fn);
+/** The owner role, as the organisation-wide lead: restrictive policies bind it too (ADR-0002). */
+const ownerAsDpo = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(db.pool("harbour_owner"), ctx(TENANT_A, a.manager, "tenant"), fn);
+const ROLE_HOME_DPO = "0199f000-0000-7000-8000-000000000a03";
+/** A Registered Manager holding quality.dsar.manage for North House only (#149 High). */
+const asHomeManager = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), fn);
 
 const BREACH =
   "INSERT INTO dp_breach (source, summary, aware_at) VALUES ('tenant', 'A letter went to the wrong address.', now()) RETURNING id";
@@ -62,6 +69,15 @@ beforeAll(async () => {
       a.manager,
       ROLE_DPO,
     ]);
+    await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ($1, 'home_manager', 'Home manager', 'location', '{quality.dsar.manage}')`,
+      [ROLE_HOME_DPO],
+    );
+    await c.query(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+      [a.northManager, ROLE_HOME_DPO, a.locationNorth],
+    );
   });
   await inContext(owner, ctx(TENANT_B, null, "tenant"), async (c) => {
     await c.query(
@@ -94,7 +110,7 @@ describe("hazard HZ-011 the breach register (migration 0082)", () => {
     await asDpo((c) =>
       c.query("UPDATE dp_breach SET occurred_at = now() - interval '1 day' WHERE id = $1", [id]),
     );
-    const after = await ownerDb((c) =>
+    const after = await ownerAsDpo((c) =>
       c.query("SELECT version, created_by FROM dp_breach WHERE id = $1", [id]),
     );
     expect(after.rows).toEqual([{ version: 2, created_by: a.manager }]);
@@ -107,6 +123,19 @@ describe("hazard HZ-011 the breach register (migration 0082)", () => {
     await expect(asCarer((c) => c.query(BREACH))).rejects.toThrow(/row-level security/);
     expect((await asCarer((c) => c.query("SELECT id FROM dp_breach"))).rowCount).toBe(0);
     expect((await asOtherDpo((c) => c.query("SELECT id FROM dp_breach"))).rowCount).toBe(0);
+    // #149 High: holding it for one home is not the organisation's data protection function.
+    for (const table of [
+      "dp_breach",
+      "dp_complaint",
+      "processor_breach_notice",
+      "processor_breach_notice_ack",
+    ]) {
+      expect((await asHomeManager((c) => c.query(`SELECT id FROM ${table}`))).rowCount).toBe(0);
+    }
+    await expect(asHomeManager((c) => c.query(BREACH))).rejects.toThrow(/row-level security/);
+    await expect(asHomeManager((c) => c.query(COMPLAINT))).rejects.toThrow(/row-level security/);
+    // Nor does the owner role see it without the organisation-wide permission.
+    expect((await ownerDb((c) => c.query("SELECT id FROM dp_breach"))).rowCount).toBe(0);
     await expect(
       asOtherDpo((c) =>
         c.query(
@@ -246,6 +275,13 @@ describe("hazard HZ-011 processor breach notices (migration 0082, rule 24)", () 
     const entry = await asDpo((c) =>
       c.query("SELECT source, created_by FROM dp_breach WHERE id = $1", [sent.breachId]),
     );
+    expect(
+      (
+        await asHomeManager((c) =>
+          c.query("SELECT id FROM dp_breach WHERE id = $1", [sent.breachId]),
+        )
+      ).rowCount,
+    ).toBe(0);
     expect(entry.rows).toEqual([{ source: "processor_notice", created_by: null }]);
     const audit = await ownerDb((c) =>
       c.query("SELECT action, scope FROM audit_event WHERE resource_id = $1 AND tenant_id = $2", [
@@ -322,10 +358,10 @@ describe("hazard HZ-011 processor breach notices (migration 0082, rule 24)", () 
       ),
     ).rejects.toThrow(/processor_breach_notice_ack_notice_key/);
     await expect(
-      ownerDb((c) => c.query("DELETE FROM processor_breach_notice_ack")),
+      ownerAsDpo((c) => c.query("DELETE FROM processor_breach_notice_ack")),
     ).rejects.toThrow(/append-only/);
     await expect(
-      ownerDb((c) => c.query("UPDATE processor_breach_notice SET contact = 'x'")),
+      ownerAsDpo((c) => c.query("UPDATE processor_breach_notice SET contact = 'x'")),
     ).rejects.toThrow(/append-only/);
   });
 });
