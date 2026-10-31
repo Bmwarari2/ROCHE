@@ -34,6 +34,7 @@ import {
   retryUnroutedTasks,
   runEscalations,
   sweepEvidenceBundlesJob,
+  sweepLeaverAccess,
 } from "./tasks";
 
 /**
@@ -78,6 +79,7 @@ const QUEUES = {
   staffFileExpiry: "staff-file-expiry-reminders",
   policyReminders: "policy-reminders",
   developmentExpiry: "development-expiry-reminders",
+  leaverAccess: "leaver-access",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
   candourBlocked: "candour-blocked-incidents",
@@ -139,6 +141,9 @@ await work(QUEUES.policyReminders, async () => {
 });
 await work(QUEUES.developmentExpiry, async () => {
   await remindDevelopmentExpiry(deps);
+});
+await work(QUEUES.leaverAccess, async () => {
+  await sweepLeaverAccess(deps);
 });
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
@@ -222,6 +227,9 @@ await boss.schedule(QUEUES.staffFileExpiry, "17 * * * *");
 await boss.schedule(QUEUES.policyReminders, "27 * * * *");
 // Training and competence expiry reminders (workforce.md section 5), hourly at 21 past.
 await boss.schedule(QUEUES.developmentExpiry, "21 * * * *");
+// Leavers' access (workforce.md rule 22), hourly at 7 past: ended within the first hour of the
+// day after the leaving date.
+await boss.schedule(QUEUES.leaverAccess, "7 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
 // Hourly: people reviews fall due by the day; each raises one task, once.

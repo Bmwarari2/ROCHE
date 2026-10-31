@@ -38,6 +38,11 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Employee relations casework (migration 0101): whether the session's member is on a case.
   "app.casework_member(uuid, text[])": ["harbour_app"],
   "app.open_employee_case(text, uuid, text, date)": ["harbour_app"],
+  // Induction and leavers (migration 0091): the profile's member, read-and-sign counts, ending a
+  // leaver's access.
+  "app.staff_profile_worker(uuid)": ["harbour_app"],
+  "app.induction_policy_signing(uuid)": ["harbour_app"],
+  "app.end_leaver_access(uuid)": ["harbour_app"],
   "app.sweep_expired_invitations()": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins()": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).

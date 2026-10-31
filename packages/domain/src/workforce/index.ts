@@ -4,6 +4,7 @@ export * from "./competence-port";
 export * from "./dbs";
 export * from "./employment-history";
 export * from "./expiry";
+export * from "./induction";
 export * from "./rates";
 export * from "./recruitment";
 export * from "./registration";

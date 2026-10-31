@@ -26464,6 +26464,876 @@
           "occurredOn"
         ]
       },
+      "InductionDetail": {
+        "type": "object",
+        "properties": {
+          "staffProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "planVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "careCertificateHeld": {
+            "type": "boolean"
+          },
+          "checklist": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "phase": {
+                  "type": "string"
+                },
+                "status": {
+                  "$ref": "#/components/schemas/ChecklistStatus"
+                },
+                "doneOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "kind",
+                "phase",
+                "status",
+                "doneOn"
+              ]
+            }
+          },
+          "policies": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "integer"
+              },
+              "signed": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "required",
+              "signed"
+            ]
+          },
+          "careCertificate": {
+            "type": "object",
+            "properties": {
+              "standards": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "$ref": "#/components/schemas/CareCertificateStandardId"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "not_started",
+                        "knowledge_assessed",
+                        "competent"
+                      ]
+                    },
+                    "knowledgeAssessedOn": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    },
+                    "knowledgeAssessedBy": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "observedOn": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    },
+                    "observedBy": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "version": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "status",
+                    "knowledgeAssessedOn",
+                    "knowledgeAssessedBy",
+                    "observedOn",
+                    "observedBy",
+                    "version"
+                  ]
+                }
+              },
+              "competent": {
+                "type": "integer"
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "completedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              }
+            },
+            "required": [
+              "standards",
+              "competent",
+              "complete",
+              "completedOn"
+            ]
+          },
+          "shadowShifts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "shiftOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "locationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "shadowedId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "id",
+                "shiftOn",
+                "locationId",
+                "shadowedId"
+              ]
+            }
+          },
+          "probation": {
+            "type": "object",
+            "properties": {
+              "endsOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "outcome": {
+                "$ref": "#/components/schemas/ProbationOutcome"
+              },
+              "decidedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "decidedBy": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "reviews": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "reviewOn": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "reviewerId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "on_track",
+                        "concerns"
+                      ]
+                    },
+                    "notes": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "reviewOn",
+                    "reviewerId",
+                    "outcome",
+                    "notes"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "endsOn",
+              "outcome",
+              "decidedOn",
+              "decidedBy",
+              "reviews"
+            ]
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "staffProfileId",
+          "startsOn",
+          "planVersion",
+          "careCertificateHeld",
+          "checklist",
+          "policies",
+          "careCertificate",
+          "shadowShifts",
+          "probation",
+          "asOf"
+        ]
+      },
+      "ChecklistStatus": {
+        "type": "string",
+        "enum": [
+          "done",
+          "outstanding",
+          "overdue",
+          "not_needed"
+        ],
+        "description": "Shown as a word and an icon, never colour alone"
+      },
+      "CareCertificateStandardId": {
+        "type": "string",
+        "enum": [
+          "cc01",
+          "cc02",
+          "cc03",
+          "cc04",
+          "cc05",
+          "cc06",
+          "cc07",
+          "cc08",
+          "cc09",
+          "cc10",
+          "cc11",
+          "cc12",
+          "cc13",
+          "cc14",
+          "cc15",
+          "cc16"
+        ]
+      },
+      "ProbationOutcome": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "passed",
+          "extended",
+          "not_passed",
+          null
+        ]
+      },
+      "SetInductionPlan": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "probationEndsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "careCertificateHeld": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "probationEndsOn",
+          "careCertificateHeld"
+        ]
+      },
+      "TickItem": {
+        "type": "object",
+        "properties": {
+          "doneOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "doneOn"
+        ]
+      },
+      "RecordShadowShift": {
+        "type": "object",
+        "properties": {
+          "shiftOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "shadowedId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "shiftOn",
+          "shadowedId"
+        ]
+      },
+      "RecordProbationReview": {
+        "type": "object",
+        "properties": {
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "on_track",
+              "concerns"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4000,
+            "default": null
+          }
+        },
+        "required": [
+          "reviewOn",
+          "outcome"
+        ]
+      },
+      "DecideProbation": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ProbationOutcome"
+          },
+          "decidedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "newEndsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "outcome",
+          "decidedOn"
+        ]
+      },
+      "CareCertificateView": {
+        "type": "object",
+        "properties": {
+          "staffProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "careCertificate": {
+            "type": "object",
+            "properties": {
+              "standards": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "$ref": "#/components/schemas/CareCertificateStandardId"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "not_started",
+                        "knowledge_assessed",
+                        "competent"
+                      ]
+                    },
+                    "knowledgeAssessedOn": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    },
+                    "knowledgeAssessedBy": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "observedOn": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    },
+                    "observedBy": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "version": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "status",
+                    "knowledgeAssessedOn",
+                    "knowledgeAssessedBy",
+                    "observedOn",
+                    "observedBy",
+                    "version"
+                  ]
+                }
+              },
+              "competent": {
+                "type": "integer"
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "completedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              }
+            },
+            "required": [
+              "standards",
+              "competent",
+              "complete",
+              "completedOn"
+            ]
+          }
+        },
+        "required": [
+          "staffProfileId",
+          "careCertificate"
+        ]
+      },
+      "RecordCareCertificateStep": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": [
+              "knowledge",
+              "observation"
+            ]
+          },
+          "on": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "step",
+          "on"
+        ]
+      },
+      "LeavingDetail": {
+        "type": "object",
+        "properties": {
+          "staffProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "leavingOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/LeavingReason"
+          },
+          "accessRemovedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "exitInterview": {
+            "$ref": "#/components/schemas/ExitInterviewState"
+          },
+          "exitInterviewOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "exitInterviewSummary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "staffFileRetainUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "checklist": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "status": {
+                  "$ref": "#/components/schemas/ChecklistStatus"
+                },
+                "doneOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "kind",
+                "status",
+                "doneOn"
+              ]
+            }
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requestedOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "requester": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "factual",
+                    "conduct"
+                  ]
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "requested",
+                    "sent",
+                    "declined"
+                  ]
+                },
+                "sentOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "declinedReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "id",
+                "requestedOn",
+                "requester",
+                "kind",
+                "state",
+                "sentOn",
+                "declinedReason",
+                "version"
+              ]
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "staffProfileId",
+          "leavingOn",
+          "reason",
+          "accessRemovedAt",
+          "exitInterview",
+          "exitInterviewOn",
+          "exitInterviewSummary",
+          "staffFileRetainUntil",
+          "checklist",
+          "references",
+          "version",
+          "asOf"
+        ]
+      },
+      "LeavingReason": {
+        "type": "string",
+        "enum": [
+          "resignation",
+          "end_of_fixed_term",
+          "retirement",
+          "dismissal",
+          "redundancy",
+          "tupe_transfer_out",
+          "death_in_service",
+          "other"
+        ]
+      },
+      "ExitInterviewState": {
+        "type": "string",
+        "enum": [
+          "not_offered",
+          "offered",
+          "declined",
+          "held"
+        ]
+      },
+      "RecordLeaving": {
+        "type": "object",
+        "properties": {
+          "leavingOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/LeavingReason"
+          }
+        },
+        "required": [
+          "leavingOn",
+          "reason"
+        ]
+      },
+      "RecordExitInterview": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "offered",
+              "declined",
+              "held"
+            ]
+          },
+          "heldOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4000,
+            "default": null
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "state"
+        ]
+      },
+      "RecordReferenceRequest": {
+        "type": "object",
+        "properties": {
+          "requestedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "requester": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "factual",
+              "conduct"
+            ]
+          }
+        },
+        "required": [
+          "requestedOn",
+          "requester",
+          "kind"
+        ]
+      },
+      "AnswerReferenceRequest": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "declined"
+            ]
+          },
+          "sentOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          },
+          "declinedReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "no_consent_to_share",
+              "not_employed_here",
+              "duplicate_request",
+              null
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "state"
+        ]
+      },
       "TrainingRequirementList": {
         "type": "object",
         "properties": {
@@ -64502,6 +65372,1473 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/induction": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A new starter's induction",
+        "description": "workforce.staff_file.read. The checklist with each item's status, read-and-sign counts, the Care Certificate, shadow shifts and probation. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The induction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InductionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Set up the induction plan",
+        "description": "workforce.staff_file.manage, never on one's own file. The probation end date and whether the worker already holds the Care Certificate; expectedVersion once the plan exists. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetInductionPlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The induction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InductionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/induction": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "My induction",
+        "description": "workforce.self.read. The member's own induction and Care Certificate.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your induction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InductionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/induction/items/{kind}": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Tick an induction item",
+        "description": "workforce.staff_file.manage, never on one's own file, in the caller's own name. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "contract_issued",
+                "system_access_set_up",
+                "uniform_and_badge",
+                "location_induction",
+                "fire_safety_briefing",
+                "shadowing_signed_off"
+              ]
+            },
+            "required": true,
+            "name": "kind",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TickItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The induction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InductionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/induction/shadow-shifts": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a shadow shift",
+        "description": "workforce.staff_file.manage, never on one's own file: the day, where, and the colleague shadowed (never the worker). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordShadowShift"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The induction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InductionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/induction/probation-reviews": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a probation review",
+        "description": "workforce.staff_file.manage, never on one's own file, in the reviewer's own name: on track or concerns, with notes. Audited without the notes.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordProbationReview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The induction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InductionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/induction/probation-decision": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Decide probation",
+        "description": "workforce.staff_file.manage, never on one's own file, with the plan's expectedVersion: passed, extended to a later date, or not passed (the dismissal itself goes through an employee relations case of type probation). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideProbation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The induction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InductionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/care-certificate/{standardId}": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a Care Certificate standard's assessment or observation",
+        "description": "workforce.staff_file.manage or workforce.competence.observe, never on one's own file, in the caller's own name: the knowledge assessment, then the observation in practice (observers only). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cc01",
+                "cc02",
+                "cc03",
+                "cc04",
+                "cc05",
+                "cc06",
+                "cc07",
+                "cc08",
+                "cc09",
+                "cc10",
+                "cc11",
+                "cc12",
+                "cc13",
+                "cc14",
+                "cc15",
+                "cc16"
+              ]
+            },
+            "required": true,
+            "name": "standardId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordCareCertificateStep"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Care Certificate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareCertificateView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/leaving": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A leaver's record",
+        "description": "workforce.staff_file.read. The leaving date and reason, the checklist, when access ended, the exit interview, references and how long the staff file is kept. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The leaving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a leaving",
+        "description": "workforce.staff_file.manage, never one's own: the last day and reason. Sets the staff file's leaving date and works out how long the file is kept; access ends from the day after the leaving date (the sweep), or at once with end-access. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordLeaving"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The leaving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavingDetail"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/leaving/items/{kind}": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Tick a leaving item",
+        "description": "workforce.staff_file.manage, never on one's own file, in the caller's own name. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "property_returned",
+                "final_pay_notified"
+              ]
+            },
+            "required": true,
+            "name": "kind",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TickItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The leaving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/leaving/exit-interview": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record the exit interview",
+        "description": "workforce.staff_file.manage, with expectedVersion: offered, declined, or held with its date and a summary (which the leaver may see). Audited without the summary.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordExitInterview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The leaving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/leaving/end-access": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "End a leaver's access now",
+        "description": "workforce.staff_file.manage with step-up, never one's own: marks the member as left, ends their roles and revokes their grants at once (a dismissal, for example), instead of waiting for the day after the leaving date. A member who manages users, roles or grants, or holds a silo role, needs platform.user.manage too, and the last member who manages users keeps their access. Once only. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The leaving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/references": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a reference request",
+        "description": "workforce.staff_file.manage, never one's own: the organisation asking (never a person's name) and whether a factual or a conduct reference. Audited without the requester.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordReferenceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The leaving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/references/{referenceId}": {
+      "patch": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Answer a reference request",
+        "description": "workforce.staff_file.manage, never one's own, with the request's expectedVersion: sent (in the caller's own name) or declined with a reason. Once only. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "referenceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerReferenceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The leaving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavingDetail"
                 }
               }
             }

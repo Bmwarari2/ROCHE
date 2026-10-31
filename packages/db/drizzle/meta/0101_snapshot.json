@@ -1,6 +1,6 @@
 {
-  "id": "a2b3710d-166b-4cc7-ab3b-b43441652a09",
-  "prevId": "4bfbb41c-6615-48c3-8e25-cc5d6c39b94e",
+  "id": "78268803-5477-4f3f-8ad3-7fcc8c16f023",
+  "prevId": "e752d8cb-e70f-4d7a-b575-e4b28f55d745",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8980,6 +8980,1151 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.care_certificate_progress": {
+      "name": "care_certificate_progress",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "standard_id": {
+          "name": "standard_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "knowledge_assessed_on": {
+          "name": "knowledge_assessed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "knowledge_assessed_by": {
+          "name": "knowledge_assessed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_on": {
+          "name": "observed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observed_by": {
+          "name": "observed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "care_certificate_progress_profile_fk": {
+          "name": "care_certificate_progress_profile_fk",
+          "tableFrom": "care_certificate_progress",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "care_certificate_progress_assessor_fk": {
+          "name": "care_certificate_progress_assessor_fk",
+          "tableFrom": "care_certificate_progress",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "knowledge_assessed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "care_certificate_progress_observer_fk": {
+          "name": "care_certificate_progress_observer_fk",
+          "tableFrom": "care_certificate_progress",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "observed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "care_certificate_progress_tenant_id_id_key": {
+          "name": "care_certificate_progress_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "care_certificate_progress_standard_key": {
+          "name": "care_certificate_progress_standard_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "staff_profile_id",
+            "standard_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "care_certificate_progress_standard": {
+          "name": "care_certificate_progress_standard",
+          "value": "standard_id IN ('cc01', 'cc02', 'cc03', 'cc04', 'cc05', 'cc06', 'cc07', 'cc08', 'cc09', 'cc10', 'cc11', 'cc12', 'cc13', 'cc14', 'cc15', 'cc16')"
+        },
+        "care_certificate_progress_observed": {
+          "name": "care_certificate_progress_observed",
+          "value": "(observed_on IS NULL) = (observed_by IS NULL)\n        AND (observed_on IS NULL OR observed_on >= knowledge_assessed_on)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.induction_plan": {
+      "name": "induction_plan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "care_certificate_held": {
+          "name": "care_certificate_held",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "probation_ends_on": {
+          "name": "probation_ends_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "probation_outcome": {
+          "name": "probation_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "probation_decided_on": {
+          "name": "probation_decided_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "probation_decided_by": {
+          "name": "probation_decided_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "induction_plan_profile_fk": {
+          "name": "induction_plan_profile_fk",
+          "tableFrom": "induction_plan",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "induction_plan_decided_by_fk": {
+          "name": "induction_plan_decided_by_fk",
+          "tableFrom": "induction_plan",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "probation_decided_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "induction_plan_tenant_id_id_key": {
+          "name": "induction_plan_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "induction_plan_profile_key": {
+          "name": "induction_plan_profile_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "staff_profile_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "induction_plan_probation": {
+          "name": "induction_plan_probation",
+          "value": "(probation_outcome IS NULL) = (probation_decided_on IS NULL)\n        AND (probation_outcome IS NULL) = (probation_decided_by IS NULL)\n        AND (probation_outcome IS NULL OR (probation_outcome IN ('passed', 'extended', 'not_passed') AND probation_ends_on IS NOT NULL))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.leaver_record": {
+      "name": "leaver_record",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "leaving_on": {
+          "name": "leaving_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "access_removed_at": {
+          "name": "access_removed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_removed_by": {
+          "name": "access_removed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exit_interview": {
+          "name": "exit_interview",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'not_offered'"
+        },
+        "exit_interview_on": {
+          "name": "exit_interview_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exit_interview_summary": {
+          "name": "exit_interview_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "staff_file_retain_until": {
+          "name": "staff_file_retain_until",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "leaver_record_profile_fk": {
+          "name": "leaver_record_profile_fk",
+          "tableFrom": "leaver_record",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "leaver_record_removed_by_fk": {
+          "name": "leaver_record_removed_by_fk",
+          "tableFrom": "leaver_record",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "access_removed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "leaver_record_tenant_id_id_key": {
+          "name": "leaver_record_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "leaver_record_profile_key": {
+          "name": "leaver_record_profile_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "staff_profile_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "leaver_record_reason": {
+          "name": "leaver_record_reason",
+          "value": "reason IN ('resignation', 'end_of_fixed_term', 'retirement', 'dismissal', 'redundancy', 'tupe_transfer_out', 'death_in_service', 'other')"
+        },
+        "leaver_record_exit_interview": {
+          "name": "leaver_record_exit_interview",
+          "value": "exit_interview IN ('not_offered', 'offered', 'declined', 'held')\n        AND (exit_interview_on IS NULL) = (exit_interview <> 'held')\n        AND (exit_interview_summary IS NULL OR (exit_interview = 'held' AND length(btrim(exit_interview_summary)) BETWEEN 1 AND 4000))"
+        },
+        "leaver_record_access": {
+          "name": "leaver_record_access",
+          "value": "access_removed_by IS NULL OR access_removed_at IS NOT NULL"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.probation_review": {
+      "name": "probation_review",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "review_on": {
+          "name": "review_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reviewer_id": {
+          "name": "reviewer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "probation_review_profile_idx": {
+          "name": "probation_review_profile_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "staff_profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "probation_review_profile_fk": {
+          "name": "probation_review_profile_fk",
+          "tableFrom": "probation_review",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "probation_review_reviewer_fk": {
+          "name": "probation_review_reviewer_fk",
+          "tableFrom": "probation_review",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "reviewer_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "probation_review_tenant_id_id_key": {
+          "name": "probation_review_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "probation_review_outcome": {
+          "name": "probation_review_outcome",
+          "value": "outcome IN ('on_track', 'concerns')"
+        },
+        "probation_review_notes": {
+          "name": "probation_review_notes",
+          "value": "notes IS NULL OR length(btrim(notes)) BETWEEN 1 AND 4000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.reference_request": {
+      "name": "reference_request",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_on": {
+          "name": "requested_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requester": {
+          "name": "requester",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'requested'"
+        },
+        "sent_on": {
+          "name": "sent_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sent_by": {
+          "name": "sent_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "declined_reason": {
+          "name": "declined_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "reference_request_profile_idx": {
+          "name": "reference_request_profile_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "staff_profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reference_request_profile_fk": {
+          "name": "reference_request_profile_fk",
+          "tableFrom": "reference_request",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "reference_request_sent_by_fk": {
+          "name": "reference_request_sent_by_fk",
+          "tableFrom": "reference_request",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "sent_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "reference_request_tenant_id_id_key": {
+          "name": "reference_request_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "reference_request_requester": {
+          "name": "reference_request_requester",
+          "value": "length(btrim(requester)) BETWEEN 2 AND 200"
+        },
+        "reference_request_kind": {
+          "name": "reference_request_kind",
+          "value": "kind IN ('factual', 'conduct')"
+        },
+        "reference_request_state": {
+          "name": "reference_request_state",
+          "value": "state IN ('requested', 'sent', 'declined')\n        AND (state = 'sent') = (sent_on IS NOT NULL AND sent_by IS NOT NULL)\n        AND (state = 'declined') = (declined_reason IS NOT NULL)\n        AND (declined_reason IS NULL OR declined_reason IN ('no_consent_to_share', 'not_employed_here', 'duplicate_request'))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.shadow_shift": {
+      "name": "shadow_shift",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_on": {
+          "name": "shift_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "shadowed_id": {
+          "name": "shadowed_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_by": {
+          "name": "recorded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "shadow_shift_profile_idx": {
+          "name": "shadow_shift_profile_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "staff_profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "shadow_shift_profile_fk": {
+          "name": "shadow_shift_profile_fk",
+          "tableFrom": "shadow_shift",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shadow_shift_location_fk": {
+          "name": "shadow_shift_location_fk",
+          "tableFrom": "shadow_shift",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shadow_shift_shadowed_fk": {
+          "name": "shadow_shift_shadowed_fk",
+          "tableFrom": "shadow_shift",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "shadowed_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shadow_shift_recorded_by_fk": {
+          "name": "shadow_shift_recorded_by_fk",
+          "tableFrom": "shadow_shift",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "recorded_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "shadow_shift_tenant_id_id_key": {
+          "name": "shadow_shift_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.staff_checklist_item": {
+      "name": "staff_checklist_item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checklist": {
+          "name": "checklist",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "done_on": {
+          "name": "done_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "done_by": {
+          "name": "done_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "staff_checklist_item_profile_fk": {
+          "name": "staff_checklist_item_profile_fk",
+          "tableFrom": "staff_checklist_item",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "staff_checklist_item_done_by_fk": {
+          "name": "staff_checklist_item_done_by_fk",
+          "tableFrom": "staff_checklist_item",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "done_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "staff_checklist_item_tenant_id_id_key": {
+          "name": "staff_checklist_item_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "staff_checklist_item_once_key": {
+          "name": "staff_checklist_item_once_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "staff_profile_id",
+            "checklist",
+            "kind"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "staff_checklist_item_kind": {
+          "name": "staff_checklist_item_kind",
+          "value": "(checklist = 'induction' AND kind IN ('contract_issued', 'system_access_set_up', 'uniform_and_badge', 'location_induction', 'fire_safety_briefing', 'shadowing_signed_off'))\n        OR (checklist = 'leaving' AND kind IN ('property_returned', 'final_pay_notified'))"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.invitation": {
@@ -22491,6 +23636,585 @@
         "evidence_pack_link_code_used": {
           "name": "evidence_pack_link_code_used",
           "value": "used_at IS NULL OR used_at >= issued_at"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.policy": {
+      "name": "policy",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "policy_key": {
+          "name": "policy_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "require_second_reviewer": {
+          "name": "require_second_reviewer",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_reason": {
+          "name": "retired_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "policy_tenant_id_id_key": {
+          "name": "policy_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "policy_key_key": {
+          "name": "policy_key_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "policy_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "policy_key_format": {
+          "name": "policy_key_format",
+          "value": "policy_key ~ '^[a-z][a-z0-9_]{1,63}$'"
+        },
+        "policy_title": {
+          "name": "policy_title",
+          "value": "length(btrim(title)) BETWEEN 2 AND 160"
+        },
+        "policy_retired": {
+          "name": "policy_retired",
+          "value": "(retired_at IS NULL) = (retired_reason IS NULL)\n        AND (retired_reason IS NULL OR length(btrim(retired_reason)) >= 10)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.policy_signature": {
+      "name": "policy_signature",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "policy_version_id": {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signer_id": {
+          "name": "signer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "signed_at": {
+          "name": "signed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "policy_signature_signer_idx": {
+          "name": "policy_signature_signer_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "signer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "policy_signature_version_fk": {
+          "name": "policy_signature_version_fk",
+          "tableFrom": "policy_signature",
+          "tableTo": "policy_version",
+          "columnsFrom": [
+            "tenant_id",
+            "policy_version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "policy_signature_signer_fk": {
+          "name": "policy_signature_signer_fk",
+          "tableFrom": "policy_signature",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "signer_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "policy_signature_tenant_id_id_key": {
+          "name": "policy_signature_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "policy_signature_once_key": {
+          "name": "policy_signature_once_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "policy_version_id",
+            "signer_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.policy_version": {
+      "name": "policy_version",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_number": {
+          "name": "version_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "change": {
+          "name": "change",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "change_summary": {
+          "name": "change_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "roles": {
+          "name": "roles",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "review_due_on": {
+          "name": "review_due_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "author_id": {
+          "name": "author_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "published_by": {
+          "name": "published_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_on": {
+          "name": "published_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "superseded_at": {
+          "name": "superseded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_reason": {
+          "name": "retired_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "policy_version_one_draft_key": {
+          "name": "policy_version_one_draft_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "state = 'draft'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "policy_version_one_published_key": {
+          "name": "policy_version_one_published_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "state = 'published'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "policy_version_policy_fk": {
+          "name": "policy_version_policy_fk",
+          "tableFrom": "policy_version",
+          "tableTo": "policy",
+          "columnsFrom": [
+            "tenant_id",
+            "policy_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "policy_version_document_fk": {
+          "name": "policy_version_document_fk",
+          "tableFrom": "policy_version",
+          "tableTo": "document",
+          "columnsFrom": [
+            "tenant_id",
+            "document_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "policy_version_author_fk": {
+          "name": "policy_version_author_fk",
+          "tableFrom": "policy_version",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "author_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "policy_version_published_by_fk": {
+          "name": "policy_version_published_by_fk",
+          "tableFrom": "policy_version",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "published_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "policy_version_tenant_id_id_key": {
+          "name": "policy_version_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "policy_version_number_key": {
+          "name": "policy_version_number_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "policy_id",
+            "version_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "policy_version_state": {
+          "name": "policy_version_state",
+          "value": "state IN ('draft', 'published', 'superseded', 'retired')"
+        },
+        "policy_version_change": {
+          "name": "policy_version_change",
+          "value": "change IN ('minor', 'major')"
+        },
+        "policy_version_number": {
+          "name": "policy_version_number",
+          "value": "version_number >= 1"
+        },
+        "policy_version_summary": {
+          "name": "policy_version_summary",
+          "value": "length(btrim(change_summary)) BETWEEN 2 AND 2000"
+        },
+        "policy_version_content": {
+          "name": "policy_version_content",
+          "value": "(body IS NOT NULL OR document_id IS NOT NULL) AND (body IS NULL OR length(body) <= 100000)"
+        },
+        "policy_version_roles": {
+          "name": "policy_version_roles",
+          "value": "array_position(roles, NULL) IS NULL AND cardinality(roles) <= 40"
+        },
+        "policy_version_published": {
+          "name": "policy_version_published",
+          "value": "(state IN ('published', 'superseded', 'retired') AND published_by IS NOT NULL\n             AND published_on IS NOT NULL AND published_at IS NOT NULL)\n        OR (state = 'draft' AND published_by IS NULL AND published_on IS NULL AND published_at IS NULL)"
+        },
+        "policy_version_review_date": {
+          "name": "policy_version_review_date",
+          "value": "state = 'draft' OR published_on IS NULL OR review_due_on > published_on"
         }
       },
       "isRLSEnabled": false
