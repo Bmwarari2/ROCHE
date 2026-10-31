@@ -968,7 +968,10 @@ renumbered at merge). Procedures: [breach-response.md](../compliance/breach-resp
     organisation's, not a location's (a location is recorded when there is one).
 19. The ICO clock is `breachClock` over `aware_at` and `ico.breach.report_hours` from the rate table,
     worked out when read, never stored. `aware_at` may be corrected only until the ICO report is
-    recorded, and every change is in the record's history.
+    recorded; it may move later only before the decision, and never later than Thapsus's first
+    notice for an entry Thapsus opened (Art 33(2)). Every change is in the record's history. The
+    database pins the assessor, decider and closer to the person making the change, and keeps the
+    creator and removal fixed (security review round 1).
 20. The assessment stores the factors and `assessBreach`'s suggestion as decision support. The
     decision is refused unless `checkBreachDecision` passes against the stored suggestion (reasoning,
     the decider is the person recording it, acknowledgement when going against the suggestion). It
@@ -985,14 +988,20 @@ renumbered at merge). Procedures: [breach-response.md](../compliance/breach-resp
     opens the organisation's register entry (`source = processor_notice`, `aware_at` the time of
     the notice; the organisation may correct it under rule 19 to its own awareness), and writes the
     organisation's audit event and an outbox event so its data protection lead and owners are told.
-    A follow-up notice links to the same entry. The organisation acknowledges each notice once.
+    A follow-up notice links to the same entry (a composite key ties it to the first notice's
+    breach); a follow-up to a closed entry is refused, so new facts after closure come as a new
+    first notice. The function restores the caller's tenant context. The organisation acknowledges
+    each notice once.
 25. A complaint's clocks are `complaintClock` with `dp_complaint.*` from the rate table and the
     location's nation's bank holidays (England when there is no location), worked out when read. It
     closes only through `checkComplaintClosure` (outcome recorded, the ICO right stated); once
     closed nothing changes. The acknowledgement and each contact are dates on or after receipt and
     not in the future.
-26. Audit: every read of a list or record and every change writes `audit_event` with ids and
-    codes only, never the summary, names, contact details, reasoning or notice text.
+26. Audit: every read of a list, a record or a notice draft and every change writes `audit_event`
+    with ids and codes only, never the summary, names, contact details, reasoning or notice text.
+    Lists return up to 1,000 entries and say `truncated` when there are more.
+27. Linking a complaint to a person needs `people.person.read` too, and only someone in the
+    recorder's scope can be linked (422 `person_not_found` otherwise).
 
 **Permission matrix**
 
@@ -1003,6 +1012,11 @@ renumbered at merge). Procedures: [breach-response.md](../compliance/breach-resp
 | Send a processor breach notice | operator admin, fresh step-up | definer function, not a tenant permission |
 
 Built-in roles holding `quality.dsar.manage`: owner, registered manager, deputy manager, quality lead.
+Each of them already needs MFA through their care-record permissions, so the permission is not
+itself marked as a care record; a custom role holding it alone would not force MFA (a decision for
+slice 15, which also uses it). Row-level security counts the permission through roles
+(`app.holds_role_permission_somewhere`), so a time-boxed grant of it alone reads an empty register:
+grant it through a role.
 
 **Retention**: interim `audit_event` (8 years from creation) for all four tables until the DPO sets
 periods (H-670; retention.md already lists them as open).

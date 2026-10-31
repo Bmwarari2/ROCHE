@@ -1,5 +1,5 @@
 {
-  "id": "5529526a-476c-44fd-9386-51262b55410f",
+  "id": "6fd26ce0-66b8-40b9-a099-b8831f8d34c4",
   "prevId": "bd761bd6-72ae-4291-9ce9-a8e908bdcb3d",
   "version": "7",
   "dialect": "postgresql",
@@ -7818,14 +7818,18 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "processor_breach_notice_follows_id_processor_breach_notice_id_fk": {
-          "name": "processor_breach_notice_follows_id_processor_breach_notice_id_fk",
+        "processor_breach_notice_follows_fk": {
+          "name": "processor_breach_notice_follows_fk",
           "tableFrom": "processor_breach_notice",
           "tableTo": "processor_breach_notice",
           "columnsFrom": [
+            "tenant_id",
+            "breach_id",
             "follows_id"
           ],
           "columnsTo": [
+            "tenant_id",
+            "breach_id",
             "id"
           ],
           "onDelete": "no action",
@@ -7854,6 +7858,15 @@
           "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
+            "id"
+          ]
+        },
+        "processor_breach_notice_breach_id_key": {
+          "name": "processor_breach_notice_breach_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "breach_id",
             "id"
           ]
         }

@@ -182,6 +182,63 @@ describe("hazard HZ-011 the breach register (migration 0082)", () => {
   });
 });
 
+describe("hazard HZ-011 who changed a breach, and when it became known (review round 1)", () => {
+  it("pins the assessor, decider and closer to the person doing it, and keeps creator and removal fixed", async () => {
+    const { rows } = await asDpo((c) => c.query<{ id: string }>(BREACH));
+    const id = rows[0]?.id;
+    await expect(
+      asDpo((c) =>
+        c.query(
+          `UPDATE dp_breach SET factors = '{}'::jsonb, suggested_severity = 'low',
+             suggested_report_to_ico = false, suggested_tell_individuals = false,
+             assessed_by = $2, assessed_at = now() WHERE id = $1`,
+          [id, a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/dp_breach_assessor_not_you/);
+    await expect(
+      asDpo((c) => c.query("UPDATE dp_breach SET deleted_at = now() WHERE id = $1", [id])),
+    ).rejects.toThrow(/dp_breach_fixed_fields/);
+    await expect(
+      asDpo((c) =>
+        c.query(
+          `INSERT INTO dp_breach (source, summary, aware_at, created_by) VALUES
+             ('tenant', 'Recorded in someone else''s name.', now(), $1)`,
+          [a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("never lets an entry Thapsus opened be known later than its first notice", async () => {
+    const sent = await send(admin);
+    await expect(
+      asDpo((c) =>
+        c.query("UPDATE dp_breach SET aware_at = aware_at + interval '2 hours' WHERE id = $1", [
+          sent.breachId,
+        ]),
+      ),
+    ).rejects.toThrow(/dp_breach_aware_at_after_notice/);
+    await asDpo((c) =>
+      c.query("UPDATE dp_breach SET aware_at = aware_at - interval '2 hours' WHERE id = $1", [
+        sent.breachId,
+      ]),
+    );
+  });
+
+  it("gives the operator role no direct access to the register or the notices", async () => {
+    for (const sql of [
+      "SELECT id FROM dp_breach",
+      "SELECT id FROM processor_breach_notice",
+      "INSERT INTO dp_breach (source, summary, aware_at) VALUES ('tenant', 'Operator writing.', now())",
+    ]) {
+      await expect(
+        inContext(db.pool("harbour_operator"), ctx(TENANT_A, null, "tenant"), (c) => c.query(sql)),
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+});
+
 describe("hazard HZ-011 processor breach notices (migration 0082, rule 24)", () => {
   it("lets only an active admin send one, opening the organisation's register entry", async () => {
     await expect(send(support)).rejects.toThrow(/operator_not_admin/);
@@ -206,6 +263,28 @@ describe("hazard HZ-011 processor breach notices (migration 0082, rule 24)", () 
     const later = await send(admin, sent.noticeId);
     expect(later.breachId).toBe(sent.breachId);
     await expect(send(admin, sent.noticeId, TENANT_B)).rejects.toThrow(/notice_not_found/);
+  });
+
+  it("refuses a follow-up to an entry the organisation has closed", async () => {
+    const sent = await send(admin);
+    await asDpo((c) =>
+      c.query(
+        `UPDATE dp_breach SET factors = '{}'::jsonb, suggested_severity = 'low',
+           suggested_report_to_ico = false, suggested_tell_individuals = false, assessed_by = $2,
+           assessed_at = now(), report_to_ico = false, tell_individuals = false, decided_by = $2,
+           decided_at = now(), decision_reasoning = 'Thapsus contained it before any access.'
+         WHERE id = $1`,
+        [sent.breachId, a.manager],
+      ),
+    );
+    await asDpo((c) =>
+      c.query(
+        `UPDATE dp_breach SET status = 'closed', closed_by = $2, closed_at = now(),
+           lessons = 'Confirmed with Thapsus that nothing was accessed.' WHERE id = $1`,
+        [sent.breachId, a.manager],
+      ),
+    );
+    await expect(send(admin, sent.noticeId)).rejects.toThrow(/notice_breach_closed/);
   });
 
   it("is never written, changed or seen outside its organisation, and acknowledged once in one's own name", async () => {

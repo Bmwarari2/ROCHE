@@ -19,6 +19,7 @@ import {
   dpBreach,
   dpComplaint,
   location,
+  person,
   processorBreachNotice,
   processorBreachNoticeAck,
   type Transaction,
@@ -65,6 +66,8 @@ import {
  */
 
 const PERMISSION = "quality.dsar.manage";
+/** The most entries one list returns; `truncated` says when there were more (never silently cut). */
+const LIST_LIMIT = 1000;
 type Tx = Transaction;
 type BreachRow = typeof dpBreach.$inferSelect;
 type ComplaintRow = typeof dpComplaint.$inferSelect;
@@ -432,7 +435,13 @@ export const dataProtectionRouter = createRouter()
       const access = await requirePermission(c, PERMISSION);
       const result = await withTenant(c, async (tx) => {
         const t = await tenantOf(tx, access);
-        const rows = await tx.select().from(dpBreach).orderBy(desc(dpBreach.awareAt)).limit(500);
+        const fetched = await tx
+          .select()
+          .from(dpBreach)
+          .orderBy(desc(dpBreach.awareAt))
+          .limit(LIST_LIMIT + 1);
+        const truncated = fetched.length > LIST_LIMIT;
+        const rows = fetched.slice(0, LIST_LIMIT);
         const hours = await reportHoursFor(tx, access, t.nation as Nation);
         // Each entry's clock uses its own location's figure, which is the same unless overridden.
         const items: BreachOut[] = [];
@@ -447,7 +456,7 @@ export const dataProtectionRouter = createRouter()
           scope: { count: rows.length },
           requestId: c.get("requestId"),
         });
-        return { items, reportHours: hours };
+        return { items, reportHours: hours, truncated };
       });
       return c.json(result, 200);
     },
@@ -540,6 +549,14 @@ export const dataProtectionRouter = createRouter()
       }
       const out = await withTenant(c, async (tx) => {
         await locationExists(tx, body.locationId);
+        // Art 33(2): an entry Thapsus opened was known no later than its first notice.
+        const [first] = await tx
+          .select({ sentAt: processorBreachNotice.sentAt })
+          .from(processorBreachNotice)
+          .where(eq(processorBreachNotice.breachId, id))
+          .orderBy(processorBreachNotice.sentAt)
+          .limit(1);
+        const firstNotice = first?.sentAt ?? null;
         const saved = await changeBreach(
           tx,
           id,
@@ -549,6 +566,19 @@ export const dataProtectionRouter = createRouter()
               throw unprocessable(
                 "aware_at_fixed",
                 "The time of awareness cannot change once the ICO report is recorded.",
+              );
+            }
+            const later = body.awareAt && new Date(body.awareAt) > row.awareAt;
+            if (later && row.decidedAt) {
+              throw unprocessable(
+                "aware_at_fixed",
+                "The time of awareness cannot move later once the decision is made.",
+              );
+            }
+            if (later && firstNotice && new Date(body.awareAt as string) > firstNotice) {
+              throw unprocessable(
+                "aware_at_after_notice",
+                "The organisation was aware no later than Thapsus's notice.",
               );
             }
           },
@@ -786,6 +816,7 @@ export const dataProtectionRouter = createRouter()
       const notice = await withTenant(c, async (tx) => {
         const row = await loadBreach(tx, id);
         const t = await tenantOf(tx, access);
+        await breachAudit(c, tx, access, "notice_drafted", id);
         return subjectNoticeDraft({
           summary: row.summary,
           organisation: t.name,
@@ -954,21 +985,23 @@ export const dataProtectionRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, PERMISSION);
-      const items = await withTenant(c, async (tx) => {
-        const rows = await tx
+      const result = await withTenant(c, async (tx) => {
+        const fetched = await tx
           .select()
           .from(dpComplaint)
           .orderBy(desc(dpComplaint.status), desc(dpComplaint.receivedOn))
-          .limit(500);
+          .limit(LIST_LIMIT + 1);
+        const truncated = fetched.length > LIST_LIMIT;
+        const rows = fetched.slice(0, LIST_LIMIT);
         await auditInTx(tx, access, {
           action: "platform.dp_complaint.list",
           resourceType: "dp_complaint",
           scope: { count: rows.length },
           requestId: c.get("requestId"),
         });
-        return complaintOut(tx, access, rows);
+        return { items: await complaintOut(tx, access, rows), truncated };
       });
-      return c.json({ items }, 200);
+      return c.json(result, 200);
     },
   )
   .openapi(
@@ -989,9 +1022,26 @@ export const dataProtectionRouter = createRouter()
       if (body.receivedOn > ukIsoDate(new Date())) {
         throw unprocessable("date_in_future", "The day received cannot be in the future.");
       }
+      if (body.personId) await requirePermission(c, "people.person.read");
       const out = await withTenant(c, async (tx) => {
         await locationExists(tx, body.locationId);
-        if (body.breachId) await loadBreach(tx, body.breachId);
+        if (body.breachId) {
+          const [b] = await tx
+            .select({ id: dpBreach.id })
+            .from(dpBreach)
+            .where(eq(dpBreach.id, body.breachId));
+          if (!b) throw unprocessable("breach_not_found", "That breach is not in the register.");
+        }
+        if (body.personId) {
+          // Only someone the recorder may see, through people.person.read and its scope (RLS,
+          // required before the transaction opened).
+          const [p] = await tx
+            .select({ id: person.id })
+            .from(person)
+            .where(eq(person.id, body.personId));
+          if (!p)
+            throw unprocessable("person_not_found", "That person is not someone you can see.");
+        }
         const [row] = await tx
           .insert(dpComplaint)
           .values({

@@ -108,7 +108,12 @@ export const BreachOut = z
 export type BreachOut = z.infer<typeof BreachOut>;
 
 export const BreachList = z
-  .object({ items: z.array(BreachOut), reportHours: z.number() })
+  .object({
+    items: z.array(BreachOut),
+    reportHours: z.number(),
+    /** More entries exist than the list returns: never read as the whole register. */
+    truncated: z.boolean(),
+  })
   .meta({ id: "BreachList" });
 
 const Versioned = { expectedVersion: z.number().int().min(1) };
@@ -176,8 +181,8 @@ export const SendProcessorBreachNotice = z
     followsId: uuid.nullable().optional(),
     nature: text(10, 4000),
     dataCategories: text(3, 2000),
-    approxPeople: z.number().int().min(0).nullable().optional(),
-    approxRecords: z.number().int().min(0).nullable().optional(),
+    approxPeople: z.number().int().min(0).max(100_000_000).nullable().optional(),
+    approxRecords: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
     likelyConsequences: text(3, 4000),
     measures: text(3, 4000),
     tenantActions: text(3, 4000),
@@ -236,7 +241,7 @@ export const ComplaintOut = z
   .meta({ id: "DataProtectionComplaint" });
 
 export const ComplaintList = z
-  .object({ items: z.array(ComplaintOut) })
+  .object({ items: z.array(ComplaintOut), truncated: z.boolean() })
   .meta({ id: "DataProtectionComplaintList" });
 
 export const RecordComplaint = z

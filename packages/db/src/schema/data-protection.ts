@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import {
-  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -143,7 +142,7 @@ export const processorBreachNotice = pgTable(
     tenantId: tenantId().references(() => tenant.id),
     breachId: uuid("breach_id").notNull(),
     /** The first notice this one follows up, when facts emerged later. */
-    followsId: uuid("follows_id").references((): AnyPgColumn => processorBreachNotice.id),
+    followsId: uuid("follows_id"),
     nature: text("nature").notNull(),
     dataCategories: text("data_categories").notNull(),
     approxPeople: integer("approx_people"),
@@ -159,6 +158,13 @@ export const processorBreachNotice = pgTable(
   },
   (t) => [
     unique("processor_breach_notice_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("processor_breach_notice_breach_id_key").on(t.tenantId, t.breachId, t.id),
+    // A follow-up is about the same breach as the notice it follows, in the same organisation.
+    foreignKey({
+      name: "processor_breach_notice_follows_fk",
+      columns: [t.tenantId, t.breachId, t.followsId],
+      foreignColumns: [t.tenantId, t.breachId, t.id],
+    }),
     index("processor_breach_notice_breach_idx").on(t.tenantId, t.breachId, t.sentAt),
     foreignKey({
       name: "processor_breach_notice_breach_fk",

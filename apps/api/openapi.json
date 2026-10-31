@@ -23211,11 +23211,15 @@
           },
           "reportHours": {
             "type": "number"
+          },
+          "truncated": {
+            "type": "boolean"
           }
         },
         "required": [
           "items",
-          "reportHours"
+          "reportHours",
+          "truncated"
         ]
       },
       "Breach": {
@@ -23793,10 +23797,14 @@
             "items": {
               "$ref": "#/components/schemas/DataProtectionComplaint"
             }
+          },
+          "truncated": {
+            "type": "boolean"
           }
         },
         "required": [
-          "items"
+          "items",
+          "truncated"
         ]
       },
       "DataProtectionComplaint": {
@@ -24861,14 +24869,16 @@
               "integer",
               "null"
             ],
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 100000000
           },
           "approxRecords": {
             "type": [
               "integer",
               "null"
             ],
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 1000000000
           },
           "likelyConsequences": {
             "type": "string",

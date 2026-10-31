@@ -118,6 +118,7 @@ CREATE TABLE "processor_breach_notice" (
 	"sent_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "processor_breach_notice_tenant_id_id_key" UNIQUE("tenant_id","id"),
+	CONSTRAINT "processor_breach_notice_breach_id_key" UNIQUE("tenant_id","breach_id","id"),
 	CONSTRAINT "processor_breach_notice_text" CHECK (char_length(btrim(nature)) BETWEEN 10 AND 4000
         AND char_length(btrim(data_categories)) BETWEEN 3 AND 2000
         AND char_length(btrim(likely_consequences)) BETWEEN 3 AND 4000
@@ -148,7 +149,7 @@ ALTER TABLE "dp_complaint" ADD CONSTRAINT "dp_complaint_person_fk" FOREIGN KEY (
 ALTER TABLE "dp_complaint" ADD CONSTRAINT "dp_complaint_breach_fk" FOREIGN KEY ("tenant_id","breach_id") REFERENCES "public"."dp_breach"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dp_complaint" ADD CONSTRAINT "dp_complaint_closed_by_fk" FOREIGN KEY ("tenant_id","closed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "processor_breach_notice" ADD CONSTRAINT "processor_breach_notice_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "processor_breach_notice" ADD CONSTRAINT "processor_breach_notice_follows_id_processor_breach_notice_id_fk" FOREIGN KEY ("follows_id") REFERENCES "public"."processor_breach_notice"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "processor_breach_notice" ADD CONSTRAINT "processor_breach_notice_follows_fk" FOREIGN KEY ("tenant_id","breach_id","follows_id") REFERENCES "public"."processor_breach_notice"("tenant_id","breach_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "processor_breach_notice" ADD CONSTRAINT "processor_breach_notice_breach_fk" FOREIGN KEY ("tenant_id","breach_id") REFERENCES "public"."dp_breach"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "processor_breach_notice_ack" ADD CONSTRAINT "processor_breach_notice_ack_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "processor_breach_notice_ack" ADD CONSTRAINT "processor_breach_notice_ack_notice_fk" FOREIGN KEY ("tenant_id","notice_id") REFERENCES "public"."processor_breach_notice"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -174,26 +175,56 @@ CREATE POLICY breach_read ON public.dp_breach AS RESTRICTIVE FOR SELECT TO harbo
   USING (app.holds_role_permission_somewhere('quality.dsar.manage'));
 --> statement-breakpoint
 CREATE POLICY breach_record ON public.dp_breach AS RESTRICTIVE FOR INSERT TO harbour_app
-  WITH CHECK (source = 'tenant' AND status = 'open'
+  WITH CHECK (source = 'tenant' AND status = 'open' AND factors IS NULL AND decided_at IS NULL
+    AND reported_at IS NULL AND individuals_told_on IS NULL AND closed_at IS NULL
+    AND deleted_at IS NULL AND created_by IS NOT DISTINCT FROM app.current_user_id()
     AND app.holds_role_permission_somewhere('quality.dsar.manage'));
 --> statement-breakpoint
 CREATE POLICY breach_change ON public.dp_breach AS RESTRICTIVE FOR UPDATE TO harbour_app
   USING (app.holds_role_permission_somewhere('quality.dsar.manage'))
   WITH CHECK (app.holds_role_permission_somewhere('quality.dsar.manage'));
 --> statement-breakpoint
--- Rules 19 and 23: the source never changes; awareness only until the ICO report is recorded; a
--- closed entry never changes.
+-- Rules 19, 20 and 23: the source, creator and removal never change; awareness only until the
+-- ICO report is recorded, never later once decided, and never later than Thapsus's first notice
+-- for an entry it opened (Art 33(2)); whoever assesses, decides or closes is the person doing it;
+-- a closed entry never changes.
 CREATE OR REPLACE FUNCTION app.dp_breach_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE
+  v_me uuid := app.current_user_id();
+  v_first_notice timestamptz;
 BEGIN
   IF OLD.status = 'closed' THEN
     RAISE EXCEPTION 'dp_breach_closed' USING ERRCODE = 'check_violation';
   END IF;
-  IF NEW.source IS DISTINCT FROM OLD.source OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id THEN
-    RAISE EXCEPTION 'dp_breach_source_fixed' USING ERRCODE = 'check_violation';
+  IF NEW.source IS DISTINCT FROM OLD.source OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+     OR NEW.created_by IS DISTINCT FROM OLD.created_by OR NEW.created_at IS DISTINCT FROM OLD.created_at
+     OR NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
+    RAISE EXCEPTION 'dp_breach_fixed_fields' USING ERRCODE = 'check_violation';
   END IF;
-  IF NEW.aware_at IS DISTINCT FROM OLD.aware_at AND OLD.reported_at IS NOT NULL THEN
-    RAISE EXCEPTION 'dp_breach_aware_at_after_report' USING ERRCODE = 'check_violation';
+  IF NEW.aware_at IS DISTINCT FROM OLD.aware_at THEN
+    IF OLD.reported_at IS NOT NULL THEN
+      RAISE EXCEPTION 'dp_breach_aware_at_after_report' USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.aware_at > OLD.aware_at AND OLD.decided_at IS NOT NULL THEN
+      RAISE EXCEPTION 'dp_breach_aware_at_after_decision' USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.source = 'processor_notice' THEN
+      SELECT min(n.sent_at) INTO v_first_notice FROM public.processor_breach_notice n
+       WHERE n.tenant_id = NEW.tenant_id AND n.breach_id = NEW.id;
+      IF NEW.aware_at > v_first_notice THEN
+        RAISE EXCEPTION 'dp_breach_aware_at_after_notice' USING ERRCODE = 'check_violation';
+      END IF;
+    END IF;
+  END IF;
+  IF NEW.assessed_at IS DISTINCT FROM OLD.assessed_at AND NEW.assessed_by IS DISTINCT FROM v_me THEN
+    RAISE EXCEPTION 'dp_breach_assessor_not_you' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.decided_at IS DISTINCT FROM OLD.decided_at AND NEW.decided_by IS DISTINCT FROM v_me THEN
+    RAISE EXCEPTION 'dp_breach_decider_not_you' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.status = 'closed' AND NEW.closed_by IS DISTINCT FROM v_me THEN
+    RAISE EXCEPTION 'dp_breach_closer_not_you' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END
@@ -275,21 +306,29 @@ CREATE POLICY complaint_read ON public.dp_complaint AS RESTRICTIVE FOR SELECT TO
   USING (app.holds_role_permission_somewhere('quality.dsar.manage'));
 --> statement-breakpoint
 CREATE POLICY complaint_record ON public.dp_complaint AS RESTRICTIVE FOR INSERT TO harbour_app
-  WITH CHECK (status = 'open' AND app.holds_role_permission_somewhere('quality.dsar.manage'));
+  WITH CHECK (status = 'open' AND closed_on IS NULL AND deleted_at IS NULL
+    AND created_by IS NOT DISTINCT FROM app.current_user_id()
+    AND app.holds_role_permission_somewhere('quality.dsar.manage'));
 --> statement-breakpoint
 CREATE POLICY complaint_change ON public.dp_complaint AS RESTRICTIVE FOR UPDATE TO harbour_app
   USING (app.holds_role_permission_somewhere('quality.dsar.manage'))
   WITH CHECK (app.holds_role_permission_somewhere('quality.dsar.manage'));
 --> statement-breakpoint
--- Rule 25: a closed complaint never changes.
+-- Rule 25: a closed complaint never changes; the creator and removal never change; whoever
+-- closes it is the person doing it.
 CREATE OR REPLACE FUNCTION app.dp_complaint_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
   IF OLD.status = 'closed' THEN
     RAISE EXCEPTION 'dp_complaint_closed' USING ERRCODE = 'check_violation';
   END IF;
-  IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id THEN
-    RAISE EXCEPTION 'dp_complaint_tenant_fixed' USING ERRCODE = 'check_violation';
+  IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id OR NEW.created_by IS DISTINCT FROM OLD.created_by
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at
+     OR NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
+    RAISE EXCEPTION 'dp_complaint_fixed_fields' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.status = 'closed' AND NEW.closed_by IS DISTINCT FROM app.current_user_id() THEN
+    RAISE EXCEPTION 'dp_complaint_closer_not_you' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END
@@ -325,6 +364,8 @@ DECLARE
   v_auth_user text := (SELECT o.auth_user_id FROM public.operator_user o WHERE o.id = v_operator);
   v_breach uuid;
   v_notice uuid;
+  v_status text;
+  v_caller_tenant text := current_setting('app.tenant_id', true);
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.tenant t WHERE t.id = p_tenant) THEN
     RAISE EXCEPTION 'tenant_not_found' USING ERRCODE = 'no_data_found';
@@ -335,6 +376,11 @@ BEGIN
      WHERE n.id = p_follows AND n.tenant_id = p_tenant AND n.follows_id IS NULL;
     IF v_breach IS NULL THEN
       RAISE EXCEPTION 'notice_not_found' USING ERRCODE = 'no_data_found';
+    END IF;
+    -- A closed entry never reopens: new facts after closure are a new first notice.
+    SELECT b.status INTO v_status FROM public.dp_breach b WHERE b.id = v_breach;
+    IF v_status = 'closed' THEN
+      RAISE EXCEPTION 'notice_breach_closed' USING ERRCODE = 'check_violation';
     END IF;
   ELSE
     INSERT INTO public.dp_breach (tenant_id, source, summary, aware_at, created_by, updated_by)
@@ -357,12 +403,14 @@ BEGIN
   VALUES (p_tenant, 'processor_breach_notice', v_notice::text,
     'platform.breach.processor_notice_sent',
     jsonb_build_object('noticeId', v_notice, 'breachId', v_breach));
+  -- The caller's transaction gets its own tenant context back.
+  PERFORM set_config('app.tenant_id', coalesce(v_caller_tenant, ''), true);
   RETURN jsonb_build_object('noticeId', v_notice, 'breachId', v_breach);
 END
 $$;
 --> statement-breakpoint
 -- What the function needs, through its owner harbour_notice_resolver, and nothing else.
-GRANT SELECT (id), INSERT ON public.dp_breach TO harbour_notice_resolver;
+GRANT SELECT (id, status), INSERT ON public.dp_breach TO harbour_notice_resolver;
 --> statement-breakpoint
 GRANT SELECT (id, tenant_id, breach_id, follows_id), INSERT ON public.processor_breach_notice
   TO harbour_notice_resolver;

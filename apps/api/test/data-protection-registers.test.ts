@@ -351,6 +351,16 @@ describe("PLAT-022 data protection complaints", () => {
         })
       ).status,
     ).toBe(403);
+    const elsewhere = await send("POST", "/v1/data-protection/complaints", "quality", {
+      receivedOn: received,
+      channel: "letter",
+      complainantKind: "family",
+      complainantName: "Finn Sample",
+      personId: OTHER.personId,
+      about: "sharing",
+      summary: "A person from another organisation, which must not be linked.",
+    });
+    expect(await codeOf(elsewhere)).toBe("person_not_found");
     const r = await send("POST", "/v1/data-protection/complaints", "quality", {
       receivedOn: received,
       channel: "phone",

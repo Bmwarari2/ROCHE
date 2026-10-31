@@ -29109,6 +29109,7 @@ export interface components {
     BreachList: {
       items: components["schemas"]["Breach"][];
       reportHours: number;
+      truncated: boolean;
     };
     Breach: {
       /** Format: uuid */
@@ -29256,6 +29257,7 @@ export interface components {
     };
     DataProtectionComplaintList: {
       items: components["schemas"]["DataProtectionComplaint"][];
+      truncated: boolean;
     };
     DataProtectionComplaint: {
       /** Format: uuid */
