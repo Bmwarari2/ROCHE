@@ -2716,6 +2716,26 @@
     "breakGlassReport.unplaced.about",
     "breakGlassReport.unplaced.none",
     "breakGlassReport.summary.built",
-    "breakGlassReport.unplaced.pointer"
+    "breakGlassReport.unplaced.pointer",
+    "shell.nav.approvals",
+    "approvals.title",
+    "approvals.description",
+    "approvals.forbiddenHint",
+    "approvals.group",
+    "approvals.empty",
+    "approvals.truncated",
+    "approvals.workflow",
+    "approvals.state",
+    "approvals.sla",
+    "approvals.raisedBy",
+    "approvals.startedByHarbour",
+    "approvals.since",
+    "approvals.raisedByYou",
+    "approvals.nextStep",
+    "approvals.incident.blocked",
+    "approvals.asOf",
+    "approvals.itemTitle",
+    "approvals.emptyTruncated",
+    "approvals.done"
   ]
 }

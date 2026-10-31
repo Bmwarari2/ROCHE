@@ -68,7 +68,9 @@ export function useManageSend(path: string) {
       const outcome = manageResult(await call(), t);
       setResult(outcome);
       // `at` makes each save a new arrival, so a second identical save is said and focused again.
-      if (outcome.ok) router.replace(`${path}?done=${done}&at=${Date.now()}`);
+      // `path` may carry its own query (the approvals page names the incident it acted on).
+      const join = path.includes("?") ? "&" : "?";
+      if (outcome.ok) router.replace(`${path}${join}done=${done}&at=${Date.now()}`);
     });
   /** Errors the form found before sending, with the date boxes each is about when it says. */
   const fail = (errors: FieldErrors, parts?: Readonly<Record<string, readonly string[]>>) =>
@@ -118,7 +120,10 @@ export function ReasonForm({
   min,
   confirm,
   children,
+  headingLevel = 3,
 }: {
+  /** The form's heading level: 4 where the form sits inside a listed item (the approvals page). */
+  readonly headingLevel?: 3 | 4;
   readonly title: string;
   readonly intro?: string;
   readonly label: string;
@@ -163,9 +168,15 @@ export function ReasonForm({
         aria-labelledby={titleId}
       >
         <div className="flex flex-col gap-1">
-          <h3 id={titleId} className="m-0 text-body font-semibold">
-            {title}
-          </h3>
+          {headingLevel === 4 ? (
+            <h4 id={titleId} className="m-0 text-body font-semibold">
+              {title}
+            </h4>
+          ) : (
+            <h3 id={titleId} className="m-0 text-body font-semibold">
+              {title}
+            </h3>
+          )}
           {intro ? (
             <p className="m-0 max-w-prose text-body-dense text-text-secondary">{intro}</p>
           ) : null}
