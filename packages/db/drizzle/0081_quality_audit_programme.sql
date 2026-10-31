@@ -108,7 +108,6 @@ ALTER TABLE "audit_schedule" ADD CONSTRAINT "audit_schedule_template_fk" FOREIGN
 ALTER TABLE "audit_starter_template" ADD CONSTRAINT "audit_starter_template_framework_fk" FOREIGN KEY ("framework_version_id") REFERENCES "public"."framework_version"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_template" ADD CONSTRAINT "audit_template_framework_fk" FOREIGN KEY ("framework_version_id") REFERENCES "public"."framework_version"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_action" ADD CONSTRAINT "audit_action_owner_fk" FOREIGN KEY ("tenant_id","owner_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "audit_action" ADD CONSTRAINT "audit_action_task_fk" FOREIGN KEY ("tenant_id","task_id") REFERENCES "public"."task"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_record" ADD CONSTRAINT "audit_record_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_schedule" ADD CONSTRAINT "audit_schedule_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "audit_action_audit_idx" ON "audit_action" USING btree ("tenant_id","audit_id");--> statement-breakpoint

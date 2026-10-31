@@ -17,7 +17,6 @@ import { sqlList } from "./_codes";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
 import { location, tenantUser } from "./platform";
 import { frameworkVersion } from "./quality-framework";
-import { task } from "./work";
 
 /**
  * The audit programme and mock inspections (master prompt 11.2; QUAL-004; Reg 17;
@@ -205,11 +204,6 @@ export const auditAction = pgTable(
       name: "audit_action_owner_fk",
       columns: [t.tenantId, t.ownerId],
       foreignColumns: [tenantUser.tenantId, tenantUser.id],
-    }),
-    foreignKey({
-      name: "audit_action_task_fk",
-      columns: [t.tenantId, t.taskId],
-      foreignColumns: [task.tenantId, task.id],
     }),
     index("audit_action_audit_idx").on(t.tenantId, t.auditId),
     check("audit_action_description", sql`length(btrim(${t.description})) BETWEEN 3 AND 1000`),

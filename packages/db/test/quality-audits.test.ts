@@ -192,7 +192,7 @@ describe("audits keep what they were scored against (rule 4)", () => {
     ).rejects.toThrow();
   });
 
-  it("ties audits to the organisation's own locations, and actions to its members and tasks", async () => {
+  it("ties audits to the organisation's own locations, and actions to its members", async () => {
     await expect(
       asLead((c) => startAudit(c, "0199f000-0000-7000-8000-0000000007b4", b.location)),
     ).rejects.toThrow(/audit_record_location_fk/);

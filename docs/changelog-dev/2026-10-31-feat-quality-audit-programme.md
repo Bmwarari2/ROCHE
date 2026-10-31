@@ -49,7 +49,8 @@ Branch `feat/quality-audit-programme`, stacked on `feat/quality-framework-librar
 
 - Round 1 (security reviewer agent):
   - Schedules and audits now have foreign keys to the organisation's own locations. Actions have
-    foreign keys to the organisation's members and tasks.
+    a foreign key to the organisation's members. The task points back to the audit through its
+    source rather than a key, so removing sample data can still delete tasks.
   - Action owners must be active members who hold `quality.audit.manage` at the audit's location,
     the rule the task engine applies to any assignee. Otherwise the request is refused and the
     refusal audited.

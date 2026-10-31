@@ -679,6 +679,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       self_rating: {
         description:
           "The self-rating on the CQC rating scale in the rate table, given by a person.",
+        unit: "rating scale point",
       },
       started_by: { description: "Who started the audit (tenant_user.id)." },
       completed_by: { description: "Who completed the audit (tenant_user.id)." },

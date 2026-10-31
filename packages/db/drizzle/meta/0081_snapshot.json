@@ -21982,21 +21982,6 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "audit_action_task_fk": {
-          "name": "audit_action_task_fk",
-          "tableFrom": "audit_action",
-          "tableTo": "task",
-          "columnsFrom": [
-            "tenant_id",
-            "task_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
