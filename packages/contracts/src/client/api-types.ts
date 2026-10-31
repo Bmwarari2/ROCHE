@@ -31044,6 +31044,8 @@ export interface components {
       /** Format: uuid */
       assigneeTenantUserId: string | null;
       assigneeStaff: components["schemas"]["StaffName"];
+      assigneeRoleKey: string | null;
+      requiredPermission: string;
       /** Format: date-time */
       dueAt: string;
       /** Format: date-time */
@@ -32982,6 +32984,8 @@ export interface components {
       /** Format: uuid */
       assigneeTenantUserId: string | null;
       assigneeStaff: components["schemas"]["StaffName"];
+      assigneeRoleKey: string | null;
+      requiredPermission: string;
       /** Format: date-time */
       dueAt: string;
       /** Format: date-time */
@@ -33056,6 +33060,8 @@ export interface components {
       pending: string[];
       staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
+      /** Format: date-time */
+      acknowledgementDueAt: string | null;
     };
     HandoverDetail: {
       /** Format: uuid */
@@ -33077,6 +33083,8 @@ export interface components {
       pending: string[];
       staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
+      /** Format: date-time */
+      acknowledgementDueAt: string | null;
       items: components["schemas"]["HandoverItem"][];
       notes: components["schemas"]["HandoverNoteItem"][];
       acknowledgements: components["schemas"]["HandoverAcknowledgementItem"][];
@@ -34670,18 +34678,10 @@ export interface components {
       digitalEntriesInWindow: number;
       duplicateGroups: string[][];
       outsideWindowEntryIds: string[];
+      reviewEntries: components["schemas"]["ReconcileEntry"][];
       enteredByYou: boolean;
       blockers: string[];
     };
-    ReconcileOutage: {
-      /** @description What was checked */
-      statement: string;
-      reviewedEntryIds: string[];
-      version: number;
-      reviewEntries: components["schemas"]["ReconcileEntry"][];
-    };
-    CancelOutage: {
-      reason: string;
     ReconcileEntry: {
       /** Format: uuid */
       id: string;
@@ -34699,6 +34699,14 @@ export interface components {
       source: "back_entry" | "digital";
       paperReference: string | null;
     };
+    ReconcileOutage: {
+      /** @description What was checked */
+      statement: string;
+      reviewedEntryIds: string[];
+      version: number;
+    };
+    CancelOutage: {
+      reason: string;
       version: number;
     };
     CorrectOutage: {

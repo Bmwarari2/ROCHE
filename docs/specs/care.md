@@ -1581,7 +1581,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   has not acknowledged it.
 - `/handover/{location}/{handover}` lists the items the reader may see by person (full name, room
   and communication needs), each kind in an icon and words, its time, "Added since it was
-  compiled" and "New to you", and a link to its record; notes on each item and on the whole
+  compiled" and "New to you", and a link to its record; each item's own summary, as the phone words
+  it (`handover-summary.ts` over `HANDOVER_SUMMARY_KEYS`; an item without one is worded by its
+  kind), so the reader learns what is handed over without opening every record (recommended answer
+  to H-269, 31/10/2026; HZ-018); notes on each item and on the whole
   handover while it is open; who has read it and who has new items to read. "I have read this
   handover" sends `you.seenToken` with a UUIDv7; `handover_changed` reloads the page and says
   what to do. Compiling again adds anything new; too many compiles a minute is said in words.
@@ -1600,6 +1603,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
 - Start (`in_progress`), Done and Not done (`skipped`, with a reason of at least 3 characters) go
   to `POST /v1/tasks/{id}/transition` with the task's version; a task that needs a record links to
   the person's charts instead. The round opens again saying what was done, with focus there.
+- Each task says who it is for ("For: Registered Manager", a named member, or anyone on the shift
+  who may do it), and its actions are offered only to holders of the permission it names: the task
+  item carries `requiredPermission` and `assigneeRoleKey` (recommended answer to H-270,
+  31/10/2026; HZ-003). The API still checks that the permission reaches the person.
 
 ## 7. Clinical safety
 

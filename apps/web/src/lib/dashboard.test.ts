@@ -281,7 +281,8 @@ const handover = (
   end: string,
   unacknowledged: boolean | null,
   pending: string[] = [],
-) => ({ shift: { name: "Day", start, end }, unacknowledged, pending });
+  acknowledgementDueAt: string | null = null,
+) => ({ shift: { name: "Day", start, end }, unacknowledged, pending, acknowledgementDueAt });
 
 describe("handover", () => {
   const now = new Date("2026-10-31T10:00:00Z");
@@ -291,7 +292,7 @@ describe("handover", () => {
 
   it.each([
     ["every one acknowledged", [running, lastNight(false)], 0, "clear", "compiled"],
-    // "To do", never "Overdue": how long the incoming shift has is the tenant's to set.
+    // "To do" while no due time is known (H-410: overdue once the grace time has passed).
     ["last night's not acknowledged", [running, lastNight(true)], 1, "todo", "compiled"],
     ["a late addition still to be seen", [running, lastNight(false, ["x"])], 1, "todo", "compiled"],
     // Limited to the reader's own people: not known, never "every one acknowledged".
@@ -324,6 +325,45 @@ describe("handover", () => {
     expect(countLine(tile, t)).toBe("1 handover not acknowledged by the incoming shift");
     expect(apartLine(tile, t)).toBeNull();
   });
+
+  it.each<[string, string | null, boolean | null, string[], string, number]>([
+    // Ended 08:00 with a 60-minute grace: due 09:00, and it is 10:00.
+    ["past the grace time, not acknowledged", "2026-10-31T09:00:00Z", true, [], "overdue", 1],
+    ["exactly at the grace time", "2026-10-31T10:00:00Z", true, [], "overdue", 1],
+    ["within the grace time", "2026-10-31T10:30:00Z", true, [], "todo", 0],
+    // No figure: never late on a guess.
+    ["with no due time", null, true, [], "todo", 0],
+    // A late addition still to be seen is to do, never overdue.
+    ["acknowledged, a late addition to see", "2026-10-31T09:00:00Z", false, ["x"], "todo", 0],
+  ])(
+    "hazard HZ-018 a handover %s is %s (H-410)",
+    (_label, due, unacknowledged, pending, state, apart) => {
+      const tile = handoverTile(
+        [
+          ok({
+            items: [
+              handover(
+                "2026-10-30T20:00:00Z",
+                "2026-10-31T08:00:00Z",
+                unacknowledged,
+                pending,
+                due,
+              ),
+            ],
+          }),
+        ],
+        "/handover",
+        now,
+      ) as TileSummary;
+      expect(tile).toMatchObject({ state, apart, count: 1 });
+      if (apart > 0) {
+        expect(apartLine(tile, t)).toBe(
+          "1 is overdue: the incoming shift has not acknowledged it and the time to do so has passed.",
+        );
+        expect(tileChips(tile, t)[0]).toMatchObject({ status: "overdue", label: "Overdue" });
+      }
+    },
+  );
 });
 
 describe("reviews due", () => {
@@ -411,6 +451,23 @@ describe("statutory notifications (HZ-013)", () => {
   it("hazard HZ-013 warns when either read fails, never a lower count", () => {
     const tile = notificationsTile([ok({ items: [notification("due")] }), FAILED]) as TileSummary;
     expect(tile).toMatchObject({ state: "failed", count: null });
+  });
+
+  it.each([
+    ["a death notification, due without delay", "cqc_reg16_death", true],
+    ["a RIDDOR report, with a report-by date", "riddor_over_7_day", undefined],
+    ["a notification of an unknown kind", "something_new", undefined],
+  ])("hazard HZ-013 words %s as the incident page does (H-410)", (_label, kind, withoutDelay) => {
+    const tile = notificationsTile([
+      ok({
+        items: [{ ...(notification("overdue", "2026-10-30T09:00:00Z") as object), kind } as never],
+      }),
+      ok({ items: [] }),
+    ]) as TileSummary;
+    expect(tile.earliestWithoutDelay).toBe(withoutDelay);
+    expect(
+      t("dashboard.tile.notifications.earliestWithoutDelay", { dateTime: "30/10/2026 09:00" }),
+    ).toBe("The soonest must be sent without delay: the clock started 30/10/2026 09:00.");
   });
 
   it("hazard HZ-013 gives the soonest due time of those still to submit", () => {

@@ -110,6 +110,13 @@ export const TaskItem = z
     assigneeTenantUserId: uuid.nullable(),
     /** The assignee by name and job title; null when the task is for a role, not a person. */
     assigneeStaff: StaffName.nullable(),
+    /** The role the task is for (for example `registered_manager`); null when it names none. */
+    assigneeRoleKey: z.string().nullable(),
+    /**
+     * The permission a member needs to start it, mark it done or not done (H-270): offer those
+     * actions only to its holders, rather than letting the API refuse afterwards.
+     */
+    requiredPermission: z.string(),
     dueAt: isoDateTime,
     windowStart: isoDateTime.nullable(),
     windowEnd: isoDateTime.nullable(),

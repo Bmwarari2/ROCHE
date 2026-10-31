@@ -6568,6 +6568,15 @@
           "assigneeStaff": {
             "$ref": "#/components/schemas/StaffName"
           },
+          "assigneeRoleKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requiredPermission": {
+            "type": "string"
+          },
           "dueAt": {
             "type": "string",
             "format": "date-time"
@@ -6662,6 +6671,8 @@
           "locationId",
           "assigneeTenantUserId",
           "assigneeStaff",
+          "assigneeRoleKey",
+          "requiredPermission",
           "dueAt",
           "windowStart",
           "windowEnd",
@@ -13523,6 +13534,15 @@
           "assigneeStaff": {
             "$ref": "#/components/schemas/StaffName"
           },
+          "assigneeRoleKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requiredPermission": {
+            "type": "string"
+          },
           "dueAt": {
             "type": "string",
             "format": "date-time"
@@ -13620,6 +13640,8 @@
           "locationId",
           "assigneeTenantUserId",
           "assigneeStaff",
+          "assigneeRoleKey",
+          "requiredPermission",
           "dueAt",
           "windowStart",
           "windowEnd",
@@ -13810,6 +13832,13 @@
               "boolean",
               "null"
             ]
+          },
+          "acknowledgementDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         },
         "required": [
@@ -13826,7 +13855,8 @@
           "acknowledgedBy",
           "pending",
           "staff",
-          "unacknowledged"
+          "unacknowledged",
+          "acknowledgementDueAt"
         ]
       },
       "HandoverDetail": {
@@ -13895,6 +13925,13 @@
               "boolean",
               "null"
             ]
+          },
+          "acknowledgementDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "items": {
             "type": "array",
@@ -13966,6 +14003,7 @@
           "pending",
           "staff",
           "unacknowledged",
+          "acknowledgementDueAt",
           "items",
           "notes",
           "acknowledgements",
@@ -19655,6 +19693,12 @@
               "format": "uuid"
             }
           },
+          "reviewEntries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReconcileEntry"
+            }
+          },
           "enteredByYou": {
             "type": "boolean"
           },
@@ -19675,55 +19719,11 @@
           "digitalEntriesInWindow",
           "duplicateGroups",
           "outsideWindowEntryIds",
+          "reviewEntries",
           "enteredByYou",
           "blockers"
         ]
       },
-      "ReconcileOutage": {
-        "type": "object",
-        "properties": {
-          "statement": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000,
-            "description": "What was checked"
-          },
-          "reviewedEntryIds": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-          "reviewEntries": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReconcileEntry"
-            }
-          },
-            },
-            "maxItems": 1000
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "statement",
-          "reviewedEntryIds",
-          "version"
-        ]
-      },
-      "CancelOutage": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "minLength": 1,
-          "reviewEntries",
-            "maxLength": 1000
-          },
-          "version": {
-            "type": "integer",
       "ReconcileEntry": {
         "type": "object",
         "properties": {
@@ -19791,6 +19791,44 @@
           "paperReference"
         ]
       },
+      "ReconcileOutage": {
+        "type": "object",
+        "properties": {
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "What was checked"
+          },
+          "reviewedEntryIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "statement",
+          "reviewedEntryIds",
+          "version"
+        ]
+      },
+      "CancelOutage": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
             "minimum": 1
           }
         },

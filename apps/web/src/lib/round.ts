@@ -46,18 +46,42 @@ export interface RoundTaskActions {
   readonly skip: boolean;
 }
 
+/**
+ * What the round offers on a task (H-270): start, done and not done only to holders of the
+ * permission the task names (`requiredPermission`), as the API checks, never to every care writer
+ * with the API refusing afterwards; recording the chart or note it asks for also needs
+ * `care.note.write`. The reader's permissions are where any of their roles reaches; the API's
+ * scope check stays the last word.
+ */
 export function roundTaskActions(
-  task: Pick<RoundTask, "status" | "evidenceRequired">,
-  canWrite: boolean,
+  task: Pick<RoundTask, "status" | "evidenceRequired" | "requiredPermission">,
+  permissions: readonly string[],
 ): RoundTaskActions {
   const open = task.status === "open" || task.status === "in_progress";
-  const may = canWrite && open;
+  const may = open && permissions.includes(task.requiredPermission);
   return {
     start: may && task.status === "open",
     done: may && !task.evidenceRequired,
-    recordFirst: may && task.evidenceRequired,
+    recordFirst: may && task.evidenceRequired && permissions.includes("care.note.write"),
     skip: may,
   };
+}
+
+/** Who the task is for, in words (H-270): the named member, the role, or anyone who may do it. */
+export function taskForLine(
+  task: Pick<RoundTask, "assigneeStaff" | "assigneeRoleKey">,
+  t: Translator,
+): string {
+  if (task.assigneeStaff) {
+    return t("care.round.forWhom", { who: "person", name: staffName(task.assigneeStaff, t) });
+  }
+  if (task.assigneeRoleKey) {
+    return t("care.round.forWhom", {
+      who: "role",
+      name: t("care.plan.role", { role: task.assigneeRoleKey }),
+    });
+  }
+  return t("care.round.forWhom", { who: "anyone", name: "" });
 }
 
 /** The view limited to one person's stops, when asked for; areas left empty are dropped. */

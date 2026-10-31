@@ -223,6 +223,12 @@ export const HandoverSummary = z
      * they can see (an acknowledgement before the shift ended does not count); null when limited.
      */
     unacknowledged: z.boolean().nullable(),
+    /**
+     * When the incoming shift's acknowledgement is late: the shift's end plus
+     * `handover.acknowledgement_grace_minutes`, the time the nurse in charge is alerted (H-410);
+     * null when the figure cannot be read, so nothing is called overdue on a guess.
+     */
+    acknowledgementDueAt: isoDateTime.nullable(),
   })
   .meta({ id: "HandoverSummary" });
 export type HandoverSummary = z.infer<typeof HandoverSummary>;

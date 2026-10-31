@@ -1007,6 +1007,12 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     expect(last?.open).toBe(false);
     // Nobody on the incoming shift has acknowledged it.
     expect(last?.unacknowledged).toBe(true);
+    // The dashboard may call it overdue once the grace period after the shift's end has passed,
+    // when the nurse in charge is alerted (H-410).
+    const grace = await rate("handover.acknowledgement_grace_minutes");
+    expect(Date.parse(last?.acknowledgementDueAt ?? "")).toBe(
+      Date.parse(last?.shift.end ?? "") + grace * 60_000,
+    );
     const lastId = last?.id ?? "";
     const closed = await as("carer", `${handoversPath()}/${lastId}/notes`, {
       method: "POST",

@@ -14,11 +14,13 @@ import {
   handover,
   handoverAcknowledgement,
   handoverNote,
+  location,
   type Transaction,
   withRequestContext,
 } from "@harbour/db";
 import {
   checkHandoverNote,
+  HANDOVER_RATE_KEYS,
   type HandoverItem,
   handoverOpen,
   scopeFor,
@@ -112,6 +114,8 @@ interface ReaderView {
   readonly items: readonly HandoverItem[];
   readonly acks: readonly AckRow[];
   readonly whole: boolean;
+  /** `handover.acknowledgement_grace_minutes` at the handover's location; null when unreadable. */
+  readonly graceMinutes: number | null;
 }
 
 /** The summary over what the reader can see; `withStates` adds the whole picture for whole readers. */
@@ -149,6 +153,11 @@ function summary(view: ReaderView, access: TenantAccess, now: Date): HandoverSum
     // Named by `withStaff` once the states are known.
     staff: [],
     unacknowledged: null,
+    // When the dashboard may call an unacknowledged handover overdue (H-410).
+    acknowledgementDueAt:
+      view.graceMinutes === null
+        ? null
+        : new Date(row.shiftEnd.getTime() + view.graceMinutes * 60_000).toISOString(),
   };
 }
 
@@ -244,12 +253,51 @@ async function readerViews(
   const ids = rows.map((r) => r.id);
   const items = await itemsOf(tx, ids);
   const acks = await acknowledgementsOf(tx, ids);
+  const graces = await graceByLocation(tx, access.tenantId, [
+    ...new Set(rows.map((r) => r.locationId)),
+  ]);
   return rows.map((row) => ({
     row,
     items: items.get(row.id) ?? [],
     acks: acks.filter((a) => a.handoverId === row.id),
     whole: seesWhole(access, row.locationId),
+    graceMinutes: graces.get(row.locationId) ?? null,
   }));
+}
+
+/**
+ * Each location's `handover.acknowledgement_grace_minutes`, by its nation (H-410); a location
+ * whose figure cannot be read is left out, so its handovers are never called overdue on a guess.
+ */
+async function graceByLocation(
+  tx: Transaction,
+  tenantId: string,
+  locationIds: readonly string[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (locationIds.length === 0) return out;
+  const places = await tx
+    .select({ id: location.id, nation: location.nation })
+    .from(location)
+    .where(inArray(location.id, [...locationIds]));
+  const byNation = new Map<string, number | null>();
+  for (const place of places) {
+    if (!byNation.has(place.nation)) {
+      const grace = await rateNumber(
+        tx,
+        tenantId,
+        HANDOVER_RATE_KEYS.acknowledgementGraceMinutes,
+        place.nation as Parameters<typeof rateNumber>[3],
+      ).catch(() => null);
+      byNation.set(
+        place.nation,
+        grace !== null && Number.isFinite(grace) && grace >= 0 ? grace : null,
+      );
+    }
+    const grace = byNation.get(place.nation);
+    if (grace !== null && grace !== undefined) out.set(place.id, grace);
+  }
+  return out;
 }
 
 /** The handover as the reader may see it, with where they stand. */

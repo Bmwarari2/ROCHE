@@ -60,6 +60,8 @@ export function toTaskItem(
     locationId: row.locationId,
     assigneeTenantUserId: row.assigneeTenantUserId,
     assigneeStaff: staff(row.assigneeTenantUserId),
+    assigneeRoleKey: row.assigneeRoleKey,
+    requiredPermission: row.requiredPermission,
     dueAt: row.dueAt.toISOString(),
     windowStart: iso(row.windowStart),
     windowEnd: iso(row.windowEnd),

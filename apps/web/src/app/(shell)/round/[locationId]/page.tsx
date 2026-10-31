@@ -24,6 +24,7 @@ import {
   roundCounts,
   roundShown,
   roundTaskActions,
+  taskForLine,
   timeStateChip,
 } from "@/lib/round";
 
@@ -72,9 +73,8 @@ export default async function RoundPage({
   const round = read.data;
   const areas = forPerson(round, personId);
   const counts = roundCounts(areas);
-  // Tasks are recorded by those who record care; the API checks the task's own permission and
-  // that it reaches the person (the round view does not say which permission each task names).
-  const canWrite = me.permissions.includes("care.note.write");
+  // Each task's actions go only to holders of the permission it names (H-270); the API still
+  // checks that the permission reaches the person.
   const base = `/round/${locationId}${personId ? `?person=${personId}` : ""}`;
   const filteredName = personId
     ? areas.flatMap((a) => a.stops).find((s) => s.person)?.person
@@ -100,6 +100,9 @@ export default async function RoundPage({
         ) : null}
       </p>
       <p className="m-0 text-body-dense">{dueLine(task, t)}</p>
+      <p className="m-0 text-body-dense" data-task-for="">
+        {taskForLine(task, t)}
+      </p>
       {task.planAction?.notice ? (
         <p className="m-0 flex items-start gap-2 font-semibold">
           <History size={18} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0" />
@@ -111,7 +114,7 @@ export default async function RoundPage({
         taskId={task.id}
         version={task.version}
         title={task.planAction?.action ?? task.title}
-        actions={roundTaskActions(task, canWrite)}
+        actions={roundTaskActions(task, me.permissions)}
         recordHref={recordHref(task)}
         returnTo={base}
         name={name}
