@@ -49,7 +49,8 @@ function StartReview({
  * Review and close an incident (`safety.incident.manage`; safety.md rule 11; HZ-013), as the page
  * offers them (`incidentManageView`): start the review, or send it back to open with a reason;
  * close it with a reason, never by the person who raised it, and only once every notification is
- * submitted or decided and every question answered. Otherwise it says what to do first, linked.
+ * submitted or decided, every question answered and the duty of candour record finished.
+ * Otherwise it says what to do first, linked.
  */
 export function IncidentManage({
   incidentId,
@@ -118,6 +119,13 @@ export function IncidentManage({
                 {/* A native link, so the browser moves focus to the questions' section. */}
                 <a href="#notifications" className={link}>
                   {t("safety.manage.close.questions", { count: close.questions })}
+                </a>
+              </li>
+            ) : null}
+            {close.candour ? (
+              <li>
+                <a href="#candour" className={link}>
+                  {t("safety.candour.closeFirst")}
                 </a>
               </li>
             ) : null}
