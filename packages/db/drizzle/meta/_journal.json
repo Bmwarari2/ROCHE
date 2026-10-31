@@ -505,6 +505,13 @@
       "when": 1793472028214,
       "tag": "0077_dsar_workbench",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1793472029214,
+      "tag": "0082_breach_register",
+      "breakpoints": true
     }
   ]
 }

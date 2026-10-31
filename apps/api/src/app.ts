@@ -24,6 +24,7 @@ import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
+import { dataProtectionRouter } from "./routes/data-protection";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
@@ -47,6 +48,7 @@ import { onboardingRouter } from "./routes/onboarding";
 import { createRouter } from "./routes/openapi";
 import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
+import { operatorBreachNoticesRouter } from "./routes/operator-breach-notices";
 import { operatorInvitationsRouter } from "./routes/operator-invitations";
 import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
@@ -324,11 +326,13 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", exportsRouter);
   app.route("/", dpiaRouter);
   app.route("/", dsarRouter);
+  app.route("/", dataProtectionRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
   app.route("/", operatorInvitationsRouter);
   app.route("/", operatorSubProcessorsRouter);
+  app.route("/", operatorBreachNoticesRouter);
   app.route("/", peopleDetailsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {

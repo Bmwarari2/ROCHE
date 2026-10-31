@@ -80,6 +80,7 @@ describe("hazard HZ-070 hazard HZ-071 building the full export", () => {
   let id = "";
   let dsarCaseId = "";
   let files = new Map<string, Buffer>();
+  let breachId = "";
 
   it("builds a queued export into a complete archive, and tells the requester by ids only", async () => {
     // A data subject request, which the free full export must include (#149 follow-up).
@@ -102,6 +103,15 @@ describe("hazard HZ-070 hazard HZ-071 building the full export", () => {
     } finally {
       client.release();
     }
+    // A breach register entry, which the free full export must include (#156 follow-up).
+    const breach = await h.request("/v1/data-protection/breaches", {
+      method: "POST",
+      body: { summary: "A letter went to the wrong address.", awareAt: new Date().toISOString() },
+      token: h.tokens.quality,
+      tenant: DEMO.tenantId,
+    });
+    expect(breach.status).toBe(201);
+    breachId = ((await breach.json()) as { id: string }).id;
     const asked = await h.request("/v1/exports", {
       method: "POST",
       body: {},
@@ -141,6 +151,10 @@ describe("hazard HZ-070 hazard HZ-071 building the full export", () => {
 
   it("includes data subject requests (the export reads them in the organisation's context)", () => {
     expect(files.get("tables/dsar_case.csv")?.toString()).toContain(dsarCaseId);
+  });
+
+  it("includes the breach register (the export reads it in the organisation's context)", () => {
+    expect(files.get("tables/dp_breach.csv")?.toString()).toContain(breachId);
   });
 
   it("writes a complete manifest, the schema and one summary row per person", () => {
