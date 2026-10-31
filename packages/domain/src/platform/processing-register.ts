@@ -207,6 +207,25 @@ export const PROCESSING_PURPOSES = {
     trigger: { kind: "setting", setting: "ai_free_text", flag: "module.ai" },
     dataCategories: ["ai_interaction_log"],
   },
+  B15: {
+    title:
+      "Recruitment: job applicants, applications, shortlisting, interviews, conditional offers, the talent pool and equality monitoring",
+    dataSubjects: "Job applicants (who may never be employed); interview panel members",
+    lawfulBasis: {
+      independent:
+        "Art 6(1)(b) steps at the applicant's request before a contract, and 6(1)(f) legitimate interests in recruiting",
+      public: "Art 6(1)(b) and 6(1)(e)",
+    },
+    specialCategory:
+      "Equality monitoring only: Art 9(2)(g) with DPA 2018 Sch 1 para 8 (equality of opportunity or treatment), voluntary, kept apart and reported only as suppressed counts",
+    // Recruitment is not consent based. Keeping someone in the talent pool longer is only with
+    // their agreement, withdrawable at once (records-of-processing.md B15).
+    consent: false,
+    retention:
+      "applicant.unsuccessful: 6 months after the last application closes; applicant.talent_pool: 12 months from the applicant's agreement, which they may withdraw",
+    trigger: { kind: "feature", flag: "module.workforce" },
+    dataCategories: ["staff_employment"],
+  },
 } as const satisfies Record<string, ProcessingPurpose>;
 
 export type ProcessingPurposeId = keyof typeof PROCESSING_PURPOSES;

@@ -237,7 +237,12 @@ export const PERMISSIONS = {
       "Approve a statement of purpose revision (the registered provider or manager; not its author)",
   },
   // workforce
-  "workforce.recruitment.manage": { description: "Manage applicants and pre-employment files" },
+  "workforce.recruitment.manage": {
+    description:
+      "Manage job templates, vacancies, applicants, interviews and offers, and read equality monitoring counts",
+    // Applicants' data includes equality monitoring (special category): MFA as for the staff file.
+    sensitive: true,
+  },
   "workforce.training.manage": { description: "Manage the training matrix and competence" },
   "workforce.competence.observe": { description: "Observe and sign off competence" },
   "workforce.supervision.manage": { description: "Schedule and record supervisions" },

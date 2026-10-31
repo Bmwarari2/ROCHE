@@ -21,6 +21,7 @@ export * from "./quality";
 export * from "./quality-audits";
 export * from "./quality-framework";
 export * from "./records";
+export * from "./recruitment";
 export * from "./rota";
 export * from "./safeguarding";
 export * from "./safety";

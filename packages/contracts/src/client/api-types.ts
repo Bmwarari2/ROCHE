@@ -19948,6 +19948,1339 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/job-templates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Job templates
+     * @description workforce.recruitment.manage. Templates by Care Workforce Pathway role.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Templates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["JobTemplateList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Create a job template
+     * @description workforce.recruitment.manage. The essential criteria (2 to 20) assessed at shortlisting and the values-based questions (2 to 12) asked at interview. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateJobTemplate"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["JobTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/job-templates/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change or archive a job template
+     * @description workforce.recruitment.manage, with expectedVersion. A template an open vacancy uses is not archived. Audited.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateJobTemplate"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["JobTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/workforce/vacancies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Vacancies
+     * @description workforce.recruitment.manage. Every vacancy with how many applications are at each stage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Vacancies */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["VacancyList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Create a vacancy
+     * @description workforce.recruitment.manage. From a template that is not archived; draft or open. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateVacancy"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["VacancyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/vacancies/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change a vacancy or its status
+     * @description workforce.recruitment.manage, with expectedVersion. Withdrawing or filling a vacancy closes nothing by itself: each open application is closed with its reason. Audited.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateVacancy"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["VacancyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/workforce/vacancies/{id}/applications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Applications to a vacancy
+     * @description workforce.recruitment.manage. Each application with its applicant's name and stage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Applications */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApplicationList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record an application
+     * @description workforce.recruitment.manage. Only while the vacancy is open. An applicant already recorded with the same email (and not redacted) is used again; one application per vacancy each (409). Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateApplication"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApplicationDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/applications/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An application
+     * @description workforce.recruitment.manage. The application with its applicant, shortlisting, stage history, interviews (with the panel's total, never a decision) and offer. Audited (viewed).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The application */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApplicationDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/applications/{id}/shortlist": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the shortlisting decision
+     * @description workforce.recruitment.manage. Each essential criterion met or not, in the template's order. Shortlisted only when every one is met; otherwise rejected with a reason (rule 11). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ShortlistDecision"];
+        };
+      };
+      responses: {
+        /** @description The application */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApplicationDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/applications/{id}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reject an application, or record its withdrawal
+     * @description workforce.recruitment.manage, with a reason code. A closed application never reopens. When the applicant's last application closes, the date until which they are kept is set (rule 13). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseApplication"];
+        };
+      };
+      responses: {
+        /** @description The application */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApplicationDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/applications/{id}/interviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record an interview
+     * @description workforce.recruitment.manage. Once shortlisted, by a panel of 1 to 5 members of staff, with every values question scored 1 to 4, on a date no later than today. Append-only; a later interview is a new record. Audited without the scores or notes.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordInterview"];
+        };
+      };
+      responses: {
+        /** @description The application */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApplicationDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/applications/{id}/offer": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Make a conditional offer
+     * @description workforce.recruitment.manage. After an interview whose panel recommended proceeding. Conditional on the Schedule 3 items the role needs, which the staff profile lists as outstanding once accepted. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["MakeOffer"];
+        };
+      };
+      responses: {
+        /** @description The application */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApplicationDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/offers/{id}/response": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the response to an offer
+     * @description workforce.recruitment.manage. Accepted needs workforce.staff_file.manage too and the member of staff the applicant now is (never oneself): their staff profile is created from the job, with the offer's Schedule 3 conditions outstanding. Declined or withdrawn closes the application. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RespondToOffer"];
+        };
+      };
+      responses: {
+        /** @description The application */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApplicationDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/applicants/{id}/talent-pool": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record or withdraw talent pool consent
+     * @description workforce.recruitment.manage, with expectedVersion. Consent keeps the applicant for the applicant.talent_pool period from today (retention.md); withdrawing ends it at once, and the keep-until date falls back to the last application's (rule 13). Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["TalentPoolConsent"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** Format: date */
+              talentPoolUntil: string | null;
+              /** Format: date */
+              retainUntil: string | null;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/vacancies/{id}/equality-monitoring": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Equality monitoring counts for a vacancy
+     * @description workforce.recruitment.manage, once the vacancy has closed. Releases the counts, after which no form is added. Counts per question and answer; a count under the minimum reads fewer_than_min (the database never returns it), a lone small count takes the next smallest with it, and a question with no count at the minimum is withheld, so no applicant can be picked out (rule 12). Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Counts */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EqualityMonitoringSummary"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add an anonymous equality monitoring form
+     * @description workforce.recruitment.manage. Once the vacancy has closed and before its counts are released: forms are added together, not as applications arrive. Every answer optional, prefer_not_to_say always accepted. Kept with the vacancy only (no date, a random id), never linked to an applicant; nobody reads a form, only the counts. Audited without the answers.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EqualityMonitoringForm"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/training-requirements": {
     parameters: {
       query?: never;
@@ -38953,6 +40286,290 @@ export interface components {
       expectedVersion: number;
       /** Format: date */
       signedOn: string;
+    };
+    JobTemplateList: {
+      items: components["schemas"]["JobTemplateItem"][];
+    };
+    JobTemplateItem: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      pathwayCategory: components["schemas"]["PathwayCategory"];
+      registrationBody: components["schemas"]["RegistrationBody"];
+      essentialCriteria: string[];
+      valuesQuestions: components["schemas"]["ValuesQuestion"][];
+      archived: boolean;
+      version: number;
+    };
+    /**
+     * @description Care Workforce Pathway role category
+     * @enum {string}
+     */
+    PathwayCategory:
+      | "new_to_care"
+      | "care_worker"
+      | "senior_care_worker"
+      | "lead_practitioner"
+      | "deputy_manager"
+      | "registered_manager"
+      | "registered_nurse";
+    ValuesQuestion: {
+      key: string;
+      value: components["schemas"]["RecruitmentValue"];
+      question: string;
+    };
+    /** @enum {string} */
+    RecruitmentValue:
+      | "care"
+      | "compassion"
+      | "competence"
+      | "communication"
+      | "courage"
+      | "commitment";
+    CreateJobTemplate: {
+      title: string;
+      pathwayCategory: components["schemas"]["PathwayCategory"];
+      registrationBody: components["schemas"]["RegistrationBody"];
+      essentialCriteria: string[];
+      valuesQuestions: components["schemas"]["ValuesQuestion"][];
+    };
+    UpdateJobTemplate: {
+      title?: string;
+      pathwayCategory?: components["schemas"]["PathwayCategory"];
+      registrationBody?: components["schemas"]["RegistrationBody"];
+      essentialCriteria?: string[];
+      valuesQuestions?: components["schemas"]["ValuesQuestion"][];
+      archived?: boolean;
+      expectedVersion: number;
+    };
+    VacancyList: {
+      items: components["schemas"]["VacancyItem"][];
+    };
+    VacancyItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      jobTemplateId: string;
+      /** Format: uuid */
+      locationId: string | null;
+      title: string;
+      positions: number;
+      /** Format: date */
+      opensOn: string;
+      /** Format: date */
+      closesOn: string | null;
+      status: components["schemas"]["VacancyStatus"];
+      counts: {
+        [key: string]: number;
+      };
+      version: number;
+    };
+    /** @enum {string} */
+    VacancyStatus: "draft" | "open" | "closed" | "filled" | "withdrawn";
+    CreateVacancy: {
+      /** Format: uuid */
+      jobTemplateId: string;
+      /** Format: uuid */
+      locationId: string | null;
+      title: string;
+      /** @default 1 */
+      positions: number;
+      /** Format: date */
+      opensOn: string;
+      /** Format: date */
+      closesOn: string | null;
+      /**
+       * @default draft
+       * @enum {string}
+       */
+      status: "draft" | "open";
+    };
+    UpdateVacancy: {
+      title?: string;
+      positions?: number;
+      /** Format: date */
+      closesOn?: string | null;
+      status?: components["schemas"]["VacancyStatus"];
+      expectedVersion: number;
+    };
+    ApplicationList: {
+      items: components["schemas"]["ApplicationSummary"][];
+    };
+    ApplicationSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      vacancyId: string;
+      /** Format: uuid */
+      applicantId: string;
+      applicantName: string | null;
+      stage: components["schemas"]["ApplicationStage"];
+      stageReason: components["schemas"]["ClosingReason"];
+      /** Format: date */
+      closedOn: string | null;
+      version: number;
+    };
+    /** @enum {string} */
+    ApplicationStage:
+      | "applied"
+      | "shortlisted"
+      | "interviewed"
+      | "offered"
+      | "accepted"
+      | "rejected"
+      | "withdrawn"
+      | "declined";
+    /** @enum {string|null} */
+    ClosingReason:
+      | "criteria_not_met"
+      | "not_selected_after_interview"
+      | "position_filled"
+      | "vacancy_withdrawn"
+      | "applicant_withdrew"
+      | "offer_declined"
+      | "offer_withdrawn"
+      | "pre_employment_checks_failed"
+      | null;
+    ApplicationDetail: {
+      application: components["schemas"]["ApplicationSummary"];
+      applicant: {
+        /** Format: uuid */
+        id: string;
+        givenName: string | null;
+        familyName: string | null;
+        email: string | null;
+        phone: string | null;
+        /** Format: date */
+        talentPoolUntil: string | null;
+        /** Format: date */
+        retainUntil: string | null;
+        redacted: boolean;
+        version: number;
+      };
+      shortlist: {
+        criteria: boolean[];
+        /** Format: uuid */
+        decidedBy: string;
+        /** Format: date-time */
+        decidedAt: string;
+      } | null;
+      history: {
+        fromStage: components["schemas"]["ApplicationStage"] & (string | null);
+        toStage: components["schemas"]["ApplicationStage"];
+        reason: string | null;
+        /** Format: date-time */
+        occurredAt: string;
+      }[];
+      interviews: components["schemas"]["InterviewItem"][];
+      offer: components["schemas"]["OfferItem"];
+    };
+    InterviewItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date */
+      heldOn: string;
+      panel: string[];
+      scores: {
+        [key: string]: number;
+      };
+      total: number;
+      outOf: number;
+      notes: string | null;
+      /** @enum {string} */
+      recommendation: "proceed" | "do_not_proceed";
+    };
+    OfferItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date */
+      madeOn: string;
+      /** Format: date */
+      proposedStartOn: string | null;
+      conditions: components["schemas"]["ComplianceItemKind"][];
+      /** @enum {string} */
+      status: "made" | "accepted" | "declined" | "withdrawn";
+      /** Format: date */
+      respondedOn: string | null;
+      /** Format: uuid */
+      staffProfileId: string | null;
+      version: number;
+    } | null;
+    CreateApplication: {
+      givenName: string;
+      familyName: string;
+      /** Format: email */
+      email: string | null;
+      phone: string | null;
+    };
+    ShortlistDecision: {
+      criteria: boolean[];
+      /** @enum {string} */
+      decision: "shortlist" | "reject";
+      reason?: components["schemas"]["ClosingReason"];
+      expectedVersion: number;
+    };
+    CloseApplication: {
+      /** @enum {string} */
+      to: "rejected" | "withdrawn";
+      reason: components["schemas"]["ClosingReason"];
+      expectedVersion: number;
+    };
+    RecordInterview: {
+      /** Format: date */
+      heldOn: string;
+      panel: string[];
+      scores: {
+        [key: string]: number;
+      };
+      notes: string | null;
+      /** @enum {string} */
+      recommendation: "proceed" | "do_not_proceed";
+      expectedVersion: number;
+    };
+    MakeOffer: {
+      /** Format: date */
+      proposedStartOn: string | null;
+      previousCareWork: boolean;
+      expectedVersion: number;
+    };
+    RespondToOffer:
+      | {
+          /** @enum {string} */
+          response: "accepted";
+          /** Format: uuid */
+          tenantUserId: string;
+          expectedVersion: number;
+        }
+      | {
+          /** @enum {string} */
+          response: "declined";
+          expectedVersion: number;
+        }
+      | {
+          /** @enum {string} */
+          response: "withdrawn";
+          expectedVersion: number;
+        };
+    TalentPoolConsent: {
+      consent: boolean;
+      expectedVersion: number;
+    };
+    EqualityMonitoringForm: {
+      answers: {
+        [key: string]: string;
+      };
+    };
+    EqualityMonitoringSummary: {
+      /** Format: uuid */
+      vacancyId: string;
+      minimumShown: number;
+      forms: number | "fewer_than_min";
+      questions: {
+        question: string;
+        counts: {
+          [key: string]: number | "fewer_than_min";
+        } | null;
+      }[];
     };
     TrainingRequirementList: {
       items: components["schemas"]["TrainingRequirementItem"][];

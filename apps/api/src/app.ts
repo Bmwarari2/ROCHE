@@ -74,6 +74,7 @@ import { platformImportsRouter } from "./routes/platform-imports";
 import { policiesRouter } from "./routes/policies";
 import { qualityAuditsRouter } from "./routes/quality-audits";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
+import { recruitmentRouter } from "./routes/recruitment";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { rotaRouter } from "./routes/rota";
 import { roundsRouter } from "./routes/rounds";
@@ -344,6 +345,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", qualityFrameworkRouter);
   app.route("/", qualityAuditsRouter);
   app.route("/", staffFilesRouter);
+  app.route("/", recruitmentRouter);
   app.route("/", developmentRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);

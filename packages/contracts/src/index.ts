@@ -555,4 +555,5 @@ export const AccountDeletionRequest = z
   })
   .meta({ id: "AccountDeletionRequest" });
 export type AccountDeletionRequest = z.infer<typeof AccountDeletionRequest>;
+export * from "./recruitment";
 export * from "./workforce";

@@ -56,6 +56,9 @@ const APPEND_ONLY_TABLES = [
   "processor_breach_notice",
   "processor_breach_notice_ack",
   "dependency_assessment",
+  "application_event",
+  "interview",
+  "equality_monitoring",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

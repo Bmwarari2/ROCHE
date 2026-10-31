@@ -860,6 +860,32 @@ home rota; the fields below are Harbour's.
 | `rota_publication.staffing` | Harbour | `[{ date, periodKey, status }]`; status `below`, `incomplete`, `met_with_warnings`, `met`, `no_scale` | What the publisher was shown. |
 | `rota_publication.notice_minutes` | Harbour | Whole minutes, 0 or more | From publication to the first shift it published. |
 
+## Workforce: applicant tracking (Phase 2, slice 23)
+
+Code lists for [workforce.md](workforce.md) section 2b (migration 0085). Harbour's own fields; the
+Care Workforce Pathway categories follow Skills for Care's Pathway (H-730) and the equality
+monitoring questions follow the Equality Act 2010 protected characteristics, with the categories
+of the census for England and Wales (H-733).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `job_template.pathway_category` | Care Workforce Pathway (Skills for Care) | `new_to_care`, `care_worker`, `senior_care_worker`, `lead_practitioner`, `deputy_manager`, `registered_manager`, `registered_nurse` | H-730 |
+| `job_template.essential_criteria` | Harbour | JSON array of 2 to 20 statements, 2 to 200 characters each | Assessed in order at shortlisting |
+| `job_template.values_questions` | Values-based recruitment (Skills for Care; the 6Cs) | JSON array of 2 to 12 `{ key, value, question }`; `value` one of `care`, `compassion`, `competence`, `communication`, `courage`, `commitment` | H-730 |
+| `vacancy.status` | Harbour | `draft`, `open`, `closed`, `filled`, `withdrawn` | |
+| `vacancy.opens_on`, `closes_on` | Harbour | `YYYY-MM-DD` | Closing on or after opening |
+| `applicant.given_name`, `family_name`, `email`, `phone` | Harbour | Plain text (1 to 100), email, phone (up to 40) | Cleared when redacted |
+| `applicant.talent_pool_until`, `retain_until` | Harbour | `YYYY-MM-DD` | From `applicant.talent_pool` and `applicant.unsuccessful` |
+| `application.stage` | Harbour | `applied`, `shortlisted`, `interviewed`, `offered`, `accepted`, `rejected`, `withdrawn`, `declined` | Closed stages never reopen |
+| `application.stage_reason` | Harbour | `criteria_not_met`, `not_selected_after_interview`, `position_filled`, `vacancy_withdrawn`, `applicant_withdrew`, `offer_declined`, `offer_withdrawn`, `pre_employment_checks_failed` | |
+| `application.shortlist` | Harbour | `{ criteria: boolean[], decidedBy, decidedAt }` | |
+| `interview.scores`, `recommendation` | Harbour | `{ questionKey: 1 to 4 }`; `proceed` or `do_not_proceed` | The total is shown, never a decision |
+| `job_offer.conditions` | Schedule 3 | JSON array of `compliance_item.kind` codes | Listed as outstanding on the staff file |
+| `job_offer.status` | Harbour | `made`, `accepted`, `declined`, `withdrawn` | |
+| `equality_monitoring.answers` | Equality Act 2010 protected characteristics; census for England and Wales categories | `age_band` (`16_24` to `65_plus`), `sex`, `gender_same_as_registered_at_birth`, `ethnic_group` (`asian`, `black`, `mixed`, `white`, `other`), `disability`, `religion`, `sexual_orientation`; each also `prefer_not_to_say`; all optional | Special category; counts only, under 5 suppressed (H-731, H-733) |
+| `equality_monitoring.id` | Harbour | Random UUID (never time-ordered); no date is kept | No link to the applicant |
+| `vacancy.equality_summarised_at` | Harbour | ISO 8601 UTC | When the counts were first released; no form after |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
