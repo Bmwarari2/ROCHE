@@ -37,7 +37,7 @@ Branch `feat/web-documents-tasks`.
 - Documents about a person on the person's record (upload and signing there); crypto-shredding.
 - Welsh for the new strings.
 - The task list does not yet re-read on its own or say that tasks about people are hidden from a
-  session without MFA (H-381).
+  session without MFA (H-450).
 
 ## Human actions logged
 
@@ -61,4 +61,4 @@ Branch `feat/web-documents-tasks`.
   described by their task, "Record as not done", "Unassign task", "Keep task"; the document list's
   error link focuses its group; the acknowledgement box is required; each document page is named
   after the document; a stale task closes its dialog; a repeating task cannot start in the past;
-  clock-change tests (HZ-009). H-381 asks the CSO about the missed-rounds evidence.
+  clock-change tests (HZ-009). H-450 asks the CSO about the missed-rounds evidence.
