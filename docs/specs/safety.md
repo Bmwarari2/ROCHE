@@ -489,3 +489,95 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
 - Post-fall observation defaults (H-66): NICE NG232 gives a hospital schedule only.
 - Which notifications can be submitted electronically to which regulator (CQC portal, HSE RIDDOR
   online form) without a public API: Phase 1 prepares and records only.
+
+## 11. Outbreaks and IPC audits (slice 31: SAFE-013; migration 0093)
+
+Completes SAFE-013 on the Phase 1 UKHSA draft (section 4 rule 7) and slice 19's audit programme
+([quality.md](quality.md) section 19). Spec, schema, permission matrix and test list before the
+code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-management.ts`.
+
+### 11.1 Rules
+
+1. **Declaration.** Staff holding `safety.outbreak.manage` at a location declare an outbreak of
+   one illness (acute respiratory, flu, COVID-19, diarrhoea and vomiting, other), with the
+   organism and the health protection team's reference when known. One open outbreak per illness
+   at a location. Detection (rule 7) prompts; a person declares.
+2. **The report clock (HZ-013).** Declaring links the location's UKHSA report still being
+   prepared (draft or ready), so detection and declaration share one clock; otherwise it drafts a
+   `ukhsa_outbreak` notification due without delay, which the notification centre shows and
+   escalates like any other draft.
+3. **The line list** (`checkOutbreakCase`): residents living at the location and members of staff,
+   once each per outbreak, with onset date, symptoms (coded), test type, date and result,
+   flu and COVID-19 vaccination (yes, no, not known) and outcome (unwell, recovered, hospitalised,
+   died) with its date. Nothing dated in the future; a test not before symptoms started; a result
+   needs its test and date. Rows are append-only: an update or correction is a new row superseding
+   the person's current row (a correction gives a reason).
+4. **Report fields** (`ukhsaReportFields`): the setting's name, postcode and CQC location ID, the
+   illness and organism, residents and staff affected, first and latest onset, tested, positive and
+   pending, in hospital, deaths, and vaccination tallies, counted from the current rows. A field
+   with no value is listed as missing, never guessed. While the report is a draft or ready, its
+   content is completed from these fields after every change.
+5. **Closure** (`checkOutbreakClosure`, HZ-013): a person closes the outbreak with a date and a
+   reason (for example agreed with the health protection team), only once its report is submitted
+   or recorded as not needed, not before the last case's symptoms started and not in the future.
+   Harbour sets no quiet period of its own (H-768). Cases still unwell are said beside the closure,
+   never a blocker. A closed outbreak never changes; cases continue on a new outbreak.
+6. **IPC audits** (`checkIpcTemplate`, `ipcCriteriaResults`): an audit template of kind `ipc` maps
+   every question to one or more of the 10 criteria of the Code of Practice on the prevention and
+   control of infections. An IPC audit is read criterion by criterion with the audit's own scoring
+   over that criterion's questions; a criterion no question covers has no score, so the gap shows.
+   The IPC starter (slice 19) now covers all ten.
+
+**Medical-device boundary.** Re-checked: unchanged. The line list stores what staff observed and
+what tests reported; counts and tallies are arithmetic over recorded values for a public-health
+report. Nothing diagnoses, predicts or scores a person, and nothing recommends treatment.
+
+### 11.2 Schema (migration 0093)
+
+| Table | Kind | Key columns | Security | Retention class |
+| --- | --- | --- | --- | --- |
+| `ipc_code_criterion` | Global reference | id (`criterion_1` to `criterion_10`), number, title (Harbour's summary), source | No tenant; read by every role, written only by the owner role in migrations | Not exported (global) |
+| `outbreak` | Mutable aggregate, tenant | location, syndrome, organism, state (`declared`, `closed`), declared at and by, the linked report, health protection team reference, closed on, at and by, closure reason | Tenant policy; restrictive: `safety.outbreak.manage` at the location; declared open in the declarer's name, one open per location and illness; place, illness and declaration fixed; report linked once; closed once, only when the report is submitted or not required; a closed outbreak never changes; no delete | `serious_incident` |
+| `outbreak_case` | Append-only, tenant | outbreak, resident (person) or staff (member), onset, symptoms, test type, date and result, flu and COVID-19 vaccination, outcome and date, supersedes and correction reason | Tenant policy; restrictive: through the outbreak's location, and a resident's row only where the person is visible; an open outbreak only; a resident of the outbreak's location; once per person, then superseding rows for the same person, each row superseded once; nothing in the future | `care_record` |
+
+Removing sample data removes sample people's cases (`app.sample_removal_tables`). Existing
+organisations' built-in owner, Registered Manager, deputy and clinical lead roles gain
+`safety.outbreak.manage` by data migration, audited per role.
+
+### 11.3 Permissions
+
+| Permission | Allows | Held by |
+| --- | --- | --- |
+| `safety.outbreak.manage` (care record, so MFA) at a location | Declare, read, update and close outbreaks there; keep the line list | Owner, Registered Manager, deputy, clinical lead |
+| `safety.outbreak.manage` or `quality.audit.manage` | Read the Code of Practice criteria | As above, and audit runners |
+| `quality.audit.manage` at the audit's location | Read an IPC audit against the criteria | As in quality.md section 19 |
+
+### 11.4 API
+
+| Route | Does |
+| --- | --- |
+| `GET /v1/safety/ipc-criteria` | The ten criteria |
+| `GET /v1/safety/ipc-audits/{id}/criteria` | An IPC audit criterion by criterion (409 for other kinds) |
+| `GET /v1/safety/outbreaks[?locationId&state]` | Newest first, at most 200 |
+| `POST /v1/safety/outbreaks` | Declare (rule 1), linking or drafting the report (rule 2); `safety.outbreak.declared` |
+| `GET /v1/safety/outbreaks/{id}` | The outbreak, every line-list row marked current or superseded, the report fields with what is missing, the report and its clock, cases still unwell; `safety.outbreak.view` |
+| `PUT /v1/safety/outbreaks/{id}` | Organism and reference, against the read version; `safety.outbreak.updated` |
+| `POST /v1/safety/outbreaks/{id}/cases` | A case or a superseding row (rule 3; the superseded row must be current, 409 otherwise); `safety.outbreak.case_recorded` with ids only |
+| `POST /v1/safety/outbreaks/{id}/close` | Rule 5: 409 while the report is undecided or the outbreak is closed, 422 for dates; `safety.outbreak.closed` |
+
+Templates of kind `ipc` are checked by `checkIpcTemplate` when saved (422 naming the problem).
+Refusals decided in the API and those the database raises are audited as denied, with ids only.
+
+### 11.5 Tests
+
+- `packages/domain/src/safety/outbreak-management.test.ts`: cases (table), current rows, report
+  fields and what is missing (table), closure (table, HZ-013), criteria and IPC template checks
+  (table), criterion results.
+- `packages/db/test/safety-outbreaks.test.ts`: criteria seeded and read-only, in step with the
+  domain; the IPC starter covering all ten; codes in step; declaration, one open, fixed fields;
+  the line list's rules; closure refused while the report is a draft (HZ-013); location scope and
+  denial to a care worker and another organisation (HZ-011); the role data migration, idempotent
+  and audited.
+- `apps/api/test/outbreaks.test.ts`: declaration drafting or linking the report with its workflow
+  (HZ-013); one open per illness; the line list, report fields and the report's content; refusals;
+  superseding; closure (HZ-013); IPC audits against the criteria; the audit trail with ids only.

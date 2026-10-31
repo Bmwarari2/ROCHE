@@ -48,6 +48,7 @@ import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { operatorInvitationsRouter } from "./routes/operator-invitations";
 import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
+import { outbreaksRouter } from "./routes/outbreaks";
 import { peopleRouter } from "./routes/people";
 import { peopleDetailsRouter } from "./routes/people-details";
 import { peopleEnquiriesRouter } from "./routes/people-enquiries";
@@ -304,6 +305,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", statementOfPurposeRouter);
   app.route("/", qualityFrameworkRouter);
   app.route("/", qualityAuditsRouter);
+  app.route("/", outbreaksRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);

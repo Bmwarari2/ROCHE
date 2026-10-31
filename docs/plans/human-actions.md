@@ -377,7 +377,7 @@ Logged by slice 8 (Quality Phase 2 domain rules, [quality.md](../specs/quality.m
 | H-607 | When CQC publishes the KLOE-based framework, ask for a release that adds it as version 2 and retires version 1 on the day it takes effect, and agree how tenants carry their mappings across | Brian with the quality lead | ADR-0096 rule 3; quality.md section 18 | The KLOE change | open |
 
 Logged by slice 19 (audit programme and mock inspections, [quality.md](../specs/quality.md)
-section 19) on 31 October 2026. H-765 to H-769 are reserved for the slice's review rounds.
+section 19) on 31 October 2026.
 
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -386,6 +386,20 @@ section 19) on 31 October 2026. H-765 to H-769 are reserved for the slice's revi
 | H-762 | Decide whether an action owner without `quality.audit.manage` may complete their own audit action task (Harbour's default: the task needs it) | Quality lead with the CSO | quality.md section 19.2 | Audit actions for care staff | open |
 | H-763 | Decide what happens to an audit in progress when a new framework version takes effect (Harbour's default: it completes against the version it started with; new mock inspections need the version in force) | Quality lead | quality.md rules 4 and 14; section 19.3 | The KLOE change (H-607) | open |
 | H-764 | Supply or approve starter templates for the devolved nations' frameworks when their nation packs are loaded (CIW, Care Inspectorate, RQIA) | Brian with the quality lead | quality.md section 19.1 | Nation packs | open |
+
+Logged by slice 31 (outbreaks and IPC audits, [safety.md](../specs/safety.md) section 11) on
+31 October 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-765 | Check Harbour's summary of the 10 criteria of the Code of Practice on the prevention and control of infections against the current edition, and record the edition and date in safety.md section 11 | IPC lead at the design partner | Migration 0093 seed (`ipc_code_criterion`); `IPC_CODE_CRITERIA` | IPC audits for a real tenant | open |
+| H-766 | Review the expanded IPC starter template: the 13 questions, their weights, and the criteria and quality statements each is mapped to | IPC lead with the CSO | Migration 0093 (the `ipc` starter); quality.md section 19 | IPC audits for a real tenant | open |
+| H-767 | Confirm the lawful basis and retention for staff cases on an outbreak line list (staff health data: Art 9(2)(i) public health, Art 9(2)(b) employment), whether staff should see their own row, and update the DPIA | DPO | records-of-processing.md (outbreaks row); retention.md | Line lists naming staff for a real tenant | open |
+| H-768 | Confirm with the CSO and a local health protection team that an outbreak closes when the team agrees, with no Harbour quiet period, and that closure must wait until the report is submitted or recorded as not needed | CSO | safety.md section 11 rule 5; HZ-013 | Outbreak closure for a real tenant | open |
+| H-769 | Check the UKHSA report fields Harbour fills against the health protection team's current form for acute respiratory and for diarrhoea and vomiting outbreaks, and list any missing | Registered Manager at the design partner | `ukhsaReportFields`; safety.md section 11 rule 4 | Outbreak reports for a real tenant | open |
+| H-780 | Decide who holds `safety.outbreak.manage` by default (Harbour: owner, Registered Manager, deputy, clinical lead), and whether team leaders on nights should be able to add cases | Registered Manager with the CSO | roles.ts; permissions.md | Night-time outbreak recording | open |
+| H-781 | Agree how outbreaks are reported in Wales, Scotland and Northern Ireland (Public Health Wales, Public Health Scotland, the Public Health Agency) before a nation pack loads | Brian with the quality lead | safety.md section 11 | Nation packs | open |
+| H-782 | Confirm whether a member of staff named on a line list must be one of the organisation's own members, or whether agency workers outside Harbour should be counted by number only | Registered Manager at the design partner | safety.md section 11 rule 3 | Agency staff on line lists | open |
 
 ## Per tenant at onboarding
 

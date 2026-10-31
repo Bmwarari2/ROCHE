@@ -66,7 +66,7 @@ Branch `feat/quality-audit-programme`, stacked on `feat/quality-framework-librar
 - H-762: whether action owners without `quality.audit.manage` may complete their task.
 - H-763: audits in progress across a framework change.
 - H-764: starters for the devolved nations.
-- H-765 to H-769 are reserved for review rounds.
+- H-765 to H-769 went to slice 31.
 
 ## Tests
 

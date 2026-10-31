@@ -525,6 +525,7 @@ export * from "./quality-audits";
 export * from "./quality-framework";
 export * from "./records";
 export * from "./safety";
+export * from "./safety-outbreaks";
 export * from "./search";
 export * from "./staff";
 export * from "./sub-processors";

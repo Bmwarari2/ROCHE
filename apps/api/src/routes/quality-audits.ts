@@ -31,7 +31,9 @@ import {
   type AuditTemplateProblem,
   checkAuditCompletion,
   checkAuditTemplate,
+  checkIpcTemplate,
   defaultActionDueOn,
+  IPC_TEMPLATE_MESSAGES,
   nextAuditDue,
   scoreAudit,
   ukDayBounds,
@@ -187,6 +189,16 @@ async function checkTemplate(
       action,
       id,
       found.join(","),
+    );
+  }
+  // An IPC template is read against the Code of Practice criteria (safety.md section 11).
+  const ipc = template.kind === "ipc" ? checkIpcTemplate(template.questions) : [];
+  if (ipc.length > 0) {
+    throw refused(
+      problems.invalid(ipc.map((p) => IPC_TEMPLATE_MESSAGES[p]).join(" ")),
+      action,
+      id,
+      ipc.join(","),
     );
   }
 }

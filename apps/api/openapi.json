@@ -20107,6 +20107,14 @@
           },
           "actionRequired": {
             "type": "boolean"
+          },
+          "ipcCriteria": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^criterion_(?:[1-9]|10)$"
+            },
+            "maxItems": 10
           }
         },
         "required": [
@@ -20835,6 +20843,911 @@
           "version",
           "selfRating",
           "actions"
+        ]
+      },
+      "IpcCriterionList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IpcCriterionItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "IpcCriterionItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "source"
+        ]
+      },
+      "IpcAuditCriteria": {
+        "type": "object",
+        "properties": {
+          "auditId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "questionKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "percent": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "achieved": {
+                  "type": "number"
+                },
+                "possible": {
+                  "type": "number"
+                },
+                "fellShort": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "number",
+                "title",
+                "questionKeys",
+                "percent",
+                "achieved",
+                "possible",
+                "fellShort"
+              ]
+            }
+          },
+          "method": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "auditId",
+          "criteria",
+          "method"
+        ]
+      },
+      "OutbreakList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutbreakSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "OutbreakSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "syndrome": {
+            "type": "string",
+            "enum": [
+              "acute_respiratory",
+              "flu",
+              "covid_19",
+              "diarrhoea_vomiting",
+              "other"
+            ]
+          },
+          "organism": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "declared",
+              "closed"
+            ]
+          },
+          "declaredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "declaredBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notificationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "hptReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "closureReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "syndrome",
+          "organism",
+          "state",
+          "declaredAt",
+          "declaredBy",
+          "notificationId",
+          "hptReference",
+          "closedOn",
+          "closedAt",
+          "closedBy",
+          "closureReason",
+          "version"
+        ]
+      },
+      "OutbreakDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "syndrome": {
+            "type": "string",
+            "enum": [
+              "acute_respiratory",
+              "flu",
+              "covid_19",
+              "diarrhoea_vomiting",
+              "other"
+            ]
+          },
+          "organism": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "declared",
+              "closed"
+            ]
+          },
+          "declaredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "declaredBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notificationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "hptReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "closureReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutbreakCaseItem"
+            }
+          },
+          "report": {
+            "$ref": "#/components/schemas/UkhsaReportFields"
+          },
+          "notification": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StatutoryNotificationSummary"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "stillUnwell": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "syndrome",
+          "organism",
+          "state",
+          "declaredAt",
+          "declaredBy",
+          "notificationId",
+          "hptReference",
+          "closedOn",
+          "closedAt",
+          "closedBy",
+          "closureReason",
+          "version",
+          "cases",
+          "report",
+          "notification",
+          "stillUnwell"
+        ]
+      },
+      "OutbreakCaseItem": {
+        "type": "object",
+        "properties": {
+          "caseType": {
+            "type": "string",
+            "enum": [
+              "resident",
+              "staff"
+            ]
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "tenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "onsetOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "fever",
+                "cough",
+                "sore_throat",
+                "shortness_of_breath",
+                "loss_of_taste_or_smell",
+                "diarrhoea",
+                "vomiting",
+                "new_confusion",
+                "other"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 9
+          },
+          "testType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "lateral_flow",
+              "pcr",
+              "stool_sample",
+              "other",
+              null
+            ]
+          },
+          "testedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "testResult": {
+            "type": "string",
+            "enum": [
+              "not_tested",
+              "pending",
+              "positive",
+              "negative"
+            ]
+          },
+          "fluVaccinated": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ]
+          },
+          "covidVaccinated": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "unwell",
+              "recovered",
+              "hospitalised",
+              "died"
+            ]
+          },
+          "outcomeOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "caseType",
+          "personId",
+          "tenantUserId",
+          "onsetOn",
+          "symptoms",
+          "testType",
+          "testedOn",
+          "testResult",
+          "fluVaccinated",
+          "covidVaccinated",
+          "outcome",
+          "outcomeOn",
+          "supersedesId",
+          "correctionReason",
+          "id",
+          "current",
+          "createdAt",
+          "createdBy"
+        ]
+      },
+      "UkhsaReportFields": {
+        "type": "object",
+        "properties": {
+          "settingName": {
+            "type": "string"
+          },
+          "postcode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cqcLocationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "syndrome": {
+            "type": "string",
+            "enum": [
+              "acute_respiratory",
+              "flu",
+              "covid_19",
+              "diarrhoea_vomiting",
+              "other"
+            ]
+          },
+          "organism": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "declaredOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "residentCases": {
+            "type": "integer"
+          },
+          "staffCases": {
+            "type": "integer"
+          },
+          "firstOnsetOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "latestOnsetOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "tested": {
+            "type": "integer"
+          },
+          "positive": {
+            "type": "integer"
+          },
+          "pending": {
+            "type": "integer"
+          },
+          "hospitalised": {
+            "type": "integer"
+          },
+          "died": {
+            "type": "integer"
+          },
+          "fluVaccination": {
+            "type": "object",
+            "properties": {
+              "yes": {
+                "type": "integer"
+              },
+              "no": {
+                "type": "integer"
+              },
+              "unknown": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "yes",
+              "no",
+              "unknown"
+            ]
+          },
+          "covidVaccination": {
+            "type": "object",
+            "properties": {
+              "yes": {
+                "type": "integer"
+              },
+              "no": {
+                "type": "integer"
+              },
+              "unknown": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "yes",
+              "no",
+              "unknown"
+            ]
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "provision": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "provision",
+              "url"
+            ]
+          }
+        },
+        "required": [
+          "settingName",
+          "postcode",
+          "cqcLocationId",
+          "syndrome",
+          "organism",
+          "declaredOn",
+          "residentCases",
+          "staffCases",
+          "firstOnsetOn",
+          "latestOnsetOn",
+          "tested",
+          "positive",
+          "pending",
+          "hospitalised",
+          "died",
+          "fluVaccination",
+          "covidVaccination",
+          "missing",
+          "source"
+        ]
+      },
+      "DeclareOutbreak": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "syndrome": {
+            "type": "string",
+            "enum": [
+              "acute_respiratory",
+              "flu",
+              "covid_19",
+              "diarrhoea_vomiting",
+              "other"
+            ]
+          },
+          "organism": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "hptReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "locationId",
+          "syndrome"
+        ]
+      },
+      "UpdateOutbreak": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "organism": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "hptReference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "version",
+          "organism",
+          "hptReference"
+        ]
+      },
+      "RecordOutbreakCase": {
+        "type": "object",
+        "properties": {
+          "caseType": {
+            "type": "string",
+            "enum": [
+              "resident",
+              "staff"
+            ]
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "tenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "onsetOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "fever",
+                "cough",
+                "sore_throat",
+                "shortness_of_breath",
+                "loss_of_taste_or_smell",
+                "diarrhoea",
+                "vomiting",
+                "new_confusion",
+                "other"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 9
+          },
+          "testType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "lateral_flow",
+              "pcr",
+              "stool_sample",
+              "other",
+              null
+            ]
+          },
+          "testedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "testResult": {
+            "type": "string",
+            "enum": [
+              "not_tested",
+              "pending",
+              "positive",
+              "negative"
+            ]
+          },
+          "fluVaccinated": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ]
+          },
+          "covidVaccinated": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "unwell",
+              "recovered",
+              "hospitalised",
+              "died"
+            ]
+          },
+          "outcomeOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "caseType",
+          "personId",
+          "tenantUserId",
+          "onsetOn",
+          "symptoms",
+          "testType",
+          "testedOn",
+          "testResult",
+          "fluVaccinated",
+          "covidVaccinated",
+          "outcome",
+          "outcomeOn",
+          "supersedesId",
+          "correctionReason"
+        ]
+      },
+      "CloseOutbreak": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "closedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "version",
+          "closedOn",
+          "reason"
         ]
       },
       "EvidenceLinkCodeSent": {
@@ -46354,6 +47267,698 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuditRecordDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safety/ipc-criteria": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The IPC Code of Practice criteria",
+        "description": "safety.outbreak.manage or quality.audit.manage. Global reference data: the 10 criteria of the Code of Practice on the prevention and control of infections, in Harbour's summary, that IPC audit questions are mapped to.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Criteria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IpcCriterionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safety/ipc-audits/{id}/criteria": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "An IPC audit read against the Code of Practice criteria",
+        "description": "quality.audit.manage at the audit's location. Each criterion with the questions mapped to it, the audit's own weighted score over them and the answers that fell short; a criterion no question covers has no score, so a gap shows. Only for audits of kind `ipc` (409 otherwise). Read from the questions the audit started with.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Criteria results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IpcAuditCriteria"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safety/outbreaks": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Outbreaks",
+        "description": "safety.outbreak.manage, at the locations where you hold it. Newest first, at most 200, by location or state.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "declared",
+                "closed"
+              ]
+            },
+            "required": false,
+            "name": "state",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outbreaks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutbreakList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Declare an outbreak",
+        "description": "safety.outbreak.manage at the location. One open outbreak per illness at a location (409 otherwise). Links the location's UKHSA report still being prepared, or drafts one due without delay, so its clock shows in the notification centre (HZ-013). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclareOutbreak"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Declared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutbreakDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safety/outbreaks/{id}": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "An outbreak with its line list, report fields and report clock",
+        "description": "safety.outbreak.manage at the outbreak's location. Every line-list row (residents only where you can see the person), each marked current or superseded; the UKHSA report fields from the location and the current rows, with what is still missing; the linked report with its clock; how many cases are still unwell. The view is audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outbreak",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutbreakDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record the organism or the health protection team's reference",
+        "description": "safety.outbreak.manage at the outbreak's location, against the version read; an open outbreak only. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOutbreak"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutbreakDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safety/outbreaks/{id}/cases": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Add a case to the line list, or update one",
+        "description": "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff, once per outbreak: a later row names the row it supersedes, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). The linked report's fields are completed from the line list while it is being prepared. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordOutbreakCase"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutbreakDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safety/outbreaks/{id}/close": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Close an outbreak",
+        "description": "safety.outbreak.manage at the outbreak's location, against the version read, with the date and a reason (for example agreed with the health protection team). Only once the linked UKHSA report is submitted or recorded as not needed (HZ-013; 409 otherwise); not before the last case's symptoms started, nor in the future. Cases still unwell are said in the response, never a blocker. Final. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseOutbreak"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutbreakDetail"
                 }
               }
             }
