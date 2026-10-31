@@ -39,12 +39,15 @@ const CARER_DBS = "0199f100-0000-7000-8000-0000000000c1";
 const CARER_ID = "0199f100-0000-7000-8000-0000000000c2";
 const B_ID = "0199f100-0000-7000-8000-0000000000c3";
 const HR_DOC = "0199f100-0000-7000-8000-0000000000d1";
+const SOUTH_FILE = "0199f100-0000-7000-8000-0000000000a3";
+const SOUTH_DBS = "0199f100-0000-7000-8000-0000000000c4";
+const SOUTH_DOC = "0199f100-0000-7000-8000-0000000000d3";
 
-const insertProfile = (c: pg.PoolClient, id: string, member: string) =>
+const insertProfile = (c: pg.PoolClient, id: string, member: string, at: string | null = null) =>
   c.query(
-    `INSERT INTO staff_profile (id, tenant_user_id, job_title, starts_on)
-     VALUES ($1, $2, 'Care worker', '2026-09-01')`,
-    [id, member],
+    `INSERT INTO staff_profile (id, tenant_user_id, location_id, job_title, starts_on)
+     VALUES ($1, $2, $3, 'Care worker', '2026-09-01')`,
+    [id, member, at],
   );
 const identity = JSON.stringify({ kind: "identity_with_photo", document: "passport" });
 const dbs = JSON.stringify({
@@ -85,7 +88,7 @@ beforeAll(async () => {
          ('0199f100-0000-7000-8000-000000000502', 'registered_manager', 'Registered Manager', 'location',
           '{workforce.staff_file.read,workforce.staff_file.manage,workforce.dbs_risk_assessment.sign}'),
          ('0199f100-0000-7000-8000-000000000503', 'self', 'Self', 'assigned',
-          '{workforce.self.read}')`,
+          '{workforce.self.read,workforce.staff_file.read}')`,
     );
     await c.query(
       `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
@@ -108,8 +111,8 @@ beforeAll(async () => {
     );
   });
   await asHr(async (c) => {
-    await insertProfile(c, CARER_FILE, a.carer);
-    await insertProfile(c, NORTH_FILE, a.northManager);
+    await insertProfile(c, CARER_FILE, a.carer, a.locationNorth);
+    await insertProfile(c, NORTH_FILE, a.northManager, a.locationNorth);
     await insertItem(c, {
       id: CARER_DBS,
       profile: CARER_FILE,
@@ -125,6 +128,17 @@ beforeAll(async () => {
     });
     await insertHrDocument(c, HR_DOC, CARER_ID);
   });
+  // HR's own file, at South House, made by the North House manager.
+  await asNorth(async (c) => {
+    await insertProfile(c, SOUTH_FILE, a.manager, a.locationSouth);
+    await insertItem(c, {
+      id: SOUTH_DBS,
+      profile: SOUTH_FILE,
+      kind: "dbs_certificate",
+      detail: dbs,
+    });
+  });
+  await asOwner(TENANT_A, (c) => insertHrDocument(c, SOUTH_DOC, SOUTH_DBS));
   await asOtherTenant(async (c) => {
     const { rows } = await c.query<{ id: string }>(
       "SELECT id FROM tenant_user WHERE id <> $1 LIMIT 1",
@@ -189,6 +203,58 @@ describe("who reads and writes a staff file (workforce.md section 3)", () => {
     expect(seen).toBe(2);
   });
 
+  it("lets a role scoped to assigned people read only the worker's own file, whatever it holds", async () => {
+    const seen = await asCarer((c) => count(c, "SELECT count(*) AS n FROM staff_profile"));
+    expect(seen).toBe(1);
+  });
+
+  it("verifies changed details again in the name of whoever changed them", async () => {
+    await expect(
+      asNorth((c) =>
+        c.query(
+          `UPDATE compliance_item SET detail = '{"kind":"identity_with_photo","document":"other_photo_document"}'
+           WHERE id = $1`,
+          [CARER_ID],
+        ),
+      ),
+    ).rejects.toThrow(/verified again/);
+  });
+
+  it("keeps earlier versions of staff files from everyone who cannot read them", async () => {
+    const versions = (fn: typeof asHr) =>
+      fn((c) =>
+        count(c, "SELECT count(*) AS n FROM record_version WHERE table_name = 'compliance_item'"),
+      );
+    await asHr((c) =>
+      c.query(
+        `UPDATE compliance_item SET detail = '{"kind":"identity_with_photo","document":"passport"}', verified_by = $2
+         WHERE id = $1`,
+        [CARER_ID, a.manager],
+      ),
+    );
+    expect(await versions(asHr)).toBeGreaterThan(0);
+    const other = (fn: (c: pg.PoolClient) => Promise<number>) =>
+      inContext(app(), ctx(TENANT_A, ids.a.carer, "none"), fn);
+    await asOwner(TENANT_A, (c) =>
+      c.query(
+        "UPDATE role SET permissions = '{workforce.self.read}' WHERE id = '0199f100-0000-7000-8000-000000000503'",
+      ),
+    );
+    try {
+      expect(
+        await other((c) =>
+          count(c, "SELECT count(*) AS n FROM record_version WHERE table_name = 'compliance_item'"),
+        ),
+      ).toBe(0);
+    } finally {
+      await asOwner(TENANT_A, (c) =>
+        c.query(
+          "UPDATE role SET permissions = '{workforce.self.read,workforce.staff_file.read}' WHERE id = '0199f100-0000-7000-8000-000000000503'",
+        ),
+      );
+    }
+  });
+
   it("lets a location's manager read files across the organisation (HR functions are organisation-wide)", async () => {
     const seen = await asNorth(async (c) => ({
       profiles: await count(c, "SELECT count(*) AS n FROM staff_profile"),
@@ -198,7 +264,7 @@ describe("who reads and writes a staff file (workforce.md section 3)", () => {
         [CARER_FILE],
       ),
     }));
-    expect(seen).toEqual({ profiles: 2, items: 2 });
+    expect(seen).toEqual({ profiles: 3, items: 2 });
   });
 
   it("shows the worker their own file only, and never lets them write it", async () => {
@@ -319,6 +385,30 @@ describe("the DBS risk assessment (workforce.md rule 3)", () => {
     expect(signed).toBe(a.northManager);
   });
 
+  it("is not signed for a worker at another home by a location's manager", async () => {
+    await expect(
+      asNorth((c) =>
+        c.query(
+          `UPDATE compliance_item SET risk_assessment_signed_on = DATE '2026-08-11',
+             risk_assessment_signed_by = $2 WHERE id = $1`,
+          [SOUTH_DBS, a.northManager],
+        ),
+      ),
+    ).rejects.toThrow(/dbs_risk_assessment.sign/);
+  });
+
+  it("is never unsigned", async () => {
+    await expect(
+      asNorth((c) =>
+        c.query(
+          `UPDATE compliance_item SET risk_assessment_signed_on = NULL, risk_assessment_signed_by = NULL
+           WHERE id = $1`,
+          [CARER_DBS],
+        ),
+      ),
+    ).rejects.toThrow(/not unsigned/);
+  });
+
   it("belongs to a DBS item only", async () => {
     await expect(
       asNorth((c) =>
@@ -340,6 +430,12 @@ describe("HR-only staff documents (workforce.md section 3)", () => {
       asCarer((c) => count(c, "SELECT count(*) AS n FROM document WHERE id = $1", [HR_DOC])),
     ]);
     expect(seen).toEqual([1, 0, 0]);
+  });
+
+  it("are hidden from HR on their own file", async () => {
+    expect(
+      await asHr((c) => count(c, "SELECT count(*) AS n FROM document WHERE id = $1", [SOUTH_DOC])),
+    ).toBe(0);
   });
 
   it("are added only by a holder of it and of manage, to a compliance item of someone else's file", async () => {

@@ -245,22 +245,39 @@ export function namesFor(
 
 /**
  * Cancels the open expiry reminders of an item whose reminder date changed (a renewal, a new
- * check): the new date's reminders follow from the sweep.
+ * check): the new date's reminders follow from the sweep. The reminders are about no person and
+ * no location (review round 1, finding 4), so the caller, who may see the item but not the task,
+ * cancels them as the system would, for this item only, and the transaction's context is put back.
  */
 export async function endItemReminders(tx: Transaction, itemId: string): Promise<number> {
-  const ended = await tx
-    .update(task)
-    .set({ status: "cancelled", statusReason: "Ended: the check was recorded again" })
-    .where(
-      and(
-        eq(task.kind, COMPLIANCE_EXPIRY_TASK),
-        eq(task.sourceType, COMPLIANCE_ITEM_SOURCE),
-        eq(task.sourceId, itemId),
-        inArray(task.status, ["open", "in_progress"]),
-      ),
-    )
-    .returning({ id: task.id });
-  return ended.length;
+  const saved = await tx.execute<{ user_id: string | null; scope: string | null }>(
+    sql`SELECT current_setting('app.user_id', true) AS user_id,
+               current_setting('app.scope', true) AS scope`,
+  );
+  const before = saved.rows[0];
+  await tx.execute(
+    sql`SELECT set_config('app.user_id', '', true), set_config('app.scope', 'tenant', true)`,
+  );
+  try {
+    const ended = await tx
+      .update(task)
+      .set({ status: "cancelled", statusReason: "Ended: the check was recorded again" })
+      .where(
+        and(
+          eq(task.kind, COMPLIANCE_EXPIRY_TASK),
+          eq(task.sourceType, COMPLIANCE_ITEM_SOURCE),
+          eq(task.sourceId, itemId),
+          inArray(task.status, ["open", "in_progress"]),
+        ),
+      )
+      .returning({ id: task.id });
+    return ended.length;
+  } finally {
+    await tx.execute(
+      sql`SELECT set_config('app.user_id', ${before?.user_id ?? ""}, true),
+                 set_config('app.scope', ${before?.scope || "none"}, true)`,
+    );
+  }
 }
 
 /**
@@ -330,7 +347,9 @@ export async function raiseStaffFileReminders(
       requiredPermission: STAFF_FILE_MANAGE,
       sourceType: COMPLIANCE_ITEM_SOURCE,
       sourceId: item.id,
-      locationId: profile.locationId,
+      // No location: the care staff working there never see whose check is due (review round 1,
+      // finding 4); organisation-wide roles do, and HR's inbox comes with the task port.
+      locationId: null,
       assigneeRoleKey: COMPLIANCE_EXPIRY_ROLE,
       dueAt: ukEndOfDay(due.dueOn),
       priority: due.days <= nearest ? "urgent" : "routine",

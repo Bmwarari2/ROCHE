@@ -134,6 +134,30 @@ describe("staff files (workforce.md section 5)", () => {
     expect(file.outstanding).not.toContain("identity_with_photo");
   });
 
+  it("verifies changed details again in the name of whoever changed them", async () => {
+    const before = item(
+      (await (await as("manager", `${URL}/${carerFile.id}`)).json()) as FileBody,
+      "identity_with_photo",
+    );
+    const changed = await record("owner", "identity_with_photo", {
+      expectedVersion: before.version,
+      detail: { kind: "identity_with_photo", document: "photocard_driving_licence" },
+      verifiedOn: today(),
+    });
+    expect(changed.status).toBe(200);
+    expect(item((await changed.json()) as FileBody, "identity_with_photo").verifiedBy?.id).toBe(
+      DEMO.users.owner.id,
+    );
+  });
+
+  it("needs MFA for the staff file, as for care records", async () => {
+    // The nurse has not enrolled a second factor; a grant of read would still need one.
+    const { requiresMfa } = await import("@harbour/domain");
+    expect(requiresMfa("workforce.staff_file.read")).toBe(true);
+    expect(requiresMfa("workforce.hr_document.read")).toBe(true);
+    expect(requiresMfa("workforce.self.read")).toBe(false);
+  });
+
   it("refuses a stale version, a mismatched kind and a verification in the future", async () => {
     const current = item(
       (await (await as("manager", `${URL}/${carerFile.id}`)).json()) as FileBody,

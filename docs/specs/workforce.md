@@ -115,9 +115,16 @@ Slice 11 adds four permissions so that HR data has its own (section 12.4), repla
 | `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment for a supervised start or a disclosure (never for themselves) | Owner, Registered Manager |
 | `workforce.self.read` (existing) | See their own profile and where each of their checks stands | Every staff role |
 
-Staff files are the organisation's employment records, not people's care records, so a holder's
-role reaches every file whatever its person scope (HR's role has none; master prompt section 4
-makes HR functions organisation-wide). The database enforces each row (migration 0073):
+Staff files are the organisation's employment records, not people's care records, and HR functions
+are organisation-wide (master prompt section 4): a tenant or location role or a grant anywhere
+reaches every file, and so does a role with no person scope (HR's). A role scoped to assigned
+people or to the person themselves counts only for `workforce.self.read`. The DBS risk assessment
+is signed only where the worker works (or by an organisation-wide holder). Every permission above
+except `workforce.self.read` needs MFA, as care records do (`sensitive` in the catalogue): the file
+holds special category and criminal offence data. Details changed under a verification are verified
+again by whoever changed them; a signed risk assessment is never unsigned; HR-only documents on a
+holder's own file are hidden from them; earlier versions of staff files in `record_version` follow
+the files' read rule. The database enforces each row (migration 0073):
 `app.holds_staff_permission`, the read, insert and update policies, the guard triggers and the
 `document_hr_only` policy, which hides HR-only documents from everyone else whatever their document
 permissions. The general document routes never serve them and search never finds them.
@@ -229,11 +236,13 @@ Expiry tasks (rule 1): the `staff-file-expiry-reminders` job runs hourly. For ea
 expiry or a re-check date, at `document_expiry.reminder_days.first`, `.second` and `.third` days
 before it, it raises one task through the task engine (kind `workforce.compliance_expiry`, the
 generic title "Renew a staff check before it expires", no name; `requiredPermission`
-`workforce.staff_file.manage`; assigned to the `hr` role; at the profile's location; source the
+`workforce.staff_file.manage`; assigned to the `hr` role; with no location, so care staff never
+see whose check is due (organisation-wide roles do; an inbox for HR's role comes with the task
+port); source the
 compliance item, with the offset and the date in its details), once each: a task already raised
 for that item, offset and date, whatever its status, stops a second, and the job never changes the
-item. Recording the item again with a new date cancels its open reminder tasks, and the new date's
-reminders follow. Competence changes are published for
+item. Recording the item again with a new date cancels its open reminder tasks (as the system,
+for that item only), and the new date's reminders follow. Competence changes are published for
 medicines and scheduling (ADR-0085, slice 17).
 
 ## 6. Offline behaviour

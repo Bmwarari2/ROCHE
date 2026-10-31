@@ -32,6 +32,11 @@ export interface PermissionDefinition {
   readonly stepUp?: boolean;
   /** Reads or writes care records (MFA is mandatory for any role holding one). */
   readonly careRecord?: boolean;
+  /**
+   * Reads or writes other special category or criminal offence data (the staff file: health and
+   * DBS): MFA is mandatory as for care records (section 5.3), without making it a care record.
+   */
+  readonly sensitive?: boolean;
 }
 
 export const PERMISSIONS = {
@@ -225,17 +230,21 @@ export const PERMISSIONS = {
   "workforce.staff_file.read": {
     description:
       "Read staff profiles and where each pre-employment check stands (not the HR-only documents)",
+    sensitive: true,
   },
   "workforce.staff_file.manage": {
     description: "Record staff profiles and pre-employment checks (never one's own)",
+    sensitive: true,
   },
   "workforce.hr_document.read": {
     description:
       "Open and add HR-only staff documents (identity, right to work, health); every view is audited",
+    sensitive: true,
   },
   "workforce.dbs_risk_assessment.sign": {
     description:
       "Sign the DBS risk assessment that lets a worker start supervised or accepts a disclosure",
+    sensitive: true,
   },
   // scheduling
   "scheduling.rota.read": { description: "Read rotas" },
@@ -334,4 +343,10 @@ export function requiresStepUp(permission: Permission): boolean {
 export function touchesCareRecords(permission: Permission): boolean {
   const definition: PermissionDefinition = PERMISSIONS[permission];
   return definition.careRecord === true;
+}
+
+/** MFA is mandatory to use it: care records, and other special category or criminal offence data. */
+export function requiresMfa(permission: Permission): boolean {
+  const definition: PermissionDefinition = PERMISSIONS[permission];
+  return definition.careRecord === true || definition.sensitive === true;
 }

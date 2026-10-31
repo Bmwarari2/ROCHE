@@ -185,7 +185,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     c.header("cache-control", "no-store");
   });
   // Uploads are capped before they are read (largest category limit plus headroom; ASVS V5).
-  for (const path of ["/v1/documents", "/v1/documents/*", "/v1/people/:id/photo"]) {
+  for (const path of [
+    "/v1/documents",
+    "/v1/documents/*",
+    "/v1/people/:id/photo",
+    "/v1/workforce/staff-files/:id/items/:kind/documents",
+  ]) {
     app.use(
       path,
       bodyLimit({

@@ -80,10 +80,12 @@ $$;
 --> statement-breakpoint
 
 -- Whether the session's member holds a staff file permission. Staff files are the organisation's
--- employment records, not people's care records, so person scope does not narrow them: HR
--- functions are organisation-wide (master prompt section 4), and a role of any scope (HR's has
--- none; a care worker's reaches assigned people) or a grant in force that carries the permission
--- counts. A role mixing portal and staff permissions gives none, as at sign-in.
+-- employment records, not people's care records, and HR functions are organisation-wide (master
+-- prompt section 4): a tenant or location role or a grant anywhere counts
+-- (app.holds_permission_anywhere), and so does a role with no person scope (HR's). A role scoped
+-- to assigned people or to the person themselves counts only for workforce.self.read (the
+-- worker's own file), so a cloned agency or portal-like role never reads everyone's file (review
+-- round 1, finding 5). A role mixing portal and staff permissions gives none, as at sign-in.
 CREATE OR REPLACE FUNCTION app.holds_staff_permission(p_permission text) RETURNS boolean
 LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
   SELECT app.current_user_id() IS NOT NULL AND (
@@ -98,9 +100,22 @@ LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
         AND r.archived_at IS NULL
         AND ra.valid_from <= now()
         AND (ra.valid_to IS NULL OR ra.valid_to > now())
+        AND (r.scope_kind::text = 'none' OR p_permission = 'workforce.self.read')
         AND NOT (r.permissions && ARRAY['comms.portal.family', 'comms.portal.self', 'comms.feed.read',
           'comms.notification.subscribe', 'comms.visit_booking.request']::text[])
         AND p_permission = ANY (r.permissions)))
+$$;
+--> statement-breakpoint
+
+-- Whether the member may sign the DBS risk assessment of a profile: the sign permission where the
+-- worker works, or across the organisation; a Registered Manager of another home may not (review
+-- round 1, finding 5). Invoker rights: the profile's own policies.
+CREATE OR REPLACE FUNCTION app.may_sign_dbs_risk_assessment(p_profile_id uuid) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+  SELECT app.holds_permission_at('workforce.dbs_risk_assessment.sign', NULL)
+    OR EXISTS (SELECT 1 FROM public.staff_profile p
+               WHERE p.id = p_profile_id AND p.location_id IS NOT NULL
+                 AND app.holds_permission_at('workforce.dbs_risk_assessment.sign', p.location_id))
 $$;
 --> statement-breakpoint
 
@@ -178,8 +193,10 @@ CREATE TRIGGER staff_profile_guard BEFORE UPDATE ON public.staff_profile
 --> statement-breakpoint
 
 -- An item keeps its profile and kind. Evidence is verified in the verifier's own name, by a
--- holder of manage; the DBS risk assessment is signed in the signer's own name by a holder of the
--- sign permission (workforce.md rule 3), and a signer without manage changes nothing else.
+-- holder of manage, and details changed under a verification are verified again by whoever
+-- changed them (review round 1, finding 1); the DBS risk assessment is signed in the signer's own
+-- name by a holder of the sign permission where the worker works (workforce.md rule 3), and only
+-- the system clears it; a signer without manage changes nothing else.
 CREATE OR REPLACE FUNCTION app.compliance_item_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -200,10 +217,20 @@ BEGIN
         USING ERRCODE = 'insufficient_privilege';
     END IF;
   END IF;
+  IF TG_OP = 'UPDATE' AND NEW.detail IS DISTINCT FROM OLD.detail
+     AND NEW.verified_by IS NOT NULL AND NEW.verified_by IS DISTINCT FROM app.current_user_id() THEN
+    RAISE EXCEPTION 'Changed details are verified again, in the name of whoever changed them'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF TG_OP = 'UPDATE' AND OLD.risk_assessment_signed_by IS NOT NULL
+     AND NEW.risk_assessment_signed_by IS NULL THEN
+    RAISE EXCEPTION 'A signed DBS risk assessment is not unsigned'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
   IF (TG_OP = 'INSERT' AND NEW.risk_assessment_signed_by IS NOT NULL)
      OR (TG_OP = 'UPDATE' AND (NEW.risk_assessment_signed_on, NEW.risk_assessment_signed_by)
            IS DISTINCT FROM (OLD.risk_assessment_signed_on, OLD.risk_assessment_signed_by)) THEN
-    IF NOT app.holds_staff_permission('workforce.dbs_risk_assessment.sign')
+    IF NOT app.may_sign_dbs_risk_assessment(NEW.staff_profile_id)
        OR (NEW.risk_assessment_signed_by IS NOT NULL
            AND NEW.risk_assessment_signed_by IS DISTINCT FROM app.current_user_id()) THEN
       RAISE EXCEPTION 'A DBS risk assessment is signed by a holder of workforce.dbs_risk_assessment.sign, in their own name'
@@ -249,10 +276,20 @@ GRANT SELECT, INSERT, UPDATE ON public.staff_profile, public.compliance_item TO 
 -- finds none (workforce.md section 3; section 12.4).
 CREATE POLICY document_hr_only ON public.document AS RESTRICTIVE FOR ALL TO harbour_app
   USING (category <> 'staff_hr_document' OR app.is_system()
-    OR app.holds_staff_permission('workforce.hr_document.read'))
+    OR (app.holds_staff_permission('workforce.hr_document.read')
+        AND app.compliance_item_member(subject_id) IS DISTINCT FROM app.current_user_id()))
   WITH CHECK (category <> 'staff_hr_document' OR app.is_system()
     OR (app.holds_staff_permission('workforce.hr_document.read')
         AND app.holds_staff_permission('workforce.staff_file.manage')
         AND person_id IS NULL
         AND subject_type = 'compliance_item'
         AND app.compliance_item_member(subject_id) <> app.current_user_id()));
+--> statement-breakpoint
+
+-- Earlier versions of staff files follow the files' own read rule: the versions table is otherwise
+-- readable across the organisation (review round 1, finding 7).
+CREATE POLICY record_version_staff_file ON public.record_version AS RESTRICTIVE FOR SELECT
+  TO harbour_app
+  USING (table_name NOT IN ('staff_profile', 'compliance_item') OR app.is_system()
+    OR app.holds_staff_permission('workforce.staff_file.read')
+    OR app.holds_staff_permission('workforce.staff_file.manage'));

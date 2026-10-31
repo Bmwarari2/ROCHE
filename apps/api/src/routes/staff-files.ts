@@ -30,6 +30,7 @@ import {
   readDocumentContent,
   storeDocument,
 } from "../services/documents";
+import { sameStored } from "../services/record-history";
 import {
   COMPLIANCE_ITEM_SOURCE,
   type ComplianceItemRow,
@@ -442,13 +443,14 @@ export const staffFilesRouter = createRouter()
           riskAssessmentSignedBy: existing?.riskAssessmentSignedBy ?? null,
         } as ComplianceItemRow;
         const view = complianceItemView(storedItem(draft), profileFacts(profile), on, rates);
-        // The verifier stays when the date does; a new date is verified in the caller's name.
+        // The verifier stays only when nothing they verified changed; changed details or a new
+        // date are verified in the caller's name (review round 1, finding 1).
+        const unchanged =
+          existing !== undefined &&
+          existing.verifiedOn === body.verifiedOn &&
+          sameStored(existing.detail, body.detail);
         const verifiedBy =
-          body.verifiedOn === null
-            ? null
-            : existing && existing.verifiedOn === body.verifiedOn
-              ? existing.verifiedBy
-              : access.tenantUserId;
+          body.verifiedOn === null ? null : unchanged ? existing.verifiedBy : access.tenantUserId;
         const values = {
           detail: body.detail as ComplianceDetail,
           verifiedOn: body.verifiedOn,

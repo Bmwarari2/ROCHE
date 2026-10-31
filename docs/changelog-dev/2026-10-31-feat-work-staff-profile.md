@@ -42,8 +42,15 @@ WORK-002 and WORK-011 (schema and API; screens come with slice 56).
 
 - Slice 56: the staff file screens. Slice 17: training, competence and the rostering port that
   reads this file.
-- The reminder task is assigned to the `hr` role; an organisation without an HR role holder sees
-  it through tenant-wide roles only (see the open question to the lead).
+- Reminder tasks have no person and no location, so only organisation-wide roles see them in the
+  task list; HR's own inbox (role scope none) needs the task visibility rule to learn about
+  `required_permission`, left for the task port (slice 17).
+- Left open from the security review: HR-only documents use retention class `staff_file`, which
+  has no rule row of its own (the tenant's choice of `staff_file.*` and the leaving-date trigger
+  are not in the retention engine yet), so nothing destroys them yet; employment gap explanations
+  sit in the item details (readable with `workforce.staff_file.read`), not HR-only; upload titles
+  travel in the query string as in `/v1/documents`; a refused upload's scan or type failure is not
+  audited; the full tenant export includes the staff file for `platform.export.create` holders.
 
 ## Human actions logged
 
@@ -54,5 +61,15 @@ WORK-002 and WORK-011 (schema and API; screens come with slice 56).
 ## Tests
 
 - `packages/domain/src/workforce/staff-file.test.ts`: 41 table-driven tests.
-- `packages/db/test/staff-file.test.ts`: 17 tests (isolation, policies, guards, HR-only documents).
-- `apps/api/test/staff-files.test.ts`: 12 tests through the API, including the reminder job.
+- `packages/db/test/staff-file.test.ts`: 23 tests (isolation, policies, guards, HR-only documents).
+- `apps/api/test/staff-files.test.ts`: 14 tests through the API, including the reminder job.
+
+## Review rounds
+
+- Round 1 (security review): details changed under a verification are verified again in the
+  changer's name (route and guard; was HIGH); the staff file permissions need MFA (`sensitive`,
+  `requiresMfa`); the HR upload route is size-capped before it is read; reminder tasks have no
+  location (care staff no longer see whose check is due) and are cancelled as the system; any-scope
+  roles count only for `workforce.self.read`; the DBS risk assessment is signed only where the
+  worker works and never unsigned; HR-only documents on one's own file are hidden; earlier versions
+  of staff files in `record_version` follow the read rule.
