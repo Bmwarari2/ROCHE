@@ -170,14 +170,39 @@ CREATE TRIGGER compliment_guard BEFORE UPDATE ON public.compliment
 CREATE TRIGGER touch_mutable BEFORE UPDATE ON public.complaint
   FOR EACH ROW EXECUTE FUNCTION app.touch_mutable();
 --> statement-breakpoint
+-- Version history without the personal data (#152 security review M2): record_version is read by
+-- every member of the organisation (migration 0002), so only the columns named here are copied;
+-- every other column that held a value reads '[redacted]'.
+CREATE OR REPLACE FUNCTION app.capture_version_redacted() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE
+  old_row jsonb := to_jsonb(OLD);
+  kept jsonb := '{}'::jsonb;
+  k text;
+BEGIN
+  FOR k IN SELECT jsonb_object_keys(old_row) LOOP
+    IF k = ANY (TG_ARGV) OR old_row -> k = 'null'::jsonb THEN
+      kept := kept || jsonb_build_object(k, old_row -> k);
+    ELSE
+      kept := kept || jsonb_build_object(k, '[redacted]');
+    END IF;
+  END LOOP;
+  INSERT INTO public.record_version
+    (tenant_id, table_name, record_id, record_version, valid_from, valid_to, changed_by, data)
+  VALUES (OLD.tenant_id, TG_TABLE_NAME, OLD.id, OLD.version, OLD.updated_at, now(),
+          app.current_user_id(), kept);
+  RETURN NULL;
+END
+$$;
+--> statement-breakpoint
 CREATE TRIGGER capture_version AFTER UPDATE ON public.complaint
-  FOR EACH ROW EXECUTE FUNCTION app.capture_version();
+  FOR EACH ROW EXECUTE FUNCTION app.capture_version_redacted('id', 'tenant_id', 'location_id', 'complainant_relationship', 'channel', 'received_at', 'knew_of_matter_on', 'state', 'acknowledged_at', 'responded_at', 'appeal_received_at', 'appeal_responded_at', 'closed_at', 'recorded_by', 'retention_class', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'deleted_at');
 --> statement-breakpoint
 CREATE TRIGGER touch_mutable BEFORE UPDATE ON public.compliment
   FOR EACH ROW EXECUTE FUNCTION app.touch_mutable();
 --> statement-breakpoint
 CREATE TRIGGER capture_version AFTER UPDATE ON public.compliment
-  FOR EACH ROW EXECUTE FUNCTION app.capture_version();
+  FOR EACH ROW EXECUTE FUNCTION app.capture_version_redacted('id', 'tenant_id', 'location_id', 'from_relationship', 'received_at', 'evidence_statement_ids', 'document_id', 'recorded_by', 'retention_class', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'deleted_at');
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.complaint TO harbour_app;
 --> statement-breakpoint
