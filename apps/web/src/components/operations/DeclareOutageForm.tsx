@@ -82,7 +82,7 @@ export function DeclareOutageForm({ locationId }: { readonly locationId: string 
   };
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <RadioGroup<Kind>
         id={ids.kind}
         error={errorFor(result, "kind")}

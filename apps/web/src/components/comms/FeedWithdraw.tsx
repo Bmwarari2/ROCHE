@@ -48,6 +48,7 @@ export function FeedWithdraw({
 
   return (
     <form
+      method="post"
       className="flex flex-col gap-3"
       onSubmit={onSubmit}
       noValidate

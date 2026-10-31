@@ -46,7 +46,7 @@ export function BreakGlassReview({
 
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
         <TextArea
           id={ids.actionsTaken}
           name="actionsTaken"

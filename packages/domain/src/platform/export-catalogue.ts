@@ -1766,7 +1766,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       tenant_id: "exported",
       category: {
         description:
-          "person_photo, feed_photo, care_attachment, person_document or organisation_document.",
+          "person_photo, feed_photo, care_attachment, person_document, organisation_document or organisation_logo.",
       },
       title: "exported",
       retention_class: { description: "Retention class from the category (retention.md)." },
@@ -2789,7 +2789,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.handover_item": {
     context: "care",
     description:
-      "The items of each shift handover (care.md rule 8): references to the records, never their text; only ever added to (append-only).",
+      "The items of each shift handover (care.md rule 8): references to the records, with a worded summary as a catalogue key and its parameters; only ever added to (append-only).",
     treatment: "tenant_rows",
     retention: "care_record",
     personal: true,
@@ -2820,6 +2820,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "True for an item added after the handover was first compiled.",
       },
       added_at: { description: "When it joined the handover (instant, UTC)." },
+      summary: {
+        description:
+          "What the item says, JSON: key (a catalogue key, handover.summary.*) and params (codes such as a NEWS2 band and score, a chart, an incident type, an alert kind, a mark's type and region, and for a task its title, and why it was not done); empty for items compiled before migration 0071.",
+      },
       created_at: "exported",
       created_by: "exported",
     },
@@ -4751,6 +4755,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         },
       },
       stopped_by_exit_id: { description: "The exit that cancelled the task (exit_record.id)." },
+      from_earlier_plan: {
+        description:
+          'True for an open round of a care plan series its plan no longer drives ("From an earlier plan: check the current plan"), kept by the database.',
+      },
       restore_code: {
         description: "How a return or correction brought the task back, if it did.",
         codes: {

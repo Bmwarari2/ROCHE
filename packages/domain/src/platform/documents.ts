@@ -72,6 +72,20 @@ export const DOCUMENT_CATEGORIES = {
     retentionClass: "organisation_document",
     inline: false,
   },
+  /**
+   * The organisation's white-label logo (PLAT-002): shown in the shell's app bar to every member,
+   * so small, PNG or JPEG only (never SVG, which can carry script) and stripped of metadata.
+   * About no one.
+   */
+  organisation_logo: {
+    label: "Organisation logo",
+    // PNG or JPEG only: the API strips their metadata before storing (`stripImageMetadata`).
+    contentTypes: ["image/jpeg", "image/png"],
+    maxBytes: 512 * 1024,
+    personRequired: false,
+    retentionClass: "organisation_document",
+    inline: true,
+  },
 } as const satisfies Record<string, DocumentCategory>;
 
 export type DocumentCategoryKey = keyof typeof DOCUMENT_CATEGORIES;

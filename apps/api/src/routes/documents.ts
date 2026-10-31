@@ -1,5 +1,6 @@
 import {
   DestroyDocuments,
+  DestructionCertificateList,
   DestructionResult,
   DocumentItem,
   DocumentList,
@@ -76,6 +77,8 @@ const UPLOAD_PERMISSION: Record<DocumentCategoryKey, Permission> = {
   care_attachment: "care.note.write",
   person_document: "people.person.update",
   organisation_document: "platform.document.manage",
+  // Set only through PUT /v1/branding/logo, which this route refuses (PLAT-002).
+  organisation_logo: "platform.tenant.manage",
 };
 
 const RETENTION_PERMISSION: Permission = "platform.retention.manage";
@@ -118,6 +121,8 @@ export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | 
   person_document: "people.person.read",
   care_attachment: "care.note.read",
   organisation_document: null,
+  // Served only by GET /v1/branding/logo, to any member; never by the document routes (PLAT-002).
+  organisation_logo: null,
 };
 
 /**
@@ -143,6 +148,7 @@ const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
   person_document: "people.person.update",
   care_attachment: "care.note.write",
   organisation_document: null,
+  organisation_logo: null,
 };
 
 /** An organisation's document: no person, and its category says so. Anything else about no one is not served. */
@@ -238,6 +244,10 @@ export const documentsRouter = createRouter()
     async (c) => {
       const q = c.req.valid("query");
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
+      // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
+      if (q.category === "organisation_logo") {
+        throw problems.invalid("Upload the organisation's logo on the branding page.");
+      }
       // A subject is named by its type and id together (review round 3).
       if (q.subjectId && !q.subjectType) {
         throw problems.invalid("Say what kind of record the document is attached to.");
@@ -728,15 +738,62 @@ export const documentsRouter = createRouter()
       responses: { 200: jsonBody(RetentionCandidateList, "Candidates"), ...errorResponses },
     }),
     async (c) => {
-      await requirePermission(c, RETENTION_PERMISSION);
+      const access = await requirePermission(c, RETENTION_PERMISSION);
       const items = await withTenant(c, async (tx) => {
-        const due = await eligibleDocuments(tx, c.get("access").tenantId, new Date());
+        const due = await eligibleDocuments(tx, access.tenantId, new Date());
+        // A title is shown only where the caller may read that category of document (a person's
+        // record needs its own read permissions); otherwise the page says the category alone.
+        const mayRead = (category: string) => {
+          const permission = DOCUMENT_READ_PERMISSION[category as DocumentCategoryKey];
+          if (permission === null) return true;
+          if (permission === undefined) return false;
+          return refusalOf(access, RECORD_READ) === null && refusalOf(access, permission) === null;
+        };
+        await auditInTx(tx, access, {
+          action: "platform.retention_candidate.list",
+          resourceType: "document",
+          scope: { count: due.length, documentIds: due.map((d) => d.row.id) },
+          requestId: c.get("requestId"),
+        });
         return due.map((d) => ({
           documentId: d.row.id,
           category: d.row.category as DocumentCategoryKey,
           retentionClass: d.row.retentionClass,
           eligibleSince: d.since.toISOString(),
+          ...(mayRead(d.row.category) ? { title: d.row.title } : {}),
+          createdAt: d.row.createdAt.toISOString(),
         }));
+      });
+      return c.json({ items }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/destruction-certificates",
+      tags: ["platform"],
+      summary: "Destruction certificates, newest first",
+      security,
+      responses: {
+        200: jsonBody(DestructionCertificateList, "Certificates"),
+        ...errorResponses,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, RETENTION_PERMISSION);
+      const items = await withTenant(c, async (tx) => {
+        const rows = await tx
+          .select()
+          .from(destructionCertificate)
+          .orderBy(desc(destructionCertificate.executedAt))
+          .limit(500);
+        await auditInTx(tx, access, {
+          action: "platform.destruction_certificate.list",
+          resourceType: "destruction_certificate",
+          scope: { count: rows.length },
+          requestId: c.get("requestId"),
+        });
+        return rows.map(certificateItem);
       });
       return c.json({ items }, 200);
     },
@@ -805,21 +862,25 @@ export const documentsRouter = createRouter()
           requestId: c.get("requestId"),
         });
         return {
-          certificates: certificates.map((cert) => ({
-            id: cert.id,
-            recordClass: cert.recordClass,
-            subjectType: cert.subjectType,
-            recordCount: cert.recordCount,
-            reason: cert.reason,
-            method: cert.method,
-            executedAt: cert.executedAt.toISOString(),
-          })),
+          certificates: certificates.map(certificateItem),
           skipped: req.documentIds.filter((id) => !destroyed.has(id)),
         };
       });
       return c.json(result, 200);
     },
   );
+
+function certificateItem(cert: typeof destructionCertificate.$inferSelect) {
+  return {
+    id: cert.id,
+    recordClass: cert.recordClass,
+    subjectType: cert.subjectType,
+    recordCount: cert.recordCount,
+    reason: cert.reason,
+    method: cert.method,
+    executedAt: cert.executedAt.toISOString(),
+  };
+}
 
 function holdItem(row: typeof legalHold.$inferSelect) {
   return {

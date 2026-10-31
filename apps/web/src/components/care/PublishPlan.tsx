@@ -106,7 +106,7 @@ export function PublishPlan({
       description={t("care.plan.publish.body")}
       closeLabel={t("common.close")}
     >
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <RadioGroup<AgreedBy>
           id={ids.agreedBy}
           error={errorFor(result, "agreedBy")}
