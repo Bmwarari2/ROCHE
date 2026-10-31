@@ -87,6 +87,7 @@ that home only.
 | `care.note.write` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  | yes |  |  | yes |  |
 | `care.note.read` |  | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes | yes |  |  | yes |  |
 | `care.assessment.write` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |
+| `care.dependency.assess` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.handover.manage` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |
 | `care.held_entry.hand_over` | yes | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.capacity.write` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
@@ -127,6 +128,7 @@ that home only.
 | `scheduling.rota.approve` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.visit.manage` |  |  | yes |  | yes | yes |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.timesheet.self` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |
+| `scheduling.dependency.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.premises.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `operations.catering.manage` |  |  | yes |  | yes | yes |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.housekeeping.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |

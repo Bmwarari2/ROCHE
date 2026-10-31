@@ -124,6 +124,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.refused_entry",
   "public.entry_device_deletion_flag",
   "public.downtime_pack",
+  "public.dependency_assessment",
 ];
 
 interface ConventionalDoc {
@@ -3082,6 +3083,107 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       created_at: "exported",
       created_by: "exported",
+    },
+  },
+  "public.dependency_scale": {
+    context: "scheduling",
+    description:
+      "The organisation's own dependency scales (scheduling.md section 12): one per location or one for the whole organisation, with its name and whether it was archived. No personal data.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: {
+        description:
+          "The location the scale is for (location.id); empty for the organisation-wide scale.",
+      },
+      name: { description: "The scale's name, as the organisation wrote it." },
+      archive_reason: { description: "Why the scale was archived; empty while it is in use." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: { description: "When the scale was archived; empty while it is in use." },
+    },
+  },
+  "public.dependency_scale_version": {
+    context: "scheduling",
+    description:
+      "Versions of each dependency scale (DEPENDENCY_SCALE_WORKFLOW): the organisation's shift periods, categories with care minutes per period, skill-mix minimums and review interval, with who wrote, changed and approved each version.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      scale_id: { description: "The scale (dependency_scale.id)." },
+      version_number: { description: "The version's number within its scale.", unit: "version" },
+      state: {
+        description: "Where the version is in its workflow.",
+        codes: {
+          draft: "Being written; not used.",
+          approved: "In use from approved_at.",
+          superseded: "Was in use from approved_at until superseded_at.",
+          discarded: "A draft that was never used.",
+        },
+      },
+      definition: {
+        description:
+          "The organisation's scale: periods [{ key, label, startMinute (minutes after midnight, UK time) }], categories [{ key, label, description, careMinutes [{ periodKey, minutes }] }], skillMix [{ skill, periodKey, minimumStaff }] and reviewIntervalDays.",
+      },
+      author_id: { description: "Who wrote the version (tenant_user.id)." },
+      contributor_ids: { description: "The author and everyone who changed the draft." },
+      approved_by: { description: "Who approved it; never its author or a contributor." },
+      approved_at: { description: "When it was approved, and so from when it applied." },
+      superseded_at: { description: "When a later version replaced it." },
+      discard_reason: { description: "Why the draft was discarded." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.dependency_assessment": {
+    context: "care",
+    description:
+      "Each person's dependency category and one-to-one minutes from the organisation's own scale, with the reason and who decided (append-only; scheduling.md section 12).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      scale_id: { description: "The scale the category is from (dependency_scale.id)." },
+      scale_version_id: {
+        description: "The approved version it was recorded on (dependency_scale_version.id).",
+      },
+      category_key: { description: "The category's key in that version's definition." },
+      one_to_one: {
+        description:
+          "One-to-one minutes per period beyond the category's: [{ periodKey, minutes }].",
+      },
+      kind: {
+        description: "What the record is.",
+        codes: {
+          initial: "The person's first category.",
+          review: "A new category from effective_from, replacing the one it supersedes from then.",
+          correction:
+            "Corrects the record it supersedes from that record's own date; the corrected record was never in force.",
+        },
+      },
+      effective_from: { description: "The UK date the category applies from." },
+      reason: { description: "Why this category was chosen, in the decider's words." },
+      decided_by: { description: "The member of staff who decided the category (tenant_user.id)." },
+      supersedes_id: "exported",
+      recorded_at: { description: "When the server stored it (UTC)." },
+      created_at: "exported",
+      created_by: { description: "Who recorded it (tenant_user.id)." },
     },
   },
   "public.letter_template": {

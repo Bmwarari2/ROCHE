@@ -127,6 +127,11 @@ export const PERMISSIONS = {
   "care.note.write": { description: "Write daily notes and charts", careRecord: true },
   "care.note.read": { description: "Read daily notes and charts", careRecord: true },
   "care.assessment.write": { description: "Complete validated assessments", careRecord: true },
+  "care.dependency.assess": {
+    // The category comes from the organisation's own scale (scheduling.md section 12).
+    description: "Record a person's dependency category and one-to-one hours",
+    careRecord: true,
+  },
   "care.handover.manage": {
     description: "Read, compile, annotate and acknowledge shift handovers",
     careRecord: true,
@@ -228,6 +233,9 @@ export const PERMISSIONS = {
   "scheduling.rota.approve": { description: "Approve rotas and timesheets" },
   "scheduling.visit.manage": { description: "Schedule visits and monitor ECM" },
   "scheduling.timesheet.self": { description: "Clock in and out and view own timesheets" },
+  "scheduling.dependency.manage": {
+    description: "Write, approve and archive the organisation's dependency scale",
+  },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
   "operations.catering.manage": {
