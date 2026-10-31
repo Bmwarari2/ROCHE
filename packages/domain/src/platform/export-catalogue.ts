@@ -3909,10 +3909,21 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "staff_wellbeing",
     personal: true,
     columns: {
+      id: "exported",
       tenant_id: "exported",
       survey_id: { description: "The survey (pulse_survey.id)." },
       member_id: { description: "The member of staff who took part (tenant_user.id)." },
     },
+  },
+  "public.pulse_survey_response_pending": {
+    context: "scheduling",
+    description: "Anonymous survey responses waiting for their survey to close.",
+    treatment: "not_exported",
+    retention: "staff_wellbeing",
+    personal: false,
+    reasonNotExported:
+      "Anonymous answers waiting apart until their survey closes, when they move to the survey's responses (scheduling.md section 16 rule 3); they leave Harbour only as a closed survey's results above the minimum group size.",
+    columns: {},
   },
   "public.pulse_survey_response": {
     context: "scheduling",
@@ -3944,7 +3955,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.wellbeing_check_in": {
     context: "scheduling",
     description:
-      "A member's own wellbeing check-ins, seen by a manager only while shared (scheduling.md section 16 rule 6; possibly health data).",
+      "A member's own wellbeing check-ins, seen by a manager only while shared (scheduling.md section 16 rule 6; possibly health data). The organisation's export holds only those shared; a member's private check-ins reach them through a subject access request.",
     treatment: "tenant_rows",
     retention: "staff_wellbeing",
     personal: true,

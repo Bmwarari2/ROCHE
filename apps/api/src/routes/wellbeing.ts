@@ -18,7 +18,6 @@ import {
   ShareCheckIn,
 } from "@harbour/contracts";
 import {
-  auditEvent,
   pulseSurvey,
   pulseSurveyParticipation,
   recognition,
@@ -69,7 +68,6 @@ const A = {
   edited: "scheduling.pulse_survey.edited",
   opened: "scheduling.pulse_survey.opened",
   closed: "scheduling.pulse_survey.closed",
-  responded: "scheduling.pulse_survey.responded",
   results: "scheduling.pulse_survey.results_viewed",
   recognised: "scheduling.recognition.given",
   recognitionViewed: "scheduling.recognition.viewed",
@@ -440,7 +438,7 @@ export const wellbeingRouter = createRouter()
       tags: ["scheduling"],
       summary: "Answer a survey, anonymously",
       description:
-        "scheduling.wellbeing.self, once, while the survey is open, for a member it asks. The response keeps no member and no time but the UK week, and nothing comes back. Audited with an anonymous actor, naming the survey only.",
+        "scheduling.wellbeing.self, once, while the survey is open, for a member on a staff file at its home from before it opened, never its writer or its home's survey managers. The response keeps no member and no time but the UK week, waits apart until the survey closes and nothing comes back. Each response is audited when the survey closes, with an anonymous actor, naming the survey only.",
       security,
       request: {
         params: idParam,
@@ -478,20 +476,17 @@ export const wellbeingRouter = createRouter()
           }
           if (message === "pulse_response_invalid") throw problems.invalid("Check your answers.");
           if (message === "pulse_response_not_allowed") throw problems.forbidden();
+          if (message === "pulse_response_not_eligible") {
+            throw new HttpProblem(
+              403,
+              "pulse_not_eligible",
+              "This survey is for the staff on its home's staff files when it opened, not for the people who run it.",
+            );
+          }
           throw error;
         }
-        // Anonymous (rule 3): no member, sign-in, roles, address, device or request id.
-        await tx.insert(auditEvent).values({
-          tenantId: row.tenantId,
-          actorTenantUserId: null,
-          actorAuthUserId: null,
-          actorRoleKeys: null,
-          action: A.responded,
-          outcome: "success",
-          resourceType: "pulse_survey",
-          resourceId: id,
-          scope: { actor: "anonymous" },
-        });
+        // No audit event here: one anonymous event per response is written when the survey
+        // closes, so the audit never shows answers arriving (rule 3; migration 0115).
       });
       return c.body(null, 204);
     },
@@ -624,7 +619,9 @@ export const wellbeingRouter = createRouter()
             sql`SELECT app.works_at(${body.toMemberId}::uuid, ${body.locationId}::uuid) AS ok`,
           )
         ).rows;
-        if (!works?.ok) throw problems.invalid("That colleague does not work at that home.");
+        // The same words whatever the reason, so the route never says where someone works.
+        if (!works?.ok)
+          throw problems.invalid("We could not send that. Check the colleague and the home.");
         const [row] = await tx
           .insert(recognition)
           .values({

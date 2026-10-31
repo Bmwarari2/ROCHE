@@ -17,6 +17,7 @@ import {
   type SurveyAnswers,
   type SurveyQuestion,
   type SurveyState,
+  suppressCounts,
   ukWeekStart,
 } from "./wellbeing";
 
@@ -202,5 +203,18 @@ describe("SCHED-011 rules 5 and 6 recognition and check-ins", () => {
     ["a long note", { mood: 3, note: "a".repeat(MAX_CHECK_IN_NOTE + 1) }, "note_too_long"],
   ])("%s", (_name, input, expected) => {
     expect(checkCheckIn(input)).toBe(expected);
+  });
+});
+
+describe("SCHED-011 rule 4 small counts never show, nor can be worked out", () => {
+  it.each<[string, number[], (number | null)[]]>([
+    ["all at or above the size", [5, 6, 0, 7, 0], [5, 6, 0, 7, 0]],
+    ["two small counts hidden", [2, 3, 0, 9, 0], [null, null, 0, 9, 0]],
+    ["one small count hides the next smallest too", [1, 0, 5, 8, 0], [null, 0, null, 8, 0]],
+    ["one small count with ties above", [2, 5, 5, 0, 0], [null, null, null, 0, 0]],
+    ["everyone on one point", [0, 0, 5, 0, 0], [0, 0, 5, 0, 0]],
+    ["only small counts", [1, 2, 1, 0, 1], [null, null, null, 0, null]],
+  ])("%s", (_name, counts, expected) => {
+    expect(suppressCounts(counts, 5)).toEqual(expected);
   });
 });

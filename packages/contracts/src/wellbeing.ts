@@ -83,8 +83,11 @@ export const PulseQuestionResult = z
     /** False when fewer than the minimum group size answered this question. */
     visible: z.boolean(),
     answered: z.number().int().optional(),
-    /** For a scale: how many chose each point, 1 to 5. */
-    counts: z.array(z.number().int()).optional(),
+    /**
+     * For a scale: how many chose each point, 1 to 5. A count below the minimum group size is
+     * null, and so is the next smallest when only one would be hidden.
+     */
+    counts: z.array(z.number().int().nullable()).optional(),
     /** For free text: the answers in alphabetical order, never the order they came in. */
     texts: z.array(z.string()).optional(),
   })

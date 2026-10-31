@@ -11,8 +11,8 @@ import { createHarness, type Harness } from "./support/harness";
  * - results show only once the survey has closed and the minimum group size answered;
  * - thanks between colleagues;
  * - a check-in a manager sees only while the member shares it.
- * The test database's size is set to 3 so the demo's members are enough. All the people here are
- * invented.
+ * The test database's size is set to 2 so the demo's carer and nurse, on staff files at the home,
+ * are enough (the home's managers never answer). All the people here are invented.
  */
 
 let h: Harness;
@@ -63,10 +63,17 @@ beforeAll(async () => {
   await withAdminClient(
     (c) =>
       c.query(
-        "UPDATE rate_table SET value = 3 WHERE key = 'wellbeing.survey_min_group_size' AND tenant_id IS NULL",
+        "UPDATE rate_table SET value = 2 WHERE key = 'wellbeing.survey_min_group_size' AND tenant_id IS NULL",
       ),
     h.db.name,
   );
+  for (const who of [DEMO.users.carer.id, DEMO.users.nurse.id]) {
+    await sql(
+      `INSERT INTO staff_profile (tenant_user_id, location_id, job_title, starts_on)
+       VALUES ($1, $2, 'Care worker', '2026-09-01')`,
+      [who, LOC],
+    );
+  }
 }, 120_000);
 
 afterAll(async () => {
@@ -126,28 +133,23 @@ describe("SCHED-011 pulse surveys", () => {
       answers: { q1: 2 },
     });
     expect(again.status).toBe(409);
-    const bad = await post("manager", `/v1/pulse-surveys/${survey.id}/responses`, {
+    const bad = await post("nurse", `/v1/pulse-surveys/${survey.id}/responses`, {
       answers: { q9: 2 },
     });
     expect(bad.status).toBe(422);
+    // The home's survey manager never answers it.
+    const managerAnswer = await post("manager", `/v1/pulse-surveys/${survey.id}/responses`, {
+      answers: { q1: 2 },
+    });
+    expect(managerAnswer.status).toBe(403);
     const after = (await (await as("carer", "/v1/pulse-surveys")).json()) as { items: Survey[] };
     expect(after.items.find((s) => s.id === survey.id)?.answered).toBe(true);
 
-    const [event] = await sql<Record<string, unknown>>(
-      `SELECT actor_tenant_user_id, actor_auth_user_id, actor_role_keys, ip, device_id, request_id,
-              scope, resource_id
-       FROM audit_event WHERE action = 'scheduling.pulse_survey.responded'`,
+    // Nothing is audited as it arrives; each response is audited, anonymously, at the close.
+    const arriving = await sql(
+      "SELECT 1 FROM audit_event WHERE action = 'scheduling.pulse_survey.responded'",
     );
-    expect(event).toEqual({
-      actor_tenant_user_id: null,
-      actor_auth_user_id: null,
-      actor_role_keys: null,
-      ip: null,
-      device_id: null,
-      request_id: null,
-      scope: { actor: "anonymous" },
-      resource_id: survey.id,
-    });
+    expect(arriving).toEqual([]);
     const anywhere = await sql(
       "SELECT 1 FROM audit_event WHERE scope::text LIKE '%Zebra%' OR reason LIKE '%Zebra%'",
     );
@@ -160,33 +162,45 @@ describe("SCHED-011 pulse surveys", () => {
     ).json()) as {
       visible: boolean;
       reason: string;
-      message: string;
     };
     expect(early).toMatchObject({ visible: false, reason: "still_open" });
-    await post("manager", `/v1/pulse-surveys/${survey.id}/responses`, {
-      answers: { q1: 2, q2: "Apples in the staff room" },
+    const nurse = await post("nurse", `/v1/pulse-surveys/${survey.id}/responses`, {
+      answers: { q1: 4, q2: "Apples in the staff room" },
     });
-    await post("owner", `/v1/pulse-surveys/${survey.id}/responses`, {
-      answers: { q1: 5, q2: "More training days" },
-    });
+    expect(nurse.status).toBe(204);
     const closed = await post("manager", `/v1/pulse-surveys/${survey.id}/close`, {
       version: survey.version,
     });
     expect(closed.status).toBe(200);
+    const [event] = await sql<Record<string, unknown>>(
+      `SELECT actor_tenant_user_id, actor_auth_user_id, actor_role_keys, ip, device_id, request_id,
+              scope, resource_id
+       FROM audit_event WHERE action = 'scheduling.pulse_survey.responded' LIMIT 1`,
+    );
+    expect(event).toEqual({
+      actor_tenant_user_id: null,
+      actor_auth_user_id: null,
+      actor_role_keys: null,
+      ip: null,
+      device_id: null,
+      request_id: null,
+      scope: { actor: "anonymous" },
+      resource_id: survey.id,
+    });
     const shown = (await (
       await as("manager", `/v1/pulse-surveys/${survey.id}/results`)
     ).json()) as {
       visible: boolean;
       respondents: number;
-      questions: { counts?: number[]; texts?: string[] }[];
+      questions: { counts?: (number | null)[]; texts?: string[] }[];
     };
     expect(shown.visible).toBe(true);
-    expect(shown.respondents).toBe(3);
-    expect(shown.questions[0]?.counts).toEqual([0, 1, 0, 1, 1]);
+    expect(shown.respondents).toBe(2);
+    // Both chose 4: a count at the size shows.
+    expect(shown.questions[0]?.counts).toEqual([0, 0, 0, 2, 0]);
     // Alphabetical, never the order they came in.
     expect(shown.questions[1]?.texts).toEqual([
       "Apples in the staff room",
-      "More training days",
       "Zebra crossing near the car park",
     ]);
     expect((await as("carer", `/v1/pulse-surveys/${survey.id}/results`)).status).toBe(403);
@@ -208,8 +222,8 @@ describe("SCHED-011 pulse surveys", () => {
     expect(hidden).toEqual({
       visible: false,
       reason: "too_few",
-      minGroupSize: 3,
-      message: "Fewer than 3 people answered, so the results are not shown.",
+      minGroupSize: 2,
+      message: "Fewer than 2 people answered, so the results are not shown.",
     });
   });
 });

@@ -700,8 +700,12 @@ share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decis
   `submitted_week` (the Monday of the UK week it came in) and `answers` (jsonb object keyed by
   question id: a whole number from 1 to 5 for a scale, text up to 2,000 characters for free text).
   It has no member, no creator, no exact time, no version history and no audit row that names it.
-  The application role cannot read or write it directly. It is reached only through two definer
-  functions, `app.submit_pulse_response` and `app.pulse_survey_results`.
+  The application role cannot read or write it directly. A response first waits in
+  `pulse_survey_response_pending` and moves here, in a shuffled order, in the transaction that closes
+  the survey (`app.release_pulse_responses`), so no response shares a transaction with the
+  participation it came with. Both tables are reached only through definer functions owned by the
+  NOLOGIN role `harbour_wellbeing_owner`: `app.submit_pulse_response`, the release, and
+  `app.pulse_survey_results`.
 - `recognition`: `from_member_id`, `to_member_id`, `location_id` (the recipient's home), `message`
   (up to 500 characters), `created_at`. Append-only.
 - `wellbeing_check_in`: `member_id`, `location_id` (the member's home), `mood` (1 to 5, the member's
@@ -714,12 +718,16 @@ share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decis
    questions and dates are fixed once it opens. It has 1 to 20 questions with distinct ids and
    non-empty text, and it closes on or after the day it opens (`checkSurveyDefinition`).
 2. **Who answers** (`app.submit_pulse_response`). A member holding `scheduling.wellbeing.self`
-   answers an open survey, between its dates, once. For a home's survey they must work there (a
-   role in force at that home, or that home on their staff profile). Each answer is checked against
+   answers an open survey, between its dates, once. They must be on a staff profile made before the
+   survey opened (at its home, for a home's survey), and never its writer or a holder of
+   `scheduling.wellbeing.manage` there, who could otherwise make up respondents or take away their
+   own answers. Each answer is checked against
    the survey's questions (`checkResponse`). At least one question must be answered.
 3. **No link to the member**. The response row holds no member and no exact time: the week
-   only, from `ukWeekStart`. Its id is random. The participation row holds no time. The one audit
-   event, `scheduling.pulse_survey.responded`, names the survey only. Its actor is anonymous:
+   only, from `ukWeekStart`. Its id is random. The participation row holds no time and a random id.
+   Nothing is audited as an answer arrives. When the survey closes, one audit event
+   `scheduling.pulse_survey.responded` is written for each response, naming the survey only, so the
+   audit never shows answers arriving. Its actor is anonymous:
    no member, no sign-in, no roles, no address, no device, no request id. A request log shows only
    that a member took part, which the participation row already records; it never holds an answer.
 4. **Minimum group size**. The size is `wellbeing.survey_min_group_size` from the rate
@@ -729,7 +737,10 @@ share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decis
    Each question shows only when at least that many answered it. Below the size, the results say
    "Fewer than N people answered" and give no count, average, spread or text. There is no breakdown,
    filter or export of responses: a home that wants its own results runs its own survey.
-   Free-text answers come in alphabetical order, never the order they arrived.
+   Free-text answers come in alphabetical order, never the order they arrived. For a scale, a count
+   below the size is hidden, and when only one would be hidden the next smallest is hidden too, so
+   it cannot be worked out from the total (`suppressCounts`). Comparing two overlapping surveys of
+   the same people can still narrow down answers; that remains a risk the DPIA records (R28).
 5. **Recognition**. A member holding `scheduling.wellbeing.self` thanks a colleague, never
    themselves. The note is seen by its sender, its recipient and the holders of
    `scheduling.wellbeing.manage` at the recipient's home. It is append-only and is never part of a
@@ -760,14 +771,16 @@ Built-in roles: every staff role holding `scheduling.timesheet.self` also holds
   `GET /v1/pulse-surveys/{id}/results` returns the results or `visible: false` with the size.
 - `GET /v1/recognition` (`mine=received|sent`, or `locationId` for a manager);
   `POST /v1/recognition`.
-- `GET /v1/wellbeing-check-ins` (own; or `locationId` for a manager: shared only);
+- `GET /v1/wellbeing-check-ins` (own; or `locationId` for a manager: shared only; the
+  organisation's export holds only shared check-ins, a member's private ones reach them through a
+  subject access request);
   `POST /v1/wellbeing-check-ins`; `POST /v1/wellbeing-check-ins/{id}/sharing` (`shared: boolean`).
 
 ### Audit
 
 Ids only, never a note, a message, an answer or a mood. Survey writes are audited as
-`scheduling.pulse_survey.*`. A response is audited as `scheduling.pulse_survey.responded`, with an
-anonymous actor and the survey only. Results views are audited as
+`scheduling.pulse_survey.*`. Each response is audited as `scheduling.pulse_survey.responded` when the
+survey closes, with an anonymous actor and the survey only. Results views are audited as
 `scheduling.pulse_survey.results_viewed`, with whether they were visible. Recognition is audited as
 `scheduling.recognition.given`. Check-ins are audited as `scheduling.wellbeing_check_in.recorded`,
 `.shared`, `.unshared` and `.viewed`; a manager's view names the check-ins, never their content.

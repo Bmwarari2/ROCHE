@@ -81,6 +81,8 @@ export const pulseSurvey = pgTable(
 export const pulseSurveyParticipation = pgTable(
   "pulse_survey_participation",
   {
+    /** Random, never time-ordered (security review of slice 44). */
+    id: uuid("id").notNull().default(sql`gen_random_uuid()`),
     tenantId: tenantId(),
     surveyId: uuid("survey_id").notNull(),
     memberId: uuid("member_id").notNull(),
@@ -90,6 +92,7 @@ export const pulseSurveyParticipation = pgTable(
       name: "pulse_survey_participation_pkey",
       columns: [t.tenantId, t.surveyId, t.memberId],
     }),
+    unique("pulse_survey_participation_id_key").on(t.id),
     foreignKey({
       name: "pulse_survey_participation_survey_fk",
       columns: [t.tenantId, t.surveyId],
@@ -123,6 +126,33 @@ export const pulseSurveyResponse = pgTable(
     index("pulse_survey_response_survey_idx").on(t.tenantId, t.surveyId),
     check("pulse_survey_response_answers", sql`jsonb_typeof(answers) = 'object'`),
     check("pulse_survey_response_week", sql`extract(isodow FROM submitted_week) = 1`),
+  ],
+);
+
+/**
+ * A response waiting for its survey to close (rule 3; security review of slice 44, finding 1):
+ * written in the member's own transaction beside their participation, then moved into
+ * `pulse_survey_response` in a shuffled order in the closing transaction and deleted, so no
+ * response shares a transaction with the participation it came with. The application role has no
+ * grant on it.
+ */
+export const pulseSurveyResponsePending = pgTable(
+  "pulse_survey_response_pending",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    tenantId: tenantId(),
+    surveyId: uuid("survey_id").notNull(),
+    submittedWeek: date("submitted_week").notNull(),
+    answers: jsonb("answers").notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "pulse_survey_response_pending_survey_fk",
+      columns: [t.tenantId, t.surveyId],
+      foreignColumns: [pulseSurvey.tenantId, pulseSurvey.id],
+    }),
+    index("pulse_survey_response_pending_survey_idx").on(t.tenantId, t.surveyId),
+    check("pulse_survey_response_pending_answers", sql`jsonb_typeof(answers) = 'object'`),
   ],
 );
 

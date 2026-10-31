@@ -29649,7 +29649,7 @@ export interface paths {
     put?: never;
     /**
      * Answer a survey, anonymously
-     * @description scheduling.wellbeing.self, once, while the survey is open, for a member it asks. The response keeps no member and no time but the UK week, and nothing comes back. Audited with an anonymous actor, naming the survey only.
+     * @description scheduling.wellbeing.self, once, while the survey is open, for a member on a staff file at its home from before it opened, never its writer or its home's survey managers. The response keeps no member and no time but the UK week, waits apart until the survey closes and nothing comes back. Each response is audited when the survey closes, with an anonymous actor, naming the survey only.
      */
     post: {
       parameters: {
@@ -38812,7 +38812,7 @@ export interface components {
       text: string;
       visible: boolean;
       answered?: number;
-      counts?: number[];
+      counts?: (number | null)[];
       texts?: string[];
     };
     RecognitionList: {

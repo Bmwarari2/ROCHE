@@ -121,6 +121,14 @@ beforeAll(async () => {
       "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
       [SOUTH_WORKER, ROLE_WORKER, a.locationSouth],
     );
+    // Only members on a staff file from before a survey opens may answer it.
+    for (const w of [...WORKERS, SOUTH_WORKER]) {
+      await c.query(
+        `INSERT INTO staff_profile (tenant_user_id, location_id, job_title, starts_on)
+         VALUES ($1, $2, 'Care worker', '2026-09-01')`,
+        [w, w === SOUTH_WORKER ? a.locationSouth : a.locationNorth],
+      );
+    }
   });
 }, 120_000);
 
@@ -166,7 +174,7 @@ describe("SCHED-011 pulse surveys", () => {
     );
   });
 
-  it("stores no member with a response, and the application role cannot reach responses", async () => {
+  it("keeps a response apart from its member until the survey closes, then releases it", async () => {
     const survey = await newSurvey();
     await move(survey, "open");
     await answer(WORKERS[1] as string, survey, { q1: 3, q2: "Longer handovers" });
@@ -183,33 +191,56 @@ describe("SCHED-011 pulse surveys", () => {
       "survey_id",
       "tenant_id",
     ]);
-    const stored = await asAdmin((c) =>
-      c.query<{ id: string; week: string; dow: number }>(
-        `SELECT id, submitted_week::text AS week, extract(isodow FROM submitted_week)::int AS dow
-         FROM pulse_survey_response WHERE survey_id = $1`,
+    const waiting = await asAdmin((c) =>
+      c.query("SELECT 1 FROM pulse_survey_response_pending WHERE survey_id = $1", [survey]),
+    );
+    expect(waiting.rowCount).toBe(1);
+    const before = await asAdmin((c) =>
+      c.query("SELECT 1 FROM pulse_survey_response WHERE survey_id = $1", [survey]),
+    );
+    expect(before.rowCount).toBe(0);
+    // Nothing is audited as it arrives.
+    const early = await asAdmin((c) =>
+      c.query(
+        "SELECT 1 FROM audit_event WHERE action = 'scheduling.pulse_survey.responded' AND resource_id = $1",
         [survey],
       ),
     );
+    expect(early.rowCount).toBe(0);
+    await move(survey, "closed");
+    const stored = await asAdmin((c) =>
+      c.query<{ id: string; dow: number; linked: number }>(
+        `SELECT r.id, extract(isodow FROM r.submitted_week)::int AS dow,
+           (SELECT count(*)::int FROM pulse_survey_participation p
+             WHERE p.survey_id = r.survey_id AND p.xmin = r.xmin) AS linked
+         FROM pulse_survey_response r WHERE r.survey_id = $1`,
+        [survey],
+      ),
+    );
+    expect(stored.rows).toHaveLength(1);
     expect(stored.rows[0]?.dow).toBe(1);
-    // A random UUID (version 4), so its id says nothing about when it came in.
+    // A random UUID (version 4), and no shared transaction with the participation row.
     expect(stored.rows[0]?.id.charAt(14)).toBe("4");
-    expect(
-      await code(
-        asNorth((c) =>
-          c.query("SELECT * FROM pulse_survey_response WHERE survey_id = $1", [survey]),
-        ),
+    expect(stored.rows[0]?.linked).toBe(0);
+    const left = await asAdmin((c) =>
+      c.query("SELECT 1 FROM pulse_survey_response_pending WHERE survey_id = $1", [survey]),
+    );
+    expect(left.rowCount).toBe(0);
+    const audited = await asAdmin((c) =>
+      c.query<{ actor: string | null; scope: unknown }>(
+        `SELECT actor_tenant_user_id AS actor, scope FROM audit_event
+         WHERE action = 'scheduling.pulse_survey.responded' AND resource_id = $1`,
+        [survey],
       ),
-    ).toMatch(/permission denied/);
-    expect(
-      await code(
-        asMember(WORKERS[1] as string, (c) =>
-          c.query(
-            "INSERT INTO pulse_survey_response (survey_id, submitted_week, answers) VALUES ($1, $2, '{}')",
-            [survey, today()],
-          ),
+    );
+    expect(audited.rows).toEqual([{ actor: null, scope: { actor: "anonymous" } }]);
+    for (const table of ["pulse_survey_response", "pulse_survey_response_pending"]) {
+      expect(
+        await code(
+          asNorth((c) => c.query(`SELECT * FROM ${table} WHERE survey_id = $1`, [survey])),
         ),
-      ),
-    ).toMatch(/permission denied/);
+      ).toMatch(/permission denied/);
+    }
     // The member sees that they took part; a manager sees no one's taking part.
     const mine = await asMember(WORKERS[1] as string, (c) =>
       c.query("SELECT survey_id FROM pulse_survey_participation WHERE survey_id = $1", [survey]),
@@ -219,6 +250,32 @@ describe("SCHED-011 pulse surveys", () => {
       c.query("SELECT 1 FROM pulse_survey_participation WHERE survey_id = $1", [survey]),
     );
     expect(theirs.rowCount).toBe(0);
+  });
+
+  it("refuses the home's survey managers and anyone not on a staff file before it opened", async () => {
+    const survey = await newSurvey();
+    await move(survey, "open");
+    expect(await code(answer(a.northManager, survey, { q1: 4 }))).toBe(
+      "pulse_response_not_eligible",
+    );
+    // A member given a staff file after the survey opened cannot answer it.
+    const late = "0199d115-0000-7000-8000-000000000621";
+    await asOwnerRole(TENANT_A, async (c) => {
+      await c.query(
+        "INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, 'Late Starter', 'late@example.invalid', 'active')",
+        [late],
+      );
+      await c.query(
+        "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+        [late, ROLE_WORKER, a.locationNorth],
+      );
+      await c.query(
+        `INSERT INTO staff_profile (tenant_user_id, location_id, job_title, starts_on)
+         VALUES ($1, $2, 'Care worker', '2026-11-01')`,
+        [late, a.locationNorth],
+      );
+    });
+    expect(await code(answer(late, survey, { q1: 4 }))).toBe("pulse_response_not_eligible");
   });
 
   it("shows results only once closed and at the minimum group size, each question likewise", async () => {
@@ -233,7 +290,12 @@ describe("SCHED-011 pulse surveys", () => {
     const shown = await results(survey);
     expect(shown).toMatchObject({ visible: true, respondents: 5, minGroupSize: 5 });
     const [scale, text] = shown.questions ?? [];
-    expect(scale).toMatchObject({ id: "q1", visible: true, counts: [1, 1, 1, 1, 1] });
+    // Each point has one answer, below the size: none shows.
+    expect(scale).toMatchObject({
+      id: "q1",
+      visible: true,
+      counts: [null, null, null, null, null],
+    });
     // Only four answered the free-text question: below the size, it is not shown.
     expect(text).toEqual({
       id: "q2",

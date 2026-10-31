@@ -17,8 +17,23 @@ beforeAll(async () => {
     `SELECT table_name FROM information_schema.columns
      WHERE table_schema = 'public' AND column_name = 'tenant_id' ORDER BY table_name`,
   );
-  tenantTables = rows.map((r) => r.table_name);
+  // Tables the application role has no grant on at all are proved closed below, not read.
+  const closed = await db.pool("harbour_owner").query<{ table_name: string }>(
+    `SELECT DISTINCT table_name FROM information_schema.columns
+     WHERE table_schema = 'public' AND column_name = 'tenant_id'
+       AND NOT has_any_column_privilege('harbour_app', 'public.' || table_name, 'SELECT')
+     ORDER BY table_name`,
+  );
+  closedTables = closed.rows.map((r) => r.table_name);
+  tenantTables = rows.map((r) => r.table_name).filter((t) => !closedTables.includes(t));
 });
+
+/**
+ * Anonymous survey responses, released and waiting (scheduling.md section 16 rule 3): reached only
+ * through their definer functions, never read by the application role.
+ */
+const CLOSED_TO_APP = ["pulse_survey_response", "pulse_survey_response_pending"];
+let closedTables: string[] = [];
 
 afterAll(async () => {
   await db?.drop();
@@ -27,6 +42,10 @@ afterAll(async () => {
 const app = () => db.pool("harbour_app");
 
 describe("hazard HZ-011 tenant isolation for harbour_app", () => {
+  it("has no grant at all on the tables only definer functions reach", () => {
+    expect(closedTables).toEqual(CLOSED_TO_APP);
+  });
+
   it("sees nothing at all without a request context (fails closed)", async () => {
     for (const table of [...tenantTables, "tenant", "tenant_group"]) {
       const count = await inContext(app(), null, async (c) => {

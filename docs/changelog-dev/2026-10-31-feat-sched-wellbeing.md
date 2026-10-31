@@ -35,6 +35,21 @@ Branch `feat/sched-wellbeing`; migration 0115; human actions H-1080 to H-1084.
 - The export catalogue leaves anonymous responses out.
 - Updated: records of processing (B3), data standards, and DPIA R28 (measures and residual risk).
 
+## Security review
+
+- Responses wait apart and move, shuffled, when the survey closes, so a response never shares a
+  transaction with its participation row.
+- Each response is audited anonymously at the close, never as it arrives.
+- Only members on a staff file from before the survey opened answer, never its writer or the
+  home's survey managers.
+- A scale count below the size is hidden, with the next smallest when only one would be
+  (`suppressCounts`).
+- The definer functions are owned by the NOLOGIN role `harbour_wellbeing_owner`.
+- The export holds only shared check-ins.
+- Participation rows have a random id.
+- Recognition refusals say nothing about where a colleague works.
+- Left open, in H-1081: comparing overlapping surveys, and the window before a survey closes.
+
 ## Not built
 
 - Screens, exit interviews, turnover by team and the speak-up link (H-1083).

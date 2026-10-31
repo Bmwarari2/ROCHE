@@ -23,10 +23,12 @@ CREATE TABLE "pulse_survey" (
 );
 --> statement-breakpoint
 CREATE TABLE "pulse_survey_participation" (
+	"id" uuid DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid DEFAULT app.current_tenant_id() NOT NULL,
 	"survey_id" uuid NOT NULL,
 	"member_id" uuid NOT NULL,
-	CONSTRAINT "pulse_survey_participation_pkey" PRIMARY KEY("tenant_id","survey_id","member_id")
+	CONSTRAINT "pulse_survey_participation_pkey" PRIMARY KEY("tenant_id","survey_id","member_id"),
+	CONSTRAINT "pulse_survey_participation_id_key" UNIQUE("id")
 );
 --> statement-breakpoint
 CREATE TABLE "pulse_survey_response" (
@@ -37,6 +39,15 @@ CREATE TABLE "pulse_survey_response" (
 	"answers" jsonb NOT NULL,
 	CONSTRAINT "pulse_survey_response_answers" CHECK (jsonb_typeof(answers) = 'object'),
 	CONSTRAINT "pulse_survey_response_week" CHECK (extract(isodow FROM submitted_week) = 1)
+);
+--> statement-breakpoint
+CREATE TABLE "pulse_survey_response_pending" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid DEFAULT app.current_tenant_id() NOT NULL,
+	"survey_id" uuid NOT NULL,
+	"submitted_week" date NOT NULL,
+	"answers" jsonb NOT NULL,
+	CONSTRAINT "pulse_survey_response_pending_answers" CHECK (jsonb_typeof(answers) = 'object')
 );
 --> statement-breakpoint
 CREATE TABLE "recognition" (
@@ -72,6 +83,8 @@ ALTER TABLE "pulse_survey_participation" ADD CONSTRAINT "pulse_survey_participat
 --> statement-breakpoint
 ALTER TABLE "pulse_survey_response" ADD CONSTRAINT "pulse_survey_response_survey_fk" FOREIGN KEY ("tenant_id","survey_id") REFERENCES "public"."pulse_survey"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
+ALTER TABLE "pulse_survey_response_pending" ADD CONSTRAINT "pulse_survey_response_pending_survey_fk" FOREIGN KEY ("tenant_id","survey_id") REFERENCES "public"."pulse_survey"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
 ALTER TABLE "recognition" ADD CONSTRAINT "recognition_from_fk" FOREIGN KEY ("tenant_id","from_member_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "recognition" ADD CONSTRAINT "recognition_to_fk" FOREIGN KEY ("tenant_id","to_member_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
@@ -85,6 +98,8 @@ ALTER TABLE "wellbeing_check_in" ADD CONSTRAINT "wellbeing_check_in_location_fk"
 CREATE INDEX "pulse_survey_location_idx" ON "pulse_survey" USING btree ("tenant_id","location_id","state");
 --> statement-breakpoint
 CREATE INDEX "pulse_survey_response_survey_idx" ON "pulse_survey_response" USING btree ("tenant_id","survey_id");
+--> statement-breakpoint
+CREATE INDEX "pulse_survey_response_pending_survey_idx" ON "pulse_survey_response_pending" USING btree ("tenant_id","survey_id");
 --> statement-breakpoint
 CREATE INDEX "recognition_to_idx" ON "recognition" USING btree ("tenant_id","to_member_id","created_at");
 --> statement-breakpoint
@@ -104,6 +119,7 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['pulse_survey', 'pulse_survey_participation', 'pulse_survey_response',
+    'pulse_survey_response_pending',
     'recognition', 'wellbeing_check_in'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', t);
@@ -252,9 +268,14 @@ CREATE POLICY pulse_survey_participation_write ON public.pulse_survey_participat
   WITH CHECK (member_id = app.current_user_id());
 --> statement-breakpoint
 
--- Responses: nothing for the application role, even with a grant added by mistake.
+-- Responses, waiting or released: nothing for the application role, even with a grant added by
+-- mistake.
 CREATE POLICY pulse_survey_response_closed ON public.pulse_survey_response AS RESTRICTIVE
   FOR ALL TO harbour_app
+  USING (false) WITH CHECK (false);
+--> statement-breakpoint
+CREATE POLICY pulse_survey_response_pending_closed ON public.pulse_survey_response_pending
+  AS RESTRICTIVE FOR ALL TO harbour_app
   USING (false) WITH CHECK (false);
 --> statement-breakpoint
 
@@ -280,7 +301,7 @@ CREATE POLICY wellbeing_check_in_read ON public.wellbeing_check_in AS RESTRICTIV
   TO harbour_app, harbour_owner
   USING (member_id = app.current_user_id()
     OR (shared_at IS NOT NULL
-      AND app.holds_permission_at('scheduling.wellbeing.manage', location_id)));
+      AND (app.is_system() OR app.holds_permission_at('scheduling.wellbeing.manage', location_id))));
 --> statement-breakpoint
 CREATE POLICY wellbeing_check_in_insert ON public.wellbeing_check_in AS RESTRICTIVE FOR INSERT
   TO harbour_app, harbour_owner
@@ -362,7 +383,7 @@ GRANT SELECT, INSERT ON public.recognition TO harbour_app;
 --> statement-breakpoint
 GRANT SELECT ON public.pulse_survey_participation TO harbour_app;
 --> statement-breakpoint
-REVOKE ALL ON public.pulse_survey_response FROM harbour_app;
+REVOKE ALL ON public.pulse_survey_response, public.pulse_survey_response_pending FROM harbour_app;
 --> statement-breakpoint
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.pulse_survey_participation FROM harbour_app;
 --> statement-breakpoint
@@ -401,8 +422,11 @@ REVOKE ALL ON FUNCTION app.survey_min_group_size(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.survey_min_group_size(uuid) TO harbour_app, harbour_owner;
 --> statement-breakpoint
 
--- Rules 2 and 3: the caller answers an open survey they may answer, once. The participation row
--- and the response are written apart: the response has a random id, the UK week only, no member.
+-- Rules 2 and 3: the caller answers an open survey they may answer, once. They must be on a staff
+-- profile (at the survey's home, for a home's survey) made before the survey opened, and never be
+-- its writer or a holder of scheduling.wellbeing.manage there, who could otherwise make up
+-- respondents or subtract their own answers (security review of slice 44, finding 3). The answers
+-- wait in pulse_survey_response_pending, with the UK week only, until the survey closes.
 CREATE OR REPLACE FUNCTION app.submit_pulse_response(p_survey_id uuid, p_answers jsonb)
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
@@ -426,6 +450,14 @@ BEGIN
   IF s.state <> 'open' OR today < s.opens_on OR today > s.closes_on THEN
     RAISE EXCEPTION 'pulse_survey_not_open' USING ERRCODE = 'check_violation';
   END IF;
+  IF me = s.created_by OR app.holds_permission_at('scheduling.wellbeing.manage', s.location_id)
+     OR NOT EXISTS (
+       SELECT 1 FROM public.staff_profile p
+       WHERE p.tenant_id = s.tenant_id AND p.tenant_user_id = me AND p.deleted_at IS NULL
+         AND p.created_at < s.opened_at
+         AND (s.location_id IS NULL OR p.location_id = s.location_id)) THEN
+    RAISE EXCEPTION 'pulse_response_not_eligible' USING ERRCODE = 'insufficient_privilege';
+  END IF;
   IF jsonb_typeof(p_answers) <> 'object' OR p_answers = '{}'::jsonb THEN
     RAISE EXCEPTION 'pulse_response_invalid' USING ERRCODE = 'check_violation';
   END IF;
@@ -448,20 +480,50 @@ BEGIN
   EXCEPTION WHEN unique_violation THEN
     RAISE EXCEPTION 'pulse_already_answered' USING ERRCODE = 'unique_violation';
   END;
-  INSERT INTO public.pulse_survey_response (tenant_id, survey_id, submitted_week, answers)
+  INSERT INTO public.pulse_survey_response_pending (tenant_id, survey_id, submitted_week, answers)
     VALUES (s.tenant_id, s.id, date_trunc('week', today)::date, p_answers);
 END
 $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app.submit_pulse_response(uuid, jsonb) FROM PUBLIC;
+
+-- When a survey closes, in the closing transaction: its waiting responses move into
+-- pulse_survey_response in a shuffled order and are deleted, so none shares a transaction (or a
+-- place on disk in arrival order) with the participation it came with; and one anonymous audit
+-- event is written for each, at the close, so the audit never shows answers arriving (security
+-- review of slice 44, findings 1 and 2).
+CREATE OR REPLACE FUNCTION app.release_pulse_responses() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE
+  moved integer;
+BEGIN
+  IF OLD.state = 'open' AND NEW.state = 'closed' THEN
+    INSERT INTO public.pulse_survey_response (tenant_id, survey_id, submitted_week, answers)
+      SELECT p.tenant_id, p.survey_id, p.submitted_week, p.answers
+      FROM public.pulse_survey_response_pending p
+      WHERE p.tenant_id = NEW.tenant_id AND p.survey_id = NEW.id
+      ORDER BY random();
+    GET DIAGNOSTICS moved = ROW_COUNT;
+    DELETE FROM public.pulse_survey_response_pending
+      WHERE tenant_id = NEW.tenant_id AND survey_id = NEW.id;
+    INSERT INTO public.audit_event (tenant_id, action, outcome, resource_type, resource_id, scope)
+      SELECT NEW.tenant_id, 'scheduling.pulse_survey.responded', 'success', 'pulse_survey',
+        NEW.id::text, jsonb_build_object('actor', 'anonymous')
+      FROM generate_series(1, moved);
+  END IF;
+  RETURN NULL;
+END
+$$;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.submit_pulse_response(uuid, jsonb) TO harbour_app;
+CREATE TRIGGER release_pulse_responses AFTER UPDATE OF state ON public.pulse_survey
+  FOR EACH ROW EXECUTE FUNCTION app.release_pulse_responses();
 --> statement-breakpoint
 
 -- Rule 4: a survey's results for a holder of scheduling.wellbeing.manage where it applies. Only
 -- once it has closed, only when at least the minimum group size answered, and each question only
--- when that many answered it; never a count below the size, never a single response, free text in
--- alphabetical order.
+-- when that many answered it; never a single response, free text in alphabetical order. A scale's
+-- count below the size is not shown, and when only one count would be hidden, the next smallest is
+-- hidden too, so a hidden count is never the difference of the others (security review of slice
+-- 44, finding 4).
 CREATE OR REPLACE FUNCTION app.pulse_survey_results(p_survey_id uuid) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 DECLARE
@@ -470,6 +532,10 @@ DECLARE
   n integer;
   q jsonb;
   answered integer;
+  raw integer[];
+  shown jsonb;
+  hidden integer;
+  smallest integer;
   out_questions jsonb := '[]'::jsonb;
 BEGIN
   SELECT * INTO s FROM public.pulse_survey
@@ -496,13 +562,22 @@ BEGIN
       out_questions := out_questions || jsonb_build_array(jsonb_build_object(
         'id', q->>'id', 'kind', q->>'kind', 'text', q->>'text', 'visible', false));
     ELSIF q->>'kind' = 'scale' THEN
+      SELECT array_agg(c ORDER BY p) INTO raw FROM (
+        SELECT p, (SELECT count(*)::int FROM public.pulse_survey_response r
+          WHERE r.tenant_id = s.tenant_id AND r.survey_id = s.id
+            AND (r.answers ->> (q->>'id'))::numeric = p) AS c
+        FROM generate_series(1, 5) p) x;
+      SELECT count(*) INTO hidden FROM unnest(raw) c WHERE c > 0 AND c < size;
+      smallest := NULL;
+      IF hidden = 1 THEN
+        SELECT min(c) INTO smallest FROM unnest(raw) c WHERE c >= size;
+      END IF;
+      SELECT jsonb_agg(CASE WHEN (c > 0 AND c < size) OR c = smallest THEN NULL ELSE to_jsonb(c) END
+          ORDER BY i)
+        INTO shown FROM unnest(raw) WITH ORDINALITY AS u(c, i);
       out_questions := out_questions || jsonb_build_array(jsonb_build_object(
         'id', q->>'id', 'kind', 'scale', 'text', q->>'text', 'visible', true, 'answered', answered,
-        'counts', (SELECT jsonb_agg(c ORDER BY p) FROM (
-          SELECT p, (SELECT count(*) FROM public.pulse_survey_response r
-            WHERE r.tenant_id = s.tenant_id AND r.survey_id = s.id
-              AND (r.answers ->> (q->>'id'))::numeric = p) AS c
-          FROM generate_series(1, 5) p) x)));
+        'counts', shown));
     ELSE
       out_questions := out_questions || jsonb_build_array(jsonb_build_object(
         'id', q->>'id', 'kind', 'free_text', 'text', q->>'text', 'visible', true,
@@ -517,9 +592,44 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app.pulse_survey_results(uuid) FROM PUBLIC;
+
+-- The definer functions are owned by harbour_wellbeing_owner, a NOLOGIN role with only what they
+-- need (ADR-0002; security review of slice 44, finding 5). Execute rights are set before the owner
+-- changes.
+GRANT USAGE ON SCHEMA public, app TO harbour_wellbeing_owner;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.pulse_survey_results(uuid) TO harbour_app;
+GRANT SELECT ON public.pulse_survey, public.role_assignment, public.role, public.access_grant,
+  public.staff_profile, public.rate_table, public.location TO harbour_wellbeing_owner;
+--> statement-breakpoint
+GRANT SELECT, INSERT ON public.pulse_survey_participation, public.pulse_survey_response
+  TO harbour_wellbeing_owner;
+--> statement-breakpoint
+GRANT SELECT, INSERT, DELETE ON public.pulse_survey_response_pending TO harbour_wellbeing_owner;
+--> statement-breakpoint
+GRANT INSERT ON public.audit_event TO harbour_wellbeing_owner;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.holds_permission_at(text, uuid), app.holds_own_permission(text),
+  app.survey_min_group_size(uuid) TO harbour_wellbeing_owner;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.submit_pulse_response(uuid, jsonb), app.pulse_survey_results(uuid),
+  app.release_pulse_responses() FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.submit_pulse_response(uuid, jsonb), app.pulse_survey_results(uuid)
+  TO harbour_app;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.works_at(uuid, uuid) TO harbour_wellbeing_owner;
+--> statement-breakpoint
+GRANT CREATE ON SCHEMA app TO harbour_wellbeing_owner;
+--> statement-breakpoint
+ALTER FUNCTION app.works_at(uuid, uuid) OWNER TO harbour_wellbeing_owner;
+--> statement-breakpoint
+ALTER FUNCTION app.submit_pulse_response(uuid, jsonb) OWNER TO harbour_wellbeing_owner;
+--> statement-breakpoint
+ALTER FUNCTION app.pulse_survey_results(uuid) OWNER TO harbour_wellbeing_owner;
+--> statement-breakpoint
+ALTER FUNCTION app.release_pulse_responses() OWNER TO harbour_wellbeing_owner;
+--> statement-breakpoint
+REVOKE CREATE ON SCHEMA app FROM harbour_wellbeing_owner;
 --> statement-breakpoint
 
 -- Data migration: existing tenants' copies of the built-in roles gain the wellbeing permissions
