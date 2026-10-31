@@ -268,6 +268,10 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-43 | Cyber and professional indemnity insurance | Brian | None needed | First contract | open |
 | H-44 | 24/7 on-call rota and paging before the first live tenant | Brian | [On-call runbook](../runbooks/on-call.md) | Go-live | open |
 | H-45 | First quarterly restore drill once staging exists | Engineering | [Restore runbook](../runbooks/restore.md) | Evidence for assurance | open |
+| H-810 | Set the retention periods for DSPT assertions, evidence links and submissions, and Cyber Essentials and ICO registration records (interim `audit_event`, 8 years from creation) | DPO | `docs/specs/retention.md`; `docs/specs/quality.md` section 18 (slice 32) | Retention engine for data security evidence | open |
+| H-811 | Confirm `cyber_essentials.certificate_valid_months` (12) against the NCSC scheme and `ico.registration.renewal_months` (12) against the ICO's data protection fee rules, and whether a renewal task 60 days ahead (`quality.renewal_reminder_days`) suits organisations; change the rate rows if not | Quality lead with the DPO | `docs/specs/rates.md` (to-verify rows); `apps/api/src/services/data-security.ts` (slice 32) | Renewal tasks in production | open |
+| H-812 | Decide who receives the data security renewal tasks: the owner role now (with `quality.dsar.manage` required); a named data protection lead or quality lead may suit better | Product owner with the DPO | `docs/specs/quality.md` rule 36 (slice 32) | Renewal tasks reaching the right person | open |
+| H-813 | Decide how DSPT assertions are loaded each year: typed by the organisation now; a list of the year's assertions from the toolkit (NHS England publishes them) could be loaded instead, checked against the toolkit's licence and terms | Product owner | `docs/specs/quality.md` section 18 (slice 32) | Assertion tracker screens (slice 65) | open |
 
 ## Product decisions still open
 

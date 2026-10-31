@@ -190,3 +190,7 @@ Notes: the register and complaints are reached only with `quality.dsar.manage` h
 whole organisation (owner, quality lead; never a manager for one home); every read and change is audited with ids and codes only,
 never the summary, names, contact details, reasoning or notice text. A complaint about a sample
 person stops sample data removal rather than being deleted with it.
+
+Data security evidence (slice 32, [quality.md](../specs/quality.md) section 18): DSPT assertions,
+evidence links, submissions and Cyber Essentials and ICO registration records hold no personal data
+beyond the member who recorded or owns them (B3 and B5); no new processing purpose.
