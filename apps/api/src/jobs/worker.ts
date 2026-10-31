@@ -111,7 +111,10 @@ await work(QUEUES.escalations, async () => {
 await work(QUEUES.assignments, async () => {
   await endExpiredAssignments(deps);
 });
-const adapterFor = createAdapterResolver({ production: config.NODE_ENV === "production" });
+const adapterFor = createAdapterResolver({
+  production: config.NODE_ENV === "production",
+  smtp: config.smtp,
+});
 await work(QUEUES.deliveries, async () => {
   await processDeliveries({ ...deps, adapterFor });
 });

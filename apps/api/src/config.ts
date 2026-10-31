@@ -1,9 +1,22 @@
 import { z } from "zod";
 
 /**
- * API configuration from the environment. Secrets come from AWS Secrets Manager in deployed
- * environments (injected as environment variables by ECS) and from `.env` locally; never from Git.
+ * API configuration from the environment. Secrets come from Google Cloud Secret Manager in deployed
+ * environments (injected as environment variables by the platform, ADR-0098) and from `.env`
+ * locally; never from Git.
  */
+
+/** The only Google Cloud region personal data may live in (ADR-0098). */
+export const GCP_REGIONS = ["europe-west2"] as const;
+
+const GCP_PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+/** A Cloud KMS key in an allowed region: projects/<p>/locations/<region>/keyRings/<r>/cryptoKeys/<k>. */
+const KMS_KEY = new RegExp(
+  `^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/locations/(${GCP_REGIONS.join("|")})/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}$`,
+);
+/** Bucket names as Cloud Storage takes them (no dotted, domain-named buckets). */
+const BUCKET = /^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$/;
+
 const Env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().default(4000),
@@ -86,14 +99,29 @@ const Env = z.object({
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
   /** How long a verified link session lasts in the browser (never past the link's own expiry). */
   EVIDENCE_LINK_SESSION_MINUTES: z.coerce.number().int().positive().max(240).default(60),
-  /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
-  DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
+  /** Where document bytes live: local disk (development and tests) or Cloud Storage (Google Cloud). */
+  DOCUMENT_STORAGE: z.enum(["local", "gcs"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
-  S3_DOCUMENTS_BUCKET: z.string().optional(),
-  /** The full export's archives (PLAT-015): the exports bucket in AWS (SSE-KMS, lifecycle expiry). */
+  /** The Google Cloud project the buckets belong to. Credentials come from the runtime's identity. */
+  GCP_PROJECT_ID: z.string().regex(GCP_PROJECT).optional(),
+  GCS_DOCUMENTS_BUCKET: z.string().regex(BUCKET).optional(),
+  /** The full export's archives (PLAT-015): the exports bucket (CMEK, lifecycle expiry). */
   LOCAL_EXPORTS_DIR: z.string().default(".data/exports"),
-  S3_EXPORTS_BUCKET: z.string().optional(),
-  /** Malware scanning of uploads: ClamAV (AWS), the EICAR-aware mock (tests), or none (quarantine all). */
+  GCS_EXPORTS_BUCKET: z.string().regex(BUCKET).optional(),
+  /** The customer-managed Cloud KMS key both buckets encrypt with, in europe-west2. */
+  GCS_KMS_KEY: z.string().regex(KMS_KEY).optional(),
+  /**
+   * The SMTP relay for email (the `smtp` provider of comms.email). Unset in production, email is not
+   * configured and every send fails clearly; elsewhere it defaults to Mailpit (docker-compose.yml).
+   * The password comes from Secret Manager, never Git.
+   */
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  /** implicit: TLS from the first byte (port 465); starttls: upgrade required; none: local only. */
+  SMTP_TLS: z.enum(["implicit", "starttls", "none"]).optional(),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASSWORD: z.string().min(1).optional(),
+  /** Malware scanning of uploads: ClamAV, the EICAR-aware mock (tests), or none (quarantine all). */
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
   CLAMD_PORT: z.coerce.number().int().default(3310),
@@ -121,7 +149,17 @@ const Env = z.object({
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
 
+/** The SMTP relay the `smtp` email provider sends through, or null when email is not configured. */
+export interface SmtpConfig {
+  readonly host: string;
+  readonly port: number;
+  readonly tls: "implicit" | "starttls" | "none";
+  readonly user?: string;
+  readonly password?: string;
+}
+
 export type Config = z.infer<typeof Env> & {
+  readonly smtp: SmtpConfig | null;
   readonly webOrigins: readonly string[];
   readonly trustedProxies: readonly string[];
   /** `IMPORT_TEST_NHS_NUMBERS`, defaulted by environment: off in production unless set. */
@@ -168,10 +206,32 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     for (const key of DATABASE_URL_KEYS) {
       if (!env[key]) throw new Error(`${key} must be set in production`);
     }
-    if (parsed.DOCUMENT_STORAGE !== "s3" || !parsed.S3_DOCUMENTS_BUCKET) {
-      throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
+    if (parsed.DOCUMENT_STORAGE !== "gcs") {
+      throw new Error("DOCUMENT_STORAGE must be gcs in production");
     }
-    if (!parsed.S3_EXPORTS_BUCKET) throw new Error("S3_EXPORTS_BUCKET must be set in production");
+    for (const key of [
+      "GCP_PROJECT_ID",
+      "GCS_DOCUMENTS_BUCKET",
+      "GCS_EXPORTS_BUCKET",
+      "GCS_KMS_KEY",
+    ] as const) {
+      if (!parsed[key]) throw new Error(`${key} must be set in production`);
+    }
+    if (parsed.GCS_DOCUMENTS_BUCKET === parsed.GCS_EXPORTS_BUCKET) {
+      throw new Error("GCS_EXPORTS_BUCKET must not be the documents bucket in production");
+    }
+    // Email stays off until a provider is chosen; once a relay is named it must be a real one, over TLS.
+    if (parsed.SMTP_HOST) {
+      if ((parsed.SMTP_TLS ?? "starttls") === "none") {
+        throw new Error("SMTP_TLS cannot be none in production");
+      }
+      if (/^(localhost|127\.|::1$|\[::1\]$)/i.test(parsed.SMTP_HOST)) {
+        throw new Error("SMTP_HOST cannot be a local catcher in production");
+      }
+      if (Boolean(parsed.SMTP_USER) !== Boolean(parsed.SMTP_PASSWORD)) {
+        throw new Error("SMTP_USER and SMTP_PASSWORD must be set together in production");
+      }
+    }
     if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
       throw new Error("AUTH_SIGN_IN_PER_MINUTE cannot be above 10 in production");
     }
@@ -195,10 +255,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   return {
     ...parsed,
+    smtp: smtpConfig(parsed),
     webOrigins: list(parsed.WEB_ORIGINS),
     trustedProxies: list(parsed.TRUSTED_PROXY_CIDRS),
     importTestNhsNumbers:
       (parsed.IMPORT_TEST_NHS_NUMBERS ?? (parsed.NODE_ENV === "production" ? "off" : "on")) ===
       "on",
+  };
+}
+
+/** Production sends only through a named relay; elsewhere Mailpit on its default port. */
+function smtpConfig(parsed: z.infer<typeof Env>): SmtpConfig | null {
+  if (parsed.NODE_ENV === "production" && !parsed.SMTP_HOST) return null;
+  const tls = parsed.SMTP_TLS ?? (parsed.SMTP_HOST ? "starttls" : "none");
+  return {
+    host: parsed.SMTP_HOST ?? "127.0.0.1",
+    port: parsed.SMTP_PORT ?? (tls === "implicit" ? 465 : parsed.SMTP_HOST ? 587 : 1025),
+    tls,
+    ...(parsed.SMTP_USER ? { user: parsed.SMTP_USER } : {}),
+    ...(parsed.SMTP_PASSWORD ? { password: parsed.SMTP_PASSWORD } : {}),
   };
 }

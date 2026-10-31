@@ -618,7 +618,7 @@ export const bankHoliday = pgTable(
   (t) => [unique("bank_holiday_nation_date").on(t.nation, t.date)],
 );
 
-/** Versioned document store (section 9.1); content lives in S3 under SSE-KMS. */
+/** Versioned document store (section 9.1); content lives in Cloud Storage under a customer-managed key. */
 export const document = pgTable(
   "document",
   {

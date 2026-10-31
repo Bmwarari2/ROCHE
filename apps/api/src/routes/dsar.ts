@@ -897,7 +897,7 @@ export const dsarRouter = createRouter()
               : "access",
           )
         : null;
-      // The bundle as sent is kept (exports bucket, SSE-KMS, opaque key) and can be fetched again
+      // The bundle as sent is kept (exports bucket, CMEK, opaque key) and can be fetched again
       // exactly; it is removed if the response is not recorded (#149 M3).
       const storage = c.get("services").exportStorage;
       const storageKey = bundle ? dsarBundleStorageKey(access.tenantId, id, randomUUID()) : null;

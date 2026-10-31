@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Logger } from "../logger";
 
 /**
- * The optional Flagsmith source (ADR-0001, H-13): self-hosted by Thapsus in eu-west-2, used only
+ * The optional Flagsmith source (ADR-0001, H-13): self-hosted by Thapsus in europe-west2, used only
  * when `FLAGSMITH_ENVIRONMENT_KEY` is set. It is told opaque ids only (the organisation and the
  * location), never anything about a person. Each identity's flags are kept for
  * `FLAGSMITH_CACHE_SECONDS`, and so is an unanswered or unreadable reply, so an outage costs one
