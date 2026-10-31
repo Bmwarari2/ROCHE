@@ -221,7 +221,8 @@ async function expectArchived(page: Page, id: string) {
 
 test("hazard HZ-001 a planned discharge is worked through its checklist, returns and money to the archived record", async ({
   page,
-}) => {
+  browser,
+}, testInfo) => {
   test.setTimeout(240_000);
   await signIn(page, "manager@example.invalid");
   const { id } = await admit(page, "Dora");
@@ -329,26 +330,29 @@ test("hazard HZ-001 a planned discharge is worked through its checklist, returns
   );
 
   // The owner confirms it, closes the checklist and archives the record.
-  await page.context().clearCookies();
-  await signInWithDemoPasskey(page, "owner");
-  await openLeaving(page, id);
+  // Their own browser: one passkey per browser, as on their own phone.
+  const ownerContext = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+  const owner = await ownerContext.newPage();
+  await signInWithDemoPasskey(owner, "owner");
+  await openLeaving(owner, id);
   await clickAndWait(
-    page,
-    item(page, "Personal money returned and the account closed").getByRole("button", {
+    owner,
+    item(owner, "Personal money returned and the account closed").getByRole("button", {
       name: /^Mark as done: /,
     }),
     "Checklist updated.",
   );
   await clickAndWait(
-    page,
-    main(page).getByRole("button", { name: "Close the checklist" }),
+    owner,
+    main(owner).getByRole("button", { name: "Close the checklist" }),
     "Checklist closed.",
   );
-  await expect(page.getByTestId("exit-summary")).toContainText("Closed");
-  await expect(main(page).getByRole("button", { name: /^Mark as / })).toHaveCount(0);
-  await checkBothThemes(page, "closed discharge, ready to archive");
-  await archive(page);
-  await expectArchived(page, id);
+  await expect(owner.getByTestId("exit-summary")).toContainText("Closed");
+  await expect(main(owner).getByRole("button", { name: /^Mark as / })).toHaveCount(0);
+  await checkBothThemes(owner, "closed discharge, ready to archive");
+  await archive(owner);
+  await expectArchived(owner, id);
+  await ownerContext.close();
 });
 
 test("hazard HZ-001 a transfer to another provider is recorded at once and archived", async ({
