@@ -111,6 +111,12 @@ const Env = z.object({
    * without losing a form) and the CSO and DPO have decided (H-353); production refuses it.
    */
   SESSION_IDLE_TIMEOUT: z.enum(["off", "on"]).default("off"),
+  /**
+   * Whether the import wizard takes 999-range test NHS numbers and 0000000000 (platform.md rule
+   * 20; #150 clinical review): "on" for demonstration and test environments, whose people are
+   * invented; unset, it is off in production (real organisations) and on elsewhere.
+   */
+  IMPORT_TEST_NHS_NUMBERS: z.enum(["off", "on"]).optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -118,6 +124,8 @@ const Env = z.object({
 export type Config = z.infer<typeof Env> & {
   readonly webOrigins: readonly string[];
   readonly trustedProxies: readonly string[];
+  /** `IMPORT_TEST_NHS_NUMBERS`, defaulted by environment: off in production unless set. */
+  readonly importTestNhsNumbers: boolean;
 };
 
 const DATABASE_URL_KEYS = [
@@ -189,5 +197,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ...parsed,
     webOrigins: list(parsed.WEB_ORIGINS),
     trustedProxies: list(parsed.TRUSTED_PROXY_CIDRS),
+    importTestNhsNumbers:
+      (parsed.IMPORT_TEST_NHS_NUMBERS ?? (parsed.NODE_ENV === "production" ? "off" : "on")) ===
+      "on",
   };
 }

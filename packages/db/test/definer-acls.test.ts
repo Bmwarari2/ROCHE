@@ -41,9 +41,14 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   ],
   "app.sub_processor_objections(uuid, text)": ["harbour_operator"],
   "app.resolve_sub_processor_objection(uuid, uuid, text, text)": ["harbour_operator"],
+  // Processor breach notices (slice 20, migration 0082).
+  "app.send_processor_breach_notice(uuid, uuid, text, text, integer, integer, text, text, text, text, text)":
+    ["harbour_operator"],
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
+  // Import wizard (Phase 2 slice 26, migration 0088).
+  "app.undo_import_batch(uuid, text)": ["harbour_app"],
 };
 
 let db: TestDatabase;

@@ -25,11 +25,11 @@ import {
   type Permission,
   type PersonStatus,
   type RetentionDecisionKind,
+  requiresMfa,
   type StoredNoticeResponse,
   subProcessorAcknowledgementsFrom,
   subProcessorsInUse,
   tenantDefaultRateKeys,
-  touchesCareRecords,
   validatedToolsWithLinks,
 } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull, max, sql } from "drizzle-orm";
@@ -234,9 +234,7 @@ export async function onboardingStateFor(
         id: m.id,
         status: m.status as OnboardingState["users"][number]["status"],
         owner: held.some((r) => r.key === "owner"),
-        readsCareRecords: held.some((r) =>
-          r.permissions.some((p) => touchesCareRecords(p as Permission)),
-        ),
+        readsCareRecords: held.some((r) => r.permissions.some((p) => requiresMfa(p as Permission))),
         mfaEnrolled: m.authUserId !== null && enrolled.has(m.authUserId),
       };
     }),

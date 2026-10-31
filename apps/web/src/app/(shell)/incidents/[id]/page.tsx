@@ -7,9 +7,12 @@ import { cache } from "react";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { Notice } from "@/components/care/Notice";
 import { CommunicationStatus } from "@/components/people/CommunicationStatus";
+import { AfterDeath } from "@/components/safety/AfterDeath";
+import { CandourSection } from "@/components/safety/CandourSection";
 import { ClassifierQuestions } from "@/components/safety/ClassifierQuestions";
 import { IncidentManage } from "@/components/safety/IncidentManage";
 import { IncidentNotifications } from "@/components/safety/IncidentNotifications";
+import { InvestigationSection } from "@/components/safety/InvestigationSection";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
@@ -18,7 +21,12 @@ import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { questionsYouMayAnswer } from "@/lib/incident-forms";
-import { doneToShow, incidentManageView, manageDone } from "@/lib/incident-review";
+import {
+  doneToShow,
+  followUpDoneToShow,
+  incidentManageView,
+  manageDone,
+} from "@/lib/incident-review";
 import {
   incidentPersonFacts,
   incidentPersonLine,
@@ -80,7 +88,9 @@ const when = (iso: string | null) => formatDateTime(iso) ?? null;
  * everyone on it sees the header and their own people only. The questions are answered here by a
  * manager, or the falls questions by whoever raised it. A manager reviews and closes it here
  * (`incidentManageView`), never the person who raised it; each notification is prepared and
- * submitted on its own page.
+ * submitted on its own page. After a death, the medical examiner pack's sections and the LeDeR
+ * prompt (SAFE-008); then the duty of candour record (SAFE-007) and the investigation (SAFE-010),
+ * each recorded here by a manager.
  */
 export default async function IncidentPage({
   params,
@@ -129,9 +139,29 @@ export default async function IncidentPage({
     !incident.restricted &&
     incident.status !== "closed" &&
     (can(me.permissions, "safety.incident.manage") || incident.raisedBy === me.tenantUserId);
+  // The duty of candour record and the investigation, for a reader who sees it whole (the API
+  // refuses anyone else); the candour record's stage decides whether it can close.
+  const [candour, investigation] = incident.restricted
+    ? [null, null]
+    : await Promise.all([
+        api.GET("/v1/incidents/{id}/candour", { params: { path: { id } } }),
+        api.GET("/v1/incidents/{id}/investigation", { params: { path: { id } } }),
+      ]);
+  // A read that failed is not known, never "none" (review M3): the sections warn and offer no
+  // forms, and closing waits for the candour record to be read.
+  const candourRecord = candour?.data?.record ?? null;
+  const candourUnknown = candour !== null && !candour.data;
+  const investigationRecord = investigation?.data?.record ?? null;
+  const investigationUnknown = investigation !== null && !investigation.data;
   // Review and close, for a manager, never "close" for the person who raised it (rule 11).
-  const manage = incidentManageView(incident, me);
+  const manage = incidentManageView(incident, me, candourUnknown ? "unread" : candourRecord);
   const shownDone = doneToShow(done, incident.status);
+  const followUpDone = followUpDoneToShow(
+    done,
+    candourRecord?.state ?? null,
+    investigationRecord?.status ?? null,
+  );
+  const now = new Date();
   const overdue = overdueCount(incident.classifier);
   // RIDDOR's over-seven-day threshold for its label, from the rate table on the incident's date.
   const riddor = [
@@ -163,6 +193,15 @@ export default async function IncidentPage({
       {recorded === "1" ? <RecordedArrival /> : null}
       {shownDone && recorded !== "1" ? (
         <RecordedArrival message={t("safety.manage.done", { done: shownDone })} param="done" />
+      ) : null}
+      {followUpDone && !shownDone && recorded !== "1" ? (
+        <RecordedArrival
+          message={t("safety.followUp.done", {
+            done: followUpDone,
+            state: candourRecord?.state ?? "none",
+          })}
+          param="done"
+        />
       ) : null}
       <p className="m-0 flex flex-wrap items-center gap-2">
         <SafetyChip chip={incidentStatusChip(incident.status, t)} />
@@ -293,7 +332,7 @@ export default async function IncidentPage({
               names={names}
               {...(threshold?.data ? { riddorDays: threshold.data.value } : {})}
               closed={incident.status === "closed"}
-              now={new Date()}
+              now={now}
               linked={can(me.permissions, "safety.incident.manage")}
               answerable={answerable.length}
             >
@@ -304,6 +343,29 @@ export default async function IncidentPage({
           </div>
         </Card>
       )}
+      <AfterDeath
+        incident={incident}
+        names={names}
+        records={people}
+        linked={can(me.permissions, "safety.incident.manage")}
+        now={now}
+      />
+      <CandourSection
+        incident={incident}
+        record={candourRecord}
+        unknown={candourUnknown}
+        viewer={me}
+        names={names}
+        records={people}
+        now={now}
+      />
+      <InvestigationSection
+        incident={incident}
+        record={investigationRecord}
+        unknown={investigationUnknown}
+        viewer={me}
+        now={now}
+      />
       {manage ? (
         <Card as="section" title={section("manage")} headingLevel={2} className="break-words">
           <IncidentManage
@@ -316,6 +378,7 @@ export default async function IncidentPage({
                 notificationKindLabel(n.kind, t, threshold?.data?.value),
               ]),
             )}
+            personNames={Object.fromEntries(names)}
           />
         </Card>
       ) : null}

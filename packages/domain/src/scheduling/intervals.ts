@@ -130,7 +130,8 @@ export function mondayOnOrBefore(isoDate: string): string {
   return plusDays(isoDate, -((weekday + DAYS_PER_WEEK - 1) % DAYS_PER_WEEK));
 }
 
-function atMinuteOfDay(isoDate: string, minuteOfDay: number): Date {
+/** The instant a UK wall-clock minute of a date occurs (`fromUkWallClock`: the gap moves forward). */
+export function atMinuteOfDay(isoDate: string, minuteOfDay: number): Date {
   const [year, month, day] = isoDate.split("-").map(Number) as [number, number, number];
   return fromUkWallClock(
     year,

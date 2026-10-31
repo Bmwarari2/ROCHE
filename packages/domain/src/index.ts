@@ -58,9 +58,11 @@ export * from "./people/sharing";
 export * from "./people/transfer-pack";
 export * from "./platform/access";
 export * from "./platform/branding";
+export * from "./platform/breach-notice";
 export * from "./platform/data-rights";
 export * from "./platform/documents";
 export * from "./platform/dpia";
+export * from "./platform/dsar";
 export * from "./platform/export";
 export * from "./platform/feature-flags";
 export * from "./platform/forms";
@@ -113,6 +115,7 @@ export * from "./safety/safeguarding";
 export * from "./safety/whistleblowing";
 export * from "./scheduling/agreements";
 export * from "./scheduling/classification";
+export * from "./scheduling/dependency";
 // The rule-group functions take periods prepared inside the module; callers use checkWorkingTime.
 export {
   type NightAverageWindow,

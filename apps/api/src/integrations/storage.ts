@@ -33,9 +33,12 @@ import type {
 /** S3 multipart parts (the minimum is 5 MiB): the most of an export held in memory at once. */
 const PART_BYTES = 8 * 1024 * 1024;
 
-/** A document's bytes, or an export's archive (`exportStoragePrefix` plus `export.zip`). */
+/**
+ * A document's bytes, an export's archive (`exportStoragePrefix` plus `export.zip`), or an issued
+ * DSAR bundle (`dsarBundleStorageKey`, #149 M3).
+ */
 const KEY_PATTERN =
-  /^tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip)$/;
+  /^(tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip)|dsar\/tenants\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)$/;
 
 function assertKey(key: string): void {
   if (!KEY_PATTERN.test(key)) throw new Error("Invalid storage key");
