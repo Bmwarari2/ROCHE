@@ -186,6 +186,8 @@ export interface TenantKeyPort {
   shred(
     tenantId: string,
   ): Promise<readonly { readonly name: string; readonly destroyAt: string }[]>;
+  /** The key `sign` uses and its algorithm, known before signing (they are in the signed body). */
+  signer(): { readonly key: string; readonly algorithm: string };
   /** Signs a message (a certificate's canonical body) with Harbour's certificate key. */
   sign(
     message: Uint8Array,

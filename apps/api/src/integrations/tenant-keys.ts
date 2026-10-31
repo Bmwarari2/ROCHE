@@ -207,13 +207,17 @@ export class LocalTenantKeys implements TenantKeyPort {
     return pair;
   }
 
+  signer() {
+    return { key: LOCAL_SIGNING_KEY, algorithm: "ED25519" };
+  }
+
   async sign(message: Uint8Array) {
     const signature = signWith(null, message, this.signingKey().privateKey).toString("base64");
-    return { signature, key: "local/certificate-signing/1", algorithm: "ED25519" };
+    return { signature, key: LOCAL_SIGNING_KEY, algorithm: "ED25519" };
   }
 
   async verify(message: Uint8Array, signature: string, key: string): Promise<boolean> {
-    if (key !== "local/certificate-signing/1") return false;
+    if (key !== LOCAL_SIGNING_KEY) return false;
     return verifyWith(null, message, this.signingKey().publicKey, Buffer.from(signature, "base64"));
   }
 
@@ -221,6 +225,8 @@ export class LocalTenantKeys implements TenantKeyPort {
     return { ok: true, detail: this.options.dir ? "local files" : "in memory" };
   }
 }
+
+const LOCAL_SIGNING_KEY = "local/certificate-signing/1";
 
 // ---------------------------------------------------------------------------------------------
 // Cloud KMS
@@ -242,13 +248,19 @@ export async function googleKmsRequest(): Promise<KmsRequest> {
     scopes: ["https://www.googleapis.com/auth/cloudkms"],
   }).getClient();
   return async (method, path, body) => {
-    const response = await client.request<Record<string, unknown>>({
-      url: `${KMS_BASE}${path}`,
-      method,
-      ...(body === undefined ? {} : { data: body }),
-      validateStatus: () => true,
-    });
-    return { status: response.status, data: (response.data ?? {}) as Record<string, unknown> };
+    try {
+      const response = await client.request<Record<string, unknown>>({
+        url: `${KMS_BASE}${path}`,
+        method,
+        ...(body === undefined ? {} : { data: body }),
+        validateStatus: () => true,
+      });
+      return { status: response.status, data: (response.data ?? {}) as Record<string, unknown> };
+    } catch {
+      // A network failure's error carries the request, whose body may hold a data key: it is
+      // dropped here, so it never reaches a log or the job table (security review, L8).
+      throw new KmsError(method.toLowerCase(), 0, "NETWORK");
+    }
   };
 }
 
@@ -405,7 +417,17 @@ export class CloudKmsTenantKeys implements TenantKeyPort {
     };
   }
 
+  signer() {
+    return { key: this.signingKeyVersion, algorithm: "EC_SIGN_P256_SHA256" };
+  }
+
+  /**
+   * Verifies against a version of Harbour's own certificate key only (any version, so rotated
+   * keys still verify old certificates), never a key a stored row names elsewhere.
+   */
   async verify(message: Uint8Array, signature: string, key: string): Promise<boolean> {
+    const own = `${this.signingKeyVersion.replace(/\/cryptoKeyVersions\/[^/]+$/, "")}/cryptoKeyVersions/`;
+    if (!key.startsWith(own) || !/^[0-9]+$/.test(key.slice(own.length))) return false;
     let publicKey = this.publicKeys.get(key);
     if (!publicKey) {
       const res = await this.request("GET", `${key}/publicKey`);

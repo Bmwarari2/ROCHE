@@ -111,36 +111,60 @@ function openSegment(
 }
 
 /** Unwrapped data keys, kept for a few minutes so repeated reads do not each call Cloud KMS. */
+/**
+ * How long an unwrapped data key is reused in one process. After a shred, another instance (or
+ * the worker) may read the organisation's objects for at most this long (platform.md rule 4).
+ */
+export const DATA_KEY_CACHE_MS = 30_000;
+
 export class DataKeyCache {
   private readonly entries = new Map<string, { tenantId: string; key: Buffer; expires: number }>();
+  /** Bumped by `forgetTenant`: an unwrap that began before it is never cached (review M1). */
+  private readonly generations = new Map<string, number>();
+  private lastSweep = 0;
 
   constructor(
-    private readonly ttlMs = 5 * 60_000,
+    private readonly ttlMs = DATA_KEY_CACHE_MS,
     private readonly maxEntries = 1000,
     private readonly now: () => number = Date.now,
   ) {}
 
+  /** A copy of the data key: the caller zeroes it when done; the cache zeroes its own. */
   async unwrap(keys: TenantKeyPort, tenantId: string, wrapped: Uint8Array): Promise<Buffer> {
+    this.sweep();
     const id = `${tenantId}:${createHash("sha256").update(wrapped).digest("base64")}`;
     const hit = this.entries.get(id);
-    if (hit && hit.expires > this.now()) return hit.key;
+    if (hit && hit.expires > this.now()) return Buffer.from(hit.key);
+    if (hit) this.drop(id);
+    const generation = this.generations.get(tenantId) ?? 0;
     const key = Buffer.from(await keys.unwrap(tenantId, wrapped));
+    if ((this.generations.get(tenantId) ?? 0) !== generation) return key;
     if (this.entries.size >= this.maxEntries) {
       const oldest = this.entries.keys().next().value;
-      if (oldest !== undefined) this.entries.delete(oldest);
+      if (oldest !== undefined) this.drop(oldest);
     }
-    this.entries.set(id, { tenantId, key, expires: this.now() + this.ttlMs });
+    this.entries.set(id, { tenantId, key: Buffer.from(key), expires: this.now() + this.ttlMs });
     return key;
   }
 
   /** Forgets every data key of an organisation (on shred, before anything else). */
   forgetTenant(tenantId: string): void {
+    this.generations.set(tenantId, (this.generations.get(tenantId) ?? 0) + 1);
     for (const [id, entry] of this.entries) {
-      if (entry.tenantId === tenantId) {
-        entry.key.fill(0);
-        this.entries.delete(id);
-      }
+      if (entry.tenantId === tenantId) this.drop(id);
     }
+  }
+
+  private drop(id: string): void {
+    this.entries.get(id)?.key.fill(0);
+    this.entries.delete(id);
+  }
+
+  private sweep(): void {
+    const now = this.now();
+    if (now - this.lastSweep < this.ttlMs) return;
+    this.lastSweep = now;
+    for (const [id, entry] of this.entries) if (entry.expires <= now) this.drop(id);
   }
 }
 
@@ -286,6 +310,19 @@ export async function openStream(
 }
 
 async function* segments(
+  reader: Reader,
+  dataKey: Buffer,
+  prefix: Buffer,
+  additional: Buffer,
+): AsyncIterable<Uint8Array> {
+  try {
+    yield* openSegments(reader, dataKey, prefix, additional);
+  } finally {
+    dataKey.fill(0);
+  }
+}
+
+async function* openSegments(
   reader: Reader,
   dataKey: Buffer,
   prefix: Buffer,

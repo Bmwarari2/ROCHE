@@ -1,11 +1,19 @@
 import {
+  CertificateVerification,
   CreateShredRequest,
   ShredApproved,
   ShredRequestItem,
   ShredRequestList,
 } from "@harbour/contracts";
-import { type Transaction, tenantShredRequest } from "@harbour/db";
-import { checkShredApproval, checkShredRequest, type Permission, scopeFor } from "@harbour/domain";
+import { destructionCertificate, type Transaction, tenantShredRequest } from "@harbour/db";
+import {
+  checkShredApproval,
+  checkShredRequest,
+  type Permission,
+  SHRED_REQUEST_EXPIRY_DAYS,
+  scopeFor,
+  shredRequestExpired,
+} from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { desc, eq } from "drizzle-orm";
 import type { Context } from "hono";
@@ -18,8 +26,16 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import { certificateItem, issueCertificate } from "../services/certificates";
+import { publish } from "../outbox";
+import { backupDays, certificateItem, verifyCertificate } from "../services/certificates";
 import { activeHolds } from "../services/documents";
+import {
+  completeShred,
+  exportDownloaded,
+  openRequests,
+  requesterEligible,
+  SHRED_APPROVED_EVENT,
+} from "../services/shred";
 import { lockRetention } from "./documents";
 import {
   conflictResponse,
@@ -32,18 +48,17 @@ import {
 
 /**
  * Whole-organisation crypto-shredding (PLAT-012; platform.md, Crypto-shredding; ADR-0109). One
- * member asks, a different member approves, each with a fresh step-up; an active legal hold
- * refuses both. Approval schedules every version of the organisation's key for destruction and
- * issues a signed certificate in the same transaction: if anything after the keys fails, the
- * transaction rolls back, the request stays pending and approving again (the key provider's shred
- * is idempotent) completes it. Refusals are audited.
+ * member asks, after downloading the organisation's full export; a different member approves
+ * within 7 days, while the requester can still manage retention, each with a fresh step-up; an
+ * active legal hold refuses both. Approval commits first, then the keys are destroyed and the
+ * signed certificate issued (`completeShred`; the outbox finishes it if this request cannot).
+ * Refusals are audited.
  */
 
 const PERMISSION: Permission = "platform.retention.manage";
-const ShredRequestId = z.object({ id: z.uuid() });
-const RECORD_CLASS = "organisation_exit";
+const Id = z.object({ id: z.uuid() });
 const FORBIDDEN = new Set(["step_up_required", "same_person", "not_requester"]);
-const INVALID = new Set(["reason_too_short", "export_not_confirmed"]);
+const INVALID = new Set(["reason_too_short", "export_not_downloaded"]);
 
 type Row = typeof tenantShredRequest.$inferSelect;
 
@@ -52,7 +67,7 @@ function item(row: Row): ShredRequestItem {
     id: row.id,
     status: row.status as ShredRequestItem["status"],
     reason: row.reason,
-    exportConfirmed: row.exportConfirmed,
+    exportId: row.exportId,
     requestedBy: row.requestedBy,
     requestedAt: row.requestedAt.toISOString(),
     decidedBy: row.decidedBy,
@@ -132,7 +147,7 @@ export const shredRouter = createRouter()
       tags: ["platform"],
       summary: "Ask for the organisation's records to be crypto-shredded",
       description:
-        "Needs a fresh step-up, a reason of at least 20 characters and confirmation that the organisation's full export has been taken. Refused while any legal hold is active or another request is pending. A different member approves it.",
+        "Needs a fresh step-up, a reason of at least 20 characters (no names: it is kept on the certificate) and the organisation's full export, downloaded within 30 days. Refused while any legal hold is active or another request is open. A different member approves it within 7 days.",
       security,
       request: { body: { content: { "application/json": { schema: CreateShredRequest } } } },
       responses: {
@@ -148,23 +163,19 @@ export const shredRouter = createRouter()
       const row = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           await lockRetention(tx, access.tenantId);
-          const pending = await tx
-            .select({ id: tenantShredRequest.id })
-            .from(tenantShredRequest)
-            .where(eq(tenantShredRequest.status, "pending"));
           const verdict = checkShredRequest({
             stepUpFresh: stepUpFresh(access),
             reason: req.reason,
-            exportConfirmed: req.exportConfirmed,
+            exportDownloaded: await exportDownloaded(tx, req.exportId, new Date()),
             activeHolds: (await activeHolds(tx)).length,
-            pendingRequests: pending.length,
+            openRequests: await openRequests(tx),
           });
           if (!verdict.ok) refused(action, verdict.problem, verdict.message);
           const [inserted] = await tx
             .insert(tenantShredRequest)
             .values({
               reason: req.reason.trim(),
-              exportConfirmed: req.exportConfirmed,
+              exportId: req.exportId,
               requestedBy: access.tenantUserId,
             })
             .returning();
@@ -173,7 +184,7 @@ export const shredRouter = createRouter()
             action,
             resourceType: "tenant_shred_request",
             resourceId: inserted.id,
-            reason: inserted.reason,
+            scope: { exportId: req.exportId },
             requestId: c.get("requestId"),
           });
           return inserted;
@@ -189,11 +200,12 @@ export const shredRouter = createRouter()
       tags: ["platform"],
       summary: "Approve a shred: the organisation's keys are scheduled for destruction",
       description:
-        "A different member from the requester, with a fresh step-up, while no legal hold is active. Every version of the organisation's key is scheduled for destruction: its stored documents, exports and DSAR bundles can no longer be read (410 shredded) and cannot be restored once the delay ends. Issues a signed destruction certificate naming both people and the key versions.",
+        "A different member from the requester, with a fresh step-up, within 7 days of the request, while the requester can still manage retention, the export is still recent and no legal hold is active. The approval is recorded first (status shredding); then every version of the organisation's key is scheduled for destruction and a signed certificate is issued (status approved, 200). If the keys cannot be reached now, 202 says the worker will complete it. Afterwards stored documents, exports and DSAR bundles can no longer be read (410 shredded) and cannot be restored once the delay ends.",
       security,
-      request: { params: ShredRequestId },
+      request: { params: Id },
       responses: {
-        200: jsonBody(ShredApproved, "Shredded"),
+        200: jsonBody(ShredApproved, "Shredded, with its certificate"),
+        202: jsonBody(ShredApproved, "Approved; the worker is completing the shred"),
         ...errorResponses,
         ...notFoundResponse,
         ...conflictResponse,
@@ -202,61 +214,74 @@ export const shredRouter = createRouter()
     async (c) => {
       const access = await requireTenantWide(c);
       const { id } = c.req.valid("param");
-      const { tenantKeys, dataKeyCache, config } = c.get("services");
+      const services = c.get("services");
       const action = "platform.retention.shred_approved";
-      const out = await withAuditedRefusal(c, access, () =>
+      const approved = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           await lockRetention(tx, access.tenantId);
           const request = await pendingRequest(tx, id);
+          const now = new Date();
           const verdict = checkShredApproval({
             stepUpFresh: stepUpFresh(access),
             status: request.status,
             requestedBy: request.requestedBy,
+            requestedAt: request.requestedAt,
             approverId: access.tenantUserId,
+            requesterEligible: await requesterEligible(tx, request.requestedBy),
+            exportDownloaded: await exportDownloaded(tx, request.exportId, now),
             activeHolds: (await activeHolds(tx)).length,
+            now,
           });
           if (!verdict.ok) refused(action, verdict.problem, verdict.message, id);
-          const executedAt = new Date();
-          const keyVersions = await tenantKeys.shred(access.tenantId);
-          // A cached data key must not outlive the shred in this process (ADR-0109).
-          dataKeyCache.forgetTenant(access.tenantId);
-          const certificate = await issueCertificate(tx, tenantKeys, {
-            tenantId: access.tenantId,
-            recordClass: RECORD_CLASS,
-            subjectType: "tenant",
-            subjectIds: [access.tenantId],
-            recordCount: keyVersions.length,
-            retentionRule: { trigger: "tenant_exit", source: "retention-and-deletion.md" },
-            reason: request.reason,
-            method: `kms_key_destroy:${tenantKeys.provider}`,
-            executedAt,
-            requestedBy: request.requestedBy,
-            approvedBy: access.tenantUserId,
-            keyVersions,
-            pitrDays: config.DATABASE_PITR_DAYS,
-          });
-          const [approved] = await tx
+          const [row] = await tx
             .update(tenantShredRequest)
-            .set({
-              status: "approved",
-              decidedBy: access.tenantUserId,
-              decidedAt: executedAt,
-              certificateId: certificate.id,
-            })
+            .set({ status: "shredding", decidedBy: access.tenantUserId, decidedAt: now })
             .where(eq(tenantShredRequest.id, id))
             .returning();
-          if (!approved) throw problems.conflict();
+          if (!row) throw problems.conflict();
+          await publish(tx, {
+            context: "platform",
+            aggregateType: "tenant_shred_request",
+            aggregateId: id,
+            type: SHRED_APPROVED_EVENT,
+            payload: { approverId: access.tenantUserId },
+          });
           await auditInTx(tx, access, {
             action,
             resourceType: "tenant_shred_request",
             resourceId: id,
-            scope: { certificateId: certificate.id, keyVersions: keyVersions.length },
             requestId: c.get("requestId"),
           });
-          return { request: item(approved), certificate: certificateItem(certificate) };
+          return row;
         }),
       );
-      return c.json(out, 200);
+      // Committed: the approval stands. The keys go now; the outbox retries if this fails.
+      const done = await completeShred(
+        {
+          appDb: services.db,
+          tenantKeys: services.tenantKeys,
+          dataKeyCache: services.dataKeyCache,
+          backupDays: backupDays(services.config),
+        },
+        { tenantId: access.tenantId, requestId: id, approverId: access.tenantUserId },
+      ).catch((error: unknown) => {
+        services.logger.error(
+          {
+            requestId: c.get("requestId"),
+            shredRequestId: id,
+            err: { name: error instanceof Error ? error.name : "Error" },
+          },
+          "shred left for the worker to complete",
+        );
+        return null;
+      });
+      if (done?.certificate) {
+        return c.json(
+          { request: item(done.request), certificate: certificateItem(done.certificate) },
+          200,
+        );
+      }
+      return c.json({ request: item(done?.request ?? approved), certificate: null }, 202);
     },
   )
   .openapi(
@@ -264,9 +289,10 @@ export const shredRouter = createRouter()
       method: "post",
       path: "/v1/retention/shred-requests/{id}/cancel",
       tags: ["platform"],
-      summary: "Cancel your own pending shred request",
+      summary: "Cancel a pending shred request",
+      description: `The requester may cancel their own pending request; any other holder may withdraw one more than ${SHRED_REQUEST_EXPIRY_DAYS} days old. An approved request (shredding or approved) cannot be cancelled.`,
       security,
-      request: { params: ShredRequestId },
+      request: { params: Id },
       responses: {
         200: jsonBody(ShredRequestItem, "Cancelled"),
         ...errorResponses,
@@ -287,7 +313,8 @@ export const shredRouter = createRouter()
           if (request.status !== "pending") {
             refused(action, "not_pending", "This shred is no longer waiting for approval.", id);
           }
-          if (request.requestedBy !== access.tenantUserId) {
+          const own = request.requestedBy === access.tenantUserId;
+          if (!own && !shredRequestExpired(request.requestedAt, new Date())) {
             refused(action, "not_requester", "Only the person who asked can cancel it.", id);
           }
           const [cancelled] = await tx
@@ -300,11 +327,59 @@ export const shredRouter = createRouter()
             action,
             resourceType: "tenant_shred_request",
             resourceId: id,
+            ...(own ? {} : { reason: "expired" }),
             requestId: c.get("requestId"),
           });
           return cancelled;
         }),
       );
       return c.json(item(row), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/destruction-certificates/{id}/verification",
+      tags: ["platform"],
+      summary: "Check a destruction certificate's signature",
+      description:
+        "Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Harbour's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.",
+      security,
+      request: { params: Id },
+      responses: {
+        200: jsonBody(CertificateVerification, "Checked"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, PERMISSION);
+      const { id } = c.req.valid("param");
+      const { tenantKeys } = c.get("services");
+      const row = await withTenant(c, async (tx) => {
+        const [found] = await tx
+          .select()
+          .from(destructionCertificate)
+          .where(eq(destructionCertificate.id, id));
+        if (!found) throw problems.notFound();
+        await auditInTx(tx, access, {
+          action: "platform.destruction_certificate.verify",
+          resourceType: "destruction_certificate",
+          resourceId: id,
+          requestId: c.get("requestId"),
+        });
+        return found;
+      });
+      const checked = await verifyCertificate(tenantKeys, row);
+      return c.json(
+        {
+          valid: checked.valid,
+          body: checked.body,
+          signature: row.signature,
+          signatureKey: row.signatureKey,
+          signatureAlgorithm: row.signatureAlgorithm,
+        },
+        200,
+      );
     },
   );

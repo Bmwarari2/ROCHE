@@ -35,10 +35,11 @@ const as = <T>(
     fn,
   );
 
+let exportId = "";
 const ask = (c: pg.PoolClient, who: string) =>
   c.query<{ id: string }>(
-    `INSERT INTO tenant_shred_request (reason, export_confirmed, requested_by) VALUES ($1, true, $2) RETURNING id`,
-    [REASON, who],
+    `INSERT INTO tenant_shred_request (reason, export_id, requested_by) VALUES ($1, $2, $3) RETURNING id`,
+    [REASON, exportId, who],
   );
 
 async function certificate(
@@ -74,6 +75,14 @@ beforeAll(async () => {
       `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $3, NULL), ($2, $3, NULL)`,
       [A.first, A.second, A.roleRetention],
     );
+    exportId =
+      (
+        await c.query<{ id: string }>(
+          `INSERT INTO tenant_export (kind, status, requested_by, ready_at, downloaded_at, downloaded_by)
+           VALUES ('full', 'expired', $1, now(), now(), $1) RETURNING id`,
+          [A.first],
+        )
+      ).rows[0]?.id ?? "";
   });
   await ownerDb(async (c) => {
     await c.query(
@@ -92,88 +101,104 @@ afterAll(async () => {
   await db?.drop();
 });
 
+const ownerAs = <T>(who: string, fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(db.pool("harbour_owner"), ctx(TENANT_A, who, "tenant"), fn);
+const decide = (c: pg.PoolClient, id: string, status: string, who: string) =>
+  c.query(
+    "UPDATE tenant_shred_request SET status = $2, decided_by = $3, decided_at = now() WHERE id = $1",
+    [id, status, who],
+  );
+const complete = (c: pg.PoolClient, id: string, certificateId: string) =>
+  c.query(
+    "UPDATE tenant_shred_request SET status = 'approved', certificate_id = $2 WHERE id = $1",
+    [id, certificateId],
+  );
+
 describe("tenant_shred_request", () => {
-  it("is made pending in the requester's own name, approved by a second person with its certificate", async () => {
+  it("moves pending, to shredding by a second person, to approved with its certificate, and stops", async () => {
     const id = await as(A.first, async (c) => (await ask(c, A.first)).rows[0]?.id ?? "");
-    await as(A.second, async (c) => {
-      const cert = await certificate(c, A.first, A.second);
-      const { rowCount } = await c.query(
-        `UPDATE tenant_shred_request SET status = 'approved', decided_by = $2, decided_at = now(),
-           certificate_id = $3 WHERE id = $1`,
-        [id, A.second, cert],
-      );
-      expect(rowCount).toBe(1);
-    });
-    // Decided once: the app role no longer reaches it, the guard refuses even the owner, and
-    // nobody deletes it.
-    const again = await as(A.second, (c) =>
-      c.query(
-        "UPDATE tenant_shred_request SET status = 'cancelled', decided_by = $2 WHERE id = $1",
-        [id, A.second],
-      ),
+    await as(A.second, async (c) =>
+      expect((await decide(c, id, "shredding", A.second)).rowCount).toBe(1),
     );
-    expect(again.rowCount).toBe(0);
+    // Shredding: never cancelled, and its approver and time never change.
+    await expect(ownerAs(A.second, (c) => decide(c, id, "cancelled", A.second))).rejects.toThrow(
+      /decided shred request never changes/,
+    );
     await expect(
-      ownerDb((c) =>
-        c.query("UPDATE tenant_shred_request SET status = 'pending' WHERE id = $1", [id]),
-      ),
+      as(A.second, async (c) => {
+        const cert = await certificate(c, A.first, A.second);
+        await c.query(
+          "UPDATE tenant_shred_request SET status = 'approved', certificate_id = $2, decided_at = now() - interval '1 hour' WHERE id = $1",
+          [id, cert],
+        );
+      }),
     ).rejects.toThrow(/decided shred request never changes/);
     await expect(
-      ownerDb((c) =>
+      as(A.second, (c) => complete(c, id, "0193a000-0000-7000-8000-00000000ffff")),
+    ).rejects.toThrow(/tenant_shred_request_certificate_fk/);
+    await as(A.second, async (c) => {
+      const cert = await certificate(c, A.first, A.second);
+      expect((await complete(c, id, cert)).rowCount).toBe(1);
+    });
+    // Approved: the app role and the owner no longer reach it, and nobody deletes it.
+    expect((await as(A.second, (c) => decide(c, id, "cancelled", A.second))).rowCount).toBe(0);
+    expect((await ownerAs(A.second, (c) => decide(c, id, "pending", A.second))).rowCount).toBe(0);
+    await expect(
+      as(A.first, (c) => c.query("DELETE FROM tenant_shred_request WHERE id = $1", [id])),
+    ).rejects.toThrow(/permission denied/);
+    const kept = await as(A.first, (c) =>
+      c.query<{ status: string }>("SELECT status FROM tenant_shred_request WHERE id = $1", [id]),
+    );
+    expect(kept.rows[0]?.status).toBe("approved");
+  });
+
+  it("refuses the requester as approver, in the database itself", async () => {
+    const id = await as(A.first, async (c) => (await ask(c, A.first)).rows[0]?.id ?? "");
+    await expect(as(A.first, (c) => decide(c, id, "shredding", A.first))).rejects.toThrow(
+      /tenant_shred_request_two_people/,
+    );
+    await as(A.first, (c) => decide(c, id, "cancelled", A.first));
+  });
+
+  it("allows one open request at a time, and a cancel only by the requester while fresh", async () => {
+    const id = await as(A.first, async (c) => (await ask(c, A.first)).rows[0]?.id ?? "");
+    await expect(as(A.second, (c) => ask(c, A.second))).rejects.toThrow(
+      /tenant_shred_request_one_open/,
+    );
+    await expect(as(A.second, (c) => decide(c, id, "cancelled", A.second))).rejects.toThrow(
+      /row-level security/,
+    );
+    // Who asked and why never change.
+    await expect(
+      ownerAs(A.first, (c) =>
         c.query("UPDATE tenant_shred_request SET reason = $2 WHERE id = $1", [
           id,
           `${REASON} Changed afterwards.`,
         ]),
       ),
     ).rejects.toThrow(/requester and reason never change/);
-    const kept = await as(A.first, (c) =>
-      c.query<{ status: string }>("SELECT status FROM tenant_shred_request WHERE id = $1", [id]),
-    );
-    expect(kept.rows[0]?.status).toBe("approved");
-    await expect(
-      as(A.first, (c) => c.query("DELETE FROM tenant_shred_request WHERE id = $1", [id])),
-    ).rejects.toThrow(/permission denied/);
+    await as(A.first, (c) => decide(c, id, "cancelled", A.first));
   });
 
-  it("refuses the requester as approver, in the database itself", async () => {
+  it("lapses after 7 days: no approval, and another holder may withdraw it", async () => {
     const id = await as(A.first, async (c) => (await ask(c, A.first)).rows[0]?.id ?? "");
-    await expect(
-      as(A.first, async (c) => {
-        const cert = await certificate(c, A.first, A.second);
-        await c.query(
-          `UPDATE tenant_shred_request SET status = 'approved', decided_by = $2, decided_at = now(),
-             certificate_id = $3 WHERE id = $1`,
-          [id, A.first, cert],
-        );
-      }),
-    ).rejects.toThrow(/tenant_shred_request_two_people/);
-    // The requester cancels their own; one pending at a time, so a new one may follow.
-    await as(A.first, (c) =>
-      c.query(
-        "UPDATE tenant_shred_request SET status = 'cancelled', decided_by = $2, decided_at = now() WHERE id = $1",
-        [id, A.first],
-      ),
+    await ownerAs(A.first, async (c) => {
+      await c.query(
+        "ALTER TABLE tenant_shred_request DISABLE TRIGGER tenant_shred_request_guard, NO FORCE ROW LEVEL SECURITY",
+      );
+      await c.query(
+        "UPDATE tenant_shred_request SET requested_at = now() - interval '8 days' WHERE id = $1",
+        [id],
+      );
+      await c.query(
+        "ALTER TABLE tenant_shred_request ENABLE TRIGGER tenant_shred_request_guard, FORCE ROW LEVEL SECURITY",
+      );
+    });
+    await expect(as(A.second, (c) => decide(c, id, "shredding", A.second))).rejects.toThrow(
+      /row-level security/,
     );
-  });
-
-  it("allows one pending request at a time, and only a cancel by the requester", async () => {
-    const id = await as(A.first, async (c) => (await ask(c, A.first)).rows[0]?.id ?? "");
-    await expect(as(A.second, (c) => ask(c, A.second))).rejects.toThrow(
-      /tenant_shred_request_one_pending/,
-    );
-    await expect(
-      as(A.second, (c) =>
-        c.query(
-          "UPDATE tenant_shred_request SET status = 'cancelled', decided_by = $2, decided_at = now() WHERE id = $1",
-          [id, A.second],
-        ),
-      ),
-    ).rejects.toThrow(/tenant_shred_request_cancel/);
-    await as(A.first, (c) =>
-      c.query(
-        "UPDATE tenant_shred_request SET status = 'cancelled', decided_by = $2, decided_at = now() WHERE id = $1",
-        [id, A.first],
-      ),
+    await as(A.second, async (c) =>
+      expect((await decide(c, id, "cancelled", A.second)).rowCount).toBe(1),
     );
   });
 
@@ -196,9 +221,15 @@ describe("tenant_shred_request", () => {
 });
 
 describe("destruction_certificate", () => {
-  it("refuses the same person as requester and approver, and a half-written signature", async () => {
-    await expect(as(A.first, (c) => certificate(c, A.first, A.first))).rejects.toThrow(
+  it("refuses the same person twice, an approver other than the issuer, the unentitled and a half-written signature", async () => {
+    await expect(as(A.second, (c) => certificate(c, A.second, A.second))).rejects.toThrow(
       /destruction_certificate_two_people/,
+    );
+    await expect(as(A.first, (c) => certificate(c, A.first, A.second))).rejects.toThrow(
+      /row-level security/,
+    );
+    await expect(as(A.noRetention, (c) => certificate(c, A.first, A.noRetention))).rejects.toThrow(
+      /row-level security/,
     );
     await expect(
       as(A.first, (c) =>

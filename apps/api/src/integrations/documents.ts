@@ -59,24 +59,30 @@ export function createExportStorage(config: Config): DocumentStoragePort {
 }
 
 /**
- * One key provider and one data key cache per configuration, shared by every store in the process
- * (the API's and the worker's), so a shred clears every cached key at once.
+ * One key provider and one data key cache per configuration, shared by every store in this
+ * process. Other processes (other API instances, the worker) have their own caches, which keep a
+ * key for at most `DATA_KEY_CACHE_MS` after a shred (platform.md rule 4).
  */
 const providers = new WeakMap<Config, { keys: TenantKeyPort; cache: DataKeyCache }>();
 
 export function tenantKeysFor(config: Config): { keys: TenantKeyPort; cache: DataKeyCache } {
   const known = providers.get(config);
   if (known) return known;
-  const keys: TenantKeyPort =
-    config.TENANT_KEY_PROVIDER === "cloudkms" &&
-    config.TENANT_KMS_KEY_RING &&
-    config.CERTIFICATE_SIGNING_KEY
-      ? new CloudKmsTenantKeys(
-          lazyKms(),
-          config.TENANT_KMS_KEY_RING,
-          config.CERTIFICATE_SIGNING_KEY,
-        )
-      : new LocalTenantKeys(config.LOCAL_KEYS_DIR ? { dir: config.LOCAL_KEYS_DIR } : {});
+  let keys: TenantKeyPort;
+  if (config.TENANT_KEY_PROVIDER === "cloudkms") {
+    // Never a silent fall back to local keys (security review, L4).
+    if (!config.TENANT_KMS_KEY_RING || !config.CERTIFICATE_SIGNING_KEY) {
+      throw new Error("TENANT_KMS_KEY_RING and CERTIFICATE_SIGNING_KEY are needed for cloudkms");
+    }
+    keys = new CloudKmsTenantKeys(
+      lazyKms(),
+      config.TENANT_KMS_KEY_RING,
+      config.CERTIFICATE_SIGNING_KEY,
+    );
+  } else {
+    const dir = config.LOCAL_KEYS_DIR ?? (config.NODE_ENV === "test" ? undefined : ".data/keys");
+    keys = new LocalTenantKeys(dir ? { dir } : {});
+  }
   const made = { keys, cache: new DataKeyCache() };
   providers.set(config, made);
   return made;
@@ -91,11 +97,11 @@ function lazyKms() {
   };
 }
 
-/** Every store encrypts with the organisation's key; plain objects read only outside production. */
+/** Every store encrypts with the organisation's key; plain objects read only when switched on. */
 function encrypted(config: Config, inner: DocumentStoragePort): DocumentStoragePort {
   const { keys, cache } = tenantKeysFor(config);
   return new EncryptingDocumentStorage(inner, keys, {
-    legacyPlaintext: config.NODE_ENV !== "production",
+    legacyPlaintext: config.DOCUMENTS_LEGACY_PLAINTEXT === "on",
     cache,
   });
 }

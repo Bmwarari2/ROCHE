@@ -45,9 +45,9 @@ import {
   useScopeOf,
   withTenant,
 } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
-import { certificateItem, issueCertificate } from "../services/certificates";
+import { backupDays, certificateItem, issueCertificate } from "../services/certificates";
 import {
   activeHolds,
   careEndedOn,
@@ -61,6 +61,7 @@ import {
   toDocumentItems,
 } from "../services/documents";
 import { policyDocumentUse } from "../services/policies";
+import { shredStarted } from "../services/shred";
 import {
   conflictResponse,
   createRouter,
@@ -692,6 +693,16 @@ export const documentsRouter = createRouter()
       }
       const row = await withTenant(c, async (tx) => {
         await lockRetention(tx, access.tenantId);
+        // Once a shred is approved its keys are being, or have been, destroyed: a hold placed now
+        // would hold nothing and hide that (security review of PLAT-012, H1).
+        if (await shredStarted(tx)) {
+          throw new HttpProblem(
+            409,
+            "shred_under_way",
+            "The hold was not placed.",
+            "This organisation's records have been approved for destruction.",
+          );
+        }
         const [placed] = await tx
           .insert(legalHold)
           .values({
@@ -900,7 +911,7 @@ export const documentsRouter = createRouter()
             reason: req.reason,
             method: `storage_delete_all_versions:${storage.provider}`,
             executedAt: now,
-            pitrDays: config.DATABASE_PITR_DAYS,
+            backupDays: backupDays(config),
           });
           certificates.push(certificate);
           // The bytes are deleted only once this commits; the event retries the deletion until

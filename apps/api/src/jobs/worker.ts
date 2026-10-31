@@ -4,6 +4,7 @@ import { loadConfig } from "../config";
 import { createDocumentServices, createExportStorage } from "../integrations/documents";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
+import { backupDays } from "../services/certificates";
 import { sweepInvitations } from "../services/invitations";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
@@ -49,13 +50,18 @@ const workerPool = createPool(
 const appPool = createPool(config.DATABASE_APP_URL, { max: 4 }, idleErrorLogger(logger, "app"));
 // The auth role, only to delete sign-ins an invitation's acceptance left unlinked (#48 review H1).
 const authPool = createPool(config.DATABASE_AUTH_URL, { max: 1 }, idleErrorLogger(logger, "auth"));
+const documents = createDocumentServices(config);
 const deps = {
   workerPool,
   appDb: createDatabase(appPool),
   logger,
   exportStorage: createExportStorage(config),
   // The documents bucket: the export reads it, and destroyed documents' bytes are deleted from it.
-  storage: createDocumentServices(config).storage,
+  storage: documents.storage,
+  // Completes approved crypto-shreds the API could not finish (PLAT-012, ADR-0109).
+  tenantKeys: documents.tenantKeys,
+  dataKeyCache: documents.dataKeyCache,
+  backupDays: backupDays(config),
 };
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */

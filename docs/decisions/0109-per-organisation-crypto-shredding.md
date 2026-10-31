@@ -65,11 +65,15 @@ that both shreds one organisation by destroying keys and needs no key table to k
   with every segment, together with the storage key, so an object moved to another key does not
   decrypt. The KEK wrap uses the organisation id as additional authenticated data. The bucket's
   CMEK stays as a second layer.
-- **Reads.** An unwrapped DEK is cached in memory for at most five minutes (by the hash of its
-  wrapped form), which keeps Cloud KMS calls well inside the per-project quota.
+- **Reads.** An unwrapped DEK is cached in memory for at most 30 seconds (by the hash of its
+  wrapped form), which keeps Cloud KMS calls well inside the per-project quota. The cache is per
+  process: the approving process forgets an organisation's keys on shred (and never caches an
+  unwrap that began before), while another API instance or the worker may go on reading for at
+  most those 30 seconds.
 - **Whole-organisation shred.** Every version of the organisation's KEK is scheduled for
   destruction. From that moment the versions are disabled, so every object of that organisation
-  (live, noncurrent or left behind) stops decrypting at once; after the 30-day delay the key
+  (live, noncurrent or left behind) stops decrypting in Cloud KMS at once (cached keys aside, as
+  above); after the 30-day delay the key
   material is destroyed and cannot be restored by anyone, Google included. The delay is the only
   window in which a mistaken shred can be undone, by restoring the versions in Cloud KMS (a human
   action, recorded). The certificate records the key version names, the time destruction was
@@ -79,16 +83,33 @@ that both shreds one organisation by destroying keys and needs no key table to k
   keeps no soft-deleted copies), as `POST /v1/retention/destroy` does today, with a certificate.
   Per-person keys would add a key per person per organisation without reaching anything the
   object deletion does not already reach.
-- **Two people.** A member with `platform.retention.manage` (step-up) requests the shred,
-  confirming the organisation's export has been taken and giving a reason; a different member
-  with the same permission (step-up) approves it, and only then are the keys destroyed. Active
-  legal holds block both steps. The API and a database check refuse the same person twice.
+- **Two people.** A member with `platform.retention.manage` (step-up, tenant-wide) requests the
+  shred, naming the organisation's full export, which must have been downloaded within 30 days
+  (the shred destroys the export too), and giving a reason; a different member with the same
+  permission (step-up) approves it within 7 days, while the requester is still an active member
+  holding the permission, and only then are the keys destroyed. Active legal holds block both
+  steps. A lapsed request can be withdrawn by any holder. The API and the database (a check, the
+  decide policy and a guard trigger) refuse the same person twice and a late approval.
+- **Approval before keys** (security review H1). Destroying key versions cannot be undone, so it
+  never runs inside a transaction that can roll back. Approval commits first, under the
+  organisation's retention lock: the request moves to `shredding`, the approval is audited and an
+  outbox event is published; from then on it cannot be cancelled and no legal hold can be placed.
+  Completion then destroys the keys, forgets cached keys and, in a second transaction, issues the
+  certificate and moves the request to `approved`. The API completes it at once; if the keys or
+  the signing key cannot be reached, the worker retries from the outbox event until it succeeds
+  (the key provider's shred is idempotent), logging each failure as `worker.job.failed`.
 - **Certificate.** A destruction certificate (append-only) records what was destroyed, the rule,
   the reason, the method, the two people (opaque ids), the KEK version names and their destroy
   times, and the date by which database backups have expired. Its canonical JSON is hashed
   (SHA-256) and signed by Harbour's certificate signing key, an asymmetric Cloud KMS key
   (EC_SIGN_P256_SHA256) whose private half never leaves Cloud KMS. Every certificate is signed,
-  the subset destructions' too.
+  the subset destructions' too. The signing key and algorithm are inside the signed body, each
+  signature is checked before it is stored, verification trusts only versions of Harbour's own
+  certificate key (never a key a row names elsewhere), and
+  `GET /v1/destruction-certificates/{id}/verification` returns the exact body that was signed, so
+  anyone with the published public key (H-1111) can check it. A certificate states the backup
+  expiry as the longer of the point-in-time recovery window and the backup retention, both
+  required settings in production (H-1114).
 - **Local and tests.** The local disk adapter gets the same envelope. A local key provider keeps
   per-organisation keys in files (or in memory in tests) and signs with a local Ed25519 key; it
   is refused in production.
@@ -113,16 +134,24 @@ unreadable before the window passes, it is the next step, starting with `care_no
 - Bad, because each read of an uncached object costs a Cloud KMS decrypt (priced per 10,000
   operations) and each organisation's key costs about the price of one or two active key versions a
   month; both are small next to Cloud SQL.
-- Bad, because the API's service account needs to create keys and schedule their destruction on
-  the tenants key ring (`roles/cloudkms.admin` on that ring only), and to sign with the certificate
-  key (`roles/cloudkms.signerVerifier` on that key only).
+- Bad, because the API's and the worker's service account needs a custom role on the tenants key
+  ring only (security review M2): `cloudkms.cryptoKeys.create`, `get` and `update` (to stop
+  rotation), `cloudkms.cryptoKeyVersions.list` and `destroy`, and
+  `cloudkms.cryptoKeyVersions.useToEncrypt` and `useToDecrypt`; never `restore` or `setIamPolicy`,
+  so a compromised API cannot undo a shred. Restoring versions in the 30-day window is a human
+  break-glass role. Signing needs `roles/cloudkms.signerVerifier` on the certificate key only.
+- Bad, because certificates issued before migration 0117 stay unsigned; a later contract migration
+  makes the signature columns NOT NULL once every writer signs (H-1117).
 - Neutral: objects written before this change (local development only; nothing is in production)
-  are read as plain bytes outside production and refused in production.
+  are read as plain bytes only when `DOCUMENTS_LEGACY_PLAINTEXT=on`, which is off by default and
+  refused in production, so no deployed environment serves them.
 
 ### Confirmation
 
 Tests: envelope round trips (single and streamed, empty, multi-segment), tampering, truncation and
 moved objects refused; reads fail after a shred; certificate contents and signature verified;
-two-person and step-up enforced in the API and the database. The key ring, the certificate signing
+two-person and step-up enforced in the API and the database; expiry and requester eligibility; a
+signing failure after the keys are destroyed leaves the approval committed and the worker
+completes it. The key ring, the certificate signing
 key and the IAM grants land with the infrastructure branch (`feat/infra-google-cloud`), recorded as
-human actions H-1110 to H-1112 until then.
+human actions H-1110 to H-1117 until then.

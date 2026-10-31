@@ -207,6 +207,32 @@ describe("shredding", () => {
     );
   });
 
+  it("never caches a key whose unwrap finished after the shred was forgotten (review M1)", async () => {
+    const keys = new LocalTenantKeys();
+    const cache = new DataKeyCache();
+    const sealed = await encryptBytes(keys, docKey(A), Buffer.from("a"));
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const slow = Object.assign(Object.create(keys) as LocalTenantKeys, {
+      unwrap: async (tenant: string, wrapped: Uint8Array) => {
+        const key = await keys.unwrap(tenant, wrapped);
+        await gate;
+        return key;
+      },
+    });
+    const inFlight = decryptBytes(slow, docKey(A), sealed, { cache });
+    await new Promise((r) => setTimeout(r, 10));
+    await keys.shred(A);
+    cache.forgetTenant(A);
+    release();
+    expect(Buffer.from(await inFlight).toString()).toBe("a");
+    await expect(decryptBytes(keys, docKey(A), sealed, { cache })).rejects.toBeInstanceOf(
+      TenantKeysShredded,
+    );
+  });
+
   it("expires cached keys", async () => {
     let t = 0;
     const keys = new LocalTenantKeys();

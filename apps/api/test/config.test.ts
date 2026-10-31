@@ -19,6 +19,12 @@ const PRODUCTION = {
   GCS_KMS_KEY: "projects/harbour-dev/locations/europe-west2/keyRings/harbour/cryptoKeys/storage",
   MALWARE_SCANNER: "clamd",
   SAFETY_CASE_VERSION: "v0.0",
+  TENANT_KEY_PROVIDER: "cloudkms",
+  DATABASE_PITR_DAYS: "7",
+  DATABASE_BACKUP_RETENTION_DAYS: "30",
+  TENANT_KMS_KEY_RING: "projects/harbour-dev/locations/europe-west2/keyRings/harbour-dev-tenants",
+  CERTIFICATE_SIGNING_KEY:
+    "projects/harbour-dev/locations/europe-west2/keyRings/harbour-dev-certificates/cryptoKeys/certificate-signing/cryptoKeyVersions/1",
 } as const;
 
 describe("loadConfig", () => {
@@ -39,6 +45,10 @@ describe("loadConfig", () => {
     "GCS_EXPORTS_BUCKET",
     "GCS_KMS_KEY",
     "SAFETY_CASE_VERSION",
+    "TENANT_KMS_KEY_RING",
+    "CERTIFICATE_SIGNING_KEY",
+    "DATABASE_PITR_DAYS",
+    "DATABASE_BACKUP_RETENTION_DAYS",
   ])("refuses to start in production without %s", (key) => {
     const env: Record<string, string> = { ...PRODUCTION };
     delete env[key];
@@ -48,6 +58,12 @@ describe("loadConfig", () => {
   it.each([
     ["local document storage", { DOCUMENT_STORAGE: "local" }, "DOCUMENT_STORAGE"],
     ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
+    ["local organisation keys", { TENANT_KEY_PROVIDER: "local" }, "TENANT_KEY_PROVIDER"],
+    [
+      "reading objects stored unencrypted",
+      { DOCUMENTS_LEGACY_PLAINTEXT: "on" },
+      "DOCUMENTS_LEGACY_PLAINTEXT",
+    ],
     [
       "one bucket for documents and exports",
       { GCS_EXPORTS_BUCKET: "harbour-dev-documents" },

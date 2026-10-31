@@ -5,11 +5,16 @@
  */
 
 export const SHRED_REASON_MIN = 20;
+/** A request not approved within this many days lapses (also in migration 0117's decide policy). */
+export const SHRED_REQUEST_EXPIRY_DAYS = 7;
+/** The full export a shred follows must have been downloaded within this many days. */
+export const SHRED_EXPORT_MAX_AGE_DAYS = 30;
+const DAY_MS = 86_400_000;
 
 export type ShredRequestProblem =
   | "step_up_required"
   | "reason_too_short"
-  | "export_not_confirmed"
+  | "export_not_downloaded"
   | "legal_hold_active"
   | "already_pending";
 
@@ -17,14 +22,20 @@ export type ShredApprovalProblem =
   | "step_up_required"
   | "not_pending"
   | "same_person"
-  | "legal_hold_active";
+  | "legal_hold_active"
+  | "expired"
+  | "requester_ineligible"
+  | "export_not_downloaded";
 
 const MESSAGES: Record<ShredRequestProblem | ShredApprovalProblem, string> = {
   step_up_required: "Confirm it is you before shredding the organisation's records.",
   reason_too_short: `Give the reason in at least ${SHRED_REASON_MIN} characters.`,
-  export_not_confirmed: "Confirm the organisation's full export has been taken first.",
+  export_not_downloaded: `Download the organisation's full export first (within ${SHRED_EXPORT_MAX_AGE_DAYS} days).`,
   legal_hold_active: "A legal hold is in force: release it before shredding.",
-  already_pending: "A shred is already waiting for approval.",
+  already_pending: "A shred is already waiting for approval or under way.",
+  expired: `This request is more than ${SHRED_REQUEST_EXPIRY_DAYS} days old: ask again.`,
+  requester_ineligible:
+    "The person who asked can no longer manage retention: someone who can should ask again.",
   not_pending: "This shred is no longer waiting for approval.",
   same_person: "A different person must approve the shred: you requested it.",
 };
@@ -43,15 +54,17 @@ function refuse<P extends ShredRequestProblem | ShredApprovalProblem>(problem: P
 export function checkShredRequest(input: {
   readonly stepUpFresh: boolean;
   readonly reason: string;
-  readonly exportConfirmed: boolean;
+  /** A full export of the organisation was downloaded recently (`shredExportUsable`). */
+  readonly exportDownloaded: boolean;
   readonly activeHolds: number;
-  readonly pendingRequests: number;
+  /** Requests pending or shredding. */
+  readonly openRequests: number;
 }): Verdict<ShredRequestProblem> {
   if (!input.stepUpFresh) return refuse("step_up_required");
   if (input.reason.trim().length < SHRED_REASON_MIN) return refuse("reason_too_short");
-  if (!input.exportConfirmed) return refuse("export_not_confirmed");
+  if (!input.exportDownloaded) return refuse("export_not_downloaded");
   if (input.activeHolds > 0) return refuse("legal_hold_active");
-  if (input.pendingRequests > 0) return refuse("already_pending");
+  if (input.openRequests > 0) return refuse("already_pending");
   return { ok: true };
 }
 
@@ -59,14 +72,39 @@ export function checkShredApproval(input: {
   readonly stepUpFresh: boolean;
   readonly status: string;
   readonly requestedBy: string;
+  readonly requestedAt: Date;
   readonly approverId: string;
+  /** The requester is still an active member holding platform.retention.manage tenant-wide. */
+  readonly requesterEligible: boolean;
+  readonly exportDownloaded: boolean;
   readonly activeHolds: number;
+  readonly now: Date;
 }): Verdict<ShredApprovalProblem> {
   if (!input.stepUpFresh) return refuse("step_up_required");
   if (input.status !== "pending") return refuse("not_pending");
   if (input.requestedBy === input.approverId) return refuse("same_person");
+  if (shredRequestExpired(input.requestedAt, input.now)) return refuse("expired");
+  if (!input.requesterEligible) return refuse("requester_ineligible");
+  if (!input.exportDownloaded) return refuse("export_not_downloaded");
   if (input.activeHolds > 0) return refuse("legal_hold_active");
   return { ok: true };
+}
+
+/** A pending request lapses `SHRED_REQUEST_EXPIRY_DAYS` after it was made. */
+export function shredRequestExpired(requestedAt: Date, now: Date): boolean {
+  return now.getTime() - requestedAt.getTime() >= SHRED_REQUEST_EXPIRY_DAYS * DAY_MS;
+}
+
+/** A full export downloaded within `SHRED_EXPORT_MAX_AGE_DAYS`: the organisation has its copy. */
+export function shredExportUsable(
+  row: { readonly kind: string; readonly downloadedAt: Date | null },
+  now: Date,
+): boolean {
+  return (
+    row.kind === "full" &&
+    row.downloadedAt !== null &&
+    now.getTime() - row.downloadedAt.getTime() <= SHRED_EXPORT_MAX_AGE_DAYS * DAY_MS
+  );
 }
 
 /** JSON with keys sorted at every level, so the same certificate always hashes the same. */
@@ -100,8 +138,11 @@ export interface CertificateInput {
   readonly requestedBy?: string | null;
   readonly approvedBy?: string | null;
   readonly keyVersions?: readonly KeyVersionDestruction[];
-  /** When the database's point-in-time recovery no longer holds the deleted rows. */
+  /** When no database backup holds the deleted rows any longer. */
   readonly backupsExpireAt?: Date | null;
+  /** The key that signs the certificate and its algorithm, inside the signed body. */
+  readonly signatureKey?: string | null;
+  readonly signatureAlgorithm?: string | null;
 }
 
 /** The certificate's signed body: every field the certificate states, in canonical form. */
@@ -124,6 +165,8 @@ export function certificateBody(input: CertificateInput): string {
     keyVersions: [...keys].sort((a, b) => (a.name < b.name ? -1 : 1)),
     keysDestroyedAt: keysDestroyedAt(keys)?.toISOString() ?? null,
     backupsExpireAt: input.backupsExpireAt?.toISOString() ?? null,
+    signatureKey: input.signatureKey ?? null,
+    signatureAlgorithm: input.signatureAlgorithm ?? null,
   });
 }
 

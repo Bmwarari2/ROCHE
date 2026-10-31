@@ -8275,7 +8275,7 @@ export interface paths {
     put?: never;
     /**
      * Ask for the organisation's records to be crypto-shredded
-     * @description Needs a fresh step-up, a reason of at least 20 characters and confirmation that the organisation's full export has been taken. Refused while any legal hold is active or another request is pending. A different member approves it.
+     * @description Needs a fresh step-up, a reason of at least 20 characters (no names: it is kept on the certificate) and the organisation's full export, downloaded within 30 days. Refused while any legal hold is active or another request is open. A different member approves it within 7 days.
      */
     post: {
       parameters: {
@@ -8354,7 +8354,7 @@ export interface paths {
     put?: never;
     /**
      * Approve a shred: the organisation's keys are scheduled for destruction
-     * @description A different member from the requester, with a fresh step-up, while no legal hold is active. Every version of the organisation's key is scheduled for destruction: its stored documents, exports and DSAR bundles can no longer be read (410 shredded) and cannot be restored once the delay ends. Issues a signed destruction certificate naming both people and the key versions.
+     * @description A different member from the requester, with a fresh step-up, within 7 days of the request, while the requester can still manage retention, the export is still recent and no legal hold is active. The approval is recorded first (status shredding); then every version of the organisation's key is scheduled for destruction and a signed certificate is issued (status approved, 200). If the keys cannot be reached now, 202 says the worker will complete it. Afterwards stored documents, exports and DSAR bundles can no longer be read (410 shredded) and cannot be restored once the delay ends.
      */
     post: {
       parameters: {
@@ -8367,8 +8367,17 @@ export interface paths {
       };
       requestBody?: never;
       responses: {
-        /** @description Shredded */
+        /** @description Shredded, with its certificate */
         200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredApproved"];
+          };
+        };
+        /** @description Approved; the worker is completing the shred */
+        202: {
           headers: {
             [name: string]: unknown;
           };
@@ -8438,7 +8447,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Cancel your own pending shred request */
+    /**
+     * Cancel a pending shred request
+     * @description The requester may cancel their own pending request; any other holder may withdraw one more than 7 days old. An approved request (shredding or approved) cannot be cancelled.
+     */
     post: {
       parameters: {
         query?: never;
@@ -8506,6 +8518,83 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/destruction-certificates/{id}/verification": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Check a destruction certificate's signature
+     * @description Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Harbour's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Checked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CertificateVerification"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -31812,6 +31901,12 @@ export interface components {
     DestructionCertificateItem: {
       /** Format: uuid */
       id: string;
+      /** Format: uuid */
+      tenantId: string;
+      subjectIds: string[];
+      retentionRule: {
+        [key: string]: unknown;
+      };
       recordClass: string;
       subjectType: string;
       recordCount: number;
@@ -31854,9 +31949,10 @@ export interface components {
       /** Format: uuid */
       id: string;
       /** @enum {string} */
-      status: "pending" | "approved" | "cancelled";
+      status: "pending" | "shredding" | "approved" | "cancelled";
       reason: string;
-      exportConfirmed: boolean;
+      /** Format: uuid */
+      exportId: string;
       /** Format: uuid */
       requestedBy: string;
       /** Format: date-time */
@@ -31870,11 +31966,21 @@ export interface components {
     };
     CreateShredRequest: {
       reason: string;
-      exportConfirmed: boolean;
+      /** Format: uuid */
+      exportId: string;
     };
+    /** @description certificate is null while the keys are still being destroyed (status shredding): the worker completes it */
     ShredApproved: {
       request: components["schemas"]["ShredRequestItem"];
-      certificate: components["schemas"]["DestructionCertificateItem"];
+      certificate: components["schemas"]["DestructionCertificateItem"] &
+        (Record<string, never> | null);
+    };
+    CertificateVerification: {
+      valid: boolean | null;
+      body: string;
+      signature: string | null;
+      signatureKey: string | null;
+      signatureAlgorithm: string | null;
     };
     CareNoteItem: {
       /** Format: uuid */

@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
-  boolean,
   check,
   foreignKey,
   index,
@@ -10,10 +9,12 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
+import { tenantExport } from "./exports";
 import { person } from "./people";
 import { document, tenantUser } from "./platform";
 
@@ -126,6 +127,7 @@ export const destructionCertificate = pgTable(
   },
   (t) => [
     index("destruction_certificate_executed_idx").on(t.tenantId, t.executedAt),
+    unique("destruction_certificate_tenant_id_id_key").on(t.tenantId, t.id),
     check(
       "destruction_certificate_two_people",
       sql`${t.approvedBy} IS NULL OR ${t.requestedBy} IS NULL OR ${t.approvedBy} <> ${t.requestedBy}`,
@@ -134,8 +136,10 @@ export const destructionCertificate = pgTable(
 );
 
 /**
- * A whole-organisation crypto-shred waiting for its second person (PLAT-012, ADR-0109): asked by
- * one member with platform.retention.manage, approved by a different one, each with step-up.
+ * A whole-organisation crypto-shred (PLAT-012, ADR-0109): asked by one member with
+ * platform.retention.manage after the organisation's full export was downloaded, approved by a
+ * different one within 7 days, each with step-up. Approval commits `shredding` before the keys
+ * are destroyed; completion records the certificate and moves it to `approved`.
  */
 export const tenantShredRequest = pgTable(
   "tenant_shred_request",
@@ -144,7 +148,8 @@ export const tenantShredRequest = pgTable(
     tenantId: tenantId(),
     status: text("status").notNull().default("pending"),
     reason: text("reason").notNull(),
-    exportConfirmed: boolean("export_confirmed").notNull(),
+    /** The downloaded full export this shred follows. */
+    exportId: uuid("export_id").notNull(),
     requestedBy: uuid("requested_by").notNull(),
     requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
     decidedBy: uuid("decided_by"),
@@ -153,17 +158,19 @@ export const tenantShredRequest = pgTable(
     ...mutableColumns(),
   },
   (t) => [
-    check("tenant_shred_request_status", sql`${t.status} IN ('pending', 'approved', 'cancelled')`),
-    check("tenant_shred_request_export", sql`${t.exportConfirmed}`),
+    check(
+      "tenant_shred_request_status",
+      sql`${t.status} IN ('pending', 'shredding', 'approved', 'cancelled')`,
+    ),
     check("tenant_shred_request_reason", sql`char_length(btrim(${t.reason})) >= 20`),
-    // The approver is never the requester; a cancel is the requester's own.
+    // The approver is never the requester (a cancel's rules are in the decide policy).
     check(
       "tenant_shred_request_two_people",
-      sql`${t.status} <> 'approved' OR (${t.decidedBy} IS NOT NULL AND ${t.decidedBy} <> ${t.requestedBy} AND ${t.certificateId} IS NOT NULL)`,
+      sql`${t.status} NOT IN ('shredding', 'approved') OR (${t.decidedBy} IS NOT NULL AND ${t.decidedAt} IS NOT NULL AND ${t.decidedBy} <> ${t.requestedBy})`,
     ),
     check(
-      "tenant_shred_request_cancel",
-      sql`${t.status} <> 'cancelled' OR ${t.decidedBy} = ${t.requestedBy}`,
+      "tenant_shred_request_certificate",
+      sql`(${t.status} = 'approved') = (${t.certificateId} IS NOT NULL)`,
     ),
     foreignKey({
       name: "tenant_shred_request_requested_by_fk",
@@ -175,6 +182,18 @@ export const tenantShredRequest = pgTable(
       columns: [t.tenantId, t.decidedBy],
       foreignColumns: [tenantUser.tenantId, tenantUser.id],
     }),
-    uniqueIndex("tenant_shred_request_one_pending").on(t.tenantId).where(sql`status = 'pending'`),
+    foreignKey({
+      name: "tenant_shred_request_export_fk",
+      columns: [t.tenantId, t.exportId],
+      foreignColumns: [tenantExport.tenantId, tenantExport.id],
+    }),
+    foreignKey({
+      name: "tenant_shred_request_certificate_fk",
+      columns: [t.tenantId, t.certificateId],
+      foreignColumns: [destructionCertificate.tenantId, destructionCertificate.id],
+    }),
+    uniqueIndex("tenant_shred_request_one_open")
+      .on(t.tenantId)
+      .where(sql`status IN ('pending', 'shredding')`),
   ],
 );

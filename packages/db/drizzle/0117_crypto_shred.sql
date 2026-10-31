@@ -19,6 +19,8 @@ ALTER TABLE "destruction_certificate" ADD CONSTRAINT "destruction_certificate_si
   CHECK ((signature IS NULL) = (body_sha256 IS NULL) AND (signature IS NULL) = (signature_key IS NULL)
     AND (signature IS NULL) = (signature_algorithm IS NULL)
     AND (body_sha256 IS NULL OR body_sha256 ~ '^[0-9a-f]{64}$'));--> statement-breakpoint
+ALTER TABLE "destruction_certificate" ADD CONSTRAINT "destruction_certificate_tenant_id_id_key"
+  UNIQUE ("tenant_id","id");--> statement-breakpoint
 ALTER TABLE "destruction_certificate" ADD CONSTRAINT "destruction_certificate_requested_by_fk"
   FOREIGN KEY ("tenant_id","requested_by") REFERENCES "public"."tenant_user"("tenant_id","id")
   ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -31,7 +33,7 @@ CREATE TABLE "tenant_shred_request" (
 	"tenant_id" uuid DEFAULT app.current_tenant_id() NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"reason" text NOT NULL,
-	"export_confirmed" boolean NOT NULL,
+	"export_id" uuid NOT NULL,
 	"requested_by" uuid NOT NULL,
 	"requested_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"decided_by" uuid,
@@ -43,12 +45,11 @@ CREATE TABLE "tenant_shred_request" (
 	"updated_by" uuid DEFAULT app.current_user_id(),
 	"version" integer DEFAULT 1 NOT NULL,
 	"deleted_at" timestamp with time zone,
-	CONSTRAINT "tenant_shred_request_status" CHECK (status IN ('pending', 'approved', 'cancelled')),
-	CONSTRAINT "tenant_shred_request_export" CHECK (export_confirmed),
+	CONSTRAINT "tenant_shred_request_status" CHECK (status IN ('pending', 'shredding', 'approved', 'cancelled')),
 	CONSTRAINT "tenant_shred_request_reason" CHECK (char_length(btrim(reason)) >= 20),
-	CONSTRAINT "tenant_shred_request_two_people" CHECK (status <> 'approved' OR (decided_by IS NOT NULL
-	  AND decided_by <> requested_by AND certificate_id IS NOT NULL)),
-	CONSTRAINT "tenant_shred_request_cancel" CHECK (status <> 'cancelled' OR decided_by = requested_by)
+	CONSTRAINT "tenant_shred_request_two_people" CHECK (status NOT IN ('shredding', 'approved')
+	  OR (decided_by IS NOT NULL AND decided_at IS NOT NULL AND decided_by <> requested_by)),
+	CONSTRAINT "tenant_shred_request_certificate" CHECK ((status = 'approved') = (certificate_id IS NOT NULL))
 );
 --> statement-breakpoint
 ALTER TABLE "tenant_shred_request" ADD CONSTRAINT "tenant_shred_request_tenant_fk" FOREIGN KEY ("tenant_id")
@@ -59,8 +60,15 @@ ALTER TABLE "tenant_shred_request" ADD CONSTRAINT "tenant_shred_request_requeste
 ALTER TABLE "tenant_shred_request" ADD CONSTRAINT "tenant_shred_request_decided_by_fk"
   FOREIGN KEY ("tenant_id","decided_by") REFERENCES "public"."tenant_user"("tenant_id","id")
   ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "tenant_shred_request_one_pending" ON "tenant_shred_request" USING btree ("tenant_id")
-  WHERE status = 'pending';--> statement-breakpoint
+ALTER TABLE "tenant_shred_request" ADD CONSTRAINT "tenant_shred_request_export_fk"
+  FOREIGN KEY ("tenant_id","export_id") REFERENCES "public"."tenant_export"("tenant_id","id")
+  ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tenant_shred_request" ADD CONSTRAINT "tenant_shred_request_certificate_fk"
+  FOREIGN KEY ("tenant_id","certificate_id") REFERENCES "public"."destruction_certificate"("tenant_id","id")
+  ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+-- One open request (pending, or approved and shredding) per organisation.
+CREATE UNIQUE INDEX "tenant_shred_request_one_open" ON "tenant_shred_request" USING btree ("tenant_id")
+  WHERE status IN ('pending', 'shredding');--> statement-breakpoint
 
 ALTER TABLE public.tenant_shred_request ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
@@ -71,21 +79,25 @@ CREATE POLICY tenant_isolation ON public.tenant_shred_request AS PERMISSIVE FOR 
 --> statement-breakpoint
 -- Records-management decisions: tenant-wide holders of platform.retention.manage only.
 CREATE POLICY tenant_shred_request_reach ON public.tenant_shred_request AS RESTRICTIVE FOR ALL
-  TO harbour_app
+  TO harbour_app, harbour_owner
   USING (app.current_scope() = 'tenant' AND app.holds_permission_at('platform.retention.manage', NULL))
   WITH CHECK (app.current_scope() = 'tenant' AND app.holds_permission_at('platform.retention.manage', NULL));
 --> statement-breakpoint
 -- A request is made pending, in the requester's own name.
 CREATE POLICY tenant_shred_request_ask ON public.tenant_shred_request AS RESTRICTIVE FOR INSERT
-  TO harbour_app
+  TO harbour_app, harbour_owner
   WITH CHECK (status = 'pending' AND requested_by = app.current_user_id() AND decided_by IS NULL
     AND decided_at IS NULL AND certificate_id IS NULL);
 --> statement-breakpoint
--- A decision is the decider's own: approved by someone else, cancelled by the requester.
+-- A decision is the decider's own. Approval (to shredding) only within 7 days of the request
+-- (SHRED_REQUEST_EXPIRY_DAYS in packages/domain); a cancel by the requester, or by another holder
+-- once the request has expired. Completion (shredding to approved) keeps the approver.
 CREATE POLICY tenant_shred_request_decide ON public.tenant_shred_request AS RESTRICTIVE FOR UPDATE
-  TO harbour_app
-  USING (status = 'pending')
-  WITH CHECK (decided_by = app.current_user_id());
+  TO harbour_app, harbour_owner
+  USING (status IN ('pending', 'shredding'))
+  WITH CHECK (decided_by = app.current_user_id()
+    AND (status <> 'shredding' OR requested_at > now() - interval '7 days')
+    AND (status <> 'cancelled' OR decided_by = requested_by OR requested_at <= now() - interval '7 days'));
 --> statement-breakpoint
 REVOKE UPDATE, DELETE, TRUNCATE ON public.tenant_shred_request FROM harbour_app;
 --> statement-breakpoint
@@ -94,20 +106,33 @@ GRANT SELECT, INSERT ON public.tenant_shred_request TO harbour_app;
 GRANT UPDATE (status, decided_by, decided_at, certificate_id) ON public.tenant_shred_request TO harbour_app;
 --> statement-breakpoint
 
--- The request guard: who asked, why and when never change; pending moves once, to approved or
--- cancelled, and never back.
+-- A certificate is issued by a tenant-wide holder of platform.retention.manage, and an approver it
+-- names is the person issuing it (security review of PLAT-012, L1).
+CREATE POLICY destruction_certificate_issue ON public.destruction_certificate AS RESTRICTIVE FOR INSERT
+  TO harbour_app
+  WITH CHECK (app.holds_permission_at('platform.retention.manage', NULL)
+    AND (approved_by IS NULL OR approved_by = app.current_user_id()));
+--> statement-breakpoint
+
+-- The request guard: who asked, why, when and for which export never change; pending moves once,
+-- to shredding (approved, keys being destroyed) or cancelled; shredding moves once, to approved
+-- with its certificate, keeping who approved and when; approved and cancelled never change.
 CREATE OR REPLACE FUNCTION app.tenant_shred_request_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
-  IF (NEW.tenant_id, NEW.reason, NEW.export_confirmed, NEW.requested_by, NEW.requested_at)
-     IS DISTINCT FROM (OLD.tenant_id, OLD.reason, OLD.export_confirmed, OLD.requested_by, OLD.requested_at) THEN
+  IF (NEW.tenant_id, NEW.reason, NEW.export_id, NEW.requested_by, NEW.requested_at)
+     IS DISTINCT FROM (OLD.tenant_id, OLD.reason, OLD.export_id, OLD.requested_by, OLD.requested_at) THEN
     RAISE EXCEPTION 'A shred request''s requester and reason never change'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
-  IF OLD.status <> 'pending' THEN
-    RAISE EXCEPTION 'A decided shred request never changes' USING ERRCODE = 'insufficient_privilege';
+  IF OLD.status = 'pending' AND NEW.status IN ('shredding', 'cancelled') THEN
+    RETURN NEW;
   END IF;
-  RETURN NEW;
+  IF OLD.status = 'shredding' AND NEW.status = 'approved'
+     AND (NEW.decided_by, NEW.decided_at) IS NOT DISTINCT FROM (OLD.decided_by, OLD.decided_at) THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'A decided shred request never changes' USING ERRCODE = 'insufficient_privilege';
 END
 $$;
 --> statement-breakpoint

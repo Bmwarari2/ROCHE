@@ -149,6 +149,9 @@ export type DestroyDocuments = z.infer<typeof DestroyDocuments>;
 export const DestructionCertificateItem = z
   .object({
     id: uuid,
+    tenantId: uuid,
+    subjectIds: z.array(uuid),
+    retentionRule: z.record(z.string(), z.unknown()),
     recordClass: z.string(),
     subjectType: z.string(),
     recordCount: z.number().int(),
@@ -177,9 +180,9 @@ export type DestructionCertificateList = z.infer<typeof DestructionCertificateLi
 export const ShredRequestItem = z
   .object({
     id: uuid,
-    status: z.enum(["pending", "approved", "cancelled"]),
+    status: z.enum(["pending", "shredding", "approved", "cancelled"]),
     reason: z.string(),
-    exportConfirmed: z.boolean(),
+    exportId: uuid,
     requestedBy: uuid,
     requestedAt: isoDateTime,
     decidedBy: uuid.nullable(),
@@ -196,17 +199,36 @@ export type ShredRequestList = z.infer<typeof ShredRequestList>;
 
 export const CreateShredRequest = z
   .object({
+    /** Opaque wording: no names of people (it is kept on the certificate for good). */
     reason: z.string().max(1000),
-    /** The organisation's full export has been taken (retention-and-deletion.md section 5). */
-    exportConfirmed: z.boolean(),
+    /** The organisation's full export, downloaded within 30 days, that this shred follows. */
+    exportId: uuid,
   })
+  .strict()
   .meta({ id: "CreateShredRequest" });
 export type CreateShredRequest = z.infer<typeof CreateShredRequest>;
 
 export const ShredApproved = z
-  .object({ request: ShredRequestItem, certificate: DestructionCertificateItem })
-  .meta({ id: "ShredApproved" });
+  .object({ request: ShredRequestItem, certificate: DestructionCertificateItem.nullable() })
+  .meta({
+    id: "ShredApproved",
+    description:
+      "certificate is null while the keys are still being destroyed (status shredding): the worker completes it",
+  });
 export type ShredApproved = z.infer<typeof ShredApproved>;
+
+export const CertificateVerification = z
+  .object({
+    /** null for a certificate issued before signing began (migration 0117). */
+    valid: z.boolean().nullable(),
+    /** The exact canonical body that was signed, for checking with the published public key. */
+    body: z.string(),
+    signature: z.string().nullable(),
+    signatureKey: z.string().nullable(),
+    signatureAlgorithm: z.string().nullable(),
+  })
+  .meta({ id: "CertificateVerification" });
+export type CertificateVerification = z.infer<typeof CertificateVerification>;
 
 export const DestructionResult = z
   .object({ certificates: z.array(DestructionCertificateItem), skipped: z.array(uuid) })

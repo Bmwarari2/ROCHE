@@ -8258,6 +8258,21 @@
             "type": "string",
             "format": "uuid"
           },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "retentionRule": {
+            "type": "object",
+            "additionalProperties": {}
+          },
           "recordClass": {
             "type": "string"
           },
@@ -8351,6 +8366,9 @@
         },
         "required": [
           "id",
+          "tenantId",
+          "subjectIds",
+          "retentionRule",
           "recordClass",
           "subjectType",
           "recordCount",
@@ -8439,6 +8457,7 @@
             "type": "string",
             "enum": [
               "pending",
+              "shredding",
               "approved",
               "cancelled"
             ]
@@ -8446,8 +8465,9 @@
           "reason": {
             "type": "string"
           },
-          "exportConfirmed": {
-            "type": "boolean"
+          "exportId": {
+            "type": "string",
+            "format": "uuid"
           },
           "requestedBy": {
             "type": "string",
@@ -8483,7 +8503,7 @@
           "id",
           "status",
           "reason",
-          "exportConfirmed",
+          "exportId",
           "requestedBy",
           "requestedAt",
           "decidedBy",
@@ -8499,14 +8519,16 @@
             "type": "string",
             "maxLength": 1000
           },
-          "exportConfirmed": {
-            "type": "boolean"
+          "exportId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "reason",
-          "exportConfirmed"
-        ]
+          "exportId"
+        ],
+        "additionalProperties": false
       },
       "ShredApproved": {
         "type": "object",
@@ -8515,12 +8537,62 @@
             "$ref": "#/components/schemas/ShredRequestItem"
           },
           "certificate": {
-            "$ref": "#/components/schemas/DestructionCertificateItem"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DestructionCertificateItem"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            ]
           }
         },
         "required": [
           "request",
           "certificate"
+        ],
+        "description": "certificate is null while the keys are still being destroyed (status shredding): the worker completes it"
+      },
+      "CertificateVerification": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "signature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signatureKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signatureAlgorithm": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "valid",
+          "body",
+          "signature",
+          "signatureKey",
+          "signatureAlgorithm"
         ]
       },
       "CareNoteItem": {
@@ -41701,7 +41773,7 @@
           "platform"
         ],
         "summary": "Ask for the organisation's records to be crypto-shredded",
-        "description": "Needs a fresh step-up, a reason of at least 20 characters and confirmation that the organisation's full export has been taken. Refused while any legal hold is active or another request is pending. A different member approves it.",
+        "description": "Needs a fresh step-up, a reason of at least 20 characters (no names: it is kept on the certificate) and the organisation's full export, downloaded within 30 days. Refused while any legal hold is active or another request is open. A different member approves it within 7 days.",
         "security": [
           {
             "bearerAuth": []
@@ -41779,7 +41851,7 @@
           "platform"
         ],
         "summary": "Approve a shred: the organisation's keys are scheduled for destruction",
-        "description": "A different member from the requester, with a fresh step-up, while no legal hold is active. Every version of the organisation's key is scheduled for destruction: its stored documents, exports and DSAR bundles can no longer be read (410 shredded) and cannot be restored once the delay ends. Issues a signed destruction certificate naming both people and the key versions.",
+        "description": "A different member from the requester, with a fresh step-up, within 7 days of the request, while the requester can still manage retention, the export is still recent and no legal hold is active. The approval is recorded first (status shredding); then every version of the organisation's key is scheduled for destruction and a signed certificate is issued (status approved, 200). If the keys cannot be reached now, 202 says the worker will complete it. Afterwards stored documents, exports and DSAR bundles can no longer be read (410 shredded) and cannot be restored once the delay ends.",
         "security": [
           {
             "bearerAuth": []
@@ -41801,7 +41873,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Shredded",
+            "description": "Shredded, with its certificate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShredApproved"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Approved; the worker is completing the shred",
             "content": {
               "application/json": {
                 "schema": {
@@ -41868,7 +41950,8 @@
         "tags": [
           "platform"
         ],
-        "summary": "Cancel your own pending shred request",
+        "summary": "Cancel a pending shred request",
+        "description": "The requester may cancel their own pending request; any other holder may withdraw one more than 7 days old. An approved request (shredding or approved) cannot be cancelled.",
         "security": [
           {
             "bearerAuth": []
@@ -41931,6 +42014,86 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/destruction-certificates/{id}/verification": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Check a destruction certificate's signature",
+        "description": "Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Harbour's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerification"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {
