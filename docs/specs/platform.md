@@ -922,6 +922,73 @@ requester eligibility, reads fail after a shred, certificate contents and signat
 failure completed by the worker); `packages/db/test/crypto-shred.test.ts` (isolation, the
 same-person check, the state guard, expiry, no DELETE, certificate insert policy).
 
+### Crypto-shredding screens and certificates (PLAT-012 part 2)
+
+Finishes PLAT-012: the web screens for the whole-organisation shred, a refusal, and the destruction
+certificate as a page and a PDF. For tenant-wide holders of `platform.retention.manage`; every write
+needs a fresh step-up, as the API asks.
+
+**Rules**
+
+7. **Request** (`/settings/retention/shred`). The page says in plain words what a shred does before
+   the form: every stored document, export and data request bundle stops opening at once, the keys
+   are destroyed for good after 30 days, nobody (Thapsus included) can recover them after that,
+   database records are not removed by it (they follow the retention schedule) and backups hold
+   deleted rows until the date the certificate gives. Active legal holds are listed as blockers,
+   each linked to the retention page, and the form is not offered while any is in force. The form
+   offers only the organisation's full exports downloaded within 30 days (newest first, none
+   chosen by default); with none, it says to download one and links to the export page. The reason
+   is 20 to 1,000 characters with no names. An acknowledgement ("I understand this cannot be
+   undone") is required. One open request at a time: while one is open the form is not offered.
+8. **Approve or refuse** (`/settings/retention/shred/{id}`). Shown only to a holder other than the
+   requester, while the request is pending and within 7 days. The page restates the consequences,
+   then asks for a typed confirmation (the word `SHRED`) and the acknowledgement before **Approve
+   the shred**; **Refuse** needs a reason (10 to 500 characters). The requester sees **Cancel this
+   request** instead; anyone sees **Withdraw this request** once it has lapsed.
+9. **Refusal** (new). `POST /v1/retention/shred-requests/{id}/refuse`: a different member from the
+   requester, step-up, tenant-wide, while pending and within 7 days, with a reason of 10 to 500
+   characters (no names). Status `refused`, final. The database refuses a refusal by the requester,
+   a late one, and any change after it (migration 0130: the status, `decision_reason`, the decide
+   policy and the guard).
+10. **Status**, as an icon and a word: **Waiting for approval** (pending), **Lapsed** (pending and
+    more than 7 days old: `lapsed`, computed by the API), **Shredding** (approved, keys being
+    destroyed), **Shredded** (approved, with its certificate), **Refused**, **Cancelled**. Each
+    request shows who asked and who decided by name (from the member list; a former member as
+    "A former member"), when, the reason, and when it lapses.
+11. **Certificates** (`/settings/retention/certificates/{id}`). The retention page's list links to
+    each. The page shows every field the certificate states, its signature check (**Signature
+    checked**, **Signature does not match** or **Not signed**, as the verification route answers),
+    the signing key version and algorithm, the SHA-256, the key versions and their destroy times,
+    and when backups expire; a link to the verification route's JSON; and **Download as PDF**.
+12. **The PDF** (`GET /v1/destruction-certificates/{id}/pdf`). Built on request by the API's PDF
+    writer (`services/pdf.ts`, as the evidence and transfer packs are), never stored: after a
+    whole-organisation shred the organisation's document store no longer opens, so a stored copy
+    would be unreadable (retention-and-deletion.md section 5 updated). It carries the statements
+    above, the signature check made when it was built, the signer key version, the algorithm, the
+    SHA-256, the signature, the exact signed body, when backups expire, and how to check it
+    independently. Opaque ids and the reason only; no names. Audited
+    (`platform.destruction_certificate.download`), `Cache-Control: no-store`.
+
+**API** (additive): `POST /v1/retention/shred-requests/{id}/refuse`;
+`GET /v1/destruction-certificates/{id}`; `GET /v1/destruction-certificates/{id}/pdf`;
+`ShredRequestItem` gains `refused` in its status, `decisionReason`, `expiresAt` and `lapsed`.
+Audited as `platform.retention.shred_refused` (refusals too), `platform.destruction_certificate.view`
+and `platform.destruction_certificate.download`.
+
+**Permission matrix** (additions)
+
+| Action | Permission |
+| --- | --- |
+| Refuse a shred (not the requester) | `platform.retention.manage`, step-up, tenant-wide |
+| Open a certificate or download its PDF | `platform.retention.manage` |
+
+**Tests (written first)**: `packages/db/test/crypto-shred.test.ts` (a refusal by the requester, a
+late one and a change after it refused); `apps/api/test/crypto-shred.test.ts` (refusal rules and
+audit; `lapsed`; the certificate read and PDF, with its signature check and no names);
+`apps/web/src/lib/shred.test.ts` (status words, the request, approval and refusal forms read);
+`apps/web/e2e/retention-shred.spec.ts` (request, refuse, request again, approve as a second person,
+the certificate page and its PDF; axe in light and dark).
+
 ## Statutory figures (PLAT-021)
 
 - `rate_table` seeded from [rates.md](rates.md), `retention_class` from

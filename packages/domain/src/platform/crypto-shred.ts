@@ -18,6 +18,15 @@ export type ShredRequestProblem =
   | "legal_hold_active"
   | "already_pending";
 
+/** A refusal's reason, in characters (migration 0130 checks the same). */
+export const SHRED_REFUSAL_REASON_MIN = 10;
+export const SHRED_REFUSAL_REASON_MAX = 500;
+export type ShredRefusalProblem =
+  | "step_up_required"
+  | "not_pending"
+  | "same_person"
+  | "expired"
+  | "reason_too_short";
 export type ShredApprovalProblem =
   | "step_up_required"
   | "not_pending"
@@ -38,6 +47,13 @@ const MESSAGES: Record<ShredRequestProblem | ShredApprovalProblem, string> = {
     "The person who asked can no longer manage retention: someone who can should ask again.",
   not_pending: "This shred is no longer waiting for approval.",
   same_person: "A different person must approve the shred: you requested it.",
+};
+const REFUSAL_MESSAGES: Record<ShredRefusalProblem, string> = {
+  step_up_required: "Confirm it is you before refusing the shred.",
+  not_pending: MESSAGES.not_pending,
+  same_person: "A different person must refuse the shred: you requested it. Cancel it instead.",
+  expired: `This request is more than ${SHRED_REQUEST_EXPIRY_DAYS} days old: withdraw it instead.`,
+  reason_too_short: `Give the reason in ${SHRED_REFUSAL_REASON_MIN} to ${SHRED_REFUSAL_REASON_MAX} characters.`,
 };
 
 export type Refusal<P extends string> = {
@@ -88,6 +104,40 @@ export function checkShredApproval(input: {
   if (!input.exportDownloaded) return refuse("export_not_downloaded");
   if (input.activeHolds > 0) return refuse("legal_hold_active");
   return { ok: true };
+}
+
+/**
+ * A refusal (PLAT-012 part 2): a different member from the requester, with a fresh step-up, while
+ * the request is pending and has not lapsed, with a reason. A refusal is final.
+ */
+export function checkShredRefusal(input: {
+  readonly stepUpFresh: boolean;
+  readonly status: string;
+  readonly requestedBy: string;
+  readonly requestedAt: Date;
+  readonly refuserId: string;
+  readonly reason: string;
+  readonly now: Date;
+}): Verdict<ShredRefusalProblem> {
+  const no = (problem: ShredRefusalProblem): Refusal<ShredRefusalProblem> => ({
+    ok: false,
+    problem,
+    message: REFUSAL_MESSAGES[problem],
+  });
+  if (!input.stepUpFresh) return no("step_up_required");
+  if (input.status !== "pending") return no("not_pending");
+  if (input.requestedBy === input.refuserId) return no("same_person");
+  if (shredRequestExpired(input.requestedAt, input.now)) return no("expired");
+  const reason = input.reason.trim();
+  if (reason.length < SHRED_REFUSAL_REASON_MIN || reason.length > SHRED_REFUSAL_REASON_MAX) {
+    return no("reason_too_short");
+  }
+  return { ok: true };
+}
+
+/** When a pending request lapses. */
+export function shredRequestExpiresAt(requestedAt: Date): Date {
+  return new Date(requestedAt.getTime() + SHRED_REQUEST_EXPIRY_DAYS * DAY_MS);
 }
 
 /** A pending request lapses `SHRED_REQUEST_EXPIRY_DAYS` after it was made. */

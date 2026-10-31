@@ -223,6 +223,17 @@ describe("crypto-shredding an organisation", () => {
       method: "POST",
     });
     expect((await json<ProblemDetails>(late)).code).toBe("expired");
+    // Shown as lapsed, and withdrawn rather than refused.
+    const listed = await json<ShredRequestList>(await as("owner", "/v1/retention/shred-requests"));
+    expect(listed.items.find((i) => i.id === request.id)).toMatchObject({
+      status: "pending",
+      lapsed: true,
+    });
+    const lateRefusal = await as("quality", `/v1/retention/shred-requests/${request.id}/refuse`, {
+      method: "POST",
+      body: { reason: "Not agreed by the board yet" },
+    });
+    expect((await json<ProblemDetails>(lateRefusal)).code).toBe("expired");
     const withdrawn = await as("quality", `/v1/retention/shred-requests/${request.id}/cancel`, {
       method: "POST",
     });
@@ -252,6 +263,52 @@ describe("crypto-shredding an organisation", () => {
       method: "POST",
     });
     expect(cancelled.status).toBe(200);
+  });
+
+  it("lets a second person refuse a request with a reason, finally, and never the requester (PLAT-012 part 2)", async () => {
+    const request = await json<ShredRequestItem>(await ask("owner", exportId));
+    expect(request).toMatchObject({ status: "pending", lapsed: false, decisionReason: null });
+    expect(new Date(request.expiresAt).getTime() - new Date(request.requestedAt).getTime()).toBe(
+      7 * 86_400_000,
+    );
+    const refuse = (user: "owner" | "quality", reason: string) =>
+      as(user, `/v1/retention/shred-requests/${request.id}/refuse`, {
+        method: "POST",
+        body: { reason },
+      });
+    const self = await refuse("owner", "Not agreed by the board yet");
+    expect(self.status).toBe(403);
+    expect((await json<ProblemDetails>(self)).code).toBe("same_person");
+    const short = await refuse("quality", "No");
+    expect(short.status).toBe(422);
+    expect((await json<ProblemDetails>(short)).code).toBe("reason_too_short");
+    expect(
+      (
+        await as("manager", `/v1/retention/shred-requests/${request.id}/refuse`, {
+          method: "POST",
+          body: { reason: "Not agreed by the board yet" },
+        })
+      ).status,
+    ).toBe(403);
+    const refused = await refuse("quality", "Not agreed by the board yet");
+    expect(refused.status).toBe(200);
+    expect(await json<ShredRequestItem>(refused)).toMatchObject({
+      status: "refused",
+      decidedBy: LODGE.qualityLeadId,
+      decisionReason: "Not agreed by the board yet",
+      lapsed: false,
+    });
+    const again = await refuse("quality", "Not agreed by the board yet");
+    expect(again.status).toBe(409);
+    expect((await json<ProblemDetails>(again)).code).toBe("not_pending");
+    const approve = await as("quality", `/v1/retention/shred-requests/${request.id}/approve`, {
+      method: "POST",
+    });
+    expect((await json<ProblemDetails>(approve)).code).toBe("not_pending");
+    const audit = await audited("platform.retention.shred_refused");
+    expect(audit.map((a) => a.outcome)).toEqual(expect.arrayContaining(["denied", "success"]));
+    // The reason is on the request, never in the audit.
+    for (const a of audit) expect(JSON.stringify(a)).not.toContain("board");
   });
 
   let requestId: string;
@@ -343,6 +400,31 @@ describe("crypto-shredding an organisation", () => {
     expect(verification).toMatchObject({ valid: true, body });
   });
 
+  it("opens one certificate and downloads it as a PDF, built on request, audited (PLAT-012 part 2)", async () => {
+    const certificate = approved.certificate;
+    if (!certificate) throw new Error("no certificate");
+    const one = await as("owner", `/v1/destruction-certificates/${certificate.id}`);
+    expect(one.status).toBe(200);
+    expect(await json<unknown>(one)).toEqual(certificate);
+    const pdf = await as("owner", `/v1/destruction-certificates/${certificate.id}/pdf`);
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers.get("content-type")).toBe("application/pdf");
+    expect(pdf.headers.get("cache-control")).toBe("no-store");
+    expect(pdf.headers.get("content-disposition")).toBe(
+      `attachment; filename="destruction-certificate-${certificate.id}.pdf"`,
+    );
+    const bytes = new Uint8Array(await pdf.arrayBuffer());
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+    const downloads = await audited("platform.destruction_certificate.download");
+    expect(downloads.at(-1)).toMatchObject({ outcome: "success", actor: DEMO.users.owner.id });
+    expect((await as("manager", `/v1/destruction-certificates/${certificate.id}/pdf`)).status).toBe(
+      403,
+    );
+    const missing = "0194e000-0000-7000-8000-00000000dead";
+    expect((await as("owner", `/v1/destruction-certificates/${missing}`)).status).toBe(404);
+    expect((await as("owner", `/v1/destruction-certificates/${missing}/pdf`)).status).toBe(404);
+  });
+
   it("refuses every read and write of the organisation's stored objects, and new holds, afterwards", async () => {
     const read = await as("manager", `/v1/documents/${document.id}/content`);
     expect(read.status).toBe(410);
@@ -377,12 +459,15 @@ describe("crypto-shredding an organisation", () => {
       "cancelled",
       "cancelled",
       "cancelled",
+      "refused",
     ]);
     const decided = await audited("platform.retention.shred_approved");
     expect(decided.map((r) => [r.outcome, r.reason])).toEqual([
       ["denied", "not_pending"],
       ["denied", "expired"],
       ["denied", "requester_ineligible"],
+      // The approval tried on a refused request.
+      ["denied", "not_pending"],
       ["denied", "same_person"],
       ["denied", "legal_hold_active"],
       ["success", null],

@@ -4,11 +4,15 @@ import {
   canonicalJson,
   certificateBody,
   checkShredApproval,
+  checkShredRefusal,
   checkShredRequest,
   keysDestroyedAt,
   SHRED_REASON_MIN,
+  SHRED_REFUSAL_REASON_MAX,
+  SHRED_REFUSAL_REASON_MIN,
   SHRED_REQUEST_EXPIRY_DAYS,
   shredExportUsable,
+  shredRequestExpiresAt,
 } from "./crypto-shred";
 
 /** Per-organisation crypto-shredding (PLAT-012, ADR-0109): table-driven. */
@@ -85,6 +89,40 @@ describe("checkShredApproval", () => {
   it("accepts a request just inside the expiry", () => {
     const requestedAt = new Date(NOW.getTime() - SHRED_REQUEST_EXPIRY_DAYS * DAY + 1000);
     expect(checkShredApproval({ ...okApproval, requestedAt })).toEqual({ ok: true });
+  });
+});
+
+describe("checkShredRefusal (PLAT-012 part 2)", () => {
+  const at = new Date("2026-10-31T12:00:00Z");
+  const ok = {
+    stepUpFresh: true,
+    status: "pending",
+    requestedBy: "a",
+    requestedAt: at,
+    refuserId: "b",
+    reason: "Not agreed by the board yet",
+    now: new Date(at.getTime() + 86_400_000),
+  };
+  it("accepts a second person with step-up and a reason, while fresh", () => {
+    expect(checkShredRefusal(ok)).toEqual({ ok: true });
+  });
+  it.each([
+    ["no step-up", { stepUpFresh: false }, "step_up_required"],
+    ["already decided", { status: "shredding" }, "not_pending"],
+    ["the requester", { refuserId: "a" }, "same_person"],
+    ["lapsed", { now: new Date(at.getTime() + SHRED_REQUEST_EXPIRY_DAYS * 86_400_000) }, "expired"],
+    [
+      "a short reason",
+      { reason: " ".repeat(20) + "x".repeat(SHRED_REFUSAL_REASON_MIN - 1) },
+      "reason_too_short",
+    ],
+    ["a long reason", { reason: "x".repeat(SHRED_REFUSAL_REASON_MAX + 1) }, "reason_too_short"],
+  ] as const)("refuses %s", (_name, change, problem) => {
+    const verdict = checkShredRefusal({ ...ok, ...change });
+    expect(verdict).toMatchObject({ ok: false, problem });
+  });
+  it("lapses exactly the expiry after the request", () => {
+    expect(shredRequestExpiresAt(at).toISOString()).toBe("2026-11-07T12:00:00.000Z");
   });
 });
 

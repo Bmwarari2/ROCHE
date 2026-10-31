@@ -1,6 +1,8 @@
 import {
   CertificateVerification,
   CreateShredRequest,
+  DestructionCertificateItem,
+  RefuseShredRequest,
   ShredApproved,
   ShredRequestItem,
   ShredRequestList,
@@ -8,11 +10,13 @@ import {
 import { destructionCertificate, type Transaction, tenantShredRequest } from "@harbour/db";
 import {
   checkShredApproval,
+  checkShredRefusal,
   checkShredRequest,
   type Permission,
   SHRED_REQUEST_EXPIRY_DAYS,
   scopeFor,
   shredRequestExpired,
+  shredRequestExpiresAt,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { desc, eq } from "drizzle-orm";
@@ -27,7 +31,13 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
-import { backupDays, certificateItem, verifyCertificate } from "../services/certificates";
+import { certificatePdf } from "../services/certificate-pdf";
+import {
+  backupDays,
+  type CertificateRow,
+  certificateItem,
+  verifyCertificate,
+} from "../services/certificates";
 import { activeHolds } from "../services/documents";
 import {
   completeShred,
@@ -59,10 +69,11 @@ const PERMISSION: Permission = "platform.retention.manage";
 const Id = z.object({ id: z.uuid() });
 const FORBIDDEN = new Set(["step_up_required", "same_person", "not_requester"]);
 const INVALID = new Set(["reason_too_short", "export_not_downloaded"]);
+const PDF_NAME = (id: string) => `destruction-certificate-${id}.pdf`;
 
 type Row = typeof tenantShredRequest.$inferSelect;
 
-function item(row: Row): ShredRequestItem {
+function item(row: Row, now = new Date()): ShredRequestItem {
   return {
     id: row.id,
     status: row.status as ShredRequestItem["status"],
@@ -70,10 +81,36 @@ function item(row: Row): ShredRequestItem {
     exportId: row.exportId,
     requestedBy: row.requestedBy,
     requestedAt: row.requestedAt.toISOString(),
+    expiresAt: shredRequestExpiresAt(row.requestedAt).toISOString(),
+    lapsed: row.status === "pending" && shredRequestExpired(row.requestedAt, now),
     decidedBy: row.decidedBy,
     decidedAt: row.decidedAt?.toISOString() ?? null,
+    decisionReason: row.decisionReason,
     certificateId: row.certificateId,
   };
+}
+
+/** One certificate, or 404; audited as `action`. */
+async function loadCertificate(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  id: string,
+  action: string,
+): Promise<CertificateRow> {
+  return withTenant(c, async (tx) => {
+    const [found] = await tx
+      .select()
+      .from(destructionCertificate)
+      .where(eq(destructionCertificate.id, id));
+    if (!found) throw problems.notFound();
+    await auditInTx(tx, access, {
+      action,
+      resourceType: "destruction_certificate",
+      resourceId: id,
+      requestId: c.get("requestId"),
+    });
+    return found;
+  });
 }
 
 /** Records-management decisions are tenant-wide: a location-scoped holder is refused here too. */
@@ -135,7 +172,7 @@ export const shredRouter = createRouter()
           scope: { count: rows.length },
           requestId: c.get("requestId"),
         });
-        return rows.map(item);
+        return rows.map((r) => item(r));
       });
       return c.json({ items }, 200);
     },
@@ -287,6 +324,68 @@ export const shredRouter = createRouter()
   .openapi(
     createRoute({
       method: "post",
+      path: "/v1/retention/shred-requests/{id}/refuse",
+      tags: ["platform"],
+      summary: "Refuse a pending shred request",
+      description: `A different member from the requester, with a fresh step-up, within ${SHRED_REQUEST_EXPIRY_DAYS} days of the request, with a reason of 10 to 500 characters (no names). A refusal is final; a lapsed request is withdrawn instead (cancel).`,
+      security,
+      request: {
+        params: Id,
+        body: { content: { "application/json": { schema: RefuseShredRequest } } },
+      },
+      responses: {
+        200: jsonBody(ShredRequestItem, "Refused"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requireTenantWide(c);
+      const { id } = c.req.valid("param");
+      const { reason } = c.req.valid("json");
+      const action = "platform.retention.shred_refused";
+      const row = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const request = await pendingRequest(tx, id);
+          const now = new Date();
+          const verdict = checkShredRefusal({
+            stepUpFresh: stepUpFresh(access),
+            status: request.status,
+            requestedBy: request.requestedBy,
+            requestedAt: request.requestedAt,
+            refuserId: access.tenantUserId,
+            reason,
+            now,
+          });
+          if (!verdict.ok) refused(action, verdict.problem, verdict.message, id);
+          const [done] = await tx
+            .update(tenantShredRequest)
+            .set({
+              status: "refused",
+              decidedBy: access.tenantUserId,
+              decidedAt: now,
+              decisionReason: reason.trim(),
+            })
+            .where(eq(tenantShredRequest.id, id))
+            .returning();
+          if (!done) throw problems.conflict();
+          // The reason stays on the request; the audit carries the decision only.
+          await auditInTx(tx, access, {
+            action,
+            resourceType: "tenant_shred_request",
+            resourceId: id,
+            requestId: c.get("requestId"),
+          });
+          return done;
+        }),
+      );
+      return c.json(item(row), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
       path: "/v1/retention/shred-requests/{id}/cancel",
       tags: ["platform"],
       summary: "Cancel a pending shred request",
@@ -339,6 +438,61 @@ export const shredRouter = createRouter()
   .openapi(
     createRoute({
       method: "get",
+      path: "/v1/destruction-certificates/{id}",
+      tags: ["platform"],
+      summary: "One destruction certificate",
+      security,
+      request: { params: Id },
+      responses: {
+        200: jsonBody(DestructionCertificateItem, "The certificate"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, PERMISSION);
+      const { id } = c.req.valid("param");
+      const row = await loadCertificate(c, access, id, "platform.destruction_certificate.view");
+      return c.json(certificateItem(row), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/destruction-certificates/{id}/pdf",
+      tags: ["platform"],
+      summary: "A destruction certificate as a PDF",
+      description:
+        "Built on request from the stored, signed certificate (never stored: after a whole-organisation shred the organisation's documents no longer open). It states the signature check made when it was built, the signing key version and algorithm, the SHA-256, the signature, the exact signed body and when backups expire. Opaque ids only.",
+      security,
+      request: { params: Id },
+      responses: {
+        200: {
+          description: "The certificate as a PDF",
+          content: { "application/pdf": { schema: z.string().meta({ format: "binary" }) } },
+        },
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, PERMISSION);
+      const { id } = c.req.valid("param");
+      const { tenantKeys } = c.get("services");
+      const row = await loadCertificate(c, access, id, "platform.destruction_certificate.download");
+      const checked = await verifyCertificate(tenantKeys, row);
+      const bytes = certificatePdf(row, checked, new Date());
+      return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {
+        "content-type": "application/pdf",
+        "content-disposition": `attachment; filename="${PDF_NAME(row.id)}"`,
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      });
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
       path: "/v1/destruction-certificates/{id}/verification",
       tags: ["platform"],
       summary: "Check a destruction certificate's signature",
@@ -356,20 +510,7 @@ export const shredRouter = createRouter()
       const access = await requirePermission(c, PERMISSION);
       const { id } = c.req.valid("param");
       const { tenantKeys } = c.get("services");
-      const row = await withTenant(c, async (tx) => {
-        const [found] = await tx
-          .select()
-          .from(destructionCertificate)
-          .where(eq(destructionCertificate.id, id));
-        if (!found) throw problems.notFound();
-        await auditInTx(tx, access, {
-          action: "platform.destruction_certificate.verify",
-          resourceType: "destruction_certificate",
-          resourceId: id,
-          requestId: c.get("requestId"),
-        });
-        return found;
-      });
+      const row = await loadCertificate(c, access, id, "platform.destruction_certificate.verify");
       const checked = await verifyCertificate(tenantKeys, row);
       return c.json(
         {

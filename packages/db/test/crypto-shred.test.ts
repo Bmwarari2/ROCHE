@@ -202,6 +202,58 @@ describe("tenant_shred_request", () => {
     );
   });
 
+  it("refuses a refusal by the requester, without a reason or a late one, and any change after it (migration 0130)", async () => {
+    const refuse = (c: pg.PoolClient, id: string, who: string, reason: string | null) =>
+      c.query(
+        "UPDATE tenant_shred_request SET status = 'refused', decided_by = $2, decided_at = now(), decision_reason = $3 WHERE id = $1",
+        [id, who, reason],
+      );
+    const id = await as(A.first, async (c) => (await ask(c, A.first)).rows[0]?.id ?? "");
+    await expect(
+      as(A.first, (c) => refuse(c, id, A.first, "Not agreed by the board yet")),
+    ).rejects.toThrow(/row-level security/);
+    await expect(as(A.second, (c) => refuse(c, id, A.second, null))).rejects.toThrow(
+      /tenant_shred_request_refusal/,
+    );
+    await expect(as(A.second, (c) => refuse(c, id, A.second, "Too short"))).rejects.toThrow(
+      /tenant_shred_request_refusal/,
+    );
+    // A reason belongs to a refusal only.
+    await expect(
+      as(A.first, (c) =>
+        c.query(
+          "UPDATE tenant_shred_request SET status = 'cancelled', decided_by = $2, decided_at = now(), decision_reason = 'Changed my mind about it' WHERE id = $1",
+          [id, A.first],
+        ),
+      ),
+    ).rejects.toThrow(/decided shred request never changes/);
+    await as(A.second, async (c) =>
+      expect((await refuse(c, id, A.second, "Not agreed by the board yet")).rowCount).toBe(1),
+    );
+    // Refused is final: no longer reached by the decide policy, by the app or the owner.
+    expect((await as(A.second, (c) => decide(c, id, "shredding", A.second))).rowCount).toBe(0);
+    expect((await ownerAs(A.second, (c) => decide(c, id, "shredding", A.second))).rowCount).toBe(0);
+    // A refused request is not open: another may be made.
+    const next = await as(A.first, async (c) => (await ask(c, A.first)).rows[0]?.id ?? "");
+    await ownerAs(A.first, async (c) => {
+      await c.query(
+        "ALTER TABLE tenant_shred_request DISABLE TRIGGER tenant_shred_request_guard, NO FORCE ROW LEVEL SECURITY",
+      );
+      await c.query(
+        "UPDATE tenant_shred_request SET requested_at = now() - interval '8 days' WHERE id = $1",
+        [next],
+      );
+      await c.query(
+        "ALTER TABLE tenant_shred_request ENABLE TRIGGER tenant_shred_request_guard, FORCE ROW LEVEL SECURITY",
+      );
+    });
+    // A lapsed request is withdrawn, never refused.
+    await expect(
+      as(A.second, (c) => refuse(c, next, A.second, "Not agreed by the board yet")),
+    ).rejects.toThrow(/row-level security/);
+    await as(A.second, (c) => decide(c, next, "cancelled", A.second));
+  });
+
   it("refuses a request in someone else's name, without the permission, or from a location scope", async () => {
     await expect(as(A.first, (c) => ask(c, A.second))).rejects.toThrow(/row-level security/);
     await expect(as(A.noRetention, (c) => ask(c, A.noRetention))).rejects.toThrow(
