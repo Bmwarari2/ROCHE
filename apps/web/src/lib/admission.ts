@@ -17,7 +17,9 @@ import {
   personStatusAllows,
   TRAVELS_WITH_PERSON_CATEGORIES,
 } from "@harbour/domain";
+import type { Translator } from "@harbour/i18n";
 import type { StatusChipStatus } from "@harbour/ui";
+import { type ActionResult, problemMessage } from "./outcome";
 
 /**
  * Helpers for the pre-admission, admission and property screens (people.md rules 1 and 4 to 7;
@@ -60,6 +62,33 @@ export const PRE_ADMISSION_STAGE: readonly PersonStatus[] = [
   "pre_admission",
   "not_admitted",
 ];
+
+/** The API's words for an enquiry id already used for another record (a 422 "invalid"). */
+export const ID_IN_USE_DETAIL = "That id is already used.";
+
+/**
+ * A refused enquiry in words. The same id sent with other details is refused, never answered with
+ * the first record (HZ-001): the form must start a new id and the person check the list first.
+ * An id in use for another record is said in the same words, so the form starts a new id too.
+ */
+export function enquiryRefusal(error: unknown, t: Translator): ActionResult<never> {
+  const problem = (typeof error === "object" && error !== null ? error : {}) as {
+    readonly code?: unknown;
+    readonly detail?: unknown;
+  };
+  if (
+    problem.code === "id_reused_with_different_details" ||
+    (problem.code === "invalid" && problem.detail === ID_IN_USE_DETAIL)
+  ) {
+    return { ok: false, code: "id_reused", message: t("people.enquiry.form.reusedId") };
+  }
+  return { ok: false, ...problemMessage(error, t) };
+}
+
+/** Whether a refusal means the form's id is spent and the next attempt needs a new one. */
+export function startsNewEnquiry(result: ActionResult<unknown>): boolean {
+  return !result.ok && result.code === "id_reused";
+}
 
 export function isPreAdmissionStage(status: PersonStatus): boolean {
   return PRE_ADMISSION_STAGE.includes(status);

@@ -2959,6 +2959,40 @@
           "version"
         ]
       },
+      "EnquiryRecorded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PersonStatus"
+          },
+          "statusChangedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "status",
+          "statusChangedAt",
+          "version",
+          "replayed"
+        ]
+      },
       "CreateEnquiry": {
         "type": "object",
         "properties": {
@@ -24154,7 +24188,7 @@
           "people"
         ],
         "summary": "Record an enquiry: a new person record at enquiry (people.md rule 1)",
-        "description": "people.enquiry.manage at the location the enquiry is about. Names and a date of birth only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later. A request sent again with the same id returns the first copy, audited as a view of it.",
+        "description": "people.enquiry.manage at the location the enquiry is about. Names and a date of birth (1900 to today) only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later, before 1900 or before the birth. The answer is the record's id and state, never the person's details. A request sent again by the same person with the same id and details answers as the first (replayed); the same id with other details is refused with 409 `id_reused_with_different_details`; an id in use for anything else is refused (422). Refusals are audited with opaque ids.",
         "security": [
           {
             "bearerAuth": []
@@ -24174,11 +24208,11 @@
         },
         "responses": {
           "201": {
-            "description": "Recorded (or the earlier copy of a request sent again)",
+            "description": "Recorded (or the first copy of the same request sent again)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PersonSummary"
+                  "$ref": "#/components/schemas/EnquiryRecorded"
                 }
               }
             }

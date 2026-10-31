@@ -260,6 +260,7 @@
   "people.enquiry.form.receivedSubject": "The time the enquiry came in",
   "people.enquiry.form.submit": "Record the enquiry",
   "people.enquiry.form.saved": "Enquiry recorded",
+  "people.enquiry.form.reusedId": "An enquiry was already saved from this form with other details, so nothing was changed. Check the enquiries list first, so the person has one record. Sending the form again records a new enquiry.",
   "people.preAdmission.title": "Pre-admission",
   "people.preAdmission.arrived": "{done, select, enquiry {Enquiry recorded. Start the pre-admission assessment when you are ready.} started {Pre-admission assessment started.} rereferred {Re-referral recorded. The enquiry is open again.} other {Saved.}}",
   "people.preAdmission.enquiry.title": "Enquiry",

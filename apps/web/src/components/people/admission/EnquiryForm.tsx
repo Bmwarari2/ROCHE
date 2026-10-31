@@ -7,6 +7,7 @@ import { recordEnquiry } from "@/app/actions/admission";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useEntryId, useFieldIds } from "@/components/care/form-state";
 import { WhenField } from "@/components/care/WhenField";
+import { startsNewEnquiry } from "@/lib/admission";
 import { t } from "@/lib/i18n";
 import { collectedRefusal, errorFor, type FieldProblem, partsFor } from "@/lib/outcome";
 import { readDateField, readWhen } from "@/lib/uk-time";
@@ -84,6 +85,10 @@ export function EnquiryForm({
           ...(earlier ? { receivedAt: when.instant } : {}),
         }),
       (person) => router.push(`/people/${person.id}/pre-admission?done=enquiry`),
+      // The id went with other details already: the next attempt is a new enquiry (HZ-001).
+      (outcome) => {
+        if (startsNewEnquiry(outcome)) entry.next();
+      },
     );
   };
 

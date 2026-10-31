@@ -1,8 +1,17 @@
-import { CreateEnquiry, PersonSummary, ServiceList } from "@harbour/contracts";
+import { CreateEnquiry, EnquiryRecorded, ServiceList } from "@harbour/contracts";
 import { location, person, service } from "@harbour/db";
+import { ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { requireAnyPermission, requirePermission, withTenant } from "../http/context";
+import type { Context } from "hono";
+import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
+import {
+  type AppEnv,
+  requireAnyPermission,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import {
   conflictResponse,
@@ -12,21 +21,70 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
-import { personSummaries } from "./people";
 import { audit, dbCode, requireLocationInScope } from "./people-shared";
 
 /**
  * Enquiries (people.md rule 1; the start of PEOP-004): a new person record at `enquiry`, so the
  * pre-admission assessment (rule 4) can start on its own record, and the services at a location
  * an assessment or an admission is for. An enquiry holds names and a date of birth only; the NHS
- * number and the rest follow on the record. A request sent again with its id returns the first
- * copy. Audited by record id.
+ * number and the rest follow on the record. The answer carries the record's id and state, never
+ * the person's details: `people.enquiry.manage` alone (an administrator) reads no care record.
+ * A request sent again with its id is answered as the first only when it is the caller's own
+ * enquiry with the same details (HZ-029); any other use of an id is refused and audited by opaque
+ * ids (HZ-001, HZ-011).
  */
 
 const LocationParam = z.object({ id: z.uuid() });
+const ACTION = "people.person.enquiry";
 
 /** The sample-data guard (migration 0069) refuses a real person while sample people are loaded. */
 const SAMPLE_REFUSALS = new Set(["remove_sample_data_first"]);
+
+const ID_IN_USE = "That id is already used.";
+
+/** A refusal about an id, audited after the transaction ends with the id only. */
+const idRefusal = (problem: HttpProblem, personId: string, reason: string) =>
+  new AuditedRefusal(problem, {
+    action: ACTION,
+    outcome: "denied",
+    resourceType: "person",
+    resourceId: personId,
+    reason,
+  });
+
+/** Audits a refusal decided before any transaction (opaque ids only), then throws it. */
+async function refuseOutside(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  problem: HttpProblem,
+  locationId: string,
+  reason: string,
+): Promise<never> {
+  await writeAudit(c.get("services").appPool, access, {
+    action: ACTION,
+    outcome: "denied",
+    resourceType: "location",
+    resourceId: locationId,
+    reason,
+    requestId: c.get("requestId"),
+  });
+  throw problem;
+}
+
+const answer = (
+  row: Pick<
+    typeof person.$inferSelect,
+    "id" | "locationId" | "status" | "statusChangedAt" | "version"
+  >,
+  replayed: boolean,
+): EnquiryRecorded => ({
+  id: row.id,
+  locationId: row.locationId,
+  status: row.status,
+  statusChangedAt: row.statusChangedAt.toISOString(),
+  version: row.version,
+  replayed,
+});
 
 export const peopleEnquiriesRouter = createRouter()
   .openapi(
@@ -36,11 +94,14 @@ export const peopleEnquiriesRouter = createRouter()
       tags: ["people"],
       summary: "Record an enquiry: a new person record at enquiry (people.md rule 1)",
       description:
-        "people.enquiry.manage at the location the enquiry is about. Names and a date of birth only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later. A request sent again with the same id returns the first copy, audited as a view of it.",
+        "people.enquiry.manage at the location the enquiry is about. Names and a date of birth (1900 to today) only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later, before 1900 or before the birth. The answer is the record's id and state, never the person's details. A request sent again by the same person with the same id and details answers as the first (replayed); the same id with other details is refused with 409 `id_reused_with_different_details`; an id in use for anything else is refused (422). Refusals are audited with opaque ids.",
       security,
       request: { body: { content: { "application/json": { schema: CreateEnquiry } } } },
       responses: {
-        201: jsonBody(PersonSummary, "Recorded (or the earlier copy of a request sent again)"),
+        201: jsonBody(
+          EnquiryRecorded,
+          "Recorded (or the first copy of the same request sent again)",
+        ),
         ...errorResponses,
         ...notFoundResponse,
         ...conflictResponse,
@@ -54,75 +115,135 @@ export const peopleEnquiriesRouter = createRouter()
       if (receivedAt.getTime() > now.getTime()) {
         throw problems.invalid("The enquiry cannot have come in later than now.");
       }
-      if (body.dateOfBirth > now.toISOString().slice(0, 10)) {
+      // Checked again here, in the UK calendar, whatever the contract allowed when it was read.
+      if (body.dateOfBirth > ukIsoDate(now)) {
         throw problems.invalid("The date of birth cannot be in the future.");
       }
-      // Outside the caller's locations reads as not found (HZ-011).
-      requireLocationInScope(access, body.locationId);
-      const summary = await withTenant(c, async (tx) => {
-        if (body.id) {
-          const [replayed] = await tx
-            .select({ id: person.id, locationId: person.locationId })
-            .from(person)
-            .where(eq(person.id, body.id));
-          if (replayed) {
-            if (replayed.locationId !== body.locationId) {
-              throw problems.invalid("That id is already used.");
+      const givenName = body.givenName.trim();
+      const familyName = body.familyName.trim();
+      const preferredName = body.preferredName?.trim() || null;
+      // Outside the caller's locations reads as not found (HZ-011), and is audited.
+      try {
+        requireLocationInScope(access, body.locationId);
+      } catch (error) {
+        if (!(error instanceof HttpProblem)) throw error;
+        await refuseOutside(c, access, error, body.locationId, "outside_scope");
+      }
+      const result = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          if (body.id) {
+            const [stored] = await tx
+              .select({
+                id: person.id,
+                locationId: person.locationId,
+                status: person.status,
+                createdBy: person.createdBy,
+                givenName: person.givenName,
+                familyName: person.familyName,
+                preferredName: person.preferredName,
+                dateOfBirth: person.dateOfBirth,
+                statusChangedAt: person.statusChangedAt,
+                version: person.version,
+              })
+              .from(person)
+              .where(eq(person.id, body.id));
+            if (stored) {
+              // Only the caller's own enquiry is ever answered as a request sent again: anyone
+              // else's record, or one that has moved on, is refused without a word about it.
+              const own =
+                stored.status === "enquiry" &&
+                stored.createdBy === access.tenantUserId &&
+                stored.locationId === body.locationId;
+              if (!own) throw idRefusal(problems.invalid(ID_IN_USE), stored.id, "id_in_use");
+              const same =
+                stored.givenName === givenName &&
+                stored.familyName === familyName &&
+                (stored.preferredName ?? null) === preferredName &&
+                stored.dateOfBirth === body.dateOfBirth &&
+                (body.receivedAt === undefined ||
+                  stored.statusChangedAt.getTime() === receivedAt.getTime());
+              if (!same) {
+                throw idRefusal(
+                  new HttpProblem(
+                    409,
+                    "id_reused_with_different_details",
+                    "An enquiry was already saved with this id and other details.",
+                    "Nothing was changed. Check the enquiries list before recording it again, so the person has one record.",
+                  ),
+                  stored.id,
+                  "id_reused_with_different_details",
+                );
+              }
+              await audit(c, tx, access, {
+                action: `${ACTION}.replay`,
+                resourceType: "person",
+                resourceId: stored.id,
+              });
+              return answer(stored, true);
             }
-            await audit(c, tx, access, {
-              action: "people.person.view",
-              resourceType: "person",
-              resourceId: replayed.id,
-              scope: { replay: true },
-            });
-            const [again] = await personSummaries(tx, [replayed.id]);
-            if (!again) throw problems.invalid("That id is already used.");
-            return again;
           }
-        }
-        const [loc] = await tx
-          .select({ id: location.id })
-          .from(location)
-          .where(eq(location.id, body.locationId));
-        if (!loc) throw problems.notFound();
-        const [created] = await tx
-          .insert(person)
-          .values({
-            ...(body.id ? { id: body.id } : {}),
-            locationId: body.locationId,
-            status: "enquiry",
-            givenName: body.givenName.trim(),
-            familyName: body.familyName.trim(),
-            preferredName: body.preferredName?.trim() || null,
-            dateOfBirth: body.dateOfBirth,
-            statusChangedAt: receivedAt,
-          })
-          .returning({ id: person.id })
-          .catch((error: unknown) => {
-            const e = error as { message?: string; cause?: { message?: string } };
-            const message = e.cause?.message ?? e.message ?? "";
-            if (SAMPLE_REFUSALS.has(message)) {
-              throw new HttpProblem(
-                409,
-                "remove_sample_data_first",
-                "Remove the sample data before recording real people.",
-              );
-            }
-            if (dbCode(error) === "23505") throw problems.invalid("That id is already used.");
-            throw error;
+          const [loc] = await tx
+            .select({ id: location.id })
+            .from(location)
+            .where(eq(location.id, body.locationId));
+          if (!loc) {
+            throw new AuditedRefusal(problems.notFound(), {
+              action: ACTION,
+              outcome: "denied",
+              resourceType: "location",
+              resourceId: body.locationId,
+              reason: "location_not_found",
+            });
+          }
+          const [created] = await tx
+            .insert(person)
+            .values({
+              ...(body.id ? { id: body.id } : {}),
+              locationId: body.locationId,
+              status: "enquiry",
+              givenName,
+              familyName,
+              preferredName,
+              dateOfBirth: body.dateOfBirth,
+              statusChangedAt: receivedAt,
+            })
+            .returning({
+              id: person.id,
+              locationId: person.locationId,
+              status: person.status,
+              statusChangedAt: person.statusChangedAt,
+              version: person.version,
+            })
+            .catch((error: unknown): never => {
+              const e = error as { message?: string; cause?: { message?: string } };
+              const message = e.cause?.message ?? e.message ?? "";
+              if (SAMPLE_REFUSALS.has(message)) {
+                throw new HttpProblem(
+                  409,
+                  "remove_sample_data_first",
+                  "Remove the sample data before recording real people.",
+                );
+              }
+              const code = dbCode(error);
+              // An id in use where the caller cannot see it: refused like any other (HZ-011).
+              if (code === "23505" && body.id) {
+                throw idRefusal(problems.invalid(ID_IN_USE), body.id, "id_in_use");
+              }
+              // A value Postgres cannot hold (class 22, data exception): the request's fault.
+              if (code?.startsWith("22")) throw problems.invalid("Check the dates and names.");
+              throw error;
+            });
+          if (!created) throw problems.conflict();
+          await audit(c, tx, access, {
+            action: ACTION,
+            resourceType: "person",
+            resourceId: created.id,
+            scope: { locationId: body.locationId, backdated: body.receivedAt !== undefined },
           });
-        if (!created) throw problems.conflict();
-        await audit(c, tx, access, {
-          action: "people.person.enquiry",
-          resourceType: "person",
-          resourceId: created.id,
-          scope: { locationId: body.locationId, backdated: body.receivedAt !== undefined },
-        });
-        const [out] = await personSummaries(tx, [created.id]);
-        if (!out) throw problems.conflict();
-        return out;
-      });
-      return c.json(summary, 201);
+          return answer(created, false);
+        }),
+      );
+      return c.json(result, 201);
     },
   )
   .openapi(

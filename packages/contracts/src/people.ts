@@ -134,25 +134,69 @@ export type UpdateCommunicationNeeds = z.infer<typeof UpdateCommunicationNeeds>;
 // Enquiries and the services they are about (rule 1; the start of PEOP-004)
 // ------------------------------------------------------------------------------------------------
 
+/** The earliest date an enquiry's dates may hold: nobody receiving care was born before it. */
+export const ENQUIRY_EARLIEST_DATE = "1900-01-01";
+
+/** Today in the UK calendar (yyyy-mm-dd), when the request is checked. */
+const ukToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+
 export const CreateEnquiry = z
   .object({
-    /** Device-generated UUIDv7; a request sent again with the same id returns the first copy. */
+    /**
+     * Device-generated UUIDv7. Sent again with exactly the same details by the same person, it
+     * returns the first copy; with other details it is refused (409), never the first record.
+     */
     id: uuid.optional(),
     /** The home the enquiry is about: one at a location the caller manages enquiries for. */
     locationId: uuid,
     givenName: text(100).min(1),
     familyName: text(100).min(1),
     preferredName: text(100).optional(),
-    dateOfBirth: isoDate,
-    /** When the enquiry came in; now when left out. Never in the future. */
-    receivedAt: isoDateTime.optional(),
+    /** From 1900-01-01 to today (UK). */
+    dateOfBirth: isoDate
+      .refine((d) => d >= ENQUIRY_EARLIEST_DATE, "The date of birth cannot be before 1900.")
+      .refine((d) => d <= ukToday(), "The date of birth cannot be in the future."),
+    /** When the enquiry came in; now when left out. Never in the future, before 1900 or before birth. */
+    receivedAt: isoDateTime
+      .refine(
+        (t) => t.slice(0, 10) >= ENQUIRY_EARLIEST_DATE,
+        "The enquiry cannot be dated before 1900.",
+      )
+      .optional(),
   })
+  .refine(
+    (e) =>
+      e.receivedAt === undefined ||
+      new Date(e.receivedAt).toLocaleDateString("en-CA", { timeZone: "Europe/London" }) >=
+        e.dateOfBirth,
+    {
+      path: ["receivedAt"],
+      message: "The enquiry cannot have come in before the person was born.",
+    },
+  )
   .meta({
     id: "CreateEnquiry",
     description:
       "A new person record at `enquiry`, before the pre-admission assessment starts. The NHS number and other details follow on the record.",
   });
 export type CreateEnquiry = z.infer<typeof CreateEnquiry>;
+
+/**
+ * What recording an enquiry answers: the record's id and state only, never the person's details,
+ * so a request sent again can never read anything it did not send.
+ */
+export const EnquiryRecorded = z
+  .object({
+    id: uuid,
+    locationId: uuid,
+    status: PersonStatus,
+    statusChangedAt: isoDateTime,
+    version: z.number().int(),
+    /** True when this answers a request sent again with the same id and details. */
+    replayed: z.boolean(),
+  })
+  .meta({ id: "EnquiryRecorded" });
+export type EnquiryRecorded = z.infer<typeof EnquiryRecorded>;
 
 export const ServiceItem = z
   .object({

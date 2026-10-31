@@ -12,11 +12,16 @@ import type { ActionResult } from "@/lib/outcome";
 export function useActionForm() {
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
-  const run = <T>(send: () => Promise<ActionResult<T>>, onOk?: (data: T) => void) =>
+  const run = <T>(
+    send: () => Promise<ActionResult<T>>,
+    onOk?: (data: T) => void,
+    onRefused?: (outcome: ActionResult<T>) => void,
+  ) =>
     startTransition(async () => {
       const outcome = await send();
       setResult(outcome);
       if (outcome.ok) onOk?.(outcome.data);
+      else onRefused?.(outcome);
     });
   return { result, setResult, pending, run };
 }

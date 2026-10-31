@@ -5,16 +5,19 @@ import type {
   AdmissionDecisionItem,
   CreateAdmissionDecision,
   CreateEnquiry,
+  EnquiryRecorded,
   PersonStatusChangeResult,
-  PersonSummary,
   PreAdmissionView,
   RecordAdmission,
   UpdatePreAdmission,
   WelcomeChecklist,
 } from "@harbour/contracts";
 import { PRE_ADMISSION_SECTIONS } from "@harbour/domain";
+import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import {
   CONDITION_MAX,
+  enquiryRefusal,
   MAX_CONDITIONS,
   MAX_MEDICINES,
   MIN_DECISION_REASONS,
@@ -22,10 +25,11 @@ import {
   NOT_APPLICABLE_REASON_MAX,
   SECTION_NOTES_MAX,
 } from "@/lib/admission";
-import { optionalText, sendAndRevalidate, sendForPerson } from "@/lib/care-actions";
+import { tenantApi } from "@/lib/api";
+import { optionalText, sendForPerson } from "@/lib/care-actions";
 import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
-import { type ActionResult, fieldErrors, refused } from "@/lib/outcome";
+import { type ActionResult, fieldErrors, problemMessage, refused } from "@/lib/outcome";
 import { isIsoDate, isIsoInstant } from "@/lib/uk-time";
 
 /**
@@ -57,7 +61,7 @@ const words = (value: string | undefined, max: number) => {
 // ------------------------------------------------------------------------------------------------
 
 /** A new person record at enquiry; the list of enquiries and the new record are read again. */
-export async function recordEnquiry(input: CreateEnquiry): Promise<ActionResult<PersonSummary>> {
+export async function recordEnquiry(input: CreateEnquiry): Promise<ActionResult<EnquiryRecorded>> {
   const problems: Record<string, string> = {};
   if (!isUuid(input.locationId)) problems.locationId = t("people.enquiry.form.homeRequired");
   if (!words(input.givenName, 100)) problems.givenName = t("people.enquiry.form.givenRequired");
@@ -69,8 +73,9 @@ export async function recordEnquiry(input: CreateEnquiry): Promise<ActionResult<
     return refused(t("care.errors.whenRequired"), "invalid", ["receivedAt"]);
   }
   const preferredName = optionalText(input.preferredName);
-  return sendAndRevalidate(["/people"], (api) =>
-    api.POST("/v1/people", {
+  try {
+    const api = await tenantApi();
+    const { data, error } = await api.POST("/v1/people", {
       body: {
         ...(input.id ? { id: input.id } : {}),
         locationId: input.locationId,
@@ -80,8 +85,17 @@ export async function recordEnquiry(input: CreateEnquiry): Promise<ActionResult<
         dateOfBirth: input.dateOfBirth,
         ...(input.receivedAt ? { receivedAt: input.receivedAt } : {}),
       },
-    }),
-  );
+    });
+    if (data) {
+      revalidatePath("/people", "layout");
+      return { ok: true, data };
+    }
+    return enquiryRefusal(error, t);
+  } catch (error) {
+    // Redirects (the session ended) go through as navigation.
+    unstable_rethrow(error);
+    return { ok: false, ...problemMessage(undefined, t) };
+  }
 }
 
 type StatusMove =

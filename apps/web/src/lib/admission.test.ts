@@ -19,7 +19,9 @@ import {
   checklistProgress,
   currentDecision,
   decisionChip,
+  enquiryRefusal,
   freeBeds,
+  ID_IN_USE_DETAIL,
   isPreAdmissionStage,
   keyChip,
   keysView,
@@ -41,6 +43,7 @@ import {
   returnCapacities,
   sectionChip,
   splitPreAdmission,
+  startsNewEnquiry,
   travelsWithPerson,
   valuableCategory,
   whoDid,
@@ -634,5 +637,35 @@ describe("who did it", () => {
     expect(t("people.room.recorded", { when: "31/10/2026 10:00", by: "colleague" })).toBe(
       "Recorded 31/10/2026 10:00 by a colleague",
     );
+  });
+});
+
+describe("a refused enquiry (HZ-001)", () => {
+  it.each<[string, object, string, boolean]>([
+    [
+      "the same id with other details",
+      { code: "id_reused_with_different_details", detail: "Nothing was changed." },
+      "id_reused",
+      true,
+    ],
+    [
+      "an id used for another record",
+      { code: "invalid", detail: ID_IN_USE_DETAIL },
+      "id_reused",
+      true,
+    ],
+    ["a home outside the caller's access", { code: "not_found" }, "not_found", false],
+    [
+      "a date the API refuses",
+      { code: "invalid", detail: "The date of birth cannot be in the future." },
+      "invalid",
+      false,
+    ],
+  ])("%s", (_label, error, code, startsNew) => {
+    const result = enquiryRefusal(error, t);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.code).toBe(code);
+    expect(startsNewEnquiry(result)).toBe(startsNew);
+    if (startsNew) expect(!result.ok && result.message).toContain("Check the enquiries list");
   });
 });
