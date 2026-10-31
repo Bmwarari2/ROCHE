@@ -39,6 +39,18 @@ describe("forwardRequestHeaders", () => {
   ])("drops %s", (name) => {
     expect(forwardRequestHeaders(incoming).has(name)).toBe(false);
   });
+
+  it.each([
+    ["a well-formed request id", "web-req-42", "web-req-42"],
+    ["a request id carrying free text", "Ada Example 9990000000", null],
+    ["a request id longer than 64 characters", "a".repeat(65), null],
+  ])("forwards %s only when the API would keep it", (_label, sent, forwarded) => {
+    const out = forwardRequestHeaders(
+      new Headers({ ...Object.fromEntries(incoming), "x-request-id": sent }),
+    );
+    expect(out.get("x-request-id")).toBe(forwarded);
+    expect(out.get("cookie")).toBe("harbour.session_token=abc");
+  });
 });
 
 describe("forwardResponseHeaders", () => {
