@@ -457,6 +457,9 @@ export const staffFilesRouter = createRouter()
           verifiedBy,
           expiresOn: view.expiresOn,
           recheckDueOn: view.recheckDueOn,
+          // Recorded by hand: the evidence is manual again unless nothing changed (slice 77).
+          evidenceSource: unchanged ? existing.evidenceSource : "manual",
+          vettingCheckId: unchanged ? existing.vettingCheckId : null,
         };
         let saved: ComplianceItemRow | undefined;
         if (existing) {

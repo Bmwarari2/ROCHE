@@ -1,11 +1,18 @@
 import { integrationConnection, integrationInbound, supportAccessRequest } from "@harbour/db";
-import { PORTS, type PortName } from "@harbour/domain";
+import { PORTS, type PortName, VETTING_PORTS, type VettingPort } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
-import { requirePermission, withTenant } from "../http/context";
+import { requirePermission, stepUpFresh, stepUpRefusal, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { KNOWN_PROVIDERS } from "../integrations/adapters";
+import { KNOWN_VETTING_PROVIDERS } from "../integrations/vetting";
+
+/** Every port a connection can be made for: communications, and the vetting ports (ADR-0094). */
+const ALL_PORTS = [...PORTS, ...VETTING_PORTS] as const;
+const isVettingPort = (port: string): port is VettingPort =>
+  (VETTING_PORTS as readonly string[]).includes(port);
+
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
 /**
@@ -71,7 +78,7 @@ export const integrationsRouter = createRouter()
       );
       return c.json(
         {
-          ports: [...PORTS],
+          ports: [...ALL_PORTS],
           items: rows.map((r) => ({
             port: r.port,
             provider: r.provider,
@@ -93,9 +100,11 @@ export const integrationsRouter = createRouter()
       tags: ["integrations"],
       summary:
         "Choose the provider for a port (credentials are stored in the secret store, not here)",
+      description:
+        "integrations.connection.manage. A vetting port (ADR-0094) also needs a fresh step-up, and takes only a provider this build knows; the mock is refused in production. Audited.",
       security,
       request: {
-        params: z.object({ port: z.enum(PORTS) }),
+        params: z.object({ port: z.enum(ALL_PORTS) }),
         body: {
           content: {
             "application/json": {
@@ -120,7 +129,19 @@ export const integrationsRouter = createRouter()
       const access = await requirePermission(c, "integrations.connection.manage");
       const { port } = c.req.valid("param");
       const body = c.req.valid("json");
-      if (!KNOWN_PROVIDERS[port as PortName].includes(body.provider)) {
+      if (isVettingPort(port)) {
+        // Switching on a route that sends staff data to a vendor needs a fresh step-up, and a
+        // provider this build knows; the mock never runs in production (ADR-0094).
+        const stepUp = c.get("access");
+        if (!stepUpFresh(stepUp)) throw stepUpRefusal(stepUp);
+        const production = c.get("services").config.NODE_ENV === "production";
+        if (
+          !KNOWN_VETTING_PROVIDERS[port].includes(body.provider) ||
+          (production && body.provider === "mock")
+        ) {
+          throw problems.invalid(`Provider ${body.provider} is not available for ${port}.`);
+        }
+      } else if (!KNOWN_PROVIDERS[port as PortName].includes(body.provider)) {
         throw problems.invalid(`Provider ${body.provider} is not available for ${port}.`);
       }
       await withTenant(c, async (tx) => {
@@ -134,13 +155,52 @@ export const integrationsRouter = createRouter()
           })
           .onConflictDoUpdate({
             target: [integrationConnection.tenantId, integrationConnection.port],
-            set: { provider: body.provider, settings: body.settings, secretRef: body.secretRef },
+            set: {
+              provider: body.provider,
+              settings: body.settings,
+              secretRef: body.secretRef,
+              deletedAt: null,
+            },
           });
         await auditInTx(tx, access, {
           action: "integrations.connection.configure",
           resourceType: "integration_connection",
           resourceId: port,
           after: { provider: body.provider },
+          requestId: c.get("requestId"),
+        });
+      });
+      return c.body(null, 204);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "delete",
+      path: "/v1/integrations/{port}",
+      tags: ["integrations"],
+      summary: "Switch a vetting port off",
+      description:
+        "integrations.connection.manage, with a fresh step-up. Vetting ports only (ADR-0094): checks then go back to manual entry; checks already made stay on the staff file. Audited.",
+      security,
+      request: { params: z.object({ port: z.enum(VETTING_PORTS) }) },
+      responses: { 204: { description: "Off" }, ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "integrations.connection.manage");
+      const stepUp = c.get("access");
+      if (!stepUpFresh(stepUp)) throw stepUpRefusal(stepUp);
+      const { port } = c.req.valid("param");
+      await withTenant(c, async (tx) => {
+        await tx
+          .update(integrationConnection)
+          .set({ deletedAt: new Date() })
+          .where(
+            and(eq(integrationConnection.port, port), isNull(integrationConnection.deletedAt)),
+          );
+        await auditInTx(tx, access, {
+          action: "integrations.connection.removed",
+          resourceType: "integration_connection",
+          resourceId: port,
           requestId: c.get("requestId"),
         });
       });

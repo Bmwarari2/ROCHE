@@ -26139,6 +26139,16 @@
             ],
             "format": "date"
           },
+          "evidenceSource": {
+            "$ref": "#/components/schemas/EvidenceSource"
+          },
+          "vettingCheckId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "notes": {
             "type": "array",
             "items": {
@@ -26159,6 +26169,8 @@
           "riskAssessmentSignedBy",
           "expiresOn",
           "recheckDueOn",
+          "evidenceSource",
+          "vettingCheckId",
           "notes"
         ]
       },
@@ -26541,6 +26553,16 @@
           }
         ],
         "description": "What a compliance item keeps, by its kind"
+      },
+      "EvidenceSource": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "idsp_right_to_work",
+          "dbs_application",
+          "dbs_status_check",
+          "nmc_register_check"
+        ]
       },
       "ComplianceNote": {
         "type": "object",
@@ -29874,6 +29896,562 @@
         },
         "required": [
           "expectedVersion"
+        ]
+      },
+      "VettingPortList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VettingPortState"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "VettingPortState": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "$ref": "#/components/schemas/VettingPort"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "port",
+          "on",
+          "provider"
+        ]
+      },
+      "VettingPort": {
+        "type": "string",
+        "enum": [
+          "workforce.idsp",
+          "workforce.dbs_ebulk",
+          "workforce.dbs_update_service",
+          "workforce.nmc_register"
+        ]
+      },
+      "StaffFileVetting": {
+        "type": "object",
+        "properties": {
+          "consents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VettingConsent"
+            }
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VettingCheck"
+            }
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VettingPortState"
+            }
+          }
+        },
+        "required": [
+          "consents",
+          "checks",
+          "ports"
+        ]
+      },
+      "VettingConsent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/VettingConsentPurpose"
+          },
+          "givenOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "recordedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "withdrawnOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "withdrawnBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "inForce": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "purpose",
+          "givenOn",
+          "recordedBy",
+          "withdrawnOn",
+          "withdrawnBy",
+          "inForce"
+        ]
+      },
+      "VettingConsentPurpose": {
+        "type": "string",
+        "enum": [
+          "dbs_application",
+          "dbs_update_service"
+        ]
+      },
+      "VettingCheck": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VettingCheckKind"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "consentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "requestedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checked": {
+            "type": "object",
+            "properties": {
+              "document": {
+                "$ref": "#/components/schemas/IdspDocument"
+              },
+              "certificateNumber": {
+                "type": "string"
+              },
+              "pin": {
+                "type": "string"
+              }
+            }
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "failed"
+            ]
+          },
+          "result": {
+            "$ref": "#/components/schemas/VettingResult"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "appliedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "appliedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "applicable": {
+            "type": "boolean"
+          },
+          "notApplicableReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "kind",
+          "provider",
+          "consentId",
+          "requestedBy",
+          "requestedAt",
+          "checked",
+          "state",
+          "result",
+          "error",
+          "completedAt",
+          "appliedAt",
+          "appliedBy",
+          "applicable",
+          "notApplicableReason"
+        ]
+      },
+      "VettingCheckKind": {
+        "type": "string",
+        "enum": [
+          "idsp_right_to_work",
+          "dbs_application",
+          "dbs_status_check",
+          "nmc_register_check"
+        ]
+      },
+      "IdspDocument": {
+        "type": "string",
+        "enum": [
+          "british_passport",
+          "irish_passport",
+          "irish_passport_card"
+        ]
+      },
+      "VettingResult": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "identity_verified"
+                ]
+              },
+              "checkedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "document": {
+                "$ref": "#/components/schemas/IdspDocument"
+              }
+            },
+            "required": [
+              "outcome",
+              "checkedOn",
+              "document"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "not_verified"
+                ]
+              },
+              "checkedOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "outcome",
+              "checkedOn"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "certificate_issued"
+                ]
+              },
+              "checkedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "issuedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "certificateNumber": {
+                "type": "string",
+                "pattern": "^\\d{12}$"
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "enhanced_adults_barred"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "clear",
+                  "information_disclosed"
+                ]
+              }
+            },
+            "required": [
+              "outcome",
+              "checkedOn",
+              "issuedOn",
+              "certificateNumber",
+              "level",
+              "result"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "withdrawn"
+                ]
+              },
+              "checkedOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "outcome",
+              "checkedOn"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "no_new_information",
+                  "new_information",
+                  "details_not_matched"
+                ]
+              },
+              "checkedOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "outcome",
+              "checkedOn"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "registered",
+                  "registered_with_conditions",
+                  "not_registered"
+                ]
+              },
+              "checkedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "renewalDueOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              }
+            },
+            "required": [
+              "outcome",
+              "checkedOn",
+              "renewalDueOn"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "RecordVettingConsent": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "$ref": "#/components/schemas/VettingConsentPurpose"
+          },
+          "givenOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "purpose",
+          "givenOn"
+        ]
+      },
+      "WithdrawVettingConsent": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "withdrawnOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "withdrawnOn"
+        ]
+      },
+      "StartVettingCheck": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "idsp_right_to_work"
+                ]
+              },
+              "document": {
+                "$ref": "#/components/schemas/IdspDocument"
+              }
+            },
+            "required": [
+              "kind",
+              "document"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dbs_application"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dbs_status_check"
+                ]
+              },
+              "familyName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "kind",
+              "familyName"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "nmc_register_check"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        ]
+      },
+      "RefreshVettingCheck": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "ApplyVettingCheck": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "itemExpectedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "identityConfirmed": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "itemExpectedVersion"
         ]
       },
       "InductionDetail": {
@@ -73831,6 +74409,667 @@
         }
       }
     },
+    "/v1/workforce/vetting/ports": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Which vetting ports are switched on",
+        "description": "workforce.staff_file.read or workforce.staff_file.manage. Each vetting port (ADR-0094) and its provider when the organisation has switched it on; every port is off by default.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VettingPortList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/vetting": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A staff file's vetting consents and checks",
+        "description": "workforce.staff_file.read or workforce.staff_file.manage. The worker's consents, the checks made through the vetting ports with their answers, whether each can be applied, and which ports are on.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consents and checks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileVetting"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/vetting/consents": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record the worker's consent to a DBS check",
+        "description": "workforce.staff_file.manage, never on one's own file. The worker's consent to a DBS application or to Update Service status checks, given on or before today, in the caller's name. 409 while one is in force. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordVettingConsent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VettingConsent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/vetting/consents/{consentId}/withdraw": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record that the worker withdrew their consent",
+        "description": "workforce.staff_file.manage, never on one's own file. Once, in the caller's name, on a day from when it was given until today. Checks then need a new consent. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "consentId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawVettingConsent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VettingConsent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/vetting/checks": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Start a vetting check",
+        "description": "workforce.staff_file.manage, never on one's own file. Starts a check through its port's adapter (workforce.md rule 24): 409 adapter_off when the organisation has not switched the port on, consent_missing for a DBS check without the worker's consent in force. The provider is sent only the port's declared fields. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartVettingCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileVetting"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/vetting/checks/{checkId}/refresh": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Ask again about a pending vetting check",
+        "description": "workforce.staff_file.manage, never on one's own file. Asks the port's adapter about a check still waiting for an answer, and stores it. 409 when the port has been switched off since. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "checkId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshVettingCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Asked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileVetting"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-files/{id}/vetting/checks/{checkId}/apply": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Apply a vetting check's answer to the staff file",
+        "description": "workforce.staff_file.manage, never on one's own file. Applies a completed check to its item (workforce.md rule 24), verified in the caller's name on the check's date, with the check as the item's evidence source. Outcomes that are not evidence are refused and the item stays as it was. An IDSP check needs the caller to confirm the photograph is of the worker. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "checkId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyVettingCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileVetting"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workforce/staff-files/{id}/induction": {
       "get": {
         "tags": [
@@ -79156,6 +80395,7 @@
           "integrations"
         ],
         "summary": "Choose the provider for a port (credentials are stored in the secret store, not here)",
+        "description": "integrations.connection.manage. A vetting port (ADR-0094) also needs a fresh step-up, and takes only a provider this build knows; the mock is refused in production. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -79171,7 +80411,11 @@
               "enum": [
                 "comms.email",
                 "comms.sms",
-                "comms.push"
+                "comms.push",
+                "workforce.idsp",
+                "workforce.dbs_ebulk",
+                "workforce.dbs_update_service",
+                "workforce.nmc_register"
               ]
             },
             "required": true,
@@ -79224,6 +80468,72 @@
         "responses": {
           "204": {
             "description": "Saved"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Switch a vetting port off",
+        "description": "integrations.connection.manage, with a fresh step-up. Vetting ports only (ADR-0094): checks then go back to manual entry; checks already made stay on the staff file. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "workforce.idsp",
+                "workforce.dbs_ebulk",
+                "workforce.dbs_update_service",
+                "workforce.nmc_register"
+              ]
+            },
+            "required": true,
+            "name": "port",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Off"
           },
           "401": {
             "description": "Not signed in",

@@ -175,6 +175,17 @@ export const ComplianceItemView = z
     riskAssessmentSignedBy: StaffName.nullable(),
     expiresOn: isoDate.nullable(),
     recheckDueOn: isoDate.nullable(),
+    /** Where the evidence came from: by hand, or a vetting check applied (slice 77). */
+    evidenceSource: z
+      .enum([
+        "manual",
+        "idsp_right_to_work",
+        "dbs_application",
+        "dbs_status_check",
+        "nmc_register_check",
+      ])
+      .meta({ id: "EvidenceSource" }),
+    vettingCheckId: uuid.nullable(),
     notes: z.array(ComplianceNote),
   })
   .meta({ id: "ComplianceItemView" });

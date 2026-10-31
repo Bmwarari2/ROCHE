@@ -17,3 +17,4 @@ export * from "./sponsorship";
 export * from "./staff-file";
 export * from "./supervision";
 export * from "./training";
+export * from "./vetting";

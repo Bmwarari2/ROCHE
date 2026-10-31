@@ -26702,6 +26702,602 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/vetting/ports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Which vetting ports are switched on
+     * @description workforce.staff_file.read or workforce.staff_file.manage. Each vetting port (ADR-0094) and its provider when the organisation has switched it on; every port is off by default.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Ports */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["VettingPortList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/vetting": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A staff file's vetting consents and checks
+     * @description workforce.staff_file.read or workforce.staff_file.manage. The worker's consents, the checks made through the vetting ports with their answers, whether each can be applied, and which ports are on.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Consents and checks */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileVetting"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/vetting/consents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the worker's consent to a DBS check
+     * @description workforce.staff_file.manage, never on one's own file. The worker's consent to a DBS application or to Update Service status checks, given on or before today, in the caller's name. 409 while one is in force. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordVettingConsent"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["VettingConsent"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/vetting/consents/{consentId}/withdraw": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record that the worker withdrew their consent
+     * @description workforce.staff_file.manage, never on one's own file. Once, in the caller's name, on a day from when it was given until today. Checks then need a new consent. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          consentId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["WithdrawVettingConsent"];
+        };
+      };
+      responses: {
+        /** @description Withdrawn */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["VettingConsent"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/vetting/checks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start a vetting check
+     * @description workforce.staff_file.manage, never on one's own file. Starts a check through its port's adapter (workforce.md rule 24): 409 adapter_off when the organisation has not switched the port on, consent_missing for a DBS check without the worker's consent in force. The provider is sent only the port's declared fields. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StartVettingCheck"];
+        };
+      };
+      responses: {
+        /** @description Started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileVetting"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/vetting/checks/{checkId}/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Ask again about a pending vetting check
+     * @description workforce.staff_file.manage, never on one's own file. Asks the port's adapter about a check still waiting for an answer, and stores it. 409 when the port has been switched off since. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          checkId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RefreshVettingCheck"];
+        };
+      };
+      responses: {
+        /** @description Asked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileVetting"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/vetting/checks/{checkId}/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Apply a vetting check's answer to the staff file
+     * @description workforce.staff_file.manage, never on one's own file. Applies a completed check to its item (workforce.md rule 24), verified in the caller's name on the check's date, with the check as the item's evidence source. Outcomes that are not evidence are refused and the item stays as it was. An IDSP check needs the caller to confirm the photograph is of the worker. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          checkId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ApplyVettingCheck"];
+        };
+      };
+      responses: {
+        /** @description Applied */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileVetting"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/staff-files/{id}/induction": {
     parameters: {
       query?: never;
@@ -31551,13 +32147,23 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Choose the provider for a port (credentials are stored in the secret store, not here) */
+    /**
+     * Choose the provider for a port (credentials are stored in the secret store, not here)
+     * @description integrations.connection.manage. A vetting port (ADR-0094) also needs a fresh step-up, and takes only a provider this build knows; the mock is refused in production. Audited.
+     */
     put: {
       parameters: {
         query?: never;
         header?: never;
         path: {
-          port: "comms.email" | "comms.sms" | "comms.push";
+          port:
+            | "comms.email"
+            | "comms.sms"
+            | "comms.push"
+            | "workforce.idsp"
+            | "workforce.dbs_ebulk"
+            | "workforce.dbs_update_service"
+            | "workforce.nmc_register";
         };
         cookie?: never;
       };
@@ -31612,7 +32218,61 @@ export interface paths {
       };
     };
     post?: never;
-    delete?: never;
+    /**
+     * Switch a vetting port off
+     * @description integrations.connection.manage, with a fresh step-up. Vetting ports only (ADR-0094): checks then go back to manual entry; checks already made stay on the staff file. Audited.
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          port:
+            | "workforce.idsp"
+            | "workforce.dbs_ebulk"
+            | "workforce.dbs_update_service"
+            | "workforce.nmc_register";
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Off */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     options?: never;
     head?: never;
     patch?: never;
@@ -49558,6 +50218,9 @@ export interface components {
       expiresOn: string | null;
       /** Format: date */
       recheckDueOn: string | null;
+      evidenceSource: components["schemas"]["EvidenceSource"];
+      /** Format: uuid */
+      vettingCheckId: string | null;
       notes: components["schemas"]["ComplianceNote"][];
     };
     /** @enum {string} */
@@ -49656,6 +50319,13 @@ export interface components {
           revalidationDueOn: string | null;
         }
       | null;
+    /** @enum {string} */
+    EvidenceSource:
+      | "manual"
+      | "idsp_right_to_work"
+      | "dbs_application"
+      | "dbs_status_check"
+      | "nmc_register_check";
     /** @description Why an item is not satisfied, or what it must say */
     ComplianceNote: {
       /** @enum {string} */
@@ -50600,6 +51270,162 @@ export interface components {
     };
     ApproveCaseworkSupportTicket: {
       expectedVersion: number;
+    };
+    VettingPortList: {
+      items: components["schemas"]["VettingPortState"][];
+    };
+    VettingPortState: {
+      port: components["schemas"]["VettingPort"];
+      on: boolean;
+      provider: string | null;
+    };
+    /** @enum {string} */
+    VettingPort:
+      | "workforce.idsp"
+      | "workforce.dbs_ebulk"
+      | "workforce.dbs_update_service"
+      | "workforce.nmc_register";
+    StaffFileVetting: {
+      consents: components["schemas"]["VettingConsent"][];
+      checks: components["schemas"]["VettingCheck"][];
+      ports: components["schemas"]["VettingPortState"][];
+    };
+    VettingConsent: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      purpose: components["schemas"]["VettingConsentPurpose"];
+      /** Format: date */
+      givenOn: string;
+      recordedBy: components["schemas"]["StaffName"];
+      /** Format: date */
+      withdrawnOn: string | null;
+      withdrawnBy: components["schemas"]["StaffName"];
+      inForce: boolean;
+    };
+    /** @enum {string} */
+    VettingConsentPurpose: "dbs_application" | "dbs_update_service";
+    VettingCheck: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      kind: components["schemas"]["VettingCheckKind"];
+      provider: string;
+      /** Format: uuid */
+      consentId: string | null;
+      requestedBy: components["schemas"]["StaffName"];
+      /** Format: date-time */
+      requestedAt: string;
+      checked: {
+        document?: components["schemas"]["IdspDocument"];
+        certificateNumber?: string;
+        pin?: string;
+      };
+      /** @enum {string} */
+      state: "pending" | "completed" | "failed";
+      result: components["schemas"]["VettingResult"];
+      error: string | null;
+      /** Format: date-time */
+      completedAt: string | null;
+      /** Format: date-time */
+      appliedAt: string | null;
+      appliedBy: components["schemas"]["StaffName"];
+      applicable: boolean;
+      notApplicableReason: string | null;
+    };
+    /** @enum {string} */
+    VettingCheckKind:
+      | "idsp_right_to_work"
+      | "dbs_application"
+      | "dbs_status_check"
+      | "nmc_register_check";
+    /** @enum {string} */
+    IdspDocument: "british_passport" | "irish_passport" | "irish_passport_card";
+    VettingResult:
+      | {
+          /** @enum {string} */
+          outcome: "identity_verified";
+          /** Format: date */
+          checkedOn: string;
+          document: components["schemas"]["IdspDocument"];
+        }
+      | {
+          /** @enum {string} */
+          outcome: "not_verified";
+          /** Format: date */
+          checkedOn: string;
+        }
+      | {
+          /** @enum {string} */
+          outcome: "certificate_issued";
+          /** Format: date */
+          checkedOn: string;
+          /** Format: date */
+          issuedOn: string;
+          certificateNumber: string;
+          /** @enum {string} */
+          level: "enhanced_adults_barred";
+          /** @enum {string} */
+          result: "clear" | "information_disclosed";
+        }
+      | {
+          /** @enum {string} */
+          outcome: "withdrawn";
+          /** Format: date */
+          checkedOn: string;
+        }
+      | {
+          /** @enum {string} */
+          outcome: "no_new_information" | "new_information" | "details_not_matched";
+          /** Format: date */
+          checkedOn: string;
+        }
+      | {
+          /** @enum {string} */
+          outcome: "registered" | "registered_with_conditions" | "not_registered";
+          /** Format: date */
+          checkedOn: string;
+          /** Format: date */
+          renewalDueOn: string | null;
+        }
+      | null;
+    RecordVettingConsent: {
+      purpose: components["schemas"]["VettingConsentPurpose"];
+      /** Format: date */
+      givenOn: string;
+    };
+    WithdrawVettingConsent: {
+      expectedVersion: number;
+      /** Format: date */
+      withdrawnOn: string;
+    };
+    StartVettingCheck:
+      | {
+          /** @enum {string} */
+          kind: "idsp_right_to_work";
+          document: components["schemas"]["IdspDocument"];
+        }
+      | {
+          /** @enum {string} */
+          kind: "dbs_application";
+        }
+      | {
+          /** @enum {string} */
+          kind: "dbs_status_check";
+          familyName: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "nmc_register_check";
+        };
+    RefreshVettingCheck: {
+      expectedVersion: number;
+    };
+    ApplyVettingCheck: {
+      expectedVersion: number;
+      itemExpectedVersion: number | null;
+      /** @default false */
+      identityConfirmed: boolean;
     };
     InductionDetail: {
       /** Format: uuid */

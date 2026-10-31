@@ -101,6 +101,7 @@ import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
+import { vettingRouter } from "./routes/vetting";
 import { workflowsRouter } from "./routes/workflows";
 import {
   createOidcDiscovery,
@@ -394,6 +395,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", recruitmentRouter);
   app.route("/", caseworkRouter);
   app.route("/", caseworkSupportRouter);
+  app.route("/", vettingRouter);
   app.route("/", inductionRouter);
   app.route("/", colleaguesRouter);
   app.route("/", developmentRouter);

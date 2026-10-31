@@ -565,4 +565,5 @@ export const AccountDeletionRequest = z
 export type AccountDeletionRequest = z.infer<typeof AccountDeletionRequest>;
 export * from "./recruitment";
 export * from "./sponsorship";
+export * from "./vetting";
 export * from "./workforce";

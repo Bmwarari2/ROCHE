@@ -6592,6 +6592,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       recheck_due_on: {
         description: "When a DBS Update Service status check is next due (UK date).",
       },
+      evidence_source: {
+        description: "Where the evidence came from (slice 77).",
+        codes: {
+          manual: "Seen by hand, with uploaded evidence.",
+          idsp_right_to_work: "A right to work check by a certified identity service provider.",
+          dbs_application: "A DBS certificate issued through the e-bulk service.",
+          dbs_status_check: "A DBS Update Service status check.",
+          nmc_register_check: "An NMC register check.",
+        },
+      },
+      vetting_check_id: { description: "The check applied, when not by hand (vetting_check.id)." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -7123,6 +7134,88 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "The Thapsus operator who appointed the case manager (operator_user.id).",
       },
       used_at: { description: "When support appointed them." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.vetting_consent": {
+    context: "workforce",
+    description:
+      "A member of staff's consent to a DBS application or to DBS Update Service status checks (workforce.md section 2e): when it was given and withdrawn, and who recorded each.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      staff_profile_id: { description: "The staff profile (staff_profile.id)." },
+      purpose: {
+        description: "What the consent is to.",
+        codes: {
+          dbs_application: "A DBS application through the e-bulk service.",
+          dbs_update_service: "DBS Update Service status checks of their certificate.",
+        },
+      },
+      given_on: { description: "The UK date it was given." },
+      recorded_by: { description: "Who recorded it (tenant_user.id); never the worker." },
+      withdrawn_on: { description: "The UK date it was withdrawn." },
+      withdrawn_by: { description: "Who recorded the withdrawal (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.vetting_check": {
+    context: "workforce",
+    description:
+      "A check made through a vetting port (an identity service provider, DBS e-bulk, the DBS Update Service or the NMC register; workforce.md section 2e, ADR-0094): what was checked, the answer and who applied it. Never a DBS certificate's contents.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      staff_profile_id: { description: "The staff profile (staff_profile.id)." },
+      kind: {
+        description: "The check.",
+        codes: {
+          idsp_right_to_work: "Right to work, by a certified identity service provider.",
+          dbs_application: "A DBS application through the e-bulk service.",
+          dbs_status_check: "A DBS Update Service status check.",
+          nmc_register_check: "An NMC register check.",
+        },
+      },
+      provider: { description: "The adapter that made the check." },
+      consent_id: { description: "The consent it relied on (vetting_consent.id)." },
+      requested_by: { description: "Who started it (tenant_user.id)." },
+      checked: {
+        description:
+          "What was checked, as JSON: the identity document type, the DBS certificate number or the NMC PIN.",
+      },
+      state: {
+        description: "Where the check is.",
+        codes: {
+          pending: "Waiting for the provider.",
+          completed: "Answered.",
+          failed: "Not made.",
+        },
+      },
+      external_reference: { description: "The provider's reference for the check." },
+      result: {
+        description:
+          "The provider's answer, as JSON (data-standards.md): the outcome and dates, and for a DBS certificate its level, number, issue date and whether it is clear.",
+      },
+      error: { description: "Why it was not made, as a short code." },
+      completed_at: { description: "When it was answered." },
+      applied_at: { description: "When it was applied to the staff file." },
+      applied_by: { description: "Who applied it (tenant_user.id); never the worker." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

@@ -166,6 +166,20 @@ file's rules (section 3). TUPE import comes with slice 51.
 | `leaver_record` | `staff_profile_id` (one each), `leaving_on`, `reason` (`LEAVING_REASONS`), `access_removed_at`, `_by` (empty for the sweep), `exit_interview` (`not_offered`, `offered`, `declined`, `held`), `exit_interview_on`, `exit_interview_summary`, `staff_file_retain_until` | Mutable; the date and reason stay; ended access stays ended; the exit interview only moves forward. Recording one sets the staff profile's `left_on` |
 | `reference_request` | `staff_profile_id`, `requested_on`, `requester` (an organisation, never a person's name), `kind` (`factual`, `conduct`), `state` (`requested`, `sent`, `declined`), `sent_on`, `sent_by`, `declined_reason` | Mutable once: answered once, sent in the sender's own name |
 
+### 2e. Identity and vetting adapters (slice 77, migration 0120)
+
+WORK-002 and ADR-0094: electronic routes for four of the staff file's checks, each off until the
+organisation configures a provider for its port (`integration_connection`), with manual entry and
+uploaded evidence the default. No vendor is chosen (H-521 to H-523); the only adapter is the
+contract-tested mock, which never runs in production. Two tenant tables with forced row-level
+security, following the staff file's rules (section 3), and two columns added to `compliance_item`.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `vetting_consent` | `staff_profile_id`, `purpose` (`dbs_application`, `dbs_update_service`), `given_on`, `recorded_by`, `withdrawn_on`, `withdrawn_by` | Mutable once: withdrawn once, never given again on the same row (a new consent is a new row); one consent in force per purpose; recorded and withdrawn in the recorder's own name, never by the worker |
+| `vetting_check` | `staff_profile_id`, `kind` (`idsp_right_to_work`, `dbs_application`, `dbs_status_check`, `nmc_register_check`), `provider`, `consent_id` (the DBS checks), `requested_by`, `requested_at`, `checked` (what was checked: the IDSP document, the certificate number or the PIN), `state` (`pending`, `completed`, `failed`), `external_reference`, `result` (the port's result, strictly parsed), `error`, `completed_at`, `applied_at`, `applied_by`, `compliance_item_id` | Mutable forward only: pending to completed or failed, and a completed check applied once, in the applier's own name, never by the worker; keeps its file, kind and what was checked |
+| `compliance_item` (added) | `evidence_source` (`manual` by default, or the check's kind), `vetting_check_id` | Recording an item by hand sets `manual`; applying a check sets its kind and id |
+
 ## 3. Permissions
 
 In the catalogue since Phase 0 ([permissions.md](permissions.md)): `workforce.recruitment.manage`,
@@ -455,6 +469,23 @@ whatever the clock change.
 
     H-874 (applied 31/10/2026): a leaver with no date of birth gives HR a task to record it at leaving; until it is, the file is kept and comes up for a person's decision once the after-leaving period (`staff_file.after_leaving`) has passed (`staffFileReviewDue`, a task raised once by the leaver sweep), never kept indefinitely without review. Each organisation chooses its staff file row once at onboarding, approved by its data protection lead.
 
+24. **Vetting adapters** (`vetting.ts`; ADR-0094). A check starts only when its port is on, on
+    someone else's file, with no check of that kind pending (`vettingRequestProblem`). The IDSP
+    checks only a valid British or Irish passport or an Irish passport card; everyone else is
+    checked with the Home Office online share code or by hand. A DBS application needs the
+    worker's consent to it, and an Update Service status check their consent to status checks, in
+    force on the day (`consentActive`: from the day given until the day withdrawn), a subscribed
+    certificate's number and their date of birth. An NMC check needs the role's register to be the
+    NMC and a PIN on the file. A result changes nothing by itself: a holder of
+    `workforce.staff_file.manage` applies it (`vettingApplication`), verifying the item in their
+    name on the check's date with the check as its source. An IDSP verification adds an unlimited
+    `idsp` right to work check; an issued certificate records its level, number, issue date and
+    whether it is clear, and nothing it disclosed; a status check records its date and result (new
+    information then blocks, rule 3); an NMC registration moves the renewal date. Not verified,
+    withdrawn, details not matched, not registered and registered with conditions are never
+    applied, and a result is not applied once the file's certificate number or PIN has changed
+    (`vettingCheckStillMatches`).
+
 Rate keys in use: `retention.staff_file.birthday_age`, `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
 `competence.medicines.refresh_months`, `supervision.per_year`, `appraisal.per_year`,
 `document_expiry.reminder_days.first`, `.second`, `.third`, `nmc.revalidation.cycle_years`,
@@ -479,6 +510,18 @@ audit event with opaque ids only; refusals are audited too. Dates are UK dates (
 | `POST /v1/workforce/staff-files/{id}/items/dbs_certificate/risk-assessment` | `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment, in the caller's name, never their own |
 | `POST /v1/workforce/staff-files/{id}/items/{kind}/documents` | `workforce.staff_file.manage` and `workforce.hr_document.read` | Add an HR-only document to an item (the file as the body, as the document store takes it); never to `dbs_certificate` |
 | `GET /v1/workforce/staff-files/{id}/documents/{documentId}/content` | `workforce.hr_document.read` | Open an HR-only document; every open writes `workforce.hr_document.viewed` |
+| `GET /v1/workforce/vetting/ports` | `workforce.staff_file.read` or `.manage` | Which vetting ports the organisation has switched on, and their provider (slice 77) |
+| `GET /v1/workforce/staff-files/{id}/vetting` | `workforce.staff_file.read` or `.manage` | The file's consents and checks |
+| `POST /v1/workforce/staff-files/{id}/vetting/consents` | `workforce.staff_file.manage` | Record the worker's consent to a DBS application or to Update Service status checks, with the date given (never one's own); 409 while one is in force |
+| `POST /v1/workforce/staff-files/{id}/vetting/consents/{consentId}/withdraw` | `workforce.staff_file.manage` | Record its withdrawal, once |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks` | `workforce.staff_file.manage` | Start a check through the port's adapter (rule 24); 409 `adapter_off` when the port is off |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/refresh` | `workforce.staff_file.manage` | Ask the adapter again about a pending check |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/apply` | `workforce.staff_file.manage` | Apply a completed check to its item, verified in the caller's name on the check's date with the check as its source; the item's `expectedVersion` when it exists |
+| `PUT /v1/integrations/{port}` (a vetting port) | `integrations.connection.manage`, fresh step-up | Switch a vetting port on with a known provider (`mock` outside production only) |
+
+Audit events (slice 77): `workforce.vetting_consent.recorded`, `.withdrawn`,
+`workforce.vetting_check.started`, `.refreshed`, `.applied`, each with opaque ids and codes only,
+and refusals with their reason.
 | `GET /v1/me/staff-file` | `workforce.self.read` | The member's own profile and where each of their checks stands |
 
 Audit actions: `workforce.staff_file.created`, `.updated`, `workforce.compliance_item.recorded`,
@@ -778,6 +821,26 @@ Slice 17:
   Oliver McGowan tiers; the port; the outbox events; the reminders once each; HR sees its
   reminders.
 
+
+Slice 77:
+
+- `vetting.test.ts` (domain, table-driven): ports, items and sources line up; consent in force on
+  the day; every reason a check may not start (own file, port off, a check pending, IDSP documents,
+  consent, certificate number, subscription, date of birth, register, PIN); applying every outcome
+  of every port, and a result dated after today; a result for a changed certificate or PIN.
+- `apps/api/src/integrations/vetting.test.ts`: the shared contract suite
+  (`vetting.contract.ts`) run on every mock scenario: answers parse strictly, retries are
+  idempotent, requests carry only the declared fields, health reports, the mock refused in
+  production; the adapter chooser off without a connection.
+- `packages/db/test/vetting.test.ts`: another organisation's consents and checks never seen or
+  written; the worker reads their own and writes none; one consent in force per purpose;
+  withdrawn once; a check moves forward only and is applied once in the applier's own name; the
+  evidence source checks; nothing deleted.
+- `apps/api/test/vetting.test.ts`: ports off by default; switching one on needs step-up and a known
+  provider; each route's permission and refusal audit; consent required for the DBS checks; the
+  IDSP, DBS, Update Service and NMC journeys through the mock to an applied item with its source;
+  outcomes that are never applied; a result for a replaced certificate.
+
 API, web and mobile tests come with slices 35, 56 and 57; the Phase 2 gate needs expired
 competence to block administration (with [medicines.md](medicines.md)).
 
@@ -850,7 +913,8 @@ Slice 29:
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
 H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 17: H-690
-to H-693; slice 23: H-730 to H-735; slice 39: H-800 to H-809; slice 29: H-870 to H-879).
+to H-693; slice 23: H-730 to H-735; slice 39: H-800 to H-809; slice 29: H-870 to H-879; slice 77:
+H-1120 to H-1129).
 
 ## 11. Known gaps
 
@@ -889,6 +953,11 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Linking a safeguarding concern to a case has no screen (slice 58) | The API route exists; the timeline shows a link made there | A picker for the safeguarding concerns the member may read (with the safety screens) |
 | The demo seed has no casework holder (slice 58) | The web journeys cover the silo (no entry, nothing shown) and recruitment; running a case is covered by the API tests | A demo caseworker in the e2e seed (H-936) |
 | Welsh copy for the workforce screens (slice 58) | Welsh shows the English words, marked untranslated | Translation (H-939) |
+| The vetting adapters have no screens (slice 77) | HR uses the API; the routes and the evidence source on each item exist | The staff file screens (slice 56, H-1129) |
+| No vendor adapter exists (slice 77) | Every vetting port stays off in production; manual entry is the only route | One adapter per contracted provider, passing the shared contract suite (H-1120 to H-1123) |
+| The worker cannot record or withdraw their own DBS consent (slice 77) | HR records both, with the date the worker gave or withdrew it | Self-service, if decided (H-1128) |
+| Pending checks are refreshed by hand (slice 77) | A DBS application stays pending until HR asks again | A worker job polling pending checks, or the provider's webhook through the inbound quarantine, once a provider is chosen |
+| An IDSP's own report is not kept (slice 77) | The item records the check's method, date and the checker | Keep it as an HR-only document if the adviser says so (H-1127) |
 
 ## 12. Sponsor licence, staff data protection and LDSS (slice 35, migration 0097)
 

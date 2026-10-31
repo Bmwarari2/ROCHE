@@ -10,7 +10,9 @@ import {
   jsonb,
   pgTable,
   text,
+  timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
@@ -93,6 +95,118 @@ export const staffProfile = pgTable(
   ],
 );
 
+/**
+ * Identity and vetting adapters (workforce.md section 2e; ADR-0094; slice 77, migration 0120).
+ * `VETTING_CHECK_KINDS`, `EVIDENCE_SOURCES` and `VETTING_CONSENT_PURPOSES` in packages/domain, kept
+ * in step by test/vetting.test.ts.
+ */
+export const VETTING_CHECK_KINDS = [
+  "idsp_right_to_work",
+  "dbs_application",
+  "dbs_status_check",
+  "nmc_register_check",
+] as const;
+export const EVIDENCE_SOURCES = ["manual", ...VETTING_CHECK_KINDS] as const;
+export const VETTING_CONSENT_PURPOSES = ["dbs_application", "dbs_update_service"] as const;
+export const VETTING_CHECK_STATES = ["pending", "completed", "failed"] as const;
+
+/** The worker's consent to a DBS application or to Update Service status checks. */
+export const vettingConsent = pgTable(
+  "vetting_consent",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    staffProfileId: uuid("staff_profile_id").notNull(),
+    purpose: text("purpose").notNull(),
+    givenOn: date("given_on").notNull(),
+    recordedBy: uuid("recorded_by").notNull(),
+    withdrawnOn: date("withdrawn_on"),
+    withdrawnBy: uuid("withdrawn_by"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("vetting_consent_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "vetting_consent_profile_fk",
+      columns: [t.tenantId, t.staffProfileId],
+      foreignColumns: [staffProfile.tenantId, staffProfile.id],
+    }),
+    staffRef("vetting_consent_recorded_by_fk", t, t.recordedBy),
+    staffRef("vetting_consent_withdrawn_by_fk", t, t.withdrawnBy),
+    uniqueIndex("vetting_consent_in_force_key")
+      .on(t.tenantId, t.staffProfileId, t.purpose)
+      .where(sql`withdrawn_on IS NULL`),
+    check("vetting_consent_purpose", sql`purpose IN (${sqlList(VETTING_CONSENT_PURPOSES)})`),
+    check(
+      "vetting_consent_withdrawn",
+      sql`(withdrawn_on IS NULL) = (withdrawn_by IS NULL) AND (withdrawn_on IS NULL OR withdrawn_on >= given_on)`,
+    ),
+  ],
+);
+
+/** One check through a vetting port, and its result (strictly parsed; never certificate content). */
+export const vettingCheck = pgTable(
+  "vetting_check",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    staffProfileId: uuid("staff_profile_id").notNull(),
+    kind: text("kind").notNull(),
+    /** The adapter that made it, e.g. `mock`. */
+    provider: text("provider").notNull(),
+    /** The DBS checks: the consent in force when it started. */
+    consentId: uuid("consent_id"),
+    requestedBy: uuid("requested_by").notNull(),
+    /** What was checked: `{ document }`, `{ certificateNumber }` or `{ pin }`, or `{}`. */
+    checked: jsonb("checked").notNull(),
+    state: text("state").notNull().default("pending"),
+    externalReference: text("external_reference"),
+    result: jsonb("result"),
+    /** A short code or message from the adapter, never personal data. */
+    error: text("error"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    appliedBy: uuid("applied_by"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("vetting_check_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "vetting_check_profile_fk",
+      columns: [t.tenantId, t.staffProfileId],
+      foreignColumns: [staffProfile.tenantId, staffProfile.id],
+    }),
+    foreignKey({
+      name: "vetting_check_consent_fk",
+      columns: [t.tenantId, t.consentId],
+      foreignColumns: [vettingConsent.tenantId, vettingConsent.id],
+    }),
+    staffRef("vetting_check_requested_by_fk", t, t.requestedBy),
+    staffRef("vetting_check_applied_by_fk", t, t.appliedBy),
+    index("vetting_check_profile_idx").on(t.tenantId, t.staffProfileId, t.createdAt),
+    uniqueIndex("vetting_check_pending_key")
+      .on(t.tenantId, t.staffProfileId, t.kind)
+      .where(sql`state = 'pending'`),
+    check("vetting_check_kind", sql`kind IN (${sqlList(VETTING_CHECK_KINDS)})`),
+    check("vetting_check_state", sql`state IN (${sqlList(VETTING_CHECK_STATES)})`),
+    check(
+      "vetting_check_consent",
+      sql`(consent_id IS NOT NULL) = (kind IN ('dbs_application', 'dbs_status_check'))`,
+    ),
+    check("vetting_check_checked", sql`jsonb_typeof(checked) = 'object'`),
+    check(
+      "vetting_check_completed",
+      sql`(state = 'completed') = (result IS NOT NULL) AND (state = 'pending') = (completed_at IS NULL)
+        AND (state <> 'failed' OR error IS NOT NULL)`,
+    ),
+    check("vetting_check_error", sql`error IS NULL OR length(error) <= 200`),
+    check(
+      "vetting_check_applied",
+      sql`(applied_at IS NULL) = (applied_by IS NULL) AND (applied_at IS NULL OR state = 'completed')`,
+    ),
+  ],
+);
+
 export const complianceItem = pgTable(
   "compliance_item",
   {
@@ -112,6 +226,9 @@ export const complianceItem = pgTable(
     /** Worked out from the details by the API when the item is saved, for the reminder sweep. */
     expiresOn: date("expires_on"),
     recheckDueOn: date("recheck_due_on"),
+    /** `EVIDENCE_SOURCES`: seen by hand, or the vetting check applied (slice 77). */
+    evidenceSource: text("evidence_source").notNull().default("manual"),
+    vettingCheckId: uuid("vetting_check_id"),
     ...mutableColumns(),
   },
   (t) => [
@@ -124,6 +241,15 @@ export const complianceItem = pgTable(
     }),
     staffRef("compliance_item_verified_by_fk", t, t.verifiedBy),
     staffRef("compliance_item_risk_assessment_signed_by_fk", t, t.riskAssessmentSignedBy),
+    foreignKey({
+      name: "compliance_item_vetting_check_fk",
+      columns: [t.tenantId, t.vettingCheckId],
+      foreignColumns: [vettingCheck.tenantId, vettingCheck.id],
+    }),
+    check(
+      "compliance_item_evidence_source",
+      sql`evidence_source IN (${sqlList(EVIDENCE_SOURCES)}) AND (evidence_source = 'manual') = (vetting_check_id IS NULL)`,
+    ),
     index("compliance_item_reminder_idx").on(t.tenantId, t.expiresOn, t.recheckDueOn),
     check("compliance_item_kind", sql`kind IN (${sqlList(COMPLIANCE_ITEM_KINDS)})`),
     check(

@@ -64,9 +64,25 @@ Sources: [Bedrock model and region support](https://docs.aws.amazon.com/bedrock/
 | Supabase | If an ADR uses Supabase London for dev, staging or pilot tenants | London region |
 | WorkOS | If used for enterprise SAML or OIDC SSO | `[to confirm - human action]` |
 
+### Pending: vetting and identity providers (Phase 2, slice 77; ADR-0094)
+
+The staff file's vetting ports are built with mocks only and are off for every organisation. No
+provider is chosen (H-521 to H-523). Before any provider is added to this build, the DPO decides
+whether it is the organisation's own processor or a Thapsus sub-processor (H-520), checks where it
+holds data, its Article 28 terms and security assurance (H-793), and it joins this register (or the
+organisation's own records) and the DPIA. The mock is refused in production.
+
+| Port | Would receive | Never receives | Status |
+| --- | --- | --- | --- |
+| `workforce.idsp` (certified identity service provider, right to work) | The check's opaque reference, the worker's name as the organisation knows it, their work email and the document type (British or Irish passport, Irish passport card); the worker then gives their own document to the provider | Anything else in the staff file | Not chosen (H-521, H-1120) |
+| `workforce.dbs_ebulk` (DBS registered or umbrella body) | The check's reference, the worker's name and email for the invitation, the level, the workforce and the job title; the worker completes the application with the provider | Anything else in the staff file | Not chosen (H-522, H-1121) |
+| `workforce.dbs_update_service` (DBS) | The check's reference, the certificate number, the surname typed by the checker and the date of birth, only with the worker's consent in force | Anything else; the DBS is the controller of its own records | Not chosen (H-522, H-1122) |
+| `workforce.nmc_register` (NMC) | The check's reference and the PIN | Anything else | No API exists; never scraped (H-523, H-1123) |
+
 ## 5. Change log
 
 | Date | Change | Notice given to tenants |
 | --- | --- | --- |
 | 11 October 2026 | Register created (Phase 0) | Not applicable (no live tenants) |
 | 11 October 2026 | Pending entries for family notifications: SES for family email and a UK SMS gateway (Phase 1, slice 12) | Not applicable (no live tenants); notice due before they process family data |
+| 31 October 2026 | Pending entries for the vetting and identity ports (Phase 2, slice 77; ADR-0094); none switched on | Not applicable (no provider chosen) |
