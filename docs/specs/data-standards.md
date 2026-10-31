@@ -458,6 +458,17 @@ mapping of incident types to LFPSE categories is an open item below.
 | `complaint.retention_class`, `compliment.retention_class` | [retention.md](retention.md) | `complaint` | |
 | `investigation.method`, `status`, `actions` | Harbour | `root_cause_analysis`, `five_whys`, `fishbone`, `after_action_review`, `swarm_huddle`, `other`; `open`, `completed`; actions `[{ id, action, ownerTenantUserId, dueOn, status (open, done, cancelled), taskId }]` | |
 
+### Deaths and missing persons (Phase 2, slice 37)
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `death_record.status` | Harbour | `open`, `closed`, `withdrawn` | Withdrawn when the death is corrected as recorded in error |
+| `death_record.expected`, `possibly_unnatural`, `judged_by` | Death certification reforms (9 September 2024); the clinician's judgement (concept) | `true`, `false` or empty until recorded; the clinician's name and role | Harbour never decides either; empty means the plan assumes the safer answer |
+| `death_step.step`, `outcome` | Harbour (`deathPlan`) | `verification_of_death`, `family_informed`, `medical_examiner_pack`, `cqc_reg16_notification`, `leder_notification`, `police_informed`, `preserve_room_and_equipment`; `done`, `not_needed` | A notification step is recorded here only as `not_needed` with a reason of at least 20 characters |
+| `missing_episode.status` | Harbour | `open`, `found`, `closed` | One open episode per person |
+| `missing_event.kind` | Harbour (`MISSING_TIMELINE_KINDS`); the Herbert Protocol | `last_seen`, `noticed_missing`, `search_started`, `search`, `sighting`, `police_called`, `found`, `welfare_check`, `debrief`, `note` | `police_called` carries the police reference (1 to 100 characters); `search` the area (1 to 500) |
+| `herbert_profile` | The Herbert Protocol (national scheme adopted by police forces; each force's form may differ, H-773) | Photograph (`document.id`); physical description and places likely (required, 10 to 4,000 characters); distinguishing features, usual clothing, medical needs, mobility, communication, people likely, routines, earlier episodes, approach (up to 4,000 each); phone or tracker (up to 1,000); who it was checked with (up to 500); review date (UK date) and reviewer | Prefilled parts say where they came from (the record, About Me); out of date `herbert_protocol.review_months` after the review date |
+
 ## Safeguarding log (Phase 2, slice 13)
 
 Code lists for `safeguarding_concern` ([safety.md](safety.md), "Safeguarding log"; migration 0075).

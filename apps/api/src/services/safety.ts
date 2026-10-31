@@ -355,7 +355,7 @@ function adultOn(dateOfBirth: string | null, on: string): boolean | undefined {
   return `${year}${dateOfBirth.slice(4)}` <= on;
 }
 
-async function subjectToDolsAt(
+export async function subjectToDolsAt(
   tx: Transaction,
   tenantId: string,
   personIds: readonly string[],

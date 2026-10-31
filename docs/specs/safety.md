@@ -37,6 +37,11 @@ a location (an outbreak) follows location scope.
 | `statutory_notification` | mutable, versioned | incident (or person for deaths and DoLS outcomes), kind (`STATUTORY_NOTIFICATION_KINDS`: `cqc_reg16_death`, `cqc_reg18_serious_injury`, `cqc_reg18_abuse`, `cqc_reg18_police`, `cqc_reg18_service_disruption`, `cqc_reg18_dols_outcome`, `riddor_death`, `riddor_specified_injury`, `riddor_non_worker_hospital`, `riddor_over_7_day`, `riddor_dangerous_occurrence`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person`), `due_at` (computed), provisional (rests on an "unsure" answer), status (`draft`, `ready`, `submitted`, `not_required` with reason), submitted by, submitted at, external reference, evidence document | `serious_incident`, RIDDOR kinds `riddor_report` |
 | `candour_record` | mutable, versioned | incident, threshold decision and who made it, verbal notification (who, when, apology given), written notification (date, document), enquiries and results shared, outcome, correspondence documents | `serious_incident` |
 | `investigation` | mutable, versioned | incident, lead, method (root-cause template), findings, contributing factors, actions (owner, due, status), lessons, bulletin and read receipts | `serious_incident` |
+| `death_record` (slice 37) | mutable, versioned | person, location, the exit that recorded the death (one record each), incident, time of death, the clinician's judgement (expected; whether the cause may be unnatural; whose judgement), learning disability or autism, status (`open`, `closed`, `withdrawn`), the mortality review (due date fixed at opening, findings, lessons, who and when), who closed it | `serious_incident` |
+| `death_step` (slice 37) | append-only | death record, person, step (`verification_of_death`, `family_informed`, `police_informed`, `preserve_room_and_equipment`, or a notification step recorded as not needed), outcome (`done`, or `not_needed` with a reason of at least 20 characters), when, note, police reference, who recorded it; the latest for a step counts | `serious_incident` |
+| `missing_episode` (slice 37) | mutable, versioned | person, location, the missing person or absconding incident, status (`open`, `found`, `closed`), immediate risk (call the police at once), under DoLS or the Mental Health Act at opening, the Herbert Protocol profile's version at opening, who closed it; one open per person | as the incident |
+| `missing_event` (slice 37) | append-only | episode, person, kind (`last_seen`, `noticed_missing`, `search_started`, `search`, `sighting`, `police_called`, `found`, `welfare_check`, `debrief`, `note`), when, police reference, area searched, note, who recorded it; each step of the search once | as the incident |
+| `herbert_profile` (slice 37) | mutable, versioned | person (one each), photograph (one of the person's documents), what they look like (required), distinguishing features, usual clothing, medical needs, mobility, communication, where they may go (required), people they may contact, routines, phone or tracker, earlier episodes, how to approach them, who it was checked with, review date and reviewer | `care_record` |
 
 ## 3. Permissions
 
@@ -386,12 +391,72 @@ Tests: `packages/domain/src/safety/safeguarding.test.ts` (HZ-126 clock and measu
 `packages/db/test/safeguarding-log.test.ts` (isolation, scope, no delete, versions, the integrity
 checks), `apps/api/test/safeguarding.test.ts` (routes, scope through the API, the sweep).
 
+### Deaths and missing persons (plan slice 37: SAFE-014, SAFE-015)
+
+Schema and API on the slice 7 rules (`deaths.ts`, `missing-person.ts`), with
+`packages/domain/src/safety/death-record.ts` and `missing-episode.ts` (migration 0099; hazards
+HZ-013 and HZ-127). No web screens yet (slice 63).
+
+1. **The death record** opens once per death recorded on a person's exit: from the people
+   lifecycle's `people.person.died` event (the same handler drafts the death notifications), or on
+   request (`POST /v1/deaths`). A death corrected as recorded in error withdraws it
+   (`people.person.status_corrected`), never deleting it. It holds the clinician's judgement
+   (expected or not; whether the cause may be unnatural or the circumstances suspicious; whose
+   judgement it is), never Harbour's. **Until both are recorded the plan assumes an unexpected death
+   whose cause may be unnatural**, so the police steps and leaving the room as it is are never
+   missed (`deathRecordPlan`), and the record cannot close.
+2. **The steps** are the slice 7 plan's. Verification of death, telling the family, telling the
+   police (with their reference) and leaving the room as it is are recorded here, append-only (the
+   latest for a step counts; a resend with the client's id is a no-op). The regulator's death
+   notification, the medical examiner information and LeDeR are done **only in the notification
+   centre** (submitted or decided not required, `notificationsForExit`): here they can only be
+   recorded as not needed, with a reason of at least 20 characters (for example the person died in
+   hospital). A step not in the plan, a time later than now or earlier than the death, is refused.
+3. **The mortality review** is due `mortality_review.due_days` after the death (a tenant target,
+   fixed when the record opens); it records findings and lessons (each at least 20 characters),
+   never a score. The record closes only with the judgement recorded, every step done or not
+   needed, and the review recorded; a closed or withdrawn record never changes (a database guard).
+4. **The missing person episode** opens on an open missing person or absconding incident for the
+   person affected (one open episode per person), by anyone who reports incidents, with when they
+   were noticed missing (and last seen), whether the risk assessment says call the police at once,
+   and whether they are under DoLS (a granted authorisation in force) or the Mental Health Act (as
+   the incident records). Its timeline is append-only: each step of the search once, any number of
+   areas searched, sightings and notes; times never later than now, never running the search
+   backwards (`timelineEntryProblems`). Found, the welfare check and the debrief need a note; the
+   welfare check, the debrief and closing need `safety.incident.manage`.
+5. **The police call** (HZ-127): opening the episode raises one urgent task for the Registered
+   Manager, due at `missing_person.police_call_minutes` after the person was noticed missing (at
+   once when the risk assessment says so), which the task engine escalates when overdue. Calling the
+   police needs their reference, ends the task, and answers the incident's `police.involved`
+   question, so the classifier drafts the CQC notification (regulation 18(2)(f)) with its clock in
+   the notification centre (HZ-013); found also ends the task. The episode shows the incident's
+   Herbert Protocol and CQC police notifications as the notification centre has them.
+6. **The Herbert Protocol profile**: one per person, read by `safety.incident.read`, written by
+   `safety.incident.manage`, for someone living here. A new profile is **prefilled from the record**
+   (the home address before moving here, communication needs and first language, allergies, and
+   About Me's people, routines and "please do and please do not"), each part saying where it came
+   from, for staff to check with the person and their family; what the person looks like is never
+   prefilled. What they look like and where they may go are required; the photograph is one of the
+   person's documents; the review date is never later than today and is recorded in the reviewer's
+   own name. The profile is out of date `herbert_protocol.review_months` after its last review (the
+   slice 7 rule): a daily job gives each out-of-date profile of someone living here one review task
+   for the nurse in charge, escalated by the task engine, and saving the profile finishes it. An
+   episode records the profile's version when it opened and says whether it was current.
+
+Permissions: `safety.incident.read` (read), `safety.incident.report` (open an episode, add to its
+timeline), `safety.incident.manage` (the death record, the welfare check, the debrief, closing, the
+profile), each where it reaches the person (row-level security, ADR-0071). Every read and write is
+audited by record id, never content.
+
 ## 5. API and events
 
 `/v1/incidents` (create, list in scope, get, update, close), `/v1/incidents/{id}/classifier`
 (answer questions; returns the required outputs and their due times), `/v1/notifications/statutory`
 (list with clocks, get, prepare, submit with step-up, mark not required with step-up),
-`/v1/incidents/{id}/candour`, `/v1/incidents/{id}/investigation`. Outbox events:
+`/v1/incidents/{id}/candour`, `/v1/incidents/{id}/investigation`; slice 37: `/v1/deaths` (list,
+open for an exit, get, record the judgement, `/steps`, `/review`, `/close`), `/v1/missing-episodes`
+(list, open, get, `/events`, `/close`) and `/v1/people/{id}/herbert-profile` (get with the prefill,
+save). Outbox events:
 `safety.incident.recorded`, `safety.notification.due`, `safety.notification.overdue`,
 `safety.notification.submitted`. Submission to CQC, HSE and local authorities is by the manager on
 the regulator's own portal in Phase 1 (Harbour prepares and records); direct submission APIs are

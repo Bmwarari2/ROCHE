@@ -29,6 +29,7 @@ import { caseworkRouter } from "./routes/casework";
 import { complaintsRouter } from "./routes/complaints";
 import { dataProtectionRouter } from "./routes/data-protection";
 import { dataSecurityRouter } from "./routes/data-security";
+import { deathsMissingRouter } from "./routes/deaths-missing";
 import { developmentRouter } from "./routes/development";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
@@ -374,6 +375,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", incidentsRouter);
   app.route("/", safeguardingRouter);
   app.route("/", statutoryNotificationsRouter);
+  app.route("/", deathsMissingRouter);
   app.route("/", operationsRouter);
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);

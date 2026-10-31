@@ -510,6 +510,7 @@ export * from "./complaints";
 export * from "./data-protection";
 export * from "./data-rights";
 export * from "./data-security";
+export * from "./deaths-missing";
 export * from "./devices";
 export * from "./dpia";
 export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";

@@ -23,6 +23,7 @@ import {
   processDeliveries,
   raiseCandourBlocked,
   raiseCareReviews,
+  raiseHerbertProfileReviews,
   raiseReviews,
   relayOutbox,
   remindDataSecurityRenewals,
@@ -84,6 +85,7 @@ const QUEUES = {
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
   candourBlocked: "candour-blocked-incidents",
+  herbertReviews: "herbert-profile-reviews",
   peopleReviews: "people-reviews",
   breakGlassReport: "break-glass-weekly-report",
   planTasks: "care-plan-rounds",
@@ -162,6 +164,9 @@ await work(QUEUES.outbreaks, async () => {
 await work(QUEUES.candourBlocked, async () => {
   await raiseCandourBlocked(deps);
 });
+await work(QUEUES.herbertReviews, async () => {
+  await raiseHerbertProfileReviews(deps);
+});
 await work(QUEUES.peopleReviews, async () => {
   await raiseReviews(deps);
 });
@@ -239,6 +244,7 @@ await boss.schedule(QUEUES.developmentExpiry, "21 * * * *");
 await boss.schedule(QUEUES.leaverAccess, "7 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
+await boss.schedule(QUEUES.herbertReviews, "31 4 * * *");
 // Hourly: people reviews fall due by the day; each raises one task, once.
 await boss.schedule(QUEUES.peopleReviews, "29 * * * *");
 // Daily in the small hours: the week before is reported once it has ended (Monday), and a missed

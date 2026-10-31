@@ -109,6 +109,11 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.statutory_notification",
   "public.candour_record",
   "public.investigation",
+  "public.death_record",
+  "public.death_step",
+  "public.missing_episode",
+  "public.missing_event",
+  "public.herbert_profile",
   "public.safeguarding_concern",
   "public.pre_admission_assessment",
   "public.admission_decision",
@@ -1934,6 +1939,107 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.death_record": {
+    context: "safety",
+    description:
+      "One record per death recorded on a person's exit (safety.md slice 37; SAFE-014): the clinician's judgement (expected or not, whether the cause may be unnatural), the steps the death needs and the mortality review. The notification steps are the notification centre's (statutory_notification). Harbour never decides the cause.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      location_id: "exported",
+      exit_record_id: { description: "The exit that recorded the death (exit_record.id)." },
+      incident_id: {
+        description: "The incident about the death, when there is one (incident.id).",
+      },
+      died_at: {
+        description: "When the person died, as recorded on the exit (instant, UTC).",
+        ukDate: true,
+      },
+      expected: {
+        description:
+          "The clinician's judgement: true when the death was expected; empty until recorded (the steps then assume it was not).",
+      },
+      possibly_unnatural: {
+        description:
+          "The clinician's judgement: true when the cause may be unnatural, violent or unknown, or the circumstances suspicious; empty until recorded (the steps then assume it may be).",
+      },
+      judged_by: {
+        description: "The clinician whose judgement it records: name and role, in words.",
+      },
+      learning_disability_or_autism: {
+        description:
+          "True when the person had a learning disability or was autistic (LeDeR), as recorded on the exit.",
+      },
+      status: {
+        description: "Where the record stands.",
+        codes: {
+          open: "Steps or the mortality review still to do.",
+          closed: "Every step done or not needed, and the mortality review recorded.",
+          withdrawn: "The death was recorded in error and corrected.",
+        },
+      },
+      review_due_at: {
+        description:
+          "When the mortality review is due: the organisation's target (mortality_review.due_days) after the death (instant, UTC).",
+      },
+      review_findings: { description: "The mortality review's findings, in words." },
+      review_lessons: {
+        description: "The mortality review's lessons, or that there were none and why.",
+      },
+      reviewed_at: { description: "When the mortality review was recorded (instant, UTC)." },
+      reviewed_by: { description: "Who recorded the mortality review (tenant_user.id)." },
+      closed_at: { description: "When the record was closed (instant, UTC)." },
+      closed_by: { description: "Who closed the record (tenant_user.id)." },
+      withdrawn_reason: { description: "Why the record was withdrawn." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.death_step": {
+    context: "safety",
+    description:
+      "Each step of a death as recorded on its death record (append-only; the latest for a step counts): verification of death, telling the family, telling the police, leaving the room as it is, or a notification step that was not needed, with the reason.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      death_record_id: { description: "The death record (death_record.id)." },
+      person_id: "exported",
+      step: {
+        description: "The step.",
+        codes: {
+          verification_of_death: "Verification of death.",
+          family_informed: "The family were told.",
+          medical_examiner_pack:
+            "The medical examiner information (recorded here only when not needed).",
+          cqc_reg16_notification:
+            "The regulator's death notification (recorded here only when not needed).",
+          leder_notification: "The LeDeR notification (recorded here only when not needed).",
+          police_informed: "The police were told.",
+          preserve_room_and_equipment: "The room and equipment were left as they were.",
+        },
+      },
+      outcome: {
+        description: "What was recorded.",
+        codes: { done: "Done.", not_needed: "Not needed, with the reason in note." },
+      },
+      at: { description: "When it was done, or decided not needed (instant, UTC)." },
+      note: { description: "A note, or the reason it was not needed." },
+      reference: { description: "The police reference, for telling the police." },
+      recorded_at: "exported",
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+    },
+  },
   "public.destruction_certificate": {
     context: "platform",
     description: "Certificates for records destroyed past retention (ids, class, rule, method).",
@@ -3709,6 +3815,55 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.herbert_profile": {
+    context: "safety",
+    description:
+      "The Herbert Protocol profile (safety.md slice 37; SAFE-015): what the police need first if the person goes missing, prefilled from the record for staff to check, out of date herbert_protocol.review_months after its last review.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      photo_document_id: { description: "A recent photograph (document.id)." },
+      physical_description: {
+        description: "What the person looks like: height, build, hair, eyes.",
+      },
+      distinguishing_features: {
+        description: "Scars, glasses, hearing aids, walking aids and the like.",
+      },
+      usual_clothing: { description: "What the person usually wears." },
+      medical_needs: {
+        description: "Conditions and medicines, and what happens if a dose is missed.",
+      },
+      mobility: { description: "How the person gets about." },
+      communication: { description: "How the person communicates and how to talk with them." },
+      places_likely: {
+        description: "Where the person may go: earlier homes, work, places they love.",
+      },
+      people_likely: { description: "People the person may try to reach." },
+      routines: {
+        description: "The person's habits and routines, and times they may be confused.",
+      },
+      phone_or_tracker: { description: "A mobile phone or tracking device the person carries." },
+      previous_episodes: {
+        description: "Times the person has gone missing before, and where they were found.",
+      },
+      approach: {
+        description: "How to approach the person: what calms them and what may upset them.",
+      },
+      reviewed_with: { description: "Who it was checked with: the person, a relative, staff." },
+      reviewed_on: { description: "When the profile was last reviewed (UK date)." },
+      reviewed_by: { description: "Who last reviewed it (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.hospital_transfer": {
     context: "people",
     description:
@@ -4611,6 +4766,84 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.missing_episode": {
+    context: "safety",
+    description:
+      "A missing person episode on its missing person (or absconding) incident (safety.md slice 37; SAFE-015): whether to call the police at once, whether the person was under DoLS or the Mental Health Act, and closure once found, checked and debriefed. The timeline is missing_event.",
+    treatment: "tenant_rows",
+    retention: "as_subject",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      location_id: "exported",
+      incident_id: { description: "The missing person incident (incident.id)." },
+      status: {
+        description: "Where the episode stands.",
+        codes: {
+          open: "The person is missing.",
+          found: "Found; the welfare check and debrief may still be to do.",
+          closed: "Found, checked and debriefed.",
+        },
+      },
+      immediate_risk: {
+        description: "True when the organisation's risk assessment says call the police at once.",
+      },
+      under_dols_or_mha: {
+        description:
+          "True when the person was under a DoLS authorisation or the Mental Health Act when the episode opened.",
+      },
+      herbert_profile_version: {
+        description:
+          "The Herbert Protocol profile's version when the episode opened; empty when there was none.",
+        unit: "version number",
+      },
+      closed_at: { description: "When the episode was closed (instant, UTC)." },
+      closed_by: { description: "Who closed the episode (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.missing_event": {
+    context: "safety",
+    description:
+      "A missing person episode's timeline and search log (append-only): last seen, noticed missing, search started, each area searched, sightings, the police called with their reference, found, the welfare check, the debrief and notes.",
+    treatment: "tenant_rows",
+    retention: "as_subject",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      episode_id: { description: "The episode (missing_episode.id)." },
+      person_id: "exported",
+      kind: {
+        description: "The entry.",
+        codes: {
+          last_seen: "When the person was last seen.",
+          noticed_missing: "When staff noticed the person was missing.",
+          search_started: "When the search started.",
+          search: "An area searched, in area.",
+          sighting: "A sighting reported.",
+          police_called: "The police were called, with their reference.",
+          found: "The person was found or returned.",
+          welfare_check: "The welfare check on return.",
+          debrief: "The debrief.",
+          note: "A note.",
+        },
+      },
+      at: { description: "When it happened (instant, UTC)." },
+      reference: { description: "The police reference, for police_called." },
+      area: { description: "Where was searched, for search." },
+      note: { description: "What happened, in words." },
+      recorded_at: "exported",
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
     },
   },
   "public.notification": {

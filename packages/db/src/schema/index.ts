@@ -5,6 +5,7 @@ export * from "./comms";
 export * from "./data-protection";
 export * from "./data-rights";
 export * from "./data-security";
+export * from "./deaths-missing";
 export * from "./dependency";
 export * from "./dpia";
 export * from "./enums";
