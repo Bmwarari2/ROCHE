@@ -619,6 +619,36 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 - API: `GET /v1/tasks` (views: all or mine; by person, location, status, window), `POST /v1/tasks`,
   `POST /v1/tasks/{id}/transition`, `POST /v1/tasks/{id}/assign`, `POST /v1/task-series`,
   `POST /v1/task-series/{id}/end`. Every list and change is audited.
+- `GET /v1/tasks?earlier=yes` with open tasks returns the window's own tasks first, then open tasks
+  due before `from`, however old, the most recent first, in the room left of 1,000; `truncated`
+  says the window itself held more than 1,000 and `earlierOmitted` counts the older open tasks
+  left out. `earlier` is recorded in the `platform.task.list` audit (HZ-003).
+- Web (`/tasks`, Phase 1 slice 9): "Team tasks" (`view=all`, every task the session's scope
+  reaches; shown first, because reviews go to a role rather than a person) and "My tasks"
+  (`view=mine`) as two tabs, each by status (open or finished) and window (yesterday to tomorrow,
+  or the last and next 7 days). The window's tasks and "Open from earlier" (open tasks due before
+  the window, with how many older ones are not listed) are listed apart, so old open tasks never
+  hide today's (HZ-003, HZ-008); each renders 20 at a time with "Show more" (its own address), so
+  the page stays quick however many tasks are open; the list says when it was read. Each task shows its title, the person it is
+  about by name (linked to their record, when the viewer may open people's records), the location,
+  who it is assigned to, when it is due (dd/mm/yyyy, 24-hour, UK time) and where it stands as an
+  icon and a word (upcoming, due, overdue, escalated, done, skipped, cancelled), with "Urgent" and
+  "Review" flags in words, and the person's communication needs. A review task (one raised by the engine: a stale write, a late entry, an
+  entry that did not complete its round; kind ending `_review`) shows its details with
+  `TaskDetails` (missed rounds in UK time, medicines first; entries by kind, time and outcome) and
+  late evidence, a catch-up or a restored round with `TaskEvidenceBadge` (HZ-003, HZ-004, HZ-006).
+  "Reviews only" narrows either tab to them. Actions follow the API: Start, Mark as done, Not done
+  (skip, with a reason) and Cancel (with a reason) for an open task; a task that needs evidence
+  says to record it on the person's record (the API refuses completion without it). Holders of
+  `platform.task.manage` also take or unassign a task and create one: a title, a due date and time
+  (UK, 24-hour), urgent or routine, optionally assigned to themselves, once or repeating every day
+  or every week (a task series). A stale version (`409`) says someone else changed the task and
+  shows it again; no change is retried silently. Family portal sessions are not offered the page.
+  Permission matrix: list, everyone in the organisation (row-level security narrows); move, the
+  task's permission holder or assignee (API decides, refusals said in words); create, assign and
+  schedule, `platform.task.manage`. Tests: `apps/web/src/lib/tasks.test.ts` (states, flags,
+  windows, form reading), `apps/web/e2e/tasks.spec.ts` (HZ-006 review task details and late
+  evidence; create, start, complete and skip with a reason; axe in light and dark).
 
 ## Document store (PLAT-009)
 
@@ -644,6 +674,27 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   other than the author and fixed approved versions are specified in [comms.md](comms.md)
   (COMMS-007, rules in `packages/domain/src/comms/templates.ts`); a rendered letter is stored here
   as a document about the person.
+- Web (Phase 1 slice 9): `/documents` lists the organisation's documents (policies, procedures;
+  any member reads them) with the version, when stored, the file size, the status as an icon and a
+  word (available, quarantined) and a legal hold flag; holders of `platform.document.manage`
+  upload one (PDF, up to the category limit) through its own route handler,
+  `/api/documents/upload` (the title and file name in percent-encoded headers, never the
+  address, which reaches access logs), not a server action, so server actions keep Next's default body limit
+  (ASVS L2 input limits): it takes posts from this site only (the origin configuration names, as
+  the invitation routes check, never request headers), PDFs only, refuses a length over the API's
+  document limit before reading and counts bytes again as it streams the body to the API with the
+  person's session, and answers with the refusals the form already says and add a new version on its page. `/documents/{id}/details` (organisation documents only; any other category is
+  not found there, and the tab title is a document's own only for an organisation document) shows
+  the document's details, retention class, versions and signatures, and a signing form (typed full
+  name, the statement, bound to the SHA-256 of the version shown, so a changed document is refused
+  and the page says to read the new version). Downloads use `/documents/{id}` (audited by the
+  API, never cached). Merge-field letter templates are linked from the page (`/letters`,
+  COMMS-007). Documents about a person stay on the person's record. Permission matrix: read,
+  everyone in the organisation (organisation documents); upload and new version,
+  `platform.document.manage`; sign, anyone who may read it (the API decides). Tests:
+  `apps/web/src/lib/documents.test.ts`, `apps/web/e2e/documents.spec.ts` (upload, sign, a new
+  version starts unsigned and the earlier one is no longer offered for signing; axe in light and
+  dark).
 
 ## Retention and legal hold (PLAT-012)
 
@@ -655,8 +706,32 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 - `POST /v1/retention/destroy`: re-checks each id, deletes every stored version, keeps a tombstone
   row without the title, and writes an append-only `destruction_certificate` per record class
   (ids, rule, reason, method). Held, current or unknown ids are returned as skipped.
-- Later: retention of structured care records (not only documents), crypto-shredding with
-  per-tenant data keys, and the destruction review screen (Phase 1 web slice).
+- `GET /v1/destruction-certificates` (`platform.retention.manage`, step-up): every certificate,
+  newest first (audited as `platform.destruction_certificate.list`). Candidates also carry when the
+  document was stored, and its title where the caller may read that category of document (a
+  person's record needs its own read permissions; otherwise the page says the category alone);
+  the listed ids are recorded in the audit.
+- Web (`/settings/retention`, "Records retention", Phase 1 slice 9), for holders of
+  `platform.retention.manage` (the data protection lead's tenant-wide roles). Every retention
+  route needs a fresh step-up, so the page sends the person to confirm it is them first and comes
+  back. Legal holds in force (who or what, why, since when) each with a release form (a reason of
+  10 or more characters); placing a hold on a person (chosen by name) or on one record (type and
+  id) with a reason; released holds with their reasons. Documents due for destruction (title,
+  category, retention class, stored, due since): only what the API offers, which never includes
+  anything under a legal hold or about someone still receiving care. Destroying is irreversible:
+  the reviewer ticks each document, gives a reason, ticks a box saying they understand the files
+  cannot be recovered, and confirms in a dialog that says so again in plain words; the page then
+  says how many were destroyed, how many were skipped (a hold placed meanwhile, no longer due) and
+  which certificates were issued. Destruction certificates list record class, count, reason,
+  method and when. Permission matrix: every action, `platform.retention.manage` with step-up;
+  everyone else is told they do not have access. Tests: `apps/web/src/lib/retention.test.ts`,
+  `apps/web/e2e/retention.spec.ts` (a hold keeps a document off the list; release; destroy after
+  confirming; the certificate is listed; refused for the manager; axe in light and dark).
+- Later: retention of structured care records (not only documents) and crypto-shredding with
+  per-tenant data keys.
+- Later: the API's upload routes take the title and file name in the query string
+  (`POST /v1/documents?title=`, ADR-0031), which reaches the API's access logs; move them to
+  headers or a metadata part, as the web route already does.
 
 ## Statutory figures (PLAT-021)
 

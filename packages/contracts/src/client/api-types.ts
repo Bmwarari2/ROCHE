@@ -5765,6 +5765,7 @@ export interface paths {
           personId?: string;
           locationId?: string;
           status?: "open" | "closed" | "any";
+          earlier?: "yes" | "no";
           from?: string;
           to?: string;
         };
@@ -6974,6 +6975,69 @@ export interface paths {
           };
           content: {
             "application/json": components["schemas"]["RetentionCandidateList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/destruction-certificates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Destruction certificates, newest first */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Certificates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DestructionCertificateList"];
           };
         };
         /** @description Not signed in */
@@ -22366,6 +22430,8 @@ export interface components {
     };
     TaskList: {
       items: components["schemas"]["TaskItem"][];
+      truncated?: boolean;
+      earlierOmitted?: number;
     };
     TaskItem: {
       /** Format: uuid */
@@ -22699,11 +22765,12 @@ export interface components {
       retentionClass: string;
       /** Format: date-time */
       eligibleSince: string;
+      title?: string;
+      /** Format: date-time */
+      createdAt?: string;
     };
-    /** @description Certificates per record class; skipped ids were held, not yet due or not found */
-    DestructionResult: {
-      certificates: components["schemas"]["DestructionCertificateItem"][];
-      skipped: string[];
+    DestructionCertificateList: {
+      items: components["schemas"]["DestructionCertificateItem"][];
     };
     DestructionCertificateItem: {
       /** Format: uuid */
@@ -22715,6 +22782,11 @@ export interface components {
       method: string;
       /** Format: date-time */
       executedAt: string;
+    };
+    /** @description Certificates per record class; skipped ids were held, not yet due or not found */
+    DestructionResult: {
+      certificates: components["schemas"]["DestructionCertificateItem"][];
+      skipped: string[];
     };
     DestroyDocuments: {
       documentIds: string[];
