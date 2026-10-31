@@ -17,7 +17,7 @@ request of about 600 lines) or a gate item (needs its own slice).
 | Every hazard-log entry has a test | Met: 45 of 45 | Small: five verification statuses are stale; one planned test waits for the task screens |
 | Clinical safety case v0.1 drafted | Drafted, awaiting CSO sign-off | [v0.1](../clinical-safety/safety-case/safety-case-v0.1-phase1.md) drafted on 31 October 2026; the CSO's review and signature are a human action (H-381) |
 | Every Phase 1 register row `done` (section 19, definition of done) | Not met: 0 of 54 | Gate items: user guides for every row; web screens for 22 rows; 4 rows `todo` |
-| Data-protection documents current | Mostly | Gate item: the DPIA template has no Phase 1 risks; small: data-standards coverage |
+| Data-protection documents current | Met (31 October 2026, `docs/dpia-phase-1`) | DPIA template section 7A and risks R13 to R19 added; data-standards rows for the eight tables added; the controller signs off per tenant (H-382) |
 
 ## 1. Maestro offline journey
 
@@ -139,7 +139,7 @@ fails otherwise), and every route checks a `module.resource.action` permission
 | PLAT-013 | Search | Offline search on mobile (paused); break-glass search in review (#99) |
 | PLAT-015 | Full export | None beyond the user guide |
 | PLAT-018 | Help and onboarding | Welsh keys and English reasons are open before a pilot (register note) |
-| PLAT-023 | DPIA and registers | The typed name is not checked against the account (register note); the DPIA template's Phase 1 risks (section 7) |
+| PLAT-023 | DPIA and registers | The typed name is not checked against the account (register note); the DPIA template's Phase 1 risks are done (section 7) |
 | PEOP-001 | Person record | Web: editing demographics, contacts and representatives; the register lists no journey |
 | PEOP-002 | Communication needs | Register lists no journey (the needs show on round, incidents and search journeys: add them) |
 | PEOP-003 | About Me | Web: authoring and share links |
@@ -189,7 +189,9 @@ follow-up pull request.
   `document_signature`, `key_issue`, `legal_hold`, `letter_template_version`,
   `notification_preference`, `welcome_checklist_item` and `workflow_instance`. The rest are
   reference or operator tables. **Small**: add their coded fields, or a line saying they have
-  none. Follow-up pull request.
+  none. **Done** (31 October 2026, `docs/dpia-phase-1`): "Phase 1 tables completed for the gate"
+  in data-standards.md gives each of the eight its fields, classification, retention class and
+  coding, from the schema and the export catalogue.
 - [retention.md](../specs/retention.md) and the export catalogue: every table has a retention class
   in the catalogue, enforced by test. retention.md names classes rather than every table.
   **Current.**
@@ -200,6 +202,12 @@ follow-up pull request.
     letters to the wrong recipient, or statutory notifications to regulators.
   - **Gate item**: add them, kept in step with `packages/domain/src/platform/dpia.ts` and its test.
     It needs the data-protection label, so it is its own pull request.
+  - **Done** (31 October 2026, `docs/dpia-phase-1`): risks R13 to R19 in sections 6 and 7, and
+    section 7A covering each kind of Phase 1 processing (lawful bases, risks, the measures built
+    with their code and document paths, expected residual risk and what the controller decides).
+    `PHASE_1_RISKS` in `dpia.ts` puts R13 to R19 in every tenant's prefill, and `dpia.test.ts`
+    checks their ids and wording against the template. Each tenant's DPO still rates and signs
+    them in-app (H-382); records of processing gained staff notification preferences.
 - [sub-processors.md](../compliance/sub-processors.md): last reviewed 11 October 2026, with SES, the
   SMS gateway and push for the family feed added that day. **Current** for Phase 1.
 
@@ -211,7 +219,7 @@ follow-up pull request.
      OPS-028, PEOP-002, SAFE-009).
 2. Evidence pack render test: a unit test of `renderEvidencePackPdf` on a fixed manifest.
 3. The person's history tab journey, with axe, in light and dark themes.
-4. data-standards rows for the eight tables in section 7.
+4. data-standards rows for the eight tables in section 7 (done, `docs/dpia-phase-1`).
 
 ## Gate items (larger)
 
@@ -226,5 +234,5 @@ follow-up pull request.
    - candour, medical examiner and investigations (SAFE-007, 008, 010);
    - evidence pack composing and statement of purpose (QUAL-003, QUAL-009).
 5. Branding (PLAT-002) and role dashboards (INSI-001).
-6. The DPIA template's Phase 1 risks and measures.
+6. The DPIA template's Phase 1 risks and measures (done, `docs/dpia-phase-1`; the controller's sign-off is H-382).
 7. A second demo tenant with a shared user, for the choose-organisation journey.
