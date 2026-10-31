@@ -43,6 +43,7 @@ import { letterTemplatesRouter } from "./routes/letter-templates";
 import { lettersRouter } from "./routes/letters";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { medicinesDmdRouter } from "./routes/medicines-dmd";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
 import { onboardingRouter } from "./routes/onboarding";
@@ -367,6 +368,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorBreachNoticesRouter);
   app.route("/", peopleDetailsRouter);
   app.route("/", schedulingDependencyRouter);
+  app.route("/", medicinesDmdRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

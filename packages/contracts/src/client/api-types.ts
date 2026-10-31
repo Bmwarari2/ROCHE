@@ -29246,6 +29246,295 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/medicines/dmd/products": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Search dm+d products
+     * @description Any of medicines.record.manage, medicines.emar.administer or medicines.stock.manage. VMPs and AMPs in the release in use whose names start with each word typed (`par 500`), or the product with a dm+d code; invalid products, and products dm+d has given a new identifier, only with `includeInvalid` or by their code, and then marked; shortest names first, at most 25. Names only: ingredients are never searched. A mistyped code is refused (422), never matched to a near one.
+     */
+    get: {
+      parameters: {
+        query: {
+          q: string;
+          includeInvalid?: "true" | "false";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Matching products */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdSearchResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/dmd/products/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A dm+d product with its units, forms, routes and packs
+     * @description Any medicines permission. A VMP with its AMPs and packs, or an AMP with its VMP and packs; the dose units dm+d gives for it (the unit dose, its form size's unit and the strength units); invalid and superseded products marked.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The product */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdProductDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/dmd/gtin/{gtin}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The packs a barcode's GTIN names
+     * @description Any medicines permission. A GTIN of 8, 12, 13 or 14 digits, read as GTIN-14; a wrong check digit is refused (422) rather than looked up. Only mappings in force on today's UK date and present in the release in use match; withdrawn and ended ones never do. More than one pack means the screen asks the person to choose. No match is 404.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          gtin: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The packs */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdGtinMatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/dmd/releases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The dm+d release history
+     * @description Any medicines permission. Every release loaded, refused or failed, newest first, with what each load changed and the problems that refused it; and the release in use with whether it is out of date.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The release history */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdReleaseHistory"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -37854,6 +38143,148 @@ export interface components {
         personIds: string[];
       }[];
       method: string[];
+    };
+    DmdSearchResult: {
+      release: components["schemas"]["DmdReleaseStatus"];
+      query: {
+        /** @enum {string} */
+        kind: "text" | "code";
+        terms: string[];
+      };
+      items: components["schemas"]["DmdProductSummary"][];
+      truncated: boolean;
+    };
+    DmdReleaseStatus: {
+      name: string | null;
+      /** Format: date */
+      releasedOn: string | null;
+      /** Format: date-time */
+      loadedAt: string | null;
+      /** @enum {string} */
+      status: "current" | "out_of_date" | "none";
+      ageDays: number | null;
+      staleAfterDays: number;
+      message: string;
+    };
+    DmdProductSummary: {
+      id: string;
+      /** @enum {string} */
+      kind: "vmp" | "amp";
+      name: string;
+      vmpId: string;
+      vmpName: string;
+      form: components["schemas"]["DmdCoded"];
+      routes: components["schemas"]["DmdCoded"][];
+      controlledDrugCategory: components["schemas"]["DmdCoded"];
+      invalid: boolean;
+      supersededBy: string | null;
+    };
+    DmdCoded: {
+      code: string;
+      name: string;
+    } | null;
+    DmdProductDetail: {
+      release: components["schemas"]["DmdReleaseStatus"];
+      product: {
+        id: string;
+        /** @enum {string} */
+        kind: "vmp" | "amp";
+        name: string;
+        vmpId: string;
+        vmpName: string;
+        form: components["schemas"]["DmdCoded"];
+        routes: components["schemas"]["DmdCoded"][];
+        controlledDrugCategory: components["schemas"]["DmdCoded"];
+        invalid: boolean;
+        supersededBy: string | null;
+        abbreviatedName: string | null;
+        vtm: {
+          id: string;
+          name: string;
+          invalid: boolean;
+        } | null;
+        vmpInvalid: boolean;
+        doseUnits: components["schemas"]["DmdCoded"][];
+        unitDoseForm: {
+          size: string | null;
+          unit: components["schemas"]["DmdCoded"];
+        } | null;
+        licensedRoutes: components["schemas"]["DmdCoded"][];
+        amps: {
+          id: string;
+          name: string;
+          invalid: boolean;
+        }[];
+        packs: components["schemas"]["DmdPack"][];
+      };
+    };
+    DmdPack: {
+      id: string;
+      /** @enum {string} */
+      kind: "vmpp" | "ampp";
+      name: string;
+      vmppId: string;
+      ampId: string | null;
+      quantity: string | null;
+      quantityUnit: components["schemas"]["DmdCoded"];
+      legalCategory: components["schemas"]["DmdCoded"];
+      discontinued: boolean;
+      /** Format: date */
+      discontinuedOn: string | null;
+      invalid: boolean;
+      gtins: string[];
+    };
+    DmdGtinMatch: {
+      release: components["schemas"]["DmdReleaseStatus"];
+      gtin: string;
+      items: {
+        pack: components["schemas"]["DmdPack"];
+        amp: {
+          id: string;
+          name: string;
+          invalid: boolean;
+        };
+        vmp: {
+          id: string;
+          name: string;
+          invalid: boolean;
+        };
+        /** Format: date */
+        startDate: string;
+        /** Format: date */
+        endDate: string | null;
+      }[];
+    };
+    DmdReleaseHistory: {
+      release: components["schemas"]["DmdReleaseStatus"];
+      items: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+        /** Format: date */
+        releasedOn: string;
+        /** @enum {string} */
+        source: "nhsbsa_trud" | "fixture" | "manual";
+        /** @enum {string} */
+        status: "loaded" | "refused" | "failed";
+        /** Format: date-time */
+        startedAt: string;
+        /** Format: date-time */
+        finishedAt: string;
+        fileCounts: {
+          [key: string]: number;
+        };
+        changes: {
+          [key: string]: number;
+        };
+        problems: {
+          code: string;
+          file: string | null;
+          id: string | null;
+          message: string;
+        }[];
+        problemCount: number;
+      }[];
     };
   };
   responses: never;

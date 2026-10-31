@@ -31906,6 +31906,634 @@
           "warnings",
           "method"
         ]
+      },
+      "DmdSearchResult": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "$ref": "#/components/schemas/DmdReleaseStatus"
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "code"
+                ]
+              },
+              "terms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "terms"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmdProductSummary"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "release",
+          "query",
+          "items",
+          "truncated"
+        ]
+      },
+      "DmdReleaseStatus": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "releasedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "loadedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "out_of_date",
+              "none"
+            ]
+          },
+          "ageDays": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "staleAfterDays": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "releasedOn",
+          "loadedAt",
+          "status",
+          "ageDays",
+          "staleAfterDays",
+          "message"
+        ]
+      },
+      "DmdProductSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "vmp",
+              "amp"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "vmpId": {
+            "type": "string",
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "vmpName": {
+            "type": "string"
+          },
+          "form": {
+            "$ref": "#/components/schemas/DmdCoded"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmdCoded"
+            }
+          },
+          "controlledDrugCategory": {
+            "$ref": "#/components/schemas/DmdCoded"
+          },
+          "invalid": {
+            "type": "boolean"
+          },
+          "supersededBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[1-9]\\d{5,17}$"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "vmpId",
+          "vmpName",
+          "form",
+          "routes",
+          "controlledDrugCategory",
+          "invalid",
+          "supersededBy"
+        ]
+      },
+      "DmdCoded": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "DmdProductDetail": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "$ref": "#/components/schemas/DmdReleaseStatus"
+          },
+          "product": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{5,17}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "vmp",
+                  "amp"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "vmpId": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{5,17}$"
+              },
+              "vmpName": {
+                "type": "string"
+              },
+              "form": {
+                "$ref": "#/components/schemas/DmdCoded"
+              },
+              "routes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DmdCoded"
+                }
+              },
+              "controlledDrugCategory": {
+                "$ref": "#/components/schemas/DmdCoded"
+              },
+              "invalid": {
+                "type": "boolean"
+              },
+              "supersededBy": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[1-9]\\d{5,17}$"
+              },
+              "abbreviatedName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "vtm": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d{5,17}$"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "invalid": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "invalid"
+                ]
+              },
+              "vmpInvalid": {
+                "type": "boolean"
+              },
+              "doseUnits": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DmdCoded"
+                }
+              },
+              "unitDoseForm": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "unit": {
+                    "$ref": "#/components/schemas/DmdCoded"
+                  }
+                },
+                "required": [
+                  "size",
+                  "unit"
+                ]
+              },
+              "licensedRoutes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DmdCoded"
+                }
+              },
+              "amps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[1-9]\\d{5,17}$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "invalid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "invalid"
+                  ]
+                }
+              },
+              "packs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DmdPack"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "name",
+              "vmpId",
+              "vmpName",
+              "form",
+              "routes",
+              "controlledDrugCategory",
+              "invalid",
+              "supersededBy",
+              "abbreviatedName",
+              "vtm",
+              "vmpInvalid",
+              "doseUnits",
+              "unitDoseForm",
+              "licensedRoutes",
+              "amps",
+              "packs"
+            ]
+          }
+        },
+        "required": [
+          "release",
+          "product"
+        ]
+      },
+      "DmdPack": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "vmpp",
+              "ampp"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "vmppId": {
+            "type": "string",
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "ampId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "quantity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantityUnit": {
+            "$ref": "#/components/schemas/DmdCoded"
+          },
+          "legalCategory": {
+            "$ref": "#/components/schemas/DmdCoded"
+          },
+          "discontinued": {
+            "type": "boolean"
+          },
+          "discontinuedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "invalid": {
+            "type": "boolean"
+          },
+          "gtins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "vmppId",
+          "ampId",
+          "quantity",
+          "quantityUnit",
+          "legalCategory",
+          "discontinued",
+          "discontinuedOn",
+          "invalid",
+          "gtins"
+        ]
+      },
+      "DmdGtinMatch": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "$ref": "#/components/schemas/DmdReleaseStatus"
+          },
+          "gtin": {
+            "type": "string",
+            "pattern": "^\\d{14}$"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pack": {
+                  "$ref": "#/components/schemas/DmdPack"
+                },
+                "amp": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[1-9]\\d{5,17}$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "invalid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "invalid"
+                  ]
+                },
+                "vmp": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[1-9]\\d{5,17}$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "invalid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "invalid"
+                  ]
+                },
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "pack",
+                "amp",
+                "vmp",
+                "startDate",
+                "endDate"
+              ]
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "release",
+          "gtin",
+          "items"
+        ]
+      },
+      "DmdReleaseHistory": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "$ref": "#/components/schemas/DmdReleaseStatus"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "releasedOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "nhsbsa_trud",
+                    "fixture",
+                    "manual"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "loaded",
+                    "refused",
+                    "failed"
+                  ]
+                },
+                "startedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "finishedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "fileCounts": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                },
+                "changes": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                },
+                "problems": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "file": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "code",
+                      "file",
+                      "id",
+                      "message"
+                    ]
+                  }
+                },
+                "problemCount": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "releasedOn",
+                "source",
+                "status",
+                "startedAt",
+                "finishedAt",
+                "fileCounts",
+                "changes",
+                "problems",
+                "problemCount"
+              ]
+            }
+          }
+        },
+        "required": [
+          "release",
+          "items"
+        ]
       }
     },
     "parameters": {}
@@ -65468,6 +66096,307 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicines/dmd/products": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Search dm+d products",
+        "description": "Any of medicines.record.manage, medicines.emar.administer or medicines.stock.manage. VMPs and AMPs in the release in use whose names start with each word typed (`par 500`), or the product with a dm+d code; invalid products, and products dm+d has given a new identifier, only with `includeInvalid` or by their code, and then marked; shortest names first, at most 25. Names only: ingredients are never searched. A mistyped code is refused (422), never matched to a near one.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "includeInvalid",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmdSearchResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicines/dmd/products/{id}": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A dm+d product with its units, forms, routes and packs",
+        "description": "Any medicines permission. A VMP with its AMPs and packs, or an AMP with its VMP and packs; the dose units dm+d gives for it (the unit dose, its form size's unit and the strength units); invalid and superseded products marked.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{5,17}$"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmdProductDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicines/dmd/gtin/{gtin}": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "The packs a barcode's GTIN names",
+        "description": "Any medicines permission. A GTIN of 8, 12, 13 or 14 digits, read as GTIN-14; a wrong check digit is refused (422) rather than looked up. Only mappings in force on today's UK date and present in the release in use match; withdrawn and ended ones never do. More than one pack means the screen asks the person to choose. No match is 404.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "required": true,
+            "name": "gtin",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The packs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmdGtinMatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicines/dmd/releases": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "The dm+d release history",
+        "description": "Any medicines permission. Every release loaded, refused or failed, newest first, with what each load changed and the problems that refused it; and the release in use with whether it is out of date.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The release history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmdReleaseHistory"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {
