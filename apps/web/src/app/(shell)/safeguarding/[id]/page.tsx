@@ -164,6 +164,7 @@ export default async function ConcernPage({ params }: { params: Promise<{ id: st
             id={data.id}
             version={data.version}
             protectiveMeasures={data.protectiveMeasures}
+            measuresOutcome={data.measuresOutcome}
           />
         </Card>
       ) : null}

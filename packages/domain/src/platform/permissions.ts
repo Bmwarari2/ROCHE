@@ -384,6 +384,15 @@ export function isSiloPermission(permission: string): boolean {
   return (SILO_PERMISSIONS as readonly string[]).includes(permission);
 }
 
+/**
+ * Permissions kept in the catalogue but held by no built-in role until the screen they allow
+ * exists ([ADR-0125](../../../../docs/decisions/0125-speak-up-anonymised-view-not-yet-granted.md)).
+ * `safety.whistleblowing.read` is the master prompt's "whistleblowing (anonymised view)" for the
+ * quality lead (section 4): no API or screen reads it yet, and granting a permission that opens
+ * nothing let the guides suggest managers could see speak-up concerns (the slice 83 guides).
+ */
+export const NOT_YET_GRANTED: readonly string[] = ["safety.whistleblowing.read"];
+
 export type Permission = keyof typeof PERMISSIONS;
 
 export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];

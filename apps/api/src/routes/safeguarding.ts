@@ -49,6 +49,8 @@ import { loadPerson } from "../services/people";
 import { rateNumber } from "../services/rates";
 import {
   acknowledgeSafeguardingAlerts,
+  alertSafeguardingRaised,
+  finishSafeguardingReferralTask,
   SAFEGUARDING_REFERRAL_RATE_KEY,
   tellManagersNotReferred,
 } from "../services/safeguarding";
@@ -413,6 +415,8 @@ export const safeguardingRouter = createRouter()
           resourceId: row.id,
           scope: { personId: row.personId, locationId: row.locationId },
         });
+        // HZ-126: the managers at the person's home are told at once, with a task to decide.
+        await alertSafeguardingRaised(tx, row, now);
         await publish(tx, {
           context: "safety",
           aggregateType: "safeguarding_concern",
@@ -699,6 +703,7 @@ export const safeguardingRouter = createRouter()
         if (!saved) throw problems.conflict();
         if (to === "referred" || to === "no_referral") {
           await acknowledgeSafeguardingAlerts(tx, saved.id, now);
+          await finishSafeguardingReferralTask(tx, saved.id, now, to);
         }
         // A decision not to refer is never one person's alone and unseen: the other managers of
         // the log at the person's home are told (clinical review round 1; a second person: H-599).

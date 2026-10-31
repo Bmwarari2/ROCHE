@@ -507,7 +507,11 @@ export const OWNER_TASK_KINDS: readonly string[] = ["safety.investigation_action
  * when its member signs the version in force (quality.md section 18.3; HZ-128), so nobody marks it
  * done or skipped without the signature.
  */
-export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = ["quality.policy_read_and_sign"];
+export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = [
+  "quality.policy_read_and_sign",
+  // Completed only by referring the concern or recording why not (HZ-126).
+  "safety.safeguarding_referral",
+];
 
 /** Whether a task's assignee completes it whatever they hold (a general task or an owner's). */
 export function anyoneMayBeGiven(row: {

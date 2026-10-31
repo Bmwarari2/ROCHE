@@ -1,6 +1,7 @@
 import { Card } from "@harbour/ui";
 import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
 import { RecordFrame } from "@/components/care/RecordFrame";
@@ -39,6 +40,16 @@ async function SafeguardingTab({ params }: { readonly params: Params }) {
       <div className="flex flex-col gap-1">
         <h2 className="m-0 text-eyebrow">{t("safeguarding.measures.title")}</h2>
         <p className="m-0 max-w-prose text-text-secondary">{t("safeguarding.measures.intro")}</p>
+        {can(me.permissions, "safety.incident.report") ? (
+          <p className="m-0">
+            <Link
+              href={`/safeguarding/new?person=${id}`}
+              className="inline-flex min-h-target items-center underline"
+            >
+              {t("safeguarding.raiseAbout")}
+            </Link>
+          </p>
+        ) : null}
       </div>
       <Card as="section" title={t("safeguarding.measures.inPlace")} headingLevel={3}>
         {data.measures.length === 0 ? (

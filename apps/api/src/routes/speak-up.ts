@@ -56,6 +56,7 @@ import {
 import { HttpProblem, problems } from "../http/problem";
 import { throttleAddress } from "../http/throttle";
 import { rateRows } from "../services/rates";
+import { tellSpeakUpLeads } from "../services/speak-up-alerts";
 import {
   countIntake,
   type IntakeBucket,
@@ -440,6 +441,8 @@ export const speakUpRouter = createRouter()
           concernId: id,
           actor: "anonymous",
         });
+        // HZ-126: the leads are told, with nothing that could point at who raised it.
+        await tellSpeakUpLeads(tx, tenantId, id, true, now);
       });
       const expires = replyTokenExpiresAt as Date | null;
       return c.json(
@@ -546,6 +549,8 @@ export const speakUpRouter = createRouter()
           concernId: id,
           actor: "reporter",
         });
+        // HZ-126: the leads are told; a confidential or named reporter is never in the alert.
+        await tellSpeakUpLeads(tx, access.tenantId, id, false, new Date());
         const [row] = await loadMine(tx, access, id);
         if (!row) throw problems.notFound();
         return threadOf(tx, row);

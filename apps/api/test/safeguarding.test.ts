@@ -312,6 +312,76 @@ describe("hazard HZ-126 a concern is never dropped or closed without its records
   });
 });
 
+describe("hazard HZ-126 a concern raised is never left unseen", () => {
+  const alerts = (id: string) =>
+    asDemoTenant((c) =>
+      c.query<{
+        recipient: string;
+        severity: string;
+        channels: string[];
+        escalate_at: Date | null;
+        acknowledged_at: Date | null;
+      }>(
+        `SELECT recipient_tenant_user_id AS recipient, severity, channels, escalate_at,
+                acknowledged_at
+           FROM notification WHERE source_id = $1 AND kind = 'safety.safeguarding.raised'`,
+        [id],
+      ),
+    );
+  const referralTask = (id: string) =>
+    asDemoTenant((c) =>
+      c.query<{ status: string; required_permission: string; due_at: Date; priority: string }>(
+        `SELECT status, required_permission, due_at, priority FROM task
+          WHERE source_id = $1 AND kind = 'safety.safeguarding_referral'`,
+        [id],
+      ),
+    );
+
+  it("tells the managers at the person's home at once, through the escalation chain, with a task", async () => {
+    const raised = await json<{ id: string; referralDueAt: string }>(await raise("carer"));
+    const { rows } = await alerts(raised.id);
+    const recipients = rows.map((r) => r.recipient);
+    expect(recipients).toContain(DEMO.users.manager.id);
+    expect(recipients).toContain(DEMO.users.owner.id);
+    expect(recipients).not.toContain(DEMO.users.carer.id);
+    for (const r of rows) {
+      expect(r.severity).toBe("urgent");
+      expect(r.channels).toEqual(["in_app", "push"]);
+      // H-598: the managers first, then the owner role after the escalation minutes.
+      expect(r.escalate_at).not.toBeNull();
+    }
+    const tasks = (await referralTask(raised.id)).rows;
+    expect(tasks).toEqual([
+      expect.objectContaining({
+        status: "open",
+        required_permission: "safety.safeguarding.manage",
+        priority: "urgent",
+      }),
+    ]);
+    expect(tasks[0]?.due_at.toISOString()).toBe(raised.referralDueAt);
+  });
+
+  it("does not tell the manager who raised it, only the others", async () => {
+    const { id } = await json<{ id: string }>(await raise("manager"));
+    const recipients = (await alerts(id)).rows.map((r) => r.recipient);
+    expect(recipients).not.toContain(DEMO.users.manager.id);
+    expect(recipients).toContain(DEMO.users.owner.id);
+  });
+
+  it("closes the task and stops the chain when the referral is decided", async () => {
+    const { id } = await json<{ id: string }>(await raise("carer"));
+    await update(id, asked);
+    expect(
+      (await step(id, "no_referral", "No abuse found by the GP review of the bruise")).status,
+    ).toBe(200);
+    expect((await referralTask(id)).rows[0]?.status).toBe("done");
+    for (const r of (await alerts(id)).rows) {
+      expect(r.acknowledged_at).not.toBeNull();
+      expect(r.escalate_at).toBeNull();
+    }
+  });
+});
+
 describe("hazard HZ-126 the log shows only the people the manage permission reaches (ADR-0071)", () => {
   it("leaves out a concern the manager raised about someone outside their homes", async () => {
     const id = crypto.randomUUID();

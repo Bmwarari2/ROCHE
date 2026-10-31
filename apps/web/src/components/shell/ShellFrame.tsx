@@ -71,6 +71,11 @@ export interface ShellFrameLabels {
   readonly incidents?: string | undefined;
   /** Shown only to holders of safety.safeguarding.manage (SAFE-006). */
   readonly safeguarding?: string | undefined;
+  /**
+   * For those who may raise a safeguarding concern but do not run the log (HZ-126): straight to
+   * raising one. The log links to it for those who run it.
+   */
+  readonly raiseSafeguarding?: string | undefined;
   /** Shown only to holders of safety.complaint.manage (SAFE-011). */
   readonly complaints?: string | undefined;
   /** Shown to every member of staff (SAFE-012), never in a family member's portal session. */
@@ -287,7 +292,16 @@ export function ShellFrame({
             icon: <ShieldAlert {...icon} />,
           },
         ]
-      : []),
+      : labels.raiseSafeguarding
+        ? [
+            {
+              id: "safeguarding",
+              label: labels.raiseSafeguarding,
+              href: "/safeguarding/new",
+              icon: <ShieldAlert {...icon} />,
+            },
+          ]
+        : []),
     ...(labels.complaints
       ? [
           {

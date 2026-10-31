@@ -304,12 +304,17 @@ describe("PLAT-022 Thapsus's breach notice", () => {
       logger: createLogger("silent"),
     };
     await relayOutbox(deps, outboxHandlers(deps));
-    const told = await ownerRead<{ recipient_tenant_user_id: string; severity: string }>(
-      "SELECT recipient_tenant_user_id, severity FROM notification WHERE source_id = $1",
-      [noticeId],
-    );
+    const told = await ownerRead<{
+      recipient_tenant_user_id: string;
+      severity: string;
+      link: string;
+    }>("SELECT recipient_tenant_user_id, severity, link FROM notification WHERE source_id = $1", [
+      noticeId,
+    ]);
     expect(told.map((r) => r.recipient_tenant_user_id)).toContain(DEMO.users.owner.id);
     expect(told.every((r) => r.severity === "urgent")).toBe(true);
+    // It opens the breach in the register, never the data protection settings (slice 83 guides).
+    expect(told.every((r) => r.link === `/data-rights/breaches/${breachId}`)).toBe(true);
     const entry = await json<Breach>(await get(`/v1/data-protection/breaches/${breachId}`));
     expect(entry).toMatchObject({ source: "processor_notice", status: "open" });
     expect(entry.notices).toEqual([

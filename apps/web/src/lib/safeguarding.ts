@@ -50,6 +50,8 @@ export const STAFF_HARM = [
   "no_staff_involved",
 ] as const;
 export const ACHIEVED = ["fully", "partly", "not"] as const;
+/** Where the protective measures go when a concern ends (`MEASURES_OUTCOMES` in the domain). */
+export const MEASURES_OUTCOMES = ["carried_into_care_plan", "no_longer_needed"] as const;
 export const DESCRIPTION_MAX = 4_000;
 export const MEASURES_MAX = 2_000;
 
@@ -237,6 +239,9 @@ export function readSafeguardingUpdate(
     }
     body.protectiveMeasures = value || null;
   }
+  // Needed before a concern with measures is closed or not referred (HZ-126; the domain rule).
+  const measuresOutcome = oneOf(MEASURES_OUTCOMES, text(form, "measuresOutcome"));
+  if (measuresOutcome) body.measuresOutcome = measuresOutcome;
   if (Object.keys(errors).length > 0) return failed(errors, parts);
   if (Object.keys(body).length === 1) {
     return failed({ form: t("safeguarding.update.nothing") });

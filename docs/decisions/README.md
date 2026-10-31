@@ -68,6 +68,7 @@ for an answer.
 | [0090](0090-dsar-workbench-and-disclosure-collector.md) | DSAR workbench and the disclosure collector: one collector over the export catalogue, redaction by a person | accepted | 2026-10-31 | Phase 2 |
 | [0091](0091-single-sign-on.md) | Single sign-on on the Better Auth SSO plugin: OpenID Connect, keys only in the managed store, linking only to invited or active members | accepted | 2026-10-31 | Phase 2 |
 | [0092](0092-import-wizard.md) | Import wizard: staged rows in quarantine, organisation-wide importers, whole-batch commit and undo | proposed | 2026-10-31 | Phase 2 (slice 26) |
+| [0125](0125-speak-up-anonymised-view-not-yet-granted.md) | The speak-up anonymised view is not granted until it exists | accepted | 2026-10-31 | Phase 2 |
 
 ## Open items carried by these ADRs
 

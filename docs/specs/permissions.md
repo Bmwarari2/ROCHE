@@ -109,7 +109,7 @@ that home only.
 | `safety.safeguarding.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.outbreak.manage` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.complaint.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
-| `safety.whistleblowing.read` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
+| `safety.whistleblowing.read` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.speak_up.manage` |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |
 | `safety.disclosure.approve` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `quality.audit.manage` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |

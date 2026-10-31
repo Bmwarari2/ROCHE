@@ -29,6 +29,7 @@ import {
   ENQUIRY_KINDS,
   FINDINGS,
   MEASURES_MAX,
+  MEASURES_OUTCOMES,
   REFERRAL_METHODS,
   readRaiseConcern,
   readSafeguardingStep,
@@ -138,10 +139,12 @@ export function UpdateConcernForm({
   id,
   version,
   protectiveMeasures,
+  measuresOutcome,
 }: {
   readonly id: string;
   readonly version: number;
   readonly protectiveMeasures: string | null;
+  readonly measuresOutcome: string | null;
 }) {
   const ids = useFieldIds([
     "localAuthority",
@@ -159,6 +162,7 @@ export function UpdateConcernForm({
     "dbsDecision",
     "dbsReason",
     "protectiveMeasures",
+    "measuresOutcome",
     "form",
   ]);
   const { submit, result, pending } = useSubmit(
@@ -318,6 +322,18 @@ export function UpdateConcernForm({
           defaultValue={protectiveMeasures ?? ""}
           formatCount={(remaining) => characterCount(remaining)}
           error={errorFor(result, "protectiveMeasures")}
+        />
+        <RadioGroup
+          id={ids.measuresOutcome}
+          name="measuresOutcome"
+          legend={t("safeguarding.update.measuresOutcome")}
+          hint={t("safeguarding.update.measuresOutcomeHint")}
+          options={MEASURES_OUTCOMES.map((value) => ({
+            value,
+            label: t("safeguarding.measuresOutcome", { outcome: value }),
+          }))}
+          {...(measuresOutcome ? { defaultValue: measuresOutcome } : {})}
+          error={errorFor(result, "measuresOutcome")}
         />
       </fieldset>
       <div>

@@ -237,6 +237,18 @@ describe("safeguarding", () => {
     });
   });
 
+  it("hazard HZ-126 sends what happens to the protective measures, so the concern can end", () => {
+    for (const outcome of ["carried_into_care_plan", "no_longer_needed"]) {
+      expect(
+        readSafeguardingUpdate(form({ measuresOutcome: outcome }), t, { version: 3, now: NOW }),
+      ).toMatchObject({ ok: true, body: { version: 3, measuresOutcome: outcome } });
+    }
+    expect(
+      readSafeguardingUpdate(form({ measuresOutcome: "forgotten" }), t, { version: 3, now: NOW })
+        .ok,
+    ).toBe(false);
+  });
+
   it("sends only the sections filled in, and says when nothing was", () => {
     const nothing = readSafeguardingUpdate(form({}), t, { version: 3, now: NOW });
     expect(nothing.ok).toBe(false);

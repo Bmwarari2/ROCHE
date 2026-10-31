@@ -82,6 +82,10 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
         safeguarding: safeguardingShown(me.permissions) ? t("shell.nav.safeguarding") : undefined,
+        raiseSafeguarding:
+          !safeguardingShown(me.permissions) && me.permissions.includes("safety.incident.report")
+            ? t("shell.nav.raiseSafeguarding")
+            : undefined,
         complaints: complaintsShown(me.permissions) ? t("shell.nav.complaints") : undefined,
         speakUp: speakUpShown(me.permissions, isFamilyMember(me))
           ? t("shell.nav.speakUp")

@@ -1,4 +1,4 @@
-import { ALL_PERMISSIONS, isSiloPermission, type Permission } from "./permissions";
+import { ALL_PERMISSIONS, isSiloPermission, NOT_YET_GRANTED, type Permission } from "./permissions";
 
 /**
  * Built-in roles (master prompt section 4). Tenants may rename or clone them; clones are stored
@@ -47,9 +47,12 @@ export const PORTAL_ONLY_PERMISSIONS: readonly Permission[] = [
   "comms.visit_booking.request",
 ];
 
-/** A staff permission any wide role may hold: not portal-only, and not a silo (ADR-0089). */
+/**
+ * A staff permission any wide role may hold: not portal-only, not a silo (ADR-0089), and not one
+ * kept back until its screen exists (ADR-0125).
+ */
 const staffPermission = (p: Permission) =>
-  !PORTAL_ONLY_PERMISSIONS.includes(p) && !isSiloPermission(p);
+  !PORTAL_ONLY_PERMISSIONS.includes(p) && !isSiloPermission(p) && !NOT_YET_GRANTED.includes(p);
 
 const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   (p) =>
@@ -355,7 +358,6 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "comms.template.write",
       "comms.template.approve",
       "quality.dsar.manage",
-      "safety.whistleblowing.read",
       "safety.complaint.manage",
       "safety.incident.read",
       "platform.audit.read",

@@ -145,6 +145,59 @@ afterAll(async () => {
   await h?.close();
 });
 
+describe("hazard HZ-126 the Freedom to Speak Up lead is told a concern has arrived", () => {
+  const alerts = (concernId: string) =>
+    asDemoTenant((c) =>
+      c.query<{
+        recipient: string;
+        channels: string[];
+        title: string;
+        body: string;
+        link: string;
+        created_at: Date;
+        person_id: string | null;
+      }>(
+        `SELECT recipient_tenant_user_id AS recipient, channels, title, body, link, created_at,
+                person_id
+           FROM notification WHERE kind = 'safety.speak_up.received' AND source_id = $1`,
+        [concernId],
+      ),
+    );
+
+  it("tells the lead of an anonymous concern without anything that could point at who raised it", async () => {
+    const before = Date.now();
+    const raised = await publicRequest(
+      `/p/speak-up/${DEMO.tenantId}`,
+      {
+        category: "fraud_or_finance",
+        summary: "Petty cash does not add up again.",
+        wantsReplies: false,
+      },
+      { "x-forwarded-for": "192.0.2.77" },
+    );
+    expect(raised.status).toBe(201);
+    const id = await asLeadDb(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        "SELECT id FROM speak_up_concern WHERE summary = 'Petty cash does not add up again.'",
+      );
+      return rows[0]?.id ?? "";
+    });
+    const { rows } = await alerts(id);
+    expect(rows.map((r) => r.recipient)).toContain(GUARDIAN_ID);
+    for (const r of rows) {
+      // In the app only, dated to the start of the day: no push at the moment it was raised.
+      expect(r.channels).toEqual(["in_app"]);
+      expect(r.created_at.getTime()).toBeLessThanOrEqual(before);
+      expect(r.body).not.toContain("Petty cash");
+      expect(r.title).not.toContain("Petty cash");
+      expect(r.link).toBe("/speak-up/cases");
+      expect(r.person_id).toBeNull();
+    }
+    // Still no event about the concern (ADR-0089).
+    expect((await traces(id)).outbox).toEqual([]);
+  });
+});
+
 describe("SAFE-012 anonymous concerns (ADR-0089)", () => {
   it("stores no identity, audits against an anonymous actor and publishes nothing", async () => {
     const response = await publicRequest(
@@ -534,5 +587,39 @@ describe("SAFE-012 the lead's staff list (slice 62)", () => {
     const items = (await lead.json()) as { items: { id: string }[] };
     expect(items.items.map((i) => i.id)).toContain(DEMO.users.nurse.id);
     expect((await asUser("owner", "/v1/speak-up/staff")).status).toBe(403);
+  });
+});
+
+describe("hazard HZ-126 the Freedom to Speak Up lead is told a named or confidential concern has arrived", () => {
+  const alerts = (concernId: string) =>
+    asDemoTenant((c) =>
+      c.query<{
+        recipient: string;
+        channels: string[];
+        title: string;
+        body: string;
+        link: string;
+        created_at: Date;
+        person_id: string | null;
+      }>(
+        `SELECT recipient_tenant_user_id AS recipient, channels, title, body, link, created_at,
+                person_id
+           FROM notification WHERE kind = 'safety.speak_up.received' AND source_id = $1`,
+        [concernId],
+      ),
+    );
+
+  it("tells the lead of a named or confidential concern, by push too, never naming the reporter", async () => {
+    for (const identity of ["named", "confidential"] as const) {
+      const raised = await raiseNamed(identity);
+      const { rows } = await alerts(raised.id);
+      const lead = rows.find((r) => r.recipient === GUARDIAN_ID);
+      expect(lead?.channels).toEqual(["in_app", "push"]);
+      expect(`${lead?.title} ${lead?.body}`).not.toMatch(/Carol|Carer|sleep/i);
+      // Nobody but the leads is told.
+      expect(
+        rows.every((r) => r.recipient === GUARDIAN_ID || r.recipient !== DEMO.users.owner.id),
+      ).toBe(true);
+    }
   });
 });
