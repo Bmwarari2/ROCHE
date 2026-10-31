@@ -16,6 +16,7 @@ import {
   ClipboardList,
   CloudOff,
   FileLock,
+  FileSearch,
   FileText,
   FolderLock,
   House,
@@ -89,6 +90,7 @@ export interface ShellFrameLabels {
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataProtection?: string | undefined;
+  readonly dataRights?: string | undefined;
   /** The branding settings (PLAT-002), for platform.tenant.manage. */
   readonly branding?: string | undefined;
   /** Shown only to people who read the weekly break-glass report (platform.audit.read). */
@@ -141,6 +143,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/retention")) return "retention";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
+  if (pathname.startsWith("/data-rights")) return "data-rights";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
   if (pathname.startsWith("/settings/branding")) return "branding";
   if (pathname.startsWith("/break-glass")) return "break-glass";
@@ -362,6 +365,16 @@ export function ShellFrame({
             label: labels.dataProtection,
             href: "/settings/data-protection",
             icon: <FileLock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataRights
+      ? [
+          {
+            id: "data-rights",
+            label: labels.dataRights,
+            href: "/data-rights",
+            icon: <FileSearch {...icon} />,
           },
         ]
       : []),
