@@ -198,7 +198,11 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
     "not recorded" on the first page (HZ-023). "None" is a positive statement with who confirmed
     it and when; an empty list is not. Only active resuscitation records print; allergies print
     most severe first and time-critical medicines first; every section shows its "as of" time.
-    Recording the hand-over of an incomplete pack needs a named acknowledgement and reason. The
+    Recording the hand-over of a pack missing photo, allergies, medicines, communication needs,
+    resuscitation status or IDDSI levels (or with resuscitation records that disagree) needs a
+    named acknowledgement and reason; a missing About Me still reads "not recorded" on the first
+    page but does not by itself need the acknowledgement, so it stays reserved and does not become
+    routine (`acknowledge` in `TRANSFER_PACK_SECTIONS`; H-27, HZ-008). The
     identity block on the first page carries the CPR decision (H-94, H-133). A photo prints only
     as an 8-bit grey or colour JPEG or an 8-bit, non-interlaced PNG of at most 2048 pixels a side,
     decided once, when it is uploaded, by the decoder the PDF uses; anything else counts as

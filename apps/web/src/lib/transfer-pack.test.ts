@@ -129,6 +129,20 @@ describe("needsAcknowledgement", () => {
       true,
     ],
     [
+      // Printed "not recorded" on page 1, but not by itself a reason to acknowledge (H-27).
+      "a pack missing only About Me",
+      transfer({ missingCritical: ["about_me"], pack: pack({ complete: false }) }),
+      false,
+    ],
+    [
+      "a pack missing About Me and IDDSI levels",
+      transfer({
+        missingCritical: ["about_me", "eating_and_drinking"],
+        pack: pack({ complete: false }),
+      }),
+      true,
+    ],
+    [
       "resuscitation records that disagree",
       transfer({
         pack: pack({

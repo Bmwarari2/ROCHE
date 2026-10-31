@@ -24,61 +24,144 @@ import {
  *   different person (HZ-001), or when the person is not receiving care.
  * - Otherwise it always produces a pack, because a transfer must never wait for paperwork, but it
  *   flags every missing safety-critical section on the first page ("not recorded", never blank),
- *   and recording the hand-over of an incomplete pack needs a named person's acknowledgement.
+ *   and recording the hand-over of a pack missing a section marked `acknowledge` needs a named
+ *   person's acknowledgement. About Me prints "not recorded" on page 1 but does not by itself need
+ *   the acknowledgement, so it stays reserved for the sections a hospital acts on at once and does
+ *   not become routine (H-27, HZ-008).
  */
 
 export interface TransferPackSectionDefinition {
   readonly key: string;
   readonly title: string;
-  /** Safety-critical sections block a clean hand-over when missing. */
+  /** Safety-critical sections print "not recorded" on the first page when missing. */
   readonly critical: boolean;
+  /**
+   * A missing one needs the named acknowledgement at hand-over (HZ-023). Every section marked
+   * `acknowledge` is critical; About Me is critical but not acknowledged (H-27, HZ-008).
+   */
+  readonly acknowledge: boolean;
   readonly hazardIds: readonly string[];
 }
 
 export const TRANSFER_PACK_SECTIONS = [
-  { key: "photo", title: "Photo", critical: true, hazardIds: ["HZ-001", "HZ-023"] },
+  {
+    key: "photo",
+    title: "Photo",
+    critical: true,
+    acknowledge: true,
+    hazardIds: ["HZ-001", "HZ-023"],
+  },
   {
     key: "allergies",
     title: "Allergies and adverse reactions",
     critical: true,
+    acknowledge: true,
     hazardIds: ["HZ-007", "HZ-023"],
   },
-  { key: "medicines", title: "Current medicines", critical: true, hazardIds: ["HZ-023"] },
-  { key: "communication", title: "Communication needs", critical: true, hazardIds: ["HZ-023"] },
+  {
+    key: "medicines",
+    title: "Current medicines",
+    critical: true,
+    acknowledge: true,
+    hazardIds: ["HZ-023"],
+  },
+  {
+    key: "communication",
+    title: "Communication needs",
+    critical: true,
+    acknowledge: true,
+    hazardIds: ["HZ-023"],
+  },
   {
     key: "resuscitation",
     title: "Resuscitation status (ReSPECT, DNACPR)",
     critical: true,
+    acknowledge: true,
     hazardIds: ["HZ-015", "HZ-023"],
   },
-  { key: "about_me", title: "About Me", critical: true, hazardIds: ["HZ-023"] },
+  // Printed "not recorded" on page 1 when missing, but not by itself a reason for the named
+  // acknowledgement, which stays reserved and never becomes routine (H-27, HZ-008).
+  {
+    key: "about_me",
+    title: "About Me",
+    critical: true,
+    acknowledge: false,
+    hazardIds: ["HZ-008", "HZ-023"],
+  },
   {
     key: "reason_for_transfer",
     title: "Reason for transfer and what has changed",
     critical: false,
+    acknowledge: false,
     hazardIds: ["HZ-023"],
   },
-  { key: "baseline", title: "What is usual for this person", critical: false, hazardIds: [] },
+  {
+    key: "baseline",
+    title: "What is usual for this person",
+    critical: false,
+    acknowledge: false,
+    hazardIds: [],
+  },
   {
     key: "eating_and_drinking",
     title: "Eating and drinking (IDDSI levels)",
     // Safety-critical: a wrong texture can choke the person (HZ-016); the CSO confirms (H-86).
     critical: true,
+    acknowledge: true,
     hazardIds: ["HZ-016", "HZ-023"],
   },
   {
     key: "capacity_and_legal",
     title: "Mental capacity, DoLS and legal representatives",
     critical: false,
+    acknowledge: false,
     hazardIds: [],
   },
-  { key: "contacts", title: "Next of kin and representatives", critical: false, hazardIds: [] },
-  { key: "infection", title: "Infection status", critical: false, hazardIds: [] },
-  { key: "items_sent", title: "Belongings sent with the person", critical: false, hazardIds: [] },
-  { key: "home_contact", title: "How to contact the home", critical: false, hazardIds: [] },
+  {
+    key: "contacts",
+    title: "Next of kin and representatives",
+    critical: false,
+    acknowledge: false,
+    hazardIds: [],
+  },
+  {
+    key: "infection",
+    title: "Infection status",
+    critical: false,
+    acknowledge: false,
+    hazardIds: [],
+  },
+  {
+    key: "items_sent",
+    title: "Belongings sent with the person",
+    critical: false,
+    acknowledge: false,
+    hazardIds: [],
+  },
+  {
+    key: "home_contact",
+    title: "How to contact the home",
+    critical: false,
+    acknowledge: false,
+    hazardIds: [],
+  },
 ] as const satisfies readonly TransferPackSectionDefinition[];
 
 export type TransferPackSectionKey = (typeof TRANSFER_PACK_SECTIONS)[number]["key"];
+
+const ACKNOWLEDGED: ReadonlySet<string> = new Set(
+  TRANSFER_PACK_SECTIONS.filter((s) => s.acknowledge).map((s) => s.key),
+);
+
+/**
+ * The missing safety-critical sections whose absence needs the named acknowledgement at hand-over
+ * (HZ-023): every one but About Me, which prints "not recorded" on page 1 only (H-27, HZ-008).
+ * Keys the pack does not know are kept, so a section added later is never waved through.
+ */
+export function missingToAcknowledge<K extends string>(missingCritical: readonly K[]): K[] {
+  const known = new Set<string>(TRANSFER_PACK_SECTIONS.map((s) => s.key));
+  return missingCritical.filter((key) => ACKNOWLEDGED.has(key) || !known.has(key));
+}
 
 /** Record data for one section, with the person it belongs to and when it was last updated. */
 export interface SectionSource<T> {
@@ -649,9 +732,10 @@ export type TransferPackHandoverCheck =
     };
 
 /**
- * Recording that the pack went with the person. A pack missing a safety-critical section, or with
- * resuscitation records that disagree, can still be printed and sent, but the hand-over is
- * recorded only with a named acknowledgement and reason.
+ * Recording that the pack went with the person. A pack missing a safety-critical section marked
+ * `acknowledge` (every one but About Me, H-27), or with resuscitation records that disagree, can
+ * still be printed and sent, but the hand-over is recorded only with a named acknowledgement and
+ * reason. `missingCritical` in a refusal lists only the sections that need it.
  */
 export function checkTransferPackHandover(
   pack: Pick<HospitalTransferPack, "missingCritical" | "complete"> & {
@@ -660,7 +744,8 @@ export function checkTransferPackHandover(
   acknowledgement: TransferPackAcknowledgement | null,
 ): TransferPackHandoverCheck {
   const toAcknowledge = (pack.attention ?? []).filter((a) => a.acknowledge).map((a) => a.code);
-  if (pack.missingCritical.length === 0 && toAcknowledge.length === 0) {
+  const missing = missingToAcknowledge(pack.missingCritical);
+  if (missing.length === 0 && toAcknowledge.length === 0) {
     return { ok: true, incomplete: !pack.complete };
   }
   if (!acknowledgement) {
@@ -669,7 +754,7 @@ export function checkTransferPackHandover(
       problem: "acknowledgement_required",
       message:
         "Some safety-critical information is not recorded or needs checking. Confirm that the pack is going as it is, and why.",
-      missingCritical: pack.missingCritical,
+      missingCritical: missing,
       toAcknowledge,
     };
   }
@@ -678,7 +763,7 @@ export function checkTransferPackHandover(
       ok: false,
       problem: "reason_required",
       message: "Say why the pack is going without this information.",
-      missingCritical: pack.missingCritical,
+      missingCritical: missing,
       toAcknowledge,
     };
   }
