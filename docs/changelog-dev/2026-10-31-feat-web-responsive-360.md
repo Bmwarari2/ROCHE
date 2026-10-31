@@ -93,5 +93,11 @@ Branch `feat/web-responsive-360`. Phase 2 plan slice 74, MOB-013 (the web half).
 - `packages/ui`: unit tests pass, including the new `NavMenu.test.tsx` and the rem-based
   `tokens.test.ts`.
 - `pnpm lint` and `pnpm typecheck` pass.
-- Playwright, all three projects (desktop, 360 px and 320 px), was run locally against the seeded
-  demo tenant. The final results are in the report to the lead.
+- Playwright, all three projects (desktop `chromium`, `mobile-360` and `mobile-320`), was run
+  locally against a freshly seeded demo tenant on 31/10/2026: 277 passed, none failed. This was in
+  Chromium with the sandbox's own browser build, which differs from the build this Playwright
+  version pins, through a local configuration that was not committed.
+- The accessibility reviewer's findings are fixed (navigation drawer, rem type, button wrapping,
+  table-link hit areas, 15 px switcher text, segmented wrap, phone padding, a stricter target check,
+  a meaningful 200% test and a 320 px project). One more is left as a note: overflow hidden inside a
+  clipping container is still counted as fitting.
