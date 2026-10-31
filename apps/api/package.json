@@ -39,6 +39,7 @@
     "@openfeature/server-sdk": "^1.23.0",
     "better-auth": "^1.7.7",
     "drizzle-orm": "^0.45.4",
+    "google-auth-library": "11.3.2",
     "hono": "^4.13.13",
     "jose": "^6.2.12",
     "nodemailer": "^10.3.1",

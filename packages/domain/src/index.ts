@@ -59,6 +59,7 @@ export * from "./people/transfer-pack";
 export * from "./platform/access";
 export * from "./platform/branding";
 export * from "./platform/breach-notice";
+export * from "./platform/crypto-shred";
 export * from "./platform/data-rights";
 export * from "./platform/documents";
 export * from "./platform/dpia";

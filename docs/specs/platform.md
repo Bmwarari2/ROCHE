@@ -848,6 +848,63 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (`POST /v1/documents?title=`, ADR-0031), which reaches the API's access logs; move them to
   headers or a metadata part, as the web route already does.
 
+### Crypto-shredding (PLAT-012, ADR-0109)
+
+Envelope encryption and per-organisation shredding ([ADR-0109](../decisions/0109-per-organisation-crypto-shredding.md);
+[retention-and-deletion.md](../compliance/retention-and-deletion.md) sections 4 and 5).
+
+**Rules**
+
+1. Every stored object (document, export archive, DSAR bundle) is encrypted before it reaches
+   storage, with a fresh 256-bit key wrapped by the organisation's own key (Cloud KMS in
+   production, a local provider in development and tests). The format is
+   `apps/api/src/integrations/envelope.ts`: AES-256-GCM in 64 KiB segments, the header (magic,
+   version, nonce prefix, wrapped key) and the storage key authenticated with every segment. A
+   tampered, truncated, reordered or moved object is refused. The bucket's CMEK stays underneath.
+2. An organisation's key wraps only with that organisation's id as authenticated data, so a key
+   wrapped for one organisation never unwraps for another.
+3. A whole-organisation shred is requested by a member with `platform.retention.manage` (step-up),
+   with a reason of at least 20 characters and a confirmation that the organisation's export has
+   been taken; it is approved by a **different** member with the same permission (step-up). One
+   request may be pending at a time; any active legal hold refuses both the request and the
+   approval. The requester may cancel a pending request. The database refuses the same person as
+   requester and approver.
+4. On approval, every version of the organisation's key is scheduled for destruction. Reads and
+   writes of its objects fail at once (`410 shredded`); the key material is destroyed when the
+   delay ends (30 days in Cloud KMS, recorded on the certificate) and cannot be restored after.
+5. Every destruction certificate (the existing per-document ones and the shred's) carries its body's
+   SHA-256 and a signature by Harbour's certificate key; the shred's also names both people, the key
+   versions and their destroy times, and the date database backups have expired. Certificates
+   hold opaque ids only.
+6. Database rows: soft delete, then hard delete with a certificate; no field-level encryption
+   (ADR-0109, "Database rows").
+
+**API** (additive): `GET /v1/retention/shred-requests`, `POST /v1/retention/shred-requests`,
+`POST /v1/retention/shred-requests/{id}/approve`, `POST /v1/retention/shred-requests/{id}/cancel`,
+all `platform.retention.manage` with step-up; audited as `platform.retention.shred_requested`,
+`platform.retention.shred_approved` (with the certificate id) and
+`platform.retention.shred_cancelled`, refusals too.
+
+**Schema** (migration 0117): `tenant_shred_request` (forced RLS, tenant-wide holders of
+`platform.retention.manage` only, no DELETE); `destruction_certificate` gains `body_sha256`,
+`signature`, `signature_key`, `signature_algorithm`, `key_versions`, `keys_destroyed_at`,
+`backups_expire_at`, `requested_by` and `approved_by` (nullable, so existing rows stand).
+
+**Permission matrix**
+
+| Action | Permission |
+| --- | --- |
+| Read shred requests and certificates | `platform.retention.manage` |
+| Request, approve (a different person) or cancel (the requester) a shred | `platform.retention.manage`, step-up |
+
+**Tests (written first)**: `packages/domain/src/platform/crypto-shred.test.ts` (request and
+approval rules, table-driven; canonical certificate body); `apps/api/src/integrations/envelope.test.ts`
+(round trips, segments, tampering, truncation, moved objects, wrong organisation);
+`apps/api/src/integrations/tenant-keys.test.ts` (local provider: wrap, unwrap, shred, signature);
+`apps/api/test/crypto-shred.test.ts` (two-person and step-up, holds, reads fail after a shred,
+certificate contents and signature); `packages/db/test/crypto-shred.test.ts` (isolation, the
+same-person check, no DELETE).
+
 ## Statutory figures (PLAT-021)
 
 - `rate_table` seeded from [rates.md](rates.md), `retention_class` from

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  boolean,
   check,
   foreignKey,
   index,
@@ -9,6 +10,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
@@ -104,7 +106,75 @@ export const destructionCertificate = pgTable(
     reason: text("reason").notNull(),
     method: text("method").notNull(),
     executedAt: timestamp("executed_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Signature (ADR-0109): the SHA-256 of the certificate's canonical body and Harbour's
+     * certificate key's signature over it. Null on certificates issued before migration 0117.
+     */
+    bodySha256: text("body_sha256"),
+    signature: text("signature"),
+    signatureKey: text("signature_key"),
+    signatureAlgorithm: text("signature_algorithm"),
+    /** Key versions destroyed, with when each is destroyed for good (a crypto-shred). */
+    keyVersions: jsonb("key_versions").notNull().default(sql`'[]'::jsonb`),
+    keysDestroyedAt: timestamp("keys_destroyed_at", { withTimezone: true }),
+    /** When point-in-time recovery no longer holds the deleted rows. */
+    backupsExpireAt: timestamp("backups_expire_at", { withTimezone: true }),
+    /** A two-person shred: who asked and who approved (members; opaque ids). */
+    requestedBy: uuid("requested_by"),
+    approvedBy: uuid("approved_by"),
     ...createdColumns(),
   },
-  (t) => [index("destruction_certificate_executed_idx").on(t.tenantId, t.executedAt)],
+  (t) => [
+    index("destruction_certificate_executed_idx").on(t.tenantId, t.executedAt),
+    check(
+      "destruction_certificate_two_people",
+      sql`${t.approvedBy} IS NULL OR ${t.requestedBy} IS NULL OR ${t.approvedBy} <> ${t.requestedBy}`,
+    ),
+  ],
+);
+
+/**
+ * A whole-organisation crypto-shred waiting for its second person (PLAT-012, ADR-0109): asked by
+ * one member with platform.retention.manage, approved by a different one, each with step-up.
+ */
+export const tenantShredRequest = pgTable(
+  "tenant_shred_request",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    status: text("status").notNull().default("pending"),
+    reason: text("reason").notNull(),
+    exportConfirmed: boolean("export_confirmed").notNull(),
+    requestedBy: uuid("requested_by").notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedBy: uuid("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    certificateId: uuid("certificate_id"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    check("tenant_shred_request_status", sql`${t.status} IN ('pending', 'approved', 'cancelled')`),
+    check("tenant_shred_request_export", sql`${t.exportConfirmed}`),
+    check("tenant_shred_request_reason", sql`char_length(btrim(${t.reason})) >= 20`),
+    // The approver is never the requester; a cancel is the requester's own.
+    check(
+      "tenant_shred_request_two_people",
+      sql`${t.status} <> 'approved' OR (${t.decidedBy} IS NOT NULL AND ${t.decidedBy} <> ${t.requestedBy} AND ${t.certificateId} IS NOT NULL)`,
+    ),
+    check(
+      "tenant_shred_request_cancel",
+      sql`${t.status} <> 'cancelled' OR ${t.decidedBy} = ${t.requestedBy}`,
+    ),
+    foreignKey({
+      name: "tenant_shred_request_requested_by_fk",
+      columns: [t.tenantId, t.requestedBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "tenant_shred_request_decided_by_fk",
+      columns: [t.tenantId, t.decidedBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    uniqueIndex("tenant_shred_request_one_pending").on(t.tenantId).where(sql`status = 'pending'`),
+  ],
 );

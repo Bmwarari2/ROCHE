@@ -170,6 +170,31 @@ export interface DocumentStoragePort {
   getStream(key: string): Promise<AsyncIterable<Uint8Array> | null>;
 }
 
+/**
+ * An organisation's key encryption key (ADR-0109): wraps the per-object data keys of one
+ * organisation, and destroys every version of itself to shred that organisation. Also signs
+ * destruction certificates with Harbour's certificate key. Cloud KMS in production; a local
+ * provider in development and tests.
+ */
+export interface TenantKeyPort {
+  readonly provider: string;
+  /** Wraps a data key with the organisation's key (the organisation id is authenticated). */
+  wrap(tenantId: string, dataKey: Uint8Array): Promise<Uint8Array>;
+  /** Unwraps a data key; throws once the organisation's keys are shredded. */
+  unwrap(tenantId: string, wrapped: Uint8Array): Promise<Uint8Array>;
+  /** Schedules every version of the organisation's key for destruction. */
+  shred(
+    tenantId: string,
+  ): Promise<readonly { readonly name: string; readonly destroyAt: string }[]>;
+  /** Signs a message (a certificate's canonical body) with Harbour's certificate key. */
+  sign(
+    message: Uint8Array,
+  ): Promise<{ readonly signature: string; readonly key: string; readonly algorithm: string }>;
+  /** Checks a signature made by `sign`. */
+  verify(message: Uint8Array, signature: string, key: string): Promise<boolean>;
+  health(): Promise<HealthResult>;
+}
+
 /** `unavailable` keeps the upload quarantined: a document is never served unscanned in production. */
 export type MalwareVerdict = "clean" | "infected" | "unavailable";
 

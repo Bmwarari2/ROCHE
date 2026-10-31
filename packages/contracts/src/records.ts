@@ -155,6 +155,16 @@ export const DestructionCertificateItem = z
     reason: z.string(),
     method: z.string(),
     executedAt: isoDateTime,
+    /** SHA-256 (hex) of the canonical certificate body that was signed (PLAT-012, ADR-0109). */
+    bodySha256: z.string().nullable(),
+    signature: z.string().nullable(),
+    signatureKey: z.string().nullable(),
+    signatureAlgorithm: z.string().nullable(),
+    keyVersions: z.array(z.object({ name: z.string(), destroyAt: isoDateTime })),
+    keysDestroyedAt: isoDateTime.nullable(),
+    backupsExpireAt: isoDateTime.nullable(),
+    requestedBy: uuid.nullable(),
+    approvedBy: uuid.nullable(),
   })
   .meta({ id: "DestructionCertificateItem" });
 export type DestructionCertificateItem = z.infer<typeof DestructionCertificateItem>;
@@ -163,6 +173,40 @@ export const DestructionCertificateList = z
   .object({ items: z.array(DestructionCertificateItem) })
   .meta({ id: "DestructionCertificateList" });
 export type DestructionCertificateList = z.infer<typeof DestructionCertificateList>;
+
+export const ShredRequestItem = z
+  .object({
+    id: uuid,
+    status: z.enum(["pending", "approved", "cancelled"]),
+    reason: z.string(),
+    exportConfirmed: z.boolean(),
+    requestedBy: uuid,
+    requestedAt: isoDateTime,
+    decidedBy: uuid.nullable(),
+    decidedAt: isoDateTime.nullable(),
+    certificateId: uuid.nullable(),
+  })
+  .meta({ id: "ShredRequestItem", description: "A whole-organisation shred request (PLAT-012)" });
+export type ShredRequestItem = z.infer<typeof ShredRequestItem>;
+
+export const ShredRequestList = z
+  .object({ items: z.array(ShredRequestItem) })
+  .meta({ id: "ShredRequestList" });
+export type ShredRequestList = z.infer<typeof ShredRequestList>;
+
+export const CreateShredRequest = z
+  .object({
+    reason: z.string().max(1000),
+    /** The organisation's full export has been taken (retention-and-deletion.md section 5). */
+    exportConfirmed: z.boolean(),
+  })
+  .meta({ id: "CreateShredRequest" });
+export type CreateShredRequest = z.infer<typeof CreateShredRequest>;
+
+export const ShredApproved = z
+  .object({ request: ShredRequestItem, certificate: DestructionCertificateItem })
+  .meta({ id: "ShredApproved" });
+export type ShredApproved = z.infer<typeof ShredApproved>;
 
 export const DestructionResult = z
   .object({ certificates: z.array(DestructionCertificateItem), skipped: z.array(uuid) })

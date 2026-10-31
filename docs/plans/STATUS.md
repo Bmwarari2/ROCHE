@@ -59,6 +59,13 @@ field reaches the address before hydration (`apps/web/src/forms.test.ts`); #136 
 (Working Time rules); #139 Phase 2 slice 80 (Cyber Essentials and ISO 27001 mapping); #141
 `fromUkWallClock` refuses a time that does not exist instead of recursing.
 
+**Pushed on 31/10/2026, not merged:** `feat/platform-crypto-shred` (PLAT-012 stays `partial`).
+Every stored object is now envelope-encrypted under one Cloud KMS key per organisation, a
+whole-organisation shred needs two people, and destruction certificates are signed (ADR-0109,
+migration 0117, human actions H-1110 to H-1116). It is cut from `feat/api-google-cloud-adapters`
+and merges after it. Still to do on PLAT-012: the shred screens in `apps/web`, and certificates as
+signed PDFs (retention-and-deletion.md section 5).
+
 **Paused at 15:10 on 31/10/2026** for the account's usage limit; every builder was asked to push
 its work in progress (`wip(...)` commits) and stop. Resume by reading this section.
 

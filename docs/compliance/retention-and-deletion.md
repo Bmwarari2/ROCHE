@@ -54,15 +54,15 @@ Deleting rows from the live database does not remove copies from backups (point-
 
 | Element | Design |
 | --- | --- |
-| Envelope encryption | Content columns that hold free text and documents, and S3 objects, are encrypted with a data encryption key (DEK) per person (or per staff member for workforce records). DEKs are wrapped by a per-tenant key in AWS KMS |
-| Shredding | Destroy the DEKs for the batch, then purge the rows and delete all S3 object versions. Any copy left in a backup or replica is ciphertext without a key |
-| Whole-tenant exit | At the end of a contract, after the tenant's free export, the tenant KMS key is scheduled for deletion (minimum KMS waiting period applies) once live data is purged ([DPA clause 9](dpa-article-28-template.md#9-deletion-or-return-at-the-end-of-the-services-art-283g)) |
+| Envelope encryption | Stored objects (documents, export archives, DSAR bundles) are encrypted before they reach object storage, each with its own 256-bit data key wrapped by the organisation's own key: one Cloud KMS key per organisation in europe-west2, rotated every 90 days, with the bucket's CMEK as a second layer ([ADR-0109](../decisions/0109-per-organisation-crypto-shredding.md)). Database rows are not field-encrypted: they are soft deleted, then purged with a certificate that records when point-in-time recovery no longer holds them (ADR-0109, "Database rows"). Per-person data keys are not used |
+| Shredding | For a batch (retention, or a legal-hold release on a subset): purge the rows, then delete every version of the objects (`POST /v1/retention/destroy`), with a signed certificate. Any copy left in a backup expires with the point-in-time recovery window |
+| Whole-tenant exit | At the end of a contract, after the tenant's free export, one member requests and a different member approves (both with step-up, never under a legal hold) the shred of the organisation's key: every key version is scheduled for destruction (30 days in Cloud KMS), reads fail at once, and a signed certificate records the key versions and their destroy times ([platform.md](../specs/platform.md#crypto-shredding-plat-012-adr-0109); [DPA clause 9](dpa-article-28-template.md#9-deletion-or-return-at-the-end-of-the-services-art-283g)) |
 | Mobile devices | Records leave devices through sync (eviction) and on remote wipe; device stores are SQLCipher-encrypted with device-bound keys |
 | Restore safety | A restore from backup re-applies the shredding log before the database is reopened, so shredded records cannot reappear ([restore runbook](../runbooks/restore.md)) |
 
 | Search vectors | The generated `tsvector` search columns (ADR-0070, migration 0066) are plain-text copies of names, rooms, document titles and note text. Purging the row removes them, and they leave backups as the row does; but they are not encrypted, so if a source column (such as `care_note.body`) is envelope-encrypted, its vector must be dropped or redesigned in the same change, or the words outlive the key (H-380) |
 
-Design decision to record in an ADR `[engineering]`: which columns are envelope-encrypted, and how search and reporting work over them.
+Recorded in [ADR-0109](../decisions/0109-per-organisation-crypto-shredding.md): no columns are envelope-encrypted, so search and reporting are unchanged and the search vectors question (H-380) does not arise.
 
 ## 5. Destruction certificate
 

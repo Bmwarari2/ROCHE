@@ -84,6 +84,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
+      google-auth-library:
+        specifier: 11.3.2
+        version: 11.3.2
       hono:
         specifier: ^4.13.13
         version: 4.13.13
