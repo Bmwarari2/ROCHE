@@ -130,6 +130,193 @@ export const UpdateCommunicationNeeds = z
 export type UpdateCommunicationNeeds = z.infer<typeof UpdateCommunicationNeeds>;
 
 // ------------------------------------------------------------------------------------------------
+// Personal details and contacts (PEOP-001; rule 15; data-standards.md `person` and `contact`)
+// ------------------------------------------------------------------------------------------------
+
+/** NHS Data Dictionary PERSON PHENOTYPIC SEX and PERSON STATED GENDER CODE. */
+export const PersonSexCode = z.enum(["1", "2", "9", "X"]).meta({ id: "PersonSexCode" });
+/** NHS Data Dictionary ETHNIC CATEGORY (2001 census groups). */
+export const EthnicCategoryCode = z
+  .enum(["A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "P", "R", "S", "Z", "99"])
+  .meta({ id: "EthnicCategoryCode" });
+
+/** MODS-aligned demographics and the national data opt-out, as recorded by the home. */
+export const PersonDetails = z
+  .object({
+    personId: uuid,
+    status: PersonStatus,
+    nhsNumber: z.string().nullable(),
+    localIdentifier: z.string().nullable(),
+    title: z.string().nullable(),
+    givenName: z.string(),
+    familyName: z.string(),
+    preferredName: z.string().nullable(),
+    dateOfBirth: isoDate.nullable(),
+    /** A code this version does not know reads as recorded, never blank (stored as text). */
+    sexCode: z.string().nullable(),
+    genderIdentity: z.string().nullable(),
+    ethnicCategoryCode: z.string().nullable(),
+    religion: z.string().nullable(),
+    /** ISO 639-1, else ISO 639-3 (`en`, `cy`, `bfi`). */
+    firstLanguage: z.string().nullable(),
+    interpreterRequired: z.boolean(),
+    addressLine1: z.string().nullable(),
+    addressLine2: z.string().nullable(),
+    town: z.string().nullable(),
+    postcode: z.string().nullable(),
+    gpPracticeOdsCode: z.string().nullable(),
+    /** Read only here until its code list is in people.md. */
+    legalStatus: z.string().nullable(),
+    /** The person has opted out (recorded by the home; not checked with the national service). */
+    nationalDataOptOut: z.boolean(),
+    updatedAt: isoDateTime,
+    updatedBy: uuid.nullable(),
+    version: z.number().int(),
+  })
+  .meta({ id: "PersonDetails" });
+export type PersonDetails = z.infer<typeof PersonDetails>;
+
+const optionalText = (max: number) => text(max).nullable().optional();
+
+/**
+ * A change to the personal details: only the fields sent change, and null clears an optional
+ * one. The NHS number passes the modulus 11 check; a person with no NHS number needs a local
+ * identifier. Versioned: every earlier version stays in the record's history.
+ */
+export const UpdatePersonDetails = z
+  .object({
+    title: optionalText(40),
+    givenName: text(100).min(1).optional(),
+    familyName: text(100).min(1).optional(),
+    preferredName: optionalText(100),
+    dateOfBirth: isoDate.nullable().optional(),
+    /** Spaces and hyphens as typed are allowed; stored as 10 digits. */
+    nhsNumber: z.string().trim().max(20).nullable().optional(),
+    localIdentifier: optionalText(60),
+    sexCode: PersonSexCode.nullable().optional(),
+    genderIdentity: PersonSexCode.nullable().optional(),
+    ethnicCategoryCode: EthnicCategoryCode.nullable().optional(),
+    religion: optionalText(100),
+    firstLanguage: z
+      .string()
+      .trim()
+      .regex(/^[a-z]{2,3}$/)
+      .nullable()
+      .optional(),
+    interpreterRequired: z.boolean().optional(),
+    addressLine1: optionalText(200),
+    addressLine2: optionalText(200),
+    town: optionalText(100),
+    postcode: optionalText(10),
+    gpPracticeOdsCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z][0-9]{5}$/)
+      .nullable()
+      .optional(),
+    nationalDataOptOut: z.boolean().optional(),
+    version,
+  })
+  .meta({ id: "UpdatePersonDetails" });
+export type UpdatePersonDetails = z.infer<typeof UpdatePersonDetails>;
+
+export const ContactRole = z
+  .enum([
+    "next_of_kin",
+    "lpa_health_welfare",
+    "lpa_property_finance",
+    "deputy",
+    "imca",
+    "advocate",
+    "appointee",
+    "gp",
+    "social_worker",
+    "other",
+  ])
+  .meta({ id: "ContactRole" });
+export type ContactRole = z.infer<typeof ContactRole>;
+
+/** For a deputy: what the Court of Protection order covers. */
+export const AuthorityScope = z
+  .enum(["personal_welfare", "property_affairs", "both"])
+  .meta({ id: "AuthorityScope" });
+
+export const ContactOut = z
+  .object({
+    id: uuid,
+    personId: uuid,
+    role: ContactRole,
+    givenName: z.string(),
+    familyName: z.string(),
+    relationship: z.string().nullable(),
+    phone: z.string().nullable(),
+    email: z.string().nullable(),
+    addressLine1: z.string().nullable(),
+    town: z.string().nullable(),
+    postcode: z.string().nullable(),
+    isNextOfKin: z.boolean(),
+    /** Office of the Public Guardian or court reference. */
+    authorityReference: z.string().nullable(),
+    authorityDocumentId: uuid.nullable(),
+    validUntil: isoDate.nullable(),
+    authorityScope: AuthorityScope.nullable(),
+    notes: z.string().nullable(),
+    /**
+     * A legal authority (an attorney, deputy or appointee) with neither a reference nor evidence:
+     * nothing can be shared on it until one is recorded (rule 13).
+     */
+    evidenceMissing: z.boolean(),
+    /** The end date has passed (UK date): the authority or role no longer applies. */
+    expired: z.boolean(),
+    updatedAt: isoDateTime,
+    version: z.number().int(),
+  })
+  .meta({ id: "ContactOut" });
+export type ContactOut = z.infer<typeof ContactOut>;
+
+export const ContactList = z.object({ items: z.array(ContactOut) }).meta({ id: "ContactList" });
+export type ContactList = z.infer<typeof ContactList>;
+
+const contactFields = {
+  relationship: optionalText(100),
+  phone: optionalText(40),
+  email: z.email().max(200).nullable().optional(),
+  addressLine1: optionalText(200),
+  town: optionalText(100),
+  postcode: optionalText(10),
+  isNextOfKin: z.boolean().optional(),
+  authorityReference: optionalText(120),
+  /** A document already filed in this person's documents. */
+  authorityDocumentId: uuid.nullable().optional(),
+  validUntil: isoDate.nullable().optional(),
+  /** Deputies only, and required for them. */
+  authorityScope: AuthorityScope.nullable().optional(),
+  notes: optionalText(1000),
+};
+
+export const CreateContact = z
+  .object({
+    role: ContactRole,
+    givenName: text(100).min(1),
+    familyName: text(100).min(1),
+    ...contactFields,
+  })
+  .meta({ id: "CreateContact" });
+export type CreateContact = z.infer<typeof CreateContact>;
+
+/** Only the fields sent change; null clears an optional one. */
+export const UpdateContact = z
+  .object({
+    role: ContactRole.optional(),
+    givenName: text(100).min(1).optional(),
+    familyName: text(100).min(1).optional(),
+    ...contactFields,
+    version,
+  })
+  .meta({ id: "UpdateContact" });
+export type UpdateContact = z.infer<typeof UpdateContact>;
+
+// ------------------------------------------------------------------------------------------------
 // Pre-admission and the decision to admit (rules 4 and 5)
 // ------------------------------------------------------------------------------------------------
 
