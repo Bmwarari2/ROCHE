@@ -484,21 +484,144 @@ export async function resolveAfterCheckIn(
  * evaluates open alarms after late check-ins, re-alerts open alarms, and erases location evidence
  * at its date. Returns how many alarms it raised or re-alerted.
  */
+export const LONE_WORKER_SWEEP_ITEM_FAILED_ACTION = "scheduling.lone_worker.sweep_item_failed";
+
+/**
+ * Runs one piece of the sweep in a savepoint, so one session or alarm that fails (a bad row, a
+ * refused write) never holds up the alarms of everyone else in the organisation (HZ-125). The
+ * failure is audited with its database code only and counted; the next minute tries again.
+ */
+async function isolated(
+  tx: Transaction,
+  tenantId: string,
+  resourceType: string,
+  resourceId: string | null,
+  fn: (sp: Transaction) => Promise<number>,
+): Promise<number> {
+  try {
+    return await tx.transaction((sp) => fn(sp));
+  } catch (error) {
+    const code =
+      (error as { code?: string }).code ??
+      (error as { cause?: { code?: string } }).cause?.code ??
+      "unknown";
+    await tx.insert(auditEvent).values({
+      tenantId,
+      action: LONE_WORKER_SWEEP_ITEM_FAILED_ACTION,
+      outcome: "error",
+      resourceType,
+      ...(resourceId ? { resourceId } : {}),
+      reason: "sweep_failed",
+      scope: { reasonCode: "sweep_failed", code },
+    });
+    return 0;
+  }
+}
+
+async function sweepSession(
+  tx: Transaction,
+  tenantId: string,
+  session: LoneWorkerSessionRow,
+  hasOverdue: boolean,
+  figures: LoneWorkerFigures,
+  now: Date,
+): Promise<number> {
+  if (hasOverdue) {
+    await resolveAfterCheckIn(tx, session, figures, now);
+    return 0;
+  }
+  const status = statusOf(session, await checkInTimes(tx, session.id), figures, now);
+  if (status.kind === "due") {
+    if (session.reminderSentFor?.getTime() === status.dueAt.getTime()) return 0;
+    await tx
+      .insert(notification)
+      .values({
+        recipientTenantUserId: session.workerTenantUserId,
+        kind: "scheduling.lone_worker.check_in_due",
+        severity: "warning",
+        title: "Your lone-working check-in is due",
+        body: "Check in to say you are safe.",
+        link: "/lone-worker",
+        channels: ["in_app", "push"],
+        sourceType: "lone_worker_session",
+        sourceId: session.id,
+        locationId: session.locationId,
+        dedupeKey: `lone_worker_due:${session.id}:${status.dueAt.toISOString()}`,
+      })
+      .onConflictDoNothing();
+    await tx
+      .update(loneWorkerSession)
+      .set({ reminderSentFor: status.dueAt })
+      .where(eq(loneWorkerSession.id, session.id));
+    return 0;
+  }
+  if (status.kind !== "alarm") return 0;
+  const alarm = await insertAlarm(tx, {
+    tenantId,
+    sessionId: session.id,
+    locationId: session.locationId,
+    workerTenantUserId: session.workerTenantUserId,
+    reason: status.reason,
+    dueAt: status.dueAt,
+    raisedAt: now,
+    lastAlertedAt: now,
+  });
+  if (!alarm) return 0;
+  await alertRoute(tx, alarm, now, true);
+  await publishAlarm(tx, alarm, "scheduling.lone_worker.alarm_raised");
+  return 1;
+}
+
+async function sweepAlarm(
+  tx: Transaction,
+  alarm: LoneWorkerAlarmRow,
+  figures: LoneWorkerFigures,
+  now: Date,
+): Promise<number> {
+  const [session] = await tx
+    .select()
+    .from(loneWorkerSession)
+    .where(eq(loneWorkerSession.id, alarm.sessionId));
+  // An overdue alarm on a session finished since is resolved instead.
+  if (
+    session?.finishedAt &&
+    (alarm.reason === "overdue" || alarm.reason === "not_finished") &&
+    (await resolveAfterCheckIn(tx, session, figures, now)) > 0
+  )
+    return 0;
+  const [current] = await tx.select().from(loneWorkerAlarm).where(eq(loneWorkerAlarm.id, alarm.id));
+  if (
+    !current ||
+    !realertDue(
+      { state: current.state as LoneWorkerAlarmState, lastAlertedAt: current.lastAlertedAt },
+      figures.realertMinutes,
+      now,
+    )
+  )
+    return 0;
+  const [bumped] = await tx
+    .update(loneWorkerAlarm)
+    .set({ lastAlertedAt: now, alertCount: current.alertCount + 1 })
+    .where(and(eq(loneWorkerAlarm.id, alarm.id), eq(loneWorkerAlarm.state, "open")))
+    .returning();
+  if (!bumped) return 0;
+  await alertRoute(tx, bumped, now, false);
+  return 1;
+}
+
+/**
+ * The per-minute sweep for one organisation (system context): raises any help or duress alarm
+ * the API did not, reminds workers whose check-in is due, raises alarms past the grace period,
+ * re-evaluates open alarms after late check-ins, re-alerts open alarms, and erases location
+ * evidence at its date. Each piece runs in its own savepoint (`isolated`). Returns how many alarms
+ * it raised or re-alerted.
+ */
 export async function sweepLoneWorkers(
   tx: Transaction,
   tenantId: string,
   now: Date,
 ): Promise<number> {
   let acted = 0;
-  // Location evidence is erased at its date (H-527), judged on the database's clock, as the
-  // table's guard judges it, so a clock difference can never make this refuse and hold up alarms.
-  await tx
-    .update(loneWorkerLocation)
-    .set({ latitude: null, longitude: null, accuracyMetres: null, clearedAt: sql`now()` })
-    .where(
-      and(sql`${loneWorkerLocation.deleteAfter} <= now()`, isNull(loneWorkerLocation.clearedAt)),
-    );
-
   const open = await tx
     .select()
     .from(loneWorkerSession)
@@ -522,106 +645,46 @@ export async function sweepLoneWorkers(
         gt(loneWorkerEvent.receivedAt, new Date(now.getTime() - 7 * 86_400_000)),
       ),
     );
-  if (open.length === 0 && openAlarms.length === 0 && unalarmed.length === 0) return 0;
-  const figures = await loneWorkerFigures(tx, tenantId);
-
-  for (const { event, session } of unalarmed) {
-    if (
-      await raiseWorkerAlarm(
-        tx,
-        session,
-        { id: event.id, kind: event.kind as "help" | "duress" },
-        now,
-      )
-    )
-      acted++;
-  }
-
-  for (const session of open) {
-    const times = await checkInTimes(tx, session.id);
-    const status = statusOf(session, times, figures, now);
-    const hasOverdue = openAlarms.some(
-      (a) => a.sessionId === session.id && (a.reason === "overdue" || a.reason === "not_finished"),
-    );
-    if (hasOverdue) {
-      await resolveAfterCheckIn(tx, session, figures, now);
-      continue;
+  if (open.length > 0 || openAlarms.length > 0 || unalarmed.length > 0) {
+    const figures = await loneWorkerFigures(tx, tenantId);
+    for (const { event, session } of unalarmed) {
+      acted += await isolated(tx, tenantId, "lone_worker_event", event.id, async (sp) =>
+        (await raiseWorkerAlarm(
+          sp,
+          session,
+          { id: event.id, kind: event.kind as "help" | "duress" },
+          now,
+        ))
+          ? 1
+          : 0,
+      );
     }
-    if (status.kind === "due") {
-      if (session.reminderSentFor?.getTime() === status.dueAt.getTime()) continue;
-      await tx
-        .insert(notification)
-        .values({
-          recipientTenantUserId: session.workerTenantUserId,
-          kind: "scheduling.lone_worker.check_in_due",
-          severity: "warning",
-          title: "Your lone-working check-in is due",
-          body: "Check in to say you are safe.",
-          link: "/lone-worker",
-          channels: ["in_app", "push"],
-          sourceType: "lone_worker_session",
-          sourceId: session.id,
-          locationId: session.locationId,
-          dedupeKey: `lone_worker_due:${session.id}:${status.dueAt.toISOString()}`,
-        })
-        .onConflictDoNothing();
-      await tx
-        .update(loneWorkerSession)
-        .set({ reminderSentFor: status.dueAt })
-        .where(eq(loneWorkerSession.id, session.id));
-    } else if (status.kind === "alarm") {
-      const alarm = await insertAlarm(tx, {
-        tenantId,
-        sessionId: session.id,
-        locationId: session.locationId,
-        workerTenantUserId: session.workerTenantUserId,
-        reason: status.reason,
-        dueAt: status.dueAt,
-        raisedAt: now,
-        lastAlertedAt: now,
-      });
-      if (alarm) {
-        acted++;
-        await alertRoute(tx, alarm, now, true);
-        await publishAlarm(tx, alarm, "scheduling.lone_worker.alarm_raised");
-      }
+    for (const session of open) {
+      const hasOverdue = openAlarms.some(
+        (a) =>
+          a.sessionId === session.id && (a.reason === "overdue" || a.reason === "not_finished"),
+      );
+      acted += await isolated(tx, tenantId, "lone_worker_session", session.id, (sp) =>
+        sweepSession(sp, tenantId, session, hasOverdue, figures, now),
+      );
+    }
+    // Open alarms keep being sent until a person acknowledges them (never silent; HZ-125).
+    for (const alarm of openAlarms) {
+      acted += await isolated(tx, tenantId, "lone_worker_alarm", alarm.id, (sp) =>
+        sweepAlarm(sp, alarm, figures, now),
+      );
     }
   }
-
-  // Open alarms keep being sent until a person acknowledges them (never silent; HZ-125). An
-  // overdue alarm on a session finished since is resolved instead.
-  for (const alarm of openAlarms) {
-    const [session] = await tx
-      .select()
-      .from(loneWorkerSession)
-      .where(eq(loneWorkerSession.id, alarm.sessionId));
-    if (
-      session?.finishedAt &&
-      (alarm.reason === "overdue" || alarm.reason === "not_finished") &&
-      (await resolveAfterCheckIn(tx, session, figures, now)) > 0
-    )
-      continue;
-    const [current] = await tx
-      .select()
-      .from(loneWorkerAlarm)
-      .where(eq(loneWorkerAlarm.id, alarm.id));
-    if (
-      !current ||
-      !realertDue(
-        { state: current.state as LoneWorkerAlarmState, lastAlertedAt: current.lastAlertedAt },
-        figures.realertMinutes,
-        now,
-      )
-    )
-      continue;
-    const [bumped] = await tx
-      .update(loneWorkerAlarm)
-      .set({ lastAlertedAt: now, alertCount: current.alertCount + 1 })
-      .where(and(eq(loneWorkerAlarm.id, alarm.id), eq(loneWorkerAlarm.state, "open")))
-      .returning();
-    if (!bumped) continue;
-    acted++;
-    await alertRoute(tx, bumped, now, false);
-  }
+  // Location evidence is erased at its date (H-527), last and on its own, judged on the
+  // database's clock as the table's guard judges it.
+  await isolated(tx, tenantId, "lone_worker_location", null, async (sp) => {
+    await sp
+      .update(loneWorkerLocation)
+      .set({ latitude: null, longitude: null, accuracyMetres: null, clearedAt: sql`now()` })
+      .where(
+        and(sql`${loneWorkerLocation.deleteAfter} <= now()`, isNull(loneWorkerLocation.clearedAt)),
+      );
+    return 0;
+  });
   return acted;
 }

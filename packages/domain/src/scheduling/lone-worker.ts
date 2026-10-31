@@ -1,4 +1,5 @@
 import { type EscalationStep, validateChain } from "../platform/notifications";
+import { MINUTES_PER_HOUR, MS_PER_MINUTE } from "./intervals";
 
 /**
  * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 14; HZ-125).
@@ -59,7 +60,7 @@ export const LONE_WORKER_RATE_KEYS = {
   sessionMaxHours: "lone_worker.session_max_hours",
 } as const;
 
-const MINUTE = 60_000;
+const MINUTE = MS_PER_MINUTE;
 
 export interface LoneWorkerTimings {
   /** Minutes after a check-in is due before the alarm is raised (covers ordinary sync delay). */
@@ -119,7 +120,7 @@ export function checkSession(
     problems.push("end_not_after_start");
   else if (
     input.plannedEndAt.getTime() - input.startedAt.getTime() >
-    bounds.sessionMaxHours * 60 * MINUTE
+    bounds.sessionMaxHours * MINUTES_PER_HOUR * MINUTE
   )
     problems.push("too_long");
   if (input.startedAt.getTime() > now.getTime() + bounds.clockDriftMinutes * MINUTE)
