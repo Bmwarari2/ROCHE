@@ -40,6 +40,7 @@ import {
 import { AppState, Platform } from "react-native";
 import type { Me } from "../auth/auth-client";
 import { authClient, platformFetch } from "../auth/clients";
+import { FORGET_ANSWER_FOR_ENTRY_SQL } from "../care/answered-tasks";
 import { DELETE_UPLOAD_ISSUE_SQL } from "../care/queries";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
@@ -1217,6 +1218,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
             ]);
           }
           await tx.execute(DELETE_UPLOAD_ISSUE_SQL, [me.tenant.id, id]);
+          // The task that entry answered is not answered once it is removed (#123 check, M1).
+          await tx.execute(FORGET_ANSWER_FOR_ENTRY_SQL, [id]);
         });
       } catch {
         // Checked below.

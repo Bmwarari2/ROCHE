@@ -60,3 +60,10 @@ export function rememberAnsweredStatements(input: {
     },
   ];
 }
+
+/**
+ * Forgets the answer an entry gave, when that entry is removed from "needs attention" to be
+ * recorded again: the task is then not answered (#123 check, M1 edge case 1).
+ */
+export const FORGET_ANSWER_FOR_ENTRY_SQL = `DELETE FROM sync_meta
+WHERE id LIKE '${ANSWERED_META_PREFIX}%' AND json_extract(value, '$.entryId') = ?`;

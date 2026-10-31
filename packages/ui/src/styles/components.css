@@ -663,6 +663,9 @@
     font-weight: var(--type-title-weight);
     line-height: var(--type-title-line-height);
     letter-spacing: var(--type-title-tracking);
+    /* A long word ("Environmental incident") wraps at 320 px rather than scroll (WCAG 1.4.10);
+       no hyphenation, so names are never split with a hyphen. */
+    overflow-wrap: anywhere;
   }
 
   .hb-page-header__description {
