@@ -475,6 +475,9 @@ async function LeavingTab({
 
       {actions.has("recordDischarge") ? (
         <LeavingForm
+          // A new form once a plan exists, so its fields start from the plan (uncontrolled inputs
+          // keep what they had otherwise).
+          key={`${exit?.id ?? "none"}-${exit?.state ?? "none"}-${exit?.version ?? 0}`}
           personId={id}
           path={path}
           version={person.version}
