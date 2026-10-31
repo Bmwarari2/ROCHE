@@ -103,7 +103,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
       id     = "expire-current-versions"
       status = "Enabled"
 
-      filter {}
+      filter {
+        prefix = var.current_version_expiration_prefix
+      }
 
       abort_incomplete_multipart_upload {
         days_after_initiation = 7

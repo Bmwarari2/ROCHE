@@ -142,6 +142,11 @@ export const dsarCase = pgTable(
         AND (bundle_sha256 IS NULL) = (bundle_storage_key IS NULL)
         AND (bundle_sha256 IS NULL OR bundle_sha256 ~ '^[0-9a-f]{64}$')`,
     ),
+    // The stored bundle belongs to this case of this organisation (#149 re-check L3).
+    check(
+      "dsar_case_bundle_key",
+      sql`bundle_storage_key IS NULL OR bundle_storage_key ~ ('^dsar/tenants/' || tenant_id::text || '/' || id::text || '/[0-9a-f-]{36}[.]json$')`,
+    ),
     // Nothing is disclosed or done for a requester whose identity is still awaited (#149 M4).
     check(
       "dsar_case_identity_first",

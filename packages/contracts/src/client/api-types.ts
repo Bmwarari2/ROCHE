@@ -21498,6 +21498,15 @@ export interface paths {
             "application/problem+json": components["schemas"]["ProblemDetails"];
           };
         };
+        /** @description Issued, but the stored copy is no longer kept */
+        410: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
         /** @description The request did not validate */
         422: {
           headers: {

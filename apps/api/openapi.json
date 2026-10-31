@@ -50940,6 +50940,16 @@
               }
             }
           },
+          "410": {
+            "description": "Issued, but the stored copy is no longer kept",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "description": "The request did not validate",
             "content": {

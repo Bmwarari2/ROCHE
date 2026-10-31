@@ -336,7 +336,16 @@ export async function recordsOf(
         )})`,
   );
   for (const r of result.rows) {
-    out.set(r.id, Object.fromEntries(columns.filter((k) => k in r.row).map((k) => [k, r.row[k]])));
+    const record = Object.fromEntries(columns.filter((k) => k in r.row).map((k) => [k, r.row[k]]));
+    // A saved earlier version is a copy of another table's row: it shows only what that table's
+    // export would, never its internal or secret columns (#149 re-check L1).
+    if (table === "record_version" && "data" in record) {
+      const of = typeof r.row.table_name === "string" ? r.row.table_name : "";
+      const allowed = disclosableColumns(of);
+      const data = (r.row.data ?? {}) as Record<string, unknown>;
+      record.data = Object.fromEntries(Object.entries(data).filter(([k]) => allowed.includes(k)));
+    }
+    out.set(r.id, record);
   }
   return out;
 }

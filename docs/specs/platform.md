@@ -1089,7 +1089,8 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
    exported tenant table with personal data, by the column that names the subject (`person_id` for a
    person, `contact_id` or the contact row itself for a contact, the staff reference columns and the
    `tenant_user` row for staff). A new table joins the map by its catalogue entry; a table with
-   personal data but no subject column, and a searched table whose read policy depends on the member
+   personal data but no column naming this kind of subject (worked out for each request: a
+   contact request lists every table that names no contact), and a searched table whose read policy depends on the member
    reading it (`DSAR_MEMBER_SCOPED_TABLES`, kept in step with the database by a test; none today), are
    listed as not searched with the reason and what to do, on the case and on the bundle's cover;
    never a silent gap. Collecting again adds only new records. The organisation's own system context
@@ -1103,7 +1104,8 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
    confirmed (checked again by the database, #149 M4); a record that changed or went since its
    decision goes back to pending, so what is sent is what was reviewed (#149 M3). Redacted fields
    read `[redacted]` and withheld items are left out with a count. On responding, the bundle is
-   kept in the exports bucket (SSE-KMS, an opaque key of ids only) with its SHA-256, and can be
+   kept in the exports bucket under its own `dsar/` prefix, outside the exports' 30-day expiry
+   (SSE-KMS, a key of the organisation and case ids, checked by the database), with its SHA-256, and can be
    fetched again exactly as sent through a step-up route; responding closes the clock (a late
    response stays late).
 6. Erasure is assessed record by record against retention (`erasureAssessment`): a record under a

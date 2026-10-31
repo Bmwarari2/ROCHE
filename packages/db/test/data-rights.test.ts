@@ -447,3 +447,48 @@ describe("no table the DSAR collector searches is hidden from its organisation-w
     );
   });
 });
+
+describe("#149 re-check: the bundle's key, and earlier versions of cases", () => {
+  it("L3: a bundle key must belong to this case of this organisation", async () => {
+    const id = (await asLead((c) => newCase(c))).rows[0]?.id as string;
+    await expect(
+      asLead((c) =>
+        c.query(
+          `UPDATE dsar_case SET identity_required = false, bundle_sha256 = repeat('a', 64),
+             bundle_issued_at = now(), bundle_storage_key = $2 WHERE id = $1`,
+          [id, `dsar/tenants/${TENANT_B}/${id}/0199e000-0000-7000-8000-000000000001.json`],
+        ),
+      ),
+    ).rejects.toThrow(/dsar_case_bundle_key/);
+    await expect(
+      asLead((c) =>
+        c.query(
+          `UPDATE dsar_case SET identity_required = false, bundle_sha256 = repeat('a', 64),
+             bundle_issued_at = now(), bundle_storage_key = $3 WHERE id = $1 AND tenant_id = $2`,
+          [
+            id,
+            TENANT_A,
+            `dsar/tenants/${TENANT_A}/${id}/0199e000-0000-7000-8000-000000000001.json`,
+          ],
+        ),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("L2: earlier versions of a case are hidden from members without the organisation-wide role", async () => {
+    const id = (await asLead((c) => newCase(c))).rows[0]?.id as string;
+    await asLead((c) => c.query("UPDATE dsar_case SET channel = 'phone' WHERE id = $1", [id]));
+    const lead = await asLead((c) =>
+      c.query("SELECT 1 FROM record_version WHERE table_name = 'dsar_case' AND record_id = $1", [
+        id,
+      ]),
+    );
+    expect(lead.rows.length).toBeGreaterThan(0);
+    const carer = await asCarer((c) =>
+      c.query("SELECT 1 FROM record_version WHERE table_name = 'dsar_case' AND record_id = $1", [
+        id,
+      ]),
+    );
+    expect(carer.rows).toEqual([]);
+  });
+});

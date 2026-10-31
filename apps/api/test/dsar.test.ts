@@ -1,6 +1,8 @@
+import { createDatabase, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { touchesCareRecords } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { recordsOf } from "../src/services/dsar";
 import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
@@ -399,6 +401,16 @@ describe("collection, review and the bundle", () => {
     const issued = await get(`/v1/dsar-cases/${c.id}/bundle/issued`);
     expect(issued.status).toBe(200);
     expect(((await issued.json()) as { sha256: string }).sha256).toBe(bundle.sha256);
+    // A stored copy that has gone is said in words, not a bare 404 (#149 re-check M1).
+    const [stored] = await owner<{ key: string }>(
+      "SELECT bundle_storage_key AS key FROM dsar_case WHERE id = $1",
+      [c.id],
+    );
+    expect(stored?.key.startsWith(`dsar/tenants/${DEMO.tenantId}/${c.id}/`)).toBe(true);
+    await h.handle.services.exportStorage.destroy(stored?.key ?? "");
+    const gone = await get(`/v1/dsar-cases/${c.id}/bundle/issued`);
+    expect(gone.status).toBe(410);
+    expect(await codeOf(gone)).toBe("dsar_bundle_not_kept");
     // A closed case takes no more decisions.
     r = await post(`/v1/dsar-cases/${c.id}/collect`, {});
     expect(r.status).toBe(409);
@@ -585,5 +597,56 @@ describe("#149 security review", () => {
       [ada],
     );
     expect(rows[0]?.n).toBeGreaterThan(0);
+  });
+});
+
+describe("#149 re-check L1: earlier versions show only what their table's export would", () => {
+  it("drops internal and secret columns from record_version data", async () => {
+    // A case with an internal column set (the stored bundle's key), then changed, so its earlier
+    // version, with that key, is saved in record_version.
+    const client = await h.db.pool("harbour_app").connect();
+    let versionId = "";
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', $2, true),
+                set_config('app.scope', 'tenant', true)`,
+        [DEMO.tenantId, LODGE.qualityLeadId],
+      );
+      const id = (
+        await client.query<{ id: string }>(
+          `INSERT INTO dsar_case (request_kind, subject_kind, subject_person_id, requester_kind,
+             channel, received_on, identity_required)
+           VALUES ('access', 'person', $1, 'subject', 'email', current_date, false) RETURNING id`,
+          [ada],
+        )
+      ).rows[0]?.id as string;
+      await client.query(
+        `UPDATE dsar_case SET bundle_sha256 = repeat('a', 64), bundle_issued_at = now(),
+           bundle_storage_key = 'dsar/tenants/' || tenant_id || '/' || id || '/0199e000-0000-7000-8000-000000000001.json'
+         WHERE id = $1`,
+        [id],
+      );
+      await client.query("UPDATE dsar_case SET channel = 'phone' WHERE id = $1", [id]);
+      versionId = (
+        await client.query<{ id: string }>(
+          `SELECT id FROM record_version WHERE table_name = 'dsar_case' AND record_id = $1
+            AND data ? 'bundle_storage_key' AND data->>'bundle_storage_key' IS NOT NULL LIMIT 1`,
+          [id],
+        )
+      ).rows[0]?.id as string;
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+    expect(versionId).toBeTruthy();
+    const records = await withRequestContext(
+      createDatabase(h.db.pool("harbour_app")),
+      { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) => recordsOf(tx, "record_version", [versionId]),
+    );
+    const data = records.get(versionId)?.data as Record<string, unknown>;
+    expect(data).not.toHaveProperty("bundle_storage_key");
+    expect(data).toHaveProperty("bundle_sha256");
   });
 });

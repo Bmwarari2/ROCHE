@@ -1,5 +1,5 @@
 {
-  "id": "d8d66ece-6f12-4fb0-ba52-ba6797f3a719",
+  "id": "a1c42082-4c6c-4e38-bc7b-41f305388b07",
   "prevId": "bd761bd6-72ae-4291-9ce9-a8e908bdcb3d",
   "version": "7",
   "dialect": "postgresql",
@@ -7390,6 +7390,10 @@
         "dsar_case_bundle": {
           "name": "dsar_case_bundle",
           "value": "(bundle_sha256 IS NULL) = (bundle_issued_at IS NULL)\n        AND (bundle_sha256 IS NULL) = (bundle_storage_key IS NULL)\n        AND (bundle_sha256 IS NULL OR bundle_sha256 ~ '^[0-9a-f]{64}$')"
+        },
+        "dsar_case_bundle_key": {
+          "name": "dsar_case_bundle_key",
+          "value": "bundle_storage_key IS NULL OR bundle_storage_key ~ ('^dsar/tenants/' || tenant_id::text || '/' || id::text || '/[0-9a-f-]{36}[.]json$')"
         },
         "dsar_case_identity_first": {
           "name": "dsar_case_identity_first",
