@@ -109,8 +109,13 @@ export const safeguardingConcern = pgTable(
     mspDesiredOutcomes: text("msp_desired_outcomes"),
     /** `fully`, `partly` or `not`. */
     mspAchieved: text("msp_achieved"),
-    /** A member of staff removed from regulated activity, or who would have been, for harm or risk. */
-    staffRemovedForHarm: boolean("staff_removed_for_harm").notNull().default(false),
+    /**
+     * Whether a member of staff was involved and removed from regulated activity for harm or risk
+     * of harm (SVGA 2006 s.35): `removed`, `would_have_removed` (left before they could be),
+     * `not_removed` or `no_staff_involved`. Unanswered (null) until a manager answers it, which is
+     * needed before the outcome and before the concern ends.
+     */
+    staffHarm: text("staff_harm"),
     /** `referred` or `not_required` (Safeguarding Vulnerable Groups Act 2006 s.35). */
     dbsDecision: text("dbs_decision"),
     dbsReason: text("dbs_reason"),
@@ -120,6 +125,8 @@ export const safeguardingConcern = pgTable(
     protectiveMeasuresUpdatedAt: timestamp("protective_measures_updated_at", {
       withTimezone: true,
     }),
+    /** Before the concern ends: the measures were carried into the care plan or risk assessment, or are no longer needed. */
+    measuresOutcome: text("measures_outcome"),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     closedBy: uuid("closed_by"),
     closedReason: text("closed_reason"),
@@ -217,10 +224,42 @@ export const safeguardingConcern = pgTable(
       sql`(dbs_decision IS NULL) = (dbs_decided_at IS NULL)
         AND (dbs_decision IS DISTINCT FROM 'not_required' OR dbs_reason IS NOT NULL)`,
     ),
-    // A concern that ends with a member of staff removed for harm needs the DBS decision (SVGA s.35).
+    check(
+      "safeguarding_concern_staff_harm",
+      sql`staff_harm IS NULL OR staff_harm IN ('removed', 'would_have_removed', 'not_removed', 'no_staff_involved')`,
+    ),
+    // The staff question is answered before the outcome and before the concern ends (HZ-126), and a
+    // concern that ends with a member of staff removed, or who would have been, needs the DBS decision.
+    check(
+      "safeguarding_concern_staff_harm_answered",
+      sql`state NOT IN ('outcome', 'no_referral', 'closed') OR staff_harm IS NOT NULL`,
+    ),
     check(
       "safeguarding_concern_dbs_before_end",
-      sql`state NOT IN ('no_referral', 'closed') OR NOT staff_removed_for_harm OR dbs_decision IS NOT NULL`,
+      sql`state NOT IN ('no_referral', 'closed') OR staff_harm NOT IN ('removed', 'would_have_removed')
+        OR dbs_decision IS NOT NULL`,
+    ),
+    // Making Safeguarding Personal starts at the beginning: the person (or an advocate) is asked
+    // before the referral decision, and what they wanted is recorded when they were asked.
+    check(
+      "safeguarding_concern_msp_before_decision",
+      sql`state = 'concern' OR (msp_asked IS NOT NULL
+        AND (msp_asked OR msp_not_asked_reason IS NOT NULL)
+        AND (NOT msp_asked OR msp_desired_outcomes IS NOT NULL))`,
+    ),
+    check(
+      "safeguarding_concern_measures_outcome",
+      sql`measures_outcome IS NULL OR measures_outcome IN ('carried_into_care_plan', 'no_longer_needed')`,
+    ),
+    // Protective measures never vanish when a concern ends: someone decides where they go.
+    check(
+      "safeguarding_concern_measures_before_end",
+      sql`state NOT IN ('no_referral', 'closed') OR protective_measures IS NULL OR measures_outcome IS NOT NULL`,
+    ),
+    // Only an ended concern may be soft-deleted (retention), never one still open.
+    check(
+      "safeguarding_concern_deleted",
+      sql`deleted_at IS NULL OR state IN ('no_referral', 'closed')`,
     ),
     check(
       "safeguarding_concern_closed",

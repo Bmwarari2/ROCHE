@@ -110,6 +110,28 @@ describe("hazard HZ-011 the safeguarding log is isolated by tenant and scoped as
     ).rejects.toThrow(/row-level security/);
   });
 
+  it("stops a care worker raising a concern in their own name about a person they cannot see", async () => {
+    await expect(
+      inContext(app(), carer, (c) =>
+        c.query(
+          `INSERT INTO safeguarding_concern (location_id, person_id, abuse_types, description,
+             raised_at, raised_by, referral_due_at)
+           VALUES ($1, $2, '{physical}', 'Not in my scope', now(), $3, now())`,
+          [a.locationSouth, a.personCara, a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("lets the raiser read, but not change, a concern about a person they cannot see", async () => {
+    const changed = await inContext(app(), carer, (c) =>
+      c.query("UPDATE safeguarding_concern SET description = 'Changed' WHERE id = $1", [
+        CONCERN_BEN_BY_CARER,
+      ]),
+    );
+    expect(changed.rowCount).toBe(0);
+  });
+
   it("never lets the application delete a concern", async () => {
     await expect(
       inContext(app(), manager, (c) =>
@@ -148,13 +170,19 @@ describe("hazard HZ-126 a safeguarding concern is never dropped or closed withou
 
   it("refuses a decision not to refer without a reason and who decided", async () => {
     await expect(
-      update("UPDATE safeguarding_concern SET state = 'no_referral' WHERE id = $1", [CONCERN_ADA]),
+      update(
+        "UPDATE safeguarding_concern SET state = 'no_referral', msp_asked = true, msp_desired_outcomes = 'To feel safe', staff_harm = 'no_staff_involved', measures_outcome = 'no_longer_needed' WHERE id = $1",
+        [CONCERN_ADA],
+      ),
     ).rejects.toThrow(/safeguarding_concern_no_referral/);
   });
 
   it("refuses a referral without the local authority and when", async () => {
     await expect(
-      update("UPDATE safeguarding_concern SET state = 'referred' WHERE id = $1", [CONCERN_ADA]),
+      update(
+        "UPDATE safeguarding_concern SET state = 'referred', msp_asked = true, msp_desired_outcomes = 'To feel safe', staff_harm = 'no_staff_involved', measures_outcome = 'no_longer_needed' WHERE id = $1",
+        [CONCERN_ADA],
+      ),
     ).rejects.toThrow(/safeguarding_concern_referral/);
   });
 
@@ -162,22 +190,70 @@ describe("hazard HZ-126 a safeguarding concern is never dropped or closed withou
     await expect(
       update(
         `UPDATE safeguarding_concern SET state = 'closed', finding = 'substantiated',
-           closed_at = now(), closed_by = $2, closed_reason = 'Done'
+           closed_at = now(), closed_by = $2, closed_reason = 'Done', msp_asked = true,
+           msp_desired_outcomes = 'To feel safe', staff_harm = 'no_staff_involved',
+           measures_outcome = 'no_longer_needed'
          WHERE id = $1`,
         [CONCERN_BEN, a.manager],
       ),
     ).rejects.toThrow(/safeguarding_concern_msp_before_close/);
   });
 
-  it("refuses ending a concern without the DBS decision when staff were removed for harm", async () => {
+  // Each row below satisfies every rule but the one it names, so the refusal is that rule's.
+  const decided = `msp_asked = false, msp_not_asked_reason = 'In hospital and unconscious',
+    no_referral_reason = 'Local authority advised no referral', no_referral_decided_by = $2`;
+
+  it("refuses ending a concern without the DBS decision when staff were removed, or would have been", async () => {
+    for (const answer of ["removed", "would_have_removed"]) {
+      await expect(
+        update(
+          `UPDATE safeguarding_concern SET state = 'no_referral', staff_harm = '${answer}',
+             measures_outcome = 'no_longer_needed', ${decided}
+           WHERE id = $1`,
+          [CONCERN_BEN, a.manager],
+        ),
+      ).rejects.toThrow(/safeguarding_concern_dbs_before_end/);
+    }
+  });
+
+  it("refuses ending a concern before the staff question is answered", async () => {
     await expect(
       update(
-        `UPDATE safeguarding_concern SET state = 'no_referral', staff_removed_for_harm = true,
-           no_referral_reason = 'Local authority advised no referral', no_referral_decided_by = $2
+        `UPDATE safeguarding_concern SET state = 'no_referral', measures_outcome = 'no_longer_needed',
+           ${decided}
          WHERE id = $1`,
         [CONCERN_BEN, a.manager],
       ),
-    ).rejects.toThrow(/safeguarding_concern_dbs_before_end/);
+    ).rejects.toThrow(/safeguarding_concern_staff_harm_answered/);
+  });
+
+  it("refuses a referral decision before Making Safeguarding Personal is recorded", async () => {
+    await expect(
+      update(
+        `UPDATE safeguarding_concern SET state = 'no_referral', staff_harm = 'no_staff_involved',
+           measures_outcome = 'no_longer_needed', no_referral_reason = 'Advised by the council',
+           no_referral_decided_by = $2
+         WHERE id = $1`,
+        [CONCERN_BEN, a.manager],
+      ),
+    ).rejects.toThrow(/safeguarding_concern_msp_before_decision/);
+  });
+
+  it("refuses ending a concern whose protective measures nobody has carried on or ended", async () => {
+    await expect(
+      update(
+        `UPDATE safeguarding_concern SET state = 'no_referral', staff_harm = 'no_staff_involved',
+           ${decided}
+         WHERE id = $1`,
+        [CONCERN_BEN, a.manager],
+      ),
+    ).rejects.toThrow(/safeguarding_concern_measures_before_end/);
+  });
+
+  it("refuses soft-deleting a concern that is still open", async () => {
+    await expect(
+      update("UPDATE safeguarding_concern SET deleted_at = now() WHERE id = $1", [CONCERN_BEN]),
+    ).rejects.toThrow(/safeguarding_concern_deleted/);
   });
 
   it("versions every change for the history view", async () => {

@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { escalateSafeguardingReferrals, type TaskDeps, UNROUTED_ACTIONS } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { SAFEGUARDING_UNROUTED_ACTION } from "../src/services/safeguarding";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, LODGE } from "./support/harness";
 
 /**
  * The safeguarding log through the API (Phase 2 slice 13; SAFE-006; HZ-126): raising a concern,
@@ -170,15 +170,36 @@ describe("hazard HZ-126 anyone who works with the person can raise a concern, an
   });
 });
 
+/** Making Safeguarding Personal, asked at the start, and the staff question answered. */
+const asked = {
+  personalOutcomes: {
+    asked: true,
+    notAskedReason: null,
+    desiredOutcomes: "To feel safe at night",
+    achieved: null,
+  },
+  staffHarm: "no_staff_involved",
+};
+
+const referral = () => ({
+  referral: {
+    localAuthority: "Example Council",
+    method: "phone",
+    referredAt: new Date().toISOString(),
+    reference: "SG-0001",
+  },
+});
+
 describe("hazard HZ-126 a concern is never dropped or closed without its records", () => {
-  it("refuses not referring without a reason, then records who decided and why", async () => {
+  it("refuses not referring without a reason or the person's wishes, then records who decided", async () => {
     const { id } = await json<{ id: string }>(await raise("carer"));
     expect((await step(id, "no_referral")).status).toBe(422);
-    const response = await step(
-      id,
-      "no_referral",
-      "Self-neglect discussed with the person; they decline and have capacity",
-    );
+    const reason = "Self-neglect discussed with the person; they decline and have capacity";
+    const notAsked = await step(id, "no_referral", reason);
+    expect(notAsked.status).toBe(422);
+    expect((await json<ProblemDetails>(notAsked)).detail).toContain("Making Safeguarding Personal");
+    await update(id, asked);
+    const response = await step(id, "no_referral", reason);
     expect(response.status).toBe(200);
     const view = await json<SafeguardingDetail>(response);
     expect(view.state).toBe("no_referral");
@@ -186,81 +207,170 @@ describe("hazard HZ-126 a concern is never dropped or closed without its records
     expect(view.noReferralReason).toContain("Self-neglect");
   });
 
-  it("refuses referring before the referral is recorded", async () => {
+  it("refuses referring before the referral and the person's wishes are recorded", async () => {
     const { id } = await json<{ id: string }>(await raise("carer"));
     const refused = await step(id, "referred");
     expect(refused.status).toBe(422);
-    expect((await json<ProblemDetails>(refused)).detail).toContain("Record the referral");
+    const detail = (await json<ProblemDetails>(refused)).detail ?? "";
+    expect(detail).toContain("Record the referral");
+    expect(detail).toContain("Making Safeguarding Personal");
   });
 
-  it("runs a concern through referral, enquiry and outcome to close with Making Safeguarding Personal", async () => {
+  it("runs a concern through referral, enquiry and outcome to close, with the measures carried on", async () => {
     const { id } = await json<{ id: string }>(await raise("carer"));
-    expect(
-      (
-        await update(id, {
-          referral: {
-            localAuthority: "Example Council",
-            method: "phone",
-            referredAt: new Date().toISOString(),
-            reference: "SG-0001",
-          },
-          protectiveMeasures: "Two staff for personal care until the enquiry ends",
-        })
-      ).status,
-    ).toBe(200);
+    await update(id, {
+      ...referral(),
+      personalOutcomes: asked.personalOutcomes,
+      protectiveMeasures: "Two staff for personal care until the enquiry ends",
+    });
     expect((await step(id, "referred")).status).toBe(200);
     expect((await step(id, "enquiry")).status).toBe(422);
     await update(id, {
       enquiry: { kind: "s42_local_authority", openedAt: new Date().toISOString() },
     });
     expect((await step(id, "enquiry")).status).toBe(200);
-    expect((await step(id, "outcome")).status).toBe(422);
     await update(id, { finding: "partly_substantiated" });
+    const noStaffAnswer = await step(id, "outcome");
+    expect(noStaffAnswer.status).toBe(422);
+    expect((await json<ProblemDetails>(noStaffAnswer)).detail).toContain("member of staff");
+    await update(id, { staffHarm: "no_staff_involved" });
     expect((await step(id, "outcome")).status).toBe(200);
-    const notYet = await step(id, "closed", "Enquiry finished and actions completed");
-    expect(notYet.status).toBe(422);
-    expect((await json<ProblemDetails>(notYet)).detail).toContain("Making Safeguarding Personal");
+    const reason = "Enquiry finished and actions completed";
+    const notAchieved = await step(id, "closed", reason);
+    expect(notAchieved.status).toBe(422);
     await update(id, {
-      personalOutcomes: {
-        asked: true,
-        notAskedReason: null,
-        desiredOutcomes: "To feel safe at night",
-        achieved: "partly",
-      },
+      personalOutcomes: { ...asked.personalOutcomes, achieved: "partly" },
     });
-    const closed = await json<SafeguardingDetail>(
-      await step(id, "closed", "Enquiry finished and actions completed"),
-    );
+    const measures = await step(id, "closed", reason);
+    expect(measures.status).toBe(422);
+    expect((await json<ProblemDetails>(measures)).detail).toContain("protective measures");
+    await update(id, { measuresOutcome: "carried_into_care_plan" });
+    const closed = await json<SafeguardingDetail>(await step(id, "closed", reason));
     expect(closed.state).toBe("closed");
     expect(closed.closedReason).toContain("Enquiry finished");
-    expect((await update(id, { description: "Changed after closing" })).status).toBe(422);
+    expect(closed.measuresOutcome).toBe("carried_into_care_plan");
+    expect((await update(id, { abuseTypes: ["physical"] })).status).toBe(422);
   });
 
-  it("needs the DBS decision when a member of staff was removed for harm", async () => {
+  it("needs the DBS decision when a member of staff was removed, or would have been", async () => {
     const { id } = await json<{ id: string }>(await raise("carer"));
-    await update(id, { staffRemovedForHarm: true });
-    const refused = await step(
-      id,
-      "no_referral",
-      "Local authority advised that no referral is needed",
-    );
+    await update(id, { ...asked, staffHarm: "would_have_removed" });
+    const reason = "Local authority advised that no referral is needed";
+    const refused = await step(id, "no_referral", reason);
     expect(refused.status).toBe(422);
     expect((await json<ProblemDetails>(refused)).detail).toContain("DBS");
     await update(id, {
       dbsReferral: { decision: "referred", reason: null, at: new Date().toISOString() },
     });
+    expect((await step(id, "no_referral", reason)).status).toBe(200);
+  });
+
+  it("keeps the raiser's words: the description cannot be changed", async () => {
+    const { id } = await json<{ id: string }>(await raise("carer"));
+    const { version } = await concern(id);
+    const response = await as("manager", `/v1/safeguarding/concerns/${id}`, {
+      method: "PUT",
+      body: { version, description: "Rewritten by a manager" },
+    });
+    expect(response.status).toBe(422);
+    expect((await concern(id)).description).not.toContain("Rewritten");
+  });
+
+  it("refuses not referring or closing by the manager who raised the concern", async () => {
+    const { id } = await json<{ id: string }>(await raise("manager"));
+    await update(id, asked);
+    const response = await step(id, "no_referral", "No abuse found by the GP review of the bruise");
+    expect(response.status).toBe(403);
+    expect((await json<ProblemDetails>(response)).code).toMatch(/separation/);
+  });
+
+  it("tells the other managers when a concern is not referred", async () => {
+    const { id } = await json<{ id: string }>(await raise("carer"));
+    await update(id, asked);
     expect(
-      (await step(id, "no_referral", "Local authority advised that no referral is needed")).status,
+      (await step(id, "no_referral", "No abuse found by the GP review of the bruise")).status,
     ).toBe(200);
+    const told = await asDemoTenant((c) =>
+      c.query<{ recipient: string }>(
+        `SELECT recipient_tenant_user_id AS recipient FROM notification
+         WHERE source_id = $1 AND kind = 'safety.safeguarding.not_referred'`,
+        [id],
+      ),
+    );
+    const recipients = told.rows.map((r) => r.recipient);
+    expect(recipients).toContain(DEMO.users.owner.id);
+    expect(recipients).not.toContain(DEMO.users.manager.id);
   });
 
   it("refuses a stale version", async () => {
     const { id } = await json<{ id: string }>(await raise("carer"));
     const response = await as("manager", `/v1/safeguarding/concerns/${id}`, {
       method: "PUT",
-      body: { version: 99, description: "Stale" },
+      body: { version: 99, abuseTypes: ["physical"] },
     });
     expect(response.status).toBe(409);
+  });
+});
+
+describe("hazard HZ-126 the log shows only the people the manage permission reaches (ADR-0071)", () => {
+  it("leaves out a concern the manager raised about someone outside their homes", async () => {
+    const id = crypto.randomUUID();
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO safeguarding_concern (id, location_id, person_id, abuse_types, description,
+           raised_at, raised_by, referral_due_at)
+         VALUES ($1, $2, $3, '{neglect}', 'Raised while covering the Lodge', now(), $4,
+           now() + interval '24 hours')`,
+        [id, LODGE.locationId, LODGE.personId, DEMO.users.manager.id],
+      ),
+    );
+    const list = await json<SafeguardingList>(await as("manager", "/v1/safeguarding/concerns"));
+    expect(list.concerns.map((c) => c.id)).not.toContain(id);
+    expect((await as("manager", `/v1/safeguarding/concerns/${id}`)).status).toBe(403);
+  });
+
+  it("answers a replayed id only to the person who raised it, about the same person", async () => {
+    const id = crypto.randomUUID();
+    expect((await raise("carer", { id })).status).toBe(201);
+    expect((await raise("manager", { id })).status).toBe(422);
+    expect((await raise("carer", { id, personId: resident(2) })).status).toBe(422);
+  });
+});
+
+describe("hazard HZ-126 a concern opened from a Phase 1 s.42 draft", () => {
+  it("takes the draft's person and warns while the draft is still open after the referral", async () => {
+    const draftId = crypto.randomUUID();
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO statutory_notification (id, location_id, person_id, source_key, kind, due_at,
+           retention_class)
+         VALUES ($1, $2, $3, $4, 'safeguarding_s42', now(), 'serious_incident')`,
+        [draftId, DEMO.locationId, resident(1), `test:${draftId}`],
+      ),
+    );
+    const raised = await raise("carer", { notificationId: draftId });
+    expect(raised.status).toBe(201);
+    const { id } = await json<{ id: string }>(raised);
+    expect((await raise("carer", { notificationId: draftId })).status).toBe(409);
+    expect((await concern(id)).notification?.status).toBe("draft");
+    await update(id, { ...referral(), personalOutcomes: asked.personalOutcomes });
+    await step(id, "referred");
+    expect((await concern(id)).warnings.join(" ")).toContain(
+      "s.42 notification draft is still open",
+    );
+  });
+
+  it("refuses a draft of another kind", async () => {
+    const draftId = crypto.randomUUID();
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO statutory_notification (id, location_id, person_id, source_key, kind, due_at,
+           retention_class)
+         VALUES ($1, $2, $3, $4, 'cqc_reg16_death', now(), 'serious_incident')`,
+        [draftId, DEMO.locationId, resident(1), `test:${draftId}`],
+      ),
+    );
+    expect((await raise("carer", { notificationId: draftId })).status).toBe(422);
   });
 });
 
@@ -288,49 +398,89 @@ describe("hazard HZ-126 staff caring for the person see the protective measures,
     expect(JSON.stringify(view)).not.toContain("Allegation text");
   });
 
-  it("refuses the measures of someone outside the care worker's scope", async () => {
-    expect((await as("carer", `/v1/people/${resident(5)}/safeguarding/measures`)).status).toBe(404);
+  it("treats blank measures as none recorded", async () => {
+    const { id } = await json<{ id: string }>(await raise("carer"));
+    expect((await update(id, { protectiveMeasures: "   " })).status).toBe(200);
+    const view = await concern(id);
+    expect(view.protectiveMeasures).toBeNull();
+    expect(view.warnings.join(" ")).toContain("No protective measures");
   });
 
-  it("warns the manager when an open concern has no protective measures", async () => {
-    const { id } = await json<{ id: string }>(await raise("carer"));
-    expect((await concern(id)).warnings.join(" ")).toContain("No protective measures");
+  it("refuses the measures of someone outside the care worker's scope", async () => {
+    expect((await as("carer", `/v1/people/${resident(5)}/safeguarding/measures`)).status).toBe(404);
   });
 });
 
 describe("hazard HZ-126 an overdue referral reaches the notification centre (HZ-013)", () => {
-  it("alerts the managers once, then stops when the concern is referred", async () => {
+  const alerts = async (id: string) =>
+    asDemoTenant((c) =>
+      c.query<{ recipient: string; severity: string; acknowledged: boolean }>(
+        `SELECT recipient_tenant_user_id AS recipient, severity,
+           acknowledged_at IS NOT NULL AS acknowledged
+         FROM notification WHERE source_type = 'safeguarding_concern' AND source_id = $1
+           AND kind = 'safety.safeguarding.overdue'`,
+        [id],
+      ),
+    );
+
+  it("alerts the managers, again each day even if acknowledged, until the concern is referred", async () => {
     const { id } = await json<{ id: string }>(await raise("carer", { raisedAt: ago(3 * HOUR) }));
     await asDemoTenant((c) =>
       c.query("UPDATE safeguarding_concern SET referral_due_at = raised_at WHERE id = $1", [id]),
     );
     expect((await concern(id)).clock.status).toBe("overdue");
     expect(await escalateSafeguardingReferrals(deps)).toBeGreaterThan(0);
-    const alerts = async () =>
-      asDemoTenant((c) =>
-        c.query<{ recipient: string; severity: string; acknowledged: boolean }>(
-          `SELECT recipient_tenant_user_id AS recipient, severity,
-             acknowledged_at IS NOT NULL AS acknowledged
-           FROM notification WHERE source_type = 'safeguarding_concern' AND source_id = $1`,
-          [id],
-        ),
-      );
-    const first = await alerts();
+    const first = await alerts(id);
     expect(first.rows.length).toBeGreaterThan(0);
     expect(first.rows.every((r) => r.severity === "urgent")).toBe(true);
     expect(first.rows.map((r) => r.recipient)).toContain(DEMO.users.manager.id);
+    // The same day: no second alert.
     await escalateSafeguardingReferrals(deps);
-    expect((await alerts()).rows.length).toBe(first.rows.length);
-    await update(id, {
-      referral: {
-        localAuthority: "Example Council",
-        method: "online_form",
-        referredAt: new Date().toISOString(),
-        reference: null,
-      },
-    });
+    expect((await alerts(id)).rows.length).toBe(first.rows.length);
+    // Acknowledged by hand, then a day passes: it alerts again, because it is still not referred.
+    await asDemoTenant((c) =>
+      c.query(
+        `UPDATE notification SET acknowledged_at = now(), escalate_at = NULL
+         WHERE source_id = $1`,
+        [id],
+      ),
+    );
+    await asDemoTenant((c) =>
+      c.query(
+        `UPDATE safeguarding_concern SET overdue_notified_at = now() - interval '25 hours'
+         WHERE id = $1`,
+        [id],
+      ),
+    );
+    const now = new Date(Date.now() + 25 * HOUR);
+    expect(await escalateSafeguardingReferrals(deps, now)).toBeGreaterThan(0);
+    const again = await alerts(id);
+    expect(again.rows.some((r) => !r.acknowledged)).toBe(true);
+    // Referring acknowledges every alert.
+    await update(id, { ...referral(), personalOutcomes: asked.personalOutcomes });
     expect((await step(id, "referred")).status).toBe(200);
-    expect((await alerts()).rows.every((r) => r.acknowledged)).toBe(true);
+    expect((await alerts(id)).rows.every((r) => r.acknowledged)).toBe(true);
+  });
+
+  it("follows the person to their current home, not where the concern was raised", async () => {
+    const { id } = await json<{ id: string }>(await raise("carer", { raisedAt: ago(3 * HOUR) }));
+    await asDemoTenant((c) =>
+      c.query(
+        `UPDATE safeguarding_concern SET referral_due_at = raised_at, location_id = $2
+         WHERE id = $1`,
+        [id, LODGE.locationId],
+      ),
+    );
+    await escalateSafeguardingReferrals(deps);
+    const rows = await asDemoTenant((c) =>
+      c.query<{ location: string }>(
+        `SELECT location_id AS location FROM notification
+         WHERE source_id = $1 AND kind = 'safety.safeguarding.overdue'`,
+        [id],
+      ),
+    );
+    expect(rows.rows.length).toBeGreaterThan(0);
+    expect(rows.rows.every((r) => r.location === DEMO.locationId)).toBe(true);
   });
 
   it("counts an unrouted overdue concern in the operator's daily signal", () => {

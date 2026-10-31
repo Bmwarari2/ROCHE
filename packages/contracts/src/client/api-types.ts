@@ -26344,7 +26344,7 @@ export interface components {
         /** @enum {string|null} */
         achieved: "fully" | "partly" | "not" | null;
       } | null;
-      staffRemovedForHarm: boolean;
+      staffHarm: components["schemas"]["SafeguardingStaffHarm"];
       dbsReferral: {
         /** @enum {string} */
         decision: "referred" | "not_required";
@@ -26355,6 +26355,7 @@ export interface components {
       protectiveMeasures: string | null;
       /** Format: date-time */
       protectiveMeasuresUpdatedAt: string | null;
+      measuresOutcome: components["schemas"]["SafeguardingMeasuresOutcome"];
       /** Format: date-time */
       closedAt: string | null;
       closedReason: string | null;
@@ -26373,10 +26374,18 @@ export interface components {
       | "inconclusive"
       | "no_s42_enquiry"
       | null;
+    /** @enum {string|null} */
+    SafeguardingStaffHarm:
+      | "removed"
+      | "would_have_removed"
+      | "not_removed"
+      | "no_staff_involved"
+      | null;
+    /** @enum {string|null} */
+    SafeguardingMeasuresOutcome: "carried_into_care_plan" | "no_longer_needed" | null;
     UpdateSafeguardingConcern: {
       version: number;
       abuseTypes?: components["schemas"]["SafeguardingAbuseType"][];
-      description?: string;
       referral?: {
         localAuthority: string;
         /** @enum {string} */
@@ -26399,7 +26408,7 @@ export interface components {
         /** @enum {string|null} */
         achieved: "fully" | "partly" | "not" | null;
       } | null;
-      staffRemovedForHarm?: boolean;
+      staffHarm?: components["schemas"]["SafeguardingStaffHarm"];
       dbsReferral?: {
         /** @enum {string} */
         decision: "referred" | "not_required";
@@ -26408,6 +26417,7 @@ export interface components {
         at: string;
       } | null;
       protectiveMeasures?: string | null;
+      measuresOutcome?: components["schemas"]["SafeguardingMeasuresOutcome"];
     };
     SafeguardingStep: {
       to: components["schemas"]["SafeguardingState"];

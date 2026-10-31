@@ -26,12 +26,13 @@ CREATE TABLE "safeguarding_concern" (
 	"msp_not_asked_reason" text,
 	"msp_desired_outcomes" text,
 	"msp_achieved" text,
-	"staff_removed_for_harm" boolean DEFAULT false NOT NULL,
+	"staff_harm" text,
 	"dbs_decision" text,
 	"dbs_reason" text,
 	"dbs_decided_at" timestamp with time zone,
 	"protective_measures" text,
 	"protective_measures_updated_at" timestamp with time zone,
+	"measures_outcome" text,
 	"closed_at" timestamp with time zone,
 	"closed_by" uuid,
 	"closed_reason" text,
@@ -58,7 +59,16 @@ CREATE TABLE "safeguarding_concern" (
 	CONSTRAINT "safeguarding_concern_dbs_decision" CHECK (dbs_decision IS NULL OR dbs_decision IN ('referred', 'not_required')),
 	CONSTRAINT "safeguarding_concern_dbs" CHECK ((dbs_decision IS NULL) = (dbs_decided_at IS NULL)
         AND (dbs_decision IS DISTINCT FROM 'not_required' OR dbs_reason IS NOT NULL)),
-	CONSTRAINT "safeguarding_concern_dbs_before_end" CHECK (state NOT IN ('no_referral', 'closed') OR NOT staff_removed_for_harm OR dbs_decision IS NOT NULL),
+	CONSTRAINT "safeguarding_concern_staff_harm" CHECK (staff_harm IS NULL OR staff_harm IN ('removed', 'would_have_removed', 'not_removed', 'no_staff_involved')),
+	CONSTRAINT "safeguarding_concern_staff_harm_answered" CHECK (state NOT IN ('outcome', 'no_referral', 'closed') OR staff_harm IS NOT NULL),
+	CONSTRAINT "safeguarding_concern_dbs_before_end" CHECK (state NOT IN ('no_referral', 'closed') OR staff_harm NOT IN ('removed', 'would_have_removed')
+        OR dbs_decision IS NOT NULL),
+	CONSTRAINT "safeguarding_concern_msp_before_decision" CHECK (state = 'concern' OR (msp_asked IS NOT NULL
+        AND (msp_asked OR msp_not_asked_reason IS NOT NULL)
+        AND (NOT msp_asked OR msp_desired_outcomes IS NOT NULL))),
+	CONSTRAINT "safeguarding_concern_measures_outcome" CHECK (measures_outcome IS NULL OR measures_outcome IN ('carried_into_care_plan', 'no_longer_needed')),
+	CONSTRAINT "safeguarding_concern_measures_before_end" CHECK (state NOT IN ('no_referral', 'closed') OR protective_measures IS NULL OR measures_outcome IS NOT NULL),
+	CONSTRAINT "safeguarding_concern_deleted" CHECK (deleted_at IS NULL OR state IN ('no_referral', 'closed')),
 	CONSTRAINT "safeguarding_concern_closed" CHECK ((state = 'closed') = (closed_at IS NOT NULL AND closed_by IS NOT NULL AND closed_reason IS NOT NULL)),
 	CONSTRAINT "safeguarding_concern_msp_before_close" CHECK (state <> 'closed' OR (msp_asked IS NOT NULL
         AND (msp_asked OR msp_not_asked_reason IS NOT NULL)
@@ -78,7 +88,8 @@ ALTER TABLE "safeguarding_concern" ADD CONSTRAINT "safeguarding_concern_no_refer
 ALTER TABLE "safeguarding_concern" ADD CONSTRAINT "safeguarding_concern_closed_by_fk" FOREIGN KEY ("tenant_id","closed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "safeguarding_concern_person_idx" ON "safeguarding_concern" USING btree ("tenant_id","person_id");--> statement-breakpoint
 CREATE INDEX "safeguarding_concern_clock_idx" ON "safeguarding_concern" USING btree ("tenant_id","state","referral_due_at");--> statement-breakpoint
-CREATE INDEX "safeguarding_concern_location_idx" ON "safeguarding_concern" USING btree ("tenant_id","location_id","raised_at");--> statement-breakpoint
+CREATE INDEX "safeguarding_concern_location_idx" ON "safeguarding_concern" USING btree ("tenant_id","location_id","raised_at");
+--> statement-breakpoint
 
 -- Security (ADR-0002, the pattern since migration 0054: one self-contained file). Runs as
 -- harbour_owner.
@@ -88,13 +99,21 @@ CREATE POLICY tenant_isolation ON public.safeguarding_concern AS PERMISSIVE FOR 
   USING (tenant_id = app.current_tenant_id())
   WITH CHECK (tenant_id = app.current_tenant_id());--> statement-breakpoint
 
--- Scope as incidents (ADR-0033): tenant-wide roles, the member of staff who raised the concern,
--- and anyone who can see the person it is about. app.incident_in_scope runs with the caller's
--- rights, so it can never widen access. The API decides what each reader sees (safety.md).
-CREATE POLICY safeguarding_scope ON public.safeguarding_concern AS RESTRICTIVE FOR ALL
+-- Scope as incidents (ADR-0033) for reading: tenant-wide roles, the member of staff who raised the
+-- concern, and anyone who can see the person it is about. Writing needs the person in scope (or
+-- tenant scope): raising a concern in one's own name never reaches a person the caller cannot see,
+-- and the raiser branch never lets a write through (security review round 1, M2). The functions run
+-- with the caller's rights, so they can never widen access. The API decides what each reader sees.
+CREATE POLICY safeguarding_scope_read ON public.safeguarding_concern AS RESTRICTIVE FOR SELECT
   TO harbour_app, harbour_owner
-  USING (app.incident_in_scope(location_id, raised_by, ARRAY[person_id]))
-  WITH CHECK (app.incident_in_scope(location_id, raised_by, ARRAY[person_id]));--> statement-breakpoint
+  USING (app.incident_in_scope(location_id, raised_by, ARRAY[person_id]));--> statement-breakpoint
+CREATE POLICY safeguarding_scope_insert ON public.safeguarding_concern AS RESTRICTIVE FOR INSERT
+  TO harbour_app, harbour_owner
+  WITH CHECK (app.current_scope() = 'tenant' OR app.person_visible(person_id));--> statement-breakpoint
+CREATE POLICY safeguarding_scope_update ON public.safeguarding_concern AS RESTRICTIVE FOR UPDATE
+  TO harbour_app, harbour_owner
+  USING (app.current_scope() = 'tenant' OR app.person_visible(person_id))
+  WITH CHECK (app.current_scope() = 'tenant' OR app.person_visible(person_id));--> statement-breakpoint
 
 -- A mutable aggregate: version bump on every change and a record_version row (history view).
 CREATE TRIGGER touch_mutable BEFORE UPDATE ON public.safeguarding_concern

@@ -5,10 +5,13 @@ import { resolveSafetyPhase2Rates } from "./phase2-rates";
 import {
   protectiveMeasuresFor,
   SAFEGUARDING_WORKFLOW,
+  type SafeguardingLogFacts,
   type SafeguardingRecordView,
   safeguardingClock,
+  safeguardingLogProblems,
   safeguardingReferralTarget,
   safeguardingStepProblems,
+  staffRemovedForHarm,
 } from "./safeguarding";
 
 const rates = resolveSafetyPhase2Rates(readRateTable(), "england", "2026-10-31", null);
@@ -222,5 +225,90 @@ describe("hazard HZ-126 a safeguarding concern is progressed and its protective 
     ]);
     expect(view.measures).toEqual([]);
     expect(view.openWithoutMeasures).toBe(2);
+  });
+});
+
+describe("hazard HZ-126 the referral clock counts elapsed hours across both clock changes", () => {
+  it.each([
+    ["the spring change", "2026-03-28T12:00:00Z"],
+    ["the autumn change", "2026-10-24T12:00:00Z"],
+  ])(
+    "hazard HZ-126 is due the target's elapsed hours after the concern, across %s",
+    (_, raised) => {
+      const raisedAt = new Date(raised);
+      const { dueAt } = safeguardingReferralTarget(raisedAt, rates);
+      expect(dueAt.getTime() - raisedAt.getTime()).toBe(
+        rates.safeguardingReferralHours * 3_600_000,
+      );
+      expect(safeguardingClock("concern", dueAt, new Date(dueAt.getTime() - 1), rates).status).toBe(
+        "due",
+      );
+      expect(safeguardingClock("concern", dueAt, dueAt, rates).status).toBe("overdue");
+    },
+  );
+});
+
+describe("hazard HZ-126 the log's own step rules (review round 1)", () => {
+  const ready: SafeguardingLogFacts = {
+    staffHarm: "no_staff_involved",
+    mspAsked: true,
+    mspNotAskedReason: null,
+    mspDesiredOutcomes: "To feel safe at night",
+    protectiveMeasures: "Two staff for personal care",
+    measuresOutcome: "carried_into_care_plan",
+  };
+
+  it.each([
+    ["referred", { mspAsked: null }, "Making Safeguarding Personal"],
+    ["no_referral", { mspAsked: null }, "Making Safeguarding Personal"],
+    ["referred", { mspDesiredOutcomes: " " }, "what the person wants"],
+    ["referred", { mspAsked: false, mspNotAskedReason: null }, "was not asked"],
+    ["outcome", { staffHarm: null }, "member of staff"],
+    ["no_referral", { staffHarm: null }, "member of staff"],
+    ["closed", { staffHarm: null }, "member of staff"],
+    ["closed", { measuresOutcome: null }, "protective measures"],
+    ["no_referral", { measuresOutcome: null }, "protective measures"],
+  ] as const)("hazard HZ-126 refuses %s while %o", (to, change, words) => {
+    const problems = safeguardingLogProblems(to, { ...ready, ...change });
+    expect(problems.join(" ")).toContain(words);
+  });
+
+  it.each([
+    ["referred", {}],
+    [
+      "referred",
+      { mspAsked: false, mspNotAskedReason: "Unconscious in hospital", mspDesiredOutcomes: null },
+    ],
+    ["enquiry", { staffHarm: null, mspAsked: null }],
+    ["closed", { protectiveMeasures: null, measuresOutcome: null }],
+    ["closed", {}],
+  ] as const)("hazard HZ-126 allows %s with %o", (to, change) => {
+    expect(safeguardingLogProblems(to, { ...ready, ...change })).toEqual([]);
+  });
+
+  it.each([
+    ["removed", true],
+    ["would_have_removed", true],
+    ["not_removed", false],
+    ["no_staff_involved", false],
+    [null, false],
+  ] as const)(
+    "hazard HZ-126 asks for the DBS decision when the staff answer is %s: %s",
+    (answer, needs) => {
+      expect(staffRemovedForHarm(answer)).toBe(needs);
+    },
+  );
+
+  it.each([
+    ["no_referral", "No abuse found by the GP review of the bruise"],
+    ["closed", "Closed with the local authority's agreement"],
+  ] as const)("hazard HZ-126 refuses %s by whoever raised the concern", (to, reason) => {
+    const check = checkWorkflowTransition(
+      SAFEGUARDING_WORKFLOW,
+      { state: to === "closed" ? "outcome" : "concern", createdBy: "manager-1" } as never,
+      { to, actorId: "manager-1", permissions: MANAGER, reason, stepUpFresh: false },
+    );
+    expect(check.ok).toBe(false);
+    expect(check.ok ? null : check.problem).toBe("separation_of_duties");
   });
 });

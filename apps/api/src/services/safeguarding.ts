@@ -2,12 +2,13 @@ import {
   auditEvent,
   escalationChain,
   notification,
+  person,
   type SafeguardingConcernRow,
   safeguardingConcern,
   type Transaction,
 } from "@harbour/db";
-import { type EscalationStep, nextEscalationAt } from "@harbour/domain";
-import { and, eq, gt, isNull, lte } from "drizzle-orm";
+import { type EscalationStep, nextEscalationAt, ukIsoDate } from "@harbour/domain";
+import { and, eq, gt, isNull, lt, lte, or } from "drizzle-orm";
 import { publish } from "../outbox";
 import { rateNumber } from "./rates";
 import { OVERDUE_ESCALATION_RATE_KEY, permissionHolders, withTenantWideScope } from "./safety";
@@ -22,6 +23,11 @@ import { OVERDUE_ESCALATION_RATE_KEY, permissionHolders, withTenantWideScope } f
 export const SAFEGUARDING_CHAIN_KEY = "safety.safeguarding.overdue";
 export const SAFEGUARDING_REFERRAL_RATE_KEY = "safeguarding.referral_hours";
 export const SAFEGUARDING_UNROUTED_ACTION = "safety.safeguarding.unrouted";
+/**
+ * An overdue concern is alerted again each day while it waits, so acknowledging the alert in the
+ * notification centre never silences it (clinical review round 1).
+ */
+export const SAFEGUARDING_REALERT_MS = 24 * 3_600_000;
 
 /** The tenant's chain, or the default: the owner role after the notification escalation minutes. */
 export async function safeguardingChain(tx: Transaction, tenantId: string) {
@@ -81,18 +87,27 @@ export async function escalateOverdueSafeguardingReferrals(
   tenantId: string,
   now: Date,
 ): Promise<number> {
-  const overdue = await tx
-    .select()
+  // Routed by where the person lives now, not where the concern was raised (review round 1).
+  const found = await tx
+    .select({ concern: safeguardingConcern, homeId: person.locationId })
     .from(safeguardingConcern)
+    .innerJoin(person, eq(person.id, safeguardingConcern.personId))
     .where(
       and(
         eq(safeguardingConcern.state, "concern"),
         lte(safeguardingConcern.referralDueAt, now),
-        isNull(safeguardingConcern.overdueNotifiedAt),
+        or(
+          isNull(safeguardingConcern.overdueNotifiedAt),
+          lt(
+            safeguardingConcern.overdueNotifiedAt,
+            new Date(now.getTime() - SAFEGUARDING_REALERT_MS),
+          ),
+        ),
         isNull(safeguardingConcern.deletedAt),
       ),
     )
     .limit(500);
+  const overdue = found.map((f) => ({ ...f.concern, locationId: f.homeId }));
   if (overdue.length === 0) return 0;
   const chain = await safeguardingChain(tx, tenantId);
   const steps = chain.steps as EscalationStep[];
@@ -124,7 +139,7 @@ export async function escalateOverdueSafeguardingReferrals(
           sourceId: row.id,
           personId: row.personId,
           locationId: row.locationId,
-          dedupeKey: `safeguarding_overdue:${row.id}`,
+          dedupeKey: `safeguarding_overdue:${row.id}:${ukIsoDate(now)}`,
           escalationChainId: chain.id,
           escalateAt: nextEscalationAt(steps, {
             createdAt: now,
@@ -167,4 +182,45 @@ export async function acknowledgeSafeguardingAlerts(
         ),
       );
   });
+}
+
+/**
+ * A decision not to refer is never one person's alone and unseen (clinical review round 1): the
+ * other holders of `safety.safeguarding.manage` at the person's home are told, as information.
+ * Whether it needs a second person's agreement is for the CSO (H-599).
+ */
+export async function tellManagersNotReferred(
+  tx: Transaction,
+  row: SafeguardingConcernRow,
+  decidedBy: string,
+  now: Date,
+): Promise<number> {
+  const [home] = await tx
+    .select({ locationId: person.locationId })
+    .from(person)
+    .where(eq(person.id, row.personId));
+  const locationId = home?.locationId ?? row.locationId;
+  const others = (
+    await permissionHolders(tx, "safety.safeguarding.manage", locationId, now)
+  ).filter((id) => id !== decidedBy);
+  for (const recipient of others) {
+    await tx
+      .insert(notification)
+      .values({
+        recipientTenantUserId: recipient,
+        kind: "safety.safeguarding.not_referred",
+        severity: "warning",
+        title: "A safeguarding concern was not referred",
+        body: "A manager decided not to refer a concern to the local authority. Open it to read why.",
+        link: `/safeguarding/${row.id}`,
+        channels: ["in_app"],
+        sourceType: "safeguarding_concern",
+        sourceId: row.id,
+        personId: row.personId,
+        locationId,
+        dedupeKey: `safeguarding_not_referred:${row.id}:${recipient}`,
+      })
+      .onConflictDoNothing();
+  }
+  return others.length;
 }

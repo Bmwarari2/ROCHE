@@ -457,7 +457,9 @@ safeguarding log; the local authority's referral form sets what a referral carri
 | `safeguarding_concern.enquiry_kind` | Care Act 2014 s.42(2) | `s42_local_authority`, `s42_caused_to_provider` | With when it opened |
 | `safeguarding_concern.finding` | Safeguarding Adults Collection (NHS England) outcome of the enquiry, at concept level | `substantiated`, `partly_substantiated`, `not_substantiated`, `inconclusive`, `no_s42_enquiry` | Cross-checked with the SAC definitions before Phase 5 (H-597) |
 | `safeguarding_concern.msp_asked`, `msp_desired_outcomes`, `msp_achieved` | Making Safeguarding Personal; Safeguarding Adults Collection "outcomes expressed and achieved" | Boolean; free text; `fully`, `partly`, `not` | A reason when not asked |
-| `safeguarding_concern.dbs_decision` | Safeguarding Vulnerable Groups Act 2006 s.35 | `referred`, `not_required` (reason) | Needed before the concern ends when `staff_removed_for_harm` |
+| `safeguarding_concern.staff_harm` | Safeguarding Vulnerable Groups Act 2006 s.35 (removed, or would or might have been) | `removed`, `would_have_removed`, `not_removed`, `no_staff_involved` | No default: answered before the outcome and before the concern ends |
+| `safeguarding_concern.dbs_decision` | Safeguarding Vulnerable Groups Act 2006 s.35 | `referred`, `not_required` (reason) | Needed before the concern ends when `staff_harm` is `removed` or `would_have_removed` (whether `not_required` may then be recorded is H-599) |
+| `safeguarding_concern.measures_outcome` | Harbour | `carried_into_care_plan`, `no_longer_needed` | Needed before a concern with protective measures ends |
 | `safeguarding_concern.retention_class` | [retention.md](retention.md) | `serious_incident` | DPO to confirm (H-596) |
 
 ## Lifecycle records (Phase 1)

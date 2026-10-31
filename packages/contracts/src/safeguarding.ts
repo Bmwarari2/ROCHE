@@ -41,6 +41,14 @@ export const SafeguardingFinding = z
   ])
   .meta({ id: "SafeguardingFinding" });
 
+export const SafeguardingStaffHarm = z
+  .enum(["removed", "would_have_removed", "not_removed", "no_staff_involved"])
+  .meta({ id: "SafeguardingStaffHarm" });
+
+export const SafeguardingMeasuresOutcome = z
+  .enum(["carried_into_care_plan", "no_longer_needed"])
+  .meta({ id: "SafeguardingMeasuresOutcome" });
+
 export const SafeguardingClockStatus = z
   .enum(["due", "overdue", "referred", "not_referred"])
   .meta({ id: "SafeguardingClockStatus" });
@@ -105,15 +113,17 @@ const DbsReferral = z.object({
 export const UpdateSafeguardingConcern = z
   .object({
     version,
+    /** The description stays in the raiser's words: it is not changed after the concern is raised. */
     abuseTypes: z.array(SafeguardingAbuseType).min(1).max(10).optional(),
-    description: text(4000).min(3).optional(),
     referral: Referral.nullable().optional(),
     enquiry: Enquiry.nullable().optional(),
     finding: SafeguardingFinding.nullable().optional(),
     personalOutcomes: PersonalOutcomes.nullable().optional(),
-    staffRemovedForHarm: z.boolean().optional(),
+    staffHarm: SafeguardingStaffHarm.nullable().optional(),
     dbsReferral: DbsReferral.nullable().optional(),
-    protectiveMeasures: text(2000).min(3).nullable().optional(),
+    /** Empty or blank clears the measures. */
+    protectiveMeasures: text(2000).nullable().optional(),
+    measuresOutcome: SafeguardingMeasuresOutcome.nullable().optional(),
   })
   .meta({ id: "UpdateSafeguardingConcern" });
 export type UpdateSafeguardingConcern = z.infer<typeof UpdateSafeguardingConcern>;
@@ -166,10 +176,11 @@ export const SafeguardingDetail = z
     enquiry: Enquiry.nullable(),
     finding: SafeguardingFinding.nullable(),
     personalOutcomes: PersonalOutcomes.nullable(),
-    staffRemovedForHarm: z.boolean(),
+    staffHarm: SafeguardingStaffHarm.nullable(),
     dbsReferral: DbsReferral.nullable(),
     protectiveMeasures: z.string().nullable(),
     protectiveMeasuresUpdatedAt: isoDateTime.nullable(),
+    measuresOutcome: SafeguardingMeasuresOutcome.nullable(),
     closedAt: isoDateTime.nullable(),
     closedReason: z.string().nullable(),
     /** What each next step still needs (`safeguardingStepProblems`), by the step's state. */

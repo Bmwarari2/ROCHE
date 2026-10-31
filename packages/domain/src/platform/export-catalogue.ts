@@ -1002,9 +1002,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "What the person wanted from the enquiry, in their words.",
       },
       msp_achieved: { description: "Whether what they wanted was achieved: fully, partly or not." },
-      staff_removed_for_harm: {
+      staff_harm: {
         description:
-          "True when a member of staff was removed from regulated activity, or would have been, because they harmed or posed a risk of harm.",
+          "Whether a member of staff was involved and removed from regulated activity for harm or risk of harm: removed, would_have_removed (left before they could be), not_removed or no_staff_involved; empty until answered.",
       },
       dbs_decision: {
         description:
@@ -1018,6 +1018,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       protective_measures_updated_at: {
         description: "When the protective measures were last changed (instant, UTC).",
+      },
+      measures_outcome: {
+        description:
+          "Before the concern ended, where the protective measures went: carried_into_care_plan or no_longer_needed.",
       },
       closed_at: { description: "When the concern was closed (instant, UTC)." },
       closed_by: { description: "Who closed the concern (tenant_user.id)." },

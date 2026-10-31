@@ -37,8 +37,8 @@ renumbers at merge).
   `statutory_notification.escalation_minutes`); referring or deciding not to refer acknowledges
   the alerts; an overdue concern nobody active can manage is audited daily and counted in the
   operator's unrouted signal. `submitHolders` now calls a general `permissionHolders`.
-- **Clinical safety**: HZ-126 added to the hazard log (initial Major / Medium / 3, target Major /
-  Very low / 2, an engineering proposal for the CSO, H-595); it joins the Phase 2 safety case
+- **Clinical safety**: HZ-126 added to the hazard log (initial Major / Medium / 3; target Major / Low
+  / 3 until H-599 is settled, then Very low / 2; an engineering proposal for the CSO, H-595); it joins the Phase 2 safety case
   report. **Medical-device boundary** re-checked: no. The log stores and transmits records,
   applies a tenant-set target clock and checks record-keeping rules; it produces no diagnosis,
   prognosis, risk score or recommendation, and it decides nothing about whether abuse happened.
@@ -64,11 +64,42 @@ renumbers at merge).
 - H-597: cross-check the finding codes and Making Safeguarding Personal fields against the
   Safeguarding Adults Collection.
 - H-598: agree who is told when a referral is overdue.
+- H-599: the CSO decides whether a decision not to refer needs a second person, whether "DBS
+  referral not required" may be recorded when the s.35 conditions are met (with legal advice), and
+  whether protective measures must be on the phone at the point of care.
 
 ## Tests
 
-- `packages/db/test/safeguarding-log.test.ts` (14; the whole db suite, 692, passes), `packages/domain/src/safety/safeguarding.test.ts`
-  (27), `apps/api/test/safeguarding.test.ts` (17), all passing; also passing:
+- `packages/db/test/safeguarding-log.test.ts` (20; the whole db suite, 698, passes),
+  `packages/domain/src/safety/safeguarding.test.ts` (50), `apps/api/test/safeguarding.test.ts` (25), all passing; also passing:
   `packages/db/test/rls-coverage.test.ts`, `migration-journal.test.ts`,
   `src/export-catalogue.test.ts`, `sample-data.test.ts` (the sample removal list now includes `safeguarding_concern`), and the API's `route-gates`, `incidents`, `jobs`, `exports` and
   `export-worker` suites. `pnpm check:links` passes.
+
+## Review rounds
+
+- Round 1 (clinical-safety and security reviewer agents, before the pull request):
+  - Overdue alerts repeat each day while a concern waits, so acknowledging one in the notification
+    centre never silences it; they go to the managers of the home where the person lives now.
+  - `staff_removed_for_harm` (a boolean defaulting to no) became `staff_harm` with no default
+    (`removed`, `would_have_removed`, `not_removed`, `no_staff_involved`), answered before the
+    outcome and before the concern ends; the DBS decision follows `removed` and
+    `would_have_removed`.
+  - Making Safeguarding Personal is recorded before the referral decision, not only at closing.
+  - Protective measures never vanish: before a concern ends a manager records whether they were
+    carried into the care plan or risk assessment (`measures_outcome`); blank measures count as
+    none.
+  - Whoever raised a concern cannot decide alone that it is not referred, or close it; the other
+    managers at the person's home are told of a decision not to refer.
+  - Only an ended concern may be soft-deleted. The description is not changed after raising.
+  - Row-level security split by command: reading keeps the incident scope (the raiser reads their
+    own concern); writing needs the person in scope, so raising in one's own name never reaches a
+    person the caller cannot see. The log's list leaves out a concern the caller raised about
+    someone the manage permission does not reach (ADR-0071). A replayed client id is answered only
+    after the reach check, and a used id gets one message. Rows are locked only after the reach
+    check.
+  - Clock-change rows for the referral target (elapsed hours across both changes).
+  - Left open: protective measures on the phone, a second person for not referring, and "DBS not
+    required" when the s.35 conditions are met (H-599); the unrouted audit has no fixture yet; a
+    separate escalation rate key for safeguarding (it reuses
+    `statutory_notification.escalation_minutes`).

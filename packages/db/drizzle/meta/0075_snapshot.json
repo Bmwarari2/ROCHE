@@ -1,5 +1,5 @@
 {
-  "id": "61b7f726-cf92-4213-975c-30d52285e625",
+  "id": "6155f179-ac3f-4d86-97a8-81b8004ef4ed",
   "prevId": "a63b808b-5261-4530-b6c8-b2781dbcfc03",
   "version": "7",
   "dialect": "postgresql",
@@ -22460,12 +22460,11 @@
           "primaryKey": false,
           "notNull": false
         },
-        "staff_removed_for_harm": {
-          "name": "staff_removed_for_harm",
-          "type": "boolean",
+        "staff_harm": {
+          "name": "staff_harm",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": false
+          "notNull": false
         },
         "dbs_decision": {
           "name": "dbs_decision",
@@ -22494,6 +22493,12 @@
         "protective_measures_updated_at": {
           "name": "protective_measures_updated_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "measures_outcome": {
+          "name": "measures_outcome",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -22838,9 +22843,33 @@
           "name": "safeguarding_concern_dbs",
           "value": "(dbs_decision IS NULL) = (dbs_decided_at IS NULL)\n        AND (dbs_decision IS DISTINCT FROM 'not_required' OR dbs_reason IS NOT NULL)"
         },
+        "safeguarding_concern_staff_harm": {
+          "name": "safeguarding_concern_staff_harm",
+          "value": "staff_harm IS NULL OR staff_harm IN ('removed', 'would_have_removed', 'not_removed', 'no_staff_involved')"
+        },
+        "safeguarding_concern_staff_harm_answered": {
+          "name": "safeguarding_concern_staff_harm_answered",
+          "value": "state NOT IN ('outcome', 'no_referral', 'closed') OR staff_harm IS NOT NULL"
+        },
         "safeguarding_concern_dbs_before_end": {
           "name": "safeguarding_concern_dbs_before_end",
-          "value": "state NOT IN ('no_referral', 'closed') OR NOT staff_removed_for_harm OR dbs_decision IS NOT NULL"
+          "value": "state NOT IN ('no_referral', 'closed') OR staff_harm NOT IN ('removed', 'would_have_removed')\n        OR dbs_decision IS NOT NULL"
+        },
+        "safeguarding_concern_msp_before_decision": {
+          "name": "safeguarding_concern_msp_before_decision",
+          "value": "state = 'concern' OR (msp_asked IS NOT NULL\n        AND (msp_asked OR msp_not_asked_reason IS NOT NULL)\n        AND (NOT msp_asked OR msp_desired_outcomes IS NOT NULL))"
+        },
+        "safeguarding_concern_measures_outcome": {
+          "name": "safeguarding_concern_measures_outcome",
+          "value": "measures_outcome IS NULL OR measures_outcome IN ('carried_into_care_plan', 'no_longer_needed')"
+        },
+        "safeguarding_concern_measures_before_end": {
+          "name": "safeguarding_concern_measures_before_end",
+          "value": "state NOT IN ('no_referral', 'closed') OR protective_measures IS NULL OR measures_outcome IS NOT NULL"
+        },
+        "safeguarding_concern_deleted": {
+          "name": "safeguarding_concern_deleted",
+          "value": "deleted_at IS NULL OR state IN ('no_referral', 'closed')"
         },
         "safeguarding_concern_closed": {
           "name": "safeguarding_concern_closed",

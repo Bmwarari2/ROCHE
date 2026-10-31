@@ -18,14 +18,18 @@ import {
 } from "@harbour/db";
 import {
   type EnquiryFinding,
+  type MeasuresOutcome,
   OPEN_SAFEGUARDING_STATES,
   protectiveMeasuresFor,
   SAFEGUARDING_WORKFLOW,
   type SafeguardingRecordView,
+  type StaffHarmAnswer,
   type SafeguardingState as State,
   safeguardingClock,
+  safeguardingLogProblems,
   safeguardingReferralTarget,
   safeguardingStepProblems,
+  staffRemovedForHarm,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, isNull, type SQL } from "drizzle-orm";
@@ -46,6 +50,7 @@ import { rateNumber } from "../services/rates";
 import {
   acknowledgeSafeguardingAlerts,
   SAFEGUARDING_REFERRAL_RATE_KEY,
+  tellManagersNotReferred,
 } from "../services/safeguarding";
 import { startWorkflow } from "../services/workflow";
 import { iso } from "./care-shared";
@@ -123,7 +128,7 @@ function recordView(row: SafeguardingConcernRow): SafeguardingRecordView {
             desiredOutcomes: row.mspDesiredOutcomes,
             achieved: (row.mspAchieved as "fully" | "partly" | "not" | null) ?? null,
           },
-    staffRemovedForHarm: row.staffRemovedForHarm,
+    staffRemovedForHarm: staffRemovedForHarm(row.staffHarm as StaffHarmAnswer | null),
     dbsReferral:
       row.dbsDecision && row.dbsDecidedAt
         ? {
@@ -133,6 +138,31 @@ function recordView(row: SafeguardingConcernRow): SafeguardingRecordView {
           }
         : null,
   };
+}
+
+function logFacts(row: SafeguardingConcernRow) {
+  return {
+    staffHarm: (row.staffHarm as StaffHarmAnswer | null) ?? null,
+    mspAsked: row.mspAsked,
+    mspNotAskedReason: row.mspNotAskedReason,
+    mspDesiredOutcomes: row.mspDesiredOutcomes,
+    protectiveMeasures: row.protectiveMeasures,
+    measuresOutcome: (row.measuresOutcome as MeasuresOutcome | null) ?? null,
+  };
+}
+
+/** What a step needs: the slice 7 rules and the log's own (HZ-126, review round 1). */
+function stepNeeds(to: State, row: SafeguardingConcernRow): string[] {
+  return [
+    ...safeguardingStepProblems(to, recordView(row)),
+    ...safeguardingLogProblems(to, logFacts(row)),
+  ];
+}
+
+/** Blank measures are no measures (review round 1). */
+function measuresText(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  return text ? text : null;
 }
 
 function clockOf(row: SafeguardingConcernRow, now: Date, hours: number) {
@@ -163,14 +193,14 @@ async function detail(
   const state = row.state as State;
   const nextSteps = SAFEGUARDING_WORKFLOW.transitions
     .filter((t) => (Array.isArray(t.from) ? t.from.includes(state) : t.from === state))
-    .map((t) => ({ to: t.to, needs: safeguardingStepProblems(t.to, view) }));
+    .map((t) => ({ to: t.to, needs: stepNeeds(t.to, row) }));
   const warnings: string[] = [];
   if (draft && state !== "concern" && (draft.status === "draft" || draft.status === "ready")) {
     warnings.push(
       "The s.42 notification draft is still open. Record it as submitted, with the local authority's reference, or as not required.",
     );
   }
-  if (OPEN_SAFEGUARDING_STATES.includes(state) && !row.protectiveMeasures) {
+  if (OPEN_SAFEGUARDING_STATES.includes(state) && !measuresText(row.protectiveMeasures)) {
     warnings.push(
       "No protective measures are recorded. Staff caring for the person see that none are recorded.",
     );
@@ -203,12 +233,13 @@ async function detail(
       : null,
     finding: view.finding,
     personalOutcomes: view.personalOutcomes,
-    staffRemovedForHarm: row.staffRemovedForHarm,
+    staffHarm: (row.staffHarm as StaffHarmAnswer | null) ?? null,
     dbsReferral: view.dbsReferral
       ? { ...view.dbsReferral, at: view.dbsReferral.at.toISOString() }
       : null,
     protectiveMeasures: row.protectiveMeasures,
     protectiveMeasuresUpdatedAt: iso(row.protectiveMeasuresUpdatedAt),
+    measuresOutcome: (row.measuresOutcome as MeasuresOutcome | null) ?? null,
     closedAt: iso(row.closedAt),
     closedReason: row.closedReason,
     nextSteps,
@@ -225,6 +256,16 @@ async function loadConcern(tx: Transaction, id: string, forUpdate = false) {
   const [row] = forUpdate ? await query.for("update") : await query;
   if (!row) throw problems.notFound();
   return row;
+}
+
+/**
+ * Reads the concern, checks the manage permission reaches its person, and only then locks it for a
+ * change (security review round 1, L4).
+ */
+async function concernToChange(tx: Transaction, access: TenantAccess, id: string) {
+  const seen = await loadConcern(tx, id);
+  await requireManageReach(tx, access, seen.personId);
+  return loadConcern(tx, id, true);
 }
 
 /** The concern's person must be reached by the manage permission (scope per permission). */
@@ -272,21 +313,22 @@ export const safeguardingRouter = createRouter()
       const body = c.req.valid("json");
       const now = new Date();
       const raised = await withTenant(c, async (tx) => {
+        const person = await loadPerson(tx, body.personId);
+        const reach = await permissionsReaching(tx, access, person.id);
+        if (!reach.has("safety.incident.report")) throw problems.forbidden();
+        // A replay is answered only once the caller reaches the person (security review round 1, L1).
         if (body.id) {
           const [replayed] = await tx
             .select()
             .from(safeguardingConcern)
-            .where(eq(safeguardingConcern.id, body.id));
+            .where(and(eq(safeguardingConcern.id, body.id), isNull(safeguardingConcern.deletedAt)));
           if (replayed) {
-            if (replayed.raisedBy !== access.tenantUserId || replayed.personId !== body.personId) {
+            if (replayed.raisedBy !== access.tenantUserId || replayed.personId !== person.id) {
               throw problems.invalid("That id is already used.");
             }
             return replayed;
           }
         }
-        const person = await loadPerson(tx, body.personId);
-        const reach = await permissionsReaching(tx, access, person.id);
-        if (!reach.has("safety.incident.report")) throw problems.forbidden();
         const raisedAt = body.raisedAt ? new Date(body.raisedAt) : now;
         notFuture(raisedAt, now, "When the concern was raised");
         let locationId = person.locationId;
@@ -347,13 +389,19 @@ export const safeguardingRouter = createRouter()
             raisedAt,
             raisedBy: access.tenantUserId,
             referralDueAt: dueAt,
-            protectiveMeasures: body.protectiveMeasures ?? null,
-            protectiveMeasuresUpdatedAt: body.protectiveMeasures ? now : null,
+            protectiveMeasures: measuresText(body.protectiveMeasures),
+            protectiveMeasuresUpdatedAt: measuresText(body.protectiveMeasures) ? now : null,
           })
           .returning()
           .catch((error: unknown) => {
             if (dbCode(error) === "23505") {
-              throw problems.conflict("A concern is already open from this draft.");
+              const constraint =
+                (error as { constraint?: string }).constraint ??
+                (error as { cause?: { constraint?: string } }).cause?.constraint;
+              if (constraint === "safeguarding_concern_notification_key") {
+                throw problems.conflict("A concern is already open from this draft.");
+              }
+              throw problems.invalid("That id is already used.");
             }
             throw error;
           });
@@ -411,7 +459,20 @@ export const safeguardingRouter = createRouter()
           .orderBy(desc(safeguardingConcern.raisedAt))
           .limit(LIST_LIMIT + 1);
         const hours = await referralHours(tx, access.tenantId);
-        const shown = rows.slice(0, LIST_LIMIT);
+        // Row-level security lets the raiser read their own concern whatever their scope; the log
+        // shows only the people the manage permission reaches (ADR-0071; security review round 1, M1).
+        const reached = new Map<string, boolean>();
+        const shown: SafeguardingConcernRow[] = [];
+        for (const r of rows.slice(0, LIST_LIMIT)) {
+          if (r.raisedBy === access.tenantUserId) {
+            if (!reached.has(r.personId)) {
+              const reach = await permissionsReaching(tx, access, r.personId);
+              reached.set(r.personId, reach.has("safety.safeguarding.manage"));
+            }
+            if (!reached.get(r.personId)) continue;
+          }
+          shown.push(r);
+        }
         const open = (r: SafeguardingConcernRow) =>
           OPEN_SAFEGUARDING_STATES.includes(r.state as State) ? 0 : 1;
         shown.sort((x, y) => open(x) - open(y));
@@ -495,8 +556,7 @@ export const safeguardingRouter = createRouter()
       const body = c.req.valid("json");
       const now = new Date();
       const view = await withTenant(c, async (tx) => {
-        const row = await loadConcern(tx, id, true);
-        await requireManageReach(tx, access, row.personId);
+        const row = await concernToChange(tx, access, id);
         if (row.version !== body.version) throw problems.conflict();
         if (row.state === "closed" || row.state === "no_referral") {
           throw problems.invalid("This concern has ended, so it cannot be changed.");
@@ -507,11 +567,15 @@ export const safeguardingRouter = createRouter()
         if (body.referral && new Date(body.referral.referredAt) < row.raisedAt) {
           throw problems.invalid("The referral cannot be before the concern was raised.");
         }
+        if (Object.keys(body).every((k) => k === "version")) {
+          throw problems.invalid(
+            "Nothing to change. What the concern says stays as it was raised.",
+          );
+        }
         const [saved] = await tx
           .update(safeguardingConcern)
           .set({
             ...(body.abuseTypes ? { abuseTypes: [...new Set(body.abuseTypes)] } : {}),
-            ...(body.description !== undefined ? { description: body.description } : {}),
             ...(body.referral !== undefined
               ? {
                   referralLocalAuthority: body.referral?.localAuthority ?? null,
@@ -537,9 +601,7 @@ export const safeguardingRouter = createRouter()
                   mspAchieved: body.personalOutcomes?.achieved ?? null,
                 }
               : {}),
-            ...(body.staffRemovedForHarm !== undefined
-              ? { staffRemovedForHarm: body.staffRemovedForHarm }
-              : {}),
+            ...(body.staffHarm !== undefined ? { staffHarm: body.staffHarm } : {}),
             ...(body.dbsReferral !== undefined
               ? {
                   dbsDecision: body.dbsReferral?.decision ?? null,
@@ -549,9 +611,12 @@ export const safeguardingRouter = createRouter()
               : {}),
             ...(body.protectiveMeasures !== undefined
               ? {
-                  protectiveMeasures: body.protectiveMeasures,
-                  protectiveMeasuresUpdatedAt: body.protectiveMeasures ? now : null,
+                  protectiveMeasures: measuresText(body.protectiveMeasures),
+                  protectiveMeasuresUpdatedAt: measuresText(body.protectiveMeasures) ? now : null,
                 }
+              : {}),
+            ...(body.measuresOutcome !== undefined
+              ? { measuresOutcome: body.measuresOutcome }
               : {}),
           })
           .where(
@@ -602,8 +667,7 @@ export const safeguardingRouter = createRouter()
       const body = c.req.valid("json");
       const now = new Date();
       const view = await withTenant(c, async (tx) => {
-        const row = await loadConcern(tx, id, true);
-        await requireManageReach(tx, access, row.personId);
+        const row = await concernToChange(tx, access, id);
         if (row.version !== body.version) throw problems.conflict();
         const to = body.to as State;
         const reason = body.reason?.trim() || null;
@@ -614,7 +678,7 @@ export const safeguardingRouter = createRouter()
               : "Say why the concern can close, in 10 characters or more.",
           );
         }
-        const needs = safeguardingStepProblems(to, recordView(row));
+        const needs = stepNeeds(to, row);
         if (needs.length > 0) throw problems.invalid(needs.join(" "));
         await moveOrRefuse(c, tx, SAFEGUARDING_WORKFLOW, SUBJECT(row), to, reason, now);
         const [saved] = await tx
@@ -636,6 +700,10 @@ export const safeguardingRouter = createRouter()
         if (to === "referred" || to === "no_referral") {
           await acknowledgeSafeguardingAlerts(tx, saved.id, now);
         }
+        // A decision not to refer is never one person's alone and unseen: the other managers of
+        // the log at the person's home are told (clinical review round 1; a second person: H-599).
+        if (to === "no_referral")
+          await tellManagersNotReferred(tx, saved, access.tenantUserId, now);
         await audit(c, tx, access, {
           action: `safety.safeguarding.${to}`,
           resourceType: "safeguarding_concern",

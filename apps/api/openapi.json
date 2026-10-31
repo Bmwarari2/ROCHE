@@ -17458,8 +17458,8 @@
               "achieved"
             ]
           },
-          "staffRemovedForHarm": {
-            "type": "boolean"
+          "staffHarm": {
+            "$ref": "#/components/schemas/SafeguardingStaffHarm"
           },
           "dbsReferral": {
             "type": [
@@ -17504,6 +17504,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "measuresOutcome": {
+            "$ref": "#/components/schemas/SafeguardingMeasuresOutcome"
           },
           "closedAt": {
             "type": [
@@ -17568,10 +17571,11 @@
           "enquiry",
           "finding",
           "personalOutcomes",
-          "staffRemovedForHarm",
+          "staffHarm",
           "dbsReferral",
           "protectiveMeasures",
           "protectiveMeasuresUpdatedAt",
+          "measuresOutcome",
           "closedAt",
           "closedReason",
           "nextSteps",
@@ -17593,6 +17597,30 @@
           null
         ]
       },
+      "SafeguardingStaffHarm": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "removed",
+          "would_have_removed",
+          "not_removed",
+          "no_staff_involved",
+          null
+        ]
+      },
+      "SafeguardingMeasuresOutcome": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "carried_into_care_plan",
+          "no_longer_needed",
+          null
+        ]
+      },
       "UpdateSafeguardingConcern": {
         "type": "object",
         "properties": {
@@ -17607,11 +17635,6 @@
             },
             "minItems": 1,
             "maxItems": 10
-          },
-          "description": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 4000
           },
           "referral": {
             "type": [
@@ -17721,8 +17744,8 @@
               "achieved"
             ]
           },
-          "staffRemovedForHarm": {
-            "type": "boolean"
+          "staffHarm": {
+            "$ref": "#/components/schemas/SafeguardingStaffHarm"
           },
           "dbsReferral": {
             "type": [
@@ -17760,8 +17783,10 @@
               "string",
               "null"
             ],
-            "minLength": 3,
             "maxLength": 2000
+          },
+          "measuresOutcome": {
+            "$ref": "#/components/schemas/SafeguardingMeasuresOutcome"
           }
         },
         "required": [
