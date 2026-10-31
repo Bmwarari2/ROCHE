@@ -672,6 +672,23 @@ to a national standard; the rights are those of UK GDPR Articles 15 to 20. Every
 | `dsar_item.content_sha256` | SHA-256 | 64 lower-case hex characters of the canonical JSON of the record's exported columns as the reviewer opened it; set exactly when decided | A record whose hash no longer matches goes back to pending (#149 M3). |
 | `dsar_item.table_name`, `record_id` | Harbour (`EXPORT_TABLES`) | A table in the export catalogue; the record's id as text | Unique per case; content is never copied. |
 | `dsar_item.decision`, `redacted_fields`, `reason`, `reviewed_by`, `reviewed_at` | Harbour; DPA 2018 Schs 2 to 4 | `pending`, `disclose`, `redact`, `withhold`; fields from the table's exported columns; a reason for `redact` and `withhold`; a `tenant_user` id and UTC once decided | Redacted fields read `[redacted]` in the bundle; withheld records are left out with a count. |
+## Breach register and data protection complaints (Phase 2, slice 20)
+Code lists for [platform.md](platform.md) rules 18 to 26 (migration 0082). None maps to a national
+standard; dates are UK calendar dates (`YYYY-MM-DD`, shown dd/mm/yyyy) and instants UTC. Clocks are
+never stored: they are worked out from these fields and the rate table.
+| `dp_breach.source` | Harbour | `tenant`, `processor_notice` | Only Thapsus's definer function writes `processor_notice`. |
+| `dp_breach.aware_at`, `occurred_at` | UK GDPR Art 33(1) | Instants (UTC) | The ICO clock runs `ico.breach.report_hours` from `aware_at`; it may change only until `reported_at` is set. |
+| `dp_breach.factors` | breach-response.md section 4 | JSON `BreachFactors`: `peopleAffected` (whole number), `identifiable`, `specialCategory`, `safeguardingOrLocationAtRisk`, `disclosedOutsideOrganisation`, `careRecordsUnavailable`, `contained` (booleans) | Set with the suggestion; reassessing after a decision is refused. |
+| `dp_breach.suggested_severity` | Harbour severity guide | `low`, `medium`, `high`, `critical` | Decision support only (`assessBreach`); `suggested_report_to_ico` and `suggested_tell_individuals` beside it. |
+| `dp_breach` decision | UK GDPR Arts 33(5) and 34 | `report_to_ico`, `tell_individuals` (booleans), `decision_reasoning` (20 to 4,000 characters), `acknowledged_suggestion`, `decided_by` (tenant_user id), `decided_at` | All set together (check `dp_breach_decided`). |
+| `dp_breach.ico_reference` | ICO | Free text, 1 to 100 characters, as the ICO gives it | Set with `reported_at`; needs `report_to_ico`; `delay_reason` when late. |
+| `dp_breach.subject_notice`, `individuals_told_on` | UK GDPR Art 34 | Notice text 20 to 10,000 characters; UK date | From the template (`subjectNoticeDraft`); refused while a `[Write ...]` prompt remains. |
+| `dp_breach.status` | Harbour | `open`, `closed` | Closing needs the decision, its report and notice, and `lessons` (20 to 4,000 characters). |
+| `processor_breach_notice` | UK GDPR Art 33(2); DPA clause 8.2 | `nature`, `data_categories`, `approx_people`, `approx_records` (whole numbers or empty), `likely_consequences`, `measures`, `tenant_actions`, `contact`; `follows_id` for a follow-up | Append-only; no names of the people affected. |
+| `dp_complaint.channel` | Harbour | `form`, `email`, `letter`, `phone`, `in_person`, `forwarded_by_thapsus`, `other` | |
+| `dp_complaint.complainant_kind` | Harbour | `person_supported`, `representative`, `family`, `staff`, `other` | `complainant_name` (1 to 200 characters) and `complainant_contact` (as given) are personal data. |
+| `dp_complaint.about` | data-protection-complaints.md section 1 | `access`, `accuracy`, `sharing`, `security`, `retention`, `other` | |
+| `dp_complaint` dates | DPA 2018 as amended (DUAA 2025) | `received_on`, `acknowledged_on`, `last_contact_on`, `closed_on` (UK dates, none before receipt) | Acknowledgement due `dp_complaint.acknowledge_days` after receipt for complaints from 19/06/2026; closing needs an outcome (20 to 10,000 characters) stating the right to complain to the ICO (`ico_right_stated`). |
 
 ## Phase 1 tables completed for the gate
 

@@ -47,6 +47,8 @@ const APPEND_ONLY_TABLES = [
   "dcb0160_record",
   "sub_processor_notice",
   "sub_processor_response",
+  "processor_breach_notice",
+  "processor_breach_notice_ack",
   "dependency_assessment",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */

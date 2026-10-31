@@ -6672,604 +6672,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/complaints": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Complaints at the homes where you manage them, newest first */
-    get: {
-      parameters: {
-        query?: {
-          locationId?: string;
-          state?: components["schemas"]["ComplaintState"];
-        };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Complaints */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ComplaintList"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    /**
-     * Record a complaint (Regulation 16); starts its clocks
-     * @description Needs safety.complaint.manage at the complaint's home. Starts the complaint workflow with the acknowledgement target written onto it, and publishes safety.complaint.received (ids only).
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["CreateComplaint"];
-        };
-      };
-      responses: {
-        /** @description Recorded */
-        201: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ComplaintItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/complaints/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** One complaint, with its clocks and the Ombudsman's time limit */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Complaint */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ComplaintItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/complaints/{id}/step": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Take the next complaint step: acknowledge, investigate, respond, appeal or close
-     * @description A response (first or after an appeal) needs the outcome, what was done, the Ombudsman signposted and a kept copy (complaintResponseProblems); an appeal needs when it arrived and why; closing needs a reason. The workflow engine checks the step and the permission; the new state's deadline is written onto the workflow.
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["ComplaintStep"];
-        };
-      };
-      responses: {
-        /** @description Moved */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ComplaintItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/complaints/{id}/pauses": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /**
-     * Record when the response target is paused, waiting for the complainant
-     * @description UK dates, inclusive, each with a reason (waiting for consent or information). Only before the response; the response target moves by the working days paused, and the new deadline is written onto the workflow.
-     */
-    put: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["SetComplaintPauses"];
-        };
-      };
-      responses: {
-        /** @description Saved */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ComplaintItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/compliments": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Compliments at the homes where you manage complaints, newest first */
-    get: {
-      parameters: {
-        query?: {
-          locationId?: string;
-        };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Compliments */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ComplimentList"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    /**
-     * Record a compliment, optionally tagged as evidence for quality statements
-     * @description Needs safety.complaint.manage at its home. Never runs a clock. Publishes safety.compliment.recorded (ids and statement identifiers only) for the evidence library's links (slice 14).
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["CreateCompliment"];
-        };
-      };
-      responses: {
-        /** @description Recorded */
-        201: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ComplimentItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/compliments/{id}/evidence": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** Tag a compliment with the quality statements it is evidence for */
-    put: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["TagCompliment"];
-        };
-      };
-      responses: {
-        /** @description Tagged */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ComplimentItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/v1/workflows": {
     parameters: {
       query?: never;
@@ -16265,609 +15667,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/quality/frameworks": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Compliance framework versions
-     * @description Global reference data: every framework version (CQC's single assessment framework now, KLOE-based and devolved-nation frameworks as later versions), each marked when it is the one in force today for its regulator. For anyone who works with quality evidence.
-     */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Framework versions */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["FrameworkVersionList"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/quality/frameworks/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** A framework version's key questions, statements and evidence categories */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description The framework version */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["FrameworkVersionDetail"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/quality/frameworks/{id}/mapping": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * The organisation's mapping of a framework version
-     * @description quality.evidence.manage. The latest mapping version, or the one in force at `at` (rule 5), so a past audit is read with the mapping of its time; version 0 with no entries when the organisation has not mapped it.
-     */
-    get: {
-      parameters: {
-        query?: {
-          at?: string;
-        };
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description The mapping */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["FrameworkMappingView"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    /**
-     * Save a new version of the organisation's mapping
-     * @description quality.evidence.manage. A new mapping version, the one read plus one (409 otherwise), naming only statements and evidence categories of a published framework version, each statement once (rule 5). Earlier versions stay. Audited.
-     */
-    put: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["SaveFrameworkMapping"];
-        };
-      };
-      responses: {
-        /** @description Saved */
-        201: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["FrameworkMappingView"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/quality/frameworks/{id}/coverage": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * How many records evidence each statement, and the gaps
-     * @description quality.evidence.manage. Each statement of the version with the number of records tagged against it (each record once), and the statements with none (rule 7). Removed tags do not count.
-     */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Coverage */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["EvidenceCoverage"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/evidence-links": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Evidence links for a record, or for a statement
-     * @description quality.evidence.manage. By record (`recordType` and `recordId`) or by statement (`frameworkVersionId` and `statementId`); removed links are included, marked, so the history is visible. Newest first, at most 500.
-     */
-    get: {
-      parameters: {
-        query?: {
-          recordType?: string;
-          recordId?: string;
-          frameworkVersionId?: string;
-          statementId?: string;
-        };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Evidence links */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["EvidenceLinkList"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    /**
-     * Tag a record as evidence
-     * @description quality.evidence.manage. The record is read in your own scope (one you cannot see reads as not found); its statements must be in the named framework version, which must be the published one (rule 6). Restricted records (speak-up, employee relations casework, legal advice) are never evidence. Record types whose tables later slices add (audits, compliments, policies, surveys) are accepted once those slices register them. Audited.
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["CreateEvidenceLink"];
-        };
-      };
-      responses: {
-        /** @description Tagged */
-        201: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["EvidenceLinkItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/evidence-links/{id}/remove": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Remove an evidence tag
-     * @description quality.evidence.manage, with a reason, against the version you read. The link stays, marked removed with who and why; it no longer counts as evidence. Audited.
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["RemoveEvidenceLink"];
-        };
-      };
-      responses: {
-        /** @description Removed */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["EvidenceLinkItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/p/evidence/code": {
     parameters: {
       query?: never;
@@ -21394,7 +20193,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/dsar-cases": {
+  "/v1/data-protection/breaches": {
     parameters: {
       query?: never;
       header?: never;
@@ -21402,8 +20201,8 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Data subject requests, newest first, with each one's clock
-     * @description quality.dsar.manage with MFA. Audited with the count.
+     * The breach register, newest awareness first, each with its ICO clock
+     * @description quality.dsar.manage. Every breach, reportable or not (Art 33(5)), with its clock worked out now from aware_at and ico.breach.report_hours, the suggestion recomputed from its factors (decision support only) and Thapsus's notices about it. Audited (platform.breach.list).
      */
     get: {
       parameters: {
@@ -21414,13 +20213,13 @@ export interface paths {
       };
       requestBody?: never;
       responses: {
-        /** @description The requests */
+        /** @description The register */
         200: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DsarCaseList"];
+            "application/json": components["schemas"]["BreachList"];
           };
         };
         /** @description Not signed in */
@@ -21454,8 +20253,8 @@ export interface paths {
     };
     put?: never;
     /**
-     * Record a data subject request
-     * @description quality.dsar.manage with MFA. The subject must match its kind (a contact names its person too); a representative needs an authority. Audited.
+     * Record a breach in the register
+     * @description quality.dsar.manage. What happened (no names: the register is not a care record), when the organisation became aware (the ICO clock starts there) and, if known, when it happened. Audited (platform.breach.recorded).
      */
     post: {
       parameters: {
@@ -21466,7 +20265,7 @@ export interface paths {
       };
       requestBody?: {
         content: {
-          "application/json": components["schemas"]["NewDsarCase"];
+          "application/json": components["schemas"]["RecordBreach"];
         };
       };
       responses: {
@@ -21476,7 +20275,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DsarCase"];
+            "application/json": components["schemas"]["Breach"];
           };
         };
         /** @description Not signed in */
@@ -21514,7 +20313,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/dsar-cases/{id}": {
+  "/v1/data-protection/breaches/{id}": {
     parameters: {
       query?: never;
       header?: never;
@@ -21522,8 +20321,8 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * A data subject request, with its clock worked out now
-     * @description quality.dsar.manage with MFA. Audited.
+     * One breach, with its clock, suggestion, decision and notices
+     * @description quality.dsar.manage. Audited (platform.breach.viewed).
      */
     get: {
       parameters: {
@@ -21536,13 +20335,13 @@ export interface paths {
       };
       requestBody?: never;
       responses: {
-        /** @description The request */
+        /** @description The breach */
         200: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DsarCase"];
+            "application/json": components["schemas"]["Breach"];
           };
         };
         /** @description Not signed in */
@@ -21591,7 +20390,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/dsar-cases/{id}/identity": {
+  "/v1/data-protection/breaches/{id}/facts": {
     parameters: {
       query?: never;
       header?: never;
@@ -21601,8 +20400,8 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Record that the requester's identity was confirmed (the clock starts that day)
-     * @description quality.dsar.manage with MFA. Records how, never the document. Audited.
+     * Correct what happened, where and when
+     * @description quality.dsar.manage. The time the organisation became aware may be corrected only until the ICO report is recorded (rule 19; the database refuses it too); every change is kept in the record's history. Audited (platform.breach.facts_changed) with which fields changed.
      */
     post: {
       parameters: {
@@ -21615,17 +20414,768 @@ export interface paths {
       };
       requestBody?: {
         content: {
-          "application/json": components["schemas"]["DsarIdentityInput"];
+          "application/json": components["schemas"]["ChangeBreachFacts"];
+        };
+      };
+      responses: {
+        /** @description The breach */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Breach"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/data-protection/breaches/{id}/assessment": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the assessment factors and store the suggested severity
+     * @description quality.dsar.manage. Stores the factors from breach-response.md section 4 and assessBreach's suggestion: decision support only, never the decision (rule 7). Reassessing after a decision is refused. Audited (platform.breach.assessed) with the suggested severity code.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AssessBreach"];
+        };
+      };
+      responses: {
+        /** @description The breach */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Breach"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/data-protection/breaches/{id}/decision": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the decision on reporting to the ICO and telling the people affected
+     * @description quality.dsar.manage. A person's decision against the stored suggestion (checkBreachDecision, 422 with its problem code): written reasoning, the decider is the person recording it, and an acknowledgement when going against the suggestion. A changed decision is recorded the same way and kept in history; a decision to report cannot be withdrawn once the report is recorded. Audited (platform.breach.decided) with the two choices, never the reasoning.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DecideBreach"];
+        };
+      };
+      responses: {
+        /** @description The breach */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Breach"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/data-protection/breaches/{id}/ico-report": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the report to the ICO
+     * @description quality.dsar.manage. Needs a decision to report (422 not_decided_to_report). A report made after the deadline needs the reasons for the delay (Art 33(1); 422 delay_reason_required). Audited (platform.breach.reported) with whether it was late.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReportBreach"];
+        };
+      };
+      responses: {
+        /** @description The breach */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Breach"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/data-protection/breaches/{id}/subject-notice-draft": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Draft the notice to the people affected from Harbour's template
+     * @description quality.dsar.manage. The plain-English template (what happened, what it means for them, what has been done, what they can do, who to contact) filled from the entry and the organisation's data protection contact; the parts in square brackets are for a person to write. Nothing is stored.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The draft */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SubjectNoticeDraft"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/data-protection/breaches/{id}/individuals-told": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the notice sent to the people affected, and the day they were told
+     * @description quality.dsar.manage. Needs a decision to tell them (422 not_decided_to_tell); a notice still holding one of the template's prompts is refused (422 notice_unfinished). Audited (platform.breach.individuals_told), never the notice text.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["TellIndividuals"];
+        };
+      };
+      responses: {
+        /** @description The breach */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Breach"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/data-protection/breaches/{id}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Close a breach with its lessons
+     * @description quality.dsar.manage. Needs a decision (422 not_decided); a decision to report needs the report recorded (422 not_reported), and a decision to tell the people affected needs the notice recorded (422 not_told). Once closed nothing changes. Audited (platform.breach.closed).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseBreach"];
+        };
+      };
+      responses: {
+        /** @description The breach */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Breach"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/data-protection/breach-notices/{id}/acknowledge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Acknowledge a breach notice from Thapsus
+     * @description quality.dsar.manage, in the acknowledger's own name, once per notice (409 already_acknowledged). Audited (platform.breach.notice_acknowledged).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The breach the notice is about */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Breach"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/data-protection/complaints": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Data protection complaints, open first, each with its clocks
+     * @description quality.dsar.manage. The acknowledgement clock (dp_complaint.acknowledge_days from the day of receipt, for complaints received once the duty was in force) and the tenant's working-day target beside it, and the next update due while open, worked out now. Audited (platform.dp_complaint.list).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Complaints */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DataProtectionComplaintList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a data protection complaint
+     * @description quality.dsar.manage. Logs a complaint received by any channel; the day received may not be in the future. Audited (platform.dp_complaint.recorded) with its codes, never the names or summary.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordDataProtectionComplaint"];
         };
       };
       responses: {
         /** @description Recorded */
-        200: {
+        201: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DsarCase"];
+            "application/json": components["schemas"]["DataProtectionComplaint"];
           };
         };
         /** @description Not signed in */
@@ -21639,24 +21189,6 @@ export interface paths {
         };
         /** @description Not a member, missing permission, MFA not set up or step-up needed */
         403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -21681,363 +21213,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/dsar-cases/{id}/pauses": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Pause the clock while clarification is awaited
-     * @description quality.dsar.manage with MFA. One pause open at a time. Audited.
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["DsarPauseStart"];
-        };
-      };
-      responses: {
-        /** @description Paused */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["DsarCase"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/dsar-cases/{id}/pauses/end": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Restart the clock when the clarification arrives
-     * @description quality.dsar.manage with MFA. Audited.
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["DsarPauseEnd"];
-        };
-      };
-      responses: {
-        /** @description Resumed */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["DsarCase"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/dsar-cases/{id}/extension": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Extend the deadline for a complex request or several requests
-     * @description quality.dsar.manage with MFA. Decided before the original due date, by no more than the rate table allows, with a reason. Audited.
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["DsarExtensionInput"];
-        };
-      };
-      responses: {
-        /** @description Extended */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["DsarCase"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/dsar-cases/{id}/collect": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Find the subject's records across every module
-     * @description quality.dsar.manage with MFA. Searches every exported table with personal data by its subject column (the export catalogue); lists those it cannot search. Collecting again adds only new records. Stops at 5000 records. Audited with counts.
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Collected */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["DsarCollectResult"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/dsar-cases/{id}/items": {
+  "/v1/data-protection/complaints/{id}": {
     parameters: {
       query?: never;
       header?: never;
@@ -22045,8 +21221,8 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * The records collected for a request and the decision on each
-     * @description quality.dsar.manage with MFA. Tables and ids only, no content. Audited with the count.
+     * One data protection complaint with its clocks
+     * @description quality.dsar.manage. Audited (platform.dp_complaint.viewed).
      */
     get: {
       parameters: {
@@ -22059,13 +21235,13 @@ export interface paths {
       };
       requestBody?: never;
       responses: {
-        /** @description The records */
+        /** @description The complaint */
         200: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DsarItemList"];
+            "application/json": components["schemas"]["DataProtectionComplaint"];
           };
         };
         /** @description Not signed in */
@@ -22114,85 +21290,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/dsar-cases/{id}/items/{itemId}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * One collected record, with other people's names highlighted for review
-     * @description quality.dsar.manage with MFA. The record as the export shows it; highlights redact nothing. Audited as a care-record view.
-     */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-          itemId: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description The record */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["DsarItemDetail"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/dsar-cases/{id}/items/{itemId}/decision": {
+  "/v1/data-protection/complaints/{id}/acknowledge": {
     parameters: {
       query?: never;
       header?: never;
@@ -22202,187 +21300,8 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Decide a record: disclose, redact named fields or withhold, with a reason
-     * @description quality.dsar.manage with MFA. A redaction names the fields and a reason; withholding names a reason (the exemption). Send the item's version. Audited with the decision and the number of fields.
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-          itemId: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["DsarItemDecisionInput"];
-        };
-      };
-      responses: {
-        /** @description Decided */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["DsarItem"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/dsar-cases/{id}/bundle": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * The response bundle, once every record is decided
-     * @description quality.dsar.manage with MFA. Redacted fields read [redacted]; withheld records are left out with a count. `format=portable` only where portability applies (staff records). Audited with counts and the hash.
-     */
-    get: {
-      parameters: {
-        query?: {
-          format?: "access" | "portable";
-        };
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description The bundle */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["DsarBundle"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Changed by someone else since you loaded it; reload and try again */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/dsar-cases/{id}/respond": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Record the response and close the request
-     * @description quality.dsar.manage with MFA. Access and portability responses that disclose need every record decided, and record the bundle's SHA-256. A partial response or refusal needs reasons. A late response stays late. Audited.
+     * Record the day the complaint was acknowledged
+     * @description quality.dsar.manage. On or after the day received and not in the future. Audited (platform.dp_complaint.acknowledged).
      */
     post: {
       parameters: {
@@ -22395,17 +21314,17 @@ export interface paths {
       };
       requestBody?: {
         content: {
-          "application/json": components["schemas"]["DsarRespondInput"];
+          "application/json": components["schemas"]["DataProtectionComplaintDate"];
         };
       };
       responses: {
-        /** @description Closed */
+        /** @description The complaint */
         200: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DsarCase"];
+            "application/json": components["schemas"]["DataProtectionComplaint"];
           };
         };
         /** @description Not signed in */
@@ -22461,7 +21380,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/dsar-cases/{id}/rectification": {
+  "/v1/data-protection/complaints/{id}/contact": {
     parameters: {
       query?: never;
       header?: never;
@@ -22471,8 +21390,8 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Record what was corrected, or why not, for a rectification request
-     * @description quality.dsar.manage with MFA. Recorded only: the correction itself is made in the module as a new version or a superseding entry. Audited with the count.
+     * Record a day the complainant was told how it is going
+     * @description quality.dsar.manage. Moves the next update due (dp_complaint.update_interval_months from the last contact). Not before the last contact, and not in the future. Audited (platform.dp_complaint.contacted).
      */
     post: {
       parameters: {
@@ -22485,17 +21404,17 @@ export interface paths {
       };
       requestBody?: {
         content: {
-          "application/json": components["schemas"]["DsarRectificationInput"];
+          "application/json": components["schemas"]["DataProtectionComplaintDate"];
         };
       };
       responses: {
-        /** @description Recorded */
+        /** @description The complaint */
         200: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DsarCase"];
+            "application/json": components["schemas"]["DataProtectionComplaint"];
           };
         };
         /** @description Not signed in */
@@ -22551,7 +21470,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/dsar-cases/{id}/erasure": {
+  "/v1/data-protection/complaints/{id}/close": {
     parameters: {
       query?: never;
       header?: never;
@@ -22561,8 +21480,8 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Assess erasure of the collected records against retention, and record it
-     * @description quality.dsar.manage with MFA. A record under a legal hold or within its retention period is kept; only what retention allows is listed as erasable. Recorded only: the retention engine destroys records, never the workbench. Audited with counts.
+     * Close a complaint with its outcome
+     * @description quality.dsar.manage. checkComplaintClosure (422 with its problem code): the outcome recorded, and it tells the complainant they can complain to the ICO. Needs the acknowledgement recorded first (422 not_acknowledged). Once closed nothing changes. Audited (platform.dp_complaint.closed).
      */
     post: {
       parameters: {
@@ -22575,17 +21494,17 @@ export interface paths {
       };
       requestBody?: {
         content: {
-          "application/json": components["schemas"]["DsarErasureInput"];
+          "application/json": components["schemas"]["CloseDataProtectionComplaint"];
         };
       };
       responses: {
-        /** @description Assessed */
+        /** @description The complaint */
         200: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DsarCase"];
+            "application/json": components["schemas"]["DataProtectionComplaint"];
           };
         };
         /** @description Not signed in */
@@ -22635,92 +21554,6 @@ export interface paths {
         };
       };
     };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/dsar-cases/{id}/bundle/issued": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * The bundle exactly as it was sent
-     * @description quality.dsar.manage across the organisation, with step-up. The stored copy whose SHA-256 the response recorded. Audited.
-     */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description The bundle as sent */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["DsarBundle"];
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Issued, but the stored copy is no longer kept */
-        410: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -23753,6 +22586,85 @@ export interface paths {
     };
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/operator/breach-notices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Tell an organisation about a personal data breach affecting its data (admins, fresh sign-in)
+     * @description Sends the processor-to-controller notice (nature, data categories, approximate numbers, likely consequences, measures, what the organisation needs to do, contact). A first notice opens the organisation's breach register entry with the time of the notice as its awareness, which the organisation may correct to its own; a follow-up (followsId) joins the same entry. Do not wait for complete information. Audited in the organisation's log (platform.breach.processor_notice_sent); its data protection lead and owners are told.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SendProcessorBreachNotice"];
+        };
+      };
+      responses: {
+        /** @description Sent */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ProcessorBreachNoticeSent"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -26115,176 +25027,6 @@ export interface components {
     };
     EndTaskSeries: {
       reason: string;
-      version: number;
-    };
-    ComplaintItem: {
-      /** Format: uuid */
-      id: string;
-      /** Format: uuid */
-      locationId: string;
-      /** Format: uuid */
-      personId: string | null;
-      complainantName: string;
-      complainantRelationship: components["schemas"]["ComplainantRelationship"];
-      complainantContact: string | null;
-      channel: components["schemas"]["ComplaintChannel"];
-      /** Format: date-time */
-      receivedAt: string;
-      /** Format: date */
-      knewOfMatterOn: string;
-      summary: string;
-      state: components["schemas"]["ComplaintState"];
-      pauses: components["schemas"]["ComplaintPause"][];
-      /** Format: date-time */
-      acknowledgedAt: string | null;
-      response: components["schemas"]["ComplaintResponse"];
-      /** Format: date-time */
-      respondedAt: string | null;
-      /** Format: date-time */
-      appealReceivedAt: string | null;
-      appealReason: string | null;
-      appealResponse: components["schemas"]["ComplaintResponse"];
-      /** Format: date-time */
-      appealRespondedAt: string | null;
-      closedReason: string | null;
-      /** Format: date-time */
-      closedAt: string | null;
-      clocks: {
-        /** Format: date */
-        acknowledgeBy: string;
-        /** Format: date */
-        respondBy: string;
-        pausedWorkingDays: number;
-        wording: string;
-      };
-      ombudsman: {
-        /** Format: date */
-        normallyBy: string;
-        wording: string;
-      } | null;
-      recordedBy: components["schemas"]["StaffName"];
-      version: number;
-    };
-    /** @enum {string} */
-    ComplainantRelationship:
-      | "person_using_service"
-      | "family_or_friend"
-      | "representative"
-      | "professional"
-      | "member_of_public"
-      | "other";
-    /** @enum {string} */
-    ComplaintChannel: "in_person" | "phone" | "email" | "letter" | "other";
-    /** @enum {string} */
-    ComplaintState:
-      | "received"
-      | "acknowledged"
-      | "investigating"
-      | "responded"
-      | "appealed"
-      | "appeal_responded"
-      | "closed";
-    ComplaintPause: {
-      /** Format: date */
-      from: string;
-      /** Format: date */
-      to: string;
-      reason: string;
-    };
-    ComplaintResponse: {
-      outcome: components["schemas"]["ComplaintOutcome"];
-      actionsTaken: string;
-      ombudsmanSignposted: boolean;
-      /** Format: uuid */
-      documentId: string;
-    } | null;
-    /** @enum {string} */
-    ComplaintOutcome: "upheld" | "partly_upheld" | "not_upheld";
-    CreateComplaint: {
-      /** Format: uuid */
-      id?: string;
-      /** Format: uuid */
-      locationId: string;
-      /** Format: uuid */
-      personId?: string;
-      complainantName: string;
-      complainantRelationship: components["schemas"]["ComplainantRelationship"];
-      complainantContact?: string;
-      channel: components["schemas"]["ComplaintChannel"];
-      /** Format: date-time */
-      receivedAt: string;
-      /** Format: date */
-      knewOfMatterOn: string;
-      summary: string;
-    };
-    ComplaintList: {
-      items: components["schemas"]["ComplaintItem"][];
-    };
-    ComplaintStep: {
-      /** @enum {string} */
-      to:
-        | "acknowledged"
-        | "investigating"
-        | "responded"
-        | "appealed"
-        | "appeal_responded"
-        | "closed";
-      version: number;
-      reason?: string;
-      response?: components["schemas"]["ComplaintResponse"];
-      appeal?: {
-        /** Format: date-time */
-        receivedAt: string;
-        reason: string;
-      };
-    };
-    SetComplaintPauses: {
-      pauses: components["schemas"]["ComplaintPause"][];
-      version: number;
-    };
-    ComplimentItem: {
-      /** Format: uuid */
-      id: string;
-      /** Format: uuid */
-      locationId: string;
-      /** Format: uuid */
-      personId: string | null;
-      fromName: string;
-      fromRelationship: components["schemas"]["ComplainantRelationship"];
-      /** Format: date-time */
-      receivedAt: string;
-      summary: string;
-      staff: components["schemas"]["StaffName"][];
-      evidenceStatementIds: string[];
-      /** Format: uuid */
-      documentId: string | null;
-      recordedBy: components["schemas"]["StaffName"];
-      version: number;
-    };
-    CreateCompliment: {
-      /** Format: uuid */
-      id?: string;
-      /** Format: uuid */
-      locationId: string;
-      /** Format: uuid */
-      personId?: string;
-      fromName: string;
-      fromRelationship: components["schemas"]["ComplainantRelationship"];
-      /** Format: date-time */
-      receivedAt: string;
-      summary: string;
-      /** @default [] */
-      staffIds: string[];
-      /** @default [] */
-      evidenceStatementIds: string[];
-      /** Format: uuid */
-      documentId?: string;
-    };
-    ComplimentList: {
-      items: components["schemas"]["ComplimentItem"][];
-    };
-    TagCompliment: {
-      evidenceStatementIds: string[];
       version: number;
     };
     WorkflowInstanceList: {
@@ -29671,126 +28413,6 @@ export interface components {
         message: string;
       }[];
     };
-    FrameworkVersionList: {
-      items: components["schemas"]["FrameworkVersionSummary"][];
-    };
-    FrameworkVersionSummary: {
-      /** Format: uuid */
-      id: string;
-      frameworkKey: string;
-      /** @enum {string} */
-      regulator: "cqc" | "ciw" | "care_inspectorate" | "rqia";
-      versionNumber: number;
-      /** @enum {string} */
-      state: "draft" | "published" | "retired";
-      /** Format: date */
-      publishedOn: string | null;
-      /** Format: date */
-      retiredOn: string | null;
-      source: {
-        name: string;
-        provision: string;
-        url: string;
-      };
-      inForce: boolean;
-    };
-    FrameworkVersionDetail: {
-      /** Format: uuid */
-      id: string;
-      frameworkKey: string;
-      /** @enum {string} */
-      regulator: "cqc" | "ciw" | "care_inspectorate" | "rqia";
-      versionNumber: number;
-      /** @enum {string} */
-      state: "draft" | "published" | "retired";
-      /** Format: date */
-      publishedOn: string | null;
-      /** Format: date */
-      retiredOn: string | null;
-      source: {
-        name: string;
-        provision: string;
-        url: string;
-      };
-      inForce: boolean;
-      keyQuestions: {
-        id: string;
-        title: string;
-        statements: {
-          id: string;
-          title: string;
-        }[];
-      }[];
-      evidenceCategories: {
-        id: string;
-        title: string;
-      }[];
-    };
-    FrameworkMappingView: {
-      /** Format: uuid */
-      frameworkVersionId: string;
-      mappingVersion: number;
-      entries: components["schemas"]["FrameworkMappingEntry"][];
-      /** Format: uuid */
-      madeBy: string | null;
-      /** Format: date-time */
-      madeAt: string | null;
-    };
-    FrameworkMappingEntry: {
-      statementId: string;
-      localTitle: string | null;
-      ownerRole: string | null;
-      evidenceCategoryIds: string[];
-    };
-    SaveFrameworkMapping: {
-      mappingVersion: number;
-      entries: components["schemas"]["FrameworkMappingEntry"][];
-    };
-    EvidenceCoverage: {
-      /** Format: uuid */
-      frameworkVersionId: string;
-      statements: {
-        statementId: string;
-        keyQuestionId: string;
-        records: number;
-      }[];
-      gaps: string[];
-    };
-    EvidenceLinkList: {
-      items: components["schemas"]["EvidenceLinkItem"][];
-    };
-    EvidenceLinkItem: {
-      /** Format: uuid */
-      id: string;
-      recordType: string;
-      /** Format: uuid */
-      recordId: string;
-      /** Format: uuid */
-      frameworkVersionId: string;
-      statementIds: string[];
-      /** Format: uuid */
-      taggedBy: string;
-      /** Format: date-time */
-      taggedAt: string;
-      /** Format: date-time */
-      removedAt: string | null;
-      /** Format: uuid */
-      removedBy: string | null;
-      removalReason: string | null;
-      version: number;
-    };
-    CreateEvidenceLink: {
-      recordType: string;
-      /** Format: uuid */
-      recordId: string;
-      /** Format: uuid */
-      frameworkVersionId: string;
-      statementIds: string[];
-    };
-    RemoveEvidenceLink: {
-      reason: string;
-      version: number;
-    };
     /** @description Whether the email with the code was sent */
     EvidenceLinkCodeSent: {
       sent: boolean;
@@ -30827,307 +29449,248 @@ export interface components {
       aiProvider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own" | null;
       expectedVersion: number;
     };
-    DsarCaseList: {
-      items: components["schemas"]["DsarCaseSummary"][];
-    };
-    DsarCaseSummary: {
-      /** Format: uuid */
-      id: string;
-      requestKind: components["schemas"]["DsarRequestKind"];
-      subject: components["schemas"]["DsarSubject"];
-      /** Format: date */
-      receivedOn: string;
-      /** @enum {string} */
-      status: "open" | "closed" | "withdrawn";
-      clock: components["schemas"]["DsarClockView"];
-      version: number;
-    };
-    /** @enum {string} */
-    DsarRequestKind: "access" | "rectification" | "erasure" | "portability";
-    DsarSubject: {
-      kind: components["schemas"]["DsarSubjectKind"];
-      /** Format: uuid */
-      personId: string | null;
-      /** Format: uuid */
-      contactId: string | null;
-      /** Format: uuid */
-      staffId: string | null;
-      name: string;
-    };
-    /** @enum {string} */
-    DsarSubjectKind: "person" | "contact" | "staff";
-    DsarClockView: {
-      /** @enum {string} */
-      state: "awaiting_identity" | "running" | "paused" | "due_soon" | "overdue" | "closed";
-      /** Format: date */
-      startedOn: string | null;
-      /** Format: date */
-      dueOn: string | null;
-      /** Format: date */
-      originalDueOn: string | null;
-      pausedDays: number;
-      extended: boolean;
-      late: boolean | null;
-    } | null;
-    DsarCase: {
-      /** Format: uuid */
-      id: string;
-      requestKind: components["schemas"]["DsarRequestKind"];
-      subject: components["schemas"]["DsarSubject"];
-      /** Format: date */
-      receivedOn: string;
-      /** @enum {string} */
-      status: "open" | "closed" | "withdrawn";
-      clock: components["schemas"]["DsarClockView"];
-      version: number;
-      /** @enum {string} */
-      requesterKind: "subject" | "representative";
-      requesterName: string | null;
-      requesterAddress: string | null;
-      authority: components["schemas"]["DsarAuthority"];
-      channel: components["schemas"]["DsarChannel"];
-      identityRequired: boolean;
-      /** Format: date */
-      identityVerifiedOn: string | null;
-      identityMethod: components["schemas"]["DsarIdentityMethod"];
-      pauses: {
-        /** Format: date */
-        from: string;
-        /** Format: date */
-        to: string | null;
-      }[];
-      extension: {
-        months: number;
-        /** @enum {string} */
-        grounds: "complex" | "multiple_requests";
-        reason: string;
-        /** Format: date */
-        decidedOn: string;
-      } | null;
-      clockProblem: string | null;
-      /** Format: date */
-      respondedOn: string | null;
-      /** @enum {string|null} */
-      outcome: "fulfilled" | "partly_fulfilled" | "refused" | "withdrawn" | null;
-      outcomeReason: string | null;
-      /** Format: date-time */
-      collectedAt: string | null;
-      notSearched: components["schemas"]["DsarNotSearched"][];
-      items: {
-        total: number;
-        pending: number;
-        disclosed: number;
-        withheld: number;
-      };
-      portability: {
-        applies: boolean;
-        basis: string;
-      };
-      rectification: components["schemas"]["DsarRectification"][];
-      erasure: components["schemas"]["DsarErasureRecord"];
-      bundleSha256: string | null;
-      /** Format: date-time */
-      bundleIssuedAt: string | null;
-      bundleStored: boolean;
-    };
-    /** @enum {string|null} */
-    DsarAuthority:
-      | "lpa_health_welfare"
-      | "lpa_property_finance"
-      | "deputy"
-      | "written_authority"
-      | "other"
-      | null;
-    /** @enum {string} */
-    DsarChannel: "email" | "post" | "phone" | "in_person" | "portal";
-    /** @enum {string|null} */
-    DsarIdentityMethod:
-      | "document_seen"
-      | "known_to_staff"
-      | "authority_checked"
-      | "portal_account"
-      | null;
-    DsarNotSearched: {
-      table: string;
-      /** @enum {string} */
-      reason: "no_subject_column" | "member_scoped";
-      guidance: string;
-    };
-    DsarRectification: {
-      table: string;
-      recordId: string;
-      field: string;
-      /** @enum {string} */
-      decision: "corrected" | "declined" | "statement_added";
-      reason: string;
-      /** Format: date */
-      decidedOn: string;
-    };
-    DsarErasureRecord: {
-      /** Format: date-time */
-      assessedAt: string;
-      held: number;
-      retained: number;
-      erasable: number;
-      byClass: {
-        recordClass: string;
-        /** @enum {string} */
-        outcome: "held" | "retained" | "erasable";
-        count: number;
-        /** Format: date */
-        until: string | null;
-      }[];
-    } | null;
-    NewDsarCase: {
-      requestKind: components["schemas"]["DsarRequestKind"];
-      subjectKind: components["schemas"]["DsarSubjectKind"];
-      /**
-       * Format: uuid
-       * @default null
-       */
-      subjectPersonId: string | null;
-      /**
-       * Format: uuid
-       * @default null
-       */
-      subjectContactId: string | null;
-      /**
-       * Format: uuid
-       * @default null
-       */
-      subjectStaffId: string | null;
-      /** @enum {string} */
-      requesterKind: "subject" | "representative";
-      /** @default null */
-      requesterName: string | null;
-      /** @default null */
-      requesterAddress: string | null;
-      authority?: components["schemas"]["DsarAuthority"];
-      channel: components["schemas"]["DsarChannel"];
-      /** Format: date */
-      receivedOn: string;
-      /** @default true */
-      identityRequired: boolean;
-    };
-    DsarIdentityInput: {
-      /** Format: date */
-      verifiedOn: string;
-      method: components["schemas"]["DsarIdentityMethod"];
-      expectedVersion: number;
-    };
-    DsarPauseStart: {
-      /** Format: date */
-      from: string;
-      expectedVersion: number;
-    };
-    DsarPauseEnd: {
-      /** Format: date */
-      to: string;
-      expectedVersion: number;
-    };
-    DsarExtensionInput: {
-      months: number;
-      /** @enum {string} */
-      grounds: "complex" | "multiple_requests";
-      reason: string;
-      /** Format: date */
-      decidedOn: string;
-      expectedVersion: number;
-    };
-    DsarCollectResult: {
-      added: number;
-      total: number;
-      tablesSearched: number;
-      notSearched: components["schemas"]["DsarNotSearched"][];
+    BreachList: {
+      items: components["schemas"]["Breach"][];
+      reportHours: number;
       truncated: boolean;
     };
-    DsarItemList: {
-      items: components["schemas"]["DsarItem"][];
-      total: number;
-    };
-    DsarItem: {
+    Breach: {
       /** Format: uuid */
       id: string;
-      tableName: string;
-      recordId: string;
-      decision: components["schemas"]["DsarDecision"];
-      redactedFields: string[];
-      reason: string | null;
-      reviewedBy: components["schemas"]["StaffName"];
-      /** Format: date-time */
-      reviewedAt: string | null;
-      version: number;
-    };
-    /** @enum {string} */
-    DsarDecision: "pending" | "disclose" | "redact" | "withhold";
-    DsarItemDetail: {
       /** Format: uuid */
-      id: string;
-      tableName: string;
-      recordId: string;
-      decision: components["schemas"]["DsarDecision"];
-      redactedFields: string[];
-      reason: string | null;
-      reviewedBy: components["schemas"]["StaffName"];
+      locationId: string | null;
+      /** @enum {string} */
+      source: "tenant" | "processor_notice";
+      summary: string;
       /** Format: date-time */
-      reviewedAt: string | null;
-      version: number;
-      record: {
-        [key: string]: unknown;
+      awareAt: string;
+      /** Format: date-time */
+      occurredAt: string | null;
+      factors: components["schemas"]["BreachFactors"];
+      suggestion: components["schemas"]["BreachSuggestion"];
+      decision: {
+        reportToIco: boolean;
+        tellIndividuals: boolean;
+        reasoning: string;
+        acknowledgedSuggestion: boolean;
+        /** Format: uuid */
+        decidedBy: string;
+        /** Format: date-time */
+        decidedAt: string;
       } | null;
-      contentSha256: string | null;
-      highlights: {
-        field: string;
-        name: string;
-        start: number;
-        end: number;
-      }[];
-    };
-    DsarItemDecisionInput: {
+      report: {
+        /** Format: date-time */
+        reportedAt: string;
+        icoReference: string;
+        delayReason: string | null;
+      } | null;
+      individuals: {
+        notice: string;
+        /** Format: date */
+        toldOn: string;
+      } | null;
       /** @enum {string} */
-      decision: "disclose" | "redact" | "withhold";
-      /** @default [] */
-      redactedFields: string[];
-      /** @default null */
-      reason: string | null;
-      contentSha256: string;
-      expectedVersion: number;
-    };
-    DsarBundle: {
-      /** Format: uuid */
-      caseId: string;
-      /** @enum {string} */
-      format: "access" | "portable";
+      status: "open" | "closed";
+      lessons: string | null;
       /** Format: date-time */
-      generatedAt: string;
-      subjectKind: components["schemas"]["DsarSubjectKind"];
-      records: {
-        table: string;
-        recordId: string;
-        fields: {
-          [key: string]: unknown;
-        };
-      }[];
-      redactedCount: number;
-      withheldCount: number;
-      notSearched: components["schemas"]["DsarNotSearched"][];
-      sha256: string;
+      closedAt: string | null;
+      clock: components["schemas"]["BreachClock"];
+      notices: components["schemas"]["ProcessorBreachNotice"][];
+      /** Format: date-time */
+      createdAt: string;
+      version: number;
     };
-    DsarRespondInput: {
-      /** Format: date */
-      respondedOn: string;
+    BreachFactors: {
+      peopleAffected: number;
+      identifiable: boolean;
+      specialCategory: boolean;
+      safeguardingOrLocationAtRisk: boolean;
+      disclosedOutsideOrganisation: boolean;
+      careRecordsUnavailable: boolean;
+      contained: boolean;
+    } | null;
+    /** @description Decision support only: the decision is a person's, with reasons. */
+    BreachSuggestion: {
+      severity: components["schemas"]["BreachSeverity"];
+      reasons: string[];
+      considerReportingToIco: boolean;
+      considerTellingIndividuals: boolean;
+    } | null;
+    /** @enum {string} */
+    BreachSeverity: "low" | "medium" | "high" | "critical";
+    BreachClock: {
+      /** Format: date-time */
+      deadline: string;
       /** @enum {string} */
-      outcome: "fulfilled" | "partly_fulfilled" | "refused" | "withdrawn";
-      /** @default null */
-      outcomeReason: string | null;
-      expectedVersion: number;
+      state: "open" | "overdue" | "reported_on_time" | "reported_late";
+      hoursLeft: number | null;
+      delayReasonRequired: boolean;
     };
-    DsarRectificationInput: {
-      decisions: components["schemas"]["DsarRectification"][];
-      expectedVersion: number;
+    ProcessorBreachNotice: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      followsId: string | null;
+      /** Format: date-time */
+      sentAt: string;
+      nature: string;
+      dataCategories: string;
+      approxPeople: number | null;
+      approxRecords: number | null;
+      likelyConsequences: string;
+      measures: string;
+      tenantActions: string;
+      contact: string;
+      /** Format: date-time */
+      acknowledgedAt: string | null;
+      /** Format: uuid */
+      acknowledgedBy: string | null;
     };
-    DsarErasureInput: {
+    RecordBreach: {
+      /** Format: uuid */
+      locationId?: string | null;
+      summary: string;
+      /** Format: date-time */
+      awareAt: string;
+      /** Format: date-time */
+      occurredAt?: string | null;
+    };
+    ChangeBreachFacts: {
       expectedVersion: number;
+      /** Format: uuid */
+      locationId?: string | null;
+      summary?: string;
+      /** Format: date-time */
+      awareAt?: string;
+      /** Format: date-time */
+      occurredAt?: string | null;
+    };
+    AssessBreach: {
+      expectedVersion: number;
+      factors: components["schemas"]["BreachFactors"];
+    };
+    DecideBreach: {
+      expectedVersion: number;
+      reportToIco: boolean;
+      tellIndividuals: boolean;
+      reasoning: string;
+      /** @default false */
+      acknowledgedSuggestion: boolean;
+    };
+    ReportBreach: {
+      expectedVersion: number;
+      /** Format: date-time */
+      reportedAt: string;
+      icoReference: string;
+      delayReason?: string | null;
+    };
+    /** @description Harbour's plain-English template filled from the register entry; the parts in square brackets are for a person to write before it is sent. */
+    SubjectNoticeDraft: {
+      notice: string;
+    };
+    TellIndividuals: {
+      expectedVersion: number;
+      notice: string;
+      /** Format: date */
+      toldOn: string;
+    };
+    CloseBreach: {
+      expectedVersion: number;
+      lessons: string;
+    };
+    DataProtectionComplaintList: {
+      items: components["schemas"]["DataProtectionComplaint"][];
+      truncated: boolean;
+    };
+    DataProtectionComplaint: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string | null;
+      /** Format: date */
+      receivedOn: string;
+      /** @enum {string} */
+      channel:
+        | "form"
+        | "email"
+        | "letter"
+        | "phone"
+        | "in_person"
+        | "forwarded_by_thapsus"
+        | "other";
+      /** @enum {string} */
+      complainantKind: "person_supported" | "representative" | "family" | "staff" | "other";
+      complainantName: string;
+      complainantContact: string | null;
+      /** Format: uuid */
+      personId: string | null;
+      /** @enum {string} */
+      about: "access" | "accuracy" | "sharing" | "security" | "retention" | "other";
+      summary: string;
+      /** Format: date */
+      acknowledgedOn: string | null;
+      /** Format: date */
+      lastContactOn: string | null;
+      outcome: string | null;
+      icoRightStated: boolean;
+      /** Format: uuid */
+      breachId: string | null;
+      /** @enum {string} */
+      status: "open" | "closed";
+      /** Format: date */
+      closedOn: string | null;
+      clock: components["schemas"]["DataProtectionComplaintClock"];
+      version: number;
+    };
+    DataProtectionComplaintClock: {
+      /** Format: date */
+      acknowledgeDueOn: string | null;
+      /** Format: date */
+      acknowledgeTargetOn: string;
+      /** @enum {string} */
+      acknowledgement: "not_applicable" | "due" | "overdue" | "done" | "done_late";
+      /** Format: date */
+      nextUpdateDueOn: string | null;
+      /** @enum {string} */
+      update: "due" | "overdue" | "closed";
+    };
+    RecordDataProtectionComplaint: {
+      /** Format: uuid */
+      locationId?: string | null;
+      /** Format: date */
+      receivedOn: string;
+      /** @enum {string} */
+      channel:
+        | "form"
+        | "email"
+        | "letter"
+        | "phone"
+        | "in_person"
+        | "forwarded_by_thapsus"
+        | "other";
+      /** @enum {string} */
+      complainantKind: "person_supported" | "representative" | "family" | "staff" | "other";
+      complainantName: string;
+      complainantContact?: string | null;
+      /** Format: uuid */
+      personId?: string | null;
+      /** @enum {string} */
+      about: "access" | "accuracy" | "sharing" | "security" | "retention" | "other";
+      summary: string;
+      /** Format: uuid */
+      breachId?: string | null;
+    };
+    DataProtectionComplaintDate: {
+      expectedVersion: number;
+      /** Format: date */
+      on: string;
+    };
+    CloseDataProtectionComplaint: {
+      expectedVersion: number;
+      /** Format: date */
+      closedOn: string;
+      outcome: string;
+      icoRightStated: boolean;
     };
     SubProcessorOverview: {
       noticeDays: number;
@@ -31315,6 +29878,26 @@ export interface components {
         /** @enum {string|null} */
         resolution: "objection_withdrawn" | "not_used_for_tenant" | "services_ended" | null;
       }[];
+    };
+    ProcessorBreachNoticeSent: {
+      /** Format: uuid */
+      noticeId: string;
+      /** Format: uuid */
+      breachId: string;
+    };
+    SendProcessorBreachNotice: {
+      /** Format: uuid */
+      tenantId: string;
+      /** Format: uuid */
+      followsId?: string | null;
+      nature: string;
+      dataCategories: string;
+      approxPeople?: number | null;
+      approxRecords?: number | null;
+      likelyConsequences: string;
+      measures: string;
+      tenantActions: string;
+      contact: string;
     };
     PersonDetails: {
       /** Format: uuid */

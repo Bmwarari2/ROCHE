@@ -183,3 +183,19 @@ Notes:
 ### B12. Security measures (Art 30(1)(g))
 
 *Pre-filled: reference to Thapsus's measures (Part A4) plus the tenant's own organisational measures (training, device policy, access reviews), which the tenant completes.*
+
+### B13 (breaches and complaints). Breach register and data protection complaints
+
+Slice 20 (PLAT-022; [platform.md](../specs/platform.md) rules 18 to 26). The DSAR part of B13
+comes with slice 15.
+
+| Purpose | Data subjects and data | Art 6 basis | Special category condition | Recipients | Retention |
+| --- | --- | --- | --- | --- | --- |
+| Recording and handling personal data breaches (UK GDPR Arts 33 and 34): the register entry, the assessment, the decision with reasoning, the ICO report and the notice to the people affected | People affected (by count and description, not named in the register; the notice text may name what happened to them), staff who record and decide | Art 6(1)(c) legal obligation (Art 33(5) record of every breach; Arts 33 and 34) | Where the description or notice reveals health data: Art 9(2)(g) with DPA 2018 Sch 1 para 6 (statutory purposes) `[DPO to confirm]` | ICO; the people affected; Thapsus as processor; others the decision names (CQC, police, commissioners) | Interim `audit_event` (8 years from creation) until the DPO sets a period (H-670) |
+| Thapsus's breach notices to the organisation as processor (Art 33(2); DPA clause 8.2) and their acknowledgement | Categories and approximate numbers of people affected, no names; the Thapsus contact; the staff member acknowledging | Art 6(1)(c) legal obligation | None expected (the notice carries no personal data of the people affected) | The organisation's data protection lead and owners | Interim `audit_event` (H-670) |
+| Handling data protection complaints (DPA 2018 as amended by the Data (Use and Access) Act 2025): who complained, about what, acknowledgement, contacts, outcome | Complainants (name, how to reach them), the data subject when it is someone the organisation supports (by reference), staff handling it | Art 6(1)(c) legal obligation (the duty to facilitate, acknowledge and respond to complaints) | Where the complaint reveals health data: as for the breach register `[DPO to confirm]` | The complainant; the ICO if they complain on | Interim `audit_event` (H-670) |
+
+Notes: the register and complaints are reached only with `quality.dsar.manage` held across the
+whole organisation (owner, quality lead; never a manager for one home); every read and change is audited with ids and codes only,
+never the summary, names, contact details, reasoning or notice text. A complaint about a sample
+person stops sample data removal rather than being deleted with it.

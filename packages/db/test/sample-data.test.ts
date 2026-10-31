@@ -383,6 +383,7 @@ const BLOCKS_REMOVAL = [
   "complaint",
   "compliment",
   "downtime_pack",
+  "dp_complaint",
   "dsar_case",
   "escalation_policy_link",
   "outage",

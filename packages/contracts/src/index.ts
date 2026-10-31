@@ -506,6 +506,7 @@ export * from "./care";
 export * from "./care-planning";
 export * from "./client-id";
 export * from "./complaints";
+export * from "./data-protection";
 export * from "./data-rights";
 export * from "./devices";
 export * from "./dpia";

@@ -23,6 +23,7 @@ import {
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
+import { tellAboutBreachNotice } from "../services/breach-notices";
 import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   generateBreakGlassReports,
@@ -784,6 +785,15 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       );
     });
   }
+  // Thapsus's breach notices (platform.md rule 24): the lead and owners are told; a failure throws,
+  // so the relay retries, and the dedupe key tells no one twice.
+  handlers.set("platform.breach.processor_notice_sent", async (event) => {
+    const noticeId = (event.payload as { noticeId?: unknown } | null)?.noticeId;
+    if (typeof noticeId !== "string") return;
+    await inTenant(event.tenantId, (tx) =>
+      tellAboutBreachNotice(tx, event.tenantId, noticeId, new Date()),
+    );
+  });
   handlers.set("operations.downtime_places.changed", async (event) => {
     const locationId = (event.payload as { locationId?: unknown } | null)?.locationId;
     if (typeof locationId !== "string") return;
