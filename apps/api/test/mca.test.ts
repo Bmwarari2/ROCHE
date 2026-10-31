@@ -635,7 +635,16 @@ describe("hazard HZ-020 the DoLS register", () => {
       await as("manager", "/v1/dols/legal-change-review"),
     );
     expect(after.awaiting.map((a) => a.authorisationId)).not.toContain(expiring.id);
-    expect(after.reviews.find((r) => r.authorisationId === expiring.id)?.state).toBe("closed");
+    const decided = after.reviews.find((r) => r.authorisationId === expiring.id);
+    expect(decided?.state).toBe("closed");
+    // The review's history is for those who manage the register, as the review itself is: a care
+    // worker who reads care plans is refused it (security review round 1).
+    const reviewHistory = `/v1/people/${decided?.personId}/care-history/dols_legal_change_review/${decided?.id}`;
+    expect((await as("carer", reviewHistory)).status).toBe(403);
+    const history = await json<RecordHistory>(await as("manager", reviewHistory));
+    expect(history.versions.length).toBeGreaterThan(0);
+    expect(history.latestChanged).toContain("state");
+    expect(history).not.toHaveProperty("current");
     const register = await json<DolsList>(await as("manager", dols(6)));
     expect(register.items.find((i) => i.id === expiring.id)?.legalChangeReview).toBe("closed");
   });

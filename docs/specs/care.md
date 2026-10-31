@@ -531,7 +531,19 @@ its reason) are append-only with device ids. `GET`, `POST` and `PUT /v1/people/{
 record ReSPECT, DNACPR, ADRT and advance care plans (a new record supersedes the active one of its
 kind; withdrawal needs a reason), and the person summary carries the resuscitation status in force,
 or `not_recorded` (HZ-015). `GET /v1/people/{id}/care-history/{table}/{recordId}` shows earlier
-versions of the mutable records. Every write for a discharged, deceased or archived person is
+versions of the mutable records, under the permission the record's own read route needs
+(`care.plan.read`; `care.dols.manage` for a DoLS legal-change review). A removed (soft-deleted)
+record's history, and a removed person's (`GET /v1/people/{id}/history`), is found only by those
+who may use `platform.audit.read` now and whose roles and grants for it reach the person, never by
+break-glass; the audit event of such a view carries `removed: true` in its scope. The check reads
+the record's own row: a care plan and a DoLS authorisation are never removed on their own (no route
+removes either today, and retention treats the care record as one class, `care_record`, counted
+from the end of the person's care; [retention.md](retention.md)), so a section, an action or a legal-change review is never left
+readable under a removed parent. A route that ever removes one of them must remove its children
+with it, or this check must read the parent too. With the
+versions it sends `latestChanged`, the field keys where the newest version differs from the record
+as it is now (keys only; null when the record was saved again while it was read), as does
+`GET /v1/people/{id}/history` (HZ-024). Every write for a discharged, deceased or archived person is
 refused, except activities, visits and assessments about an event at or before the exit, which
 follow rule 3 as the charts do (slice 8). Outbox events `care.plan.published` and `care.assessment.completed` are written.
 
