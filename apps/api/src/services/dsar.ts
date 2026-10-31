@@ -328,12 +328,26 @@ export async function recordsOf(
   const out = new Map<string, Record<string, unknown>>();
   if (ids.length === 0 || !hasId(table)) return out;
   const columns = disclosableColumns(table);
-  const result = await tx.execute<{ id: string; row: Record<string, unknown> }>(
-    sql`SELECT t.id::text AS id, to_jsonb(t) AS row FROM ${sql.identifier(table)} t
-        WHERE t.id::text IN (${sql.join(
-          [...ids].map((i) => sql`${i}`),
+  // Only the columns the export shows (and what record_version needs to filter its copy) are
+  // read: a table with column grants, such as invitation's token, refuses `to_jsonb(t)` (42501).
+  const read = [
+    ...new Set([...columns, ...(table === "record_version" ? ["table_name", "data"] : [])]),
+  ].filter((c) => c !== "id");
+  const picked =
+    read.length === 0
+      ? sql``
+      : sql`, ${sql.join(
+          read.map((c) => sql`t.${sql.identifier(c)}`),
           sql`, `,
-        )})`,
+        )}`;
+  const result = await tx.execute<{ id: string; row: Record<string, unknown> }>(
+    sql`SELECT s.id, to_jsonb(s) AS row FROM (
+          SELECT t.id::text AS id${picked} FROM ${sql.identifier(table)} t
+          WHERE t.id::text IN (${sql.join(
+            [...ids].map((i) => sql`${i}`),
+            sql`, `,
+          )})
+        ) s`,
   );
   for (const r of result.rows) {
     const record = Object.fromEntries(columns.filter((k) => k in r.row).map((k) => [k, r.row[k]]));

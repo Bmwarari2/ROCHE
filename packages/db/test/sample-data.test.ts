@@ -378,7 +378,9 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
  * that refers to a person must be added to app.sample_removal_tables() or here, deliberately.
  */
 // A complaint or compliment about a sample person stops removal until the removal list takes them
-// (slice 18 follow-up; the shared list is redefined by one migration at a time).
+// (slice 18 follow-up; the shared list is redefined by one migration at a time). A data protection
+// complaint about a sample person is a real complaint record (migration 0082): its foreign key stops
+// the removal rather than the complaint going with the sample.
 const BLOCKS_REMOVAL = [
   "complaint",
   "compliment",
