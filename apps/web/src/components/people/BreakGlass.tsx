@@ -63,18 +63,19 @@ export function BreakGlass({
     const form = new FormData(event.currentTarget);
     const reason = String(form.get("justification") ?? "").trim();
     const reasonCode = String(form.get("reasonCode") ?? "");
+    // Both problems are shown at once; focus goes to the first field on screen (the reason code).
     const problem = justificationProblem(reason);
+    const codeMissing = !labels.reasonOptions.some((option) => option.value === reasonCode);
+    setCodeError(codeMissing ? labels.noReasonCode : null);
+    setError(problem ? labels.failure[problem] : null);
+    if (codeMissing) {
+      requestAnimationFrame(() => document.getElementById("break-glass-reason-code")?.focus());
+      return;
+    }
     if (problem) {
       fail(labels.failure[problem]);
       return;
     }
-    setError(null);
-    if (!labels.reasonOptions.some((option) => option.value === reasonCode)) {
-      setCodeError(labels.noReasonCode);
-      requestAnimationFrame(() => document.getElementById("break-glass-reason-code")?.focus());
-      return;
-    }
-    setCodeError(null);
     setBusy(true);
     try {
       const outcome = await openBreakGlass(personId, reason, reasonCode);

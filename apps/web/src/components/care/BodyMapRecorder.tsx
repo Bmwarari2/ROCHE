@@ -10,6 +10,7 @@ import {
   TextArea,
   TextField,
 } from "@harbour/ui";
+import { CircleAlert } from "lucide-react";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordBodyMark } from "@/app/actions/care-record";
 import { readNumber, readYesNo } from "@/lib/assessments";
@@ -29,6 +30,7 @@ import { type ActionResult, collectedRefusal, errorFor, partsFor, refused } from
 import { BodyDrawing, type DrawnMark } from "./BodyDrawing";
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
+import { Notice } from "./Notice";
 import { WhenField } from "./WhenField";
 
 type MarkType = CreateBodyMapMark["markType"];
@@ -355,11 +357,16 @@ export function BodyMapRecorder({
           </Button>
         </div>
       </form>
-      <FormFeedback
-        result={result}
-        success={raised ? t("care.bodyMap.savedRaised") : t("care.bodyMap.saved")}
-        fieldIds={ids}
-      />
+      <FormFeedback result={result} success={t("care.bodyMap.saved")} fieldIds={ids} />
+      {raised ? (
+        <Notice
+          tone="warning"
+          icon={<CircleAlert size={20} strokeWidth={1.5} aria-hidden />}
+          title={t("care.bodyMap.savedRaisedTitle")}
+        >
+          {t("care.bodyMap.savedRaised")}
+        </Notice>
+      ) : null}
     </div>
   );
 }

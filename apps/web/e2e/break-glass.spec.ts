@@ -61,7 +61,7 @@ test("hazard HZ-073 a record opened by break-glass offers no form to record in o
     await expect(sheet.getByText("The record opens for reading only")).toBeVisible();
     await sheet.getByLabel("Why you need this record").selectOption("emergency_care");
     await sheet
-      .getByLabel("Reason")
+      .getByLabel("Explain in your own words")
       .fill("Covering an emergency at Harbour Mews tonight while its manager is away");
     await sheet.getByRole("button", { name: "Open record" }).click();
     return sheet;

@@ -100,7 +100,11 @@ export function SignInForm({
           : await authClient().twoFactor.verifyBackupCode({ code: read.code });
       if (result.error) {
         setError(
-          result.error.status === 429 ? authMessages.tooManyAttempts : authMessages.codeMismatch,
+          result.error.status === 429
+            ? authMessages.tooManyAttempts
+            : read.kind === "backup"
+              ? authMessages.backupCodeMismatch
+              : authMessages.codeMismatch,
         );
         return;
       }

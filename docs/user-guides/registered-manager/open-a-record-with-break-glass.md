@@ -12,7 +12,7 @@ with your passkey or authenticator app (step-up).
 
 1. Go to **Search**. Under **Someone not in your search**, choose **Search outside your access**.
 2. Enter their **Full name or NHS number**.
-3. Choose **Why you need to find them**, and type a **Reason** of at least 20 characters.
+3. Choose **Why you need to find them**, and fill in **Explain in your own words** with at least 20 characters.
 4. Choose **Search with break-glass**. Confirm it is you if asked, then search again.
 5. Results show who the person is, never where they live. You can do 5 of these searches in 24
    hours.
@@ -22,7 +22,7 @@ with your passkey or authenticator app (step-up).
 1. Open the person's record. It says the record is outside your access.
 2. Choose **Open a record outside your access**.
 3. Choose **Why you need this record**, for example "Emergency care".
-4. Type a **Reason** of at least 20 characters, then choose **Open record**.
+4. Fill in **Explain in your own words** with at least 20 characters, then choose **Open record**.
 5. If Harbour shows **Confirm it is you**, choose **Sign in again**, sign in with your passkey or a
    code, then type the reason again.
 6. The record opens **for reading only**. To record something, tell the person in charge or

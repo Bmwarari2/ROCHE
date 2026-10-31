@@ -25,8 +25,9 @@ managers.
 ## Important
 
 - A pressure ulcer of category 2 or worse, or a bruise whose cause is not known, sets a task for a
-  manager to report an incident and work through the safeguarding decision guide. **Tell the nurse
-  in charge straight away as well.** When it does, the message after saving says so.
+  manager to report an incident and work through the safeguarding decision guide. **Tell the person
+  in charge straight away as well.** When it does, Harbour shows **Tell the person in charge now**
+  after saving.
 - The category, the medical device question and the bruise question must be answered before the
   mark is saved.
 

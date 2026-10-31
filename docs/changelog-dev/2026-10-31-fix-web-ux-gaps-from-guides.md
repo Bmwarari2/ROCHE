@@ -8,7 +8,8 @@ this fixes the ones that are web-only and need no API change.
 - **Checks after a fall on the incident page** (HZ-027): the post-fall care tasks the classifier
   sets are listed under "Checks after the fall", urgent medical advice first with an "Urgent" chip
   (icon and word) and wording that says why; due and until times in `<time>`; left out once the
-  incident is closed (`postFallChecks` in `apps/web/src/lib/incidents.ts`). The incident form's
+  incident is closed or the viewer sees it only in part (`postFallChecks` in
+  `apps/web/src/lib/incidents.ts`); it says it does not show which checks are done. The incident form's
   injuries hint says marks on the body map are not linked to the incident yet, so describe them in
   the incident too.
 - **Who checks the law when notifications are not checked yet** (HZ-013): someone who manages
@@ -19,15 +20,17 @@ this fixes the ones that are web-only and need no API change.
 - **Body map**: the pressure ulcer category, the medical device question and the bruise question
   are marked required and asked for in words before sending (the API refused them before); after a
   mark that raises the incident report and safeguarding guide tasks (the domain's `markTriggers`),
-  the saved message says so and asks the carer to tell the nurse in charge.
+  a warning notice (icon and title) says "Tell the person in charge now" and why.
 - **Downtime pack hint**: says the passkey or authenticator code is asked for, not "you may be
   asked to sign in again", and to shred the old pack when a new one is put out.
 - **Sign-in with a backup code**: the second step takes a 6-digit code or one of the backup codes
   (`readSignInCode`, Better Auth's `verifyBackupCode`); the label and hint say so. Setting up the
-  app keeps its own 6-digit message.
+  app keeps its own 6-digit message, and a failed backup code has its own error.
 - **Break-glass**: opening a record asks "Why you need this record" (the same reasons as the
-  break-glass search) and sends the reason code, so the weekly report no longer counts every web
-  opening as "No reason chosen"; the panel says access lasts one hour.
+  break-glass search), shows both problems at once with focus on the first, labels the typed text
+  "Explain in your own words" (here and in the search), and sends the reason code, so the weekly
+  report no longer counts every web opening as "No reason chosen"; the panel says access lasts one
+  hour.
 - **Codes on screen in words**: the onboarding checklist names settings and record classes in
   words (`settingName`, with care initialisms in capitals) instead of the key in monospace, in the
   text and the buttons' accessible names; the reviews tab says the dates are "worked out from your
@@ -51,6 +54,14 @@ this fixes the ones that are web-only and need no API change.
 - Acting-up grants have no screen, so a deputy cannot record a submission (its own slice).
 - Each setting on the onboarding checklist would read better with a name of its own in the
   catalogue; the words are made from the key for now.
+
+- From the accessibility review, left for later: a name in the catalogue for each setting (the
+  words made from keys are English only and keep some abbreviations, such as "LA" and "Wtr");
+  lists joined with commas in code rather than `Intl.ListFormat`, and merge field names from the
+  English-only domain labels; a numeric keypad for the 6-digit code with a "use a backup code"
+  switch; a done or overdue state on each check after a fall (the incident view's tasks carry no
+  done state; API); E2E journeys for the post-fall card, the body map questions and backup-code
+  sign-in.
 
 ## Human actions logged
 

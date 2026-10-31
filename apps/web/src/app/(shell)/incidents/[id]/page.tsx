@@ -254,7 +254,7 @@ export default async function IncidentPage({
           />
         </Card>
       )}
-      {checks.length > 0 ? (
+      {checks.length > 0 && !incident.restricted ? (
         <Card as="section" title={t("safety.incident.postFall.title")} headingLevel={2}>
           <p className="m-0 max-w-prose text-body-dense text-text-secondary">
             {t("safety.incident.postFall.intro")}
