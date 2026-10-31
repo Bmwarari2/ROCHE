@@ -88,7 +88,7 @@ export function GovernanceForm({
         ? "yes"
         : "no";
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <SelectField
         id={ids.leadId}
         name="leadId"
@@ -226,7 +226,7 @@ export function DraftForm({
     send("saved", () => saveDpiaDraft(input));
   };
   return (
-    <form className="flex flex-col gap-6" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-6" onSubmit={submit} noValidate>
       {prefill.sections
         .filter((s) => s.tenantFields.length > 0)
         .map((section) => (
@@ -319,7 +319,7 @@ export function SignDpia({ id, sha256 }: { readonly id: string; readonly sha256:
     send("signed", () => signDpia(id, { typedName, sha256Seen: sha256 }));
   };
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <div role="note" className="flex gap-3">
         <ShieldCheck {...icon} className="mt-0.5 shrink-0" />
         <div className="flex flex-col gap-1">

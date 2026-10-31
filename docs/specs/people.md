@@ -87,7 +87,7 @@ break-glass). Every read of a person's record is audited; writes are audited wit
 
 | Permission | Allows | Held by (built-in roles) |
 | --- | --- | --- |
-| `people.enquiry.manage` | Start a pre-admission assessment, close an enquiry as not admitted, record a re-referral | Owner, Registered Manager, deputy, administrator |
+| `people.enquiry.manage` | Record an enquiry (a new person record), start a pre-admission assessment, close an enquiry as not admitted, record a re-referral | Owner, Registered Manager, deputy, administrator |
 | `people.admission.manage` | The decision to admit, admission, bed moves, discharge and transfer, exit workflow moves, archive, correcting a discharge or a death (a death correction also needs step-up) | Owner, Registered Manager, deputy |
 | `people.movement.record` (new) | Leave, hospital transfer, return, recording a death, printing and handing over the transfer pack | As above plus clinical lead and team leader (the nurse or senior in charge at night) |
 | `people.property.manage` (new) | Property, valuables and keys in and out | As `people.movement.record` |
@@ -414,6 +414,92 @@ it) in migration 0022, as a new role version; migration 0024 writes one audit ev
 0022 changed, as the system, in the tenant's hash chain.
 Tests: `packages/db/test/people-lifecycle.test.ts`, `apps/api/test/people-lifecycle.test.ts`.
 
+Added with the web screens (`apps/api/src/routes/people-enquiries.ts`): `POST /v1/people` records an
+enquiry, a new person record at `enquiry` with names and a date of birth only, at a location where
+the caller holds `people.enquiry.manage` (anywhere else is not found, audited, HZ-011). The date of
+birth runs from 1900-01-01 to today (UK); the time it came in may be earlier than now, never later,
+before 1900 or before the birth, and becomes when the status began, so the assessment and an
+admission can be entered later than they happened; a value Postgres cannot hold is refused (422).
+The answer is the record's id, location, status, status time and version, never the person's
+details: the permission (held by the administrator role) reads no care record and asks for no
+second factor. A request sent again with its id is answered as the first (`replayed`, audited
+as `people.person.enquiry.replay`) only when the stored record is the caller's own enquiry, still
+at `enquiry`, with the same location, names, date of birth and, when sent, time it came in (HZ-029);
+the same id with other details is refused with 409 `id_reused_with_different_details`, nothing
+changed (the form then starts a new id and asks for the list to be checked, HZ-001); any other
+record's id, seen or not, is refused alike (422). Refusals are audited as denied with opaque ids
+(`outside_scope`, `location_not_found`, `id_in_use`, `id_reused_with_different_details`). Every request takes one path: the insert, which does nothing when the id is in use (`ON CONFLICT (id) DO NOTHING`), then a read of what holds it, so an id the caller cannot see and someone else's record they can are refused after the same steps; while sample people are loaded every insert is refused with 422 `remove_sample_data_first`. Names are one line (no line breaks or other control characters) and free text has no control characters but tab and line breaks, so no value can start a line of its own in a log or a print. The NHS number and other details are not taken here: the
+demographics edit (PEOP-001) records them. The enquiry pipeline itself (sources, stages,
+follow-ups) stays PEOP-004. `GET /v1/locations/{id}/services` lists a location's services (no
+personal data) for the assessment and the admission. Tests: `apps/api/test/people-enquiries.test.ts`.
+
+Personal details and contacts (PEOP-001, `apps/api/src/routes/people-details.ts`): `GET` and
+`PATCH /v1/people/{id}/details` (the demographics and the national data opt-out; only the fields
+sent change and null clears one; the NHS number passes the modulus 11 check and is unique in the
+organisation; a person with no NHS number needs a local identifier; a date of birth is from 1900
+to today; a postcode is stored upper case with one space; text with control characters is refused,
+and a value Postgres cannot store is refused in words; versioned, and refused once the record is
+read-only, rule 1). An NHS number already on the record of someone the caller can see is refused
+saying so. One on a record they cannot see (another home, a closed record) is refused without
+saying whose or where, audited as denied (`nhs_number_in_use`, never the number), counted against
+three such refusals per member an hour (each NHS number change is counted before the lookup, in its
+own transaction, and given back unless it is such a refusal, so parallel requests cannot pass the
+limit together; after three that member changes no NHS number for the hour), and one task asks the owner, who works across the organisation, to look for a duplicate
+record (HZ-001, HZ-011) and `GET`, `POST` and `PATCH /v1/people/{id}/contacts` (key contacts and legal
+representatives: an attorney, deputy or appointee with neither a reference nor evidence is saved
+and flagged `evidenceMissing`; a deputy says what their order covers and only a deputy has an
+order scope; `expired` once the end date has passed in UK time; evidence is a document filed
+against the same person). Reads need `people.person.read`, changes `people.person.update` where it
+reaches the person; every read and change is audited by id, a change with the names of the fields
+changed, never their values. Evidence of an authority is an available document about the same
+person (`person_document`); an end date is from 1900 to 2199. A change to a contact that takes away
+the authority a sharing decision rests on (`authorityChangeEffects`: no longer that kind of
+authority, a deputy's order no longer of that kind, the last reference or evidence removed, or an
+end before the one the decision recorded) suspends every such decision not yet ended in the same
+transaction, audited `authority_changed` and publishing `people.sharing.changed`; the answer says
+how many (`suspendedDecisions`), and a manager reviews them on the sharing tab (HZ-022). A decision
+already suspended has the change audited; lifting any suspension checks that the contact still
+holds the authority as recorded (`authorityHeldNow`) and is refused, audited `authority_changed`,
+when it does not. Changing the
+email address a family member's portal account is matched by needs `people.sharing.manage` and a
+fresh sign-in. Share links return their `version`, which a revocation sends back (reason up to 500
+characters). Tests:
+`apps/api/test/people-details.test.ts`.
+
+Web (the person record frame, `apps/web/src/app/(shell)/people/[id]/`), three tabs whose titles
+name the tab, never the person:
+
+- **Personal details** (`details`, anyone with `people.person.read`): the national data opt-out
+  first, in words with an icon ("Opted out" or "Not opted out", as the home records it; checking
+  with the national service is Phase 5); who they are, every field with "Not recorded" where empty,
+  and a link to About me for what matters to them; then contacts in two lists, legal
+  representatives and advocates (authorities first, ended ones last) and key contacts (the next of
+  kin first), each with its role and an "Ended", "Evidence not recorded" or "Valid until" status in
+  words and an icon, the reference, a deputy's order scope and a link to the evidence document.
+  Holders of `people.person.update` reaching the person change the details, record or remove the
+  opt-out, and add or change a contact; the contact form for an authority says that cutting it
+  short suspends the decisions resting on it, and the page says so when it did.
+- **About me** (`about-me`, anyone with `people.person.read`): the seven PRSB parts, who wrote it
+  and when. The form (for `people.person.update` or `care.plan.write`) asks who wrote it and, when
+  they were supported, by whom, and keeps pictures and recordings already added. For
+  `people.sharing.manage`: the share links with their state in words, made under a decision for a
+  share link that covers About me and is in force, with step-up when the API asks for it, expiring
+  at the end of a chosen UK day and never after the decision; the code is shown once on the page
+  and never listed; a link is revoked with a reason.
+- **Sharing** (`sharing`, `people.sharing.manage` only; anyone else sees that they have no access):
+  every decision with its state ("In force", "Suspended", "Withdrawn", "Ended", "Not started yet"
+  or "Not in force", in force only when the API says so), recipient, sections, basis, capacity,
+  authority, dates and suspension periods; recording a decision (recipient, sections, basis, who
+  consented, the authority and a deputy's order sections, the capacity finding with an assessment
+  of the sharing decision, a best-interests decision, and the last day in force); suspending,
+  lifting and withdrawing with a reason; and a check of what one recipient (a contact, a
+  professional or a share link) can see now, section by section, with the reason each closed
+  section is closed (HZ-022).
+
+Every form lists every problem it finds at once, linked to its field, sends the version it was
+opened at, and closes once saved, saying what was done. Journeys (Playwright with axe in light and
+dark themes): `apps/web/e2e/person-details.spec.ts`, `about-me.spec.ts` and `sharing.spec.ts`.
+
 ### 6a. Web screens: reviews and the hospital transfer pack (PEOP-008, PEOP-009)
 
 Built on the slice 8 routes; no new API. Written before the code (section 20 rule 3).
@@ -467,6 +553,52 @@ Built on the slice 8 routes; no new API. Written before the code (section 20 rul
   person, missing sections read "Not recorded", send in one form, the PDF downloads as a PDF, the
   hand-over refuses without an acknowledgement and records with one, the return raises the checks;
   axe light and dark).
+
+### 6b. Web screens: pre-admission, admission and property (PEOP-005, PEOP-007)
+
+- **People** lists people receiving care or who have left; people at `enquiry`, `pre_admission`
+  and `not_admitted` are listed under **Enquiries and pre-admission** (`/people/pre-admission`),
+  offered to holders of `people.person.read` with `people.enquiry.manage`,
+  `people.admission.manage` or `care.plan.write`, each with their status, date of birth and
+  communication needs, open ones first. **Record an enquiry** (`/people/pre-admission/new`,
+  `people.enquiry.manage`) asks the person to search first so someone returning keeps one record,
+  and sends the form's own id with every attempt.
+- The record gains three tabs, each under the point-of-care header and titled without the
+  person's name: **Pre-admission**, **Admission and room** and **Property and keys**
+  (`people.person.read`). A write is offered only where the user holds the permission reaching the
+  person (`access.reaching`) and the status allows it (`personStatusAllows`); the API checks both
+  again. Every write sends the record's version (or the item's) and new items and keys their own
+  id; forms post, so nothing typed reaches an address.
+- **Pre-admission**: start the assessment (service and placement sought), close as not admitted
+  or record a re-referral, with a reason (`people.enquiry.manage`). The twenty sections show done,
+  not applicable (with the reason), in progress, or not started, which for a required section is
+  the not-recorded warning, never calm. "Not applicable" is offered only where the section allows
+  it, and the screen asks for what was found before a section is marked done (a screen rule on top
+  of rule 4: a done section with nothing written would hide a safety fact; HZ-007, HZ-015,
+  HZ-016). The medicines section takes the list (time-critical marked). Sources and the person's
+  involvement (or why not) are recorded together. The decision form (`people.admission.manage`)
+  appears once the assessment is complete; a later decision replaces the one in force with the
+  reason, and replaced decisions stay, marked and struck through. Conditions are confirmed one by
+  one; once the decision allows it, the tab links to the admission.
+- **Admission and room**: the admission form (`people.admission.manage`) offers the services at
+  the person's location and the beds free today in rooms in use (the API checks the first day
+  again, so a bed someone left today is refused for an earlier day in its words), the first day,
+  the trial end for a trial, funding and when the person arrived (now or earlier). Then the
+  placement, the room and bed now with every move (a move recorded after its day marked in words),
+  a move form for active and on-leave people, and the welcome checklist, safety-critical items
+  first, "not applicable" offered only where the item allows it and never for a safety-critical
+  item (`people.admission.manage` or `care.plan.write`, while the person is receiving care).
+- **Property and keys** (`people.property.manage`): items held or away first, each with who
+  signed for it, its witness, and how it left; items in while the person is receiving care,
+  returns and keys back after an exit too. The witness is a colleague found by name with the staff
+  search (the user's own staff scope), never the person recording; the record names both (rule 7).
+  Return offers only the personal representative after a death; a lost item needs the person's
+  incident first; disposal and loss say that the item closes. Keys are issued to the person or a
+  representative, then returned or reported lost.
+- Staff are named "you" or "a colleague" on these records until the lifecycle responses carry staff
+  names (care.md section 5, staff names), as letters do.
+- Tests: `apps/web/src/lib/admission.test.ts`; `apps/web/e2e/pre-admission.spec.ts` and
+  `apps/web/e2e/admission.spec.ts` (axe in the light and dark themes on every state).
 
 ## 7. Offline behaviour (section 17.1)
 
@@ -536,6 +668,18 @@ carry a token whose hash only is stored.
 - The care module's advance care record needs a positive "no resuscitation decision in place"
   statement (who checked, when) for the pack; until then the pack shows "not recorded".
 - Whether the weekly report should also flag repeated use across consecutive weeks.
+- Personal details (PEOP-001): lifestyle and preferences have no fields of their own and live in
+  About me until the schema has them; legal status has no code list here yet, so the web shows it
+  but does not change it; a contact cannot be removed, only given an end date; the evidence of an
+  authority is chosen from documents already filed, and uploading it from the contact form waits
+  for the document store screens (PLAT-009).
+- `contact.authority_document_id` has no foreign key to `document` (the API checks the document
+  on every write); adding the composite key needs a migration. Removing a contact (which would
+  suspend the decisions on their authority, as a change does) is not built.
+- The page where a recipient opens an About me share link comes with the family portal: resolving
+  a token outside the tenant API needs its own database role and migration, as evidence pack links
+  did (migration 0058). Choosing care plan domains for a decision is API-only; the web shares the
+  whole care plan.
 - The transfer pack PDF: an in-house writer with Noto Sans embedded until the slice 11 document
   renderer ([ADR-0040](../decisions/0040-transfer-pack-pdf-writer.md), proposed; H-81, H-84).
 - The CSO decisions from the slice 8 review: medicines from the pre-admission list (H-82), late

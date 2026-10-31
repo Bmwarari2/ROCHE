@@ -13,6 +13,8 @@ import { formatDate } from "./format";
 
 export type RecordTab =
   | "overview"
+  | "details"
+  | "about-me"
   | "care-plan"
   | "assessments"
   | "risk-assessments"
@@ -24,8 +26,12 @@ export type RecordTab =
   | "activities"
   | "reviews"
   | "hospital"
+  | "pre-admission"
+  | "admission"
+  | "property"
   | "letters"
   | "family-updates"
+  | "sharing"
   | "history";
 
 interface TabDefinition {
@@ -37,12 +43,18 @@ interface TabDefinition {
     | "people.person.read"
     | "people.movement.record"
     | "comms.letter.manage"
-    | "comms.feed.publish";
+    | "comms.feed.publish"
+    | "people.sharing.manage";
 }
 
-/** In the order the tabs appear: plan and assessments first, then the daily record. */
+/**
+ * In the order the tabs appear: who the person is (personal details and About me), the plan and
+ * assessments, then the daily record; sharing and history last.
+ */
 export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "overview", needs: "people.person.read" },
+  { tab: "details", needs: "people.person.read" },
+  { tab: "about-me", needs: "people.person.read" },
   { tab: "care-plan", needs: "care.plan.read" },
   { tab: "assessments", needs: "care.plan.read" },
   { tab: "risk-assessments", needs: "care.plan.read" },
@@ -54,8 +66,14 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "activities", needs: "care.note.read" },
   { tab: "reviews", needs: "care.plan.read" },
   { tab: "hospital", needs: "people.movement.record" },
+  // Admission and belongings (people.md rules 4 to 7; PEOP-005, PEOP-007).
+  { tab: "pre-admission", needs: "people.person.read" },
+  { tab: "admission", needs: "people.person.read" },
+  { tab: "property", needs: "people.person.read" },
   { tab: "letters", needs: "comms.letter.manage" },
   { tab: "family-updates", needs: "comms.feed.publish" },
+  // Sharing decisions and share links only for those who manage them (people.md section 3).
+  { tab: "sharing", needs: "people.sharing.manage" },
   { tab: "history", needs: "people.person.read" },
 ];
 

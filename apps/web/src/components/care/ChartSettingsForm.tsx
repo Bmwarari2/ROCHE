@@ -68,7 +68,7 @@ export function ChartSettingsForm({
   };
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <SelectField
           id={ids.iddsiFoodLevel}
