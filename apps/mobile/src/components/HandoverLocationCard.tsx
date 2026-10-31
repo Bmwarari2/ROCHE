@@ -103,6 +103,14 @@ export function HandoverLocationCard({
         >
           <View accessible style={{ gap: theme.space[0.5] }}>
             {item.person ? <Text emphasis>{item.person}</Text> : null}
+            {item.communicationLabel ? (
+              <FlagChip
+                tone="info"
+                icon={iconByName("message-square-text")}
+                label={item.communicationLabel}
+                testID={`handover-item-${item.id}-communication`}
+              />
+            ) : null}
             <Text>{item.words}</Text>
             {item.when ? (
               <Text variant="bodyDense" tone="secondary">
@@ -110,16 +118,8 @@ export function HandoverLocationCard({
               </Text>
             ) : null}
           </View>
-          {item.communicationLabel || item.lateAddition || item.newForReader ? (
+          {item.lateAddition || item.newForReader ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space[1] }}>
-              {item.communicationLabel ? (
-                <FlagChip
-                  tone="info"
-                  icon={iconByName("message-square-text")}
-                  label={item.communicationLabel}
-                  testID={`handover-item-${item.id}-communication`}
-                />
-              ) : null}
               {item.newForReader ? (
                 <FlagChip
                   tone="warning"

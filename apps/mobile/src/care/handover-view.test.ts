@@ -6,6 +6,7 @@ import {
   type HandoverItemViewRow,
   type HandoverRow,
   handoverEmpty,
+  handoverEntries,
   handoverHeader,
   handoverItems,
   handoverStatusView,
@@ -116,6 +117,70 @@ describe("hazard HZ-018 which handover the phone should hold (gate item (e))", (
   });
 });
 
+describe("hazard HZ-018 the handovers a home's card shows, newest first (clinical review H1, M1)", () => {
+  const dayBefore = handover({
+    id: "h-day",
+    shift_name: "day",
+    shift_start: "2026-10-30T08:00:00.000Z",
+    shift_end: "2026-10-30T20:00:00.000Z",
+  });
+  const night = handover({ locked_at: null }); // 30/10 20:00 to 31/10 08:00, compiled at 07:30.
+
+  it("at 07:45, before the day shift, shows the night's handover first as this shift's, not final", () => {
+    const entries = handoverEntries({
+      now: new Date("2026-10-31T07:45:00.000Z"),
+      nation: "england",
+      shifts: SHIFTS,
+      handovers: [dayBefore, night],
+    });
+    expect(entries.map((e) => [e.role, e.handover?.id, e.status.chip.label])).toEqual([
+      ["current", "h-night", "This shift, not final"],
+      ["outgoing", "h-day", "Final"],
+    ]);
+    expect(entries[0]?.status.shift).toBe(
+      "The night shift, 30/10/2026 at 20:00 to 31/10/2026 at 08:00",
+    );
+  });
+
+  it("after the shift change shows only the outgoing handover", () => {
+    const entries = handoverEntries({
+      now: new Date("2026-10-31T10:00:00.000Z"),
+      nation: "england",
+      shifts: SHIFTS,
+      handovers: [dayBefore, night],
+    });
+    expect(entries.map((e) => [e.role, e.handover?.id, e.status.chip.label])).toEqual([
+      ["outgoing", "h-night", "Not final"],
+    ]);
+  });
+
+  it("with no pattern shows the newest handover with its own shift and state, under cannot tell", () => {
+    const [entry, ...rest] = handoverEntries({
+      now: new Date("2026-10-31T10:00:00.000Z"),
+      nation: "england",
+      shifts: null,
+      handovers: [dayBefore, night],
+    });
+    expect(rest).toEqual([]);
+    expect(entry).toMatchObject({ role: "latest", handover: { id: "h-night" } });
+    expect(entry?.status.chip.label).toBe("Cannot tell");
+    expect(entry?.status.shift).toBe("The night shift, 30/10/2026 at 20:00 to 31/10/2026 at 08:00");
+    expect(entry?.status.words).toMatch(/newest on this phone, and it is not final\.$/);
+  });
+
+  it("expects the night before across the spring clock change on 29/03/2026 (an 11-hour night)", () => {
+    const expected = expectedHandover({
+      now: new Date("2026-03-29T10:00:00.000Z"),
+      nation: "england",
+      shifts: SHIFTS,
+      handovers: [],
+    });
+    if (expected.kind !== "not_compiled") throw new Error(expected.kind);
+    expect(expected.shift.start.toISOString()).toBe("2026-03-28T20:00:00.000Z"); // 20:00 GMT
+    expect(expected.shift.end.toISOString()).toBe("2026-03-29T07:00:00.000Z"); // 08:00 BST
+  });
+});
+
 describe("hazard HZ-018 the items, worded from their summaries (gate item (a))", () => {
   it("lists items in compiled order, each worded, never blank", () => {
     const items = handoverItems(
@@ -131,23 +196,27 @@ describe("hazard HZ-018 the items, worded from their summaries (gate item (a))",
     expect(items[0]?.when).toBe("31/10/2026 at 03:10");
   });
 
-  it("flags communication needs and a late addition, and names a person not on the phone", () => {
+  it("flags communication needs and a late addition", () => {
     const [first] = handoverItems(
       [
         item({
           communication_needs: JSON.stringify([{ display: "British Sign Language" }]),
           late_addition: 1,
-          preferred_name: null,
-          given_name: null,
-          family_name: null,
         }),
       ],
       null,
     );
+    expect(first).toMatchObject({ communicationLabel: "Communication need", lateAddition: true });
+  });
+
+  it("names a person not on the phone, and says their communication needs are not here either", () => {
+    const [first] = handoverItems(
+      [item({ preferred_name: null, given_name: null, family_name: null })],
+      null,
+    );
     expect(first).toMatchObject({
-      communicationLabel: "Communication need",
-      lateAddition: true,
       person: "Person not on this phone yet",
+      communicationLabel: "Communication needs not on this phone",
     });
   });
 

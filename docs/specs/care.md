@@ -1420,12 +1420,20 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   - The connector reads `handover_shifts` from every sync token and keeps it in `sync_meta`, so it
     is known offline (`sync/handover-shifts.ts`). A nation whose figures are missing or unreadable
     is left out.
+  - Only homes whose handover the phone receives are listed: those the token names
+    (`handover_location_ids`), with `handover_assigned` the homes of the people assigned to the
+    reader (the token's person ids), and any home with a handover on the phone. The reach is kept
+    with the pattern and cleared when a token's handover family no longer reaches the phone.
+  - When the running shift's handover is already on the phone (its staff compile it before they
+    hand over), it is shown first as "This shift, not final" (or final once locked), then the
+    outgoing one (clinical review H1; the lead time is H-420).
   - For each home on the phone, the outgoing handover is the shift before the one running now, by
     the home's nation's pattern (`shiftAt`, `previousShift`). The screen says its state as an icon
     and a word before any item: "Not compiled yet" when no handover for that shift is on the phone
     (nobody compiled it, or it came after the last sync), "Not final" while `locked_at` is empty,
-    or final (e). With no pattern for the home's nation it says "Cannot tell" and shows the latest
-    handover on the phone, labelled as such, never as the expected one (H-303).
+    or final (e). With no pattern for the home's nation it says "Cannot tell" and shows the newest
+    handover on the phone with its own shift and whether it is final, labelled as the newest, never
+    as the expected one (H-303, H-421).
   - Items are listed in compiled order, worded from their summaries or by kind (a), with the person
     as they are known, their communication needs, and "Added late" and "New since you
     acknowledged" as icon and word.

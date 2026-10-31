@@ -124,6 +124,93 @@ function shiftWords(shift: ShiftWindow): string {
   });
 }
 
+function rowShift(row: HandoverRow): ShiftWindow | null {
+  const start = parseInstant(row.shift_start);
+  const end = parseInstant(row.shift_end);
+  return start && end ? { name: row.shift_name ?? "", start, end } : null;
+}
+
+export interface HandoverEntry {
+  /**
+   * `current`: the handover of the shift running now, already compiled (the overlap before a shift
+   * change); `outgoing`: the shift before; `latest`: the newest on the phone, shown when it cannot
+   * tell which to expect.
+   */
+  readonly role: "current" | "outgoing" | "latest";
+  readonly status: HandoverStatusView;
+  /** The handover shown, or null when none (not compiled yet, or none on the phone). */
+  readonly handover: HandoverRow | null;
+}
+
+/**
+ * What a home's handover card shows, newest first (clinical review of the handover screen, H1):
+ * when the shift running now already has a handover (its staff compile it before they hand over,
+ * and the incoming staff read it then), that one first, said to be this shift's and whether it is
+ * final; then the outgoing one with its state. With no pattern, the newest handover on the phone
+ * with its own shift and state, under "Cannot tell" (M1).
+ */
+export function handoverEntries(input: ExpectedHandoverInput): HandoverEntry[] {
+  const expected = expectedHandover(input);
+  if (expected.kind === "unknown") {
+    const latest = input.handovers.reduce<HandoverRow | null>(
+      (best, h) =>
+        !best ||
+        (parseInstant(h.shift_start)?.getTime() ?? 0) >
+          (parseInstant(best.shift_start)?.getTime() ?? 0)
+          ? h
+          : best,
+      null,
+    );
+    return [{ role: "latest", status: unknownStatusView(latest), handover: latest }];
+  }
+  const entries: HandoverEntry[] = [];
+  const figures = input.nation ? input.shifts?.[input.nation] : undefined;
+  if (figures) {
+    const running = shiftAt(input.now, twoShiftPattern(figures.day, figures.night));
+    const current = input.handovers.find(
+      (h) => parseInstant(h.shift_start)?.getTime() === running.start.getTime(),
+    );
+    if (current) {
+      entries.push({
+        role: "current",
+        handover: current,
+        status: {
+          chip: current.locked_at
+            ? { tone: "neutral", icon: "circle-check", label: t("mobile.handover.final") }
+            : { tone: "info", icon: "clock", label: t("mobile.handover.thisShift") },
+          shift: shiftWords(running),
+          words: current.locked_at
+            ? t("mobile.handover.finalWords")
+            : t("mobile.handover.thisShiftWords"),
+        },
+      });
+    }
+  }
+  entries.push({
+    role: "outgoing",
+    status: handoverStatusView(expected),
+    handover: expected.kind === "not_compiled" ? null : expected.handover,
+  });
+  return entries;
+}
+
+/** "Cannot tell", with the shift and state of the handover shown, when there is one (M1). */
+function unknownStatusView(latest: HandoverRow | null): HandoverStatusView {
+  const shift = latest ? rowShift(latest) : null;
+  const state = latest
+    ? latest.locked_at
+      ? t("mobile.handover.shownFinal")
+      : t("mobile.handover.shownNotFinal")
+    : null;
+  return {
+    chip: { tone: "warning", icon: "circle-help", label: t("mobile.handover.cannotTell") },
+    shift: shift ? shiftWords(shift) : null,
+    words: state
+      ? `${t("mobile.handover.cannotTellWords")} ${state}`
+      : t("mobile.handover.cannotTellWords"),
+  };
+}
+
 /** What the screen says about the expected handover, before any item. */
 export function handoverStatusView(expected: ExpectedHandover): HandoverStatusView {
   switch (expected.kind) {
@@ -206,6 +293,9 @@ export function handoverItems(
       const at = parseInstant(row.at);
       const needs = row.person_id ? parseCommunicationNeeds(row.communication_needs) : null;
       const count = needs ? needs.needs.length + (needs.unreadable ? 1 : 0) : 0;
+      // The person's record is not on the phone, so neither are their needs: say so, never nothing.
+      const personMissing =
+        row.person_id !== null && !row.preferred_name && !row.given_name && !row.family_name;
       return {
         id: row.id,
         key: row.item_key,
@@ -215,7 +305,11 @@ export function handoverItems(
         personId: row.person_id,
         when: at ? t("mobile.common.dateTime", ukDateTimeParts(at)) : null,
         communicationNeeds: count,
-        communicationLabel: count > 0 ? communicationFlagLabel(count) : null,
+        communicationLabel: personMissing
+          ? t("mobile.handover.communicationUnknown")
+          : count > 0
+            ? communicationFlagLabel(count)
+            : null,
         lateAddition: row.late_addition === 1,
         // An acknowledgement whose keys cannot be read covers nothing, so every item reads as new.
         newForReader: acknowledgement !== null && !(seen ?? []).includes(row.item_key),

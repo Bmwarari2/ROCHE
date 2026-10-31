@@ -330,3 +330,7 @@ LIMIT 1`;
 
 /** The shift pattern the last sync token carried (`sync/handover-shifts.ts`). */
 export const HANDOVER_SHIFTS_SQL = "SELECT value FROM sync_meta WHERE id = ?";
+
+/** Each person on this device and their home (the handover reaches assigned people's homes). */
+export const HANDOVER_PEOPLE_HOMES_SQL = `SELECT id, location_id FROM person
+WHERE tenant_id = ? AND location_id IS NOT NULL`;

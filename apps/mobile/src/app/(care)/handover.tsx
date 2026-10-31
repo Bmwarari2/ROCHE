@@ -7,19 +7,20 @@ import { useVault } from "../../app-state/vault";
 import {
   type AcknowledgementRow,
   acknowledgementState,
-  expectedHandover,
+  type HandoverEntry,
   type HandoverItemViewRow,
   type HandoverRow,
   handoverEmpty,
+  handoverEntries,
   handoverHeader,
   handoverItems,
-  handoverStatusView,
   shownItems,
 } from "../../care/handover-view";
 import { useAcknowledgeHandover, useTenantId } from "../../care/hooks";
 import {
   HANDOVER_ITEMS_SQL,
   HANDOVER_LOCATIONS_SQL,
+  HANDOVER_PEOPLE_HOMES_SQL,
   HANDOVER_SHIFTS_SQL,
   HANDOVERS_SQL,
   MY_ACKNOWLEDGEMENT_SQL,
@@ -31,8 +32,13 @@ import { UploadIssues } from "../../components/UploadIssues";
 import { appEnv } from "../../config/app-env";
 import { t } from "../../i18n/t";
 import { useRecordScreenProtection } from "../../security/use-record-protection";
-import { HANDOVER_SHIFTS_META_ID, parseHandoverShifts } from "../../sync/handover-shifts";
+import {
+  HANDOVER_SHIFTS_META_ID,
+  type HandoverShifts,
+  parseCachedHandoverConfig,
+} from "../../sync/handover-shifts";
 import { lastSyncedAtOf } from "../../sync/sync-state";
+import { useWriteScope } from "../../sync/write-scope-store";
 
 /** The time, again each minute, so the expected handover moves on when a shift changes. */
 function useMinute(): Date {
@@ -50,36 +56,20 @@ interface LocationRow {
   readonly nation: string | null;
 }
 
-/** One home's outgoing handover, its items and the reader's acknowledgement. */
-function LocationHandover({
+/** One handover card: a handover (or none), its items and the reader's acknowledgement. */
+function HandoverEntryCard({
   location,
-  handovers,
-  shifts,
-  now,
+  entry,
   lastSyncedAt,
 }: {
   readonly location: LocationRow;
-  readonly handovers: readonly HandoverRow[];
-  readonly shifts: ReturnType<typeof parseHandoverShifts>;
-  readonly now: Date;
+  readonly entry: HandoverEntry;
   readonly lastSyncedAt: Date | null;
 }) {
   const tenantId = useTenantId();
   const { me } = useSession();
   const acknowledge = useAcknowledgeHandover();
-  const here = useMemo(
-    () => handovers.filter((h) => h.location_id === location.id),
-    [handovers, location.id],
-  );
-  const expected = expectedHandover({ now, nation: location.nation, shifts, handovers: here });
-  // With no pattern the phone cannot tell which handover to expect: it shows the latest it holds,
-  // said as such, never as the expected one.
-  const shown =
-    expected.kind === "not_final" || expected.kind === "final"
-      ? expected.handover
-      : expected.kind === "unknown"
-        ? (here[0] ?? null)
-        : null;
+  const shown = entry.handover;
   const itemParams = useMemo(() => [tenantId, shown?.id ?? ""], [tenantId, shown?.id]);
   const ackParams = useMemo(
     () => [tenantId, shown?.id ?? "", me?.tenantUserId ?? ""],
@@ -96,10 +86,10 @@ function LocationHandover({
 
   return (
     <HandoverLocationCard
-      locationId={location.id}
+      locationId={`${location.id}-${entry.role}`}
       locationName={location.name ?? t("mobile.handover.title")}
-      status={handoverStatusView(expected)}
-      latestOnly={expected.kind === "unknown" && shown !== null}
+      status={entry.status}
+      latestOnly={entry.role === "latest" && shown !== null}
       items={items}
       empty={handoverEmpty(lastSyncedAt, appEnv.demoMode)}
       acknowledgement={state}
@@ -113,6 +103,39 @@ function LocationHandover({
           : null
       }
     />
+  );
+}
+
+/** A home's handover cards, newest first (`handoverEntries`). */
+function LocationHandover({
+  location,
+  handovers,
+  shifts,
+  now,
+  lastSyncedAt,
+}: {
+  readonly location: LocationRow;
+  readonly handovers: readonly HandoverRow[];
+  readonly shifts: HandoverShifts | null;
+  readonly now: Date;
+  readonly lastSyncedAt: Date | null;
+}) {
+  const here = useMemo(
+    () => handovers.filter((h) => h.location_id === location.id),
+    [handovers, location.id],
+  );
+  const entries = handoverEntries({ now, nation: location.nation, shifts, handovers: here });
+  return (
+    <>
+      {entries.map((entry) => (
+        <HandoverEntryCard
+          key={entry.role}
+          location={location}
+          entry={entry}
+          lastSyncedAt={lastSyncedAt}
+        />
+      ))}
+    </>
   );
 }
 
@@ -136,15 +159,24 @@ export default function HandoverScreen() {
   const { data: locations } = useQuery<LocationRow>(HANDOVER_LOCATIONS_SQL, tenantParams);
   const { data: handovers } = useQuery<HandoverRow>(HANDOVERS_SQL, tenantParams);
   const { data: shiftRows } = useQuery<{ value: string }>(HANDOVER_SHIFTS_SQL, shiftParams);
-  const shifts = useMemo(() => {
-    const value = shiftRows[0]?.value;
-    if (!value) return null;
-    try {
-      return parseHandoverShifts(JSON.parse(value));
-    } catch {
-      return null;
-    }
-  }, [shiftRows]);
+  const writeScope = useWriteScope();
+  const { data: peopleHomes } = useQuery<{ id: string; location_id: string }>(
+    HANDOVER_PEOPLE_HOMES_SQL,
+    tenantParams,
+  );
+  const config = useMemo(() => parseCachedHandoverConfig(shiftRows[0]?.value), [shiftRows]);
+  // Only homes whose handover the phone receives (clinical review M2): those the token names; with
+  // assignment, the homes of the people assigned to the reader (the token's person ids); and any
+  // home with a handover on the phone. With no copy kept (a demo, or before the first token),
+  // every home is listed and its card says it cannot tell.
+  const reached = useMemo(() => {
+    if (!config) return locations;
+    const homes = new Set(config.locationIds);
+    const assignedIds = config.assigned ? new Set(writeScope?.personIds ?? []) : new Set();
+    for (const p of peopleHomes) if (assignedIds.has(p.id)) homes.add(p.location_id);
+    for (const h of handovers) homes.add(h.location_id);
+    return locations.filter((l) => homes.has(l.id));
+  }, [config, locations, peopleHomes, handovers, writeScope]);
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);
   const header = handoverHeader({
     now,
@@ -168,15 +200,15 @@ export default function HandoverScreen() {
           </View>
         </Card>
         <UploadIssues />
-        {locations.length === 0 ? (
+        {reached.length === 0 ? (
           <Text testID="handover-no-locations">{t("mobile.handover.noLocations")}</Text>
         ) : null}
-        {locations.map((location) => (
+        {reached.map((location) => (
           <LocationHandover
             key={location.id}
             location={location}
             handovers={handovers}
-            shifts={shifts}
+            shifts={config?.shifts ?? null}
             now={now}
             lastSyncedAt={lastSyncedAt}
           />

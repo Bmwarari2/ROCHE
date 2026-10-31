@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   HANDOVER_SHIFTS_META_ID,
-  handoverShiftsFromToken,
+  handoverConfigFromToken,
   parseHandoverShifts,
-  readCachedHandoverShifts,
-  writeCachedHandoverShifts,
+  readCachedHandoverConfig,
+  writeCachedHandoverConfig,
 } from "./handover-shifts";
 
 /** A token whose payload carries these claims (the phone never verifies the signature). */
@@ -13,11 +13,21 @@ function token(claims: Record<string, unknown>): string {
   return `header.${payload}.signature`;
 }
 
-describe("hazard HZ-018 each nation's shift pattern from the sync token (gate item (e), ADR-0074)", () => {
-  it("reads the nations the token carries", () => {
+describe("hazard HZ-018 each nation's shift pattern and the handover reach from the sync token (gate item (e), ADR-0074)", () => {
+  it("reads the nations and where the handover reaches from the token", () => {
     expect(
-      handoverShiftsFromToken(token({ handover_shifts: { england: { day: 480, night: 1200 } } })),
-    ).toEqual({ england: { day: 480, night: 1200 } });
+      handoverConfigFromToken(
+        token({
+          handover_shifts: { england: { day: 480, night: 1200 } },
+          handover_location_ids: ["loc-north"],
+          handover_assigned: false,
+        }),
+      ),
+    ).toEqual({
+      shifts: { england: { day: 480, night: 1200 } },
+      locationIds: ["loc-north"],
+      assigned: false,
+    });
   });
 
   it.each([
@@ -36,13 +46,19 @@ describe("hazard HZ-018 each nation's shift pattern from the sync token (gate it
     });
   });
 
-  it("changes nothing when the token has no pattern or cannot be read", () => {
-    expect(handoverShiftsFromToken(token({ sub: "u" }))).toBeNull();
-    expect(handoverShiftsFromToken("not-a-token")).toBeNull();
-    expect(handoverShiftsFromToken(token({ handover_shifts: [1, 2] }))).toBeNull();
+  it("reads no reach when the handover family does not reach the phone, or the token cannot be read", () => {
+    expect(handoverConfigFromToken(token({ sub: "u" }))).toBeNull();
+    expect(handoverConfigFromToken("not-a-token")).toBeNull();
+    expect(
+      handoverConfigFromToken(token({ handover_location_ids: [], handover_assigned: false })),
+    ).toBeNull();
+    // Reached by assignment alone, with a pattern it cannot read: no nations, so it cannot tell.
+    expect(
+      handoverConfigFromToken(token({ handover_assigned: true, handover_shifts: [1, 2] })),
+    ).toEqual({ shifts: {}, locationIds: [], assigned: true });
   });
 
-  it("keeps the last pattern on the phone, and reads a damaged one as none", async () => {
+  it("keeps the last copy on the phone, clears it when the reach ends, and reads a damaged one as none", async () => {
     const rows = new Map<string, string>();
     const db = {
       async getOptional<T>(_sql: string, params?: unknown[]) {
@@ -54,10 +70,17 @@ describe("hazard HZ-018 each nation's shift pattern from the sync token (gate it
         else rows.set(String(params?.[0]), String(params?.[2]));
       },
     };
-    expect(await readCachedHandoverShifts(db)).toBeNull();
-    await writeCachedHandoverShifts(db, { wales: { day: 450, night: 1170 } });
-    expect(await readCachedHandoverShifts(db)).toEqual({ wales: { day: 450, night: 1170 } });
+    expect(await readCachedHandoverConfig(db)).toBeNull();
+    const config = {
+      shifts: { wales: { day: 450, night: 1170 } },
+      locationIds: ["l"],
+      assigned: false,
+    };
+    await writeCachedHandoverConfig(db, config);
+    expect(await readCachedHandoverConfig(db)).toEqual(config);
+    await writeCachedHandoverConfig(db, null);
+    expect(await readCachedHandoverConfig(db)).toBeNull();
     rows.set(HANDOVER_SHIFTS_META_ID, "{not json");
-    expect(await readCachedHandoverShifts(db)).toBeNull();
+    expect(await readCachedHandoverConfig(db)).toBeNull();
   });
 });

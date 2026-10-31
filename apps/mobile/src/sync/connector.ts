@@ -42,7 +42,7 @@ import {
   UPLOAD_BACKOFF,
 } from "./backoff";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
-import { type HandoverShifts, handoverShiftsFromToken } from "./handover-shifts";
+import { type HandoverConfig, handoverConfigFromToken } from "./handover-shifts";
 import {
   isRoundWritableTable,
   type RoundMove,
@@ -304,10 +304,11 @@ export interface HarbourConnectorOptions {
    */
   readonly onWriteScope?: (scope: WriteScope | null) => void;
   /**
-   * Called with each nation's shift pattern from each new sync token (ADR-0074), so the handover
-   * screen can say offline which handover the phone should hold; null when the token has none.
+   * Called with each new sync token's handover reach and shift pattern (ADR-0074), so the handover
+   * screen can say offline which handover the phone should hold; null when the handover family
+   * does not reach the phone.
    */
-  readonly onHandoverShifts?: (shifts: HandoverShifts | null) => void;
+  readonly onHandoverConfig?: (config: HandoverConfig | null) => void;
   readonly backoff?: BackoffPolicy;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly random?: () => number;
@@ -444,7 +445,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     }
     const credentials = parseSyncCredentials(await response.json());
     this.options.onWriteScope?.(writeScopeFromToken(credentials.token));
-    this.options.onHandoverShifts?.(handoverShiftsFromToken(credentials.token));
+    this.options.onHandoverConfig?.(handoverConfigFromToken(credentials.token));
     return credentials;
   }
 
