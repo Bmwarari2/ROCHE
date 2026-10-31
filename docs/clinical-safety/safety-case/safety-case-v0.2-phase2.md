@@ -65,7 +65,8 @@ and their tests are listed as planned (section 7).
 When Phase 2 is complete and deployed as described, with the deployer controls in v0.1 section 14
 and in section 9 below, it will be acceptably safe for its intended use. **This claim cannot yet be
 made**: the slices are not all built, no Phase 2 screen exists, two hazards (HZ-113, HZ-127) have no
-entry yet, two (HZ-124, HZ-128) have no rating yet, and the CSO has reviewed none of them. The
+entry yet, HZ-124 and HZ-128 carry the recommended ratings (H-543, applied 31/10/2026 for review at
+the testing phase), and the CSO has reviewed none of them. The
 argument below is the evidence so far.
 
 ## 4. Hazards: ratings at a glance
@@ -80,13 +81,13 @@ Ratings are severity, likelihood and risk level, as the hazard log gives them. S
 | HZ-119 | Major / Medium / 3 | Major / Low / 3 until the override report (slice 45), then Very low / 2 | H-513 |
 | HZ-121 | Major / Medium / 3 | Major / Low / 3 | H-513 |
 | HZ-123 | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Very low / 2 | H-710, H-543 |
-| HZ-124 | `[CSO rating - human action]` | `[CSO rating - human action]` | H-543 |
-| HZ-126 | Major / Medium / 3 | Major / Low / 3 until H-599 is settled, then Very low / 2 | H-595, H-599 |
-| HZ-127 | Not rated (no entry) | Not rated | Entry needed with slice 37 |
-| HZ-128 | `[CSO rating - human action]` | `[CSO rating - human action]` | H-543, H-740 |
+| HZ-124 | Major / Medium / 3 | Major / Low / 3 until rota eligibility gating lands, then Very low / 2 | H-543 (recommended answer applied 31/10/2026) |
+| HZ-126 | Catastrophic / Medium / 4 | Catastrophic / Low / 4 until H-599 is settled, then Very low / 3 | H-595 (recommended answer applied 31/10/2026), H-599 |
+| HZ-127 | Not rated (no entry; recommended Major / Medium / 3, H-543) | Not rated (recommended Major / Low / 3) | Entry needed with slice 37 |
+| HZ-128 | Considerable / Medium / 3 | Considerable / Low / 2 | H-543 (recommended answer applied 31/10/2026), H-740 |
 | HZ-130 | Major / Medium / 3 | Major / Low / 3 | H-543, H-680 |
 
-Six hazards are proposed at a residual level of 3 (HZ-116, HZ-119, HZ-121, HZ-123, HZ-126, HZ-130).
+Six hazards are proposed at a residual level of 3 (HZ-116, HZ-119, HZ-121, HZ-123, HZ-124, HZ-130), and HZ-126 at 4 until H-599 is settled, then 3.
 The plan allows level 3 only where further reduction is impractical; each entry gives its
 justification, and the CSO accepts or rejects each (section 10).
 
@@ -323,8 +324,9 @@ Planned, not yet written:
 ## 8. Residual risk
 
 Level-3 proposals (section 4) and their justifications are in each hazard's entry and section 5.
-None is accepted; the CSO decides each (section 10). HZ-124 and HZ-128 have no rating, and HZ-113 and
-HZ-127 no entry, so the residual risk of Phase 2 as a whole cannot yet be stated.
+None is accepted; the CSO decides each (section 10). HZ-124 and HZ-128 carry the recommended ratings
+(H-543), and HZ-113 and HZ-127 have no entry, so the residual risk of Phase 2 as a whole cannot yet be
+stated.
 
 ## 9. Deployer information added by Phase 2 so far
 
@@ -366,5 +368,6 @@ review and signature, and top management's acknowledgement, are logged as H-840 
 | HZ-119 | Level 3 until slice 45, then 2 | `[accept or reject - human action]` |
 | HZ-121 | Level 3 | `[accept or reject - human action]` |
 | HZ-123 | Level 3 until slices 21 and 59, then 2 | `[accept or reject - human action]` |
-| HZ-126 | Level 3 until H-599, then 2 | `[accept or reject - human action]` |
+| HZ-124 | Level 3 until rota eligibility gating lands, then 2 | `[accept or reject - human action]` |
+| HZ-126 | Level 4 until H-599 (Catastrophic, H-595), then 3 | `[accept or reject - human action]` |
 | HZ-130 | Level 3 | `[accept or reject - human action]` |

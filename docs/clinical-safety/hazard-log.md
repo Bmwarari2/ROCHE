@@ -69,13 +69,13 @@
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
 | [HZ-121](#hz-121-medicines-not-reconciled-after-admission-transfer-or-return-from-hospital) | Medicines not reconciled after admission, transfer or return from hospital | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
-| [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Major / Very low / 2 (engineering proposal; the CSO rates it, H-710) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
-| [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
-| [HZ-126](#hz-126-a-safeguarding-concern-not-progressed-or-protective-measures-not-visible-to-the-staff-caring-for-the-person) | A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person | Major / Medium / 3 | Major / Low / 3 until the open questions in H-599 are settled, then Very low / 2 (engineering proposal; the CSO rates it, H-595) | Open | None (Phase 2) | Phase 2 |
-| [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
-| [HZ-130](#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person) | Imported records mis-mapped, duplicated or attached to the wrong person | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-543 and H-680) | Open | None (Phase 2) | Phase 2 (slices 26, 51, 67, 79) |
+| [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Major / Very low / 2 (CSO rating as recommended, H-543; reviewed at testing) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
+| [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | Major / Medium / 3 | Major / Low / 3 until rota eligibility gating lands (slices 21, 27, 59), then Major / Very low / 2 (CSO rating as recommended, H-543; reviewed at testing) | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
+| [HZ-126](#hz-126-a-safeguarding-concern-not-progressed-or-protective-measures-not-visible-to-the-staff-caring-for-the-person) | A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person | Catastrophic / Medium / 4 | Catastrophic / Low / 4 until the open questions in H-599 are settled, then Catastrophic / Very low / 3 (CSO rating as recommended, H-595; reviewed at testing) | Open | None (Phase 2) | Phase 2 |
+| [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | Considerable / Medium / 3 | Considerable / Low / 2 (CSO rating as recommended, H-543; reviewed at testing) | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
+| [HZ-130](#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person) | Imported records mis-mapped, duplicated or attached to the wrong person | Major / Medium / 3 | Major / Low / 3 (CSO rating as recommended, H-543; reviewed at testing) | Open | None (Phase 2) | Phase 2 (slices 26, 51, 67, 79) |
 
-Sixteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-121, HZ-112 until its mobile control is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Eighteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-121, HZ-130, HZ-112 until its mobile control is built, HZ-123 until the rota shows the staffing comparison, HZ-124 until rota eligibility gating lands, and HZ-126 once the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. HZ-126 is rated Catastrophic and stays at 4 until H-599 is settled (H-595), which is not acceptable for a live tenant. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed. HZ-113 to HZ-130 are assigned to Phase 2 slices in [phase-2.md](../plans/phase-2.md) and are added by the slice the plan names, so they arrive out of order (HZ-121 first, with slice 2).
 
@@ -3124,7 +3124,7 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 **Effects**: care delayed or missed (falls, pressure damage, missed medicines, unmet personal care) because too few staff, or staff without the needed skill, were on shift; a breach of Regulation 18 the provider cannot see or explain.
 
-**Initial risk**: severity Major, likelihood Medium, **risk 3** (engineering proposal; the CSO rates it at the Phase 2 workshop, H-710, H-543).
+**Initial risk**: severity Major, likelihood Medium, **risk 3** (the CSO's rating as recommended, H-543, 31/10/2026; reviewed at the testing phase).
 
 **Controls**
 
@@ -3146,7 +3146,7 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | Deployer control | The organisation writes, checks and approves its own scale (periods, care minutes, skill mix, review interval), reviews people's categories when needs change, and decides what to do about a shortfall (H-712) | Before relying on required hours |
 | Training and user documentation | Managers are told the figures are their own method, what "not complete" means, and that a met status is only as good as their scale and their people's categories | Slice 82 |
 
-**Target residual risk**: severity Major, likelihood Low, **risk 3** until the rota shows the comparison (slices 21 and 59), then Very low, **risk 2** (engineering proposal; the CSO rates it, H-710). Justification for 3 meanwhile: slice 12 computes the requirement and the comparison but no rota screen shows them yet, and the adequacy of the scale's figures is the organisation's judgement, which Harbour cannot check.
+**Target residual risk**: severity Major, likelihood Low, **risk 3** until the rota shows the comparison (slices 21 and 59), then Very low, **risk 2** (the CSO's rating as recommended, H-543, 31/10/2026; reviewed at the testing phase). Justification for 3 meanwhile: slice 12 computes the requirement and the comparison but no rota screen shows them yet, and the adequacy of the scale's figures is the organisation's judgement, which Harbour cannot check.
 
 **Verification**
 
@@ -3175,7 +3175,29 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 **Effects**: care given by someone not vetted or not competent to give it (for example medicines administered without a valid competence sign-off, or moving and handling without training), with harm to the person; unlawful working; regulatory breach (Regulations 12, 18 and 19).
 
-**Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+**Initial risk**: severity Major, likelihood Medium, **risk 3** (the CSO's rating as recommended, H-543, 31/10/2026; reviewed at the testing phase).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | One rule decides whether a worker can be rostered to a shift on its UK date: DBS clear (or supervised-only clearance on a supervised shift), a right to work, a current registration where the role needs one, and every competence the shift needs valid; each blocker is listed in words (`rosterDecision` in `packages/domain/src/workforce/rostering.ts`) | Built in Phase 2 slice 4 (domain) |
+| Design | A manager override needs a typed justification, lists every blocker it overrides, and is logged and reported; it never covers a missing right to work (illegal working cannot be overridden) | Built in Phase 2 slice 4 (domain); logged and reported from slices 21 and 27 |
+| Design | The inputs come from the same rules everywhere: `dbsClearance`, `rightToWorkStatus`, `registrationCurrent` and `competenceGate` (never self-signed, observer must hold `workforce.competence.observe`), all on UK calendar dates | Built in Phase 2 slice 4 (domain) |
+| Design | The rota applies the rule when a shift is planned and again on the day (a check that lapses after planning blocks the shift), and shows the blockers on the rota | Slices 21, 27 and 59 |
+| Training and user documentation | Managers are told that an override is for exceptional cover, is reported, and cannot cover a missing right to work | Slice 59 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** until rota eligibility gating lands (the rota applies the rule when a shift is planned and again on the day, slices 21, 27 and 59), then Very low, **risk 2** (the CSO's rating as recommended, H-543, 31/10/2026; reviewed at the testing phase). Justification for 3 meanwhile: the rule and its inputs are built and tested, but no rota applies them yet, so nothing stops a worker being rostered outside Harbour's check.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
+| `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
+| Rota tests (planning and on the day) | Planned, slices 21 and 27 |
+
+---
 
 ## HZ-126 A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person
 
@@ -3193,19 +3215,12 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 **Effects**: continued abuse or neglect of the person; the local authority unable to make a s.42 enquiry; a person who harmed others moving to another care role; CQC enforcement for a failure to protect (Regulation 13).
 
-**Initial risk**: severity Major, likelihood Medium, **risk 3**. Organisational abuse, or a member of staff who harms and moves on, can harm several people (Catastrophic by the matrix): the CSO decides whether that severity applies (H-595).
+**Initial risk**: severity Catastrophic, likelihood Medium, **risk 4**. Organisational abuse, or a member of staff who harms and moves on, can harm several people (the CSO's rating as recommended, H-595 and H-543, 31/10/2026; reviewed at the testing phase).
 
 **Controls**
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | One rule decides whether a worker can be rostered to a shift on its UK date: DBS clear (or supervised-only clearance on a supervised shift), a right to work, a current registration where the role needs one, and every competence the shift needs valid; each blocker is listed in words (`rosterDecision` in `packages/domain/src/workforce/rostering.ts`) | Built in Phase 2 slice 4 (domain) |
-| Design | A manager override needs a typed justification, lists every blocker it overrides, and is logged and reported; it never covers a missing right to work (illegal working cannot be overridden) | Built in Phase 2 slice 4 (domain); logged and reported from slices 21 and 27 |
-| Design | The inputs come from the same rules everywhere: `dbsClearance`, `rightToWorkStatus`, `registrationCurrent` and `competenceGate` (never self-signed, observer must hold `workforce.competence.observe`), all on UK calendar dates | Built in Phase 2 slice 4 (domain) |
-| Design | The rota applies the rule when a shift is planned and again on the day (a check that lapses after planning blocks the shift), and shows the blockers on the rota | Slices 21, 27 and 59 |
-| Training and user documentation | Managers are told that an override is for exceptional cover, is reported, and cannot cover a missing right to work | Slice 59 |
-
-**Target residual risk**: `[CSO rating - human action]`.
 | Design | Every concern carries a referral target (`safeguarding.referral_hours` after it was raised, a tenant target; the view says the law says without delay); it stays overdue until it is referred or a reason not to refer is recorded, and never clears by itself (`safeguardingClock`) | Built in Phase 2 slice 13 |
 | Design | The worker tells the holders of `safety.safeguarding.manage` at the home where the person lives now, urgently, in app and by push, through the tenant's escalation chain (default: the owner role), and again each day while the concern waits, so acknowledging an alert never silences it; referring or deciding not to refer acknowledges the alerts; an overdue concern nobody active can manage is audited daily and counted in the operator's unrouted signal (`escalateOverdueSafeguardingReferrals`; review round 1) | Built in Phase 2 slice 13 |
 | Design | A concern cannot be dropped silently: not referring needs a reason and who decided, and the person who raised it cannot decide it alone or close it; the other managers at the person's home are told of a decision not to refer; Making Safeguarding Personal is recorded before the referral decision and whether it was achieved before closing; closing needs the finding and a reason; the staff question has no default and is answered before the outcome and before the concern ends, and the DBS referral decision is needed when a member of staff was removed or would have been; only an ended concern may be soft-deleted. The API checks `safeguardingStepProblems` and `safeguardingLogProblems`, the database checks the same rules, and there is no DELETE grant | Built in Phase 2 slice 13 (migration 0075; review round 1) |
@@ -3214,15 +3229,12 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | Design | A concern opened from a Phase 1 s.42 draft shows the draft's status and warns while the concern is referred and the draft is still open, so the two are not confused | Built in Phase 2 slice 13 |
 | Training and user documentation | The user guide for the safeguarding log (slice 62) says the target is Harbour's and the law says without delay; staff raise a concern and tell the person in charge at once, whatever the screen shows; managers write protective measures as what staff do, never what is alleged. Deployer control: the organisation's safeguarding policy and the local authority's procedures | Phase 2 (slice 62) |
 
-**Target residual risk**: severity Major, likelihood Low, **risk 3** until the questions in H-599 are settled (a second person for a decision not to refer, whether "DBS referral not required" may be recorded when the s.35 conditions are met, and protective measures on the phone), then Very low, **risk 2**. Further reduction now is impractical because each of those is a clinical or legal decision, not an engineering one (an engineering proposal; the CSO rates it, H-595).
+**Target residual risk**: severity Catastrophic, likelihood Low, **risk 4** until the questions in H-599 are settled (a second person for a decision not to refer, whether "DBS referral not required" may be recorded when the s.35 conditions are met, and protective measures on the phone), then Very low, **risk 3** (the CSO's rating as recommended, H-595, 31/10/2026; reviewed at the testing phase). Justification for 3 once H-599 is settled: the controls built (the referral target and its overdue alerts repeated each day, the rules that stop a concern being dropped or closed without its records, and the protective measures shown to the staff caring for the person) leave the severity unchanged, because the harm comes from the abuse itself and from people outside the system; the remaining reduction rests on the local authority's s.42 enquiry, the organisation's safeguarding policy and staff raising concerns, which Harbour cannot control. Level 4 is not acceptable for go-live: the safeguarding log is not relied on for a live tenant until H-599 is settled.
 
 **Verification**
 
 | Test | Status |
 | --- | --- |
-| `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
-| `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
-| Rota tests (planning and on the day) | Planned, slices 21 and 27 |
 | `packages/domain/src/safety/safeguarding.test.ts`: `hazard HZ-126 shows a ... concern at ... as ...` (due, overdue at and after the target, referred, not referred), `hazard HZ-126 is due the target's elapsed hours after the concern, across the spring change` and `... the autumn change`, `hazard HZ-126 shows the protective measures of every open concern, newest first`, `hazard HZ-126 counts an open concern with no measures, so the screen never shows nothing`, `hazard HZ-126 refuses ... while ...` and `allows ...` (`safeguardingLogProblems`: Making Safeguarding Personal before the referral decision, the staff question, the measures' outcome), `hazard HZ-126 asks for the DBS decision when the staff answer is ...`, `hazard HZ-126 refuses no_referral` and `closed by whoever raised the concern` | Passing |
 | `packages/db/test/safeguarding-log.test.ts`: `hazard HZ-126 a safeguarding concern is never dropped or closed without its records` (code lists in step with the domain; an unknown or empty abuse type, not referring without a reason, referring without the local authority, closing without Making Safeguarding Personal, a referral decision before it, ending before the staff question or with staff removed and no DBS decision, ending with measures not carried on, and soft-deleting an open concern are refused; every change versioned) and `hazard HZ-011 the safeguarding log is isolated by tenant and scoped as incidents` (including a raiser writing about a person they cannot see) | Passing |
 | `apps/api/test/safeguarding.test.ts`: `hazard HZ-126 anyone who works with the person can raise a concern, and only managers run the log`, `hazard HZ-126 a concern is never dropped or closed without its records` (including the raiser refused, the other managers told, the description kept), `hazard HZ-126 the log shows only the people the manage permission reaches (ADR-0071)`, `hazard HZ-126 a concern opened from a Phase 1 s.42 draft`, `hazard HZ-126 staff caring for the person see the protective measures, never the allegation`, `hazard HZ-126 an overdue referral reaches the notification centre (HZ-013)` (again each day after a manual acknowledgement; to the person's current home) | Passing |
@@ -3246,7 +3258,7 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 **Effects**: care given against a withdrawn procedure (wrong escalation route, out-of-date medicines or infection control practice), with harm to the person; staff unaware of a safeguarding or whistleblowing route; regulatory breach (Regulation 17).
 
-**Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3** (the CSO's rating as recommended, H-543, 31/10/2026; reviewed at the testing phase).
 
 **Controls**
 
@@ -3258,7 +3270,7 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | Design | Reminders through the task engine: each outstanding member is told on the first run after they become due, then every `policy.read_and_sign.reminder_days`; a reminder is due at the next reminder (never overdue the same evening, so no escalation storm), completed only by signing (no task transition closes it), and cancelled when a newer version replaces the one it was for or the policy is retired; review tasks when a policy is due soon or overdue, for the author, the publisher or another holder of `quality.policy.manage`, only while they hold it, ended by a newer version or retirement | Built in Phase 2 slice 25 |
 | Training and user documentation | Staff are told to open policies in Harbour, not printed copies, and that a printed copy says when it was printed and which version it is | Slice 65 |
 
-**Target residual risk**: `[CSO rating - human action]`.
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2** (the CSO's rating as recommended, H-543, 31/10/2026; reviewed at the testing phase).
 
 **Verification**
 
@@ -3309,7 +3321,7 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | Test | See Verification | Phase 2 |
 | Training and user documentation | Owner guide for the import wizard (slice 67): mapping, reading the dry run, acknowledging possible duplicates, checking a sample, recording allergy statuses, and why undo is only possible before phones sync | Phase 2 slice 67 |
 
-**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-543 and H-680).
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (the CSO's rating as recommended, H-543, 31/10/2026; reviewed at the testing phase).
 
 **Justification for level 3**: a file whose dates are all in month-first order with every day 12 or under, or whose given and family names are swapped consistently, passes every automated check: nothing in the values tells them apart from correct ones. Harbour lowers the likelihood (dd/mm/yyyy only, the date-of-birth bounds, the dry run and its words, the planned side-by-side check in the wizard, undo before phones sync) but the final check of a sample against the source is the deployer's (H-682). Because undo is refused once phones may hold the people, and where phones are in use that can be within minutes of the commit, a mistake found later can only be corrected on each person's record: a person imported in error cannot yet be removed or marked as created in error, and stays a current resident until staff record an exit. That gap is why the importer must accept it before committing where phones are in use, and why the "created in error" status is a follow-up the CSO rules on (H-680).
 
