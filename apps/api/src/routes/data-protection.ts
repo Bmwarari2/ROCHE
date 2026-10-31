@@ -112,7 +112,7 @@ async function locationExists(tx: Tx, id: string | null | undefined) {
  * deputy who holds it for one home only is refused here, as row-level security refuses them
  * (`app.holds_role_permission_at(..., NULL)`, migration 0082).
  */
-async function requireOrganisationWide(c: Context<AppEnv>): Promise<TenantAccess> {
+export async function requireOrganisationWide(c: Context<AppEnv>): Promise<TenantAccess> {
   const access = await requirePermission(c, PERMISSION);
   if (scopeFor(access.effective, PERMISSION).scope !== "tenant") {
     throw new HttpProblem(
@@ -133,7 +133,9 @@ export function dbRefusal(error: unknown): unknown {
   const code = dbCode(error);
   const message = (error as { message?: string }).message ?? "";
   if (code === "23514") {
-    const guard = /^(dp_breach|dp_complaint)_[a-z_]+$/.test(message) ? message : "not_allowed";
+    const guard = /^(dp_breach|dp_complaint|data_security)_[a-z_]+$/.test(message)
+      ? message
+      : "not_allowed";
     return unprocessable(guard, "That change is not allowed for this record.");
   }
   if (code === "23503") return unprocessable("not_found", "Something it refers to was not found.");
@@ -141,7 +143,7 @@ export function dbRefusal(error: unknown): unknown {
   return error;
 }
 
-async function dpTransaction<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function dpTransaction<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>): Promise<T> {
   try {
     return await withTenant(c, fn);
   } catch (error) {

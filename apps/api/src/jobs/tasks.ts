@@ -28,6 +28,7 @@ import {
 } from "../services/break-glass-report";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import { raiseDataSecurityReminders } from "../services/data-security";
 import {
   draftDeathNotifications,
   withdrawDeathNotifications,
@@ -455,6 +456,21 @@ export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promis
     raiseDolsReminders(tx, tenantId, now),
   );
   if (raised > 0) deps.logger.info({ raised }, "DoLS expiry reminders raised");
+  return raised;
+}
+
+/**
+ * Data security renewal tasks (quality.md rule 36): the DSPT deadline and Cyber Essentials and ICO
+ * registration expiries, each raised once to the owner role.
+ */
+export async function remindDataSecurityRenewals(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const raised = await eachTenant(deps, "data-security-renewals", (tx, tenantId) =>
+    raiseDataSecurityReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "Data security renewal tasks raised");
   return raised;
 }
 

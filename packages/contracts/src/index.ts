@@ -506,6 +506,7 @@ export * from "./care";
 export * from "./care-planning";
 export * from "./client-id";
 export * from "./data-protection";
+export * from "./data-security";
 export * from "./devices";
 export * from "./dpia";
 export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";

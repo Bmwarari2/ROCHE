@@ -22,6 +22,7 @@ import {
   raiseCareReviews,
   raiseReviews,
   relayOutbox,
+  remindDataSecurityRenewals,
   remindDolsExpiry,
   reportBreakGlass,
   reportUnroutedDaily,
@@ -116,6 +117,7 @@ await work(QUEUES.careReviews, async () => {
 });
 await work(QUEUES.dolsExpiry, async () => {
   await remindDolsExpiry(deps);
+  await remindDataSecurityRenewals(deps);
 });
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
