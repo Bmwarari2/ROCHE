@@ -16,7 +16,7 @@ CREATE TABLE "clock_event" (
 	CONSTRAINT "clock_event_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "clock_event_kind" CHECK (kind IN ('in', 'out', 'break_start', 'break_end')),
 	CONSTRAINT "clock_event_evidence" CHECK (evidence IN ('none', 'at_location', 'nfc')),
-	CONSTRAINT "clock_event_nfc" CHECK ((evidence = 'nfc') = (nfc_tag_ref IS NOT NULL) AND (nfc_tag_ref IS NULL OR char_length(nfc_tag_ref) BETWEEN 1 AND 120))
+	CONSTRAINT "clock_event_nfc" CHECK ((evidence = 'nfc') = (nfc_tag_ref IS NOT NULL) AND (nfc_tag_ref IS NULL OR nfc_tag_ref ~ '^[A-Za-z0-9_-]{1,64}$'))
 );
 --> statement-breakpoint
 CREATE TABLE "clock_setting" (
@@ -149,6 +149,11 @@ CREATE INDEX "timesheet_entry_worker_idx" ON "timesheet_entry" USING btree ("ten
 CREATE INDEX "timesheet_entry_location_idx" ON "timesheet_entry" USING btree ("tenant_id","location_id","started_at");--> statement-breakpoint
 CREATE INDEX "working_time_opt_out_worker_idx" ON "working_time_opt_out" USING btree ("tenant_id","worker_id");--> statement-breakpoint
 CREATE INDEX "working_time_result_worker_idx" ON "working_time_result" USING btree ("tenant_id","worker_id","evaluate_to");--> statement-breakpoint
+ALTER TABLE "timesheet_entry" ADD CONSTRAINT "timesheet_entry_clock_in_fk" FOREIGN KEY ("tenant_id","clock_in_id") REFERENCES "public"."clock_event"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "timesheet_entry" ADD CONSTRAINT "timesheet_entry_clock_out_fk" FOREIGN KEY ("tenant_id","clock_out_id") REFERENCES "public"."clock_event"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "timesheet_entry_clock_in_key" ON "timesheet_entry" USING btree ("tenant_id","clock_in_id") WHERE clock_in_id IS NOT NULL AND supersedes_id IS NULL;--> statement-breakpoint
+ALTER TABLE "clock_event" ADD CONSTRAINT "clock_event_device" CHECK (device_id IS NULL OR device_id ~ '^[A-Za-z0-9._:-]{1,120}$');--> statement-breakpoint
+ALTER TABLE "clock_setting" ADD CONSTRAINT "clock_setting_nfc_tags" CHECK (array_to_string(nfc_tag_refs, ' ') ~ '^([A-Za-z0-9_-]{1,64}( |$))*$');--> statement-breakpoint
 
 -- Time and attendance and working-time records (scheduling.md section 16; SCHED-004, SCHED-003;
 -- HZ-010, HZ-124, HZ-011).
@@ -181,8 +186,9 @@ REVOKE ALL ON FUNCTION app.reads_time_records(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.reads_time_records(uuid) TO harbour_app, harbour_owner;
 --> statement-breakpoint
 
+-- The setting holds no personal data: a member who clocks reads it, so the phone knows what to send.
 CREATE POLICY clock_setting_read ON public.clock_setting AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (app.reads_rota(location_id));
+  USING (app.reads_rota(location_id) OR app.holds_self_permission('scheduling.timesheet.self'));
 --> statement-breakpoint
 CREATE POLICY clock_setting_write ON public.clock_setting AS RESTRICTIVE FOR INSERT TO harbour_app
   WITH CHECK (app.holds_permission_at('scheduling.rota.approve', location_id));
@@ -221,10 +227,11 @@ CREATE POLICY timesheet_update ON public.timesheet_entry AS RESTRICTIVE FOR UPDA
 --> statement-breakpoint
 
 -- An entry is made a draft; approved only by a holder of scheduling.rota.approve at its location
--- in their own name, never the worker; fixed once approved; who, where and what it corrects never
--- change; a correction is of an approved entry of the same worker.
+-- in their own name, never the worker, nor whoever entered it by hand, corrected it or last changed
+-- it; fixed once approved; who, where and what it corrects never change; a correction is of an
+-- approved entry of the same worker.
 CREATE OR REPLACE FUNCTION app.timesheet_entry_guard() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 DECLARE v_target public.timesheet_entry%ROWTYPE;
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -259,6 +266,12 @@ BEGIN
       RAISE EXCEPTION 'An entry is approved in the approver''s own name by a holder of the approve permission'
         USING ERRCODE = 'insufficient_privilege';
     END IF;
+    IF ((OLD.source = 'manual' OR OLD.supersedes_id IS NOT NULL)
+          AND OLD.created_by IS NOT DISTINCT FROM NEW.approved_by)
+       OR (OLD.version > 1 AND OLD.updated_by IS NOT DISTINCT FROM NEW.approved_by) THEN
+      RAISE EXCEPTION 'Someone other than whoever entered or changed an entry approves it'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
   END IF;
   RETURN NEW;
 END
@@ -270,9 +283,13 @@ CREATE TRIGGER timesheet_entry_guard BEFORE INSERT OR UPDATE ON public.timesheet
 
 -- Awake periods follow their entry; added while it is a draft.
 CREATE OR REPLACE FUNCTION app.awake_period_entry_location(p_entry uuid) RETURNS uuid
-LANGUAGE sql STABLE AS $$
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
   SELECT e.location_id FROM public.timesheet_entry e WHERE e.id = p_entry
 $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.awake_period_entry_location(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.awake_period_entry_location(uuid) TO harbour_app, harbour_owner;
 --> statement-breakpoint
 CREATE POLICY awake_read ON public.sleep_in_awake_period AS RESTRICTIVE FOR SELECT TO harbour_app
   USING (app.awake_period_entry_location(timesheet_entry_id) IS NOT NULL);
@@ -284,29 +301,53 @@ CREATE POLICY awake_insert ON public.sleep_in_awake_period AS RESTRICTIVE FOR IN
         AND e.worker_id <> app.current_user_id()));
 --> statement-breakpoint
 
--- Opt-outs: the member's own, or approvers anywhere; recorded by an approver in their own name,
--- never by the worker.
+-- Whose working time an approver reads: members with a role at, or a shift at, a location where
+-- they hold scheduling.rota.approve (a tenant-wide role: an approver anywhere). Definer: the
+-- approver cannot see other members' role assignments.
+CREATE OR REPLACE FUNCTION app.reads_worker_time(p_worker uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+  SELECT app.is_system()
+    OR EXISTS (
+      SELECT 1 FROM public.role_assignment ra
+      WHERE ra.tenant_id = app.current_tenant_id() AND ra.tenant_user_id = p_worker
+        AND ra.deleted_at IS NULL
+        AND CASE WHEN ra.location_id IS NULL
+              THEN app.holds_permission_anywhere('scheduling.rota.approve')
+              ELSE app.holds_permission_at('scheduling.rota.approve', ra.location_id) END)
+    OR EXISTS (
+      SELECT 1 FROM public.shift_assignment a
+      JOIN public.shift s ON s.tenant_id = a.tenant_id AND s.id = a.shift_id
+      WHERE a.tenant_id = app.current_tenant_id() AND a.worker_id = p_worker
+        AND app.holds_permission_at('scheduling.rota.approve', s.location_id))
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.reads_worker_time(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.reads_worker_time(uuid) TO harbour_app, harbour_owner;
+--> statement-breakpoint
+
+-- Opt-outs: the member's own, or approvers of their time; recorded by such an approver in their
+-- own name, never by the worker.
 CREATE POLICY opt_out_read ON public.working_time_opt_out AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (worker_id = app.current_user_id() OR app.is_system()
-    OR app.holds_permission_anywhere('scheduling.rota.approve'));
+  USING (worker_id = app.current_user_id() OR app.reads_worker_time(worker_id));
 --> statement-breakpoint
 CREATE POLICY opt_out_insert ON public.working_time_opt_out AS RESTRICTIVE FOR INSERT TO harbour_app
-  WITH CHECK (app.holds_permission_anywhere('scheduling.rota.approve')
+  WITH CHECK (app.reads_worker_time(worker_id)
     AND worker_id <> app.current_user_id() AND recorded_by = app.current_user_id());
 --> statement-breakpoint
 CREATE POLICY opt_out_update ON public.working_time_opt_out AS RESTRICTIVE FOR UPDATE TO harbour_app
-  USING (app.holds_permission_anywhere('scheduling.rota.approve')
-    AND worker_id <> app.current_user_id())
-  WITH CHECK (app.holds_permission_anywhere('scheduling.rota.approve')
+  USING (app.reads_worker_time(worker_id) AND worker_id <> app.current_user_id())
+  WITH CHECK (app.reads_worker_time(worker_id)
     AND worker_id <> app.current_user_id() AND recorded_by = app.current_user_id());
 --> statement-breakpoint
--- Results: the member's own, or those who read time records where they were made.
+-- Results: the member's own, those who read time records where they were made, or approvers of
+-- the member's time. Written only by the system.
 CREATE POLICY result_read ON public.working_time_result AS RESTRICTIVE FOR SELECT TO harbour_app
   USING (worker_id = app.current_user_id() OR app.reads_time_records(location_id)
-    OR app.holds_permission_anywhere('scheduling.rota.approve'));
+    OR app.reads_worker_time(worker_id));
 --> statement-breakpoint
 CREATE POLICY result_insert ON public.working_time_result AS RESTRICTIVE FOR INSERT TO harbour_app
-  WITH CHECK (app.is_system() OR app.holds_permission_anywhere('scheduling.rota.approve'));
+  WITH CHECK (app.is_system());
 --> statement-breakpoint
 
 DO $$

@@ -71,6 +71,10 @@ export const clockSetting = pgTable(
     unique("clock_setting_location_key").on(t.tenantId, t.locationId),
     locationRef("clock_setting_location_fk", t),
     check("clock_setting_evidence", sql`evidence IN (${sqlList(CLOCK_EVIDENCE_CODES)})`),
+    check(
+      "clock_setting_nfc_tags",
+      sql`array_to_string(nfc_tag_refs, ' ') ~ '^([A-Za-z0-9_-]{1,64}( |$))*$'`,
+    ),
   ],
 );
 
@@ -105,8 +109,9 @@ export const clockEvent = pgTable(
     check("clock_event_evidence", sql`evidence IN (${sqlList(CLOCK_EVIDENCE_CODES)})`),
     check(
       "clock_event_nfc",
-      sql`(evidence = 'nfc') = (nfc_tag_ref IS NOT NULL) AND (nfc_tag_ref IS NULL OR char_length(nfc_tag_ref) BETWEEN 1 AND 120)`,
+      sql`(evidence = 'nfc') = (nfc_tag_ref IS NOT NULL) AND (nfc_tag_ref IS NULL OR nfc_tag_ref ~ '^[A-Za-z0-9_-]{1,64}$')`,
     ),
+    check("clock_event_device", sql`device_id IS NULL OR device_id ~ '^[A-Za-z0-9._:-]{1,120}$'`),
     index("clock_event_worker_idx").on(t.tenantId, t.workerId, t.deviceTime),
     index("clock_event_location_idx").on(t.tenantId, t.locationId, t.deviceTime),
   ],
@@ -155,6 +160,19 @@ export const timesheetEntry = pgTable(
       columns: [t.tenantId, t.supersedesId],
       foreignColumns: [t.tenantId, t.id],
     }),
+    foreignKey({
+      name: "timesheet_entry_clock_in_fk",
+      columns: [t.tenantId, t.clockInId],
+      foreignColumns: [clockEvent.tenantId, clockEvent.id],
+    }),
+    foreignKey({
+      name: "timesheet_entry_clock_out_fk",
+      columns: [t.tenantId, t.clockOutId],
+      foreignColumns: [clockEvent.tenantId, clockEvent.id],
+    }),
+    uniqueIndex("timesheet_entry_clock_in_key")
+      .on(t.tenantId, t.clockInId)
+      .where(sql`clock_in_id IS NOT NULL AND supersedes_id IS NULL`),
     uniqueIndex("timesheet_entry_one_correction_key")
       .on(t.tenantId, t.supersedesId)
       .where(sql`supersedes_id IS NOT NULL AND deleted_at IS NULL`),

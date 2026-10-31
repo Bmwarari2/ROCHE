@@ -943,33 +943,51 @@ screens are slice 60, the phone's offline queue slice 71.
 | `working_time_result` | append-only per run | `worker_id`, `evaluate_from`, `evaluate_to`, `findings` (as `WorkingTimeFindingItem`), `breaches`, `conditionals`, `input_hash`, `trigger` (`timesheet_approved`, `requested`) | `working_time_record` |
 
 Location evidence is never a position: the phone says only whether it was at the location (or
-read the location's NFC tag); Harbour stores that word and never coordinates or a track.
+read the location's NFC tag); Harbour stores that word and never coordinates or a track. The API
+keeps evidence only as the location's setting asks for it, and an NFC tag only if it is one of the
+location's tags (a short code, never free text); anything else is stored as `none` and flagged
+`evidence_not_matched`. Entries longer than 25 hours (a design limit, not a statutory figure) cannot
+come from the clock; a longer live-in stretch is entered by hand.
 
 ### Rules
 
 1. **Clock events** (`clockFlags`): the device's time and the server's time are both kept; an
    event whose device time is more than `sync.clock_drift_flag_minutes` before the server's is a
-   late upload, after it a device clock ahead; both are flagged, never dropped. The device's time
-   is the time worked (HZ-010: the flag shows it). An event's client id makes a replay return the
-   stored event.
+   late upload, after it a device clock ahead; both are flagged. The device's time is the time
+   worked (HZ-010: the flag shows it). An event's client id makes a replay return the stored event.
+   A late upload is never dropped for something that changed after the time was worked: a shift
+   or assignment removed since (`not_on_shift`), a booking cancelled since (`no_booking`), the
+   self permission lost since (`no_permission`) or a shift at another location (`other_location`)
+   keep the event, flagged, with an urgent task. Every refusal is audited.
 2. **Who may clock**: a member clocks only for themselves. A staff member needs
    `scheduling.timesheet.self`. A bank or agency member needs a confirmed booking of the shift
    (ADR-0088); an event they upload after their window has closed is accepted when its device
-   time falls in the booked shift's window, flagged `outside_access_window`, and never dropped.
+   time falls in the booked shift's window, flagged `outside_access_window`, and never dropped; that
+   flag alone shows among the exceptions without a task. An event with no shift is accepted only
+   at a location where the member holds a role. Events are written in the member's own name, so
+   the database's self check applies; the system writes only what that check would refuse (an
+   agency upload, a lapsed permission).
 3. **The rule on the day** (HZ-124; H-920): clocking in to a shift applies the rostering rule again
    (section 14 rule 3) on the shift's dates, with the override that already covers the assignment.
-   A bank or agency worker also needs a recorded induction at the location. Online, a blocked
-   clock-in is refused (422) and audited; a late upload is stored, flagged `not_eligible` or
-   `no_induction`, and the Registered Manager at the location gets an urgent task. Clocking in with
-   no shift of one's own is stored and flagged `no_shift`.
-4. **Timesheets** (`pairClockEvents`): clocking out makes a draft entry from the worker's open
-   clock-in, the breaks between and the clock-out, for the shift if any. Problems (a break never
+   A bank or agency worker also needs a recorded induction at the location on or before the
+   shift's date. A blocked clock-in is refused (422) and audited while the shift has not ended,
+   whatever time the device gives (`clockInRefused`: a device time set back cannot turn a refusal
+   into a flag), and the person in charge gets an urgent task that the shift may be short (one
+   open per shift). Once the shift has ended the time was worked: the event is stored, flagged
+   `not_eligible` or `no_induction`, and the Registered Manager gets an urgent task titled by the
+   check (one open per worker and shift). A clock-in names its shift; one recorded offline with
+   none is stored, flagged `no_shift` and raised, as the checks could not run.
+4. **Timesheets** (`pairClockEvents`): clocking out makes a draft entry from the worker's latest
+   clock-in at the location not already in an entry, the breaks between at that location and the
+   clock-out, for the shift if any; a clock-in uploaded after its clock-out pairs with it then. A
+   clock-in or clock-out is in at most one entry (the database checks it). Problems (a break never
    ended, a clock-out with no clock-in) are listed and the entry stays a draft. A manager may also
    enter one by hand (`manual`). A draft may be changed; an approved entry never.
-5. **Approval**: by a holder of `scheduling.rota.approve` at the location who is not the worker
-   (separation of duties; the database checks it too). Approving runs the working time check for
+5. **Approval**: by a holder of `scheduling.rota.approve` at the location who is not the worker,
+   nor whoever entered it by hand or as a correction, nor whoever last changed it (separation of
+   duties; the database checks it too), and only once the entry has ended. Approving runs the working time check for
    the worker and stores the result; a breach or conditional finding raises a task for the
-   Registered Manager. The check advises; it never blocks approval.
+   Registered Manager (at most one open per worker). The check advises; it never blocks approval.
 6. **Corrections**: an approved entry is corrected by a new draft with `supersedes_id` and a reason;
    once the correction is approved the original is shown struck through and never counts again.
    Only one correction of an entry may be open.
@@ -978,7 +996,9 @@ read the location's NFC tag); Harbour stores that word and never coordinates or 
    (section 14 rule 6 and H-832), evaluated over the approved entry's dates; the result stores
    the findings and a hash of its inputs, so it reproduces.
 8. **Opt-outs on file**: recorded from the signed agreement by a holder of `scheduling.rota.approve`
-   who is not the worker, with its end and notice; the worker reads their own.
+   where the worker has a role or a shift, who is not the worker, with its end and notice; the
+   worker reads their own. Stored working time results are read by the worker and by such
+   approvers, and written only by the system.
 9. **Exceptions**: a location's flagged clock events and drafts with problems, for the manager.
 
 ### API, audit and outbox

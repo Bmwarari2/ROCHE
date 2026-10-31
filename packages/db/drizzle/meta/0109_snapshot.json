@@ -28996,7 +28996,11 @@
         },
         "clock_event_nfc": {
           "name": "clock_event_nfc",
-          "value": "(evidence = 'nfc') = (nfc_tag_ref IS NOT NULL) AND (nfc_tag_ref IS NULL OR char_length(nfc_tag_ref) BETWEEN 1 AND 120)"
+          "value": "(evidence = 'nfc') = (nfc_tag_ref IS NOT NULL) AND (nfc_tag_ref IS NULL OR nfc_tag_ref ~ '^[A-Za-z0-9_-]{1,64}$')"
+        },
+        "clock_event_device": {
+          "name": "clock_event_device",
+          "value": "device_id IS NULL OR device_id ~ '^[A-Za-z0-9._:-]{1,120}$'"
         }
       },
       "isRLSEnabled": false
@@ -29115,6 +29119,10 @@
         "clock_setting_evidence": {
           "name": "clock_setting_evidence",
           "value": "evidence IN ('none', 'at_location', 'nfc')"
+        },
+        "clock_setting_nfc_tags": {
+          "name": "clock_setting_nfc_tags",
+          "value": "array_to_string(nfc_tag_refs, ' ') ~ '^([A-Za-z0-9_-]{1,64}( |$))*$'"
         }
       },
       "isRLSEnabled": false
@@ -29364,6 +29372,28 @@
         }
       },
       "indexes": {
+        "timesheet_entry_clock_in_key": {
+          "name": "timesheet_entry_clock_in_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "clock_in_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "clock_in_id IS NOT NULL AND supersedes_id IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "timesheet_entry_one_correction_key": {
           "name": "timesheet_entry_one_correction_key",
           "columns": [
@@ -29531,6 +29561,36 @@
           "columnsFrom": [
             "tenant_id",
             "supersedes_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timesheet_entry_clock_in_fk": {
+          "name": "timesheet_entry_clock_in_fk",
+          "tableFrom": "timesheet_entry",
+          "tableTo": "clock_event",
+          "columnsFrom": [
+            "tenant_id",
+            "clock_in_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timesheet_entry_clock_out_fk": {
+          "name": "timesheet_entry_clock_out_fk",
+          "tableFrom": "timesheet_entry",
+          "tableTo": "clock_event",
+          "columnsFrom": [
+            "tenant_id",
+            "clock_out_id"
           ],
           "columnsTo": [
             "tenant_id",

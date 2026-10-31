@@ -11,6 +11,8 @@ const isoDate = z.iso.date();
 const isoDateTime = z.iso.datetime({ offset: true });
 const version = z.number().int().min(1);
 const span = z.object({ start: isoDateTime, end: isoDateTime });
+/** An NFC tag's reference: a short code, never a position. */
+const tagRef = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
 export const ClockKind = z
   .enum(["in", "out", "break_start", "break_end"])
@@ -37,9 +39,15 @@ export const RecordClockEvent = z
     /** The shift clocked for, if any. */
     shiftId: uuid.nullable().default(null),
     deviceTime: isoDateTime,
-    deviceId: z.string().trim().min(1).max(120).nullable().default(null),
+    /** The device's opaque id (letters, digits and . _ : -). */
+    deviceId: z
+      .string()
+      .regex(/^[A-Za-z0-9._:-]{1,120}$/)
+      .nullable()
+      .default(null),
+    /** Kept only when the location's setting asks for it; otherwise stored as none, flagged. */
     evidence: ClockEvidence.default("none"),
-    nfcTagRef: z.string().trim().min(1).max(120).nullable().default(null),
+    nfcTagRef: tagRef.nullable().default(null),
   })
   .meta({ id: "RecordClockEvent" });
 
@@ -72,7 +80,7 @@ export const ChangeClockSetting = z
   .object({
     version: z.number().int().nullable(),
     evidence: ClockEvidence,
-    nfcTagRefs: z.array(z.string().trim().min(1).max(120)).max(20).default([]),
+    nfcTagRefs: z.array(tagRef).max(20).default([]),
     /** Turning location or NFC evidence on needs the employee-monitoring DPIA approved (H-527). */
     dpiaApproved: z.boolean().default(false),
   })

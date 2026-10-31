@@ -5,6 +5,7 @@ import {
   approvalProblem,
   type ClockEventFact,
   clockFlags,
+  clockInRefused,
   currentApproved,
   optOutAgreement,
   pairClockEvents,
@@ -97,6 +98,7 @@ const entry = (over: Partial<TimesheetFact>): TimesheetFact => ({
 });
 
 describe("approval never by the worker (rule 5)", () => {
+  const now = at("2026-11-02T21:00:00Z");
   it.each([
     ["a draft by a manager", entry({}), "m", new Set<string>(), null],
     ["the worker's own", entry({}), "w", new Set<string>(), "own_entry"],
@@ -109,8 +111,44 @@ describe("approval never by the worker (rule 5)", () => {
       new Set<string>(),
       "times_out_of_order",
     ],
+    [
+      "an entry not yet ended",
+      entry({ end: at("2026-11-03T08:00:00Z") }),
+      "m",
+      new Set<string>(),
+      "ends_in_future",
+    ],
   ] as const)("%s", (_, e, approver, superseded, problem) => {
-    expect(approvalProblem(e, approver, superseded)).toBe(problem);
+    expect(
+      approvalProblem(e, approver, superseded, { now, enteredBy: null, changedBy: null }),
+    ).toBe(problem);
+  });
+
+  it.each([
+    ["entered by hand by the approver", "m", null, "entered_by_approver"],
+    ["last changed by the approver", null, "m", "entered_by_approver"],
+    ["entered and changed by someone else", "x", "y", null],
+  ] as const)("an entry %s", (_, enteredBy, changedBy, problem) => {
+    expect(approvalProblem(entry({}), "m", new Set(), { now, enteredBy, changedBy })).toBe(problem);
+  });
+});
+
+describe("hazard HZ-124 the rule on the day refuses while the server can still act (rule 3)", () => {
+  const end = at("2026-11-02T20:00:00Z");
+  it.each([
+    ["nothing blocks", false, "2026-11-02T08:00:00Z", end, false],
+    ["blocked before the shift ends", true, "2026-11-02T08:00:00Z", end, true],
+    [
+      "blocked, a device time set back, the shift still running",
+      true,
+      "2026-11-02T19:59:00Z",
+      end,
+      true,
+    ],
+    ["blocked, uploaded after the shift ended", true, "2026-11-02T20:00:00Z", end, false],
+    ["blocked with no shift", true, "2026-11-02T08:00:00Z", null, true],
+  ] as const)("hazard HZ-124 %s", (_, blocked, serverNow, shiftEnd, refused) => {
+    expect(clockInRefused(blocked, at(serverNow), shiftEnd)).toBe(refused);
   });
 });
 
@@ -204,6 +242,24 @@ describe("approved time as working time (rule 7)", () => {
           })),
         }),
       ),
+    ).toBe(minutes);
+  });
+});
+
+describe("hazard HZ-010 time across the clock changes (UK)", () => {
+  it.each([
+    // 25 October 2026: clocks go back at 02:00 BST, so a 20:00 to 08:00 night is 13 hours.
+    ["the autumn change", "2026-10-24T19:00:00Z", "2026-10-25T08:00:00Z", 780],
+    // 28 March 2027: clocks go forward at 01:00 GMT, so a 20:00 to 08:00 night is 11 hours.
+    ["the spring change", "2027-03-27T20:00:00Z", "2027-03-28T07:00:00Z", 660],
+  ] as const)("hazard HZ-010 counts a night over %s by the instants worked", (_, s, e, minutes) => {
+    const paired = pairClockEvents([
+      { id: "i", kind: "in", at: at(s) },
+      { id: "o", kind: "out", at: at(e) },
+    ]);
+    expect(paired.problems).toEqual([]);
+    expect(
+      workedMinutes({ start: paired.start as Date, end: paired.end as Date, breaks: [] }),
     ).toBe(minutes);
   });
 });

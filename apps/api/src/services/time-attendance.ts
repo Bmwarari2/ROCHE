@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   agencyBooking,
-  type clockEvent,
+  clockEvent,
   locationInduction,
   rosterOverride,
   shift,
@@ -25,7 +25,7 @@ import {
   WORKING_TIME_RATE_KEYS,
   workingTimeWindow,
 } from "@harbour/domain";
-import { and, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, eq, exists, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { rateRows } from "./rates";
 import {
   DEFAULT_WORKING_TIME_SETTING,
@@ -110,7 +110,8 @@ export async function clockInProblems(
           and(
             eq(locationInduction.workerId, workerId),
             eq(locationInduction.locationId, s.locationId),
-            lte(locationInduction.inductedOn, ukIsoDate(now)),
+            // By the shift's date, not the upload's: an induction after the shift never covers it.
+            lte(locationInduction.inductedOn, ukIsoDate(s.startsAt)),
           ),
         )
         .limit(1),
@@ -143,6 +144,49 @@ export async function ownShift(
   return rows[0]?.s ?? null;
 }
 
+/**
+ * A shift the member was on, or booked for, even if the assignment, booking or shift has since been
+ * removed or cancelled: a late upload for it is kept and flagged, never dropped (rule 1; HZ-010).
+ */
+export async function formerShift(
+  tx: Transaction,
+  workerId: string,
+  shiftId: string,
+): Promise<ShiftRow | null> {
+  const rows = await withSystemRights(tx, () =>
+    tx
+      .select({ s: shift })
+      .from(shift)
+      .where(
+        and(
+          eq(shift.id, shiftId),
+          or(
+            exists(
+              tx
+                .select({ one: sql`1` })
+                .from(shiftAssignment)
+                .where(
+                  and(
+                    eq(shiftAssignment.shiftId, shift.id),
+                    eq(shiftAssignment.workerId, workerId),
+                  ),
+                ),
+            ),
+            exists(
+              tx
+                .select({ one: sql`1` })
+                .from(agencyBooking)
+                .where(
+                  and(eq(agencyBooking.shiftId, shift.id), eq(agencyBooking.workerId, workerId)),
+                ),
+            ),
+          ),
+        ),
+      ),
+  );
+  return rows[0]?.s ?? null;
+}
+
 /** A bank or agency member's confirmed booking of a shift (ADR-0088), with the shift. */
 export async function bookedShift(
   tx: Transaction,
@@ -168,26 +212,99 @@ export async function bookedShift(
   return rows[0]?.s ?? null;
 }
 
-/** Raises an urgent task for the Registered Manager at a location about a clock exception. */
+/** What a clock exception task says, by the most serious flag (fixed text, ids only). */
+export const CLOCK_EXCEPTION_TITLES: Readonly<Record<string, string>> = {
+  not_eligible: "Check a clock-in: a check the shift needs was missing or had lapsed",
+  no_induction: "Check a clock-in: no induction at this location",
+  no_booking: "Check a clock event: the booking had been cancelled",
+  not_on_shift: "Check a clock event: the shift or assignment had been removed",
+  no_permission: "Check a clock event: the member no longer records their own time",
+  other_location: "Check a clock event: recorded at another location than the shift's",
+  no_shift: "Check a clock-in recorded offline with no shift: the checks could not run",
+};
+const EXCEPTION_ORDER = Object.keys(CLOCK_EXCEPTION_TITLES);
+
+/** The flags that raise a clock exception task, most serious first (outside_access_window alone does not). */
+export function exceptionFlags(flags: Iterable<string>, kind: string): string[] {
+  const set = new Set(flags);
+  if (kind !== "in") set.delete("no_shift");
+  return EXCEPTION_ORDER.filter((f) => set.has(f));
+}
+
+/**
+ * Raises an urgent task for the Registered Manager at a location about a clock exception, at most
+ * one open per worker and shift (HZ-008: alert fatigue), titled by the most serious check.
+ */
 export async function raiseClockException(
   tx: Transaction,
-  locationId: string,
-  eventId: string,
-  title: string,
+  event: { id: string; locationId: string; workerId: string; shiftId: string | null },
+  flags: readonly string[],
 ) {
-  await withSystemRights(tx, () =>
-    tx.insert(task).values({
+  const first = flags[0];
+  if (!first) return;
+  await withSystemRights(tx, async () => {
+    if (event.shiftId) {
+      const [open] = await tx
+        .select({ id: task.id })
+        .from(task)
+        .innerJoin(clockEvent, eq(clockEvent.id, task.sourceId))
+        .where(
+          and(
+            eq(task.kind, "scheduling.clock_exception"),
+            eq(task.sourceType, "clock_event"),
+            eq(task.status, "open"),
+            eq(clockEvent.workerId, event.workerId),
+            eq(clockEvent.shiftId, event.shiftId),
+          ),
+        )
+        .limit(1);
+      if (open) return;
+    }
+    await tx.insert(task).values({
       kind: "scheduling.clock_exception",
-      title,
+      title: CLOCK_EXCEPTION_TITLES[first] ?? "Check a clock event",
       requiredPermission: "scheduling.rota.approve",
-      locationId,
+      locationId: event.locationId,
       sourceType: "clock_event",
-      sourceId: eventId,
+      sourceId: event.id,
       assigneeRoleKey: CLOCK_EXCEPTION_ROLE,
       dueAt: new Date(),
       priority: "urgent",
-    }),
-  );
+    });
+  });
+}
+
+/**
+ * A refused online clock-in leaves the shift short: an urgent task for the person in charge, at
+ * most one open per shift (HZ-123, HZ-008).
+ */
+export async function raiseRefusedClockIn(tx: Transaction, s: ShiftRow) {
+  await withSystemRights(tx, async () => {
+    const [open] = await tx
+      .select({ id: task.id })
+      .from(task)
+      .where(
+        and(
+          eq(task.kind, "scheduling.clock_in_refused"),
+          eq(task.sourceType, "shift"),
+          eq(task.sourceId, s.id),
+          eq(task.status, "open"),
+        ),
+      )
+      .limit(1);
+    if (open) return;
+    await tx.insert(task).values({
+      kind: "scheduling.clock_in_refused",
+      title: "A clock-in was refused: check the shift is covered",
+      requiredPermission: "scheduling.rota.approve",
+      locationId: s.locationId,
+      sourceType: "shift",
+      sourceId: s.id,
+      assigneeRoleKey: CLOCK_EXCEPTION_ROLE,
+      dueAt: new Date(),
+      priority: "urgent",
+    });
+  });
 }
 
 /**

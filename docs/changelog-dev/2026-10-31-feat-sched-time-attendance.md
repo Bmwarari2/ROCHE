@@ -33,3 +33,27 @@ API. The screens are slice 60 and the phone's offline queue is slice 71.
 - **Data protection** (employee monitoring): records of processing, data standards, retention and
   the export catalogue (six tables).
 - **Human actions**: H-990 to H-999.
+
+## Review fixes
+
+The security and clinical-safety reviews were run and their findings fixed:
+
+- **Rule on the day:**
+  - A blocked clock-in is refused while its shift has not ended, whatever the device's time
+    (`clockInRefused`), and the person in charge gets a task.
+  - A clock-in names its shift.
+  - The induction counts by the shift's date.
+- **Late uploads:** kept, flagged and raised when the shift, booking or permission was removed after
+  the time was worked; every refusal is audited.
+- **Evidence:** kept only as the location's setting asks; NFC tags and device ids are short codes
+  (database checks).
+- **Clock events:** written in the member's own name; replays race safely.
+- **Pairing:** a clock-in or clock-out is in one entry at most (unique index, foreign keys), and a
+  clock-in uploaded after its clock-out pairs with it.
+- **Approval:** never by whoever entered or last changed the entry, and never before it ends.
+- **Tasks:** clock exception tasks are deduplicated and titled by the check; working time tasks are
+  one per worker.
+- **Opt-outs and results:** limited to approvers where the member works; results are written only
+  by the system.
+- **Database:** definer and ACL fixes, and a cross-tenant test over all six tables.
+- **Tests:** DST tests across both clock changes.

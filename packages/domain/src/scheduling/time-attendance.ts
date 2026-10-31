@@ -23,6 +23,11 @@ export const CLOCK_FLAGS = [
   "no_shift",
   "not_eligible",
   "no_induction",
+  "no_booking",
+  "not_on_shift",
+  "other_location",
+  "no_permission",
+  "evidence_not_matched",
 ] as const;
 export type ClockFlag = (typeof CLOCK_FLAGS)[number];
 
@@ -133,26 +138,60 @@ export interface TimesheetFact {
   readonly supersedesId: string | null;
 }
 
-export type ApprovalProblem = "own_entry" | "not_draft" | "superseded" | "times_out_of_order";
+export type ApprovalProblem =
+  | "own_entry"
+  | "entered_by_approver"
+  | "not_draft"
+  | "superseded"
+  | "times_out_of_order"
+  | "ends_in_future";
 
 export const APPROVAL_MESSAGES: Readonly<Record<ApprovalProblem, string>> = {
   own_entry: "Someone else must approve your own timesheet.",
+  entered_by_approver:
+    "Someone other than whoever entered or last changed this entry must approve it.",
   not_draft: "Only a draft can be approved; correct an approved entry instead.",
   superseded: "This entry has been corrected; approve the correction instead.",
   times_out_of_order: "The entry ends before it starts.",
+  ends_in_future: "The entry has not ended yet; approve it once it has.",
 };
+
+/** Who entered or last changed an entry, and when approval is asked (rule 5). */
+export interface ApprovalContext {
+  readonly now: Date;
+  /** Whoever entered it by hand or as a correction; null for an entry made from the clock. */
+  readonly enteredBy: string | null;
+  /** Whoever last changed it after it was made, if anyone. */
+  readonly changedBy: string | null;
+}
 
 /** Rule 5: whether an approver may approve an entry. */
 export function approvalProblem(
   entry: TimesheetFact,
   approverId: string,
   supersededIds: ReadonlySet<string>,
+  context: ApprovalContext,
 ): ApprovalProblem | null {
   if (entry.workerId === approverId) return "own_entry";
+  if (context.enteredBy === approverId || context.changedBy === approverId) {
+    return "entered_by_approver";
+  }
   if (entry.status !== "draft") return "not_draft";
   if (supersededIds.has(entry.id)) return "superseded";
   if (entry.end <= entry.start) return "times_out_of_order";
+  if (entry.end > context.now) return "ends_in_future";
   return null;
+}
+
+/**
+ * Rule 3 (HZ-124): a clock-in the rule on the day blocks is refused while the server can still
+ * act, that is before the shift has ended, whatever time the device gives (a device time set back
+ * cannot turn a refusal into a flag). Once the shift has ended the time was worked: it is kept,
+ * flagged and raised as an urgent task.
+ */
+export function clockInRefused(blocked: boolean, now: Date, shiftEnd: Date | null): boolean {
+  if (!blocked) return false;
+  return shiftEnd === null || now < shiftEnd;
 }
 
 /**

@@ -20,6 +20,7 @@ import {
 import {
   clockEvent,
   clockSetting,
+  shift,
   sleepInAwakePeriod,
   type Transaction,
   task,
@@ -33,6 +34,7 @@ import {
   type ClockFlag,
   can,
   clockFlags,
+  clockInRefused,
   PAIRING_MESSAGES,
   pairClockEvents,
   ukEndOfDay,
@@ -42,7 +44,7 @@ import {
   workedMinutes,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { writeAudit } from "../http/audit";
 import {
@@ -56,12 +58,16 @@ import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { currentBookedShiftEnd } from "../services/agency-window";
 import { rateNumber } from "../services/rates";
+import type { ShiftRow } from "../services/rota";
 import { withSystemRights } from "../services/system-rights";
 import {
   bookedShift,
   clockInProblems,
+  exceptionFlags,
+  formerShift,
   ownShift,
   raiseClockException,
+  raiseRefusedClockIn,
   storeWorkingTimeResult,
   type TimesheetRow,
   timesheetFact,
@@ -75,7 +81,7 @@ import {
   security,
 } from "./openapi";
 import { audit, requireLocationInScope } from "./people-shared";
-import { change, stale } from "./rota";
+import { change, stale, worksAt } from "./rota";
 
 /**
  * Time and attendance and working-time records (scheduling.md section 16; SCHED-004, SCHED-003;
@@ -103,6 +109,11 @@ const A = {
 const IdParam = z.object({ id: z.uuid() });
 const Range = z.object({ from: z.iso.date(), to: z.iso.date() });
 const PAIRING: readonly string[] = Object.keys(PAIRING_MESSAGES);
+/**
+ * How far back a clock-out looks for its clock-in: the longest entry the database allows (25 hours,
+ * a design limit, not a statutory figure; a longer live-in stretch is entered by hand).
+ */
+const PAIRING_LOOK_HOURS = 25;
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
 function rangeOf(q: { from: string; to: string }) {
@@ -148,7 +159,9 @@ async function entryItems(
   const superseded = new Set(
     correctors.filter((c) => c.status === "approved").map((c) => c.supersedesId as string),
   );
-  const outIds = rows.map((r) => r.clockOutId).filter((v): v is string => v !== null);
+  const outIds = rows
+    .flatMap((r) => [r.clockOutId, r.clockInId])
+    .filter((v): v is string => v !== null);
   const outs =
     outIds.length === 0
       ? []
@@ -185,9 +198,14 @@ async function entryItems(
       correctionReason: r.correctionReason,
       superseded: superseded.has(r.id),
       workedMinutes: workedMinutes(fact),
-      problems: (outs.find((o) => o.id === r.clockOutId)?.flags ?? []).filter((f) =>
-        PAIRING.includes(f),
-      ),
+      problems: [
+        ...new Set(
+          outs
+            .filter((o) => o.id === r.clockOutId || o.id === r.clockInId)
+            .flatMap((o) => o.flags)
+            .filter((f) => PAIRING.includes(f)),
+        ),
+      ],
       awakePeriods: awake
         .filter((p) => p.timesheetEntryId === r.id)
         .map((p) => ({ start: p.startedAt.toISOString(), end: p.endedAt.toISOString() })),
@@ -248,6 +266,205 @@ const refusedClock = async (
   return problem;
 };
 
+type ClockRow = typeof clockEvent.$inferSelect;
+
+/** The stored event for a replayed id: the same event returns it; anything else is a conflict. */
+async function replayOf(
+  tx: Transaction,
+  body: { id: string; kind: string },
+  me: string,
+  deviceTime: Date,
+): Promise<{ replay: ReturnType<typeof eventItem> } | null> {
+  const [existing] = await withSystemRights(tx, () =>
+    tx.select().from(clockEvent).where(eq(clockEvent.id, body.id)),
+  );
+  if (!existing) return null;
+  if (
+    existing.workerId !== me ||
+    existing.kind !== body.kind ||
+    existing.deviceTime.getTime() !== deviceTime.getTime()
+  ) {
+    throw new HttpProblem(409, "clock_id_reused", "That event id was used for a different event.");
+  }
+  const [entry] = await withSystemRights(tx, () =>
+    tx
+      .select({ id: timesheetEntry.id })
+      .from(timesheetEntry)
+      .where(
+        and(
+          or(eq(timesheetEntry.clockOutId, existing.id), eq(timesheetEntry.clockInId, existing.id)),
+          isNull(timesheetEntry.supersedesId),
+        ),
+      )
+      .limit(1),
+  );
+  return { replay: eventItem(existing, entry?.id ?? null) };
+}
+
+/** The evidence kept: only what the location's setting asks for, an NFC tag only if listed. */
+async function allowedEvidence(
+  tx: Transaction,
+  body: { locationId: string; evidence: string; nfcTagRef: string | null },
+): Promise<{ evidence: "none" | "at_location" | "nfc"; nfcTagRef: string | null }> {
+  if (body.evidence === "none") return { evidence: "none", nfcTagRef: null };
+  const [setting] = await withSystemRights(tx, () =>
+    tx.select().from(clockSetting).where(eq(clockSetting.locationId, body.locationId)),
+  );
+  if (!setting || setting.evidence !== body.evidence) return { evidence: "none", nfcTagRef: null };
+  if (body.evidence === "nfc" && !setting.nfcTagRefs.includes(body.nfcTagRef ?? "")) {
+    return { evidence: "none", nfcTagRef: null };
+  }
+  return { evidence: body.evidence as "at_location" | "nfc", nfcTagRef: body.nfcTagRef };
+}
+
+/** A clock event already in a live entry made from the clock. */
+const inEntry = (column: typeof timesheetEntry.clockInId | typeof timesheetEntry.clockOutId) =>
+  sql`EXISTS (SELECT 1 FROM public.timesheet_entry te WHERE te.tenant_id = ${clockEvent.tenantId}
+    AND ${sql.raw(`te.${column.name}`)} = ${clockEvent.id} AND te.supersedes_id IS NULL
+    AND te.deleted_at IS NULL)`;
+
+type ClockFact = Pick<
+  ClockRow,
+  "id" | "kind" | "workerId" | "locationId" | "deviceTime" | "shiftId"
+>;
+interface PairPlan {
+  readonly clockIn: ClockFact;
+  readonly clockOut: ClockFact;
+  readonly paired: ReturnType<typeof pairClockEvents>;
+}
+
+/**
+ * Rule 4: pairs a clock-out with the member's latest unpaired clock-in at the location before it
+ * (within the longest entry), or a clock-in with the next unpaired clock-out after it with no
+ * other clock-in between, with the breaks between them. Run before the event is stored, so its
+ * problems are kept on it; a clock-out with no clock-in is flagged.
+ */
+async function planPair(
+  tx: Transaction,
+  made: ClockFact,
+): Promise<{ plan: PairPlan | null; problems: string[] }> {
+  const none = { plan: null, problems: [] as string[] };
+  if (made.kind !== "in" && made.kind !== "out") return none;
+  const span = PAIRING_LOOK_HOURS * 3_600_000;
+  const same = and(
+    eq(clockEvent.workerId, made.workerId),
+    eq(clockEvent.locationId, made.locationId),
+  );
+  let clockIn: ClockFact | undefined;
+  let clockOut: ClockFact | undefined;
+  if (made.kind === "out") {
+    clockOut = made;
+    [clockIn] = await withSystemRights(tx, () =>
+      tx
+        .select()
+        .from(clockEvent)
+        .where(
+          and(
+            same,
+            eq(clockEvent.kind, "in"),
+            lt(clockEvent.deviceTime, made.deviceTime),
+            gt(clockEvent.deviceTime, new Date(made.deviceTime.getTime() - span)),
+            sql`NOT ${inEntry(timesheetEntry.clockInId)}`,
+          ),
+        )
+        .orderBy(desc(clockEvent.deviceTime))
+        .limit(1),
+    );
+  } else {
+    clockIn = made;
+    [clockOut] = await withSystemRights(tx, () =>
+      tx
+        .select()
+        .from(clockEvent)
+        .where(
+          and(
+            same,
+            eq(clockEvent.kind, "out"),
+            gt(clockEvent.deviceTime, made.deviceTime),
+            lt(clockEvent.deviceTime, new Date(made.deviceTime.getTime() + span)),
+            sql`NOT ${inEntry(timesheetEntry.clockOutId)}`,
+          ),
+        )
+        .orderBy(asc(clockEvent.deviceTime))
+        .limit(1),
+    );
+    if (!clockOut) return none;
+    const out = clockOut;
+    const between = await withSystemRights(tx, () =>
+      tx
+        .select({ id: clockEvent.id })
+        .from(clockEvent)
+        .where(
+          and(
+            same,
+            eq(clockEvent.kind, "in"),
+            gt(clockEvent.deviceTime, made.deviceTime),
+            lt(clockEvent.deviceTime, out.deviceTime),
+          ),
+        )
+        .limit(1),
+    );
+    if (between.length > 0) return none;
+  }
+  const from = clockIn?.deviceTime;
+  const breaks =
+    from && clockOut
+      ? await withSystemRights(tx, () =>
+          tx
+            .select()
+            .from(clockEvent)
+            .where(
+              and(
+                same,
+                inArray(clockEvent.kind, ["break_start", "break_end"]),
+                gt(clockEvent.deviceTime, from),
+                lt(clockEvent.deviceTime, (clockOut as ClockFact).deviceTime),
+              ),
+            ),
+        )
+      : [];
+  const paired = pairClockEvents([
+    ...(clockIn ? [{ id: clockIn.id, kind: "in" as const, at: clockIn.deviceTime }] : []),
+    ...breaks.map((e) => ({ id: e.id, kind: e.kind as "break_start", at: e.deviceTime })),
+    ...(clockOut ? [{ id: clockOut.id, kind: "out" as const, at: clockOut.deviceTime }] : []),
+  ]);
+  if (!clockIn || !clockOut || !paired.start || !paired.end || paired.end <= paired.start) {
+    return { plan: null, problems: [...paired.problems] };
+  }
+  return { plan: { clockIn, clockOut, paired }, problems: [...paired.problems] };
+}
+
+/** Drafts the entry a pairing found (rule 4); one per clock-in and clock-out. Returns its id. */
+async function draftFrom(tx: Transaction, plan: PairPlan): Promise<string | null> {
+  const { clockIn, clockOut, paired } = plan;
+  const shiftId = clockIn.shiftId ?? clockOut.shiftId;
+  const [s] = shiftId
+    ? await withSystemRights(tx, () => tx.select().from(shift).where(eq(shift.id, shiftId)))
+    : [];
+  const [entry] = await withSystemRights(tx, () =>
+    tx
+      .insert(timesheetEntry)
+      .values({
+        workerId: clockIn.workerId,
+        locationId: clockIn.locationId,
+        shiftId: shiftId ?? null,
+        kind: (s?.kind ?? "work") as "work",
+        startedAt: paired.start as Date,
+        endedAt: paired.end as Date,
+        breaks: paired.breaks.map((b) => ({
+          start: b.start.toISOString(),
+          end: b.end.toISOString(),
+        })),
+        source: "clock",
+        clockInId: clockIn.id,
+        clockOutId: clockOut.id,
+      })
+      .onConflictDoNothing()
+      .returning({ id: timesheetEntry.id }),
+  );
+  return entry?.id ?? null;
+}
+
 export const timeAttendanceRouter = createRouter()
   // ----------------------------------------------------------------------------------------
   // Clock events (rules 1 to 3)
@@ -277,198 +494,158 @@ export const timeAttendanceRouter = createRouter()
       if ((body.evidence === "nfc") !== (body.nfcTagRef !== null)) {
         throw problems.invalid("An NFC clock-in names the tag read; no other does.");
       }
+      const me = access.tenantUserId;
       const result = await withTenant(c, async (tx) => {
+        const refuse = async (reason: string, problem: HttpProblem) => ({
+          refused: await refusedClock(c, access, reason, problem),
+        });
         // Idempotent: a replay of the same id returns the stored event (rule 1).
-        const [existing] = await withSystemRights(tx, () =>
-          tx.select().from(clockEvent).where(eq(clockEvent.id, body.id)),
-        );
-        if (existing) {
-          if (
-            existing.workerId !== access.tenantUserId ||
-            existing.kind !== body.kind ||
-            existing.deviceTime.getTime() !== deviceTime.getTime()
-          ) {
-            return {
-              refused: new HttpProblem(
-                409,
-                "clock_id_reused",
-                "That event id was used for a different event.",
-              ),
-            };
-          }
-          return { replay: eventItem(existing) };
-        }
+        const replay = await replayOf(tx, body, me, deviceTime);
+        if (replay) return replay;
         const tolerance = await rateNumber(tx, access.tenantId, "sync.clock_drift_flag_minutes");
         const flags = new Set<string>(clockFlags(deviceTime, now, tolerance));
-        const agency = await isAgencyMember(tx, access.tenantUserId);
-        let s = null as Awaited<ReturnType<typeof ownShift>>;
+        const late = flags.has("late_upload");
+        const agency = await isAgencyMember(tx, me);
+        const selfRecorder = can(access.effective, "scheduling.timesheet.self");
+        let s: ShiftRow | null = null;
         if (agency) {
           // Rule 2 (ADR-0088): a bank or agency member clocks only for a booked shift, at a device
           // time inside its window; after the window closes the event is still accepted, flagged.
           if (!body.shiftId) {
-            return {
-              refused: await refusedClock(
-                c,
-                access,
-                "no_booking",
-                new HttpProblem(422, "no_booking", "Clock in for the shift you are booked on."),
-              ),
-            };
+            return refuse(
+              "no_booking",
+              new HttpProblem(422, "no_booking", "Clock in for the shift you are booked on."),
+            );
           }
-          s = await bookedShift(tx, access.tenantUserId, body.shiftId);
+          s = await bookedShift(tx, me, body.shiftId);
+          if (!s && late) {
+            // Booked when worked, cancelled since: kept and flagged (rule 1).
+            s = await formerShift(tx, me, body.shiftId);
+            if (s) flags.add("no_booking");
+          }
           const hours = await rateNumber(tx, access.tenantId, "access.agency.post_shift_hours");
           if (!s || !withinBookedWindow(deviceTime, { start: s.startsAt, end: s.endsAt }, hours)) {
-            return {
-              refused: await refusedClock(
-                c,
-                access,
+            return refuse(
+              "no_booking",
+              new HttpProblem(
+                422,
                 "no_booking",
-                new HttpProblem(
-                  422,
-                  "no_booking",
-                  "There is no booking of yours for this shift at that time.",
-                ),
+                "There is no booking of yours for this shift at that time.",
               ),
-            };
+            );
           }
-          const open = await currentBookedShiftEnd(tx, access.tenantUserId, now, hours);
-          if (!open) flags.add("outside_access_window");
+          if (!(await currentBookedShiftEnd(tx, me, now, hours)))
+            flags.add("outside_access_window");
         } else {
-          if (!can(access.effective, "scheduling.timesheet.self")) throw problems.forbidden();
+          if (!selfRecorder && !(late && body.shiftId)) {
+            return refuse("missing_permission", problems.forbidden());
+          }
           if (body.shiftId) {
-            s = await ownShift(tx, access.tenantUserId, body.shiftId);
-            if (!s) throw problems.invalid("That is not a shift you are on.");
+            s = await ownShift(tx, me, body.shiftId);
+            if (s && !selfRecorder) flags.add("no_permission");
+            if (!s && late) {
+              // On the shift when worked, removed since: kept and flagged (rule 1).
+              s = await formerShift(tx, me, body.shiftId);
+              if (s) flags.add(selfRecorder ? "not_on_shift" : "no_permission");
+            }
+            if (!s) {
+              return refuse(
+                "not_on_shift",
+                new HttpProblem(422, "not_on_shift", "That is not a shift you are on."),
+              );
+            }
           } else {
+            // Rule 3: a clock-in names its shift, so the checks can run; one recorded offline
+            // without is kept, flagged and raised. Without a shift, only where the member works.
+            if (body.kind === "in" && !late) {
+              return refuse(
+                "no_shift",
+                new HttpProblem(422, "no_shift", "Clock in for a shift you are on."),
+              );
+            }
+            if (!(await worksAt(tx, me, body.locationId))) {
+              return refuse(
+                "not_at_location",
+                new HttpProblem(422, "not_at_location", "You do not work at that location."),
+              );
+            }
             flags.add("no_shift");
           }
         }
         if (s && s.locationId !== body.locationId) {
-          throw problems.invalid("The shift is at another location.");
+          if (!late) {
+            return refuse(
+              "other_location",
+              new HttpProblem(422, "other_location", "The shift is at another location."),
+            );
+          }
+          flags.add("other_location");
         }
-        const late = flags.has("late_upload");
-        // Rule 3 (HZ-124): the rule on the day.
+        // Rule 3 (HZ-124): the rule on the day, refused while the shift has not ended whatever
+        // the device's time; after it, kept, flagged and raised.
         if (s && body.kind === "in") {
-          const found = await clockInProblems(
-            tx,
-            access.tenantId,
-            s,
-            access.tenantUserId,
-            agency,
-            now,
-          );
-          if (found.length > 0 && !late) {
-            return {
-              refused: await refusedClock(
-                c,
-                access,
-                found[0] as string,
-                new HttpProblem(
-                  422,
-                  found[0] as string,
-                  found[0] === "no_induction"
-                    ? "You need an induction at this location before you start. Ask the person in charge."
-                    : "You cannot start this shift: a check you need is missing or has lapsed. Ask the person in charge.",
-                ),
+          const found = await clockInProblems(tx, access.tenantId, s, me, agency, now);
+          if (clockInRefused(found.length > 0, now, s.endsAt)) {
+            await raiseRefusedClockIn(tx, s);
+            const first = found[0] as string;
+            return refuse(
+              first,
+              new HttpProblem(
+                422,
+                first,
+                first === "no_induction"
+                  ? "You need an induction at this location before you start. Ask the person in charge."
+                  : "You cannot start this shift: a check you need is missing or has lapsed. Ask the person in charge.",
               ),
-            };
+            );
           }
           for (const f of found) flags.add(f);
         }
-        // Pairing a clock-out with the open clock-in (rule 4).
-        let paired: ReturnType<typeof pairClockEvents> | null = null;
-        if (body.kind === "out") {
-          const [lastIn] = await withSystemRights(tx, () =>
-            tx
-              .select()
-              .from(clockEvent)
-              .where(
-                and(
-                  eq(clockEvent.workerId, access.tenantUserId),
-                  eq(clockEvent.kind, "in"),
-                  eq(clockEvent.locationId, body.locationId),
-                  lt(clockEvent.deviceTime, deviceTime),
-                  gt(clockEvent.deviceTime, new Date(deviceTime.getTime() - 25 * 3_600_000)),
-                ),
-              )
-              .orderBy(desc(clockEvent.deviceTime))
-              .limit(1),
-          );
-          const between = lastIn
-            ? await withSystemRights(tx, () =>
-                tx
-                  .select()
-                  .from(clockEvent)
-                  .where(
-                    and(
-                      eq(clockEvent.workerId, access.tenantUserId),
-                      inArray(clockEvent.kind, ["break_start", "break_end"]),
-                      gt(clockEvent.deviceTime, lastIn.deviceTime),
-                      lt(clockEvent.deviceTime, deviceTime),
-                    ),
-                  ),
-              )
-            : [];
-          paired = pairClockEvents([
-            ...(lastIn ? [{ id: lastIn.id, kind: "in" as const, at: lastIn.deviceTime }] : []),
-            ...between.map((e) => ({ id: e.id, kind: e.kind as "break_start", at: e.deviceTime })),
-            { id: body.id, kind: "out", at: deviceTime },
-          ]);
-          for (const p of paired.problems) flags.add(p);
-        }
-        const [made] = await withSystemRights(tx, () =>
-          tx
-            .insert(clockEvent)
-            .values({
-              id: body.id,
-              workerId: access.tenantUserId,
-              kind: body.kind,
-              shiftId: s?.id ?? null,
-              locationId: body.locationId,
-              deviceTime,
-              recordedAt: now,
-              deviceId: body.deviceId,
-              evidence: body.evidence,
-              nfcTagRef: body.nfcTagRef,
-              flags: [...flags],
-            })
-            .returning(),
-        );
-        if (!made) throw new Error("clock event not stored");
-        let entryId: string | null = null;
-        if (paired?.start && paired.end && paired.end > paired.start) {
-          const [entry] = await withSystemRights(tx, () =>
-            tx
-              .insert(timesheetEntry)
-              .values({
-                workerId: access.tenantUserId,
-                locationId: body.locationId,
-                shiftId: s?.id ?? null,
-                kind: (s?.kind ?? "work") as "work",
-                startedAt: paired.start as Date,
-                endedAt: paired.end as Date,
-                breaks: paired.breaks.map((b) => ({
-                  start: b.start.toISOString(),
-                  end: b.end.toISOString(),
-                })),
-                source: "clock",
-                clockInId: paired.clockInId,
-                clockOutId: made.id,
-              })
-              .returning({ id: timesheetEntry.id }),
-          );
-          entryId = entry?.id ?? null;
-        }
-        const serious = [...flags].filter((f) =>
-          ["not_eligible", "no_induction", "outside_access_window"].includes(f),
-        );
-        if (serious.length > 0) {
-          await raiseClockException(
-            tx,
-            body.locationId,
-            made.id,
-            "Check a clock event recorded offline: a check was missing or access had ended",
+        // Evidence only as the location's setting allows (H-527): anything else is not kept.
+        const evidence = await allowedEvidence(tx, body);
+        if (evidence.evidence !== body.evidence) flags.add("evidence_not_matched");
+        const pairing = await planPair(tx, {
+          id: body.id,
+          kind: body.kind,
+          workerId: me,
+          locationId: body.locationId,
+          deviceTime,
+          shiftId: s?.id ?? null,
+        });
+        for (const p of pairing.problems) flags.add(p);
+        const values = {
+          id: body.id,
+          workerId: me,
+          kind: body.kind,
+          shiftId: s?.id ?? null,
+          locationId: body.locationId,
+          deviceTime,
+          recordedAt: now,
+          deviceId: body.deviceId,
+          evidence: evidence.evidence,
+          nfcTagRef: evidence.nfcTagRef,
+          flags: [...flags],
+          createdBy: me,
+        };
+        // Written in the member's own name, so the database's self check applies; the system
+        // writes only what that check would refuse (an agency upload, a lapsed permission).
+        const insert = () => tx.insert(clockEvent).values(values).onConflictDoNothing().returning();
+        const asSelf = !agency && selfRecorder;
+        const [made] = asSelf ? await insert() : await withSystemRights(tx, insert);
+        if (!made) {
+          const again = await replayOf(tx, body, me, deviceTime);
+          if (again) return again;
+          throw new HttpProblem(
+            409,
+            "clock_id_reused",
+            "That event id was used for a different event.",
           );
         }
+        // Rule 4: a clock-out pairs with its open clock-in; a clock-in uploaded after its
+        // clock-out pairs with it then.
+        const entryId = pairing.plan ? await draftFrom(tx, pairing.plan) : null;
+        const raised = exceptionFlags(flags, body.kind);
+        if (raised.length > 0) await raiseClockException(tx, made, raised);
         await audit(c, tx, access, {
           action: A.recorded,
           resourceType: "clock_event",
@@ -612,7 +789,7 @@ export const timeAttendanceRouter = createRouter()
             action: A.setting,
             resourceType: "location",
             resourceId: id,
-            scopeExtra: { evidence: body.evidence },
+            scopeExtra: { evidence: body.evidence, dpiaApproved: body.dpiaApproved },
           });
           return saved as typeof clockSetting.$inferSelect;
         },
@@ -823,7 +1000,11 @@ export const timeAttendanceRouter = createRouter()
             .from(timesheetEntry)
             .where(eq(timesheetEntry.supersedesId, id));
           const superseded = new Set(correctors.some((x) => x.status === "approved") ? [id] : []);
-          const problem = approvalProblem(timesheetFact(row), access.tenantUserId, superseded);
+          const problem = approvalProblem(timesheetFact(row), access.tenantUserId, superseded, {
+            now: new Date(),
+            enteredBy: row.source === "manual" || row.supersedesId ? row.createdBy : null,
+            changedBy: row.version > 1 ? row.updatedBy : null,
+          });
           if (problem) {
             await audit(c, tx, access, {
               action: A.approved,
@@ -834,8 +1015,10 @@ export const timeAttendanceRouter = createRouter()
             });
             return {
               refused: new HttpProblem(
-                problem === "own_entry" ? 403 : 409,
-                problem === "own_entry" ? "separation_of_duties" : problem,
+                problem === "own_entry" || problem === "entered_by_approver" ? 403 : 409,
+                problem === "own_entry" || problem === "entered_by_approver"
+                  ? "separation_of_duties"
+                  : problem,
                 APPROVAL_MESSAGES[problem],
               ),
             };
@@ -849,7 +1032,7 @@ export const timeAttendanceRouter = createRouter()
           if (!done) throw stale();
           const wt = await storeWorkingTimeResult(tx, done, "timesheet_approved");
           if (wt.breaches + wt.conditionals > 0) {
-            await raiseWorkingTimeTask(tx, done.locationId, wt.id);
+            await raiseWorkingTimeTask(tx, done.locationId, done.workerId, wt.id);
             await publish(tx, {
               context: "scheduling",
               aggregateType: "working_time_result",
@@ -1224,9 +1407,28 @@ function optOutItem(o: typeof workingTimeOptOut.$inferSelect): z.infer<typeof Op
 }
 
 /** A task for the Registered Manager when a working time finding stands (rule 5; advice). */
-async function raiseWorkingTimeTask(tx: Transaction, locationId: string, resultId: string) {
-  await withSystemRights(tx, () =>
-    tx.insert(task).values({
+async function raiseWorkingTimeTask(
+  tx: Transaction,
+  locationId: string,
+  workerId: string,
+  resultId: string,
+) {
+  await withSystemRights(tx, async () => {
+    // At most one open per worker (HZ-008): the latest result is on the member's working time.
+    const [open] = await tx
+      .select({ id: task.id })
+      .from(task)
+      .innerJoin(workingTimeResult, eq(workingTimeResult.id, task.sourceId))
+      .where(
+        and(
+          eq(task.kind, "scheduling.working_time_finding"),
+          eq(task.status, "open"),
+          eq(workingTimeResult.workerId, workerId),
+        ),
+      )
+      .limit(1);
+    if (open) return;
+    await tx.insert(task).values({
       kind: "scheduling.working_time_finding",
       title: "Review a working time finding",
       requiredPermission: "scheduling.rota.approve",
@@ -1236,8 +1438,8 @@ async function raiseWorkingTimeTask(tx: Transaction, locationId: string, resultI
       assigneeRoleKey: WORKING_TIME_FINDING_ROLE,
       dueAt: new Date(),
       priority: "routine",
-    }),
-  );
+    });
+  });
 }
 
 /** Who working time findings go to (the organisation may give the role to anyone). */

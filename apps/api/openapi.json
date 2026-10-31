@@ -29855,8 +29855,7 @@
               "string",
               "null"
             ],
-            "minLength": 1,
-            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9._:-]{1,120}$",
             "default": null
           },
           "evidence": {
@@ -29867,8 +29866,7 @@
               "string",
               "null"
             ],
-            "minLength": 1,
-            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "default": null
           }
         },
@@ -30127,8 +30125,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 120
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
             },
             "maxItems": 20,
             "default": []

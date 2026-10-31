@@ -107,7 +107,14 @@ async function shiftFor(startHours: number, endHours: number, worker: string | n
 
 const clock = (
   who: string,
-  body: { kind: string; shiftId?: string | null; deviceTime?: string; id?: string },
+  body: {
+    kind: string;
+    shiftId?: string | null;
+    deviceTime?: string;
+    id?: string;
+    evidence?: string;
+    nfcTagRef?: string | null;
+  },
 ) =>
   h.request("/v1/me/clock-events", {
     method: "POST",
@@ -119,6 +126,8 @@ const clock = (
       locationId: LOC,
       shiftId: body.shiftId ?? null,
       deviceTime: body.deviceTime ?? new Date().toISOString(),
+      evidence: body.evidence ?? "none",
+      nfcTagRef: body.nfcTagRef ?? null,
     },
   });
 
@@ -182,15 +191,21 @@ describe("hazard HZ-010 clock events", () => {
     expect((await clock("carer", { kind: "in", shiftId: other.id })).status).toBe(422);
   });
 
-  it("flags a clock-in with no shift", async () => {
-    const made = await clock("carer", { kind: "break_start", deviceTime: hoursFromNow(0) });
+  it("hazard HZ-124 refuses an online clock-in that names no shift, so the checks can run", async () => {
+    const response = await clock("carer", { kind: "in" });
+    expect(response.status).toBe(422);
+    expect(((await response.json()) as { code: string }).code).toBe("no_shift");
+  });
+
+  it("flags a break with no shift", async () => {
+    const made = await clock("carer", { kind: "break_start", deviceTime: hoursFromNow(-0.4) });
     expect(made.status).toBe(201);
     expect(((await made.json()) as { flags: string[] }).flags).toContain("no_shift");
   });
 
   it("drafts a timesheet from the clock-out with its breaks", async () => {
-    await clock("carer", { kind: "break_end", deviceTime: hoursFromNow(0.25) });
-    const out = await clock("carer", { kind: "out", shiftId, deviceTime: hoursFromNow(0.5) });
+    await clock("carer", { kind: "break_end", deviceTime: hoursFromNow(-0.3) });
+    const out = await clock("carer", { kind: "out", shiftId, deviceTime: hoursFromNow(-0.2) });
     expect(out.status).toBe(201);
     const item = (await out.json()) as { timesheetEntryId: string | null };
     expect(item.timesheetEntryId).not.toBeNull();
@@ -217,15 +232,44 @@ describe("hazard HZ-124 the rule on the day at clock-in", () => {
       const online = await clock("carer", { kind: "in", shiftId: s.id });
       expect(online.status).toBe(422);
       expect(((await online.json()) as { code: string }).code).toBe("not_eligible");
-      const late = await clock("carer", {
+      const refusedTasks = await sql<{ priority: string; assignee_role_key: string }>(
+        "SELECT priority, assignee_role_key FROM task WHERE kind = 'scheduling.clock_in_refused' AND source_id = $1",
+        [s.id],
+      );
+      expect(refusedTasks).toEqual([
+        { priority: "urgent", assignee_role_key: "registered_manager" },
+      ]);
+      // A device time set back while the shift has not ended is still refused.
+      const backDated = await clock("carer", {
         kind: "in",
         shiftId: s.id,
         deviceTime: hoursFromNow(-0.5),
       });
+      expect(backDated.status).toBe(422);
+      // Once the shift has ended the time was worked: kept, flagged and raised.
+      const past = await shiftFor(-14, -11, CARER);
+      const lateId = randomUUID();
+      const late = await clock("carer", {
+        id: lateId,
+        kind: "in",
+        shiftId: past.id,
+        deviceTime: hoursFromNow(-13.9),
+      });
       expect(late.status).toBe(201);
       expect(((await late.json()) as { flags: string[] }).flags).toContain("not_eligible");
-      const tasks = await sql("SELECT 1 FROM task WHERE kind = 'scheduling.clock_exception'");
-      expect(tasks.length).toBeGreaterThan(0);
+      const tasks = await sql<Record<string, unknown>>(
+        `SELECT priority, assignee_role_key, location_id, title FROM task
+          WHERE kind = 'scheduling.clock_exception' AND source_id = $1`,
+        [lateId],
+      );
+      expect(tasks).toEqual([
+        {
+          priority: "urgent",
+          assignee_role_key: "registered_manager",
+          location_id: LOC,
+          title: "Check a clock-in: a check the shift needs was missing or had lapsed",
+        },
+      ]);
     } finally {
       await sql(
         `UPDATE compliance_item SET verified_on = '2025-01-02', verified_by = $2 WHERE kind = 'right_to_work'
@@ -233,6 +277,93 @@ describe("hazard HZ-124 the rule on the day at clock-in", () => {
         [CARER, OWNER],
       );
     }
+  });
+});
+
+describe("hazard HZ-008 clock exception tasks", () => {
+  it("hazard HZ-008 raises one clock exception task per worker and shift", async () => {
+    const lapse = (on: boolean) =>
+      sql(
+        `UPDATE compliance_item SET verified_on = $2, verified_by = $3 WHERE kind = 'right_to_work'
+           AND staff_profile_id = (SELECT id FROM staff_profile WHERE tenant_user_id = $1)`,
+        [CARER, on ? null : "2025-01-02", on ? null : OWNER],
+      );
+    const s = await shiftFor(-10, -8, CARER);
+    await lapse(true);
+    try {
+      for (const at of [-9.9, -9.8]) {
+        const made = await clock("carer", {
+          kind: "in",
+          shiftId: s.id,
+          deviceTime: hoursFromNow(at),
+        });
+        expect(made.status).toBe(201);
+      }
+      const tasks = await sql(
+        `SELECT 1 FROM task t JOIN clock_event e ON e.id = t.source_id
+          WHERE t.kind = 'scheduling.clock_exception' AND e.shift_id = $1`,
+        [s.id],
+      );
+      expect(tasks).toHaveLength(1);
+    } finally {
+      await lapse(false);
+    }
+  });
+});
+
+describe("hazard HZ-010 late uploads are never dropped, and pairing", () => {
+  it("hazard HZ-010 keeps a late upload for a shift the member has since been taken off, with a task", async () => {
+    const s = await shiftFor(-6, -3, CARER);
+    await sql(
+      "UPDATE shift_assignment SET deleted_at = now(), remove_reason = 'Swapped' WHERE shift_id = $1 AND worker_id = $2",
+      [s.id, CARER],
+    );
+    const id = randomUUID();
+    const late = await clock("carer", {
+      id,
+      kind: "in",
+      shiftId: s.id,
+      deviceTime: hoursFromNow(-5.9),
+    });
+    expect(late.status).toBe(201);
+    expect(((await late.json()) as { flags: string[] }).flags).toContain("not_on_shift");
+    const tasks = await sql(
+      "SELECT 1 FROM task WHERE kind = 'scheduling.clock_exception' AND source_id = $1",
+      [id],
+    );
+    expect(tasks).toHaveLength(1);
+    const online = await clock("carer", { kind: "in", shiftId: s.id });
+    expect(online.status).toBe(422);
+  });
+
+  it("pairs a clock-in uploaded after its clock-out, and never drafts the same clock-in twice", async () => {
+    const s = await shiftFor(-20, -17, CARER);
+    const out = await clock("carer", {
+      kind: "out",
+      shiftId: s.id,
+      deviceTime: hoursFromNow(-17.1),
+    });
+    const outItem = (await out.json()) as { flags: string[]; timesheetEntryId: string | null };
+    expect(outItem.flags).toContain("no_clock_in");
+    expect(outItem.timesheetEntryId).toBeNull();
+    const inn = await clock("carer", {
+      kind: "in",
+      shiftId: s.id,
+      deviceTime: hoursFromNow(-19.9),
+    });
+    expect(inn.status).toBe(201);
+    const inItem = (await inn.json()) as { timesheetEntryId: string | null };
+    expect(inItem.timesheetEntryId).not.toBeNull();
+    const again = await clock("carer", {
+      kind: "out",
+      shiftId: s.id,
+      deviceTime: hoursFromNow(-17.05),
+    });
+    expect(
+      ((await again.json()) as { timesheetEntryId: string | null }).timesheetEntryId,
+    ).toBeNull();
+    const drafts = await sql("SELECT 1 FROM timesheet_entry WHERE shift_id = $1", [s.id]);
+    expect(drafts).toHaveLength(1);
   });
 });
 
@@ -285,7 +416,7 @@ describe("approval never by the worker, and corrections", () => {
     const fields = {
       kind: "work",
       startedAt: row.started_at.toISOString(),
-      endedAt: new Date(row.ended_at.getTime() + 15 * 60_000).toISOString(),
+      endedAt: new Date(row.ended_at.getTime() - 5 * 60_000).toISOString(),
     };
     const patch = await as("manager", `/v1/timesheet-entries/${entryId}`, {
       method: "PATCH",
@@ -294,7 +425,7 @@ describe("approval never by the worker, and corrections", () => {
     expect(patch.status).toBe(409);
     const corrected = await as("manager", `/v1/timesheet-entries/${entryId}/corrections`, {
       method: "POST",
-      body: { reason: "Stayed for the handover", ...fields },
+      body: { reason: "Clocked out late in error", ...fields },
     });
     expect(corrected.status).toBe(201);
     const correction = (await corrected.json()) as Entry;
@@ -315,6 +446,30 @@ describe("approval never by the worker, and corrections", () => {
     const items = ((await list.json()) as { items: Entry[] }).items;
     expect(items.find((e) => e.id === entryId)?.superseded).toBe(true);
     expect(items.find((e) => e.id === correction.id)?.superseded).toBe(false);
+  });
+
+  it("refuses the approver approving time they entered by hand", async () => {
+    const made = await as("manager", `/v1/locations/${LOC}/timesheets`, {
+      method: "POST",
+      body: {
+        workerId: CARER,
+        kind: "training",
+        startedAt: hoursFromNow(-30),
+        endedAt: hoursFromNow(-28),
+      },
+    });
+    expect(made.status).toBe(201);
+    const entry = (await made.json()) as Entry;
+    const own = await as("manager", `/v1/timesheet-entries/${entry.id}/approve`, {
+      method: "POST",
+      body: { version: entry.version },
+    });
+    expect(own.status).toBe(403);
+    const other = await as("owner", `/v1/timesheet-entries/${entry.id}/approve`, {
+      method: "POST",
+      body: { version: entry.version },
+    });
+    expect(other.status).toBe(200);
   });
 
   it("refuses a manager entering their own time", async () => {
@@ -359,6 +514,26 @@ describe("opt-outs and clock evidence", () => {
       body: { version: null, evidence: "at_location", dpiaApproved: true },
     });
     expect(withDpia.status).toBe(200);
+  });
+
+  it("keeps only the evidence the location asks for, never a position (H-527)", async () => {
+    const nfc = await clock("carer", {
+      kind: "break_start",
+      evidence: "nfc",
+      nfcTagRef: "TAG-1",
+    });
+    expect(nfc.status).toBe(201);
+    const nfcItem = (await nfc.json()) as { evidence: string; flags: string[] };
+    expect(nfcItem.evidence).toBe("none");
+    expect(nfcItem.flags).toContain("evidence_not_matched");
+    const at = await clock("carer", { kind: "break_end", evidence: "at_location" });
+    expect(((await at.json()) as { evidence: string }).evidence).toBe("at_location");
+    const position = await clock("carer", {
+      kind: "break_start",
+      evidence: "nfc",
+      nfcTagRef: "51.5072,-0.1276",
+    });
+    expect(position.status).toBe(422);
   });
 });
 

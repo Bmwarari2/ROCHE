@@ -87,12 +87,26 @@ afterAll(async () => {
 describe("hazard HZ-011 time records stay in their organisation", () => {
   it("hazard HZ-011 never shows another organisation's rows", async () => {
     await asCarer((c) => clock(c, a.carer, EVENT));
-    await asNorth((c) => draft(c, { id: ENTRY }));
-    const seen = await asOtherTenant(async (c) => ({
-      events: await count(c, "SELECT count(*) AS n FROM clock_event"),
-      entries: await count(c, "SELECT count(*) AS n FROM timesheet_entry"),
-    }));
-    expect(seen).toEqual({ events: 0, entries: 0 });
+    await asPlanner((c) => draft(c, { id: ENTRY }));
+    await asNorth((c) =>
+      c.query("INSERT INTO clock_setting (location_id, evidence) VALUES ($1, 'none')", [
+        a.locationNorth,
+      ]),
+    );
+    const tables = [
+      "clock_setting",
+      "clock_event",
+      "timesheet_entry",
+      "sleep_in_awake_period",
+      "working_time_opt_out",
+      "working_time_result",
+    ];
+    const seen = await asOtherTenant(async (c) => {
+      const out: Record<string, number> = {};
+      for (const t of tables) out[t] = await count(c, `SELECT count(*) AS n FROM ${t}`);
+      return out;
+    });
+    expect(Object.values(seen).every((n) => n === 0)).toBe(true);
   });
 });
 
@@ -136,7 +150,15 @@ describe("timesheets: approval never by the worker, fixed once approved (rules 5
     );
   });
 
-  it("approves an entry, then never changes it", async () => {
+  it("never approves an entry the approver entered by hand", async () => {
+    const mine = "0199f500-0000-7000-8000-0000000000f8";
+    await asNorth((c) => draft(c, { id: mine }));
+    await expect(asNorth((c) => approve(c, mine, a.northManager))).rejects.toThrow(
+      /whoever entered or changed/,
+    );
+  });
+
+  it("approves an entry entered by someone else, then never changes it", async () => {
     await asNorth((c) => approve(c, ENTRY, a.northManager));
     await expect(
       asNorth((c) =>
@@ -194,7 +216,7 @@ describe("timesheets: approval never by the worker, fixed once approved (rules 5
   });
 
   it("shows a worker their own entries", async () => {
-    expect(await asCarer((c) => count(c, "SELECT count(*) AS n FROM timesheet_entry"))).toBe(3);
+    expect(await asCarer((c) => count(c, "SELECT count(*) AS n FROM timesheet_entry"))).toBe(4);
   });
 });
 
@@ -213,5 +235,51 @@ describe("opt-outs on file (rule 8)", () => {
     expect(await asCarer((c) => count(c, "SELECT count(*) AS n FROM working_time_opt_out"))).toBe(
       1,
     );
+  });
+});
+
+describe("hazard HZ-011 every time table is closed to another organisation", () => {
+  it("hazard HZ-011 working time results are written only by the system", async () => {
+    await expect(
+      asNorth((c) =>
+        c.query(
+          `INSERT INTO working_time_result (worker_id, location_id, evaluate_from, evaluate_to, findings,
+             breaches, conditionals, input_hash, trigger)
+           VALUES ($1, $2, '2026-11-02', '2026-11-02', '[]', 0, 0, 'x', 'requested')`,
+          [a.carer, a.locationNorth],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await asOwner(TENANT_A, (o) =>
+      o.query(
+        `INSERT INTO working_time_result (worker_id, location_id, evaluate_from, evaluate_to, findings,
+           breaches, conditionals, input_hash, trigger)
+         VALUES ($1, $2, '2026-11-02', '2026-11-02', '[]', 0, 0, 'x', 'requested')`,
+        [a.carer, a.locationNorth],
+      ),
+    );
+  });
+
+  it("hazard HZ-011 denies every table, once each has rows", async () => {
+    const tables = [
+      "clock_setting",
+      "clock_event",
+      "timesheet_entry",
+      "sleep_in_awake_period",
+      "working_time_opt_out",
+      "working_time_result",
+    ];
+    const own = await asOwner(TENANT_A, async (o) => {
+      const out: Record<string, number> = {};
+      for (const t of tables) out[t] = await count(o, `SELECT count(*) AS n FROM ${t}`);
+      return out;
+    });
+    expect(Object.values(own).every((n) => n > 0)).toBe(true);
+    const seen = await asOtherTenant(async (c) => {
+      const out: Record<string, number> = {};
+      for (const t of tables) out[t] = await count(c, `SELECT count(*) AS n FROM ${t}`);
+      return out;
+    });
+    expect(seen).toEqual(Object.fromEntries(tables.map((t) => [t, 0])));
   });
 });

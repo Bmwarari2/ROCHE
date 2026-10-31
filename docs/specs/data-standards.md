@@ -747,9 +747,11 @@ payroll exports (slice 76) map them to each provider.
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `clock_event.kind` | Harbour | `in`, `out`, `break_start`, `break_end` | |
+| `clock_event.nfc_tag_ref`, `clock_setting.nfc_tag_refs` | Harbour | 1 to 64 of A-Z, a-z, 0-9, `_`, `-` | One of the location's tags. |
+| `clock_event.device_id` | Harbour | 1 to 120 of A-Z, a-z, 0-9, `.`, `_`, `:`, `-` | Opaque. |
 | `clock_event.device_time`, `recorded_at` | ISO 8601 date-time, UTC | `timestamptz` | The device's time is the time worked; both are kept (HZ-010). |
-| `clock_event.evidence`, `clock_setting.evidence` | Harbour | `none`, `at_location`, `nfc` | Never a position; `at_location` is the phone's word only (H-527). |
-| `clock_event.flags` | Harbour | `late_upload`, `device_clock_ahead`, `outside_access_window`, `no_shift`, `not_eligible`, `no_induction`, and the pairing problems `no_clock_in`, `no_clock_out`, `break_not_ended`, `break_not_started`, `out_of_order` | |
+| `clock_event.evidence`, `clock_setting.evidence` | Harbour | `none`, `at_location`, `nfc` | Never a position; `at_location` is the phone's word only (H-527). Kept only as the location's setting asks. |
+| `clock_event.flags` | Harbour | `late_upload`, `device_clock_ahead`, `outside_access_window`, `no_shift`, `not_eligible`, `no_induction`, `no_booking`, `not_on_shift`, `other_location`, `no_permission`, `evidence_not_matched`, and the pairing problems `no_clock_in`, `no_clock_out`, `break_not_ended`, `break_not_started`, `out_of_order` | |
 | `timesheet_entry.kind` | Harbour (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training`, `travel` | |
 | `timesheet_entry.travel` | Harbour (NMW travel time) | `between_assignments`, `home_to_first_assignment`, `last_assignment_to_home`, `commute_to_fixed_workplace` | |
 | `timesheet_entry.mileage_tenths` | Harbour | Whole tenths of a mile | Travel entries only. |
