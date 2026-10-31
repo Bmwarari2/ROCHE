@@ -79,7 +79,10 @@ export default async function RotaHomePage({
             {listed.data.items.map((r) => (
               <li key={r.id} className="flex flex-col gap-2 border-b border-border pb-3">
                 <h3 className="m-0 text-body font-semibold">
-                  <Link href={rotaPage(r.id)}>
+                  <Link
+                    href={rotaPage(r.id)}
+                    className="inline-flex min-h-target items-center underline"
+                  >
                     {t("rota.item.title", {
                       from: formatDate(r.startsOn) ?? r.startsOn,
                       to: formatDate(r.endsOn) ?? r.endsOn,

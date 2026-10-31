@@ -9,7 +9,7 @@ import { publishRota } from "@/app/actions/rota";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
 import { t } from "@/lib/i18n";
-import { type ActionResult, fieldErrors } from "@/lib/outcome";
+import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 import { publishReadiness, rotaPage } from "@/lib/rota";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
@@ -43,10 +43,7 @@ export function PublishRota({
       return setResult(
         fieldErrors(
           Object.fromEntries(
-            ready.reasons.map((r) => [
-              r === "periods" ? "periods" : r === "warnings" ? "warnings" : "blocked",
-              t("rota.publish.blocked", { reason: r }),
-            ]),
+            ready.reasons.map((r) => [r, t("rota.publish.blocked", { reason: r })]),
           ),
         ),
       );
@@ -78,7 +75,8 @@ export function PublishRota({
             <Checkbox
               key={p.key}
               id={index === Math.max(0, firstUnticked) ? ids.periods : undefined}
-              label={t("rota.publish.period", { period: p.label })}
+              label={p.label}
+              error={index === firstUnticked ? errorFor(result, "periods") : undefined}
               checked={ticked.has(p.key)}
               onChange={(e) => {
                 const next = new Set(ticked);
@@ -95,6 +93,7 @@ export function PublishRota({
           id={ids.warnings}
           label={t("rota.publish.warningsRead")}
           checked={warningsRead}
+          error={errorFor(result, "warnings")}
           onChange={(e) => setWarningsRead(e.currentTarget.checked)}
         />
       ) : null}
@@ -108,7 +107,15 @@ export function PublishRota({
           {pending ? t("common.saving") : t("rota.publish.submit")}
         </Button>
       </div>
-      <FormFeedback result={result && !result.ok ? result : null} success="" fieldIds={ids} />
+      <FormFeedback
+        result={result && !result.ok ? result : null}
+        success=""
+        fieldIds={{
+          periods: ids.periods,
+          warnings: ids.warnings,
+          ...(check.blockedAssignmentIds.length > 0 ? { blocked: ids.blocked } : {}),
+        }}
+      />
     </form>
   );
 }

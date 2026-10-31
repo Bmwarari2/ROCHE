@@ -3524,6 +3524,22 @@
     "dependency.record.chooseDecider",
     "dependency.record.me",
     "dependency.record.submit",
-    "dependency.record.noScale"
+    "dependency.record.noScale",
+    "rota.shift.when",
+    "rota.cancel.keep",
+    "rota.remove.keep",
+    "rota.override.notActive",
+    "rota.override.cannot",
+    "rota.check.noPeriods",
+    "rota.check.findingDetail",
+    "dependency.edit.periodFallback",
+    "dependency.edit.categoryFallback",
+    "dependency.draft.approveTitle",
+    "dependency.draft.approveAbout",
+    "dependency.draft.keepDraft",
+    "dependency.draft.approveConfirm",
+    "dependency.reason.keep",
+    "dependency.person.oneToOne",
+    "dependency.record.oneToOneCarried"
   ]
 }

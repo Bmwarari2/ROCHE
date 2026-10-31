@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useState, useTransition } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState, useTransition } from "react";
 import {
   addShiftFromTemplate,
   applyPattern,
@@ -48,6 +48,7 @@ import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 import {
   JUSTIFICATION_MAX,
   justificationProblem,
+  notOverridableReason,
   overrideKeys,
   readClockTime,
   rotaPage,
@@ -276,6 +277,7 @@ export function PatternForm({
   const ids = useFieldIds(["name", "cycleDays", "entries"]);
   const { result, pending, send, setResult } = useRotaSend(path);
   const [cycle, setCycle] = useState(7);
+  const [badCounts, setBadCounts] = useState<ReadonlySet<string>>(new Set());
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -284,15 +286,20 @@ export function PatternForm({
     const errors: Record<string, string> = {};
     if (!name) errors.name = t("rota.pattern.nameRequired");
     const entries: { day: number; templateId: string; count: number }[] = [];
+    const bad: string[] = [];
     for (let day = 0; day < cycle; day += 1) {
       for (const template of templates) {
-        const raw = text(form, `count-${day}-${template.id}`);
+        const field = `count-${day}-${template.id}`;
+        const raw = text(form, field);
         if (!raw || raw === "0") continue;
         const count = Number(raw);
-        if (!/^\d{1,2}$/.test(raw) || count > 20) errors.entries = t("rota.pattern.countRange");
-        else entries.push({ day, templateId: template.id, count });
+        if (!/^\d{1,2}$/.test(raw) || count > 20) {
+          errors.entries = t("rota.pattern.countRange");
+          bad.push(field);
+        } else entries.push({ day, templateId: template.id, count });
       }
     }
+    setBadCounts(new Set(bad));
     if (entries.length === 0 && !errors.entries) errors.entries = t("rota.pattern.entriesRequired");
     if (Object.keys(errors).length > 0) return setResult(fieldErrors(errors));
     send(
@@ -336,21 +343,28 @@ export function PatternForm({
         <ul className="hb-long-list m-0 flex list-none flex-col gap-3 p-0">
           {Array.from({ length: cycle }, (_, day) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: the day of the cycle is the item's identity.
-            <li key={day} className="flex flex-col gap-2 border-b border-border pb-3">
-              <p className="m-0 font-semibold">{t("rota.pattern.day", { day: day + 1 })}</p>
-              <div className="flex flex-wrap gap-4">
-                {templates.map((template) => (
-                  <TextField
-                    key={template.id}
-                    name={`count-${day}-${template.id}`}
-                    label={t("rota.pattern.count", { day: day + 1, template: template.name })}
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={2}
-                    defaultValue="0"
-                  />
-                ))}
-              </div>
+            <li key={day} className="border-b border-border pb-3">
+              <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+                <legend className="font-semibold">{t("rota.pattern.day", { day: day + 1 })}</legend>
+                <div className="flex flex-wrap gap-4">
+                  {templates.map((template) => (
+                    <TextField
+                      key={template.id}
+                      name={`count-${day}-${template.id}`}
+                      label={t("rota.pattern.count", { day: day + 1, template: template.name })}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={2}
+                      defaultValue="0"
+                      error={
+                        badCounts.has(`count-${day}-${template.id}`)
+                          ? t("rota.pattern.countRange")
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              </fieldset>
             </li>
           ))}
         </ul>
@@ -558,11 +572,17 @@ function ReasonSheet({
   title,
   about,
   submit,
+  keep,
+  describedBy,
   buttonIcon,
   onSend,
   path,
   done,
 }: {
+  /** The words of the button that closes the sheet doing nothing ("Keep shift"). */
+  readonly keep: string;
+  /** The shift's heading, so the trigger's name says which shift. */
+  readonly describedBy?: string;
   readonly label: string;
   readonly title: string;
   readonly about: string;
@@ -590,7 +610,7 @@ function ReasonSheet({
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <Button variant="secondary" icon={buttonIcon}>
+        <Button variant="secondary" icon={buttonIcon} aria-describedby={describedBy}>
           {label}
         </Button>
       }
@@ -610,7 +630,7 @@ function ReasonSheet({
         />
         <div className="flex flex-wrap justify-end gap-2">
           <SheetClose asChild>
-            <Button variant="secondary">{t("common.cancel")}</Button>
+            <Button variant="secondary">{keep}</Button>
           </SheetClose>
           <Button type="submit" variant="destructive" disabled={pending}>
             {pending ? t("common.saving") : submit}
@@ -622,11 +642,21 @@ function ReasonSheet({
   );
 }
 
-export function CancelShiftButton({ shift }: { readonly shift: ShiftItem }) {
+interface ShiftNamed {
+  readonly shift: ShiftItem;
+  /** The shift's day and times in words, so each control on the rota has its own name. */
+  readonly when: string;
+  /** The shift's heading, which every control on it is described by. */
+  readonly headingId: string;
+}
+
+export function CancelShiftButton({ shift, when, headingId }: ShiftNamed) {
   return (
     <ReasonSheet
       label={t("rota.cancel.open")}
-      title={t("rota.cancel.title", { label: shift.label })}
+      keep={t("rota.cancel.keep")}
+      describedBy={headingId}
+      title={t("rota.cancel.title", { label: shift.label, when })}
       about={t("rota.cancel.about")}
       submit={t("rota.cancel.submit")}
       buttonIcon={<X {...icon} />}
@@ -637,13 +667,19 @@ export function CancelShiftButton({ shift }: { readonly shift: ShiftItem }) {
   );
 }
 
-export function RemoveAssignmentButton({ shift }: { readonly shift: ShiftItem }) {
+export function RemoveAssignmentButton({ shift, when, headingId }: ShiftNamed) {
   const assignment = shift.assignment;
   if (!assignment) return null;
   return (
     <ReasonSheet
       label={t("rota.remove.open")}
-      title={t("rota.remove.title", { name: assignment.worker.displayName })}
+      keep={t("rota.remove.keep")}
+      describedBy={headingId}
+      title={t("rota.remove.title", {
+        name: assignment.worker.displayName,
+        label: shift.label,
+        when,
+      })}
       about={t("rota.remove.about")}
       submit={t("rota.remove.submit")}
       buttonIcon={<UserMinus {...icon} />}
@@ -662,10 +698,11 @@ export function RemoveAssignmentButton({ shift }: { readonly shift: ShiftItem })
  */
 export function AssignShift({
   shift,
+  when,
+  headingId,
   workers,
   canOverride,
-}: {
-  readonly shift: ShiftItem;
+}: ShiftNamed & {
   readonly workers: readonly {
     readonly id: string;
     readonly displayName: string;
@@ -678,6 +715,11 @@ export function AssignShift({
   const [checking, startChecking] = useTransition();
   const [workerId, setWorkerId] = useState("");
   const [answer, setAnswer] = useState<EligibilityItem | null>(null);
+  // The answer takes focus when it arrives, so it is read at once (the button was disabled).
+  const answerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (answer) answerRef.current?.focus();
+  }, [answer]);
 
   const check = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -719,7 +761,7 @@ export function AssignShift({
         <SelectField
           id={ids.workerId}
           name="workerId"
-          label={t("rota.assign.worker", { label: shift.label })}
+          label={t("rota.assign.worker", { label: shift.label, when })}
           emptyOption={t("rota.assign.chooseWorker")}
           options={workers.map((w) => ({
             value: w.id,
@@ -740,6 +782,7 @@ export function AssignShift({
             variant="secondary"
             icon={<UserCheck {...icon} />}
             disabled={checking}
+            aria-describedby={headingId}
           >
             {checking ? t("rota.assign.checking") : t("rota.assign.check")}
           </Button>
@@ -747,34 +790,41 @@ export function AssignShift({
       </form>
       {answer ? (
         <form method="post" className="flex flex-col gap-3" onSubmit={assign} noValidate>
-          {answer.allowed ? (
-            <p className="m-0 flex items-center gap-2" role="status">
-              <UserCheck {...icon} className="shrink-0" />
-              {t("rota.assign.allowed", { name: worker?.displayName ?? "" })}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2" role="status">
-              <p className="m-0 flex items-center gap-2 font-semibold">
-                <ShieldAlert {...icon} className="shrink-0" />
-                {t("rota.assign.blocked", { name: worker?.displayName ?? "" })}
+          <div ref={answerRef} tabIndex={-1} className="flex flex-col gap-2">
+            {answer.allowed ? (
+              <p className="m-0 flex items-center gap-2">
+                <UserCheck {...icon} className="shrink-0" />
+                {t("rota.assign.allowed", { name: worker?.displayName ?? "" })}
               </p>
-              <ul className="m-0 flex flex-col gap-1 pl-5">
-                {answer.blockers.map((b) => (
-                  <li key={b.key}>{b.message}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+            ) : (
+              <>
+                <p className="m-0 flex items-center gap-2 font-semibold">
+                  <ShieldAlert {...icon} className="shrink-0" />
+                  {t("rota.assign.blocked", { name: worker?.displayName ?? "" })}
+                </p>
+                <ul className="m-0 flex flex-col gap-1 pl-5">
+                  {answer.blockers.map((b) => (
+                    <li key={b.key}>{b.message}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
           {answer.allowed ? (
             <div>
-              <Button type="submit" icon={<UserCheck {...icon} />} disabled={pending}>
+              <Button
+                type="submit"
+                icon={<UserCheck {...icon} />}
+                disabled={pending}
+                aria-describedby={headingId}
+              >
                 {pending ? t("common.saving") : t("rota.assign.submit")}
               </Button>
             </div>
           ) : !answer.overridable ? (
             <p className="m-0 flex gap-2">
               <CircleAlert {...icon} className="mt-0.5 shrink-0" />
-              {t("rota.override.rightToWork")}
+              {notOverridableReason(answer.blockers, t)}
             </p>
           ) : !canOverride ? (
             <p className="m-0 flex gap-2">
@@ -799,10 +849,7 @@ export function AssignShift({
                 id={ids.covers}
                 name="covers"
                 value="yes"
-                label={t("rota.override.covers", {
-                  count: answer.blockers.length,
-                  blockers: answer.blockers.map((b) => b.message).join("; "),
-                })}
+                label={t("rota.override.covers", { count: answer.blockers.length })}
                 error={errorFor(result, "covers")}
               />
               <div>

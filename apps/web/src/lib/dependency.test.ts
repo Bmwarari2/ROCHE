@@ -99,7 +99,16 @@ describe("the editor reads into the API's definition, and back", () => {
       t,
     );
     expect(read.ok).toBe(false);
-    if (!read.ok) expect(read.problems).toHaveLength(5);
+    // Each problem names its field, so it is shown there.
+    if (!read.ok) {
+      expect(read.problems.map((p) => p.field)).toEqual([
+        "period-0-label",
+        "period-0-start",
+        "category-0-minutes-day",
+        "skill-0-minimum",
+        "review",
+      ]);
+    }
   });
 
   it("starts with a day and a night period", () => {

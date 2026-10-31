@@ -422,6 +422,23 @@ Logged by slice 21 (the rota builder, [scheduling.md](../specs/scheduling.md) se
 | H-838 | Decide shift swaps with approval and open-shift offers (the phase plan row for slice 21): built now are open shifts (a position with nobody on it, listed on the check and the publication); swaps requested by workers wait for the mobile slice that queues them (slice 71) and the screens (slice 59) | Brian | [phase-2.md](phase-2.md) slice 21 row; [scheduling.md](../specs/scheduling.md) section 14 | Swaps | open |
 | H-839 | Before go-live, decide (1) a daily job re-checking eligibility and the comparison on published future rotas, raising a task to the Registered Manager when an assignment becomes blocked or a period falls below the scale (clinical safety review round 1, H3 and M4; built: the rota reads `changedSincePublished` after any change, the check is re-run before publishing again, and slice 27 checks on the day); (2) whether the database should also refuse publishing outside the API's gate (security review round 1, L4); and (3) whether to precompute the check for long rotas: it reads the staff file, the competence port and the dependency records for every assignment and day, which is fine for a care home's six-week rota but may need batching or a stored result for large services (performance budget) | Brian | `rotaCheck` | Large locations | open |
 
+## Phase 2: web rota and staffing planner (slice 59)
+
+Logged by slice 59 (SCHED-001, SCHED-002, CARE-004 screens) on 31 October 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-960 | Confirm that HZ-123's residual risk moves to Very low (risk 2) now the rota screens show the comparison and publishing needs each period acknowledged by name, and whether keeping the method collapsed under "How this was worked out" meets "shows the method" | CSO | hazard HZ-123; `apps/web/src/app/(shell)/rota/[id]/check/page.tsx` | Clinical safety case sign-off | open |
+| H-961 | Review the rota screens' words with the CSO: "Assigned" rather than a tick, the override's wording, "Your organisation's own dependency scale", the working time advice | CSO | `rota.*` strings in en-GB.json; HZ-123, HZ-124 | Clinical safety case sign-off | open |
+| H-962 | Decide whether a person's one-to-one hours should be editable on the web when their category is reviewed (today they are carried forward unchanged and shown) | CSO with the design partner | `apps/web/src/components/dependency/DependencyForms.tsx` | None (default applied) | open |
+| H-963 | Decide which members the rota builder offers: everyone with a role in force at the home or across the organisation (today), or only those with a staff file; and whether owners and quality leads should be left out | DPO lead with the design partner | `GET /v1/locations/{id}/rota-workers`; records-of-processing.md (rotas) | None (default applied) | open |
+| H-964 | Give the demo staff a staff file (DBS, right to work) in the demo seed so the end-to-end journeys can put someone on a shift and exercise the override on screen; today the demo carer is blocked for no right to work, which is never overridden | Brian | `apps/web/e2e/rota.spec.ts`; `packages/db/src/seed/demo.ts` | Full override journey in Playwright | open |
+| H-965 | Choose who may decide a person's dependency category on the web (today the member recording it, as "Me"); the API takes any member | Registered Manager at the design partner | `RecordDependencyForm`; scheduling.md section 12 | None (default applied) | open |
+| H-966 | Agree the rota screens with the design partner on a real home's week: templates, a pattern, the builder by day, the check and publishing | Brian with the design partner | phase-2.md slice 59 | Onboarding the design partner | open |
+| H-967 | Run the rota, my shifts and dependency journeys at phone width (slice 74) and with a screen reader, and record the result | Accessibility lead | `apps/web/e2e/rota.spec.ts` | Slice 74 | open |
+| H-968 | Translate the rota and dependency strings into Welsh (listed as untranslated in cy.status.json) | Welsh translator | packages/i18n/src/messages/cy.json | Welsh launch | open |
+| H-969 | Schedule the rota screens left for later: open shifts offered to staff, swaps with approval, and agency bookings (slice 27) | Brian | phase-2.md slices 59 and 27 | Swaps and agency screens | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

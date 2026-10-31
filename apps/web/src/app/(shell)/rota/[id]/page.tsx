@@ -17,6 +17,7 @@ import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { firstParam } from "@/lib/record-metadata";
 import {
+  instantTimes,
   mayCheck,
   mayManageRota,
   mayOverride,
@@ -27,7 +28,6 @@ import {
   rotaShown,
   shiftChip,
   shiftsByDate,
-  ukClock,
 } from "@/lib/rota";
 
 export const metadata: Metadata = { title: t("rota.builder.title") };
@@ -166,44 +166,63 @@ export default async function RotaBuilderPage({
               <li key={day.date} className="flex flex-col gap-3">
                 <h3 className="m-0 text-body font-semibold">{formatDate(day.date) ?? day.date}</h3>
                 <ul className="m-0 flex list-none flex-col gap-3 p-0">
-                  {day.shifts.map((shift) => (
-                    <li key={shift.id} className="flex flex-col gap-2 border-b border-border pb-3">
-                      <h4 className="m-0 text-body font-semibold">
-                        {t("rota.shift.heading", {
-                          label: shift.label,
-                          start: ukClock(shift.startsAt),
-                          end: ukClock(shift.endsAt),
-                        })}
-                      </h4>
-                      <p className="m-0 flex flex-wrap items-center gap-2">
-                        <SafetyChip chip={shiftChip(shift, t)} />
-                        <span>{t("rota.kind", { kind: shift.kind })}</span>
-                        {shift.assignment ? (
-                          <span>
-                            {t("rota.shift.who", { name: shift.assignment.worker.displayName })}
-                          </span>
-                        ) : null}
-                      </p>
-                      {shift.changedAfterPublishAt ? (
-                        <p className="m-0 text-body-dense">{t("rota.shift.changedAfterPublish")}</p>
-                      ) : null}
-                      {manage ? (
-                        <div className="flex flex-col gap-3">
-                          {!shift.assignment && workers?.data ? (
-                            <AssignShift
-                              shift={shift}
-                              workers={workers.data.items}
-                              canOverride={mayOverride(me.permissions)}
-                            />
+                  {day.shifts.map((shift) => {
+                    const when = t("rota.shift.when", {
+                      date: formatDate(day.date) ?? day.date,
+                      times: instantTimes(shift.startsAt, shift.endsAt, t),
+                    });
+                    const headingId = `shift-${shift.id}`;
+                    return (
+                      <li
+                        key={shift.id}
+                        className="flex flex-col gap-2 border-b border-border pb-3"
+                      >
+                        <h4 id={headingId} className="m-0 text-body font-semibold">
+                          {t("rota.shift.heading", {
+                            label: shift.label,
+                            times: instantTimes(shift.startsAt, shift.endsAt, t),
+                          })}
+                        </h4>
+                        <p className="m-0 flex flex-wrap items-center gap-2">
+                          <SafetyChip chip={shiftChip(shift, t)} />
+                          <span>{t("rota.kind", { kind: shift.kind })}</span>
+                          {shift.assignment ? (
+                            <span>
+                              {t("rota.shift.who", { name: shift.assignment.worker.displayName })}
+                            </span>
                           ) : null}
-                          <div className="flex flex-wrap gap-2">
-                            {shift.assignment ? <RemoveAssignmentButton shift={shift} /> : null}
-                            <CancelShiftButton shift={shift} />
+                        </p>
+                        {shift.changedAfterPublishAt ? (
+                          <p className="m-0 text-body-dense">
+                            {t("rota.shift.changedAfterPublish")}
+                          </p>
+                        ) : null}
+                        {manage ? (
+                          <div className="flex flex-col gap-3">
+                            {!shift.assignment && workers?.data ? (
+                              <AssignShift
+                                shift={shift}
+                                when={when}
+                                headingId={headingId}
+                                workers={workers.data.items}
+                                canOverride={mayOverride(me.permissions)}
+                              />
+                            ) : null}
+                            <div className="flex flex-wrap gap-2">
+                              {shift.assignment ? (
+                                <RemoveAssignmentButton
+                                  shift={shift}
+                                  when={when}
+                                  headingId={headingId}
+                                />
+                              ) : null}
+                              <CancelShiftButton shift={shift} when={when} headingId={headingId} />
+                            </div>
                           </div>
-                        </div>
-                      ) : null}
-                    </li>
-                  ))}
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               </li>
             ))}

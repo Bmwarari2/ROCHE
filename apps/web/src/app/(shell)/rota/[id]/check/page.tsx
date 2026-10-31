@@ -59,9 +59,18 @@ export default async function RotaCheckPage({ params }: { readonly params: Param
   const toAcknowledge = new Set(check.periodsToAcknowledge);
   const periods = check.staffing
     .filter((item) => toAcknowledge.has(periodKey(item)))
-    .map((item) => ({ key: periodKey(item), label: `${periodWords(item)}: ${item.word}` }));
+    .map((item) => ({
+      key: periodKey(item),
+      label: t("rota.publish.period", {
+        date: formatDate(item.date) ?? item.date,
+        period: item.periodLabel ?? "",
+        hasPeriod: item.periodLabel ? "yes" : "no",
+        word: item.word,
+      }),
+    }));
+  // Everyone with something to say: a finding, a note, or a staff file that cannot be checked.
   const workingTime = check.workingTime.filter(
-    (w) => w.status === "cannot_check" || w.findings.length > 0,
+    (w) => w.status === "cannot_check" || w.findings.length > 0 || w.notes.length > 0,
   );
   const eligibility = check.eligibility.filter((e) => !e.allowed);
 
@@ -79,6 +88,7 @@ export default async function RotaCheckPage({ params }: { readonly params: Param
       <Card as="section" title={t("rota.check.staffing")} headingLevel={2}>
         <div className="flex flex-col gap-4">
           <p className="m-0 max-w-prose font-semibold">{t("rota.check.ownScale")}</p>
+          {check.staffing.length === 0 ? <p className="m-0">{t("rota.check.noPeriods")}</p> : null}
           <ul className="hb-long-list m-0 flex list-none flex-col gap-4 p-0">
             {check.staffing.map((item) => (
               <li key={periodKey(item)} className="flex flex-col gap-2 border-b border-border pb-3">
@@ -166,12 +176,29 @@ export default async function RotaCheckPage({ params }: { readonly params: Param
                   ) : null}
                   <ul className="m-0 flex flex-col gap-1 pl-5">
                     {w.findings.map((f) => (
-                      <li key={`${f.rule}-${f.from}`}>
-                        {t("rota.check.finding", {
-                          outcome: f.outcome,
-                          rule: f.rule,
-                          citation: f.citation,
-                        })}
+                      <li key={`${f.rule}-${f.from}`} className="flex flex-col gap-1">
+                        <span>
+                          {t("rota.check.finding", {
+                            outcome: f.outcome,
+                            rule: f.rule,
+                            citation: f.citation,
+                          })}
+                        </span>
+                        <span className="text-body-dense">
+                          {t("rota.check.findingDetail", {
+                            from: formatDateTime(f.from) ?? "",
+                            to: formatDateTime(f.to) ?? "",
+                            actual: hoursWords(f.actualMinutes, t),
+                            limit: hoursWords(f.limitMinutes, t),
+                          })}
+                        </span>
+                        {f.conditions.length > 0 ? (
+                          <ul className="m-0 flex flex-col gap-1 pl-5">
+                            {f.conditions.map((condition) => (
+                              <li key={condition}>{condition}</li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </li>
                     ))}
                     {w.notes.map((n) => (

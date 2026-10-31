@@ -114,6 +114,8 @@ export async function recordDependency(
     readonly reason: string;
     readonly decidedBy: string;
     readonly supersedesId: string | null;
+    /** One-to-one minutes by period, carried from the record in force (never dropped silently). */
+    readonly oneToOne: readonly { readonly periodKey: string; readonly minutes: number }[];
   },
 ): Promise<ActionResult<unknown>> {
   const ids = [
@@ -127,7 +129,7 @@ export async function recordDependency(
     (api) =>
       api.POST("/v1/people/{id}/dependency", {
         params: { path: { id: personId } },
-        body: { ...body, oneToOne: [] },
+        body: { ...body, oneToOne: body.oneToOne.map((o) => ({ ...o })) },
       }),
     [`/people/${personId}`],
   );

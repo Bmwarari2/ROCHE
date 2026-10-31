@@ -1,4 +1,5 @@
 import { Card } from "@harbour/ui";
+import { CircleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { NoAccess } from "@/components/care/NoAccess";
 import { RecordFrame } from "@/components/care/RecordFrame";
@@ -13,6 +14,7 @@ import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
+import { hoursWords } from "@/lib/rota";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -73,12 +75,35 @@ async function DependencyTab({
               {t("dependency.person.line", {
                 from: formatDate(record.inForce.effectiveFrom) ?? record.inForce.effectiveFrom,
                 version: record.inForce.versionNumber ?? 0,
+                knownVersion: record.inForce.versionNumber === null ? "no" : "yes",
               })}
             </p>
+            {record.inForce.oneToOne.length > 0 ? (
+              <ul className="m-0 flex flex-col gap-1 pl-5">
+                {record.inForce.oneToOne.map((o) => (
+                  <li key={o.periodKey}>
+                    {t("dependency.person.oneToOne", {
+                      period:
+                        scale?.current?.definition.periods.find((p) => p.key === o.periodKey)
+                          ?.label ?? o.periodKey,
+                      hours: hoursWords(o.minutes, t),
+                    })}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <p className="m-0 text-body-dense">{record.inForce.reason}</p>
           </div>
         ) : (
-          <p className="m-0">{t("dependency.person.none", { name })}</p>
+          <p className="m-0 flex gap-2">
+            <CircleAlert
+              size={18}
+              strokeWidth={1.5}
+              aria-hidden="true"
+              className="mt-0.5 shrink-0"
+            />
+            {t("dependency.person.none", { name })}
+          </p>
         )}
       </Card>
       {record.items.some(Boolean) ? (
@@ -133,17 +158,23 @@ async function DependencyTab({
       {assess ? (
         <Card as="section" title={t("dependency.record.title")} headingLevel={3}>
           {scale?.current ? (
-            <RecordDependencyForm
-              personId={id}
-              path={path}
-              categories={scale.current.definition.categories.map((c) => ({
-                key: c.key,
-                label: c.label,
-              }))}
-              currentId={record.currentId}
-              deciders={[{ id: me.tenantUserId, name: t("dependency.record.me") }]}
-              me={me.tenantUserId}
-            />
+            <>
+              {record.inForce && record.inForce.oneToOne.length > 0 ? (
+                <p className="m-0 max-w-prose">{t("dependency.record.oneToOneCarried")}</p>
+              ) : null}
+              <RecordDependencyForm
+                personId={id}
+                path={path}
+                categories={scale.current.definition.categories.map((c) => ({
+                  key: c.key,
+                  label: c.label,
+                }))}
+                currentId={record.currentId}
+                deciders={[{ id: me.tenantUserId, name: t("dependency.record.me") }]}
+                me={me.tenantUserId}
+                oneToOne={record.inForce?.oneToOne ?? []}
+              />
+            </>
           ) : (
             <p className="m-0">{t("dependency.record.noScale")}</p>
           )}

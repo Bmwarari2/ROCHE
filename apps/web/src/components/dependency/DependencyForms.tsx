@@ -11,7 +11,7 @@ import {
 } from "@harbour/ui";
 import { CircleCheck, FilePlus, Plus, Save, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useState, useTransition } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState, useTransition } from "react";
 import {
   approveDraft,
   archiveScale,
@@ -24,7 +24,9 @@ import {
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
 import {
+  type DefinitionProblem,
   type DraftDefinition,
+  definitionField,
   dependencyScalePage,
   EMPTY_DRAFT,
   keyFromLabel,
@@ -65,15 +67,29 @@ function useSend(path: string) {
 /**
  * The scale's definition, row by row (rule 2): shift periods with their start times, categories
  * with the care minutes per person in each period, the organisation's minimum staff with each
- * skill, and how often a category is reviewed. Every figure is the organisation's own.
+ * skill, and how often a category is reviewed. Every figure is the organisation's own. Each
+ * problem is shown at its field; adding a row moves focus to its first field, removing one moves
+ * focus to that section's add button.
  */
 function DefinitionFields({
   draft,
   onChange,
+  errors,
+  idPrefix,
 }: {
   readonly draft: DraftDefinition;
   readonly onChange: (next: DraftDefinition) => void;
+  /** Problems by field key (`definitionField`). */
+  readonly errors: Readonly<Record<string, string>>;
+  readonly idPrefix: string;
 }) {
+  const id = (field: string) => `${idPrefix}-${field}`;
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusId) return;
+    document.getElementById(focusId)?.focus();
+    setFocusId(null);
+  }, [focusId]);
   const setPeriod = (i: number, patch: Partial<DraftDefinition["periods"][number]>) =>
     onChange({
       ...draft,
@@ -89,7 +105,9 @@ function DefinitionFields({
       ...draft,
       skillMix: draft.skillMix.map((s, n) => (n === i ? { ...s, ...patch } : s)),
     });
-  const periodOptions = draft.periods.map((p) => ({ value: p.key, label: p.label || p.key }));
+  const periodName = (p: DraftDefinition["periods"][number], i: number) =>
+    p.label.trim() || t("dependency.edit.periodFallback", { n: i + 1 });
+  const periodOptions = draft.periods.map((p, i) => ({ value: p.key, label: periodName(p, i) }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -99,25 +117,30 @@ function DefinitionFields({
         {draft.periods.map((p, i) => (
           <div key={p.key} className="flex flex-wrap items-end gap-4">
             <TextField
+              id={id(definitionField.periodLabel(i))}
               label={t("dependency.edit.periodName", { n: i + 1 })}
               value={p.label}
               maxLength={80}
+              error={errors[definitionField.periodLabel(i)]}
               onChange={(e) => setPeriod(i, { label: e.currentTarget.value })}
             />
             <TextField
+              id={id(definitionField.periodStart(i))}
               label={t("dependency.edit.periodFrom", { n: i + 1 })}
               hint={t("rota.template.timeHint")}
               value={p.start}
               inputMode="numeric"
               maxLength={5}
+              error={errors[definitionField.periodStart(i)]}
               onChange={(e) => setPeriod(i, { start: e.currentTarget.value })}
             />
             <Button
               variant="secondary"
               icon={<X {...icon} />}
-              onClick={() =>
-                onChange({ ...draft, periods: draft.periods.filter((_, n) => n !== i) })
-              }
+              onClick={() => {
+                onChange({ ...draft, periods: draft.periods.filter((_, n) => n !== i) });
+                setFocusId(id("add-period"));
+              }}
             >
               {t("dependency.edit.removePeriod", { n: i + 1 })}
             </Button>
@@ -125,25 +148,25 @@ function DefinitionFields({
         ))}
         <div>
           <Button
+            id={id("add-period")}
             variant="secondary"
             icon={<Plus {...icon} />}
             disabled={draft.periods.length >= 12}
-            onClick={() =>
+            onClick={() => {
+              const n = draft.periods.length;
               onChange({
                 ...draft,
                 periods: [
                   ...draft.periods,
                   {
-                    key: keyFromLabel(
-                      `period ${draft.periods.length + 1}`,
-                      new Set(draft.periods.map((p) => p.key)),
-                    ),
+                    key: keyFromLabel(`period ${n + 1}`, new Set(draft.periods.map((p) => p.key))),
                     label: "",
                     start: "",
                   },
                 ],
-              })
-            }
+              });
+              setFocusId(id(definitionField.periodLabel(n)));
+            }}
           >
             {t("dependency.edit.addPeriod")}
           </Button>
@@ -156,9 +179,11 @@ function DefinitionFields({
           {draft.categories.map((c, i) => (
             <li key={c.key} className="flex flex-col gap-3 border-b border-border pb-3">
               <TextField
+                id={id(definitionField.categoryLabel(i))}
                 label={t("dependency.edit.categoryName", { n: i + 1 })}
                 value={c.label}
                 maxLength={80}
+                error={errors[definitionField.categoryLabel(i)]}
                 onChange={(e) => setCategory(i, { label: e.currentTarget.value })}
               />
               <TextArea
@@ -169,17 +194,20 @@ function DefinitionFields({
                 onChange={(e) => setCategory(i, { description: e.currentTarget.value })}
               />
               <div className="flex flex-wrap gap-4">
-                {draft.periods.map((p) => (
+                {draft.periods.map((p, pi) => (
                   <TextField
                     key={p.key}
+                    id={id(definitionField.categoryMinutes(i, p.key))}
                     label={t("dependency.edit.categoryMinutes", {
-                      category: c.label || String(i + 1),
-                      period: p.label || p.key,
+                      category:
+                        c.label.trim() || t("dependency.edit.categoryFallback", { n: i + 1 }),
+                      period: periodName(p, pi),
                     })}
                     hint={t("dependency.edit.minutesHint")}
                     value={c.minutes[p.key] ?? ""}
                     inputMode="numeric"
                     maxLength={4}
+                    error={errors[definitionField.categoryMinutes(i, p.key)]}
                     onChange={(e) =>
                       setCategory(i, { minutes: { ...c.minutes, [p.key]: e.currentTarget.value } })
                     }
@@ -190,11 +218,14 @@ function DefinitionFields({
                 <Button
                   variant="secondary"
                   icon={<X {...icon} />}
-                  onClick={() =>
-                    onChange({ ...draft, categories: draft.categories.filter((_, n) => n !== i) })
-                  }
+                  onClick={() => {
+                    onChange({ ...draft, categories: draft.categories.filter((_, n) => n !== i) });
+                    setFocusId(id("add-category"));
+                  }}
                 >
-                  {t("dependency.edit.removeCategory", { name: c.label || String(i + 1) })}
+                  {t("dependency.edit.removeCategory", {
+                    name: c.label.trim() || t("dependency.edit.categoryFallback", { n: i + 1 }),
+                  })}
                 </Button>
               </div>
             </li>
@@ -202,17 +233,19 @@ function DefinitionFields({
         </ul>
         <div>
           <Button
+            id={id("add-category")}
             variant="secondary"
             icon={<Plus {...icon} />}
             disabled={draft.categories.length >= 30}
-            onClick={() =>
+            onClick={() => {
+              const n = draft.categories.length;
               onChange({
                 ...draft,
                 categories: [
                   ...draft.categories,
                   {
                     key: keyFromLabel(
-                      `category ${draft.categories.length + 1}`,
+                      `category ${n + 1}`,
                       new Set(draft.categories.map((c) => c.key)),
                     ),
                     label: "",
@@ -220,8 +253,9 @@ function DefinitionFields({
                     minutes: {},
                   },
                 ],
-              })
-            }
+              });
+              setFocusId(id(definitionField.categoryLabel(n)));
+            }}
           >
             {t("dependency.edit.addCategory")}
           </Button>
@@ -234,6 +268,7 @@ function DefinitionFields({
           // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional while being edited.
           <div key={i} className="flex flex-wrap items-end gap-4">
             <SelectField
+              id={id(`skill-${i}-skill`)}
               label={t("dependency.edit.skillName", { n: i + 1 })}
               value={s.skill}
               options={SKILLS.map((k) => ({
@@ -249,18 +284,21 @@ function DefinitionFields({
               onChange={(e) => setSkill(i, { periodKey: e.currentTarget.value })}
             />
             <TextField
+              id={id(definitionField.skill(i))}
               label={t("dependency.edit.skillMinimum", { n: i + 1 })}
               value={s.minimumStaff}
               inputMode="numeric"
               maxLength={3}
+              error={errors[definitionField.skill(i)]}
               onChange={(e) => setSkill(i, { minimumStaff: e.currentTarget.value })}
             />
             <Button
               variant="secondary"
               icon={<X {...icon} />}
-              onClick={() =>
-                onChange({ ...draft, skillMix: draft.skillMix.filter((_, n) => n !== i) })
-              }
+              onClick={() => {
+                onChange({ ...draft, skillMix: draft.skillMix.filter((_, n) => n !== i) });
+                setFocusId(id("add-skill"));
+              }}
             >
               {t("dependency.edit.removeSkill", { n: i + 1 })}
             </Button>
@@ -268,33 +306,49 @@ function DefinitionFields({
         ))}
         <div>
           <Button
+            id={id("add-skill")}
             variant="secondary"
             icon={<Plus {...icon} />}
             disabled={draft.periods.length === 0 || draft.skillMix.length >= 60}
-            onClick={() =>
+            onClick={() => {
+              const n = draft.skillMix.length;
               onChange({
                 ...draft,
                 skillMix: [
                   ...draft.skillMix,
                   { skill: SKILLS[0], periodKey: draft.periods[0]?.key ?? "", minimumStaff: "1" },
                 ],
-              })
-            }
+              });
+              setFocusId(id(`skill-${n}-skill`));
+            }}
           >
             {t("dependency.edit.addSkill")}
           </Button>
         </div>
       </fieldset>
       <TextField
+        id={id(definitionField.review())}
         label={t("dependency.edit.reviewDays")}
         hint={t("dependency.edit.reviewDaysHint")}
         value={draft.reviewIntervalDays}
         inputMode="numeric"
         maxLength={4}
+        error={errors[definitionField.review()]}
         onChange={(e) => onChange({ ...draft, reviewIntervalDays: e.currentTarget.value })}
       />
     </div>
   );
+}
+
+/** The editor's problems as the form's refusal, each linked to its field. */
+function definitionRefusal(
+  problems: readonly DefinitionProblem[],
+  idPrefix: string,
+  extra: Readonly<Record<string, string>> = {},
+) {
+  const fields = Object.fromEntries(problems.map((p) => [p.field, p.message]));
+  const fieldIds = Object.fromEntries(problems.map((p) => [p.field, `${idPrefix}-${p.field}`]));
+  return { result: fieldErrors({ ...extra, ...fields }), fields, fieldIds };
 }
 
 /** Makes a scale for a home (or the whole organisation) with its first draft. */
@@ -309,6 +363,11 @@ export function CreateScaleForm({
   const ids = useFieldIds(["name", "locationId", "definition"]);
   const { result, pending, send, setResult } = useSend("/settings/dependency");
   const [draft, setDraft] = useState<DraftDefinition>(EMPTY_DRAFT);
+  const [problems, setProblems] = useState<{
+    fields: Readonly<Record<string, string>>;
+    fieldIds: Readonly<Record<string, string>>;
+  }>({ fields: {}, fieldIds: {} });
+  const idPrefix = `${ids.definition}-f`;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -318,8 +377,9 @@ export function CreateScaleForm({
     if (!name) errors.name = t("dependency.create.nameRequired");
     if (!where) errors.locationId = t("dependency.create.chooseWhere");
     const read = readDefinition(draft, t);
-    if (!read.ok) errors.definition = read.problems.join(" ");
-    if (Object.keys(errors).length > 0 || !read.ok) return setResult(fieldErrors(errors));
+    const refusal = definitionRefusal(read.ok ? [] : read.problems, idPrefix, errors);
+    setProblems(refusal);
+    if (Object.keys(errors).length > 0 || !read.ok) return setResult(refusal.result);
     send(
       "created",
       () => createScale(name, where === "organisation" ? null : where, read.definition),
@@ -352,15 +412,22 @@ export function CreateScaleForm({
         required
         error={errorFor(result, "locationId")}
       />
-      <div id={ids.definition} tabIndex={-1}>
-        <DefinitionFields draft={draft} onChange={setDraft} />
-      </div>
+      <DefinitionFields
+        draft={draft}
+        onChange={setDraft}
+        errors={problems.fields}
+        idPrefix={idPrefix}
+      />
       <div>
         <Button type="submit" icon={<FilePlus {...icon} />} disabled={pending}>
           {pending ? t("common.saving") : t("dependency.create.submit")}
         </Button>
       </div>
-      <FormFeedback result={result && !result.ok ? result : null} success="" fieldIds={ids} />
+      <FormFeedback
+        result={result && !result.ok ? result : null}
+        success=""
+        fieldIds={{ ...ids, ...problems.fieldIds }}
+      />
     </form>
   );
 }
@@ -380,24 +447,38 @@ export function EditDraftForm({
   const ids = useFieldIds(["definition"]);
   const { result, pending, send, setResult } = useSend(dependencyScalePage(scaleId));
   const [draft, setDraft] = useState<DraftDefinition>(initial);
+  const [problems, setProblems] = useState<{
+    fields: Readonly<Record<string, string>>;
+    fieldIds: Readonly<Record<string, string>>;
+  }>({ fields: {}, fieldIds: {} });
+  const idPrefix = `${ids.definition}-f`;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const read = readDefinition(draft, t);
-    if (!read.ok) return setResult(fieldErrors({ definition: read.problems.join(" ") }));
+    const refusal = definitionRefusal(read.ok ? [] : read.problems, idPrefix);
+    setProblems(refusal);
+    if (!read.ok) return setResult(refusal.result);
     send("saved", () => saveDraft(scaleId, versionId, version, read.definition));
   };
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <p className="m-0 max-w-prose">{t("dependency.edit.contributor")}</p>
-      <div id={ids.definition} tabIndex={-1}>
-        <DefinitionFields draft={draft} onChange={setDraft} />
-      </div>
+      <DefinitionFields
+        draft={draft}
+        onChange={setDraft}
+        errors={problems.fields}
+        idPrefix={idPrefix}
+      />
       <div>
         <Button type="submit" icon={<Save {...icon} />} disabled={pending}>
           {pending ? t("common.saving") : t("dependency.edit.save")}
         </Button>
       </div>
-      <FormFeedback result={result && !result.ok ? result : null} success="" fieldIds={ids} />
+      <FormFeedback
+        result={result && !result.ok ? result : null}
+        success=""
+        fieldIds={problems.fieldIds}
+      />
     </form>
   );
 }
@@ -457,14 +538,39 @@ export function ApproveDraftButton({
   readonly versionId: string;
   readonly version: number;
 }) {
+  const [open, setOpen] = useState(false);
+  const { result, pending, send } = useSend(dependencyScalePage(scaleId));
+  // Approving puts the version in use at once, for every rota check (HZ-123): confirm first.
   return (
-    <ActionButton
-      label={t("dependency.draft.approve")}
-      buttonIcon={<CircleCheck {...icon} />}
-      onSend={() => approveDraft(scaleId, versionId, version)}
-      done="approved"
-      path={dependencyScalePage(scaleId)}
-    />
+    <div className="flex flex-col gap-2">
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        trigger={<Button icon={<CircleCheck {...icon} />}>{t("dependency.draft.approve")}</Button>}
+        title={t("dependency.draft.approveTitle")}
+        closeLabel={t("common.close")}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="m-0">{t("dependency.draft.approveAbout")}</p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <SheetClose asChild>
+              <Button variant="secondary">{t("dependency.draft.keepDraft")}</Button>
+            </SheetClose>
+            <Button
+              icon={<CircleCheck {...icon} />}
+              disabled={pending}
+              onClick={() => {
+                setOpen(false);
+                send("approved", () => approveDraft(scaleId, versionId, version));
+              }}
+            >
+              {pending ? t("common.saving") : t("dependency.draft.approveConfirm")}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+      <FormFeedback result={result && !result.ok ? result : null} success="" />
+    </div>
   );
 }
 
@@ -523,7 +629,7 @@ export function ReasonButton({
         />
         <div className="flex flex-wrap justify-end gap-2">
           <SheetClose asChild>
-            <Button variant="secondary">{t("common.cancel")}</Button>
+            <Button variant="secondary">{t("dependency.reason.keep", { kind })}</Button>
           </SheetClose>
           <Button type="submit" variant="destructive" disabled={pending}>
             {pending ? t("common.saving") : t("dependency.reason.submit", { kind })}
@@ -547,6 +653,7 @@ export function RecordDependencyForm({
   currentId,
   deciders,
   me,
+  oneToOne,
 }: {
   readonly personId: string;
   readonly path: string;
@@ -554,6 +661,8 @@ export function RecordDependencyForm({
   readonly currentId: string | null;
   readonly deciders: readonly { readonly id: string; readonly name: string }[];
   readonly me: string;
+  /** The record in force's one-to-one minutes, carried into a review or correction unchanged. */
+  readonly oneToOne: readonly { readonly periodKey: string; readonly minutes: number }[];
 }) {
   const ids = useFieldIds(["categoryKey", "kind", "effectiveFrom", "reason", "decidedBy"]);
   const { result, pending, send, setResult } = useSend(path);
@@ -585,6 +694,7 @@ export function RecordDependencyForm({
         reason,
         decidedBy,
         supersedesId: currentId,
+        oneToOne,
       }),
     );
   };

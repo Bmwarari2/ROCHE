@@ -83,6 +83,33 @@ export function ukClock(iso: string): string {
   }).format(new Date(iso));
 }
 
+/** The UK date of an instant (yyyy-mm-dd). */
+export function ukDateOf(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date(iso));
+}
+
+/** A shift's times from its instants: "20:00 to 08:00 (next day)" when it ends on a later UK day. */
+export function instantTimes(startsAt: string, endsAt: string, t: Translator): string {
+  return t("rota.shift.times", {
+    start: ukClock(startsAt),
+    end: ukClock(endsAt),
+    nextDay: ukDateOf(endsAt) > ukDateOf(startsAt) ? "yes" : "no",
+  });
+}
+
+/**
+ * Why a blocked member cannot be overridden onto a shift, from the blockers' kinds (HZ-124): a
+ * missing right to work is never overridden; a member who is not active cannot work at all.
+ */
+export function notOverridableReason(
+  blockers: readonly Pick<RosterBlocker, "kind">[],
+  t: Translator,
+): string {
+  if (blockers.some((b) => b.kind === "right_to_work")) return t("rota.override.rightToWork");
+  if (blockers.some((b) => b.kind === "not_active")) return t("rota.override.notActive");
+  return t("rota.override.cannot");
+}
+
 /** Shifts grouped by their UK date, in date then start order. */
 export function shiftsByDate<S extends Pick<ShiftItem, "date" | "startsAt" | "id">>(
   shifts: readonly S[],
@@ -192,10 +219,11 @@ export function shiftChip(shift: Pick<ShiftItem, "assignment">, t: Translator): 
   if (!shift.assignment) {
     return { status: "due", icon: "circle-alert", label: t("rota.shift.open") };
   }
+  // Never a green tick: whether the person may still work it is the check's answer (HZ-124).
   if (shift.assignment.overridden.length > 0) {
-    return { status: "info", icon: "file-pen", label: t("rota.shift.overridden") };
+    return { status: "info", icon: "triangle-alert", label: t("rota.shift.overridden") };
   }
-  return { status: "done", icon: "circle-check", label: t("rota.shift.filled") };
+  return { status: "neutral", icon: "circle-check", label: t("rota.shift.filled") };
 }
 
 /** The number of days a rota covers, inclusive. */

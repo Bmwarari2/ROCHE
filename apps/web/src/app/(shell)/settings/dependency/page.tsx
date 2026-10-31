@@ -63,7 +63,12 @@ export default async function DependencyPage({
             {listed.data.items.map((s) => (
               <li key={s.id} className="flex flex-col gap-2 border-b border-border pb-3">
                 <h3 className="m-0 text-body font-semibold">
-                  <Link href={dependencyScalePage(s.id)}>{s.name}</Link>
+                  <Link
+                    href={dependencyScalePage(s.id)}
+                    className="inline-flex min-h-target items-center underline"
+                  >
+                    {s.name}
+                  </Link>
                 </h3>
                 <p className="m-0 text-body-dense">
                   {s.locationId

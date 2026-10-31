@@ -4,9 +4,11 @@ import {
   clockTime,
   comparisonChip,
   hoursWords,
+  instantTimes,
   justificationProblem,
   mayCheck,
   mayOverride,
+  notOverridableReason,
   overrideKeys,
   periodKey,
   publishReadiness,
@@ -65,8 +67,10 @@ describe("24-hour UK times", () => {
   });
 
   it("puts hours and minutes in words", () => {
-    expect(hoursWords(450, t)).toBe("7 h 30 min");
-    expect(hoursWords(0, t)).toBe("0 h 0 min");
+    expect(hoursWords(450, t)).toBe("7 hours 30 minutes");
+    expect(hoursWords(60, t)).toBe("1 hour");
+    expect(hoursWords(61, t)).toBe("1 hour 1 minute");
+    expect(hoursWords(0, t)).toBe("0 hours");
   });
 
   it("counts a rota's days inclusively", () => {
@@ -176,7 +180,26 @@ describe("rota and shift states as an icon and a word", () => {
 
   it.each([
     [{ assignment: null }, "Open"],
-    [{ assignment: { overridden: [] } }, "Filled"],
-    [{ assignment: { overridden: ["dbs:expired"] } }, "Filled with an override"],
+    // Never a green tick: whether the person may still work it is the check's answer.
+    [{ assignment: { overridden: [] } }, "Assigned"],
+    [{ assignment: { overridden: ["dbs:expired"] } }, "Assigned with an override"],
   ])("%j", (shift, label) => expect(shiftChip(shift as never, t).label).toBe(label));
+});
+
+describe("overnight shifts say they end the next day", () => {
+  it.each([
+    ["2026-11-02T20:00:00Z", "2026-11-03T08:00:00Z", "20:00 to 08:00 (next day)"],
+    ["2026-11-02T07:00:00Z", "2026-11-02T15:00:00Z", "07:00 to 15:00"],
+    // British Summer Time: 23:30 UK on the 24th to 07:30 UK on the 25th.
+    ["2026-10-24T22:30:00Z", "2026-10-25T07:30:00Z", "23:30 to 07:30 (next day)"],
+  ])("%s to %s", (from, to, words) => expect(instantTimes(from, to, t)).toBe(words));
+});
+
+describe("hazard HZ-124 why a blocked member cannot be overridden, from the blockers", () => {
+  it.each([
+    [[{ kind: "right_to_work" }], /right to work can never be overridden/],
+    [[{ kind: "not_active" }], /not active/],
+    [[{ kind: "right_to_work" }, { kind: "not_active" }], /right to work/],
+    [[{ kind: "dbs" }], /cannot be overridden/],
+  ] as const)("%j", (blockers, words) => expect(notOverridableReason(blockers, t)).toMatch(words));
 });

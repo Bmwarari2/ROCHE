@@ -5,7 +5,7 @@ import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { MY_SHIFTS_PAGE, myShiftsShown, ukClock } from "@/lib/rota";
+import { instantTimes, MY_SHIFTS_PAGE, myShiftsShown } from "@/lib/rota";
 
 export const metadata: Metadata = { title: t("rota.mine.title") };
 
@@ -56,8 +56,7 @@ export default async function MyShiftsPage() {
                   {t("rota.mine.item", {
                     date: formatDate(ukDate(s.startsAt)) ?? "",
                     label: s.label,
-                    start: ukClock(s.startsAt),
-                    end: ukClock(s.endsAt),
+                    times: instantTimes(s.startsAt, s.endsAt, t),
                   })}
                 </h3>
                 <p className="m-0 text-body-dense">

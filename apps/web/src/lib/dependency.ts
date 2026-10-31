@@ -116,9 +116,25 @@ export const EMPTY_DRAFT: DraftDefinition = {
   reviewIntervalDays: "",
 };
 
+/** A problem at one field of the editor, keyed as the editor names its fields (`definitionField`). */
+export interface DefinitionProblem {
+  readonly field: string;
+  readonly message: string;
+}
+
 export type ReadDefinition =
   | { readonly ok: true; readonly definition: DependencyScaleDefinition }
-  | { readonly ok: false; readonly problems: readonly string[] };
+  | { readonly ok: false; readonly problems: readonly DefinitionProblem[] };
+
+/** The editor's field keys: each problem names the field it is about, so it is shown there. */
+export const definitionField = {
+  periodLabel: (i: number) => `period-${i}-label`,
+  periodStart: (i: number) => `period-${i}-start`,
+  categoryLabel: (i: number) => `category-${i}-label`,
+  categoryMinutes: (i: number, periodKey: string) => `category-${i}-minutes-${periodKey}`,
+  skill: (i: number) => `skill-${i}-minimum`,
+  review: () => "review",
+} as const;
 
 const wholeNumber = (text: string, max: number): number | null => {
   if (!/^\d{1,5}$/.test(text.trim())) return null;
@@ -131,22 +147,30 @@ const wholeNumber = (text: string, max: number): number | null => {
  * it again (and lists what an approval needs); this only refuses what it could not send.
  */
 export function readDefinition(draft: DraftDefinition, t: Translator): ReadDefinition {
-  const problems: string[] = [];
+  const problems: DefinitionProblem[] = [];
+  const problem = (field: string, message: string) => problems.push({ field, message });
   const periods = draft.periods.map((p, i) => {
     const start = readClockTime(p.start);
-    if (!p.label.trim()) problems.push(t("dependency.edit.periodLabel", { n: i + 1 }));
-    if (start === null) problems.push(t("dependency.edit.periodStart", { n: i + 1 }));
+    if (!p.label.trim()) {
+      problem(definitionField.periodLabel(i), t("dependency.edit.periodLabel", { n: i + 1 }));
+    }
+    if (start === null) {
+      problem(definitionField.periodStart(i), t("dependency.edit.periodStart", { n: i + 1 }));
+    }
     return { key: p.key, label: p.label.trim(), startMinute: start ?? 0 };
   });
   const periodKeys = new Set(periods.map((p) => p.key));
   const categories = draft.categories.map((c, i) => {
-    if (!c.label.trim()) problems.push(t("dependency.edit.categoryLabel", { n: i + 1 }));
+    if (!c.label.trim()) {
+      problem(definitionField.categoryLabel(i), t("dependency.edit.categoryLabel", { n: i + 1 }));
+    }
     const careMinutes = periods.flatMap((p) => {
       const raw = (c.minutes[p.key] ?? "").trim();
       if (raw === "") return [];
       const minutes = wholeNumber(raw, 2880);
       if (minutes === null) {
-        problems.push(
+        problem(
+          definitionField.categoryMinutes(i, p.key),
           t("dependency.edit.minutes", { category: c.label || String(i + 1), period: p.label }),
         );
         return [];
@@ -167,7 +191,7 @@ export function readDefinition(draft: DraftDefinition, t: Translator): ReadDefin
       !periodKeys.has(s.periodKey) ||
       !(SKILLS as readonly string[]).includes(s.skill)
     ) {
-      problems.push(t("dependency.edit.skill", { n: i + 1 }));
+      problem(definitionField.skill(i), t("dependency.edit.skill", { n: i + 1 }));
       return [];
     }
     return [{ skill: s.skill as (typeof SKILLS)[number], periodKey: s.periodKey, minimumStaff }];
@@ -175,7 +199,7 @@ export function readDefinition(draft: DraftDefinition, t: Translator): ReadDefin
   let reviewIntervalDays: number | null = null;
   if (draft.reviewIntervalDays.trim() !== "") {
     reviewIntervalDays = wholeNumber(draft.reviewIntervalDays, 3650);
-    if (reviewIntervalDays === null) problems.push(t("dependency.edit.review"));
+    if (reviewIntervalDays === null) problem(definitionField.review(), t("dependency.edit.review"));
   }
   if (problems.length > 0) return { ok: false, problems };
   return { ok: true, definition: { periods, categories, skillMix, reviewIntervalDays } };

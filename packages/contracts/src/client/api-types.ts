@@ -25077,7 +25077,7 @@ export interface paths {
     };
     /**
      * Who may be put on a shift at a location
-     * @description scheduling.rota.manage reaching the location: the active members with a role in force there or across the organisation, by name, with their job title (the rota builder's picker). Whether each may work a given shift is the eligibility route's answer. No address, no sign-in, no staff file detail.
+     * @description scheduling.rota.manage reaching the location: the active members with a role in force there or across the organisation, by name, with their job title (the rota builder's picker). Whether each may work a given shift is the eligibility route's answer. No address, no sign-in, no staff file detail. Audited (scheduling.rota_workers.listed) with the count.
      */
     get: {
       parameters: {
@@ -25110,6 +25110,15 @@ export interface paths {
         };
         /** @description Not a member, missing permission, MFA not set up or step-up needed */
         403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
           headers: {
             [name: string]: unknown;
           };

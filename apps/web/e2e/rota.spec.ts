@@ -79,7 +79,7 @@ async function managerAtRota(page: Page, context: BrowserContext) {
   await expect(page.getByRole("heading", { level: 1, name: "Rota" })).toBeVisible();
 }
 
-test("hazard HZ-124 the manager makes a template, starts a rota and fills a shift through the rostering rule", async ({
+test("hazard HZ-124 the manager makes a template, starts a rota and applies the rostering rule to a shift", async ({
   page,
   context,
 }) => {
@@ -103,6 +103,14 @@ test("hazard HZ-124 the manager makes a template, starts a rota and fills a shif
   await arrived(page, "Shift templates and patterns", "Shift template made.");
   await expect(main(page)).toContainText("07:30 to 15:00");
   await accessibleInBothThemes(page, "shift templates");
+  // A pattern with a count out of range is said at that field.
+  const pattern = page.getByRole("region", { name: "Make a shift pattern" });
+  await pattern.getByLabel("Name", { exact: true }).fill(`Week ${RUN}`);
+  await pattern.getByLabel(`Day 1: Early ${RUN}`).fill("99");
+  await pattern.getByRole("button", { name: "Make pattern" }).click();
+  await expect(pattern.getByRole("alert")).toBeFocused();
+  await expect(pattern.getByLabel(`Day 1: Early ${RUN}`)).toHaveAttribute("aria-invalid", "true");
+  await accessibleInBothThemes(page, "shift pattern error");
 
   // A rota far ahead (one week), so no earlier run's rota overlaps it.
   await main(page).getByRole("link", { name: "Back to the home's rotas" }).click();
@@ -129,7 +137,8 @@ test("hazard HZ-124 the manager makes a template, starts a rota and fills a shif
   await expect(shift.getByText("Open", { exact: true })).toBeVisible();
 
   // The rostering rule: check first, then put on the shift or override with a justification.
-  const who = shift.getByLabel(`Who works Early ${RUN}`);
+  // Every picker names its shift's day and times, so each has its own name.
+  const who = shift.getByLabel(new RegExp(`^Who works Early ${RUN} on .+, 07:30 to 15:00$`));
   const carerValue = await who.locator("option", { hasText: "Cat Carer" }).getAttribute("value");
   await who.selectOption(carerValue ?? "");
   await shift.getByRole("button", { name: "Check they can work it" }).click();
@@ -137,27 +146,32 @@ test("hazard HZ-124 the manager makes a template, starts a rota and fills a shif
   const blocked = shift.getByText("Cat Carer cannot work this shift yet:");
   await expect(allowed.or(blocked)).toBeVisible();
   await accessibleInBothThemes(page, "rostering rule answer");
+  // The demo staff have no staff files, so the rostering rule finds no right to work on record:
+  // that is never overridden, the page says so in words and offers no override (the override
+  // itself is covered in apps/api/test/rota.test.ts; a seeded staff file for the demo is H-964).
   if (await allowed.isVisible()) {
     await shift.getByRole("button", { name: "Put on shift" }).click();
     await arrived(page, "Rota", "Put on the shift.");
-  } else if (await shift.getByRole("button", { name: "Override and put on shift" }).count()) {
-    // The override names what it covers and needs a reason of 10 characters or more.
-    await shift.getByRole("button", { name: "Override and put on shift" }).click();
-    await expect(shift.getByRole("alert")).toContainText(
-      "Say why it is safe in at least 10 characters",
-    );
-    await shift
-      .getByLabel("Why it is safe")
-      .fill("Checked with the nurse in charge; shadowing the whole shift.");
-    await shift.getByLabel(/^This override covers/).check();
-    await shift.getByRole("button", { name: "Override and put on shift" }).click();
-    await arrived(page, "Rota", "Put on the shift with your override recorded.");
+    await expect(main(page)).toContainText("On shift: Cat Carer");
   } else {
-    await expect(shift).toContainText(/never be overridden|Only a manager/);
-    return;
+    await expect(
+      shift.getByRole("listitem").filter({ hasText: "No right to work on record" }),
+    ).toBeVisible();
+    await expect(shift).toContainText(
+      "A missing right to work can never be overridden. Choose someone else.",
+    );
+    await expect(shift.getByRole("button", { name: "Override and put on shift" })).toHaveCount(0);
+    await expect(shift.getByText("Open", { exact: true })).toBeVisible();
   }
-  await expect(main(page)).toContainText("On shift: Cat Carer");
-  await accessibleInBothThemes(page, "rota builder, filled");
+  await accessibleInBothThemes(page, "rota builder, after the rule");
+  // The cancel sheet names the shift and keeps it unless sent.
+  await shift.getByRole("button", { name: "Cancel shift" }).click();
+  const sheet = page.getByRole("dialog");
+  await expect(
+    sheet.getByRole("heading", { name: new RegExp(`^Cancel Early ${RUN} on `) }),
+  ).toBeVisible();
+  await accessibleInBothThemes(page, "cancel shift sheet");
+  await sheet.getByRole("button", { name: "Keep shift" }).click();
 
   // hazard HZ-123 the check before publishing: the organisation's own scale, never a score.
   await main(page).getByRole("link", { name: "Check and publish" }).click();
@@ -171,17 +185,18 @@ test("hazard HZ-124 the manager makes a template, starts a rota and fills a shif
 
   // Publishing is held back until each period is ticked by name and the warnings read.
   const publish = page.getByRole("region", { name: "Publish" });
+  // One early shift on a week's rota leaves every night short of any scale (or there is no scale
+  // yet): there are always periods to acknowledge and warnings to read.
   const periods = publish.getByRole("checkbox", { name: /^I have seen / });
-  if ((await periods.count()) > 0) {
-    await publish.getByRole("button", { name: "Publish rota" }).click();
-    await expect(publish.getByRole("alert")).toBeFocused();
-    await expect(publish.getByRole("alert")).toContainText(
-      "Tick each period to say you have seen it.",
-    );
-    for (const box of await periods.all()) await box.check();
-  }
-  const read = publish.getByLabel("I have read the warnings on this check");
-  if (await read.count()) await read.check();
+  expect(await periods.count()).toBeGreaterThan(0);
+  await publish.getByRole("button", { name: "Publish rota" }).click();
+  await expect(publish.getByRole("alert")).toBeFocused();
+  await expect(publish.getByRole("alert")).toContainText(
+    "Tick each period to say you have seen it.",
+  );
+  await expect(publish.getByRole("alert")).toContainText("Tick to say you have read the warnings.");
+  for (const box of await periods.all()) await box.check();
+  await publish.getByLabel("I have read the warnings on this check").check();
   await publish.getByRole("button", { name: "Publish rota" }).click();
   await arrived(page, "Rota", "Rota published.");
   await expect(main(page).getByText("Published", { exact: true })).toBeVisible();
@@ -242,6 +257,8 @@ test("hazard HZ-123 the organisation's own dependency scale, approved by someone
     await signInWithDemoPasskey(ownerPage, "owner");
     await ownerPage.goto(scaleUrl);
     await ownerPage.getByRole("main").getByRole("button", { name: "Approve draft" }).click();
+    // Approving puts the version in use at once, so it is confirmed first.
+    await ownerPage.getByRole("dialog").getByRole("button", { name: "Approve and use it" }).click();
     await expect(
       ownerPage.getByRole("main").getByRole("status").filter({ hasText: "Draft approved." }),
     ).toBeVisible();
