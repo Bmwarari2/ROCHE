@@ -271,6 +271,13 @@ export const PERMISSIONS = {
   "scheduling.dependency.manage": {
     description: "Write, approve and archive the organisation's dependency scale",
   },
+  "scheduling.wellbeing.manage": {
+    description:
+      "Run staff pulse surveys and read their results above the minimum group size, recognition and check-ins members share",
+  },
+  "scheduling.wellbeing.self": {
+    description: "Answer staff surveys, thank colleagues and keep own wellbeing check-ins",
+  },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
   "operations.catering.manage": {

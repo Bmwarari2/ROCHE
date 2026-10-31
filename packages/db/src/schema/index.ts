@@ -26,5 +26,6 @@ export * from "./safety-records";
 export * from "./sample-data";
 export * from "./sub-processors";
 export * from "./sync";
+export * from "./wellbeing";
 export * from "./work";
 export * from "./workforce";

@@ -85,6 +85,7 @@ import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
+import { wellbeingRouter } from "./routes/wellbeing";
 import { workflowsRouter } from "./routes/workflows";
 import { SyncTokenSigner } from "./sync/token";
 
@@ -367,6 +368,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorBreachNoticesRouter);
   app.route("/", peopleDetailsRouter);
   app.route("/", schedulingDependencyRouter);
+  app.route("/", wellbeingRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

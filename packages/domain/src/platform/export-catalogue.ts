@@ -54,6 +54,7 @@ export type ExportRetention =
   | "organisation_document"
   | "invitation"
   | "training_record"
+  | "staff_wellbeing"
   | "staff_file"
   | "data_rights_case"
   | "tenant_configuration"
@@ -3863,6 +3864,101 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       recorded_at: { description: "When the server stored it (UTC)." },
       created_at: "exported",
       created_by: { description: "Who recorded it (tenant_user.id)." },
+    },
+  },
+  "public.pulse_survey": {
+    context: "scheduling",
+    description:
+      "Staff pulse surveys: the home they ask (or the whole organisation), the questions and dates (scheduling.md section 16).",
+    treatment: "tenant_rows",
+    retention: "staff_wellbeing",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: {
+        description: "The home whose staff it asks; empty for the whole organisation.",
+      },
+      title: { description: "The survey's title." },
+      questions: { description: "The questions: [{ id, kind: scale | free_text, text }]." },
+      opens_on: { description: "The UK date it opens." },
+      closes_on: { description: "The last UK date it takes answers." },
+      state: {
+        description: "Where it is in its life.",
+        codes: {
+          draft: "Being written; nobody can answer it.",
+          open: "Taking answers.",
+          closed: "No longer taking answers; results show above the minimum group size.",
+        },
+      },
+      opened_at: { description: "When it opened (UTC)." },
+      closed_at: { description: "When it closed (UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.pulse_survey_participation": {
+    context: "scheduling",
+    description:
+      "That a member took part in a survey (no time and no link to what they answered; scheduling.md section 16 rule 3).",
+    treatment: "tenant_rows",
+    retention: "staff_wellbeing",
+    personal: true,
+    columns: {
+      tenant_id: "exported",
+      survey_id: { description: "The survey (pulse_survey.id)." },
+      member_id: { description: "The member of staff who took part (tenant_user.id)." },
+    },
+  },
+  "public.pulse_survey_response": {
+    context: "scheduling",
+    description: "Anonymous survey responses.",
+    treatment: "not_exported",
+    retention: "staff_wellbeing",
+    personal: false,
+    reasonNotExported:
+      "Anonymous answers leave Harbour only as a closed survey's results above the minimum group size (scheduling.md section 16 rule 4), so no small group can be picked out of an export.",
+    columns: {},
+  },
+  "public.recognition": {
+    context: "scheduling",
+    description:
+      "Thanks from one member of staff to another (append-only; scheduling.md section 16 rule 5).",
+    treatment: "tenant_rows",
+    retention: "staff_wellbeing",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      from_member_id: { description: "Who gave the thanks (tenant_user.id)." },
+      to_member_id: { description: "Who was thanked (tenant_user.id)." },
+      location_id: { description: "The recipient's home." },
+      message: { description: "The thanks, in the sender's words." },
+      created_at: "exported",
+    },
+  },
+  "public.wellbeing_check_in": {
+    context: "scheduling",
+    description:
+      "A member's own wellbeing check-ins, seen by a manager only while shared (scheduling.md section 16 rule 6; possibly health data).",
+    treatment: "tenant_rows",
+    retention: "staff_wellbeing",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      member_id: { description: "The member of staff whose check-in it is (tenant_user.id)." },
+      location_id: { description: "Their home." },
+      mood: { description: "How they said they were, from 1 (low) to 5 (good).", unit: "points" },
+      note: { description: "Their own note, if any." },
+      shared_at: {
+        description: "When they shared it with their manager (UTC); empty while private.",
+      },
+      created_at: "exported",
     },
   },
   "public.letter_template": {

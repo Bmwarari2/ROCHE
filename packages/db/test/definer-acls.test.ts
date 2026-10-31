@@ -18,6 +18,8 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     ["harbour_app"],
   "app.auth_user_has_membership(text)": ["harbour_invitation_owner"],
   "app.claim_invitation(text)": ["harbour_app"],
+  "app.pulse_survey_results(uuid)": ["harbour_app"],
+  "app.submit_pulse_response(uuid, jsonb)": ["harbour_app"],
   "app.evidence_pack_link_for_token(text)": ["harbour_app"],
   "app.family_can_see(uuid, text, text, timestamp with time zone)": [
     "harbour_app",
@@ -25,6 +27,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   ],
   "app.family_item_shown(uuid)": ["harbour_app", "harbour_owner"],
   "app.invitation_for_token(text)": ["harbour_app"],
+  "app.works_at(uuid, uuid)": ["harbour_app"],
   "app.invite_first_owner(uuid, text)": ["harbour_operator"],
   "app.memberships_for_auth_user(text)": ["harbour_app"],
   "app.provision_tenant(jsonb, jsonb, jsonb)": ["harbour_operator"],

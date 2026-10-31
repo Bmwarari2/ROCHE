@@ -813,6 +813,20 @@ these fields; exported with these names.
 | `policy_signature.signed_at` | Harbour | ISO 8601 UTC | One per member and version |
 | Outbox `quality.policy.published` | Harbour | `policyId`, `versionNumber`, `change` | |
 
+## Staff wellbeing and voice (Phase 2, slice 44)
+Code lists for [scheduling.md](scheduling.md) section 16 (migration 0115). No national standard
+covers these fields; exported with these names. Survey responses are anonymous and are not
+exported (only a closed survey's results above the minimum group size leave Harbour).
+| `pulse_survey.questions` | Harbour | `[{ id, kind, text }]`; `kind` `scale` or `free_text`; 1 to 20 questions; text up to 300 characters | |
+| `pulse_survey.state` | Harbour | `draft`, `open`, `closed` | Never back |
+| `pulse_survey.opens_on`, `closes_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
+| `pulse_survey_response.answers` | Harbour | Object by question id: whole number 1 to 5, or text up to 2,000 characters | Not exported |
+| `pulse_survey_response.submitted_week` | Harbour | `YYYY-MM-DD`, always a Monday (the UK week) | The only time kept |
+| `recognition.message` | Harbour | Plain text, 1 to 500 characters | |
+| `wellbeing_check_in.mood` | Harbour | Whole number 1 (low) to 5 (good), the member's own word | Never a score |
+| `wellbeing_check_in.note` | Harbour | Plain text up to 1,000 characters; possibly health | |
+| `wellbeing_check_in.shared_at` | Harbour | ISO 8601 UTC, or empty while private | Set by the database |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

@@ -155,7 +155,7 @@ R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the 
 | R25 | Planned: no adapter on by default; each provider assessed and in the sub-processor register before it receives data (section 7B; not built) | Choose providers knowingly | Planned | | |
 | R26 | Only mapped columns kept, staged rows in quarantine and deleted at commit, discard or expiry, matching never merges, undo of a whole commit, organisation-wide importers only (section 7B) | Check the source export; sign off a sample after committing | Reduced | | |
 | R27 | Links only invited members, DNS-proved domains, Harbour's own second factor still asked for care records and step-up, keys in the managed store only (section 7B) | The identity provider and its contract | Reduced | | |
-| R28 | Planned: results only above a minimum group size, small counts suppressed (section 7B; not built) | Set the smallest group shown | Planned | | |
+| R28 | Results only once a survey has closed and at least `wellbeing.survey_min_group_size` answered, each question likewise, no count below the size, no breakdown or export of responses, free text in alphabetical order; responses hold no member and no time but the week, are closed to the application role and audited with an anonymous actor; check-ins seen by a manager only while the member shares them (section 7B; scheduling.md section 16) | Set the smallest group shown (it can only be raised); warn staff that free text can identify them | Reduced | | |
 | R29 | Unsuccessful applicants kept 6 months (talent pool by consent), interview notes never passed to the staff file, equality monitoring kept apart and counted with small counts suppressed (section 7B) | Applicant privacy notice; the equality questions | Reduced | | |
 
 ## 7A. Phase 1 processing: residential care records
@@ -260,7 +260,7 @@ Every basis here is a proposal until the DPO confirms it (H-526, H-790).
 | 33 Single sign-on | R27, R1 |
 | 30, 46, 71 Clock-in and lone-worker check-ins (not built) | R22 |
 | 76 to 79 Payroll, vetting, learning and e-signature adapters (not built) | R25, R7 |
-| 44 Wellbeing surveys (not built) | R28 |
+| 44 Wellbeing surveys, recognition and check-ins | R28 |
 
 ### 7B.3 Risks R20 to R29
 
@@ -357,11 +357,12 @@ measures; "expected residual" is with Harbour's measures built and the tenant's 
 
 | Field | Value |
 | --- | --- |
-| Slices | 44 (not built) |
+| Slices | 44 (`feat/sched-wellbeing`) |
 | Initial | Possible, significant, **medium** |
-| Measures planned | Results only above a minimum group size, with small counts suppressed, as the applicants' equality monitoring already does (H-731); no free text shown against a small group. Assessed again when the slice is built |
-| Expected residual | To be assessed |
-| DPO decides | The smallest group shown (H-794) |
+| Measures | Results show only once the survey has closed and at least `wellbeing.survey_min_group_size` people answered (Harbour default 5, to verify; an organisation can raise it and never lower it); each question shows only when that many answered it; below the size no count, spread or text is shown. There is no breakdown, filter or export of responses (the export leaves them out), so no small group can be picked out by differencing. A response holds no member, no creator and no time but the UK week; its id is random; the application role cannot read it; the one audit event names the survey with an anonymous actor. Wellbeing check-ins (possibly health) are the member's own and a manager sees one only while it is shared (scheduling.md section 16) |
+| Residual risks | Free text can identify its writer by what it says (staff are warned on the form, H-1081). Someone with direct database access (Thapsus operators, not the application) could link a response to its participation row by transaction metadata; operator access is already logged and approved (H-1081). Statement logging (pgAudit) must not record the answers given to the submission function (H-1081) |
+| Expected residual | Unlikely, significant, **low** |
+| DPO decides | The smallest group shown (H-794, H-1080) |
 
 #### R29 Applicants' data kept after an unsuccessful application or used beyond recruitment
 
