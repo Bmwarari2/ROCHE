@@ -48,6 +48,16 @@ run "dev_trusts_its_own_environments_only" {
     condition     = length(google_org_policy_policy.resource_locations) == 1 && length(google_org_policy_policy.no_service_account_keys) == 1
     error_message = "Both organisation policies must be set by default."
   }
+
+  assert {
+    condition     = jsonencode(sort([for c in google_project_iam_audit_config.all_services.audit_log_config : c.log_type])) == jsonencode(["ADMIN_READ", "DATA_READ", "DATA_WRITE"])
+    error_message = "Data Access audit logs must be on for every service."
+  }
+
+  assert {
+    condition     = jsonencode(google_org_policy_policy.resource_locations[0].spec[0].rules[0].values[0].allowed_values) == jsonencode(["in:europe-west2-locations"])
+    error_message = "The gcp.resourceLocations policy must allow europe-west2 locations only."
+  }
 }
 
 run "prod_subjects_differ_from_dev" {

@@ -1,4 +1,5 @@
-# One Cloud Run service (or job) with its own service account. Secrets come from Secret Manager
+# One Cloud Run service (or job) with its own service account, which holds no project role: it
+# reads only its own secrets and the buckets granted to it (Cloud Run writes its logs itself). Secrets come from Secret Manager
 # as environment variables or files; sidecars share the main container's network namespace, so
 # ClamAV beside the API answers on 127.0.0.1:3310. Direct VPC egress sends all traffic through the
 # VPC: Cloud SQL by its private IP, the internet through Cloud NAT's static addresses. The deploy workflow changes the image after the first apply, so Terraform
@@ -8,14 +9,6 @@ resource "google_service_account" "this" {
   project      = var.project_id
   account_id   = substr(replace(var.name, "/[^a-z0-9-]/", "-"), 0, 30)
   display_name = "Cloud Run ${var.name}"
-}
-
-resource "google_project_iam_member" "roles" {
-  for_each = var.project_roles
-
-  project = var.project_id
-  role    = each.key
-  member  = "serviceAccount:${google_service_account.this.email}"
 }
 
 locals {

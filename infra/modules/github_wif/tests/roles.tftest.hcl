@@ -44,3 +44,13 @@ run "a_name_is_not_an_id" {
 
   expect_failures = [var.github_repository_id]
 }
+
+run "project_iam_admin_is_refused" {
+  command = plan
+
+  variables {
+    deploy_roles = ["roles/resourcemanager.projectIamAdmin"]
+  }
+
+  expect_failures = [var.deploy_roles]
+}

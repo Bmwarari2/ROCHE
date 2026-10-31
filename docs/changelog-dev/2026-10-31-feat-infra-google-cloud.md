@@ -55,6 +55,17 @@ are no Google Cloud credentials, so the code is validated and tested only.
   at the edge and Flagsmith is allowlisted; Cloud CDN serves `/_next/static/*` only, on its own
   backend; SMTP must use TLS; security logs need 400 days and the prod audit archive 365.
 
+- Lead follow-ups: every action in `terraform.yml` is pinned to a full commit SHA with its
+  version as a comment. The apply account holds no project IAM role (`projectIamAdmin` is gone
+  and refused): the runtime accounts take no project role (Cloud Run writes their logs), and the
+  Data Access audit configuration moved to `infra/bootstrap`. `db:bootstrap` and the API's
+  migration job create the `pgaudit` extension where the server offers it, skip it cleanly on a
+  Postgres without it, and refuse to continue in production without it
+  (`packages/db/src/admin/extensions.ts`, tested). Cloud Armor's own 403 page is kept: a custom
+  error response would overwrite the API's own 403 problems, and devices already check
+  `GET /v1/me` after any 403 without a session code (`infra/README.md`, Edge blocks). Human
+  actions H-1090 to H-1095 break down H-04 and replace H-140 for Google Cloud.
+
 ## What is next
 
 - Wired to the application settings of `feat/api-google-cloud-adapters`: no CA in the image (the
@@ -63,34 +74,30 @@ are no Google Cloud credentials, so the code is validated and tested only.
   `GCP_PROJECT_ID`, `GCS_DOCUMENTS_BUCKET`, `GCS_EXPORTS_BUCKET`, `GCS_KMS_KEY`, and SMTP
   (`SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS`; `SMTP_USER` and `SMTP_PASSWORD` from Secret Manager)
   left unset until a provider is chosen. No signed URLs, so no CORS and no token creator grant.
-- Cloud Armor answers a block with its own page, not the old `edge_blocked` JSON problem. Devices
-  are still safe (they end a session only on a 401 or a session code); a custom error response
-  on the load balancer would restore the JSON body.
 - Confirm that Cloud Run reads regional Secret Manager secrets as variables and files; if not,
   switch `secret_manager` to global secrets with user-managed replication in europe-west2.
-- Create the `pgaudit` extension in `db:bootstrap`.
 - Update the restore and on-call runbooks and the Cyber Essentials and ISO 27001 evidence, which
   still cite the AWS modules, and the mobile comment that names `infra/modules/waf`.
-- Human actions: set the folder's log location, create the state project and the three
-  projects, apply `infra/bootstrap` per environment, create and protect the GitHub environments,
-  pin the Cloud Armor rule versions for prod (as H-140 did for AWS WAF), choose and register the
-  SMTP provider.
-- Pin the workflow's actions and the Trivy image to commit SHAs and digests (the GitHub API was
-  not reachable from here to look them up).
-- The apply account still holds `resourcemanager.projectIamAdmin` and `iam.serviceAccountUser`
-  at project level; replace them with a custom role and per-account grants, and confirm in the
-  first apply that every denied permission is supported by deny policies.
+- Human actions H-1090 to H-1095 (folder log location, state project, the three projects, the
+  bootstrap applies, GitHub environments with protection, Cloud Armor pins for prod) and H-08
+  (the SMTP provider).
+- Pin the Trivy image to a digest.
+- The apply account still holds `iam.serviceAccountUser` at project level; replace it with grants
+  on each runtime account, and confirm in the first apply that every denied permission is
+  supported by deny policies (H-1093).
 - The ADR (ADR-0098), the constraints digest, the sub-processor register, the records of
   processing and the security checklist still name AWS; they belong to `docs/production-google-cloud`.
 
 ## Tests
 
 - `terraform fmt -check -recursive`; `terraform validate` for bootstrap, dev, staging and prod
-  with `-lockfile=readonly`; `terraform test`: `modules/github_wif` 4 runs and `bootstrap` 2 runs
+  with `-lockfile=readonly`; `terraform test`: `modules/github_wif` 5 runs and `bootstrap` 2 runs
   passing (each environment trusts its own GitHub environments only, by numeric ids; the deny
   policy; refused roles); `modules/harbour_stack` 16 runs passing (London
   only, another region refused, keys rotate, nothing public, services and databases (the CA
   mounted, documents and exports apart, no SMTP until chosen), Flagsmith
   and Cloud DNS, egress and edge rules, plaintext SMTP and short log retention refused, the audit
   lock only in prod, prod refused without every Cloud Armor pin or a year of audit archive, prod).
+- `packages/db/test/extensions.test.ts` (10 tests: offered, present, created, not preloaded,
+  other errors, readiness, idempotent against a real database without pgaudit).
 - tflint and Trivy were not run locally (installing them was not allowed here); CI runs both.

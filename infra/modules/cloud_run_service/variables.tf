@@ -155,12 +155,6 @@ variable "timeout_seconds" {
   default     = 300
 }
 
-variable "project_roles" {
-  description = "Project roles the service account needs, for example roles/cloudsql.client."
-  type        = set(string)
-  default     = []
-}
-
 variable "deletion_protection" {
   type    = bool
   default = true

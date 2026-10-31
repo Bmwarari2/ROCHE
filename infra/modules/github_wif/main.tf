@@ -81,7 +81,7 @@ resource "google_project_iam_member" "plan" {
 }
 
 # The apply account holds the admin role of each service the stack manages (never owner, editor,
-# organisation policy, federation or deny policies; the variable refuses them). The deny policy
+# project IAM, organisation policy, federation or deny policies; the variable refuses them). The deny policy
 # below takes data and secret reads away from it.
 #trivy:ignore:AVD-GCP-0007
 resource "google_project_iam_member" "deploy" {

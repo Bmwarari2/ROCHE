@@ -8,7 +8,7 @@ europe-west2 (London)** (ADR-0098, which replaces the AWS eu-west-2 choice in AD
 infra/
   modules/
     harbour_stack/      the whole platform for one environment, composed from the modules below
-    project_baseline/   APIs, audit logs including Data Access, CMEK service agents
+    project_baseline/   APIs and the CMEK service agents
     network/            VPC, the Cloud Run subnet (Direct VPC egress, flow logs), private
                         services access for Cloud SQL, Cloud NAT with static addresses
     kms/                key ring and keys per purpose (sql, storage, secrets, artifacts),
@@ -30,8 +30,9 @@ infra/
     github_wif/         Workload Identity Federation for this repository's Terraform workflow,
                         plan, apply and release accounts, the CI deny policy (no JSON keys)
     budget/             monthly budget in pounds
-  bootstrap/            applied by a person, never CI: organisation policies, folder log
-                        location, GitHub federation and the CI deny policy
+  bootstrap/            applied by a person, never CI: project IAM (Data Access audit logs),
+                        organisation policies, folder log location, GitHub federation and
+                        the CI deny policy
   envs/
     dev/ staging/ prod/   thin root modules: providers, backend and sizing only
   powersync/powersync.yaml      PowerSync config shared by Compose and Cloud Run
@@ -80,22 +81,23 @@ buckets for documents, exports, the write-once audit archive and bucket usage lo
   before the projects are created, so `_Required` is in London too; Harbour's sinks route audit,
   pgAudit and application logs to its own London buckets, encrypted with the project's key.
 - No cross-region copy of anything.
-- Email has no Google Cloud service: an SMTP provider in the UK, on the sub-processor register
-  and in the DPIA, set with the `smtp` variable and the `smtp-user` and `smtp-password` secrets.
+- Email has no Google Cloud service: an SMTP provider (H-08), on the sub-processor register and
+  in the DPIA, set with the `smtp` variable and the `smtp-user` and `smtp-password` secrets.
 - Never use Railway, Render or Hetzner (no UK region) or Cloudflare (its jurisdiction
   restriction has no UK option) for anything that holds personal data.
 
 ## Bootstrap (a human action, in this order)
 
-Brian, with an organisation administrator account. **Order matters**: a folder's log storage
+Brian, with an organisation administrator account (H-04, broken down as H-1090 to H-1095 in
+`docs/plans/human-actions.md`). **Order matters**: a folder's log storage
 location applies only to projects created after it is set.
 
 ```sh
-# 1. Once: a folder for Harbour whose projects store logs in London and get no _Default sink.
+# 1. Once (H-1090): a folder for Harbour whose projects store logs in London and get no _Default sink.
 #    (infra/bootstrap sets this with folder_id; by hand:)
 gcloud logging settings update --folder=<folder-id> --storage-location=europe-west2 --disable-default-sink
 
-# 2. Once: a separate state project and bucket (versioned, London, uniform access, public access
+# 2. Once (H-1091): a separate state project and bucket (versioned, London, uniform access, public access
 #    prevented). State lives outside the environments, so their deny policies never stop CI
 #    reading it.
 gcloud projects create harbour-state-<suffix> --folder=<folder-id>
@@ -103,7 +105,7 @@ gcloud storage buckets create gs://harbour-tfstate-harbour-state-<suffix> --proj
   --location=europe-west2 --uniform-bucket-level-access --public-access-prevention
 gcloud storage buckets update gs://harbour-tfstate-harbour-state-<suffix> --versioning
 
-# 3. Per environment: the project, in the folder, linked to billing.
+# 3. Per environment (H-1092): the project, in the folder, linked to billing.
 ENV=dev
 PROJECT=harbour-${ENV}-<suffix>
 gcloud projects create "${PROJECT}" --folder=<folder-id>
@@ -112,8 +114,9 @@ gcloud services enable --project "${PROJECT}" cloudresourcemanager.googleapis.co
   serviceusage.googleapis.com iam.googleapis.com iamcredentials.googleapis.com sts.googleapis.com \
   orgpolicy.googleapis.com logging.googleapis.com
 
-# 4. Per environment: infra/bootstrap, as the administrator (organisation policy, IAM and deny
-#    policy rights). It sets gcp.resourceLocations and the no-key policy, creates Workload
+# 4. Per environment (H-1093): infra/bootstrap, as the administrator (organisation policy, IAM
+#    and deny policy rights). It sets gcp.resourceLocations and the no-key policy, turns on Data
+#    Access audit logs for every service, creates Workload
 #    Identity Federation for this repository's Terraform workflow only (by numeric repository
 #    and owner ids: gh api repos/Bmwarari2/ROCHE --jq '.id, .owner.id'), the plan, apply and
 #    release accounts, and the deny policy that keeps them from secret values, data and logs.
@@ -127,7 +130,7 @@ For a project created before step 1, disable its default sink by hand:
 (Admin Activity audit logs, held by Google for 400 days) stays global for such a project; create
 projects after step 1 so it is in London.
 
-Then, in GitHub, create the environments the bootstrap's `subjects` output names
+Then, in GitHub (H-1094), create the environments the bootstrap's `subjects` output names
 (`<env>-plan`, `<env>`, `<env>-release`) and protect them: deployment branch `main` for `<env>`
 and `<env>-release`, required reviewers for staging and prod. Copy
 `envs/${ENV}/backend.hcl.example` to `backend.hcl` and `terraform.tfvars.example` to
@@ -147,10 +150,10 @@ terraform apply          # creates the project baseline, keys, network, database
    domain's registrar at `terraform output dns_name_servers`. Otherwise create the records in
    `terraform output manual_dns_records` by hand. Certificate Manager issues the certificate
    once its authorisation record resolves.
-2. **Images.** Copy the ClamAV image into the registry (`<registry>/clamav:<clamav_version>`),
+2. **Images** (H-06, H-16). Copy the ClamAV image into the registry (`<registry>/clamav:<clamav_version>`),
    and the PowerSync and, if used, Flagsmith images, then push the first api and web images
    (the release job does this from then on).
-3. **Secrets.** `GCP_PROJECT_ID=${PROJECT} infra/scripts/seed-secrets.sh ${ENV}`. Add the
+3. **Secrets** (H-07). `GCP_PROJECT_ID=${PROJECT} infra/scripts/seed-secrets.sh ${ENV}`. Add the
    SMTP provider's user and password to `smtp-user` and `smtp-password` when email is set up.
 4. **Migrations.** Run the migration job (it runs `db:bootstrap`, creating the roles and their
    passwords from the secrets, then the migrations):
@@ -176,7 +179,7 @@ environment:
 | Account | Trusts | Can |
 | --- | --- | --- |
 | `harbour-<env>-gh-plan` | `environment:<env>-plan` (pull requests from this repository, never forks) | read the project's configuration and state |
-| `harbour-<env>-gh-deploy` | `environment:<env>` | apply the stack; no basic roles, no organisation policy, federation or deny policies |
+| `harbour-<env>-gh-deploy` | `environment:<env>` | apply the stack; no basic roles and no project IAM (the stack grants only on resources), organisation policy, federation or deny policies |
 | `harbour-<env>-gh-release` | `environment:<env>-release` | push images, update and run the migration job, release new revisions, acting as the runtime accounts only |
 
 A deny policy on each project stops all three reading secret values, objects (care documents,
@@ -237,6 +240,18 @@ Migrate job: `DATABASE_HOST` (private IP), `DATABASE_PORT`, `DATABASE_NAME`,
 PowerSync replicates as `harbour_sync` from the `powersync` publication (migration 0002) and
 verifies client tokens against `https://api.<domain>/v1/sync/jwks`.
 
+## Edge blocks
+
+Cloud Armor answers a WAF block with 403 and its own HTML page, and the rate limit with 429; it
+cannot send the JSON problem body (`edge_blocked`) the AWS WAF did. A load balancer custom error
+response could swap the body, but it cannot tell Cloud Armor's 403 from the API's own 403
+problems (`step_up_required`, `device_revoked` and the session codes), and would overwrite them,
+so it is not used. Devices already tell an edge block apart: a 403 whose problem `code` is one of
+the API's session codes ends the session; any other 403 (no body, an HTML page, or a JSON
+`edge_blocked`) makes the device ask `GET /v1/me` whether the session stands before it does
+anything, and keeps unsent entries queued (`apps/mobile/src/sync/connector.ts`, tested with an
+HTML 403 page). Prod pins every preconfigured rule (H-1095, the Google Cloud form of H-140).
+
 ## Database settings
 
 Both Cloud SQL instances: PostgreSQL 17, SSD storage and backups encrypted with the `sql` key,
@@ -253,9 +268,8 @@ only, Query Insights without client addresses, a password policy, and flags:
   `log_temp_files = 0`, `log_min_duration_statement = -1`
 
 Roles and passwords are created by `pnpm db:bootstrap` from the secrets, never by Terraform.
-The flag makes pgAudit available; create the extension once on each instance, as `postgres`,
-before the first migration (`CREATE EXTENSION IF NOT EXISTS pgaudit;`), as the local image's
-`docker/postgres/initdb/10-extensions.sql` does. `db:bootstrap` does not do this yet.
+The flag makes pgAudit available; `db:bootstrap` (run by the migration job) then creates the
+extension in the harbour database, and in production refuses to continue if the flag is off.
 
 **Why pgAudit does not log `read`.** Section 5.5 requires every view of a care record to be
 audited, and the application does that in `audit_event` with the actor, role, tenant, device

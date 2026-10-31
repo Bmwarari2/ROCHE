@@ -24,7 +24,11 @@ export const SESSION_PROBLEM_CODES: ReadonlySet<string> = new Set([
   "step_up_required",
 ]);
 
-/** The code the web application firewall sends with its own 403 (`infra/modules/waf`). */
+/**
+ * The code an edge block carries when it answers as a JSON problem. Cloud Armor
+ * (`infra/modules/load_balancer`) answers with its own HTML page instead; either way the device
+ * checks `GET /v1/me` before deciding, so an edge block never ends a session.
+ */
 export const EDGE_BLOCKED_CODE = "edge_blocked";
 
 /**

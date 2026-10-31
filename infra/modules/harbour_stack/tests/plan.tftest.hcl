@@ -138,10 +138,6 @@ run "everything_in_london" {
     error_message = "Every secret must be a regional secret in europe-west2."
   }
 
-  assert {
-    condition     = contains(module.project.audit_log_types, "DATA_READ") && contains(module.project.audit_log_types, "DATA_WRITE")
-    error_message = "Data Access audit logs must be on for every service."
-  }
 }
 
 # Keys rotate at least every 90 days.

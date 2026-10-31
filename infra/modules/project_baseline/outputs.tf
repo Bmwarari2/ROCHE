@@ -14,7 +14,3 @@ output "service_agents" {
   }
 }
 
-output "audit_log_types" {
-  description = "Audit log types turned on for every service."
-  value       = [for c in google_project_iam_audit_config.all_services.audit_log_config : c.log_type]
-}

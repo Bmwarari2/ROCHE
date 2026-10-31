@@ -13,8 +13,6 @@ locals {
     local.nat_cidrs,
   )
 
-  log_roles = ["roles/logging.logWriter", "roles/monitoring.metricWriter"]
-
   # Plain configuration for the API and the worker (one bundle, two commands). Never secrets.
   # ClamAV runs beside the API (human action H-16); until it answers, uploads stay quarantined.
   app_environment = merge(
@@ -123,7 +121,6 @@ module "svc_api" {
 
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_id
-  project_roles       = toset(local.log_roles)
   deletion_protection = var.deletion_protection
   labels              = local.labels
 
@@ -158,7 +155,6 @@ module "svc_worker" {
 
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_id
-  project_roles       = toset(local.log_roles)
   deletion_protection = var.deletion_protection
   labels              = local.labels
 
@@ -236,7 +232,6 @@ module "job_migrate" {
 
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_id
-  project_roles       = toset(local.log_roles)
   deletion_protection = var.deletion_protection
   labels              = local.labels
 
@@ -276,7 +271,6 @@ module "svc_web" {
 
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_id
-  project_roles       = toset(local.log_roles)
   deletion_protection = var.deletion_protection
   labels              = local.labels
 }
@@ -336,7 +330,6 @@ module "svc_powersync" {
 
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_id
-  project_roles       = toset(local.log_roles)
   deletion_protection = var.deletion_protection
   labels              = local.labels
 
@@ -384,7 +377,6 @@ module "svc_flagsmith" {
 
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_id
-  project_roles       = toset(local.log_roles)
   deletion_protection = var.deletion_protection
   labels              = local.labels
 

@@ -1,6 +1,7 @@
 # What CI must never be able to change, applied once per environment by a person with
 # organisation policy, IAM and deny policy rights (infra/README.md, Bootstrap):
 #
+# - project IAM: the Data Access audit configuration (CI holds no project IAM role);
 # - the organisation policies that keep data resources in London and forbid service account keys;
 # - the folder's log storage in London with no _Default sink, for projects created after it;
 # - Workload Identity Federation for GitHub Actions, its plan, apply and release accounts, and the
@@ -42,6 +43,25 @@ resource "google_logging_folder_settings" "london" {
   folder               = var.folder_id
   storage_location     = "europe-west2"
   disable_default_sink = true
+}
+
+# Admin Activity is always on; Data Access (reads and writes of data and metadata) is turned on
+# for every service, so reads of secrets, buckets and the database configuration are recorded.
+resource "google_project_iam_audit_config" "all_services" {
+  project = var.project_id
+  service = "allServices"
+
+  audit_log_config {
+    log_type = "ADMIN_READ"
+  }
+
+  audit_log_config {
+    log_type = "DATA_READ"
+  }
+
+  audit_log_config {
+    log_type = "DATA_WRITE"
+  }
 }
 
 module "github_wif" {

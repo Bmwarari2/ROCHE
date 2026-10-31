@@ -54,7 +54,7 @@ variable "state_bucket_name" {
 }
 
 variable "deploy_roles" {
-  description = "Project roles for the apply account. No basic roles; organisation policy and Workload Identity Federation are applied by a person, not CI."
+  description = "Project roles for the apply account. No basic roles and no project IAM: the stack grants only on resources (keys, buckets, secrets, accounts, the registry), and project IAM, organisation policy and Workload Identity Federation are applied by a person in infra/bootstrap."
   type        = set(string)
   default = [
     "roles/artifactregistry.admin",
@@ -68,7 +68,6 @@ variable "deploy_roles" {
     "roles/logging.configWriter",
     "roles/monitoring.alertPolicyEditor",
     "roles/monitoring.notificationChannelEditor",
-    "roles/resourcemanager.projectIamAdmin",
     "roles/run.admin",
     "roles/secretmanager.admin",
     "roles/serviceusage.serviceUsageAdmin",
@@ -79,8 +78,9 @@ variable "deploy_roles" {
   validation {
     condition = length(setintersection(var.deploy_roles, [
       "roles/owner", "roles/editor", "roles/orgpolicy.policyAdmin", "roles/iam.workloadIdentityPoolAdmin", "roles/iam.denyAdmin",
+      "roles/resourcemanager.projectIamAdmin", "roles/iam.securityAdmin",
     ])) == 0
-    error_message = "The apply account never gets a basic role, and never manages organisation policy, Workload Identity Federation or deny policies."
+    error_message = "The apply account never gets a basic role, and never manages project IAM, organisation policy, Workload Identity Federation or deny policies."
   }
 }
 
