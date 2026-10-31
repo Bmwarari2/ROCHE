@@ -351,6 +351,60 @@ describe("hazards HZ-004 and HZ-006 what an entry does to the task it names", ()
     expect(checkTaskLink(t, { personId: "p1", mayComplete })).toEqual(expected);
   });
 
+  it.each([
+    [
+      "a note, for a task that needs evidence",
+      "care.plan_action",
+      true,
+      { table: "care_note" },
+      false,
+    ],
+    [
+      "the chart it names",
+      "repositioning",
+      true,
+      { table: "observation", chart: "repositioning" },
+      true,
+    ],
+    [
+      "another chart",
+      "repositioning",
+      true,
+      { table: "observation", chart: "fluid_intake" },
+      false,
+    ],
+    ["a body map mark, for a chart's task", "vitals", true, { table: "body_map_mark" }, false],
+    [
+      "a recording entry, for a plan's task",
+      "care.plan_action",
+      true,
+      { table: "observation", chart: "food" },
+      true,
+    ],
+    [
+      "a note, for a task that needs no evidence",
+      "care.reposition",
+      false,
+      { table: "care_note" },
+      true,
+    ],
+    ["an entry of unknown kind (an older caller)", "repositioning", true, undefined, true],
+  ] as const)(
+    "hazard HZ-029 only the entry a task asks for completes it: %s (#123 clinical review, M3)",
+    (_label, kind, evidenceRequired, evidence, completes) => {
+      expect(isEvidenceFor({ kind, evidenceRequired }, evidence)).toBe(completes);
+      const check = checkTaskLink(
+        { personId: "p1", kind, status: "open", evidenceRequired },
+        { personId: "p1", mayComplete: true, evidence },
+      );
+      expect(check).toEqual(
+        completes
+          ? { ok: true, outcome: "completed", review: "none", completes: true }
+          : { ok: true, outcome: "not_linked", review: "review", completes: false },
+      );
+    },
+  );
+
   it("never completes a task except with the outcome completed", () => {
     for (const status of ["open", "done", "skipped", "cancelled"] as const) {
       for (const mayComplete of [true, false]) {

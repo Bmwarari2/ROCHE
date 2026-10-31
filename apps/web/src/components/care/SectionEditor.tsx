@@ -170,7 +170,7 @@ export function SectionEditor({
         )}
       </summary>
       <div className="flex flex-col gap-6 border-t border-border p-4">
-        <form className="flex flex-col gap-4" onSubmit={saveSection} noValidate>
+        <form method="post" className="flex flex-col gap-4" onSubmit={saveSection} noValidate>
           <TextArea
             id={sectionIds.need}
             name="need"
@@ -257,6 +257,7 @@ export function SectionEditor({
           )}
           {section ? (
             <form
+              method="post"
               key={addRound}
               className="flex flex-col gap-4 rounded-input bg-bg-secondary p-4"
               onSubmit={addAction}

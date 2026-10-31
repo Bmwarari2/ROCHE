@@ -22,6 +22,81 @@ forms, statutory figures, feature flags, integrations framework and the Thapsus 
 Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 `apps/api/test/api.test.ts` (hazard HZ-011 groups).
 
+## White-label branding (PLAT-002)
+
+Master prompt 9.1: a tenant's name, logo and accent colour, with the accent auto-adjusted to at
+least 4.5:1 contrast on white and on black. The columns are already on `tenant` (`brand_name`,
+`brand_accent` with its hex check, `logo_document_id`); no new table or migration.
+
+**Rules**
+
+1. The accent is a six-digit hex colour, stored lower case. `checkAccent`
+   (`packages/domain/src/platform/branding.ts`) measures it against every surface it meets in both
+   themes (`BRAND_THEMES`, mirroring the `@harbour/ui` tokens): white words on the accent and the
+   accent on the page (`#ffffff` light, `#000000` dark) at 4.5:1, and the accent on the secondary
+   background and card of each theme at 3:1 (WCAG 1.4.11, non-text). Only a colour that passes
+   every check is stored or shown. One that fails is refused (422 `brand_accent_contrast`) saying
+   why in plain English: too light (white words on buttons would be hard to read) or too dark (hard
+   to see on the dark theme's black). The refusal names the nearest colour of the same hue that
+   passes (`adjustAccentForContrast`), and the settings screen offers it in one step and shows the
+   ratios. Auto-adjusting is offered, never done silently, so the owner sees the colour their staff
+   will see. No accent: Harbour's own. The focus ring keeps Harbour's own colour in both themes,
+   so an accent never weakens it; status colours are fixed tokens and never take the accent.
+2. The display name (`checkBrandName`: NFC-normalised, trimmed, spaces collapsed, at most 80
+   characters, no control, bidirectional-override or zero-width characters, so one organisation's
+   name cannot be made to look like another's; blank means none) replaces the registered name in the shell (`Me.tenant.name`
+   and every page's eyebrow). The registered name stays on statutory documents, letters (the
+   `tenant.name` merge field) and the audit trail.
+3. The logo is a PNG or JPEG of at most 512 KB (never SVG, which can carry script), refused above
+   that size before it is read (its own body limit). It is shown to every member, so EXIF, XMP,
+   IPTC, comments and PNG text chunks are removed before storing (`stripImageMetadata`), and it is
+   stored through the document store in its own category, `organisation_logo` (content sniffed,
+   malware scanned, encrypted; retention `organisation_document`). Refusals are audited. The web
+   tier caches it privately for an hour under an address bound to the current logo document
+   (`/branding/logo?v=<id>`; any other id is not found), so a switch of organisation in another
+   tab never leaves another organisation's logo in the cache. The general document routes neither
+   accept nor serve it. It is shown at 24 px high beside the product name in the app bar's home
+   link, with empty alternative text: the organisation's name is already in the organisation
+   switcher beside it. Removing it asks first, saying it stops showing for all staff, then clears the reference; the document stays in the
+   store under its retention class. A quarantined file is kept but never shown.
+4. Every member of the organisation may read the branding and the logo (they are shown in the
+   shell); only `platform.tenant.manage` changes them, with the version read (409 when stale). Each
+   change is audited (`platform.branding.updated` with the fields changed and the old and new
+   accent, refusals too; `platform.branding.logo` with the document id), never the logo's bytes.
+5. Sign-in: the organisation is not known before sign-in (one address can belong to several), so
+   the sign-in page stays Harbour's; the "choose an organisation" page shows each one's name.
+   Printed packs and letters keep the registered name as they do now; adding the logo to them is
+   a later slice (the PDF writer, ADR-0040, would need the image path the transfer pack uses).
+6. Not clinical: no hazard is affected. No personal data: a logo and a display name are about the
+   organisation.
+
+**API** (additive): `GET /v1/branding` (any member: registered and display name, accent, logo
+id and type, version), `PUT /v1/branding` (`platform.tenant.manage`; name and accent with
+`expectedVersion`), `GET /v1/branding/logo` (any member; the bytes, `nosniff`, sandboxing CSP, not
+audited as a view), `PUT /v1/branding/logo` (the body is the image) and `DELETE /v1/branding/logo`
+(`platform.tenant.manage`); `Me.tenant.logoDocumentId`. No step-up: branding is not one of the
+step-up actions (section 5.3).
+
+**Web**: `/settings/branding` (`platform.tenant.manage`, the owner by default), in the sidebar;
+the shell sets `--accent` and `--accent-hover` in both themes from a colour that passes
+`checkAccent` again in the web tier, and shows the logo through the `/branding/logo` route.
+
+**Permission matrix**
+
+| Action | Permission |
+| --- | --- |
+| See the branding in the shell, fetch the logo, read `GET /v1/branding` | Any member of the organisation |
+| Change the display name, accent or logo | `platform.tenant.manage` |
+
+**Tests (written first)**: `packages/domain/src/platform/branding.test.ts` (table-driven: passing
+colours normalised, failing colours refused as too light or too dark with a suggestion that passes,
+every check in both themes, invalid hex, display names); `apps/api/test/branding.test.ts`
+(refusal with the suggestion and nothing stored, version conflict, permission, logo type, size and
+malware scan, the general document routes refusing logos, audit); `apps/web/src/lib/branding.test.ts`
+(the theme surfaces match `@harbour/ui` tokens, the shell's accent style, form reading);
+`apps/web/e2e/branding.spec.ts` (a failing colour refused with why, take the suggestion, the shell
+shows it; upload and remove a logo; axe in light and dark).
+
 ## Identity, roles and scope (PLAT-004, PLAT-006)
 
 - Identity: Better Auth in the `auth` schema (email and NCSC-compliant password, TOTP, passkeys,
@@ -579,6 +654,52 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   states, transitions (permission, reason, step-up, separation of duties) and SLAs in code with
   `defineWorkflow`; `startWorkflow` and `moveWorkflow` (`apps/api/src/services/workflow.ts`) check
   the rules, record every move and set the next deadline (fixed hours or a rate-table figure).
+- Approvals across modules (31/10/2026): `GET /v1/workflows` lists open workflow records in the
+  reader's scope, soonest deadline first. `view=approvals` (the default) lists those waiting for the
+  reader's approval and those the reader raised that wait for someone else's. `view=all` lists every
+  open record the reader has a part in. Each item gives the state and the deadline state
+  (`workflowSlaState`: overdue once the deadline has come, due today when later on the same UK day,
+  on track, or none). It also gives who started it, the steps open to the reader
+  (`workflowActorView`), the approval step marked (one the record's creator may not take), and
+  whether the reader raised it so someone else must approve. The list is read only. Every step is
+  still taken on the record's own route, which checks the module's rules and separation of duties
+  again.
+  - The listed workflows are in `LISTED_WORKFLOWS` (`packages/domain`): incident, candour,
+    statutory notification, DoLS legal-change review, outage, discharge, transfer and death. The
+    person lifecycle is a record's status, not work, so it is not listed.
+  - An instance about nobody is listed only when its record is visible under row-level security, and
+    an unknown subject type never is.
+  - Any holder of a listed step's permission may read the list (MFA as for care records). Each
+    permission counts for a record only when its own scope, without break-glass, both shows the
+    record and reaches the record's home (`scopeReachesLocation`, as `managesAt` and
+    `app.holds_permission_at` decide; ADR-0071). Visibility alone never decides, because an
+    incident shows to its raiser anywhere. Managing an incident, or its candour record, also needs
+    the incident seen whole (`managesIncident`). Each item returns the permissions that reach it,
+    and the page offers steps from those alone. The incident review and close routes
+    (`requireManagesIncident`) and the notification submit and not-required routes
+    (`requireHeldAtLocation`) apply the same rule, and each refusal is audited.
+  - Deadlines: a workflow may keep its deadline on the record, naming the states that carry one
+    (`deadlineOnRecord`: a notification's draft and ready; candour's threshold, verbal due and
+    written due). The module writes it onto the instance (`setWorkflowDeadline`,
+    `syncCandourDeadline`) and the engine keeps it across moves. An instance in such a state
+    without one reads `on_record`, a warning sorted first; any other state reads `none` (HZ-013).
+    `pnpm --filter @harbour/api workflow-deadlines:backfill` fills instances started before the
+    module wrote them. It is idempotent and is run once per environment after release.
+  - The list filters by workflow and view state in SQL, reads instances in the union of the held
+    permissions' scopes, and pages by keyset (missing deadline, deadline, id) until 300 visible
+    records. `truncated` means only that more visible records were open, and the empty states say
+    so. It leaves out removed records and is audited by view and count only. Each incident item
+    carries what the page needs to offer closing (version, status, whether closing is held back),
+    so the page reads no incident except the one just acted on.
+  - Open (#130 review): L2, each module should own a resolver for "which of these subjects can the
+    reader see", instead of this route querying module tables. L5, a holder of
+    `safety.notification.submit` alone may be asked for a fresh sign-in just to read the list,
+    because that permission needs step-up.
+  - The web page `/approvals` ("Approvals" in the side bar for the same readers) groups the records:
+    waiting for your approval, raised by you (said in words), and other open work. Each shows its
+    state and deadline as an icon and words and links to its own page. An incident waiting for the
+    reader can be closed or sent back to open there with the incident page's own forms, carrying the
+    version the page read (HZ-013, HZ-091).
 - API: `GET /v1/tasks` (views: all or mine; by person, location, status, window), `POST /v1/tasks`,
   `POST /v1/tasks/{id}/transition`, `POST /v1/tasks/{id}/assign`, `POST /v1/task-series`,
   `POST /v1/task-series/{id}/end`. Every list and change is audited.

@@ -4,6 +4,10 @@ import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext } from "@/lib/api";
+
+import { approvalsShown } from "@/lib/approvals";
+import { accentStyle, brandingShown, logoSrc } from "@/lib/branding";
+
 import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { readNotifications } from "@/lib/dashboard-data";
 import { downtimeNavShown } from "@/lib/downtime";
@@ -40,10 +44,15 @@ export default async function ShellLayout({ children }: { readonly children: Rea
   const notifications = await readNotifications();
   const unread = notifications.kind === "ok" ? notifications.data.unread : 0;
 
+  // White-label accent (PLAT-002): only a colour that passes every contrast check, both themes.
+  const accent = accentStyle(me.tenant.brandAccent);
+  const logo = logoSrc(me.tenant.logoDocumentId);
+
   return (
     <ShellFrame
       user={{ name: me.user.name, email: me.user.email }}
       organisation={{ id: me.tenant.id, name: me.tenant.name }}
+      {...(logo ? { brandLogoSrc: logo } : {})}
       memberships={me.memberships}
       // A family member's portal session works at no location: no location switcher.
       locations={(isFamilyMember(me) ? [] : me.locations).map((location) => {
@@ -68,6 +77,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
+        approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
         tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
@@ -83,6 +93,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
         dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,
+        branding: brandingShown(me.permissions) ? t("shell.nav.branding") : undefined,
         breakGlassReport: breakGlassReportShown(me.permissions)
           ? t("shell.nav.breakGlassReport")
           : undefined,
@@ -95,6 +106,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         signOut: t("common.signOut"),
       }}
     >
+      {accent ? <style>{accent}</style> : null}
       <OfflineBanner />
       <SampleDataBanner present={me.sampleData} mayManage={me.permissions.includes(MANAGE)} />
       {children}

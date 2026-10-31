@@ -115,7 +115,7 @@ export function IncidentForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-col gap-6" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-6" onSubmit={submit} noValidate>
         {locations.length > 1 ? (
           <SelectField
             id={ids.location}

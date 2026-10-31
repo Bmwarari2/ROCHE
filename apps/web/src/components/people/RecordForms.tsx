@@ -101,7 +101,7 @@ export function ReasonAction({
   return (
     <div className="flex flex-col gap-2">
       {inline.open ? (
-        <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
+        <form method="post" className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
           <p className="m-0 max-w-prose font-semibold">{consequence}</p>
           <TextArea
             ref={inline.firstField}

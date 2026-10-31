@@ -261,7 +261,8 @@ export function checkTaskEvidence(
  * that already has evidence, or a task the author may not complete) the entry is kept unlinked and
  * flagged for the nurse in charge, since the round may be repeated or counted twice; for a
  * medicines task that review is urgent (`medicines_conflict`): a dose may have been given twice,
- * and only the person who gave a medicine records it (HZ-004).
+ * and only the person who gave a medicine records it (HZ-004). An entry that is not the evidence an
+ * open task asks for (`isEvidenceFor`) is kept unlinked and reviewed too.
  */
 export function checkTaskLink(
   task: {
@@ -270,8 +271,15 @@ export function checkTaskLink(
     readonly status: TaskStatus;
     /** Evidence the task already has (an earlier entry). */
     readonly evidenceId?: string | null;
+    /** Whether the task is done only by the entry it asks for. */
+    readonly evidenceRequired?: boolean;
   },
-  entry: { readonly personId: string; readonly mayComplete: boolean },
+  entry: {
+    readonly personId: string;
+    readonly mayComplete: boolean;
+    /** What the entry is, when known: its table and, for an observation, its chart. */
+    readonly evidence?: EntryEvidence;
+  },
 ): TaskLinkCheck {
   if (task.personId !== entry.personId) {
     return { ok: false, problem: "wrong_person", message: TASK_LINK_MESSAGES.wrong_person };
@@ -282,6 +290,14 @@ export function checkTaskLink(
       ? { ok: true, outcome: "medicines_conflict", review: "urgent", completes: false }
       : { ok: true, outcome, review: "review", completes: false };
   if (!entry.mayComplete) return kept("not_linked");
+  // Only the entry the task asks for completes it: never a free-text note, and for a chart's task
+  // only that chart (#123 clinical review, M3; HZ-029, HZ-018). Anything else is kept and reviewed.
+  if (
+    !isEvidenceFor(task, entry.evidence) &&
+    (task.status === "open" || task.status === "in_progress")
+  ) {
+    return kept("not_linked");
+  }
   if (task.status === "done" || task.status === "skipped") return kept("task_already_closed");
   if (task.status === "cancelled") {
     // A cancelled task answered already: a second entry may repeat the round (or the dose).

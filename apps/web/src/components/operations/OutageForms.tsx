@@ -166,7 +166,7 @@ export function CloseOutageForm(props: OutageRef) {
       fieldIds={ids}
       firstFieldId={ids.endedAt}
     >
-      <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
         <DateTimeInput
           id={ids.endedAt}
           legend={t("operations.outage.close.ended")}
@@ -210,7 +210,7 @@ export function CancelOutageForm(props: OutageRef) {
       fieldIds={ids}
       firstFieldId={ids.reason}
     >
-      <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
         <p className="m-0 font-semibold">{t("operations.outage.cancel.consequence")}</p>
         <TextArea
           id={ids.reason}
@@ -295,7 +295,7 @@ export function CorrectOutageForm(
       fieldIds={ids}
       firstFieldId={ids.startedAt}
     >
-      <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
         <DateTimeInput
           id={ids.startedAt}
           legend={t("operations.outage.correct.started")}
