@@ -364,8 +364,8 @@ test("the incident screens reflow at 320 px", async ({ page, context }) => {
   await as(context, "nurse");
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto("/incidents");
-  // On a phone the shell's sidebar folds to its icons; measure once it has finished folding.
-  await page.locator('[data-collapsed="true"]').waitFor();
+  // On a phone the shell's sidebar gives way to the app bar's Menu; wait for it before measuring.
+  await page.getByRole("button", { name: "Menu", exact: true }).waitFor();
   await settleAnimations(page);
   const overflow = () =>
     page.evaluate(
@@ -377,7 +377,7 @@ test("the incident screens reflow at 320 px", async ({ page, context }) => {
     .first()
     .click();
   await page.waitForURL(/\/incidents\/[0-9a-f-]{36}$/);
-  await page.locator('[data-collapsed="true"]').waitFor();
+  await page.getByRole("button", { name: "Menu", exact: true }).waitFor();
   await settleAnimations(page);
   expect(await overflow(), "the incident scrolls sideways").toBeLessThanOrEqual(0);
   await expectAccessible(page, "incident at 320 px");

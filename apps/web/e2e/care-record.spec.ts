@@ -735,8 +735,8 @@ test("the record reflows at 320 px: the header and tabs fit and only the tab row
 }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto(`/people/${demoPerson(4)}`);
-  // On a phone the shell's sidebar folds to its icons; wait for it before measuring.
-  await page.locator('[data-collapsed="true"]').waitFor();
+  // On a phone the shell's sidebar gives way to the app bar's Menu; wait for it before measuring.
+  await page.getByRole("button", { name: "Menu", exact: true }).waitFor();
   await settleAnimations(page);
   const header = await expectHeader(page, "Dev Fixture", "Peanut");
   await expect(header.locator("[data-resuscitation]")).toBeVisible();

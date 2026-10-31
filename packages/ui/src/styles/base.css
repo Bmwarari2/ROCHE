@@ -41,8 +41,9 @@
      paragraph (a person's name, a document) is a 44 px target (section 8; MOB-013). Vertical
      padding on an inline link widens what can be pressed without moving the text. */
   @media (max-width: 734px), (pointer: coarse) {
-    :where(li, dd, dt, p, td, th) > a:only-child:not([class]) {
-      padding-block: 12px;
+    :where(li, dd, dt, p, td, th, h2, h3, h4) > a:only-child:not([class]) {
+      /* Half of what the line leaves of 44 px, above and below; at least 12 px. */
+      padding-block: max(12px, calc((var(--touch-target) - 1lh) / 2 + 0.5px));
     }
   }
 

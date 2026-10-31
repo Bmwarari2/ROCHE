@@ -556,9 +556,9 @@ test("hazard HZ-026 the tab shows the two-stage test, the best-interests checkli
 test("the tab reflows at 320 px and says when nothing is recorded", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto(`/people/${PERSON}/capacity`);
-  // On a phone the shell's sidebar folds to its icons; measure once it has finished folding, not
+  // On a phone the shell's sidebar gives way to the app bar's Menu; wait for it before measuring.
   // while the page is still moving across.
-  await page.locator('[data-collapsed="true"]').waitFor();
+  await page.getByRole("button", { name: "Menu", exact: true }).waitFor();
   await settleAnimations(page);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

@@ -232,7 +232,7 @@ test("hazard HZ-013 the statutory notification pages reflow at 320 px", async ({
     );
   for (const path of ["/notifications/statutory", `/notifications/statutory/${id}`]) {
     await page.goto(path);
-    await page.locator('[data-collapsed="true"]').waitFor();
+    await page.getByRole("button", { name: "Menu", exact: true }).waitFor();
     await settleAnimations(page);
     expect(await overflow(), `${path} scrolls sideways`).toBeLessThanOrEqual(0);
     await expectAccessible(page, `${path} at 320 px`);

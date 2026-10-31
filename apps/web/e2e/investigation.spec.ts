@@ -203,7 +203,7 @@ test("hazard HZ-073 the incident trends are counts by type and month, said as co
   // At 320 px the page reflows: the table scrolls in its own box, never the page.
   await page.setViewportSize({ width: 320, height: 900 });
   await page.reload();
-  await page.locator('[data-collapsed="true"]').waitFor();
+  await page.getByRole("button", { name: "Menu", exact: true }).waitFor();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
