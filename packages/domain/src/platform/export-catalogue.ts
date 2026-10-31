@@ -2694,6 +2694,88 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.import_batch": {
+    context: "platform",
+    description:
+      "Import wizard uploads (platform.md rules 18 to 26): what kind of record, for which location, who uploaded and when, the latest dry run's counts, and whether the batch was committed, undone, discarded or expired. Opaque ids, counts and times only.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      record_type: {
+        description: "What the batch imports.",
+        codes: { people: "People (demographics)." },
+      },
+      location_id: { description: "The location every imported person lives at (location.id)." },
+      status: {
+        description: "Where the batch stands.",
+        codes: {
+          staged: "Uploaded; its rows wait in quarantine for a dry run and a commit.",
+          committed: "Committed whole: its records were created.",
+          undone: "Committed, then undone: the records it created were removed.",
+          discarded: "Discarded before commit; its staged rows were deleted.",
+          expired: "Not committed in time; its staged rows were deleted.",
+        },
+      },
+      row_count: { description: "How many data rows the upload held.", unit: "rows" },
+      uploaded_by: { description: "Tenant user who uploaded the file (tenant_user.id)." },
+      uploaded_at: { description: "When the file was uploaded (instant, UTC)." },
+      expires_at: {
+        description:
+          "When the staged rows are deleted if the batch is still staged (instant, UTC; import.staging_expiry_days).",
+      },
+      dry_run_at: { description: "When the latest dry run ran (instant, UTC)." },
+      dry_run_by: { description: "Tenant user who ran the latest dry run (tenant_user.id)." },
+      dry_run_errors: { description: "Errors the latest dry run found.", unit: "errors" },
+      dry_run_warnings: { description: "Warnings the latest dry run found.", unit: "warnings" },
+      closed_at: {
+        description: "When the batch was committed, discarded or expired (instant, UTC).",
+      },
+      closed_by: {
+        description:
+          "Tenant user who committed or discarded the batch (tenant_user.id); empty when it expired.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.import_commit": {
+    context: "platform",
+    description:
+      "Import wizard commits (platform.md rules 23 and 24): the records a committed batch created, who committed it and when, and its undo.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      batch_id: { description: "The batch committed (import_batch.id)." },
+      record_ids: {
+        description:
+          "Ids of the records the commit created (person.id for people), kept after an undo removed them.",
+      },
+      record_count: { description: "How many records the commit created.", unit: "records" },
+      committed_by: { description: "Tenant user who committed the batch (tenant_user.id)." },
+      committed_at: { description: "When the batch was committed (instant, UTC)." },
+      undone_at: { description: "When the commit was undone (instant, UTC)." },
+      undone_by: { description: "Tenant user who undid the commit (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.import_row": {
+    context: "platform",
+    description:
+      "Import wizard staged rows (platform.md rules 19 and 25): an upload's cells in quarantine, not yet anyone's record.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: true,
+    reasonNotExported:
+      "Transient quarantine of an upload, deleted when its batch commits, is discarded or expires (import.staging_expiry_days); committed rows are exported as the records they became, and the organisation holds the file it uploaded.",
+    columns: {},
+  },
   "public.incident": {
     context: "safety",
     description:

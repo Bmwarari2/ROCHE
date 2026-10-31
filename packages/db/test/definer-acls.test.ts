@@ -41,6 +41,8 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
+  // Import wizard (Phase 2 slice 26, migration 0088).
+  "app.undo_import_batch(uuid, text)": ["harbour_app"],
 };
 
 let db: TestDatabase;
