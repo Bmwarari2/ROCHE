@@ -1,6 +1,14 @@
-import { Text, useTheme } from "@harbour/ui-native";
+import {
+  FlagChip,
+  iconByName,
+  ListItem,
+  SplitView,
+  Text,
+  useSplitLayout,
+  useTheme,
+} from "@harbour/ui-native";
 import { useQuery, useStatus } from "@powersync/react";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useSession } from "../../app-state/session";
 import { useVault } from "../../app-state/vault";
@@ -108,25 +116,39 @@ function HandoverEntryCard({
   );
 }
 
-/** A home's handover cards, newest first (`handoverEntries`). */
+/** A home and its handover cards, newest first (`handoverEntries`). */
+interface LocationEntries {
+  readonly location: LocationRow;
+  readonly entries: readonly HandoverEntry[];
+}
+
+function locationEntries(
+  locations: readonly LocationRow[],
+  handovers: readonly HandoverRow[],
+  shifts: HandoverShifts | null,
+  now: Date,
+): LocationEntries[] {
+  return locations.map((location) => ({
+    location,
+    entries: handoverEntries({
+      now,
+      nation: location.nation,
+      shifts,
+      handovers: handovers.filter((h) => h.location_id === location.id),
+    }),
+  }));
+}
+
+/** A home's handover cards. */
 function LocationHandover({
   location,
-  handovers,
-  shifts,
-  now,
+  entries,
   lastSyncedAt,
 }: {
   readonly location: LocationRow;
-  readonly handovers: readonly HandoverRow[];
-  readonly shifts: HandoverShifts | null;
-  readonly now: Date;
+  readonly entries: readonly HandoverEntry[];
   readonly lastSyncedAt: Date | null;
 }) {
-  const here = useMemo(
-    () => handovers.filter((h) => h.location_id === location.id),
-    [handovers, location.id],
-  );
-  const entries = handoverEntries({ now, nation: location.nation, shifts, handovers: here });
   return (
     <>
       {entries.map((entry) => (
@@ -148,6 +170,10 @@ function LocationHandover({
  * here and sent when there is a connection. What the phone holds and from when is said first
  * (HZ-028), and the needs-attention list sits above, so a refused acknowledgement is never out of
  * sight (HZ-006).
+ *
+ * On a tablet in landscape (MOB-013) the homes are listed on the left, each with its handover's
+ * state as an icon and a word, and the chosen home's handover is read and acknowledged on the
+ * right. The first home is shown until the reader chooses another.
  */
 export default function HandoverScreen() {
   useRecordScreenProtection("handover");
@@ -189,36 +215,126 @@ export default function HandoverScreen() {
     lastSyncedAt,
     demo: appEnv.demoMode,
   });
+  const homes = useMemo(
+    () => locationEntries(reached, handovers, config?.shifts ?? null, now),
+    [reached, handovers, config, now],
+  );
+  const layout = useSplitLayout();
+  const [chosen, setChosen] = useState<string | null>(null);
+  const chosenHome = homes.find((h) => h.location.id === chosen) ?? null;
+  const shownHome = chosenHome ?? homes[0] ?? null;
 
+  const top: ReactNode = (
+    <>
+      <Card title={t("mobile.handover.onThisPhone")} testID="handover-header">
+        <View accessible style={{ gap: theme.space[0.5] }}>
+          <Text testID="handover-window">{header.holds}</Text>
+          <Text variant="bodyDense" tone="secondary" testID="handover-synced">
+            {header.synced}
+          </Text>
+          <Text variant="bodyDense" tone="secondary">
+            {header.incomplete}
+          </Text>
+        </View>
+      </Card>
+      <UploadIssues />
+      {reached.length === 0 ? (
+        <Text testID="handover-no-locations">{t("mobile.handover.noLocations")}</Text>
+      ) : null}
+    </>
+  );
+
+  if (layout.mode !== "split") {
+    return (
+      <Screen testID="handover-screen">
+        <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+          {top}
+          {homes.map(({ location, entries }) => (
+            <LocationHandover
+              key={location.id}
+              location={location}
+              entries={entries}
+              lastSyncedAt={lastSyncedAt}
+            />
+          ))}
+        </ScrollView>
+      </Screen>
+    );
+  }
+
+  const shownName = shownHome?.location.name ?? t("mobile.handover.title");
   return (
     <Screen testID="handover-screen">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
-        <Card title={t("mobile.handover.onThisPhone")} testID="handover-header">
-          <View accessible style={{ gap: theme.space[0.5] }}>
-            <Text testID="handover-window">{header.holds}</Text>
-            <Text variant="bodyDense" tone="secondary" testID="handover-synced">
-              {header.synced}
-            </Text>
-            <Text variant="bodyDense" tone="secondary">
-              {header.incomplete}
-            </Text>
-          </View>
-        </Card>
-        <UploadIssues />
-        {reached.length === 0 ? (
-          <Text testID="handover-no-locations">{t("mobile.handover.noLocations")}</Text>
-        ) : null}
-        {reached.map((location) => (
-          <LocationHandover
-            key={location.id}
-            location={location}
-            handovers={handovers}
-            shifts={config?.shifts ?? null}
-            now={now}
-            lastSyncedAt={lastSyncedAt}
-          />
-        ))}
-      </ScrollView>
+      <SplitView
+        testID="handover-split"
+        listWidth={layout.listWidth}
+        detailKey={chosenHome?.location.id ?? null}
+        detailTitle={shownHome ? t("mobile.split.handoverOf", { home: shownName }) : null}
+        list={
+          <ScrollView
+            contentContainerStyle={{ paddingVertical: theme.space[2], gap: theme.space[2] }}
+          >
+            <View style={{ paddingHorizontal: theme.space[2], gap: theme.space[2] }}>{top}</View>
+            {homes.length > 0 ? (
+              <View accessibilityRole="list">
+                <Text
+                  variant="eyebrow"
+                  accessibilityRole="header"
+                  style={{ paddingHorizontal: theme.space[2], paddingBottom: theme.space[1] }}
+                >
+                  {t("mobile.split.homes")}
+                </Text>
+                {homes.map(({ location, entries }) => (
+                  <ListItem
+                    key={location.id}
+                    testID={`handover-home-${location.id}`}
+                    title={location.name ?? t("mobile.handover.title")}
+                    accessibilityLabel={[
+                      location.name ?? t("mobile.handover.title"),
+                      ...entries.map((e) => e.status.chip.label),
+                    ].join(". ")}
+                    accessibilityHint={t("mobile.split.openHandoverHint")}
+                    accessories={
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space[1] }}>
+                        {entries.map((entry) => (
+                          <FlagChip
+                            key={entry.role}
+                            tone={entry.status.chip.tone}
+                            icon={iconByName(entry.status.chip.icon)}
+                            label={entry.status.chip.label}
+                          />
+                        ))}
+                      </View>
+                    }
+                    showChevron={false}
+                    selected={shownHome?.location.id === location.id}
+                    selectedLabel={t("mobile.split.shown")}
+                    onPress={() => setChosen(location.id)}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </ScrollView>
+        }
+        detail={
+          shownHome ? (
+            <ScrollView
+              key={shownHome.location.id}
+              contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+            >
+              <LocationHandover
+                location={shownHome.location}
+                entries={shownHome.entries}
+                lastSyncedAt={lastSyncedAt}
+              />
+            </ScrollView>
+          ) : (
+            <View style={{ padding: theme.space[3] }} testID="handover-split-empty">
+              <Text tone="secondary">{t("mobile.split.chooseHandover")}</Text>
+            </View>
+          )
+        }
+      />
     </Screen>
   );
 }

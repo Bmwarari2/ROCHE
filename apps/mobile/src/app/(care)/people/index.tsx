@@ -1,11 +1,13 @@
-import { Text, useTheme } from "@harbour/ui-native";
+import { SplitView, Text, useSplitLayout, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { ActivityIndicator, FlatList, View } from "react-native";
 import { useSession } from "../../../app-state/session";
 import { PersonListItem } from "../../../components/PersonListItem";
+import { PersonRecord } from "../../../components/PersonRecord";
 import { Screen } from "../../../components/Screen";
+import { t } from "../../../i18n/t";
 import { type PersonView, toPersonView } from "../../../people/person-view";
 import { PEOPLE_LIST_SQL, type PersonRow, peopleListParams } from "../../../people/queries";
 import { useRecordScreenProtection } from "../../../security/use-record-protection";
@@ -13,6 +15,12 @@ import { useRecordScreenProtection } from "../../../security/use-record-protecti
 /**
  * People assigned to the signed-in user, read from the encrypted local database, so the list works
  * with no network once synced. Virtualised with FlatList.
+ *
+ * On a tablet in landscape (MOB-013) the chosen person's record sits beside the list, with the
+ * point-of-care header at the top of its pane (HZ-001). The choice is the route's `person`
+ * parameter, so it is still there when a note or chart saved from the record comes back; it is
+ * shown only while that person is in the list, by id, so a list that re-sorts as sync applies
+ * changes never swaps the record under the reader.
  */
 export default function PeopleScreen() {
   useRecordScreenProtection("people-list");
@@ -23,18 +31,33 @@ export default function PeopleScreen() {
   const params = useMemo(() => peopleListParams(tenantId), [tenantId]);
   const { data, isLoading, error } = useQuery<PersonRow>(PEOPLE_LIST_SQL, params);
   const people = useMemo(() => data.map(toPersonView), [data]);
+  const layout = useSplitLayout();
+  const split = layout.mode === "split";
+  const { person: chosen } = useLocalSearchParams<{ person?: string }>();
+  const selected = split ? (people.find((p) => p.id === chosen) ?? null) : null;
 
   const open = useCallback(
-    (personId: string) => router.push({ pathname: "/people/[personId]", params: { personId } }),
-    [router],
+    (personId: string) =>
+      split
+        ? router.setParams({ person: personId })
+        : router.push({ pathname: "/people/[personId]", params: { personId } }),
+    [router, split],
   );
+  const selectedId = selected?.id ?? null;
   const renderItem = useCallback(
-    ({ item }: { item: PersonView }) => <PersonListItem person={item} onOpen={open} />,
-    [open],
+    ({ item }: { item: PersonView }) => (
+      <PersonListItem
+        person={item}
+        onOpen={open}
+        opensBeside={split}
+        selected={item.id === selectedId}
+      />
+    ),
+    [open, split, selectedId],
   );
 
-  return (
-    <Screen testID="people-screen">
+  const list = (
+    <View style={{ flex: 1 }}>
       {error ? (
         <View style={{ padding: theme.space[2] }}>
           <Text tone="danger" accessibilityRole="alert">
@@ -46,6 +69,7 @@ export default function PeopleScreen() {
       <FlatList
         testID="people-list"
         data={people}
+        extraData={selectedId}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         initialNumToRender={12}
@@ -80,6 +104,35 @@ export default function PeopleScreen() {
           )
         }
       />
+    </View>
+  );
+
+  return (
+    <Screen testID="people-screen">
+      {layout.mode === "split" ? (
+        <SplitView
+          testID="people-split"
+          listWidth={layout.listWidth}
+          list={list}
+          detailKey={selectedId}
+          detailTitle={
+            selected ? t("mobile.split.recordOf", { person: selected.displayName }) : null
+          }
+          detail={
+            selected ? (
+              <View testID="person-screen" style={{ flex: 1 }}>
+                <PersonRecord key={selected.id} personId={selected.id} task={null} />
+              </View>
+            ) : (
+              <View style={{ padding: theme.space[3] }} testID="people-split-empty">
+                <Text tone="secondary">{t("mobile.split.choosePerson")}</Text>
+              </View>
+            )
+          }
+        />
+      ) : (
+        list
+      )}
     </Screen>
   );
 }

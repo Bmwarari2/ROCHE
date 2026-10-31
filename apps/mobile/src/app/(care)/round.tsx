@@ -1,4 +1,4 @@
-import { useTheme } from "@harbour/ui-native";
+import { SplitView, Text, useSplitLayout, useTheme } from "@harbour/ui-native";
 import { useQuery, useStatus } from "@powersync/react";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,6 +15,8 @@ import {
   roundHeader,
   roundItems,
 } from "../../care/round-view";
+import { useCarePerson } from "../../components/CarePersonHeader";
+import { type OpenPersonScreen, PersonRecord } from "../../components/PersonRecord";
 import { RoundHeaderCard } from "../../components/RoundHeaderCard";
 import { RoundTaskCard } from "../../components/RoundTaskCard";
 import { Screen } from "../../components/Screen";
@@ -35,12 +37,23 @@ function useMinute(): Date {
   return now;
 }
 
+/** The person shown beside the round on a tablet, and the task they were opened for, if any. */
+interface Shown {
+  readonly personId: string;
+  readonly task: string | null;
+}
+
 /**
  * The round (care.md rule 8 and section 6; CARE-013): the open tasks on this device, overdue
  * first, each with its status as an icon and a word, marked done or not done (with a reason) on
  * the phone and sent when there is a connection. What the phone holds and from when is said first
  * (HZ-028), and the needs-attention list sits above the tasks, so a change Harbour did not take is
  * never out of sight (screens gate item (g); HZ-006).
+ *
+ * On a tablet in landscape (MOB-013) the round stays on the left and a person's record, with its
+ * point-of-care header (HZ-001), opens on the right: "Show record" on a task, or "Record the
+ * entry" for a task that needs evidence. A note or chart started from that record opens over the
+ * People tab with the record beneath it, as on a phone, so saving returns to the person.
  */
 export default function RoundScreen() {
   useRecordScreenProtection("round");
@@ -72,14 +85,34 @@ export default function RoundScreen() {
     demo: appEnv.demoMode,
   });
 
+  const layout = useSplitLayout();
+  const split = layout.mode === "split";
+  const [shown, setShown] = useState<Shown | null>(null);
+  const { person: shownPerson } = useCarePerson(shown?.personId ?? "");
+
   const recordEvidence = useCallback(
     (item: RoundItem) => {
       if (!item.personId) return;
+      // The task's id only: the record looks it up on this device and shows its synced title.
+      if (split) setShown({ personId: item.personId, task: item.id });
+      else
+        router.push({
+          pathname: "/people/[personId]",
+          params: { personId: item.personId, task: item.id },
+        });
+    },
+    [router, split],
+  );
+  const showPerson = useCallback((item: RoundItem) => {
+    if (item.personId) setShown({ personId: item.personId, task: null });
+  }, []);
+  const openScreen = useCallback<OpenPersonScreen>(
+    (personId, screen, params) => {
       router.push({
         pathname: "/people/[personId]",
-        // The task's id only: the record looks it up on this device and shows its synced title.
-        params: { personId: item.personId, task: item.id },
+        params: { personId, ...(params.task ? { task: params.task } : {}) },
       });
+      router.push({ pathname: `/people/[personId]/${screen}`, params: { personId, ...params } });
     },
     [router],
   );
@@ -92,39 +125,76 @@ export default function RoundScreen() {
           onMark={(to, reason) => moveTask(item.row, { to, reason })}
           onRecordEvidence={recordEvidence}
           refusal={taskRefusal(item.row, item.row.person_location_id)}
+          onShowPerson={split ? showPerson : undefined}
+          personShown={split && shown !== null && item.personId === shown.personId}
         />
       </View>
     ),
-    [theme, manager, moveTask, recordEvidence, taskRefusal],
+    [theme, manager, moveTask, recordEvidence, taskRefusal, split, showPerson, shown],
+  );
+
+  const list = (
+    <FlatList
+      testID="round-tasks"
+      data={items}
+      keyExtractor={(item) => item.id}
+      renderItem={renderItem}
+      ListHeaderComponent={
+        <View style={{ padding: theme.space[2], gap: theme.space[2] }}>
+          <RoundHeaderCard
+            header={header}
+            empty={
+              loading
+                ? t("mobile.round.loading")
+                : items.length === 0
+                  ? roundEmpty({ lastSyncedAt, demo: appEnv.demoMode })
+                  : null
+            }
+            loading={loading}
+          />
+          <UploadIssues />
+        </View>
+      }
+      initialNumToRender={10}
+      maxToRenderPerBatch={10}
+      windowSize={7}
+      extraData={shown}
+    />
   );
 
   return (
     <Screen testID="round-screen">
-      <FlatList
-        testID="round-tasks"
-        data={items}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        ListHeaderComponent={
-          <View style={{ padding: theme.space[2], gap: theme.space[2] }}>
-            <RoundHeaderCard
-              header={header}
-              empty={
-                loading
-                  ? t("mobile.round.loading")
-                  : items.length === 0
-                    ? roundEmpty({ lastSyncedAt, demo: appEnv.demoMode })
-                    : null
-              }
-              loading={loading}
-            />
-            <UploadIssues />
-          </View>
-        }
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={7}
-      />
+      {layout.mode === "split" ? (
+        <SplitView
+          testID="round-split"
+          listWidth={layout.listWidth}
+          list={list}
+          detailKey={shown ? `${shown.personId}:${shown.task ?? ""}` : null}
+          detailTitle={
+            shown && shownPerson
+              ? t("mobile.split.recordOf", { person: shownPerson.displayName })
+              : null
+          }
+          detail={
+            shown ? (
+              <View testID="person-screen" style={{ flex: 1 }}>
+                <PersonRecord
+                  key={`${shown.personId}:${shown.task ?? ""}`}
+                  personId={shown.personId}
+                  task={shown.task}
+                  onOpenScreen={openScreen}
+                />
+              </View>
+            ) : (
+              <View style={{ padding: theme.space[3] }} testID="round-split-empty">
+                <Text tone="secondary">{t("mobile.split.chooseTask")}</Text>
+              </View>
+            )
+          }
+        />
+      ) : (
+        list
+      )}
     </Screen>
   );
 }

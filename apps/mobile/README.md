@@ -143,12 +143,15 @@ Flows live in `.maestro/`, filtered by tag:
 | Tag | Flows | Needs |
 | --- | --- | --- |
 | `smoke` | `sign-in.yaml` | Either build |
-| `demo` | `demo-round.yaml` (the round's words, the demo tasks, a task marked here waits to upload) | A demo build (`EXPO_PUBLIC_DEMO_MODE=1`) |
+| `demo` | `demo-round.yaml` (the round's words, the demo tasks, a task marked here waits to upload), `tablet-split-views.yaml` (MOB-013: list and record side by side on a tablet, one pane on a phone) | A demo build (`EXPO_PUBLIC_DEMO_MODE=1`) |
 | `store-compliance` | `account-deletion-request.yaml` (MOB-011) | A demo build |
 | `offline` | `offline-people-list.yaml`, `sync-recovery.yaml`, `hazard-HZ-006-offline-note-and-vitals.yaml`, `hazard-HZ-028-round-on-the-phone.yaml` | A build that syncs, against the API and PowerSync with the demo tenant seeded |
 
 `.github/workflows/mobile.yml` (on demand, weekly and on release candidates) has two emulator jobs.
 Neither has run yet: they were written on 31/10/2026 in a sandbox without an Android emulator.
+Each runs twice, on a phone and on a tablet (the `pixel_tablet` profile, held in landscape), so the
+same flows cover the tablet split views (MOB-013); `tablet-split-views.yaml` checks whichever layout
+the device draws.
 
 1. `maestro-android-demo`: a release APK in demo mode; `--include-tags smoke,demo,store-compliance`.
 2. `maestro-android-live`: Postgres and PowerSync from `docker-compose.yml`, the database seeded

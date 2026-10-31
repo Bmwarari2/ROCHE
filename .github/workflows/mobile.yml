@@ -9,6 +9,11 @@
 # Both emulator jobs build a release variant with the JavaScript bundled in: a debug build of this
 # app is an Expo development client, which opens its launcher and waits for Metro rather than
 # starting Harbour.
+#
+# Both emulator jobs run the same flows on a phone and on a tablet held in landscape (MOB-013): on
+# the tablet the People, round and handover screens show their list and detail side by side, and
+# the flows find the same test ids in either layout. Rotation is fixed at the device's natural
+# orientation (portrait on the phone, landscape on the tablet) so a flow never turns it.
 name: mobile
 
 on:
@@ -25,9 +30,15 @@ jobs:
   # The sign-in smoke test and the demo round, with no API (EXPO_PUBLIC_DEMO_MODE=1): fast, and
   # independent of the backend.
   maestro-android-demo:
-    name: Maestro flows (Android emulator, demo mode)
+    name: Maestro flows (Android ${{ matrix.device.name }}, demo mode)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        device:
+          - { name: phone, profile: "" }
+          - { name: tablet, profile: pixel_tablet }
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -62,24 +73,32 @@ jobs:
           api-level: 36
           arch: x86_64
           target: google_apis
+          profile: ${{ matrix.device.profile }}
           script: |
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             adb shell locksettings set-pin 1111
-            ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,demo,store-compliance --format junit --output maestro-demo-report.xml
+            adb shell settings put system accelerometer_rotation 0 && adb shell settings put system user_rotation 0
+            ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,demo,store-compliance --format junit --output maestro-demo-report-${{ matrix.device.name }}.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: maestro-demo-report
-          path: maestro-demo-report.xml
+          name: maestro-demo-report-${{ matrix.device.name }}
+          path: maestro-demo-report-${{ matrix.device.name }}.xml
 
   # The offline journeys against a real backend: Postgres, PowerSync and the API on the runner,
   # seeded with the demo tenant, reached from the emulator over the phone's loopback (adb reverse)
   # by a build that syncs (EXPO_PUBLIC_E2E_LOOPBACK, HARBOUR_E2E_BUILD; see app.config.ts and
   # src/config/env.ts).
   maestro-android-live:
-    name: Maestro offline journeys (Android emulator, live API and PowerSync)
+    name: Maestro offline journeys (Android ${{ matrix.device.name }}, live API and PowerSync)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        device:
+          - { name: phone, profile: "" }
+          - { name: tablet, profile: pixel_tablet }
     env:
       HARBOUR_API_URL: http://localhost:4000
       POWERSYNC_URL: http://localhost:8080
@@ -143,12 +162,14 @@ jobs:
           api-level: 36
           arch: x86_64
           target: google_apis
+          profile: ${{ matrix.device.profile }}
           script: |
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             adb reverse tcp:4000 tcp:4000
             adb reverse tcp:8080 tcp:8080
             adb shell locksettings set-pin 1111
-            ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,offline --env HARBOUR_EMAIL=carer@example.invalid --env "HARBOUR_PASSWORD=$HARBOUR_DEMO_PASSWORD" --env "HARBOUR_ROUND_TASK=$HARBOUR_ROUND_TASK" --format junit --output maestro-live-report.xml
+            adb shell settings put system accelerometer_rotation 0 && adb shell settings put system user_rotation 0
+            ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,offline --env HARBOUR_EMAIL=carer@example.invalid --env "HARBOUR_PASSWORD=$HARBOUR_DEMO_PASSWORD" --env "HARBOUR_ROUND_TASK=$HARBOUR_ROUND_TASK" --format junit --output maestro-live-report-${{ matrix.device.name }}.xml
       - name: The task marked done offline reached Harbour (HZ-006, HZ-029)
         env:
           TASK_ID: ${{ steps.smoke.outputs.task_id }}
@@ -164,8 +185,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: maestro-live-report
-          path: maestro-live-report.xml
+          name: maestro-live-report-${{ matrix.device.name }}
+          path: maestro-live-report-${{ matrix.device.name }}.xml
 
   eas-build:
     name: EAS build (store-ready binaries)

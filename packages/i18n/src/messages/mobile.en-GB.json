@@ -471,5 +471,17 @@
   "mobile.round.recordEvidenceLabel": "{hasPerson, select, yes {Record the entry for {title}, for {person}} other {Record the entry for {title}}}",
   "mobile.round.sent": "Sent, not marked done",
   "mobile.round.sentNotDone": "An entry for this task was sent to Harbour, which has not marked the task done yet. Check it with the person in charge of this shift, or in Harbour on the web, before doing anything more.",
-  "mobile.person.forTaskSent": "An entry for the task “{title}” has been sent to Harbour. Entries you save now do not answer the task."
+  "mobile.person.forTaskSent": "An entry for the task “{title}” has been sent to Harbour. Entries you save now do not answer the task.",
+  "mobile.split.shown": "Shown on the right",
+  "mobile.split.openHint": "Shows this person's record beside the list",
+  "mobile.split.recordOf": "Record for {person}",
+  "mobile.split.choosePerson": "Choose a person from the list to see their record here.",
+  "mobile.split.chooseTask": "Choose “Show record” on a task to see that person's record here, with their photo, allergies and communication needs.",
+  "mobile.split.showRecord": "Show record",
+  "mobile.split.showRecordLabel": "Show the record for {person} beside the round",
+  "mobile.split.recordShown": "Record for {person} shown on the right",
+  "mobile.split.handoverOf": "Handover for {home}",
+  "mobile.split.chooseHandover": "Choose a home from the list to read its handover here.",
+  "mobile.split.homes": "Homes",
+  "mobile.split.openHandoverHint": "Shows this home's handover beside the list"
 }

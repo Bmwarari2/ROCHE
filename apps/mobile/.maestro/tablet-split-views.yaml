@@ -1,0 +1,83 @@
+# Tablet split views (MOB-013; hazard HZ-001). On a tablet in landscape the People list and the
+# chosen person's record sit side by side, the record with its point-of-care header at the top of
+# its pane, and the chosen row says "Shown on the right" in words. On a phone, or wherever the two
+# panes would not fit (portrait, 200% text), the same tap opens the record as its own screen. The
+# flow checks whichever layout the device draws, so it runs on both the phone and the tablet.
+appId: uk.co.thapsus.harbour
+name: Tablet split views
+tags:
+  - demo
+env:
+  HARBOUR_EXPECTED_PERSON: ${HARBOUR_EXPECTED_PERSON || "Ada Example"}
+---
+- runFlow: sign-in.yaml
+- tapOn:
+    id: "tab-people"
+- extendedWaitUntil:
+    visible:
+      text: "${HARBOUR_EXPECTED_PERSON}.*"
+    timeout: 30000
+- tapOn:
+    text: "${HARBOUR_EXPECTED_PERSON}.*"
+- extendedWaitUntil:
+    visible:
+      id: "person-screen"
+    timeout: 15000
+- assertVisible:
+    id: "person-header"
+# Tablet: the list stays beside the record, the row says it is shown, and the pane is headed with
+# the person's name.
+- runFlow:
+    when:
+      visible:
+        id: "people-split"
+    commands:
+      - assertVisible:
+          id: "people-list"
+      - assertVisible:
+          text: "Shown on the right"
+      - assertVisible:
+          id: "people-split-detail-title"
+      - assertVisible:
+          text: "Record for ${HARBOUR_EXPECTED_PERSON}"
+# Phone: the record is its own screen, over the list.
+- runFlow:
+    when:
+      notVisible:
+        id: "people-split"
+    commands:
+      - assertNotVisible:
+          id: "people-list"
+# The round: on a tablet, "Show record" opens the person beside the round; on a phone the button
+# is not there.
+- tapOn:
+    id: "tab-round"
+- extendedWaitUntil:
+    visible:
+      id: "round-screen"
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: "round-split"
+    commands:
+      - assertVisible:
+          id: "round-split-empty"
+      - tapOn:
+          text: "Show record"
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: "person-header"
+          timeout: 10000
+      - assertVisible:
+          id: "round-tasks"
+      - assertVisible:
+          text: "Record for .* shown on the right"
+- runFlow:
+    when:
+      notVisible:
+        id: "round-split"
+    commands:
+      - assertNotVisible:
+          text: "Show record"

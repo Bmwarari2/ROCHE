@@ -13,6 +13,7 @@ export { ICON_STROKE_WIDTH, iconByName, type LucideIcon } from "./components/ico
 export { ListItem, type ListItemProps } from "./components/ListItem";
 export { PersonFlags, type PersonFlagsProps } from "./components/PersonFlags";
 export { PersonHeader, type PersonHeaderProps } from "./components/PersonHeader";
+export { SplitView, type SplitViewProps, useSplitLayout } from "./components/SplitView";
 export {
   FlagChip,
   type FlagChipProps,
