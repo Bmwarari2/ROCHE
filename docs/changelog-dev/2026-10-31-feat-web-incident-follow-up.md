@@ -1,6 +1,6 @@
 # Slice 9 part 5, incident follow-up on the web: duty of candour, after a death, investigations and trends (SAFE-007, SAFE-008, SAFE-010)
 
-Branch `feat/web-incident-follow-up`.
+Branch `feat/web-incident-follow-up`, PR #120.
 
 ## What changed
 
@@ -61,3 +61,25 @@ Branch `feat/web-incident-follow-up`.
   `after-death.spec.ts` (2), axe in light and dark on every state; the existing incident journeys
   still pass. `incidents.spec.ts`'s reflow journey now skips the new trends link when it opens the
   first incident on the list.
+
+## Review rounds
+
+- Round 1 (clinical safety), fail safe: closing waits for the duty of candour where Harbour found
+  it may apply or the decision says notifiable, and with two or more people harmed names everyone
+  still to be told (one candour record covers one person until one per person is built; domain
+  `candourCloseBlock` in `incidentCloseProblems`, API and web); a failed candour or investigation
+  read is said, offers no form and keeps closing blocked; the threshold question in regulation
+  20(9)'s words with its period from the rate table, Harbour's finding beside it, and a decision
+  that differs (or changes) confirmed with a reason of at least 20 characters that moves the record
+  on; the relevant person's hint limited to 20(7)'s cases; "told in person" only in person; "by the
+  end of" a date for a midnight target; the candour notification recorded with the letter's copy,
+  no regulator's reference; the LeDeR prompt follows its notification's status and stays on a
+  closed incident; API refusals of future candour times, a decision before the incident and
+  another person's document, and a new task for a reopened action; trends say "500 or more"
+  throughout and tell a reader with a narrow scope what is left out. Hazard log: HZ-013 causes,
+  controls and tests; HZ-091 description, causes, effects, controls and tests; the trend rows moved
+  to HZ-073. Human actions H-480 and H-481 reframed for the CSO (evidence model, one record per
+  person, separation of duties, dated actions, the pack's clock, communication needs) and H-482 for
+  the learning disability and autism question. Journeys: two candour journeys added (a decision
+  differing from Harbour's finding; two people harmed), the candour notification recorded without a
+  reference, and the LeDeR prompt after "not required".

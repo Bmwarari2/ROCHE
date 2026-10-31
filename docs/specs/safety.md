@@ -186,8 +186,11 @@ until their nation pack (Phase 7) and never a partial answer.
     Day clocks keep the UK wall-clock time across clock changes; working-day clocks skip the
     nation's bank holidays.
 11. **Separation of duties**: the person who raised an incident cannot close it, and an incident
-    cannot close while a notification is a draft or ready, a classifier question is open, or the
-    candour record is open (`incidentCloseProblems`).
+    cannot close while a notification is a draft or ready, a classifier question is open, the
+    candour record is open, the duty of candour may apply (Harbour found it, or the decision says
+    notifiable) and no candour record has finished, or more than one person we support was affected
+    and not each has a finished record of their own (`incidentCloseProblems`, `candourCloseBlock`;
+    #120 review H1 and H2).
 12. **Falls protocol**: a fall creates the post-fall checklist (injury check, observations, GP
     contact, the NG249 falls pathway, bone health) as tasks. Head injury, or current anticoagulant
     or antiplatelet treatment other than aspirin alone (NICE NG232 1.2.4), or either not yet ruled
@@ -416,19 +419,57 @@ the statutory notifications:
 
 Every write sends the version the page was drawn from (0 starts a record); a stale page is refused
 in words; after a save the page opens again with focus on its heading and says what was done.
+
+**Review round 1 (#120)**, fail safe:
+
+- **Closing waits for the duty of candour** (`candourCloseBlock` in `incidentCloseProblems`, so the
+  API refuses and the web lists it first): where Harbour found the duty may apply (a candour output
+  on the last classification, or a candour notification neither decided not required nor flagged
+  no longer indicated) or the threshold decision says notifiable, the incident cannot close until a
+  candour record has finished; and since one candour record covers one relevant person, with two
+  or more people we support affected every person without a finished record of their own is named
+  as still to be told and the incident cannot close. One record per person is the follow-up (it
+  needs a migration; H-480). A closed incident without a record says so plainly.
+- **Unknown is not none**: a candour or investigation read that fails says so, asks to reload,
+  offers no form, and keeps closing blocked.
+- **The threshold question** repeats regulation 20(9) (unintended or unexpected, during the
+  provision of a regulated activity; a death relating directly to the incident; an impairment of
+  sensory, motor or intellectual functions; the prolonged period read from the rate table as
+  `candour.prolonged_harm_days`), with Harbour's finding on the answers beside it. A decision that
+  differs from the finding, or changes a recorded one, takes a confirmation and a reason of at
+  least 20 characters (as H-265) and moves the record on at once with that reason as the step's;
+  "not notifiable" after Harbour drafted a candour notification asks the same. The relevant person's
+  hint gives only regulation 20(7)'s cases for a representative.
+- **Clocks**: telling the person counts only in person (a conversation recorded not in person keeps
+  "Due now" and says so); a target at UK midnight reads "by the end of" the day before.
+- **The candour notification** is recorded as submitted with the written notification's copy on the
+  candour record as its evidence, never a regulator's reference; without a copy the page sends the
+  reader to the candour record first.
+- **LeDeR** follows its notification: an open draft says to report it (the incident records the
+  learning disability or autism); one recorded as submitted says when; one recorded as not required
+  says only that; with nothing recorded on the incident the check stays, and on a closed incident
+  it says it was not answered (H-482).
+- **API** (`PUT /v1/incidents/{id}/candour`): times later than now, a decision dated before the
+  incident and a document cited that is not on the relevant person's record (as the caller sees
+  it) are refused in words; (`PUT .../investigation`) an action reopened gets a new task for its
+  owner.
+- **Trends**: "500 or more" throughout; a reader who sees only their own people is told the counts
+  leave out incidents they cannot see.
+
 Gaps logged, no API change: the API does not assemble the medical examiner pack or record which
 sections were sent (`missingPackSections` is unused), and the web has no medicines or diagnoses
 pages to link; duty of candour letters are refused by the letters API until it reads the candour
 record, so the written notification's copy is a document chosen from the person's record, and the
-web cannot upload one (PLAT-009); the candour record and the candour statutory notification are
-separate, so finishing the record does not record the draft as submitted; the incident form does
-not ask about learning disability or autism (H-262), hence the LeDeR check; no candour forms on a
+web cannot upload one (PLAT-009); one candour record per incident (above); the incident form does
+not ask about learning disability or autism (H-482), hence the LeDeR check; no candour forms on a
 closed incident (a decision found after closing has no route); bulletins are a date only (no
 distribution, read receipts or list of lessons across incidents: no API lists investigations); the
-lead is not checked against any permission; trends count only what the reader can list, at most
-500 a month, by type only (no harm or severity breakdown yet). For the CSO: H-480 (candour
-wording, a decision after closing, the candour draft) and H-481 (the pack listed, not assembled;
-the LeDeR check).
+lead is not checked against any permission; communication needs show only for people in the
+reader's own list, never for a representative; trends count only what the reader can list, at most
+500 a month, by type only (no harm or severity breakdown yet). For the CSO: H-480 (candour wording,
+the evidence model, one record per person, a decision after closing, separation of duties, dated
+actions), H-481 (the pack listed, not assembled; its clock; the LeDeR check) and H-482 (the
+learning disability and autism question on the form).
 
 ## 6. Offline behaviour
 
