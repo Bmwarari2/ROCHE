@@ -568,6 +568,21 @@ describe("legal holds and destruction (section 5.1)", () => {
     );
     expect(JSON.stringify(logged.mock.calls)).not.toContain("Old letter");
 
+    // The worker makes the key from the ids (review of #134, L6): a storage_key changed in the
+    // row meanwhile, here to another live document's, never points the deletion elsewhere.
+    const decoy = await json<DocumentItem>(
+      await upload(
+        "manager",
+        { category: "person_document", title: "Current letter", personId: resident(4) },
+        PDF,
+        "application/pdf",
+      ),
+    );
+    const decoyKey = await storageKeyOf(decoy.id);
+    await asDemoTenant((c) =>
+      c.query("UPDATE document SET storage_key = $2 WHERE id = $1", [doc.id, decoyKey]),
+    );
+
     // Storage is back: the next try deletes every version and the event is done.
     failing.mockRestore();
     await asDemoTenant((c) =>
@@ -579,6 +594,7 @@ describe("legal holds and destruction (section 5.1)", () => {
     await relayOutbox(deps, outboxHandlers(deps));
     expect(await destroyedEvents(doc.id)).toEqual([{ published: true, attempts: 2 }]);
     expect(await storage.get(key)).toBeNull();
+    expect(await storage.get(decoyKey)).not.toBeNull();
   });
 
   it("refuses both retention lists without a fresh step-up", async () => {

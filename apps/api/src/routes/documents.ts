@@ -24,6 +24,7 @@ import {
 import {
   checkSignature,
   type DocumentCategoryKey,
+  documentStorageKey,
   type HeldDocumentVersion,
   isDocumentUnderLegalHold,
   narrowestScope,
@@ -832,7 +833,7 @@ export const documentsRouter = createRouter()
           byClass.set(e.row.retentionClass, [...(byClass.get(e.row.retentionClass) ?? []), e]);
         }
         const certificates = [];
-        const stored: { id: string; storageKey: string }[] = [];
+        const stored: { id: string }[] = [];
         for (const [recordClass, docs] of byClass) {
           const updated = await tx
             .update(document)
@@ -848,7 +849,7 @@ export const documentsRouter = createRouter()
                 docs.map((d) => d.row.id),
               ),
             )
-            .returning({ id: document.id, storageKey: document.storageKey });
+            .returning({ id: document.id });
           if (updated.length === 0) continue;
           const [certificate] = await tx
             .insert(destructionCertificate)
@@ -897,7 +898,8 @@ export const documentsRouter = createRouter()
       // Committed: the tombstones and certificates stand, so the bytes go now. A deletion that
       // fails here is left to the outbox event, which the worker retries until it succeeds.
       for (const d of stored) {
-        await storage.destroy(d.storageKey).catch((error: unknown) => {
+        // The key is made from the ids, as the worker makes it (review of #134, L6).
+        await storage.destroy(documentStorageKey(access.tenantId, d.id)).catch((error: unknown) => {
           logger.warn(
             {
               requestId: c.get("requestId"),

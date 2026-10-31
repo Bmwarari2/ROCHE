@@ -13,6 +13,7 @@ import {
 import {
   type DocumentStoragePort,
   deliveryOutcome,
+  documentStorageKey,
   dueEscalationSteps,
   type EscalationStep,
   EXPORT_ARCHIVE_FILE,
@@ -673,12 +674,14 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       if (!deps.storage) throw new Error("The worker has no document storage.");
       const [row] = await inTenant(event.tenantId, (tx) =>
         tx
-          .select({ status: document.status, storageKey: document.storageKey })
+          .select({ status: document.status })
           .from(document)
           .where(eq(document.id, event.aggregateId)),
       );
       if (row?.status !== "destroyed") return;
-      await deps.storage.destroy(row.storageKey);
+      // The key is made from the event's ids as uploads make it, never read from the row, so a
+      // changed storage_key cannot point the deletion at another object (review of #134, L6).
+      await deps.storage.destroy(documentStorageKey(event.tenantId, event.aggregateId));
     } catch (error) {
       deps.logger.error(
         {
