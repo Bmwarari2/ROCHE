@@ -107,7 +107,10 @@ the second step (TOTP or a passkey) within the step-up window.
    search itself alerts the Registered Manager for each location whose people were shown and the
    data protection lead (`breakGlassSearchAlert`, generic title); reaching the daily limit refuses
    further searches and tells the data protection lead. The weekly break-glass report lists these
-   searches beside the openings (API step).
+   searches beside the openings (API step): in the report of each location whose people they
+   showed, and a search that showed no one at any location in an organisation-wide section of
+   every report, read (and its searchers named) only by readers whose access reaches the whole
+   organisation.
 
 ### Full export (PLAT-015)
 

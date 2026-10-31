@@ -66,6 +66,22 @@ export function reportWeek(
   };
 }
 
+/**
+ * The ISO 8601 week of a Monday ("2026-W44"), for a `<time>` element's `dateTime`: ISO weeks run
+ * Monday to Sunday, as the report's UK week does.
+ */
+export function isoWeek(monday: string): string {
+  const [year, month, day] = monday.split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  // The Thursday of the week decides its year (ISO 8601).
+  const thursday = new Date(date.getTime() + 3 * 86_400_000);
+  const weekYear = thursday.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(weekYear, 0, 4));
+  const firstMonday = firstThursday.getTime() - ((firstThursday.getUTCDay() + 6) % 7) * 86_400_000;
+  const week = Math.floor((date.getTime() - firstMonday) / (7 * 86_400_000)) + 1;
+  return `${weekYear}-W${String(week).padStart(2, "0")}`;
+}
+
 export function listHref(week: string | null): string {
   return week ? `${BREAK_GLASS_REPORT_PAGE}?week=${week}` : BREAK_GLASS_REPORT_PAGE;
 }
@@ -125,6 +141,13 @@ export interface SearchUserLine {
   readonly flags: readonly ReportFlag[];
 }
 
+export interface SearchSection {
+  readonly total: number;
+  readonly distinctUsers: number;
+  readonly byUser: readonly SearchUserLine[];
+  readonly byReason: readonly ReasonLine[];
+}
+
 export interface ReportSummary {
   readonly totalEvents: number;
   readonly distinctUsers: number;
@@ -134,12 +157,13 @@ export interface ReportSummary {
   readonly byPerson: readonly PersonLine[];
   readonly byReason: readonly ReasonLine[];
   readonly flagged: readonly FlagLine[];
-  readonly searches: {
-    readonly total: number;
-    readonly distinctUsers: number;
-    readonly byUser: readonly SearchUserLine[];
-    readonly byReason: readonly ReasonLine[];
-  };
+  /** Break-glass searches that showed people at this location. */
+  readonly searches: SearchSection;
+  /**
+   * The organisation's searches that showed no one at any location: given only to readers whose
+   * access reaches the whole organisation (null for anyone else, and in reports from before it).
+   */
+  readonly unplacedSearches: SearchSection | null;
   /** True when part of the stored summary could not be read: the page then warns. */
   readonly unreadable: boolean;
 }
@@ -186,8 +210,33 @@ export function readSummary(summary: Record<string, unknown>): ReportSummary {
       : "unknown",
     events: count(item.events),
   });
+  /** Reason lines, with reasons the web does not know merged into one line. */
+  const reasons = (value: unknown): ReasonLine[] => {
+    const merged = new Map<ReportReason, number>();
+    for (const line of list(value, reason)) {
+      merged.set(line.reason, (merged.get(line.reason) ?? 0) + line.events);
+    }
+    return [...merged].map(([key, events]) => ({ reason: key, events }));
+  };
+  const section = (value: Raw): SearchSection => ({
+    total: count(value.total),
+    distinctUsers: count(value.distinctUsers),
+    byUser: list(value.byUser, (item): SearchUserLine | null => {
+      const tenantUserId = id(item.tenantUserId);
+      return tenantUserId
+        ? { tenantUserId, searches: count(item.searches), flags: flags(item.flags) }
+        : null;
+    }),
+    byReason: reasons(value.byReason),
+  });
+  const emptySection: SearchSection = { total: 0, distinctUsers: 0, byUser: [], byReason: [] };
   const searches = isRecord(summary.searches) ? summary.searches : null;
   if (!searches) unreadable = true;
+  // Absent is expected (a reader who does not reach the whole organisation); anything else that
+  // is not a section cannot be read.
+  if (summary.unplacedSearches !== undefined && !isRecord(summary.unplacedSearches)) {
+    unreadable = true;
+  }
 
   const result = {
     totalEvents: count(summary.totalEvents),
@@ -219,7 +268,7 @@ export function readSummary(summary: Record<string, unknown>): ReportSummary {
           }
         : null;
     }),
-    byReason: list(summary.byReason, reason),
+    byReason: reasons(summary.byReason),
     flagged: list(
       summary.flagged,
       (item): FlagLine => ({
@@ -229,26 +278,24 @@ export function readSummary(summary: Record<string, unknown>): ReportSummary {
         count: count(item.count),
       }),
     ),
-    searches: {
-      total: count(searches?.total ?? 0),
-      distinctUsers: count(searches?.distinctUsers ?? 0),
-      byUser: searches
-        ? list(searches.byUser, (item): SearchUserLine | null => {
-            const tenantUserId = id(item.tenantUserId);
-            return tenantUserId
-              ? { tenantUserId, searches: count(item.searches), flags: flags(item.flags) }
-              : null;
-          })
-        : [],
-      byReason: searches ? list(searches.byReason, reason) : [],
-    },
+    searches: searches ? section(searches) : emptySection,
+    unplacedSearches: isRecord(summary.unplacedSearches) ? section(summary.unplacedSearches) : null,
   };
   return { ...result, unreadable };
 }
 
-/** Whether a report flags anything: a line in "needs attention", or a searcher's repeated use. */
-export function flagCount(summary: ReportSummary): number {
-  return summary.flagged.length + summary.searches.byUser.filter((u) => u.flags.length > 0).length;
+/** The searchers a section flags (repeated use), in its order. */
+export function flaggedSearchers(section: SearchSection | null): SearchUserLine[] {
+  return (section?.byUser ?? []).filter((u) => u.flags.length > 0);
+}
+
+/**
+ * How many things a location's report flags: each flag line and each flagged searcher, exactly
+ * the sentences "Needs your attention" shows, so the chip and the list never disagree. The
+ * tenant-level section's flags are the organisation's, counted with it on the list page.
+ */
+export function flagCount(summary: Pick<ReportSummary, "flagged" | "searches">): number {
+  return summary.flagged.length + flaggedSearchers(summary.searches).length;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -290,6 +337,17 @@ export function reviewChip(entry: ReportEntry<Report>, t: Translator): SafetyChi
     : { status: "due", icon: "clock", label: t("breakGlassReport.state.toReview") };
 }
 
+/** A report whose stored summary could not be read in part: a warning chip, never calm. */
+export function unreadableChip(unreadable: boolean, t: Translator): SafetyChip | null {
+  return unreadable
+    ? {
+        status: "overdue",
+        icon: "triangle-alert",
+        label: t("breakGlassReport.state.unreadable"),
+      }
+    : null;
+}
+
 /** How many lines the report flags, as a warning chip; null when it flags nothing. */
 export function flagChip(count: number, t: Translator): SafetyChip | null {
   return count > 0
@@ -308,18 +366,42 @@ export type ReviewOffer =
   | { readonly kind: "own" };
 
 /**
+ * Everyone a report counts, as far as this reader can see it: its user lines, flags and searchers,
+ * and the tenant-level section's searchers when the reader is given it.
+ */
+export function countedStaff(
+  summary: Pick<ReportSummary, "byUser" | "flagged" | "searches" | "unplacedSearches">,
+): Set<string> {
+  return new Set([
+    ...summary.byUser.map((u) => u.tenantUserId),
+    ...summary.flagged.flatMap((f) => (f.tenantUserId ? [f.tenantUserId] : [])),
+    ...summary.searches.byUser.map((u) => u.tenantUserId),
+    ...(summary.unplacedSearches?.byUser ?? []).map((u) => u.tenantUserId),
+  ]);
+}
+
+/**
  * Whether the reader is offered the review form. The API takes a review once, from a holder of
- * the permission at the report's location who is not flagged in it.
+ * the permission at the report's location whom the report does not count at all, flagged or not
+ * (review round 1).
  */
 export function reviewOffer(
   entry: ReportEntry<Report>,
-  summary: Pick<ReportSummary, "flagged">,
+  summary: Pick<ReportSummary, "byUser" | "flagged" | "searches" | "unplacedSearches">,
   tenantUserId: string,
 ): ReviewOffer {
   if (entry.review) return { kind: "reviewed" };
-  return summary.flagged.some((f) => f.tenantUserId === tenantUserId)
-    ? { kind: "own" }
-    : { kind: "form" };
+  return countedStaff(summary).has(tenantUserId) ? { kind: "own" } : { kind: "form" };
+}
+
+/** The words for a problem with "actions taken", with the limits the API takes. */
+export function actionsMessage(problem: "tooShort" | "tooLong", t: Translator): string {
+  return t("breakGlassReport.review.problem", { problem, min: ACTIONS_MIN, max: ACTIONS_MAX });
+}
+
+/** The hint under "actions taken", with the same limits. */
+export function actionsHint(t: Translator): string {
+  return t("breakGlassReport.review.hint", { min: ACTIONS_MIN, max: ACTIONS_MAX });
 }
 
 /** Why "actions taken" cannot be sent, or null. */
@@ -399,6 +481,20 @@ export function flagSentence(
     staff: staff(line.tenantUserId),
     person: person(line.personId),
     count: line.count,
+    threshold,
+  });
+}
+
+/** A searcher's repeated use in words: who, how many searches, and the weekly limit. */
+export function searchFlagSentence(
+  line: SearchUserLine,
+  threshold: number,
+  staff: Namer,
+  t: Translator,
+): string {
+  return t("breakGlassReport.flag.searches", {
+    staff: staff(line.tenantUserId),
+    count: line.searches,
     threshold,
   });
 }

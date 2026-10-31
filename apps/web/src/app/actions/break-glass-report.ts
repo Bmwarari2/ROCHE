@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { tenantApi } from "@/lib/api";
 import {
-  ACTIONS_MAX,
+  actionsMessage,
   actionsProblem,
   BREAK_GLASS_REPORT_PAGE,
   reviewProblem,
@@ -25,9 +25,7 @@ export async function reviewBreakGlassReport(
   if (!isUuid(reportId)) return refused(t("errors.notFound"), "not_found");
   const problem = actionsProblem(actionsTaken);
   if (problem) {
-    return refused(t("breakGlassReport.review.problem", { problem, max: ACTIONS_MAX }), "invalid", [
-      "actionsTaken",
-    ]);
+    return refused(actionsMessage(problem, t), "invalid", ["actionsTaken"]);
   }
   try {
     const api = await tenantApi();

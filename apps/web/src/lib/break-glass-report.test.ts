@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  actionsHint,
+  actionsMessage,
   actionsProblem,
   breakGlassReportShown,
+  countedStaff,
   flagChip,
   flagCount,
   flagSentence,
   flagsText,
+  isoWeek,
   listHref,
   personNamer,
   readSummary,
@@ -16,13 +20,17 @@ import {
   reviewChip,
   reviewOffer,
   reviewProblem,
+  searchFlagSentence,
   staffNamer,
+  unreadableChip,
   weekParam,
 } from "./break-glass-report";
 import { t } from "./i18n";
 
 const USER_A = "0194d000-0000-7000-8000-00000000000a";
 const USER_B = "0194d000-0000-7000-8000-00000000000b";
+const USER_C = "0194d000-0000-7000-8000-00000000000c";
+const USER_Z = "0194d000-0000-7000-8000-00000000000f";
 const PERSON_1 = "0194d000-0000-7000-8600-000000000001";
 const PERSON_2 = "0194d000-0000-7000-8600-000000000002";
 
@@ -190,14 +198,96 @@ describe("the weekly break-glass report screens", () => {
     });
   });
 
-  it("offers the review once, never to someone the report flags", () => {
-    const summary = readSummary(SUMMARY);
+  it("offers the review once, never to anyone the report counts, flagged or not (review round 1)", () => {
+    const summary = readSummary({
+      ...SUMMARY,
+      unplacedSearches: {
+        total: 1,
+        distinctUsers: 1,
+        byUser: [{ tenantUserId: USER_Z, searches: 1, flags: [] }],
+        byReason: [],
+      },
+    });
     const open = { report: report(), review: null };
-    expect(reviewOffer(open, summary, USER_B)).toEqual({ kind: "form" });
-    expect(reviewOffer(open, summary, USER_A)).toEqual({ kind: "own" });
-    expect(reviewOffer({ report: report(), review: report() }, summary, USER_B)).toEqual({
+    // Flagged; counted below the threshold (and a searcher here); in the tenant-level section.
+    for (const counted of [USER_A, USER_B, USER_Z]) {
+      expect(reviewOffer(open, summary, counted)).toEqual({ kind: "own" });
+    }
+    expect(reviewOffer(open, summary, USER_C)).toEqual({ kind: "form" });
+    expect(reviewOffer({ report: report(), review: report() }, summary, USER_C)).toEqual({
       kind: "reviewed",
     });
+  });
+
+  it("counts a searcher whose only line is a search", () => {
+    const summary = readSummary({
+      ...SUMMARY,
+      byUser: [],
+      flagged: [],
+      searches: {
+        total: 3,
+        distinctUsers: 1,
+        byUser: [{ tenantUserId: USER_C, searches: 3, flags: ["repeated_use"] }],
+        byReason: [],
+      },
+    });
+    expect([...countedStaff(summary)]).toEqual([USER_C]);
+    expect(reviewOffer({ report: report(), review: null }, summary, USER_C)).toEqual({
+      kind: "own",
+    });
+  });
+
+  it("says a flagged searcher in words, and the chip counts the same lines the list shows", () => {
+    const summary = readSummary({
+      ...SUMMARY,
+      flagged: [],
+      searches: {
+        total: 4,
+        distinctUsers: 1,
+        byUser: [{ tenantUserId: USER_B, searches: 4, flags: ["repeated_use"] }],
+        byReason: [],
+      },
+    });
+    // One thing flagged, and one sentence for it: never "1 thing flagged" beside "Nothing was
+    // flagged this week".
+    expect(flagCount(summary)).toBe(1);
+    expect(searchFlagSentence(nth(summary.searches.byUser, 0), 3, () => "Mo Manager", t)).toBe(
+      "Mo Manager made 4 break-glass searches, at or above the limit of 3 searches a week.",
+    );
+  });
+
+  it("reads the tenant-level section only when the API gives it", () => {
+    expect(readSummary(SUMMARY).unplacedSearches).toBeNull();
+    expect(readSummary(SUMMARY).unreadable).toBe(false);
+    const given = readSummary({
+      ...SUMMARY,
+      unplacedSearches: { total: 0, distinctUsers: 0, byUser: [], byReason: [] },
+    });
+    expect(given.unplacedSearches).toEqual({
+      total: 0,
+      distinctUsers: 0,
+      byUser: [],
+      byReason: [],
+    });
+    expect(readSummary({ ...SUMMARY, unplacedSearches: "x" }).unreadable).toBe(true);
+  });
+
+  it("marks a report that could not be read as a warning, never calm", () => {
+    expect(unreadableChip(false, t)).toBeNull();
+    expect(unreadableChip(true, t)).toEqual({
+      status: "overdue",
+      icon: "triangle-alert",
+      label: "Could not be read",
+    });
+  });
+
+  it.each([
+    ["2026-10-26", "2026-W44"],
+    ["2024-12-30", "2025-W01"],
+    ["2026-01-05", "2026-W02"],
+    ["2020-12-28", "2020-W53"],
+  ])("gives the Monday %s the ISO week %s for a time element", (monday, week) => {
+    expect(isoWeek(monday)).toBe(week);
   });
 
   it.each([
@@ -207,6 +297,14 @@ describe("the weekly break-glass report screens", () => {
     ["x".repeat(2001), "tooLong"],
   ] as const)("checks the actions taken %#", (text, problem) => {
     expect(actionsProblem(text)).toBe(problem);
+  });
+
+  it("says the limits on the actions taken from the figures the API takes", () => {
+    expect(actionsMessage("tooShort", t)).toBe("Enter what you did, using at least 3 characters");
+    expect(actionsMessage("tooLong", t)).toBe(
+      "Shorten the actions taken to 2,000 characters or fewer",
+    );
+    expect(actionsHint(t)).toContain("Between 3 and 2,000 characters");
   });
 
   it("says a refused review in the page's words", () => {
@@ -244,7 +342,7 @@ describe("the weekly break-glass report screens", () => {
     const staff = () => "Nell Nurse";
     const person = () => "Ada Example";
     expect(flagSentence(nth(summary.flagged, 0), 3, staff, person, t)).toBe(
-      "Nell Nurse opened records outside their access 3 times, at or above the limit of 3 a week.",
+      "Nell Nurse opened records outside their access 3 times, at or above the limit of 3 times a week.",
     );
     expect(flagSentence(nth(summary.flagged, 1), 3, staff, person, t)).toBe(
       "Nell Nurse opened the record of Ada Example 3 times. Their access may need changing.",
@@ -274,5 +372,20 @@ describe("the weekly break-glass report screens", () => {
     expect(summary.byReason.map((l) => t("breakGlassReport.reason", { reason: l.reason }))).toEqual(
       ["Something else", "No reason chosen", "A reason Harbour cannot describe"],
     );
+  });
+
+  it("merges reasons it does not know into one line, so no two rows share an id", () => {
+    const summary = readSummary({
+      ...SUMMARY,
+      byReason: [
+        { reason: "brand_new", events: 2 },
+        { reason: "safeguarding", events: 1 },
+        { reason: "newer_still", events: 3 },
+      ],
+    });
+    expect(summary.byReason).toEqual([
+      { reason: "unknown", events: 5 },
+      { reason: "safeguarding", events: 1 },
+    ]);
   });
 });

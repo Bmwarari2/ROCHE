@@ -3,7 +3,7 @@ import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import { cache, type ReactNode } from "react";
 import { Notice } from "@/components/care/Notice";
 import { BreakGlassReview } from "@/components/platform/BreakGlassReview";
 import { CountTable } from "@/components/platform/CountTable";
@@ -15,8 +15,10 @@ import {
   breakGlassReportShown,
   flagChip,
   flagCount,
+  flaggedSearchers,
   flagSentence,
   flagsText,
+  isoWeek,
   listHref,
   personNamer,
   type ReasonLine,
@@ -27,7 +29,9 @@ import {
   reportWeek,
   reviewChip,
   reviewOffer,
+  searchFlagSentence,
   staffNamer,
+  unreadableChip,
   weekParam,
 } from "@/lib/break-glass-report";
 import { isUuid } from "@/lib/context-cookies";
@@ -39,7 +43,36 @@ import { firstParam } from "@/lib/record-metadata";
 type Params = Promise<{ reportId: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export const metadata: Metadata = { title: t("breakGlassReport.detailTitle") };
+/** One week's reports, read once per request for the page and its title (each read is audited). */
+const getReports = cache(async (week: string | null) => {
+  const api = await tenantApi();
+  return api.GET("/v1/break-glass/weekly-report", { params: { query: week ? { week } : {} } });
+});
+
+/** The title names the location and the week, never anyone the report counts. */
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}): Promise<Metadata> {
+  const fallback = { title: t("breakGlassReport.title") };
+  const { me } = await getShellContext();
+  const { reportId } = await params;
+  if (!breakGlassReportShown(me.permissions) || !isUuid(reportId)) return fallback;
+  const { data } = await getReports(weekParam((await searchParams).week));
+  const report = data?.items.find((r) => r.id === reportId);
+  const location = me.locations.find((l) => l.id === report?.locationId);
+  if (!data || !report || !location) return fallback;
+  const monday = reportWeek(data).monday;
+  return {
+    title: t("breakGlassReport.metaTitle", {
+      location: location.name,
+      monday: formatDate(monday) ?? monday,
+    }),
+  };
+}
 
 function Section({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return (
@@ -82,7 +115,8 @@ function ReasonTable({
  * many), the records opened by member of staff, by person and by reason, the break-glass searches,
  * and its review. Staff are named from the report, people from the reader's own list (others are
  * numbered). The report holds counts and opaque ids: each typed reason stays in the audit log. The
- * review form is offered once, to a reader the report does not flag; the API checks it all again.
+ * review form is offered once, to a reader the report does not count at all (flagged or not);
+ * the API checks it all again.
  */
 export default async function BreakGlassReportPage({
   params,
@@ -99,9 +133,7 @@ export default async function BreakGlassReportPage({
   const query = await searchParams;
   const week = weekParam(query.week);
   const api = await tenantApi();
-  const { data, error, response } = await api.GET("/v1/break-glass/weekly-report", {
-    params: { query: week ? { week } : {} },
-  });
+  const { data, error, response } = await getReports(week);
   if (!data) {
     if (problemCode(error) === "missing_permission") return <SafetyForbidden title={listTitle} />;
     return failWith(error, response, listHref(week));
@@ -132,6 +164,8 @@ export default async function BreakGlassReportPage({
     sunday: formatDate(shown.sunday) ?? shown.sunday,
   });
   const flags = flagChip(flagCount(summary), t);
+  const unreadable = unreadableChip(summary.unreadable, t);
+  const searchFlags = flaggedSearchers(summary.searches);
   const offer = reviewOffer(entry, summary, me.tenantUserId);
   const done = firstParam(query.done) === "reviewed" && review;
   const hidden = summary.byPerson.some((p) => !names.has(p.personId));
@@ -150,11 +184,16 @@ export default async function BreakGlassReportPage({
         </span>
         <span aria-current="page">{locationName}</span>
       </nav>
-      <PageHeader eyebrow={locationName} title={listTitle} description={range} />
+      <PageHeader
+        eyebrow={listTitle}
+        title={t("breakGlassReport.detailHeading", { location: locationName })}
+        description={<time dateTime={isoWeek(shown.monday)}>{range}</time>}
+      />
       {done ? <RecordedArrival message={t("breakGlassReport.review.done")} param="done" /> : null}
       <p className="m-0 flex flex-wrap items-center gap-2">
         <SafetyChip chip={reviewChip(entry, t)} />
         {flags ? <SafetyChip chip={flags} /> : null}
+        {unreadable ? <SafetyChip chip={unreadable} /> : null}
       </p>
       {summary.unreadable ? (
         <Notice
@@ -181,10 +220,12 @@ export default async function BreakGlassReportPage({
           ))}
         </dl>
         <p className="m-0 text-body-dense text-text-secondary">
-          {t("breakGlassReport.summary.generated", {
-            dateTime: formatDateTime(report.generatedAt) ?? "",
-            threshold: report.repeatThreshold,
-          })}
+          <time dateTime={report.generatedAt}>
+            {t("breakGlassReport.summary.built", {
+              dateTime: formatDateTime(report.generatedAt) ?? "",
+            })}
+          </time>{" "}
+          {t("breakGlassReport.summary.generated", { threshold: report.repeatThreshold })}
         </p>
         <p className="m-0 text-body-dense text-text-secondary">
           {t("breakGlassReport.summary.reasons")}
@@ -192,22 +233,28 @@ export default async function BreakGlassReportPage({
       </Section>
 
       <Section title={t("breakGlassReport.flags.title")}>
-        {summary.flagged.length === 0 ? (
+        {flagCount(summary) === 0 ? (
           <p className="m-0">{t("breakGlassReport.flags.none")}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {summary.flagged.map((line) => (
-              <li
-                key={`${line.flag}-${line.tenantUserId ?? ""}-${line.personId ?? ""}`}
-                className="flex items-start gap-2"
-              >
+            {[
+              ...summary.flagged.map((line, index) => ({
+                key: `flag-${index}`,
+                text: flagSentence(line, report.repeatThreshold, staff, person, t),
+              })),
+              ...searchFlags.map((line, index) => ({
+                key: `search-${index}`,
+                text: searchFlagSentence(line, report.repeatThreshold, staff, t),
+              })),
+            ].map((line) => (
+              <li key={line.key} className="flex items-start gap-2">
                 <TriangleAlert
                   size={18}
                   strokeWidth={1.5}
                   aria-hidden="true"
                   className="mt-0.5 shrink-0"
                 />
-                <span>{flagSentence(line, report.repeatThreshold, staff, person, t)}</span>
+                <span>{line.text}</span>
               </li>
             ))}
           </ul>
@@ -307,16 +354,35 @@ export default async function BreakGlassReportPage({
             />
           </>
         )}
+        {summary.unplacedSearches && summary.unplacedSearches.total > 0 ? (
+          <p className="m-0">
+            <Link
+              href={listHref(shown.monday)}
+              className="inline-flex min-h-target items-center underline"
+            >
+              {t("breakGlassReport.unplaced.pointer", { count: summary.unplacedSearches.total })}
+            </Link>
+          </p>
+        ) : null}
       </Section>
 
       <Section title={t("breakGlassReport.review.title")}>
         {review ? (
           <>
             <p className="m-0">
-              {t("breakGlassReport.review.by", {
-                name: staff(review.reviewedBy),
-                dateTime: formatDateTime(review.reviewedAt) ?? "",
-              })}
+              {review.reviewedAt ? (
+                <time dateTime={review.reviewedAt}>
+                  {t("breakGlassReport.review.by", {
+                    name: staff(review.reviewedBy),
+                    dateTime: formatDateTime(review.reviewedAt) ?? "",
+                  })}
+                </time>
+              ) : (
+                t("breakGlassReport.review.by", {
+                  name: staff(review.reviewedBy),
+                  dateTime: "",
+                })
+              )}
             </p>
             <h3 className="m-0 text-body font-semibold">{t("breakGlassReport.review.actions")}</h3>
             <p className="m-0 whitespace-pre-line break-words">{review.actionsTaken}</p>

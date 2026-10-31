@@ -6,7 +6,7 @@ import { type FormEvent, useState, useTransition } from "react";
 import { reviewBreakGlassReport } from "@/app/actions/break-glass-report";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
-import { ACTIONS_MAX, actionsProblem } from "@/lib/break-glass-report";
+import { ACTIONS_MAX, actionsHint, actionsMessage, actionsProblem } from "@/lib/break-glass-report";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, refused } from "@/lib/outcome";
 
@@ -33,11 +33,7 @@ export function BreakGlassReview({
     const actionsTaken = String(new FormData(event.currentTarget).get("actionsTaken") ?? "");
     const problem = actionsProblem(actionsTaken);
     if (problem) {
-      setResult(
-        refused(t("breakGlassReport.review.problem", { problem, max: ACTIONS_MAX }), "invalid", [
-          "actionsTaken",
-        ]),
-      );
+      setResult(refused(actionsMessage(problem, t), "invalid", ["actionsTaken"]));
       return;
     }
     startTransition(async () => {
@@ -55,7 +51,7 @@ export function BreakGlassReview({
           id={ids.actionsTaken}
           name="actionsTaken"
           label={t("breakGlassReport.review.label")}
-          hint={t("breakGlassReport.review.hint")}
+          hint={actionsHint(t)}
           rows={4}
           required
           maxLength={ACTIONS_MAX}

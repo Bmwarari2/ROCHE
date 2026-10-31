@@ -79,7 +79,9 @@ export async function eventsInWeek(
 /**
  * The week's break-glass searches, each with the homes whose people it showed. A search that
  * showed no one at a home (no match, or only people without a home) has no locations: the report
- * puts it in every home's report so it is still reported weekly (master prompt section 4).
+ * puts it in every report's tenant-level section, read only across the organisation, so it is
+ * still reported weekly (master prompt section 4) without naming its searcher to a location's
+ * manager (review round 1 of feat/web-break-glass-report).
  */
 export async function searchesInWeek(
   tx: Transaction,
@@ -119,13 +121,18 @@ export async function generateBreakGlassReports(
     .from(location)
     .where(isNull(location.deletedAt));
   const leads = await dataProtectionLeads(tx, now);
+  // A search that showed no one at any location is the organisation's, not a location's: it goes
+  // in each report's tenant-level section, which only readers reaching the whole organisation see
+  // (review round 1 of feat/web-break-glass-report), never in a location's own searches.
+  const unplaced = searches.filter((e) => e.locationIds.length === 0);
   let stored = 0;
   for (const { id: locationId } of locations) {
     const report = aggregate(
       events.filter((e) => e.locationId === locationId),
       week,
       threshold,
-      searches.filter((e) => e.locationIds.length === 0 || e.locationIds.includes(locationId)),
+      searches.filter((e) => e.locationIds.includes(locationId)),
+      unplaced,
     );
     const [inserted] = await tx
       .insert(breakGlassWeeklyReport)
@@ -142,6 +149,11 @@ export async function generateBreakGlassReports(
     if (!inserted) continue;
     stored++;
     const recipients = new Set([...(await registeredManagersAt(tx, locationId, now)), ...leads]);
+    const locationFlagged =
+      report.flagged.length > 0 || report.searches.byUser.some((u) => u.flags.length > 0);
+    // The tenant-level section's flags raise the alert only for the data protection leads, who
+    // read it; a location's manager is not told of searches they cannot see.
+    const unplacedFlagged = report.unplacedSearches.byUser.some((u) => u.flags.length > 0);
     for (const recipient of recipients) {
       await tx
         .insert(notification)
@@ -149,9 +161,7 @@ export async function generateBreakGlassReports(
           recipientTenantUserId: recipient,
           kind: "people.break_glass_report",
           severity:
-            report.flagged.length > 0 || report.searches.byUser.some((u) => u.flags.length > 0)
-              ? "warning"
-              : "info",
+            locationFlagged || (unplacedFlagged && leads.includes(recipient)) ? "warning" : "info",
           title: "The weekly break-glass report is ready",
           body: "Open the report to review last week's break-glass access.",
           link: "/break-glass/weekly-report",

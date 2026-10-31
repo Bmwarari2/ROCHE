@@ -1809,7 +1809,6 @@
     "platform.breakGlassSearch.more",
     "shell.nav.breakGlassReport",
     "breakGlassReport.title",
-    "breakGlassReport.detailTitle",
     "breakGlassReport.description",
     "breakGlassReport.weeks",
     "breakGlassReport.previousWeek",
@@ -1867,6 +1866,16 @@
     "breakGlassReport.review.own",
     "breakGlassReport.review.done",
     "breakGlassReport.review.by",
-    "breakGlassReport.review.actions"
+    "breakGlassReport.review.actions",
+    "breakGlassReport.detailHeading",
+    "breakGlassReport.metaTitle",
+    "breakGlassReport.state.unreadable",
+    "breakGlassReport.flag.searches",
+    "breakGlassReport.empty.filtered",
+    "breakGlassReport.unplaced.title",
+    "breakGlassReport.unplaced.about",
+    "breakGlassReport.unplaced.none",
+    "breakGlassReport.summary.built",
+    "breakGlassReport.unplaced.pointer"
   ]
 }

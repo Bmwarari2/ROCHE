@@ -45,9 +45,16 @@ Branch `feat/web-break-glass-report`.
   read in the system's view, or audit events that carry their location) and a security review.
 - Nothing reviews a single opening (`break_glass_event.reviewed_at` is never set), so the
   per-opening "not yet reviewed" count is not shown; the report-level review is.
-- The review needs no step-up (the API asks none); a decision for the DPO with H-80 if it should.
+- MFA and step-up for `platform.audit.read` and for the review: the API asks none; a decision for
+  the DPO with H-80 (logged as open, not built).
 - `--this-week` stores the week in progress early in the local database, so the worker leaves that
-  week as first built (local only).
+  week as first built (local only; the script refuses any shared database).
+- Reports stored before review round 1 still hold searches that showed no one at any location in
+  every location's own searches (the report is append-only); only reports built from now on keep
+  them in the organisation-wide section.
+- A stored organisation-level report row (rather than a section in each location's report) needs
+  `break_glass_weekly_report.location_id` to become nullable with its policies and unique index: a
+  migration, so not done here.
 
 ## Human actions logged
 
@@ -60,3 +67,38 @@ Branch `feat/web-break-glass-report`.
   on every state; run twice to cover the review form and the reviewed report). The journey opens a
   Sam Twin record, not Una Example's, so `break-glass.spec.ts` (which runs after it) still finds
   Una's record closed to the manager; both pass run one after the other.
+
+## Review round 1
+
+Security and accessibility reviewers' findings, all addressed except where noted:
+
+- `run-break-glass-report.ts` and `run-exports.ts` now refuse anything but a throwaway local or CI
+  database (`testOnlySwitchRefusal`, on both pools): no `--this-week` report or export on a shared,
+  staging or pilot database.
+- Separation of duties: the API refuses a review by anyone the report counts (an opening, a search
+  at the location, a search that showed no one anywhere; flagged or not), and the screen offers the
+  form on the same rule (`countedStaff`).
+- Searches that showed no one at any location are no longer copied into each location's own
+  searches: the domain keeps them in `unplacedSearches`, stored with each report but given, and its
+  searchers named, only to readers whose access reaches the whole organisation; the list page shows
+  them in their own section; the alert's warning for them goes to the data protection leads only.
+  No schema change.
+- "Needs your attention" says one sentence for each flag and each flagged searcher, so it never
+  says "Nothing was flagged" beside "1 thing flagged"; the list marks a report it cannot read in
+  part "Could not be read" (an icon and words).
+- The view audit records the ids of the reports shown.
+- Records of processing, platform.md, people.md, platform-completions.md and the hazard log updated.
+- Should-fix: the report page's heading and title name the location and week ("Break-glass report
+  for Harbour Mews, week of 23/11/2026"), never a person; limits passed into the copy; plurals for
+  the threshold; "People whose records you cannot see"; "location" for "home"; an empty state that
+  says when the location switcher hides the reports; unknown reasons merged into one row; weeks and
+  times in `<time>` elements (the week as its ISO week); a pointer from a report to the
+  organisation-wide searches.
+- The journey now reviews a fresh report every run (`--e2e-week` gives an unused past week an
+  invented opening and search), by keyboard alone (sorting a table, the breadcrumb, the form, its
+  error summary link), and checks the "someone else must review" state on the report counting the
+  owner's search.
+- Tests: `apps/web/src/lib/break-glass-report.test.ts` (35); `apps/api/test/people-lifecycle.test.ts`
+  `PLAT-006` (9: three new separation-of-duties cases, the organisation-wide section and the view
+  audit); `packages/domain/src/people/break-glass-report.test.ts` (16);
+  `apps/web/e2e/break-glass-report.spec.ts` (3, passing twice in a row).
