@@ -686,6 +686,37 @@ describe("legal holds and destruction (section 5.1)", () => {
       expect((await destroy([older.id, later.id])).skipped).toEqual([older.id, later.id]);
     });
 
+    const view = async (id: string) => json<DocumentItem>(await as("owner", `/v1/documents/${id}`));
+
+    it("shows the same judgement in the document's view (review of #134, L4)", async () => {
+      const first = await store("Visiting agreement");
+      const second = await newVersion(first);
+      await hold("document", first.id);
+      expect((await view(second.id)).legalHold).toBe(true);
+      const flagged = await store("Photo consent");
+      await asDemoTenant((c) =>
+        c.query("UPDATE document SET legal_hold = true WHERE id = $1", [flagged.id]),
+      );
+      expect((await view(flagged.id)).legalHold).toBe(true);
+      const free = await store("Menu choices");
+      expect((await view(free.id)).legalHold).toBe(false);
+    });
+
+    it("counts a document whose earlier version cannot be found as held (review of #134, L3)", async () => {
+      const orphan = await store("Letter whose first version is missing");
+      expect(await candidates()).toContain(orphan.id);
+      // previous_version_id has no foreign key: point it at a version that does not exist.
+      await asDemoTenant((c) =>
+        c.query("UPDATE document SET previous_version_id = $2 WHERE id = $1", [
+          orphan.id,
+          crypto.randomUUID(),
+        ]),
+      );
+      expect(await candidates()).not.toContain(orphan.id);
+      expect((await destroy([orphan.id])).skipped).toEqual([orphan.id]);
+      expect((await view(orphan.id)).legalHold).toBe(true);
+    });
+
     it("honours a document's own legal hold flag", async () => {
       const flagged = await store("Consent form");
       await asDemoTenant((c) =>
