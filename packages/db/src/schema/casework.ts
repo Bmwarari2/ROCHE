@@ -70,6 +70,8 @@ export const CASE_OUTCOMES = [
   "not_passed",
 ] as const;
 export const APPEAL_OUTCOMES = ["upheld", "partly_upheld", "not_upheld"] as const;
+/** As the domain's (H-806): with the staff file, or 6 years after closure. */
+export const CASE_RETENTION_CLASSES = ["staff_file", "casework_no_sanction"] as const;
 export const CASE_CLOSING_REASONS = [
   "outcome_accepted",
   "appeal_decided",
@@ -165,6 +167,18 @@ export const employeeCase = pgTable(
     regulatorReferralReason: text("regulator_referral_reason"),
     /** The safeguarding concern (an incident in the safeguarding log) the case is linked to. */
     safeguardingIncidentId: uuid("safeguarding_incident_id"),
+    /**
+     * An action short of dismissal that takes the member out of regulated activity (H-802), so the
+     * DBS decision is due. Set only with that outcome.
+     */
+    removesFromRegulatedActivity: boolean("removes_from_regulated_activity")
+      .notNull()
+      .default(false),
+    /**
+     * The retention class (H-806; retention.md): set by the database when the case closes, from
+     * its type, outcome, closing reason, referrals and safeguarding link; never by a client.
+     */
+    retentionClass: text("retention_class").notNull().default("staff_file"),
     ...mutableColumns(),
   },
   (t) => [
@@ -200,6 +214,14 @@ export const employeeCase = pgTable(
       sql`(stage = 'closed') = (closed_on IS NOT NULL AND closed_reason IS NOT NULL)
         AND (closed_reason IS NULL OR closed_reason IN (${sqlList(CASE_CLOSING_REASONS)}))
         AND (stage <> 'closed' OR suspended_on IS NULL)`,
+    ),
+    check(
+      "employee_case_regulated_activity",
+      sql`NOT removes_from_regulated_activity OR outcome = 'action_short_of_dismissal'`,
+    ),
+    check(
+      "employee_case_retention_class",
+      sql`retention_class IN (${sqlList(CASE_RETENTION_CLASSES)})`,
     ),
     check("employee_case_dbs_referral", referral("dbs")),
     check("employee_case_regulator_referral", referral("regulator")),
@@ -309,6 +331,48 @@ export const employeeCaseEvent = pgTable(
     check(
       "employee_case_event_body",
       sql`(kind IN ('note', 'appeal_grounds')) = (body IS NOT NULL) AND (body IS NULL OR length(btrim(body)) BETWEEN 1 AND 10000)`,
+    ),
+  ],
+);
+
+/**
+ * H-804: a case whose case managers have all left can be given a new one only through Thapsus
+ * support, on a ticket the organisation raises and its data protection lead approves. The ticket
+ * names the new case manager (never the requester, the approver or the member of staff the case is
+ * about). Support appoints them through `app.operator_appoint_case_manager`, without reading the
+ * case; the appointment is audited and shown to the organisation.
+ */
+export const caseworkSupportTicket = pgTable(
+  "casework_support_ticket",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    caseId: uuid("case_id").notNull(),
+    newManagerId: uuid("new_manager_id").notNull(),
+    requestedBy: uuid("requested_by").notNull().default(sql`app.current_user_id()`),
+    reason: text("reason").notNull(),
+    approvedBy: uuid("approved_by"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    /** The Thapsus operator who appointed the new case manager, and when. */
+    usedByOperator: uuid("used_by_operator"),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("casework_support_ticket_tenant_id_id_key").on(t.tenantId, t.id),
+    ref("casework_support_ticket_case_fk", t, t.caseId, employeeCase),
+    ref("casework_support_ticket_new_manager_fk", t, t.newManagerId, tenantUser),
+    ref("casework_support_ticket_requested_by_fk", t, t.requestedBy, tenantUser),
+    ref("casework_support_ticket_approved_by_fk", t, t.approvedBy, tenantUser),
+    check("casework_support_ticket_reason", sql`length(btrim(reason)) BETWEEN 10 AND 1000`),
+    check(
+      "casework_support_ticket_people",
+      sql`new_manager_id <> requested_by AND (approved_by IS NULL OR (approved_by <> requested_by AND approved_by <> new_manager_id))`,
+    ),
+    check(
+      "casework_support_ticket_steps",
+      sql`(approved_by IS NULL) = (approved_at IS NULL) AND (used_at IS NULL) = (used_by_operator IS NULL)
+        AND (used_at IS NULL OR approved_at IS NOT NULL)`,
     ),
   ],
 );

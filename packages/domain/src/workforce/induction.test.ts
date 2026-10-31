@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  accessEndsAt,
   accessRemovalDue,
   CARE_CERTIFICATE_STANDARDS,
   careCertificateProgress,
@@ -8,11 +9,14 @@ import {
   checkProbationDecision,
   checkStandardChange,
   checkSupervisedEntry,
+  DEFAULT_REFERENCE_KIND,
   INDUCTION_ITEMS,
   inductionState,
   leaverState,
+  REFERENCE_DECLINED_REASONS,
   type StandardProgress,
   staffFileRetainUntil,
+  staffFileReviewDue,
   TICKED_INDUCTION_ITEMS,
 } from "./induction";
 
@@ -261,9 +265,73 @@ describe("leaving (rule 22)", () => {
     expect(check.ok ? true : check.problem).toBe(expected);
   });
 
-  it("ends access from the day after the leaving date", () => {
-    expect(accessRemovalDue("2027-03-31", "2027-03-31")).toBe(false);
-    expect(accessRemovalDue("2027-03-31", "2027-04-01")).toBe(true);
+  it.each([
+    // name, leaving day, now (UTC), the last shift starting that day ends (UTC), due
+    ["the leaving day itself", "2027-03-31", "2027-03-31T12:00:00Z", null, false],
+    ["just before midnight (BST)", "2027-03-31", "2027-03-31T22:59:00Z", null, false],
+    ["from the end of the leaving day (BST)", "2027-03-31", "2027-03-31T23:00:00Z", null, true],
+    ["just before midnight (GMT)", "2027-01-31", "2027-01-31T23:59:00Z", null, false],
+    ["from the end of a winter leaving day", "2027-01-31", "2027-02-01T00:00:00Z", null, true],
+    [
+      "H-873 not while a night shift that started that day runs",
+      "2027-03-31",
+      "2027-03-31T23:30:00Z",
+      "2027-04-01T07:00:00Z",
+      false,
+    ],
+    [
+      "H-873 from the end of that night shift",
+      "2027-03-31",
+      "2027-04-01T07:00:00Z",
+      "2027-04-01T07:00:00Z",
+      true,
+    ],
+    [
+      "H-873 a shift ending before midnight changes nothing",
+      "2027-03-31",
+      "2027-03-31T23:00:00Z",
+      "2027-03-31T20:00:00Z",
+      true,
+    ],
+  ])("access ends: %s", (_name, leavingOn, now, shiftEnd, due) => {
+    expect(accessRemovalDue(leavingOn, new Date(now), shiftEnd ? new Date(shiftEnd) : null)).toBe(
+      due,
+    );
+  });
+
+  it("works out when access ends", () => {
+    expect(accessEndsAt("2027-03-31", null).toISOString()).toBe("2027-03-31T23:00:00.000Z");
+    expect(accessEndsAt("2027-03-31", new Date("2027-04-01T07:00:00Z")).toISOString()).toBe(
+      "2027-04-01T07:00:00.000Z",
+    );
+  });
+
+  it.each([
+    // left on, keep until, today, due
+    [
+      "H-874 a file with a keep-until date is never listed",
+      "2027-03-31",
+      "2070-01-01",
+      "2040-01-01",
+      false,
+    ],
+    ["H-874 not before the after-leaving period", "2027-03-31", null, "2033-03-30", false],
+    ["H-874 listed once the period has passed", "2027-03-31", null, "2033-03-31", true],
+  ])("%s", (_name, leftOn, retainUntil, today, due) => {
+    expect(
+      staffFileReviewDue({
+        leftOn,
+        retainUntil,
+        afterLeaving: { period: 6, unit: "years" },
+        today,
+      }),
+    ).toBe(due);
+  });
+
+  it("H-876 defaults to a conduct reference and never declines for want of consent", () => {
+    expect(DEFAULT_REFERENCE_KIND).toBe("conduct");
+    expect(REFERENCE_DECLINED_REASONS).not.toContain("no_consent_to_share");
+    expect(REFERENCE_DECLINED_REASONS).toContain("requester_not_verified");
   });
 
   it.each([

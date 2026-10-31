@@ -5044,6 +5044,36 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_at: "exported",
     },
   },
+  "public.casework_support_ticket": {
+    context: "workforce",
+    description:
+      "Tickets for Thapsus support to appoint a case manager to a case whose case managers have all left (H-804): the case by id, the new case manager, who raised and approved it, and when support used it. Never the case's content.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      case_id: { description: "The case (employee_case.id); its content is never exported here." },
+      new_manager_id: {
+        description: "The member of staff named as the new case manager (tenant_user.id).",
+      },
+      requested_by: { description: "Who raised the ticket (tenant_user.id)." },
+      reason: { description: "Why the case needs a new case manager." },
+      approved_by: { description: "The data protection lead who approved it (tenant_user.id)." },
+      approved_at: { description: "When it was approved." },
+      used_by_operator: {
+        description: "The Thapsus operator who appointed the case manager (operator_user.id).",
+      },
+      used_at: { description: "When support appointed them." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.support_access_request": {
     context: "platform",
     description: "Thapsus support access requests and the organisation's decisions.",

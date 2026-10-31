@@ -154,6 +154,11 @@ export interface CaseFacts {
   readonly subjectRegistered: boolean;
   /** The case is linked to a safeguarding concern in the safeguarding log. */
   readonly linkedToSafeguarding: boolean;
+  /**
+   * An action short of dismissal that takes the member out of regulated activity (H-802): the
+   * Safeguarding Vulnerable Groups Act 2006 s 35 duty applies to any such removal.
+   */
+  readonly removesFromRegulatedActivity: boolean;
 }
 
 export type CaseMove =
@@ -269,18 +274,74 @@ export function checkCaseMove(facts: CaseFacts, move: CaseMove): CaseMoveCheck {
  * recorded, with its reason, whenever the case could meet the test.
  */
 export function referralDecisionsDue(
-  facts: Pick<CaseFacts, "type" | "outcome" | "subjectRegistered" | "linkedToSafeguarding">,
+  facts: Pick<
+    CaseFacts,
+    | "type"
+    | "outcome"
+    | "subjectRegistered"
+    | "linkedToSafeguarding"
+    | "removesFromRegulatedActivity"
+  >,
   closingReason: CaseClosingReason | null,
 ): { readonly dbs: boolean; readonly regulator: boolean } {
   const conduct = facts.type === "disciplinary" || facts.type === "capability";
   const ended =
     (facts.outcome !== null && (DISMISSAL_OUTCOMES as readonly string[]).includes(facts.outcome)) ||
     (closingReason === "left_employment" && conduct);
-  const dbs = facts.linkedToSafeguarding || (ended && facts.type !== "sickness_absence");
+  // H-802: a removal from regulated activity short of dismissal needs the DBS decision too: a
+  // redeployment, or an action short of dismissal marked as one. Ill health is never relevant
+  // conduct, so sickness absence stays out, as for dismissal.
+  const removed =
+    facts.outcome === "redeployment" ||
+    (facts.outcome === "action_short_of_dismissal" && facts.removesFromRegulatedActivity);
+  const dbs =
+    facts.linkedToSafeguarding || ((ended || removed) && facts.type !== "sickness_absence");
   const serious =
     ended || (conduct && facts.outcome !== null && facts.outcome === "final_written_warning");
   const regulator = facts.subjectRegistered && (facts.linkedToSafeguarding || (conduct && serious));
   return { dbs, regulator };
+}
+
+/**
+ * Retention classes a case can take (retention.md; H-806): with the staff file, or 6 years after
+ * closure when nothing in it may be relied on later.
+ */
+export const CASE_RETENTION_CLASSES = ["staff_file", "casework_no_sanction"] as const;
+export type CaseRetentionClass = (typeof CASE_RETENTION_CLASSES)[number];
+
+/** Outcomes that are a sanction or end the member's role (kept with the staff file). */
+const SANCTION_OUTCOMES: readonly string[] = [
+  "first_written_warning",
+  "final_written_warning",
+  "action_short_of_dismissal",
+  "dismissal",
+  "redeployment",
+  "not_passed",
+];
+
+/**
+ * H-806: a closed case is kept with the staff file when it ended in a sanction, a dismissal or a
+ * referral, or concerned safeguarding; a grievance, a case with no case to answer and a withdrawn
+ * case take `casework_no_sanction` (6 years after closure, Limitation Act 1980 s 5), subject to
+ * legal hold. Anything else stays with the staff file, the longer class.
+ */
+export function caseRetentionClass(input: {
+  readonly type: CaseType;
+  readonly outcome: CaseOutcome | null;
+  readonly closingReason: CaseClosingReason | null;
+  readonly linkedToSafeguarding: boolean;
+  readonly dbsReferral: ReferralDecision | null;
+  readonly regulatorReferral: ReferralDecision | null;
+}): CaseRetentionClass {
+  if (input.linkedToSafeguarding) return "staff_file";
+  if (input.dbsReferral === "referred" || input.regulatorReferral === "referred")
+    return "staff_file";
+  if (input.outcome !== null && SANCTION_OUTCOMES.includes(input.outcome)) return "staff_file";
+  if (input.type === "grievance") return "casework_no_sanction";
+  if (input.closingReason === "no_case_to_answer" || input.closingReason === "withdrawn") {
+    return "casework_no_sanction";
+  }
+  return "staff_file";
 }
 
 export type ReferralProblem = "reason_required" | "reason_not_allowed" | "referred_on_required";
