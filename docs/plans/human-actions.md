@@ -342,6 +342,17 @@ Logged by slice 8 (Quality Phase 2 domain rules, [quality.md](../specs/quality.m
 | H-606 | Check framework version 1 against CQC's quality statements page: the 5 key questions, the 34 statement titles, the 6 evidence categories and the date it took effect for adult social care (seeded as 20/11/2023), and record the page and date in ADR-0096 | Quality lead at the design partner | ADR-0096; migration 0076 seed | Evidence tagging and packs for a real tenant | open |
 | H-607 | When CQC publishes the KLOE-based framework, ask for a release that adds it as version 2 and retires version 1 on the day it takes effect, and agree how tenants carry their mappings across | Brian with the quality lead | ADR-0096 rule 3; quality.md section 18 | The KLOE change | open |
 
+Logged by slice 19 (audit programme and mock inspections, [quality.md](../specs/quality.md)
+section 19) on 31 October 2026. H-765 to H-769 are reserved for the slice's review rounds.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-760 | Review the seven starter audit templates (medication, care plans, IPC, environment, dignity, night visit, mock inspection): question wording, weights, which questions need an action when they fall short, and the quality statements each is mapped to | Quality lead and Registered Manager at the design partner, with the CSO for medication and IPC | Migration 0081 seed; quality.md section 19 | Audits for a real tenant | open |
+| H-761 | Confirm the IPC starter is the one slice 31 should use, or supply the design partner's IPC audit to replace it | IPC lead at the design partner | Migration 0081 seed; Phase 2 slice 31 | Slice 31 | open |
+| H-762 | Decide whether an action owner without `quality.audit.manage` may complete their own audit action task (Harbour's default: the task needs it) | Quality lead with the CSO | quality.md section 19.2 | Audit actions for care staff | open |
+| H-763 | Decide what happens to an audit in progress when a new framework version takes effect (Harbour's default: it completes against the version it started with; new mock inspections need the version in force) | Quality lead | quality.md rules 4 and 14; section 19.3 | The KLOE change (H-607) | open |
+| H-764 | Supply or approve starter templates for the devolved nations' frameworks when their nation packs are loaded (CIW, Care Inspectorate, RQIA) | Brian with the quality lead | quality.md section 19.1 | Nation packs | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

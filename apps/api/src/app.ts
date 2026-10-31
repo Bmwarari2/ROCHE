@@ -61,6 +61,7 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { qualityAuditsRouter } from "./routes/quality-audits";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
@@ -256,6 +257,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
   app.route("/", qualityFrameworkRouter);
+  app.route("/", qualityAuditsRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);

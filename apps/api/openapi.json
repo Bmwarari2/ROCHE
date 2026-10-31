@@ -19558,6 +19558,822 @@
           "version"
         ]
       },
+      "AuditStarterList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditStarter"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "AuditStarter": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "medication",
+              "care_plans",
+              "ipc",
+              "environment",
+              "dignity",
+              "night_visit",
+              "mock_inspection",
+              "other"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditQuestion"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "title",
+          "frameworkVersionId",
+          "questions",
+          "source"
+        ]
+      },
+      "AuditQuestion": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "statementIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "maxItems": 20
+          },
+          "actionRequired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "text",
+          "weight",
+          "statementIds",
+          "actionRequired"
+        ]
+      },
+      "AuditTemplateList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditTemplateItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "AuditTemplateItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "medication",
+              "care_plans",
+              "ipc",
+              "environment",
+              "dignity",
+              "night_visit",
+              "mock_inspection",
+              "other"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditQuestion"
+            }
+          },
+          "starterKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "retired"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "kind",
+          "title",
+          "frameworkVersionId",
+          "questions",
+          "starterKey",
+          "state",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "CreateAuditTemplate": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]{1,64}$"
+          },
+          "starterKey": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "medication",
+              "care_plans",
+              "ipc",
+              "environment",
+              "dignity",
+              "night_visit",
+              "mock_inspection",
+              "other"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditQuestion"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "UpdateAuditTemplate": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditQuestion"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "version",
+          "title",
+          "frameworkVersionId",
+          "questions"
+        ]
+      },
+      "RetireAuditTemplate": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "AuditScheduleList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditScheduleItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "AuditScheduleItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateTitle": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "medication",
+              "care_plans",
+              "ipc",
+              "environment",
+              "dignity",
+              "night_visit",
+              "mock_inspection",
+              "other"
+            ]
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "frequencyMonths": {
+            "type": "integer"
+          },
+          "firstDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastCompletedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "nextDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "templateId",
+          "templateTitle",
+          "kind",
+          "locationId",
+          "frequencyMonths",
+          "firstDueOn",
+          "lastCompletedOn",
+          "nextDueOn",
+          "overdue",
+          "version"
+        ]
+      },
+      "CreateAuditSchedule": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "frequencyMonths": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "firstDueOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "templateId",
+          "locationId",
+          "frequencyMonths",
+          "firstDueOn"
+        ]
+      },
+      "AuditRecordList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditRecordSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "AuditRecordSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "medication",
+              "care_plans",
+              "ipc",
+              "environment",
+              "dignity",
+              "night_visit",
+              "mock_inspection",
+              "other"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "auditedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed"
+            ]
+          },
+          "scorePercent": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "selfRating": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "templateId",
+          "kind",
+          "title",
+          "frameworkVersionId",
+          "locationId",
+          "auditedOn",
+          "state",
+          "scorePercent",
+          "selfRating",
+          "version"
+        ]
+      },
+      "AuditRecordDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "medication",
+              "care_plans",
+              "ipc",
+              "environment",
+              "dignity",
+              "night_visit",
+              "mock_inspection",
+              "other"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "auditedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed"
+            ]
+          },
+          "scorePercent": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "selfRating": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "templateVersion": {
+            "type": "integer"
+          },
+          "frameworkInForce": {
+            "type": "boolean"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditQuestion"
+            }
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "yes",
+                "partial",
+                "no",
+                "not_applicable",
+                null
+              ]
+            }
+          },
+          "score": {
+            "type": "object",
+            "properties": {
+              "percent": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "achieved": {
+                "type": "number"
+              },
+              "possible": {
+                "type": "number"
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "unanswered": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "method": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "percent",
+              "achieved",
+              "possible",
+              "complete",
+              "unanswered",
+              "method"
+            ]
+          },
+          "selfRatingWords": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "statementId": {
+                  "type": "string"
+                },
+                "questionKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "statementId",
+                "questionKeys"
+              ]
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditActionItem"
+            }
+          },
+          "startedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "completedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "templateId",
+          "kind",
+          "title",
+          "frameworkVersionId",
+          "locationId",
+          "auditedOn",
+          "state",
+          "scorePercent",
+          "selfRating",
+          "version",
+          "templateVersion",
+          "frameworkInForce",
+          "questions",
+          "answers",
+          "score",
+          "selfRatingWords",
+          "findings",
+          "actions",
+          "startedBy",
+          "completedBy",
+          "completedAt"
+        ]
+      },
+      "AuditActionItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questionKey": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "questionKey",
+          "description",
+          "ownerId",
+          "dueOn",
+          "taskId"
+        ]
+      },
+      "StartAudit": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "auditedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "templateId",
+          "locationId",
+          "auditedOn"
+        ]
+      },
+      "SaveAuditAnswers": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "yes",
+                "partial",
+                "no",
+                "not_applicable",
+                null
+              ]
+            }
+          }
+        },
+        "required": [
+          "version",
+          "answers"
+        ]
+      },
+      "CompleteAudit": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "selfRating": {
+            "type": "integer"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "questionKey": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_]{1,64}$"
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 1000
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "dueOn": {
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "required": [
+                "questionKey",
+                "description",
+                "ownerId"
+              ]
+            },
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "version",
+          "selfRating",
+          "actions"
+        ]
+      },
       "EvidenceLinkCodeSent": {
         "type": "object",
         "properties": {
@@ -42560,6 +43376,1019 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EvidenceLinkItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audit-starters": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Harbour's starter audit templates",
+        "description": "quality.audit.manage. Global reference data: the starter templates (medication, care plans, IPC, environment, dignity, night visit, mock inspection) mapped to the framework, for the organisation to copy and make its own.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Starter templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditStarterList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audit-templates": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The organisation's audit templates",
+        "description": "quality.audit.manage. Active and retired, by key.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditTemplateList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Add an audit template, from a starter or your own",
+        "description": "quality.audit.manage. From a Harbour starter (`starterKey`; the other fields default to the starter's) or your own (kind, title, framework version and questions). The questions are checked against the framework version, which must be published (rule 8); the key is unique in the organisation. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAuditTemplate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditTemplateItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audit-templates/{id}": {
+      "put": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Change an audit template",
+        "description": "quality.audit.manage, against the version read. Title, framework version and questions (rule 8); the key and kind stay. Audits already started keep the questions and framework version they started with. A retired template does not change. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAuditTemplate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditTemplateItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audit-templates/{id}/retire": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Retire an audit template",
+        "description": "quality.audit.manage, against the version read. No new audits start from it; its audits and schedules stay readable. Retiring is final. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetireAuditTemplate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditTemplateItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audit-schedules": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Audit schedules, with when each is next due",
+        "description": "quality.audit.manage, at the locations where you hold it. Each schedule with its last completed audit, when the next is due (the schedule's own frequency in calendar months after the last, or the first due date) and whether it is overdue on today's UK date (rule 13).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditScheduleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Schedule an audit template at a location",
+        "description": "quality.audit.manage at the location. One schedule per template and location, every 1 to 60 months from the first due date. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAuditSchedule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Scheduled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditScheduleItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audits": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Audits and mock inspections",
+        "description": "quality.audit.manage, at the locations where you hold it. Newest first, at most 500, by location, kind or state.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z_]{1,32}$"
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "in_progress",
+                "completed"
+              ]
+            },
+            "required": false,
+            "name": "state",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRecordList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Start an audit or mock inspection",
+        "description": "quality.audit.manage at the location. Starts from an active template, copying its questions, version and framework version, which the audit keeps (rule 4). A mock inspection starts only when its template is mapped to the framework version in force (409 otherwise). The audit date is today or earlier. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAudit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRecordDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audits/{id}": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "An audit with its score, method, findings and actions",
+        "description": "quality.audit.manage at the audit's location. Scored against the questions and framework version it started with, whatever the template now says (rule 4); the method in words beside the score; the answers that fell short by quality statement (rule 14); whether its framework version is still the one in force.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The audit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRecordDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audits/{id}/answers": {
+      "put": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Save answers to an audit in progress",
+        "description": "quality.audit.manage at the audit's location, against the version read. Answers (yes, partial, no, not applicable, or null to clear) are merged into those saved, for the audit's own questions only. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveAuditAnswers"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRecordDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/audits/{id}/complete": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Complete an audit with the self-rating and actions",
+        "description": "quality.audit.manage at the audit's location, against the version read. Every question answered or not applicable; an action with a description, an owner in the organisation and a due date on or after the audit for each answer that fell short where the question needs one (a missing due date takes the organisation's `quality.audit.action_due_days` after the audit); a self-rating on the rate table's CQC scale, given by a person and never worked out from the score (rules 10 to 12). The score is stored with its points; each action raises a task for its owner. The audit never changes afterwards. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteAudit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRecordDetail"
                 }
               }
             }

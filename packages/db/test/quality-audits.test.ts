@@ -6,7 +6,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * The audit programme in the database (quality.md section 19; QUAL-004; HZ-011; migration 0081):
+ * The audit programme in the database (quality.md section 19; QUAL-004; migration 0081):
  * global starter templates read-only to the application; an organisation's templates for its
  * quality leads; audits seen only where the member runs audits at the audit's location, keeping
  * the questions and framework version they started with, fixed once completed; append-only actions
@@ -107,7 +107,7 @@ describe("starter templates (migration 0081)", () => {
   });
 });
 
-describe("hazard HZ-011 audits keep what they were scored against", () => {
+describe("audits keep what they were scored against (rule 4)", () => {
   it("copies the template's questions, version and framework into the audit, whatever was sent", async () => {
     const { rows } = await asLead((c) =>
       c.query<{ kind: string; n: number; fw: string }>(
