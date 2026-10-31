@@ -138,7 +138,8 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   follows the same rules, and the gap check applies to every dose, late or not. And its second
   re-check's: every correction is flagged, counted and, when it removes, lowers or moves a dose,
   escalated; breaches a correction creates or hides are flagged; the gap check looks both ways;
-  a dose cannot be dated forward, or back on the round.
+  a dose cannot be dated forward, or back on the round beyond the 30-minute record delay
+  (`medicines.record_delay_tolerance_minutes`, to verify), every rule judged at the dose's time.
   Next in lane A: slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):

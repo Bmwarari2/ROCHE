@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { CHECKER, entry, PERSON, UNIT } from "../../test/medicines-fixtures";
 import { CLINIC_RECORD, WARFARIN } from "../../test/medicines-variable";
 import { tableMedicinesRates } from "../../test/rate-table";
-import { formatUkTime, fromUkWallClock } from "../shared/time";
+import {
+  addUkMonths,
+  formatUkTime,
+  fromUkWallClock,
+  toUkWallClock,
+  ukStartOfDay,
+} from "../shared/time";
 import {
   type AdministrationFlag,
   type AdministrationInput,
@@ -21,6 +27,7 @@ import {
   type RecordedAdministration,
   type RoundDose,
 } from "./administration";
+import { medicinesCompetenceAt } from "./competence";
 import { checkDosingRecord, recordDosingRecord } from "./dosing-record";
 import type { GivenDose } from "./intervals";
 import { type MarEntry, marEntryDoses, recordSecondCheck } from "./mar-entry";
@@ -1838,6 +1845,8 @@ describe("hazard HZ-004 a dose given now cannot be dated back on the round past 
   // 2 tablets at 08:00; at 11:00 a dose given inside the 4-hour interval, recorded as if at 04:00.
   const earlier = [given("d1", at(2, 8))];
   const backdated = { history: earlier, at: at(2, 4), recordedAt: at(2, 11) };
+  const delay = rates.recordDelayToleranceMinutes;
+  const minutesBefore = (minutes: number) => new Date(at(2, 11).getTime() - minutes * MINUTE);
   it.each<[string, Partial<AdministrationInput>, AdministrationProblem[] | AdministrationFlag[]]>([
     [
       "dated back on the round (the hunt for other paths)",
@@ -1845,13 +1854,14 @@ describe("hazard HZ-004 a dose given now cannot be dated back on the round past 
       ["given_earlier_than_recorded"],
     ],
     [
-      "recorded within the typed-time tolerance",
-      {
-        history: [],
-        at: new Date(at(2, 11).getTime() - rates.clockDriftMinutes * MINUTE),
-        recordedAt: at(2, 11),
-      },
+      "recorded the table's record delay after it was given: an ordinary record",
+      { history: [], at: minutesBefore(delay), recordedAt: at(2, 11) },
       [],
+    ],
+    [
+      "recorded a minute beyond that delay",
+      { history: [], at: minutesBefore(delay + 1), recordedAt: at(2, 11) },
+      ["given_earlier_than_recorded"],
     ],
     [
       "by the route for a dose given before it was recorded, which flags and escalates it",
@@ -1880,6 +1890,75 @@ describe("hazard HZ-004 a dose given now cannot be dated back on the round past 
         }),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("hazard HZ-004 hazard HZ-119 a dose recorded within the record delay is judged at its own time, never at the time of recording", () => {
+  // Every record below is made the table's record delay after the dose, an ordinary record; each
+  // rule is judged at the dose's time, so the delay never clears a limit.
+  const delay = rates.recordDelayToleranceMinutes;
+  const delayed = (when: Date) => new Date(when.getTime() + delay * MINUTE);
+  const prnAt = (when: Date, overrides: Partial<AdministrationInput> = {}) =>
+    prnInput({ at: when, recordedAt: delayed(when), ...overrides });
+  // A sign-off the table's months before 03/11/2026, so competence lapses at 00:00 that day.
+  const lapse = ukStartOfDay("2026-11-03");
+  const signedOffAt = toUkWallClock(addUkMonths(lapse, -rates.competenceRefreshMonths));
+  const signedOff = `${signedOffAt.year}-${String(signedOffAt.month).padStart(2, "0")}-${String(signedOffAt.day).padStart(2, "0")}`;
+  const competenceAt = (when: Date) => ({
+    id: CARER,
+    competence: medicinesCompetenceAt(signedOff, when, rates).state,
+  });
+  const stopped = entry({ stopsAt: at(2, 12) });
+  it.each<[string, AdministrationInput, AdministrationProblem[]]>([
+    [
+      "interval: given inside it, recorded once it has passed",
+      prnAt(new Date(at(2, 8).getTime() + (240 - delay / 2) * MINUTE), {
+        history: [given("d1", at(2, 8))],
+      }),
+      ["interval_override_required"],
+    ],
+    [
+      "maximum: given over it, recorded after the first dose has left the 24 hours",
+      prnAt(new Date(at(2, 1).getTime() + 24 * 60 * MINUTE - MINUTE), {
+        history: [given("a", at(2, 1), { quantity: 4 }), given("b", at(2, 7), { quantity: 4 })],
+      }),
+      ["prn_maximum_reached"],
+    ],
+    [
+      "window: given before it opens, recorded once it has opened",
+      input({
+        at: new Date(at(2, 8).getTime() - (rates.doseEarlyMinutes + 1) * MINUTE),
+        recordedAt: delayed(new Date(at(2, 8).getTime() - (rates.doseEarlyMinutes + 1) * MINUTE)),
+      }),
+      ["dose_not_due_yet"],
+    ],
+    [
+      "competence: given after it lapsed at 00:00, recorded later",
+      prnAt(new Date(lapse.getTime() + 5 * MINUTE), {
+        administrator: competenceAt(new Date(lapse.getTime() + 5 * MINUTE)),
+      }),
+      ["competence_expired"],
+    ],
+    [
+      "competence: given before it lapsed, recorded after 00:00",
+      prnAt(new Date(lapse.getTime() - MINUTE), {
+        administrator: competenceAt(new Date(lapse.getTime() - MINUTE)),
+      }),
+      [],
+    ],
+    [
+      "entry in force: given after it stopped, recorded later",
+      input({
+        entry: stopped,
+        dueAt: at(2, 8),
+        at: at(2, 12, 5),
+        recordedAt: delayed(at(2, 12, 5)),
+        timingReason: "Given late",
+      }),
+      ["entry_not_usable"],
+    ],
+  ])("%s", (_name, record, expected) => {
+    expect(problems(record)).toEqual(expected);
   });
 });
 

@@ -367,6 +367,7 @@ type AdministrationRates = Pick<
   | "paracetamolMinIntervalHours"
   | "competenceOverrideMaxHours"
   | "clockDriftMinutes"
+  | "recordDelayToleranceMinutes"
 >;
 
 const blank = (value: string | null | undefined) =>
@@ -501,7 +502,6 @@ function limitsBroken(
 
 /** A dose's amount in the entry's own unit when it was taken; null when it does not count. */
 function countedAmount(
-  entry: MarEntry,
   outcome: AdministrationOutcome | null,
   amount: { readonly quantity: number; readonly unitCode: string } | null,
   unitCode: string | null,
@@ -887,25 +887,27 @@ function checkRecord(
   // No record of a time later than now, beyond the drift the table tolerates: a dose recorded at
   // a future time could otherwise step past an interval or the maximum (#162 third review's
   // re-check). A dose recorded after it was given has its own, stricter rule.
-  const tolerance = rates.clockDriftMinutes * MINUTE_MS;
-  if (route === null && input.at.getTime() > input.recordedAt.getTime() + tolerance) {
+  const clockTolerance = rates.clockDriftMinutes * MINUTE_MS;
+  if (route === null && input.at.getTime() > input.recordedAt.getTime() + clockTolerance) {
     add(
       "recorded_in_future",
       "The time given is later than now. Check the device's clock, and record the time it happened.",
     );
   }
-  // On the round a dose is recorded as it is given. One given earlier is recorded by the route for
-  // a dose given before it was recorded, with why, flagged and escalated: a dose given now cannot
-  // be dated back past an interval or the maximum (#162 third review's re-check). The table's
-  // typed-time tolerance (`sync.clock_drift_flag_minutes`) applies, as for any typed event time.
+  // On the round a dose is recorded at the time it was given, up to the table's record delay
+  // (`medicines.record_delay_tolerance_minutes`: carers record after a round). One dated further
+  // back goes by the route for a dose given before it was recorded, with why, flagged and
+  // escalated. Either way every rule (the window, intervals, the maximum, the gap, competence and
+  // the entry in force) is judged at the dose's own time, `at`, never at the time of recording, so
+  // the delay cannot clear an interval (#162 third review's re-checks).
   if (
     outcome === "given" &&
     !afterTheEvent &&
-    input.at.getTime() < input.recordedAt.getTime() - tolerance
+    input.at.getTime() < input.recordedAt.getTime() - rates.recordDelayToleranceMinutes * MINUTE_MS
   ) {
     add(
       "given_earlier_than_recorded",
-      `This dose is recorded as given at ${formatUkTime(input.at)}, more than ${rates.clockDriftMinutes} minutes ago. Record it as a dose given before it was recorded, and say why.`,
+      `This dose is recorded as given at ${formatUkTime(input.at)}, more than ${rates.recordDelayToleranceMinutes} minutes ago. Record it as a dose given before it was recorded, and say why.`,
     );
   }
 
@@ -955,7 +957,7 @@ function checkRecord(
           input.history,
           {
             at: original.at,
-            counted: countedAmount(entry, original.outcome, original.amount, unit),
+            counted: countedAmount(original.outcome, original.amount, unit),
             dueAt: original.dueAt,
           },
           rates,
@@ -968,7 +970,7 @@ function checkRecord(
           input.history,
           {
             at: input.at,
-            counted: countedAmount(entry, outcome, input.amount, unit),
+            counted: countedAmount(outcome, input.amount, unit),
             dueAt: dose?.dueAt ?? null,
           },
           rates,

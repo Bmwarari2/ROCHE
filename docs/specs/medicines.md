@@ -373,12 +373,14 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     selected person, the medicine and (for a regular medicine) the scheduled dose, and an outcome;
     for another person's medicine; for a time the entry has no dose; for a dose already recorded (a
     correction instead); from a version not in force or not givable (rule 6); for a reason code not
-    for the outcome; at a time later than now beyond the table's typed-time tolerance
-    (`sync.clock_drift_flag_minutes`; `recorded_in_future`); and, on the round, a dose given
-    earlier than that tolerance before it is recorded (`given_earlier_than_recorded`): a dose given
-    now cannot be dated back past an interval, the maximum, its window, a competence lapse or an
-    entry being held, and one given earlier is recorded by the route below, flagged and escalated
-    (#162 third review's second re-check). Outcomes: given, refused, not given (asleep, away from the home, in hospital,
+    for the outcome; at a time later than now beyond the table's clock tolerance
+    (`sync.clock_drift_flag_minutes`; `recorded_in_future`); and, on the round, a dose dated more
+    than `medicines.record_delay_tolerance_minutes` (30, to verify: carers record after a round)
+    before it is recorded (`given_earlier_than_recorded`), which is recorded instead by the route
+    below, flagged and escalated. Whichever way a dose is recorded, every time-dependent rule (the
+    window, intervals, the maximum, the scheduled gap, competence and the entry in force) is
+    judged at the dose's own time, never the time of recording, so the delay cannot clear a limit
+    (#162 third review's re-checks; H-1067). Outcomes: given, refused, not given (asleep, away from the home, in hospital,
     nil by mouth, unable to swallow, vomiting, other), not available (out of stock, not delivered,
     other), taken by the person themselves, given by family as agreed, withheld (the prescriber said
     to, outside the limits the prescriber set, other); "other" and "withheld" always need words.
@@ -611,7 +613,8 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   to a dose outcome by the rules for a dose recorded after it was given; every correction flagged
   with what it changes, a dose removed, lowered or moved escalated, and breaches it creates or
   hides flagged; a dose closer to the doses either side than the schedule allows asked about, late
-  or not; a dose dated in the future, or dated back on the round, refused),
+  or not; a dose dated in the future, or dated back on the round beyond the record delay, refused;
+  every rule judged at the dose's own time within that delay),
   `mar-entry.test.ts` (a when-required entry with a limit), `controlled-drugs.test.ts` (page key;
   balance; corrections, including one of a detail that changes no quantity; witness rules by policy and
   service; a blank witness; destruction; stock checks).

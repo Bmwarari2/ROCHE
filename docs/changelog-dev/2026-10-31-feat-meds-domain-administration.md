@@ -188,6 +188,10 @@ To close every correction and back-entry path in one round:
   interval is flagged for review (`inside_minimum_interval`).
 - Every reviewer probe in scratchpad/probe-gbr/ was run against this commit (the two written for
   the input before `recordedAt` through their adapted copies).
+- Then, on the coordinator's decision: 5 minutes was too strict for recording after a round. The
+  back-dating limit is now its own rate row, `medicines.record_delay_tolerance_minutes` (30,
+  marked to verify, CSO to confirm in H-1067); the forward limit stays at the clock tolerance;
+  and tests show every time-dependent rule judged at the dose's own time within the delay.
 - Docs: medicines.md rules 14, 17 and 23 and the slice 22 notes; hazard log HZ-004 and HZ-119;
   H-1067 (a routine amount correction raises a warning, for the CSO to accept or refuse).
 
@@ -228,4 +232,6 @@ To close every correction and back-entry path in one round:
 - After the re-check: 692 medicines tests; the whole domain package 6,198 tests under the three
   time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).
 - After the second re-check: 718 medicines tests; the whole domain package 6,224 tests under the
+  three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
+- With the record delay: 725 medicines tests; the whole domain package 6,231 tests under the
   three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
