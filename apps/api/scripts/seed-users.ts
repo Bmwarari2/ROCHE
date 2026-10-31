@@ -23,6 +23,8 @@ const MEWS_LOCATION = "0194d000-0000-7000-8000-000000000150";
 const MEWS_PERSON = "0194d000-0000-7000-8600-000000000150";
 const MEWS_TWIN_A = "0194d000-0000-7000-8600-000000000151";
 const MEWS_TWIN_B = "0194d000-0000-7000-8600-000000000152";
+/** An invented resident who left the Mews nine years ago, for the retention journey (PLAT-012). */
+const MEWS_LEFT = "0194d000-0000-7000-8600-000000000153";
 
 type PasskeyHolder = "manager" | "owner" | "family" | "starter";
 
@@ -334,6 +336,16 @@ try {
                 ($2, $3, 'active', 'Sam', 'Twin', '1946-09-12', '9990001529', 'no_known_allergies')
          ON CONFLICT (id) DO NOTHING`,
         [MEWS_TWIN_A, MEWS_TWIN_B, MEWS_LOCATION],
+      );
+      // Left care nine years ago: past the 8-year care-record period, so a document about them
+      // is offered for destruction (the retention journey uploads one per run).
+      await client.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, date_of_birth,
+                             nhs_number, allergy_status, discharged_at)
+         VALUES ($1, $2, 'discharged', 'Rhys', 'Example', '1930-05-06', '9990001537',
+                 'no_known_allergies', now() - interval '9 years')
+         ON CONFLICT (id) DO NOTHING`,
+        [MEWS_LEFT, MEWS_LOCATION],
       );
       await client.query("COMMIT");
       console.log("Harbour Mews and its resident are in place for the break-glass journey");

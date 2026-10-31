@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type {
+  DestructionCertificateList,
   DestructionResult,
   DocumentItem,
   DocumentList,
@@ -283,6 +284,11 @@ describe("legal holds and destruction (section 5.1)", () => {
       );
     expect(await candidates()).toContain(doc.id);
     expect(await candidates()).not.toContain(current.id);
+    // The reviewer sees what is to go: its title and when it was stored.
+    const listed = (
+      await json<RetentionCandidateList>(await as("owner", "/v1/retention/candidates"))
+    ).items.find((i) => i.documentId === doc.id);
+    expect(listed).toMatchObject({ title: "Old letter", createdAt: doc.createdAt });
 
     const hold = await json<LegalHoldItem>(
       await as("owner", "/v1/legal-holds", {
@@ -315,6 +321,11 @@ describe("legal holds and destruction (section 5.1)", () => {
     expect(destroyed.certificates).toMatchObject([
       { recordClass: "care_record", subjectType: "document", recordCount: 1 },
     ]);
+    // The certificate stays listed for the data protection lead, newest first.
+    const certificates = await json<DestructionCertificateList>(
+      await as("owner", "/v1/destruction-certificates"),
+    );
+    expect(certificates.items[0]).toEqual(destroyed.certificates[0]);
     expect((await as("manager", `/v1/documents/${doc.id}/content`)).status).toBe(404);
     expect((await json<DocumentItem>(await as("manager", `/v1/documents/${doc.id}`))).status).toBe(
       "destroyed",
@@ -325,6 +336,8 @@ describe("legal holds and destruction (section 5.1)", () => {
     expect((await as("carer", "/v1/legal-holds")).status).toBe(403);
     // The Registered Manager is location-scoped and cannot destroy records either.
     expect((await as("manager", "/v1/legal-holds")).status).toBe(403);
+    expect((await as("manager", "/v1/destruction-certificates")).status).toBe(403);
+    expect((await as("carer", "/v1/retention/candidates")).status).toBe(403);
     expect(
       (
         await as("carer", "/v1/retention/destroy", {
