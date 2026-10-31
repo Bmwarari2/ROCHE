@@ -567,7 +567,13 @@ date, storing the IMCA prompt where nobody appropriate could be consulted. `GET`
 Wales only, and return the status, days left, reminders and the CQC notification; when the outcome
 of a standard request or a court application is known (or it is withdrawn), the regulation 18(4A)
 draft is created with its 18(4B) statement and `care.dols.outcome_known` is published (an urgent
-authorisation is not notified on its own) (HZ-020). `GET /v1/dols/legal-change-review` lists, where
+authorisation is not notified on its own) (HZ-020). `GET /v1/locations/{id}/dols` lists what needs
+attention at a location for the people the reader may see (`care.plan.read`, row-level security):
+requests still waiting for an outcome, authorisations inside the first reminder window and
+authorisations past their end with nothing recorded since. It lists them ending soonest first, with
+requests last, and is audited by location only. It is for the role dashboards (INSI-001), and it
+catches a lapse the reminders miss: a request with no outcome has no end date and so no reminder
+(HZ-020). `GET /v1/dols/legal-change-review` lists, where
 the tenant flag `dols.post_2026_review_workflow` is on, the authorisations granted before the
 judgment and still in force with no review, soonest ending first, and the reviews under way; `POST
 /v1/dols/legal-change-review/{authorisationId}` records each step through the workflow engine with
