@@ -20,7 +20,7 @@
     "@harbour/ui": "workspace:*",
     "better-auth": "^1.7.7",
     "lucide-react": "^1.55.0",
-    "next": "16.4.0",
+    "next": "16.4.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "server-only": "^0.0.1",

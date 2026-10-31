@@ -15,7 +15,7 @@ request of about 600 lines) or a gate item (needs its own slice).
 | Inspector pack export renders | Met, without a snapshot | Small: a render test of the PDF on its own, beside the API test |
 | WCAG scans clean | Met for every web route but one | Gate item: choose-organisation needs a second demo tenant (the history tab journey, `history.spec.ts`, landed 31/10/2026) |
 | Every hazard-log entry has a test | Met: 45 of 45 | Small: five verification statuses are stale; one planned test waits for the task screens |
-| Clinical safety case v0.1 drafted | Not met | Gate item: only v0.0 (Phase 0) exists |
+| Clinical safety case v0.1 drafted | Drafted, awaiting CSO sign-off | [v0.1](../clinical-safety/safety-case/safety-case-v0.1-phase1.md) drafted on 31 October 2026; the CSO's review and signature are a human action (H-381) |
 | Every Phase 1 register row `done` (section 19, definition of done) | Not met: 0 of 54 | Gate items: user guides for every row; web screens for 22 rows; 4 rows `todo` |
 | Data-protection documents current | Mostly | Gate item: the DPIA template has no Phase 1 risks; small: data-standards coverage |
 
@@ -98,8 +98,11 @@ verification rows read for their status and for test files that do not exist.
 
 ## 5. Clinical safety case v0.1
 
-`docs/clinical-safety/safety-case/` holds `README.md` and `safety-case-v0.0-phase0.md` only.
-**Gate item**: draft v0.1 for Phase 1. It needs:
+**Drafted on 31 October 2026, awaiting CSO sign-off**:
+[safety-case-v0.1-phase1.md](../clinical-safety/safety-case/safety-case-v0.1-phase1.md), drafted
+against `main` at `aae5ab5`. Harbour cannot sign it; the CSO's review and signature with Brian's
+acknowledgement are H-381. When this report was first written (16 October) only v0.0 existed, and
+the gate asked for:
 - the Phase 1 scope;
 - the 45 hazards with their controls and test evidence (sections 4 and 2 above);
 - the medical-device boundary statement for the validated tools (Waterlow, Braden, MUST, NEWS2,
@@ -214,7 +217,7 @@ follow-up pull request.
 
 1. Maestro offline journey on iOS and Android, charts and conflict review included (paused with
    mobile).
-2. Clinical safety case v0.1.
+2. Clinical safety case v0.1: drafted, awaiting CSO sign-off (H-381).
 3. User guides per role, and `docs/demo/` with the Phase 1 walkthrough.
 4. Web screens for the API-only Phase 1 features:
    - people lifecycle (PEOP-001, 003, 005, 007 to 010, 013);
