@@ -129,7 +129,18 @@ export const TaskItem = z
   .meta({ id: "TaskItem" });
 export type TaskItem = z.infer<typeof TaskItem>;
 
-export const TaskList = z.object({ items: z.array(TaskItem) }).meta({ id: "TaskList" });
+export const TaskList = z
+  .object({
+    items: z.array(TaskItem),
+    /** True when the window itself held more tasks than the list returns: say so on screen. */
+    truncated: z.boolean().optional(),
+    /**
+     * With `earlier=yes`: open tasks due before the window that did not fit after the window's own
+     * tasks (the most recent earlier ones are listed first). Say how many on screen.
+     */
+    earlierOmitted: z.number().int().min(0).optional(),
+  })
+  .meta({ id: "TaskList" });
 export type TaskList = z.infer<typeof TaskList>;
 
 export const CreateTask = z
