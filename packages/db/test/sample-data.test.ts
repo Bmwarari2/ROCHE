@@ -377,7 +377,14 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
  * request, which is the record of how a right was met) and the sample batch itself. A new table
  * that refers to a person must be added to app.sample_removal_tables() or here, deliberately.
  */
-const BLOCKS_REMOVAL = ["downtime_pack", "dsar_case", "escalation_policy_link", "outage"];
+// A disclosure request about a sample person is a real record of a disclosure (migration 0103).
+const BLOCKS_REMOVAL = [
+  "disclosure_request",
+  "downtime_pack",
+  "dsar_case",
+  "escalation_policy_link",
+  "outage",
+];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {
   const owner = () => db.pool("harbour_owner");
