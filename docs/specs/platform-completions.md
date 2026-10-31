@@ -317,6 +317,9 @@ the second step (TOTP or a passkey) within the step-up window.
     dedicated no-login role, in the same transaction as the check; `harbour_app` is never granted
     DELETE, and the append-only triggers allow a delete only inside that function. Audit events
     about sample records stay (opaque ids only) and the removal is audited with counts per table.
+    The stored files of the sample people's documents (every version) are read before their rows
+    go and deleted from storage once the removal has committed; a file that cannot be deleted then
+    is logged by count only (its row is gone, so nothing serves it, and the data is invented).
 
 ## 3. Permissions
 
