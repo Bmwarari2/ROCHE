@@ -27,6 +27,10 @@ locals {
   )
 }
 
+# TLS is required for every connection: ip_configuration.ssl_mode is fixed to ENCRYPTED_ONLY below and
+# is not a variable. AVD-GCP-0015 only recognises the removed require_ssl attribute (google provider 6+),
+# so it reports a false positive; recorded in docs/compliance/vulnerability-exceptions.md.
+#trivy:ignore:AVD-GCP-0015
 resource "google_sql_database_instance" "this" {
   project             = var.project_id
   name                = var.name
