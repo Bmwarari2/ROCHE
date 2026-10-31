@@ -104,9 +104,13 @@ export const integrationsRouter = createRouter()
                 settings: z
                   .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
                   .default({}),
+                // A regional Secret Manager secret in europe-west2 (ADR-0098): the name carries
+                // its location, so the region is checked here rather than trusted.
                 secretRef: z
                   .string()
-                  .regex(/^arn:aws:secretsmanager:eu-west-2:/)
+                  .regex(
+                    /^projects\/[a-z][a-z0-9-]{4,28}[a-z0-9]\/locations\/europe-west2\/secrets\/[A-Za-z0-9_-]{1,255}(\/versions\/(latest|[1-9][0-9]*))?$/,
+                  )
                   .nullable()
                   .default(null),
               }),
