@@ -82,6 +82,27 @@ stored. HR-only documents are `document` rows of category `staff_hr_document` (s
 compliance item, no person); right to work copies are kept as `right_to_work_copy`, everything else
 as the staff file.
 
+### 2b. Training, competence, supervision and revalidation (slice 17, migration 0079)
+
+Keyed by the member of staff (`worker_id`, a `tenant_user` id), not the staff profile, so a
+training or supervision lead reads them without the pre-employment file. Forced row-level
+security on every table; the policies in section 3.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `training_requirement` | `role_key` (a role's key), `topic` (`TRAINING_TOPICS`), `refresh_years` (the organisation's own, or empty for the default), `tier` (1 or 2, Oliver McGowan only), `active` | One per role and topic; the matrix of a member is every active requirement of their roles in force. Mutable, never deleted |
+| `training_record` | `worker_id`, `topic`, `tier`, `completed_on`, `expires_on` (a certificate's own last valid day), `provider` | Mutable with history (a correction is a change with `expected_version`); never by the worker |
+| `competence_sign_off` | `worker_id`, `competence` (`COMPETENCES`), `observed_on`, `observer_id`, `valid_until` (the day before observed plus the competence's refresh months) | Append-only. Observed in the observer's own name by a holder of `workforce.competence.observe`, never the worker, on a day no later than today |
+| `competence_withdrawal` | `sign_off_id` (one each), `reason` (at least 10 characters), `withdrawn_by` | Append-only; by a holder of `workforce.competence.observe` or `workforce.training.manage`, never the worker |
+| `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. No notes are kept (a supervision's notes stay with the supervisor's own records until slice 57) |
+| `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker |
+
+Competences (`COMPETENCES` in `packages/domain/src/workforce/competence-port.ts`):
+`medicines_administration`, `controlled_drugs`, `insulin_administration`,
+`epilepsy_rescue_medication` (medicines: refreshed every `competence.medicines.refresh_months`),
+`moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` (every
+`competence.default_refresh_months`, a Harbour default to verify, H-690).
+
 Retention classes ([retention.md](retention.md)): `staff_file.after_leaving` or
 `staff_file.to_75th_birthday` (the tenant's choice) for the staff file and casework;
 `right_to_work_copy`; `training_record` for training and competence. The gaps (unsuccessful
@@ -114,6 +135,14 @@ Slice 11 adds four permissions so that HR data has its own (section 12.4), repla
 | `workforce.hr_document.read` | Open and add HR-only staff documents; every view is audited | Owner, HR (a manager is given it by a grant or a role change) |
 | `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment for a supervised start or a disclosure (never for themselves) | Owner, Registered Manager |
 | `workforce.self.read` (existing) | See their own profile and where each of their checks stands | Every staff role |
+
+Slice 17 adds no permission. Training, competence, supervision and revalidation rows are read by
+holders of `workforce.training.manage`, `workforce.competence.observe`,
+`workforce.supervision.manage` or `workforce.staff_file.read` (organisation-wide, as the staff
+file), and by the member for their own (`workforce.self.read`); written as section 2b says, never
+by the member about themselves. None of them is special category data, so they need MFA only where
+the role does. Medicines and scheduling never read these tables: they ask the competence port
+(ADR-0085).
 
 Staff files are the organisation's employment records, not people's care records, and HR functions
 are organisation-wide (master prompt section 4): a tenant or location role or a grant anywhere
@@ -232,6 +261,34 @@ audit event with opaque ids only; refusals are audited too. Dates are UK dates (
 Audit actions: `workforce.staff_file.created`, `.updated`, `workforce.compliance_item.recorded`,
 `workforce.dbs_risk_assessment.signed`, `workforce.hr_document.added`, `workforce.hr_document.viewed`.
 
+Slice 17 (training, competence, supervision, revalidation; members by `tenant_user` id):
+
+| Route | Permission | Does |
+| --- | --- | --- |
+| `GET /v1/workforce/training-requirements` | `workforce.training.manage` | The organisation's matrix: requirements by role |
+| `PUT /v1/workforce/training-requirements` | `workforce.training.manage` | Add or change one role and topic's requirement (`expectedVersion` when it exists) |
+| `GET /v1/workforce/members/{memberId}/development` | read (section 3) | The member's training matrix today (`trainingMatrix`), records, competences with their state, next supervision and appraisal (`nextMeeting`), and the revalidation plan (`revalidationPlan`) |
+| `POST /v1/workforce/members/{memberId}/training-records` | `workforce.training.manage` | Record training |
+| `PATCH /v1/workforce/members/{memberId}/training-records/{recordId}` | `workforce.training.manage` | Correct a record (`expectedVersion`) |
+| `POST /v1/workforce/members/{memberId}/competences` | `workforce.competence.observe` | Sign off an observed competence in the caller's name; publishes `workforce.competence.changed` |
+| `POST /v1/workforce/members/{memberId}/competences/{signOffId}/withdraw` | `workforce.competence.observe` or `workforce.training.manage` | Withdraw a sign-off with a reason; publishes `workforce.competence.changed` |
+| `POST /v1/workforce/members/{memberId}/supervisions` | `workforce.supervision.manage` | Record a supervision, appraisal or spot check held by the caller |
+| `PUT /v1/workforce/members/{memberId}/revalidation` | `workforce.training.manage` | Record revalidation evidence for a cycle |
+| `GET /v1/me/development` | `workforce.self.read` | The member's own development record |
+
+The competence port (ADR-0085): `competencePort(tx, memberId, competence, at)` in
+`apps/api/src/services/competence-port.ts`, for medicines and scheduling on the server; it reads
+that member's unwithdrawn sign-offs with the system's rights for that one question and returns
+`competenceDecision` (allowed until a date, or blocked as `missing`, `expired` or `withdrawn`).
+No route takes a competence from the client.
+
+Training and competence reminders: the same hourly job raises a task (kind
+`workforce.training_expiry` or `workforce.competence_expiry`, generic title, assigned to the `hr`
+role, no person or location) at each document-expiry reminder day before a required topic's or a
+competence's valid-until date, once each. Task visibility (migration 0079): a task about no person
+and no location whose required permission is a workforce one is visible to holders of that
+permission, so HR's role sees its reminders; without MFA a session does not list staff file tasks.
+
 Expiry tasks (rule 1): the `staff-file-expiry-reminders` job runs hourly. For each item with an
 expiry or a re-check date, at `document_expiry.reminder_days.first`, `.second` and `.third` days
 before it, it raises one task through the task engine (kind `workforce.compliance_expiry`, the
@@ -253,7 +310,21 @@ Section 17.1: e-learning modules downloaded in advance are completed offline (pl
 
 Expired competence that fails to block an action is a hazard (HZ-119, added by slice 3); a worker
 rostered without a required check is HZ-124, in the hazard log from slice 4 with the rostering rule
-as its first control.
+as its first control. Slice 17 adds controls to both: the stored sign-offs with the database's
+guards (observer's own name, the permission, never self, never in the future, append-only,
+withdrawal), the competence port that medicines and scheduling call on the server (ADR-0085), and
+the expiry reminders. HZ-124's verification rows are in the hazard log; HZ-119 is being written by
+slice 3, so its rows from this slice are listed here for that entry:
+
+| Test (slice 17) | For HZ-119 |
+| --- | --- |
+| `packages/domain/src/workforce/competence-port.test.ts`: `hazard HZ-119 ...` (allowed through the valid-until day, expired from the day after, withdrawn, missing, a future sign-off ignored, the newest unwithdrawn sign-off counts) | Passing (slice 17) |
+| `packages/db/test/training-competence.test.ts`: `hazard HZ-119 ...` (a sign-off only in the observer's own name, by a holder of the observe permission, never self, never dated in the future, never changed or deleted; a withdrawal never by the worker) | Passing (slice 17) |
+| `apps/api/test/training-competence.test.ts`: `hazard HZ-119 ...` (the port blocks an expired and a withdrawn competence and allows a valid one, whatever the caller can see; a sign-off changes the port's answer at once) | Passing (slice 17) |
+
+The competence catalogue is the organisation's own record of observed practice, not a clinical
+judgement about a person receiving care: it stays inside the medical-device boundary
+([medical-device-boundary.md](../compliance/medical-device-boundary.md); re-checked for slice 17).
 
 ## 8. Data protection
 
@@ -322,14 +393,26 @@ Slice 11:
   and audited; the worker's own file; the reminder job raising each task once and the tasks ended
   by a renewal.
 
-API, web and mobile tests come with slices 17, 35, 56 and 57; the Phase 2 gate needs expired
+Slice 17:
+
+- `competence-port.test.ts` (domain): the decision through the valid-until day, expired,
+  withdrawn, missing, future sign-offs; refresh months per competence from the rate table.
+- `packages/db/test/training-competence.test.ts`: another organisation's rows never seen; readers
+  and writers per section 3; the member reads only their own and writes nothing; sign-offs and
+  withdrawals append-only and guarded; task visibility for workforce reminders.
+- `apps/api/test/training-competence.test.ts`: each route's permission and audit; the matrix with
+  Oliver McGowan tiers; the port; the outbox events; the reminders once each; HR sees its
+  reminders.
+
+API, web and mobile tests come with slices 35, 56 and 57; the Phase 2 gate needs expired
 competence to block administration (with [medicines.md](medicines.md)).
 
 ## 10. Open questions
 
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
-H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579).
+H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 17: H-690
+to H-693).
 
 ## 11. Known gaps
 
@@ -337,7 +420,9 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 
 | Gap | Effect now | To close |
 | --- | --- | --- |
-| Expiry reminder tasks have no person and no location, and `app.task_visible` does not read `required_permission` | Organisation-wide roles see them; HR's role (scope none) does not see them in `GET /v1/tasks` | Task visibility for holders of the task's required permission (slice 17, if small) |
+| Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
+| Supervision and appraisal due dates raise no tasks yet | Shown in the development record only | Slice 57 (the supervision screens and their reminders) |
+| Revalidation evidence is recorded by HR, not by the nurse | A nurse cannot record their own evidence | Self-service with review (slice 57, H-693) |
 | HR-only documents carry retention class `staff_file`, which has no rule of its own; the tenant's choice of `staff_file.*` and the leaving-date trigger are not in the retention engine; right to work copies' `record_closed` trigger is not handled | Nothing destroys HR-only documents or right to work copies yet | The retention engine's employment triggers (with H-575) |
 | Employment gap explanations (free text) are in `compliance_item.detail` | Readable by holders of `workforce.staff_file.read`, not HR only | Move to an HR-only field or document (slice 56, with the screens) |
 | Upload titles and file names travel in the query string, as on `/v1/documents` | They may reach proxy logs | A header or multipart field for every upload route |
