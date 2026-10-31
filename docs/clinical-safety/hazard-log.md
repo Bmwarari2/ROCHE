@@ -68,6 +68,7 @@
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
+| [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
 
 Thirteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -2911,6 +2912,46 @@ person receiving care.
 | `apps/api/test/mfa-session-factor.test.ts`: a password-only session cannot enrol TOTP or a passkey or delete the passkey; a session that used its passkey may add one; a session is refused after five wrong codes; `apps/web/src/lib/problems.test.ts` (`factorChangeRedirect`) | Passing (Phase 1) |
 | `apps/mobile/src/sync/session-signals.test.ts`: `classifyForbidden` reads `mfa_verification_required` as a session code; `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-006 treats a 403 mfa_verification_required from the sync token as an ended session`, `hazard HZ-006 ends the session on a 403 mfa_verification_required instead of parking the entry as refused` | Passing |
 | `apps/api/test/step-up-factor.test.ts`: `hazard HZ-112` table over every step-up permission (password-only, factor inside and outside the window, none enrolled), each step-up route over HTTP, an in-session code refreshing step-up, a backup code and the five-code limit under step-up, no factor enrolled, About me links, residents' money at exit and task links over HTTP, and no API or domain source giving step-up a sign-in time; `mfa-session-factor.test.ts`: a first enrolment's code records no factor; `apps/web/src/components/safety/ManageForms.test.tsx` (the step-up notice asks for the passkey or authenticator code) | Passing (Phase 1) |
+
+---
+
+## HZ-124 A worker without a required check, training or competence rostered to a shift that needs it
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-124 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `workforce` module (lane B) for the rule; `scheduling` module (lane C) for the rota that applies it |
+| Source | Master prompt section 12 rules ("a worker without the required DBS result, right to work or competence cannot be rostered"); [phase-2.md](../plans/phase-2.md) hazards table (slices 4, 21, 27, 59); [workforce.md](../specs/workforce.md) rule 10; related to HZ-119 (expired competence does not block administration) and HZ-011 (access beyond scope) |
+
+**Description**: a worker is put on a shift, or works it, without a check the role or the shift needs: no DBS clearance (or only supervised clearance on an unsupervised shift), no right to work, a lapsed professional registration, or a competence the shift's tasks need that is missing or out of date.
+
+**Causes**: the rota does not consult the worker's file; a check lapses after the shift was planned; a supervised-only start rostered alone; a manager override used routinely or without a reason; an override used where the law allows none (a missing right to work); stale records on a device; dates read in the wrong time zone near midnight or a clock change.
+
+**Effects**: care given by someone not vetted or not competent to give it (for example medicines administered without a valid competence sign-off, or moving and handling without training), with harm to the person; unlawful working; regulatory breach (Regulations 12, 18 and 19).
+
+**Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | One rule decides whether a worker can be rostered to a shift on its UK date: DBS clear (or supervised-only clearance on a supervised shift), a right to work, a current registration where the role needs one, and every competence the shift needs valid; each blocker is listed in words (`rosterDecision` in `packages/domain/src/workforce/rostering.ts`) | Built in Phase 2 slice 4 (domain) |
+| Design | A manager override needs a typed justification, lists every blocker it overrides, and is logged and reported; it never covers a missing right to work (illegal working cannot be overridden) | Built in Phase 2 slice 4 (domain); logged and reported from slices 21 and 27 |
+| Design | The inputs come from the same rules everywhere: `dbsClearance`, `rightToWorkStatus`, `registrationCurrent` and `competenceGate` (never self-signed, observer must hold `workforce.competence.observe`), all on UK calendar dates | Built in Phase 2 slice 4 (domain) |
+| Design | The rota applies the rule when a shift is planned and again on the day (a check that lapses after planning blocks the shift), and shows the blockers on the rota | Slices 21, 27 and 59 |
+| Training and user documentation | Managers are told that an override is for exceptional cover, is reported, and cannot cover a missing right to work | Slice 59 |
+
+**Target residual risk**: `[CSO rating - human action]`.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
+| `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
+| Rota tests (planning and on the day) | Planned, slices 21 and 27 |
 
 ---
 

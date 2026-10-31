@@ -112,3 +112,4 @@ export * from "./shared/citation";
 export * from "./shared/email";
 export * from "./shared/time";
 export * from "./shared/working-days";
+export * from "./workforce";

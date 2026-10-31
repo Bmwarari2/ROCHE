@@ -107,6 +107,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | sponsor.salary_floor.care_worker_hourly | 12.82 | GBP_per_hour | 2025-07-22 | - | uk | https://www.gov.uk/government/publications/skilled-worker-visa-going-rates-for-eligible-occupations/skilled-worker-visa-going-rates-for-eligible-occupation-codes | to-verify |
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |
 | sponsor.switching_evidence_months | 3 | months | 2025-07-22 | - | uk | master prompt 12.1 ("3-month switching evidence") | to-verify |
+| sponsor.counted_weekly_hours_max | 48 | hours | 2025-07-22 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, salary requirements (pay counted for at most 48 hours a week) | to-verify |
 | fnc.weekly.standard | 267.68 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
 | fnc.weekly.standard | 254.06 | GBP_per_week | 2025-04-01 | 2026-03-31 | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost | verified |
 | fnc.weekly.higher | 368.24 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
@@ -177,6 +178,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | dspt.submission_deadline.day | 30 | day_of_month | 2000-01-01 | - | england | master prompt 11.2 (30 June deadline) | master-prompt |
 | nmc.revalidation.practice_hours | 450 | hours | 2016-04-01 | - | uk | master prompt 12.2 | master-prompt |
 | nmc.revalidation.cpd_hours | 35 | hours | 2016-04-01 | - | uk | master prompt 12.2 | master-prompt |
+| nmc.revalidation.cycle_years | 3 | years | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (https://www.nmc.org.uk/revalidation/) | to-verify |
+| nmc.revalidation.participatory_cpd_hours | 20 | hours | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (of the CPD hours) | to-verify |
+| nmc.revalidation.feedback_count | 5 | count | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (practice-related feedback) | to-verify |
+| nmc.revalidation.reflective_accounts | 5 | count | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (written reflective accounts) | to-verify |
 | training.default_refresh_years | 3 | years | 2000-01-01 | - | all | master prompt 12.2 (tenant may set sooner) | master-prompt |
 | training.oliver_mcgowan.refresh_years | 3 | years | 2000-01-01 | - | england | master prompt 12.2 (Oliver McGowan Code of Practice 2025) | master-prompt |
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
@@ -185,6 +190,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | document_expiry.reminder_days.first | 90 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.second | 30 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.third | 7 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
+| dbs.update_service.check_interval_months | 12 | months | 2000-01-01 | - | all | Tenant default: no statutory interval for Update Service status checks (phase-2.md decisions, slice 4; H-570) | to-verify |
 | access.agency.post_shift_hours | 2 | hours | 2000-01-01 | - | all | master prompt 4 (agency access expires at shift end plus 2 hours) | master-prompt |
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
