@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ACTUAL_MEDICINAL_PROD_PACKS xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ampp_v2_3.xsd">
+<!-- Invented fixture for Harbour tests (ADR-0080): not NHSBSA dm+d data. Identifiers are in an invented range with valid check digits; GTINs are in the GS1 restricted-circulation range 200. -->
+  <AMPPS>
+    <AMPP>
+      <APPID>91000291000001109</APPID>
+      <NM>Examplomycin 250mg capsules (Example Pharma Ltd) 28 capsule</NM>
+      <VPPID>91000221000001106</VPPID>
+      <APID>91000131000001102</APID>
+      <LEGAL_CATCD>9101</LEGAL_CATCD>
+    </AMPP>
+    <AMPP>
+      <APPID>91000301000001108</APPID>
+      <NM>Examplomycin 250mg capsules (Sample Generics Ltd) 28 capsule</NM>
+      <VPPID>91000221000001106</VPPID>
+      <APID>91000141000001109</APID>
+      <LEGAL_CATCD>9101</LEGAL_CATCD>
+    </AMPP>
+    <AMPP>
+      <APPID>91000311000001105</APPID>
+      <NM>Testoprofen 200mg tablets (Example Pharma Ltd) 84 tablet</NM>
+      <VPPID>91000231000001108</VPPID>
+      <APID>91000151000001107</APID>
+      <LEGAL_CATCD>9102</LEGAL_CATCD>
+    </AMPP>
+    <AMPP>
+      <APPID>91000321000001101</APPID>
+      <NM>Brandoprofen 200mg tablets (Brandco Ltd) 84 tablet</NM>
+      <VPPID>91000231000001108</VPPID>
+      <APID>91000161000001105</APID>
+      <LEGAL_CATCD>9102</LEGAL_CATCD>
+    </AMPP>
+    <AMPP>
+      <APPID>91000331000001104</APPID>
+      <NM>Placebozine 10mg tablets (Sample Generics Ltd) 28 tablet</NM>
+      <VPPID>91000241000001101</VPPID>
+      <APID>91000171000001100</APID>
+      <LEGAL_CATCD>9101</LEGAL_CATCD>
+    </AMPP>
+    <AMPP>
+      <APPID>91000341000001106</APPID>
+      <NM>Fixturol 5mg/5ml oral solution (Example Pharma Ltd) 100 ml</NM>
+      <VPPID>91000251000001103</VPPID>
+      <APID>91000181000001103</APID>
+      <LEGAL_CATCD>9103</LEGAL_CATCD>
+    </AMPP>
+    <AMPP>
+      <APPID>91000351000001109</APPID>
+      <NM>Testoprofen 400mg tablets (Example Pharma Ltd) 84 tablet</NM>
+      <VPPID>91000261000001100</VPPID>
+      <APID>91000191000001101</APID>
+      <LEGAL_CATCD>9102</LEGAL_CATCD>
+    </AMPP>
+    <AMPP>
+      <APPID>91000361000001107</APPID>
+      <NM>Examplomycin 500mg capsules (Example Pharma Ltd) 28 capsule</NM>
+      <VPPID>91000271000001105</VPPID>
+      <APID>91000201000001104</APID>
+      <LEGAL_CATCD>9101</LEGAL_CATCD>
+    </AMPP>
+  </AMPPS>
+</ACTUAL_MEDICINAL_PROD_PACKS>

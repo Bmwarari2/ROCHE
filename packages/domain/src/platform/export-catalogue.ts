@@ -1806,6 +1806,87 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.dmd_amp": {
+    context: "medicines",
+    description: "dm+d actual medicinal products (a supplier's or brand's product of a VMP).",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the NHSBSA's dm+d, published nationally (migration 0110, ADR-0080).",
+    columns: {},
+  },
+  "public.dmd_ampp": {
+    context: "medicines",
+    description: "dm+d actual medicinal product packs (the pack a barcode names).",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the NHSBSA's dm+d, published nationally (migration 0110, ADR-0080).",
+    columns: {},
+  },
+  "public.dmd_gtin": {
+    context: "medicines",
+    description: "The GTINs printed on dm+d packs, with the dates each is in force.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the NHSBSA's dm+d, published nationally (migration 0110, ADR-0080).",
+    columns: {},
+  },
+  "public.dmd_lookup": {
+    context: "medicines",
+    description: "dm+d units of measure, forms, routes, controlled drug and legal categories.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the NHSBSA's dm+d, published nationally (migration 0110, ADR-0080).",
+    columns: {},
+  },
+  "public.dmd_release": {
+    context: "medicines",
+    description: "The dm+d release history: each national release loaded, refused or failed.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the NHSBSA's dm+d, published nationally (migration 0110, ADR-0080).",
+    columns: {},
+  },
+  "public.dmd_vmp": {
+    context: "medicines",
+    description:
+      "dm+d virtual medicinal products, with their form, routes, units and controlled drug category.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the NHSBSA's dm+d, published nationally (migration 0110, ADR-0080).",
+    columns: {},
+  },
+  "public.dmd_vmpp": {
+    context: "medicines",
+    description: "dm+d virtual medicinal product packs.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the NHSBSA's dm+d, published nationally (migration 0110, ADR-0080).",
+    columns: {},
+  },
+  "public.dmd_vtm": {
+    context: "medicines",
+    description: "dm+d virtual therapeutic moieties.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the NHSBSA's dm+d, published nationally (migration 0110, ADR-0080).",
+    columns: {},
+  },
   "public.dp_breach": {
     context: "platform",
     description:

@@ -9,7 +9,8 @@
     "./schema": "./src/schema/index.ts",
     "./testing": "./test/support/database.ts",
     "./seed": "./src/seed/index.ts",
-    "./admin": "./src/admin/index.ts"
+    "./admin": "./src/admin/index.ts",
+    "./dmd": "./src/dmd/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -20,12 +21,14 @@
     "bootstrap": "tsx scripts/bootstrap.ts",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
-    "reset": "tsx scripts/reset.ts"
+    "reset": "tsx scripts/reset.ts",
+    "dmd:load": "tsx scripts/dmd-load.ts"
   },
   "dependencies": {
+    "@harbour/domain": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1",
-    "@harbour/domain": "workspace:*"
+    "saxes": "6.0.0"
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VIRTUAL_MED_PRODUCT_PACK xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vmpp_v2_3.xsd">
+<!-- Invented fixture for Harbour tests (ADR-0080): not NHSBSA dm+d data. Identifiers are in an invented range with valid check digits; GTINs are in the GS1 restricted-circulation range 200. -->
+  <VMPPS>
+    <VMPP>
+      <VPPID>91000221000001106</VPPID>
+      <NM>Examplomycin 250mg capsules 28 capsule</NM>
+      <VPID>91000051000001106</VPID>
+      <QTYVAL>28.00</QTYVAL>
+      <QTY_UOMCD>91000391000001103</QTY_UOMCD>
+    </VMPP>
+    <VMPP>
+      <VPPID>91000231000001108</VPPID>
+      <NM>Testoprofen 200mg tablets 84 tablet</NM>
+      <VPID>91000061000001109</VPID>
+      <QTYVAL>84.00</QTYVAL>
+      <QTY_UOMCD>91000381000001100</QTY_UOMCD>
+    </VMPP>
+    <VMPP>
+      <VPPID>91000241000001101</VPPID>
+      <NM>Placebozine 10mg tablets 28 tablet</NM>
+      <VPID>91000071000001104</VPID>
+      <QTYVAL>28.00</QTYVAL>
+      <QTY_UOMCD>91000381000001100</QTY_UOMCD>
+    </VMPP>
+    <VMPP>
+      <VPPID>91000251000001103</VPPID>
+      <NM>Fixturol 5mg/5ml oral solution 100 ml</NM>
+      <VPID>91000081000001102</VPID>
+      <QTYVAL>100.00</QTYVAL>
+      <QTY_UOMCD>91000411000001103</QTY_UOMCD>
+    </VMPP>
+    <VMPP>
+      <VPPID>91000261000001100</VPPID>
+      <INVALID>1</INVALID>
+      <NM>Testoprofen 400mg tablets 84 tablet</NM>
+      <VPID>91000091000001100</VPID>
+      <QTYVAL>84.00</QTYVAL>
+      <QTY_UOMCD>91000381000001100</QTY_UOMCD>
+    </VMPP>
+    <VMPP>
+      <VPPID>91000271000001105</VPPID>
+      <NM>Examplomycin 500mg capsules 28 capsule</NM>
+      <VPID>91000111000001108</VPID>
+      <QTYVAL>28.00</QTYVAL>
+      <QTY_UOMCD>91000391000001103</QTY_UOMCD>
+    </VMPP>
+    <VMPP>
+      <VPPID>91000281000001107</VPPID>
+      <NM>Fixturol 10mg/5ml oral solution 100 ml</NM>
+      <VPID>91000121000001104</VPID>
+      <QTYVAL>100.00</QTYVAL>
+      <QTY_UOMCD>91000411000001103</QTY_UOMCD>
+    </VMPP>
+  </VMPPS>
+</VIRTUAL_MED_PRODUCT_PACK>

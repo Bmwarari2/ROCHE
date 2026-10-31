@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VIRTUAL_THERAPEUTIC_MOIETIES xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vtm_v2_3.xsd">
+<!-- Invented fixture for Harbour tests (ADR-0080): not NHSBSA dm+d data. Identifiers are in an invented range with valid check digits; GTINs are in the GS1 restricted-circulation range 200. -->
+  <VTM>
+    <VTMID>91000011000001107</VTMID>
+    <NM>Examplomycin</NM>
+    <VTMIDDT>2020-01-01</VTMIDDT>
+  </VTM>
+  <VTM>
+    <VTMID>91000021000001103</VTMID>
+    <NM>Testoprofen</NM>
+    <VTMIDDT>2020-01-01</VTMIDDT>
+  </VTM>
+  <VTM>
+    <VTMID>91000031000001101</VTMID>
+    <NM>Placebozine</NM>
+    <VTMIDDT>2020-01-01</VTMIDDT>
+  </VTM>
+  <VTM>
+    <VTMID>91000041000001108</VTMID>
+    <NM>Fixturol</NM>
+    <VTMIDDT>2020-01-01</VTMIDDT>
+  </VTM>
+</VIRTUAL_THERAPEUTIC_MOIETIES>

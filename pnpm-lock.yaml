@@ -366,6 +366,9 @@ importers:
       pg:
         specifier: ^8.23.1
         version: 8.23.1
+      saxes:
+        specifier: 6.0.0
+        version: 6.0.0
     devDependencies:
       '@harbour/config':
         specifier: workspace:*

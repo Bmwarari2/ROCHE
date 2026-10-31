@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ACTUAL_MEDICINAL_PRODUCTS xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="amp_v2_3.xsd">
+<!-- Invented fixture for Harbour tests (ADR-0080): not NHSBSA dm+d data. Identifiers are in an invented range with valid check digits; GTINs are in the GS1 restricted-circulation range 200. -->
+  <AMPS>
+    <AMP>
+      <APID>91000131000001102</APID>
+      <VPID>91000051000001106</VPID>
+      <NM>Examplomycin 250mg capsules</NM>
+      <DESC>Examplomycin 250mg capsules (Example Pharma Ltd)</DESC>
+      <SUPPCD>90000000000000002</SUPPCD>
+      <LIC_AUTHCD>0001</LIC_AUTHCD>
+      <AVAIL_RESTRICTCD>0001</AVAIL_RESTRICTCD>
+    </AMP>
+    <AMP>
+      <APID>91000141000001109</APID>
+      <VPID>91000051000001106</VPID>
+      <NM>Examplomycin 250mg capsules</NM>
+      <DESC>Examplomycin 250mg capsules (Sample Generics Ltd)</DESC>
+      <SUPPCD>90000000000000002</SUPPCD>
+      <LIC_AUTHCD>0001</LIC_AUTHCD>
+      <AVAIL_RESTRICTCD>0001</AVAIL_RESTRICTCD>
+    </AMP>
+    <AMP>
+      <APID>91000151000001107</APID>
+      <VPID>91000061000001109</VPID>
+      <NM>Testoprofen 200mg tablets</NM>
+      <DESC>Testoprofen 200mg tablets (Example Pharma Ltd)</DESC>
+      <SUPPCD>90000000000000002</SUPPCD>
+      <LIC_AUTHCD>0001</LIC_AUTHCD>
+      <AVAIL_RESTRICTCD>0001</AVAIL_RESTRICTCD>
+    </AMP>
+    <AMP>
+      <APID>91000161000001105</APID>
+      <VPID>91000061000001109</VPID>
+      <NM>Brandoprofen 200mg tablets</NM>
+      <DESC>Brandoprofen 200mg tablets (Brandco Ltd)</DESC>
+      <SUPPCD>90000000000000002</SUPPCD>
+      <LIC_AUTHCD>0001</LIC_AUTHCD>
+      <AVAIL_RESTRICTCD>0001</AVAIL_RESTRICTCD>
+    </AMP>
+    <AMP>
+      <APID>91000171000001100</APID>
+      <VPID>91000071000001104</VPID>
+      <NM>Placebozine 10mg tablets</NM>
+      <DESC>Placebozine 10mg tablets (Sample Generics Ltd)</DESC>
+      <SUPPCD>90000000000000002</SUPPCD>
+      <LIC_AUTHCD>0001</LIC_AUTHCD>
+      <AVAIL_RESTRICTCD>0001</AVAIL_RESTRICTCD>
+    </AMP>
+    <AMP>
+      <APID>91000181000001103</APID>
+      <VPID>91000081000001102</VPID>
+      <NM>Fixturol 5mg/5ml oral solution</NM>
+      <DESC>Fixturol 5mg/5ml oral solution (Example Pharma Ltd)</DESC>
+      <SUPPCD>90000000000000002</SUPPCD>
+      <LIC_AUTHCD>0001</LIC_AUTHCD>
+      <AVAIL_RESTRICTCD>0001</AVAIL_RESTRICTCD>
+    </AMP>
+    <AMP>
+      <APID>91000191000001101</APID>
+      <VPID>91000091000001100</VPID>
+      <NM>Testoprofen 400mg tablets</NM>
+      <DESC>Testoprofen 400mg tablets (Example Pharma Ltd)</DESC>
+      <SUPPCD>90000000000000002</SUPPCD>
+      <LIC_AUTHCD>0001</LIC_AUTHCD>
+      <AVAIL_RESTRICTCD>0001</AVAIL_RESTRICTCD>
+    </AMP>
+    <AMP>
+      <APID>91000201000001104</APID>
+      <VPID>91000101000001106</VPID>
+      <NM>Examplomycin 500mg capsules</NM>
+      <DESC>Examplomycin 500mg capsules (Example Pharma Ltd)</DESC>
+      <SUPPCD>90000000000000002</SUPPCD>
+      <LIC_AUTHCD>0001</LIC_AUTHCD>
+      <AVAIL_RESTRICTCD>0001</AVAIL_RESTRICTCD>
+    </AMP>
+  </AMPS>
+  <LICENSED_ROUTE>
+    <LIC_ROUTE>
+      <APID>91000131000001102</APID>
+      <ROUTECD>91000461000001101</ROUTECD>
+    </LIC_ROUTE>
+    <LIC_ROUTE>
+      <APID>91000141000001109</APID>
+      <ROUTECD>91000461000001101</ROUTECD>
+    </LIC_ROUTE>
+    <LIC_ROUTE>
+      <APID>91000151000001107</APID>
+      <ROUTECD>91000461000001101</ROUTECD>
+    </LIC_ROUTE>
+    <LIC_ROUTE>
+      <APID>91000161000001105</APID>
+      <ROUTECD>91000461000001101</ROUTECD>
+    </LIC_ROUTE>
+    <LIC_ROUTE>
+      <APID>91000171000001100</APID>
+      <ROUTECD>91000461000001101</ROUTECD>
+    </LIC_ROUTE>
+    <LIC_ROUTE>
+      <APID>91000181000001103</APID>
+      <ROUTECD>91000461000001101</ROUTECD>
+    </LIC_ROUTE>
+    <LIC_ROUTE>
+      <APID>91000191000001101</APID>
+      <ROUTECD>91000461000001101</ROUTECD>
+    </LIC_ROUTE>
+    <LIC_ROUTE>
+      <APID>91000201000001104</APID>
+      <ROUTECD>91000461000001101</ROUTECD>
+    </LIC_ROUTE>
+  </LICENSED_ROUTE>
+</ACTUAL_MEDICINAL_PRODUCTS>
