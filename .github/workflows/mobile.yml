@@ -1,7 +1,14 @@
 # Mobile E2E (Maestro on an Android emulator) and store builds through EAS when credentials exist.
-# iOS simulator flows run on macOS runners; both are expensive (an emulator run costs more minutes
-# than a whole ci run), so they run on demand, weekly and on release candidates rather than on
-# every pull request.
+# Emulator runs are expensive (one costs more minutes than a whole ci run), so they run on demand,
+# weekly and on release candidates rather than on every pull request. There is no iOS job yet:
+# docs/plans/phase-1-gate.md section 1 lists what one needs.
+#
+# The emulator runner runs each script line in its own shell, so the loop that answers the
+# fingerprint prompt shares a line with the Maestro run it serves.
+#
+# Both emulator jobs build a release variant with the JavaScript bundled in: a debug build of this
+# app is an Expo development client, which opens its launcher and waits for Metro rather than
+# starting Harbour.
 name: mobile
 
 on:
@@ -15,9 +22,12 @@ permissions:
   contents: read
 
 jobs:
-  maestro-android:
+  # The sign-in smoke test and the demo round, with no API (EXPO_PUBLIC_DEMO_MODE=1): fast, and
+  # independent of the backend.
+  maestro-android-demo:
     name: Maestro flows (Android emulator, demo mode)
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -35,35 +45,137 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Build a debug APK (development client, demo mode)
+      - name: Build a release APK (demo mode, bundled JavaScript, debug signing)
         working-directory: apps/mobile
         env:
           EXPO_PUBLIC_DEMO_MODE: "1"
         run: |
           npx expo prebuild --platform android --no-install
-          cd android && ./gradlew assembleDebug --no-daemon
+          cd android && ./gradlew assembleRelease --no-daemon
       - name: Install Maestro
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-      - name: Run flows on an emulator
+      - name: Run the smoke and demo flows on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
           arch: x86_64
+          target: google_apis
           script: |
-            adb install apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
-            maestro test apps/mobile/.maestro --format junit --output maestro-report.xml
+            adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            adb shell locksettings set-pin 1111
+            ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,demo --format junit --output maestro-demo-report.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: maestro-report
-          path: maestro-report.xml
+          name: maestro-demo-report
+          path: maestro-demo-report.xml
+
+  # The offline journeys against a real backend: Postgres, PowerSync and the API on the runner,
+  # seeded with the demo tenant, reached from the emulator over the phone's loopback (adb reverse)
+  # by a build that syncs (EXPO_PUBLIC_E2E_LOOPBACK, HARBOUR_E2E_BUILD; see app.config.ts and
+  # src/config/env.ts).
+  maestro-android-live:
+    name: Maestro offline journeys (Android emulator, live API and PowerSync)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      HARBOUR_API_URL: http://localhost:4000
+      POWERSYNC_URL: http://localhost:8080
+      HARBOUR_DEMO_PASSWORD: correct horse battery staple
+      HARBOUR_ROUND_TASK: Reposition
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pnpm install --frozen-lockfile
+      - name: Postgres (logical replication) and PowerSync's storage
+        run: docker compose up -d --build --wait postgres powersync-storage
+      - name: Database with the demo tenant (MFA off for the demo users, local testing only)
+        run: |
+          pnpm db:bootstrap
+          pnpm db:migrate
+          pnpm db:seed
+          HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users
+      - name: Start the API
+        run: |
+          pnpm turbo run build --filter=@harbour/api
+          nohup pnpm --filter @harbour/api start > api.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf "$HARBOUR_API_URL/v1/sync/jwks" >/dev/null && exit 0; sleep 2; done
+          echo "The API did not start"; tail -50 api.log; exit 1
+      # After the API, which stays up: without SYNC_SIGNING_KEY_PEM the API makes a signing key
+      # when it starts, and PowerSync caches the JWKS it first reads.
+      - name: Start PowerSync (verifies tokens against the API's JWKS)
+        run: docker compose up -d --wait powersync
+      - name: Sync smoke (a carer's sync token, streams and PowerSync deliver a new round task)
+        id: smoke
+        run: node apps/mobile/scripts/sync-smoke.mjs >> "$GITHUB_OUTPUT"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build a release APK that syncs over the phone's loopback
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_DEMO_MODE: "0"
+          EXPO_PUBLIC_API_URL: http://localhost:4000
+          EXPO_PUBLIC_E2E_LOOPBACK: "1"
+          HARBOUR_E2E_BUILD: "1"
+        run: |
+          npx expo prebuild --platform android --no-install
+          cd android && ./gradlew assembleRelease --no-daemon
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Run the offline journeys on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          script: |
+            adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            adb reverse tcp:4000 tcp:4000
+            adb reverse tcp:8080 tcp:8080
+            adb shell locksettings set-pin 1111
+            ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,offline --env HARBOUR_EMAIL=carer@example.invalid --env "HARBOUR_PASSWORD=$HARBOUR_DEMO_PASSWORD" --env "HARBOUR_ROUND_TASK=$HARBOUR_ROUND_TASK" --format junit --output maestro-live-report.xml
+      - name: The task marked done offline reached Harbour (HZ-006, HZ-029)
+        env:
+          TASK_ID: ${{ steps.smoke.outputs.task_id }}
+        run: |
+          status=$(docker compose exec -T postgres psql -U harbour_admin -d harbour -tAc "SELECT status FROM task WHERE id = '$TASK_ID'")
+          echo "Task status on the server: $status"
+          test "$status" = "done"
+      - name: Logs on failure (opaque ids only)
+        if: failure()
+        run: |
+          tail -200 api.log || true
+          docker compose logs --tail 200 powersync || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maestro-live-report
+          path: maestro-live-report.xml
 
   eas-build:
     name: EAS build (store-ready binaries)
     runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags/v')
+    # Store binaries leave only after someone approves this deployment: the store-release
+    # environment needs required reviewers, set by the owner (human action H-397). Until then
+    # GitHub creates it unprotected on first use, so also move EXPO_TOKEN into the environment's
+    # secrets, which a job outside it cannot read.
+    environment: store-release
     steps:
       - uses: actions/checkout@v5
       - name: Skip without Expo credentials

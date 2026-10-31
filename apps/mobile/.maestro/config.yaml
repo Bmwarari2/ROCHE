@@ -1,10 +1,12 @@
 # Maestro workspace configuration. Flows run in this order in CI (see ../README.md, "End-to-end tests").
+# CI filters by tag: the demo build runs `smoke` and `demo`; the live build runs `smoke` and `offline`.
 flows:
   - sign-in.yaml
   - offline-people-list.yaml
   - sync-recovery.yaml
   - hazard-HZ-006-offline-note-and-vitals.yaml
   - hazard-HZ-028-round-on-the-phone.yaml
+  - demo-round.yaml
 executionOrder:
   continueOnFailure: false
   flowsOrder:
@@ -13,3 +15,4 @@ executionOrder:
     - sync-recovery
     - hazard-HZ-006-offline-note-and-vitals
     - hazard-HZ-028-round-on-the-phone
+    - demo-round

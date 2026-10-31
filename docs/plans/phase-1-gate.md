@@ -11,7 +11,7 @@ request of about 600 lines) or a gate item (needs its own slice).
 
 | Gate item | State | Gap |
 | --- | --- | --- |
-| Maestro offline journey (iOS and Android) | Not met: paused | Mobile is paused by the owner; the journey is written but not run in CI |
+| Maestro offline journey (iOS and Android) | Not met | Android: a CI job that syncs against a seeded API and PowerSync is written (31/10/2026), not yet run (H-398); its sync step passed locally. iOS: no job (section 1 lists what one needs) |
 | Inspector pack export renders | Met, without a snapshot | Small: a render test of the PDF on its own, beside the API test |
 | WCAG scans clean | Met for every web route but two | Small: the person's history tab; gate item: choose-organisation needs a second demo tenant |
 | Every hazard-log entry has a test | Met: 45 of 45 | Small: five verification statuses are stale; one planned test waits for the task screens |
@@ -21,11 +21,52 @@ request of about 600 lines) or a gate item (needs its own slice).
 
 ## 1. Maestro offline journey
 
-`apps/mobile/.maestro/hazard-HZ-006-offline-note-and-vitals.yaml` covers signing in, writing a note
-and vital signs offline, and syncing. `.github/workflows/mobile.yml` runs it on Android only, and
-the hazard log marks it "Written; not run in CI" (HZ-001, HZ-006). It does not yet cover charts or
-the conflict review, and there is no iOS simulator job. **Paused with mobile**; not worked in this
-gate.
+Worked on 31/10/2026 (`feat/mobile-gate`), after mobile was unpaused. **Still not met**: the CI jobs
+are written but have not run.
+
+- `.github/workflows/mobile.yml` had built a debug APK in demo mode. A debug build of this app is an
+  Expo development client, which waits for Metro, and demo mode never syncs, so the offline flows
+  could not pass. It now has two jobs, both on release builds with the JavaScript bundled:
+  `maestro-android-demo` (sign-in and the demo round, no API) and `maestro-android-live`.
+- `maestro-android-live` runs Postgres and PowerSync from `docker-compose.yml`, seeds the demo
+  tenant, starts the API, and runs `apps/mobile/scripts/sync-smoke.mjs`: the carer's sync token,
+  the streams and PowerSync must deliver Ada Example and a round task created moments before. This
+  step passed locally against the same stack (Docker, PowerSync 1.26.1, the built API). The
+  emulator then runs a build that syncs over the phone's loopback (`adb reverse`, ports 4000 and
+  8080; `EXPO_PUBLIC_E2E_LOOPBACK`, which allows http to `localhost` only), the flows tagged
+  `smoke` and `offline` (people list, sync recovery, the HZ-006 note and vital signs, the HZ-028
+  round), and Postgres is checked for the task the round flow marked done offline.
+- Not verified: the Gradle release build, the emulator, the biometric prompt answering and every
+  Maestro flow. The sandbox had no Android SDK or KVM. Human action H-398 runs the workflow.
+- Not yet covered by any flow: charts beyond vital signs, and the conflict review.
+
+**What an iOS job still needs**
+
+1. A `macos-15` runner job: `pnpm install`, `npx expo prebuild --platform ios`, `pod install`, and a
+   Release build for the simulator (`xcodebuild -workspace ios/Harbour.xcworkspace -scheme Harbour
+   -configuration Release -sdk iphonesimulator -derivedDataPath build`), so no development client
+   or Metro is involved. op-sqlite reads its SQLCipher switch from the repository root
+   `package.json` on iOS, which must carry `"op-sqlite": { "sqlcipher": true }`; check that the
+   built app reports SQLCipher before the flows run.
+2. The backend on the macOS runner: Docker is not installed on GitHub's macOS runners, so either
+   run Postgres and the API natively (Homebrew `postgresql@17` with `wal_level = logical`) and
+   PowerSync from its npm package, or point the simulator at the Linux job's stack through a
+   tunnel. The simulator shares the Mac's loopback, so `localhost` needs no `adb reverse`, and the
+   cleartext switch becomes an App Transport Security exception for `localhost` in the e2e build
+   only (an `app.config.ts` `ios.infoPlist` entry behind `HARBOUR_E2E_BUILD`, which does not exist
+   yet).
+3. Face ID in the simulator: enrol with `xcrun simctl spawn booted notifyutil -s
+   com.apple.BiometricKit.enrollmentChanged 1` and `notifyutil -p
+   com.apple.BiometricKit.enrollmentChanged`, and answer prompts with `notifyutil -p
+   com.apple.BiometricKit_Sim.pearl.match` in a background loop; the device passcode check needs a
+   simulator passcode, which `simctl` cannot set, so check how `expo-local-authentication` behaves
+   there first.
+4. Going offline: Maestro's `setAirplaneMode` is Android only. On a simulator, stop the API and
+   PowerSync (or block their ports with `pfctl`) from a step between flows, so each offline flow
+   is split into an online part, a network-off step outside Maestro and an offline part; or run the
+   offline flows on a device farm with network control.
+5. Minutes: macOS runners cost ten times Linux minutes; keep the job on demand and on release
+   candidates.
 
 ## 2. Inspector pack export renders
 

@@ -138,27 +138,45 @@ screen uses the header and blocks capture) and by Maestro.
 
 ### End-to-end tests (Maestro)
 
-Flows live in `.maestro/`: `sign-in.yaml`, `offline-people-list.yaml`, `sync-recovery.yaml` and
-`hazard-HZ-006-offline-note-and-vitals.yaml` (a note and vital signs written offline, NEWS2 shown at
-once, both survive a restart and upload when the network returns). They do not run in CI yet, and
-they cannot run in this repository's sandbox (no simulator). The offline flows need the live API stack: a demo build never
-syncs, and `.github/workflows/mobile.yml` currently builds demo mode only, so those flows need the
-`preview` build in step 1 below. CI runs them like this:
+Flows live in `.maestro/`, filtered by tag:
 
-1. Build a release-like binary: `eas build --profile e2e --platform android` (APK, demo mode for the
-   sign-in smoke test) and a `preview` build pointed at the CI API for the offline flows; or
-   `npx expo run:android --variant release` on the runner.
-2. Start the API stack (Docker Compose: Postgres, API, PowerSync) and seed the test tenant, whose
-   care worker is assigned "Ada Example".
-3. Android emulator (API 36, Google APIs image): set a screen lock and enrol a fingerprint with
-   `adb shell locksettings set-pin 1111` and `adb -e emu finger touch 1`; a background step repeats
-   `adb -e emu finger touch 1` while flows run to answer biometric prompts.
-4. iOS simulator: enrol Face ID (`xcrun simctl spawn booted notifyutil -s com.apple.BiometricKit.enrollmentChanged 1`
-   then `notifyutil -p com.apple.BiometricKit.enrollmentChanged`) and answer prompts with
-   `notifyutil -p com.apple.BiometricKit_Sim.pearl.match`. Maestro's `setAirplaneMode` is Android
-   only, so the offline flows run on Android in CI and on a device farm for iOS.
-5. `maestro test .maestro --env HARBOUR_EMAIL=… --env HARBOUR_PASSWORD=… --env HARBOUR_TOTP=…`
-   (CI computes the TOTP from the seeded secret immediately before the run).
+| Tag | Flows | Needs |
+| --- | --- | --- |
+| `smoke` | `sign-in.yaml` | Either build |
+| `demo` | `demo-round.yaml` (the round's words, the demo tasks, a task marked here waits to upload) | A demo build (`EXPO_PUBLIC_DEMO_MODE=1`) |
+| `offline` | `offline-people-list.yaml`, `sync-recovery.yaml`, `hazard-HZ-006-offline-note-and-vitals.yaml`, `hazard-HZ-028-round-on-the-phone.yaml` | A build that syncs, against the API and PowerSync with the demo tenant seeded |
+
+`.github/workflows/mobile.yml` (on demand, weekly and on release candidates) has two emulator jobs.
+Neither has run yet: they were written on 31/10/2026 in a sandbox without an Android emulator.
+
+1. `maestro-android-demo`: a release APK in demo mode; `--include-tags smoke,demo`.
+2. `maestro-android-live`: Postgres and PowerSync from `docker-compose.yml`, the database seeded
+   (`HARBOUR_DEMO_MFA=off`, local testing only), the API built and started, then PowerSync.
+   `scripts/sync-smoke.mjs` signs in the manager to create a round task due now for Ada Example,
+   signs in the carer as the app does, takes a sync token and reads PowerSync's stream until a
+   checkpoint holds the person and the task (run locally against this stack on 31/10/2026: it
+   passed). Then a release APK built with `EXPO_PUBLIC_API_URL=http://localhost:4000`,
+   `EXPO_PUBLIC_E2E_LOOPBACK=1` and `HARBOUR_E2E_BUILD=1` reaches the runner through `adb reverse`
+   (ports 4000 and 8080), runs `--include-tags smoke,offline`, and the job checks in Postgres that
+   the task the round flow marked done offline is `done` on the server.
+
+Why release builds: a debug build of this app is an Expo development client, which opens its
+launcher and waits for Metro. Why the loopback flag: release builds refuse plain http
+(`src/config/env.ts`). `EXPO_PUBLIC_E2E_LOOPBACK` allows http only to `localhost` and `127.0.0.1`,
+the phone itself, never `10.0.2.2` or a network host, and `HARBOUR_E2E_BUILD` lifts Android's
+cleartext block for that build alone (`app.config.ts`, which refuses it in an EAS build;
+`src/config/eas-profiles.test.ts` fails if any EAS profile sets either).
+
+Run locally the same way: `docker compose up -d postgres powersync-storage`, `pnpm db:bootstrap &&
+pnpm db:migrate && pnpm db:seed`, `HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter
+@harbour/api seed:users`, start the API, `docker compose up -d powersync`, then `node
+apps/mobile/scripts/sync-smoke.mjs`, and for the flows an emulator with the release APK above,
+`adb reverse tcp:4000 tcp:4000`, `adb reverse tcp:8080 tcp:8080`, a screen lock (`adb shell
+locksettings set-pin 1111`) and `adb -e emu finger touch 1` answering the biometric prompt.
+
+iOS: no job yet. Maestro's `setAirplaneMode` is Android only, so the offline flows need another way
+to cut the network on a simulator (see docs/plans/phase-1-gate.md section 1). The iOS build also
+reads op-sqlite's SQLCipher switch from the repository root `package.json` (above).
 
 ## Store compliance notes for later phases
 
