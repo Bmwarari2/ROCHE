@@ -77,6 +77,19 @@ import { SyncTokenSigner } from "./sync/token";
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
 /** Largest body any /v1/sync route accepts (security review round 4, M4). */
 export const SYNC_MAX_BODY_BYTES = 64 * 1024;
+/**
+ * Largest body a public route reached with no session accepts: a token, a code, a name and a
+ * password, a few hundred bytes. The same cap as the web's public pages (`PUBLIC_BODY_MAX_BYTES`
+ * in apps/web/src/lib/json-body.ts).
+ */
+export const PUBLIC_MAX_BODY_BYTES = 4 * 1024;
+/**
+ * Largest body a Better Auth route (/api/auth) accepts: sign-in, a second factor and passkey
+ * registration, whose attestation is the largest at a few kilobytes.
+ */
+export const AUTH_MAX_BODY_BYTES = 64 * 1024;
+/** The public routes reached with no session that take a body, capped at PUBLIC_MAX_BODY_BYTES. */
+const PUBLIC_BODY_PATHS = ["/p/*", "/v1/invitations/lookup", "/v1/invitations/accept"] as const;
 
 /** Routes that need a session but not yet a chosen tenant, or no session at all. */
 const TENANTLESS = new Set([
@@ -173,6 +186,23 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       maxAge: 600,
     }),
   );
+
+  // Routes reached with no session read a body only within a small cap, refused with 413 before it
+  // is read or anything is written (security review, 31 October 2026). A declared length over the
+  // cap is refused at once; a chunked body is counted as it arrives. GET routes never get a body.
+  const capped = (maxSize: number) =>
+    bodyLimit({
+      maxSize,
+      onError: (c) =>
+        problemResponse(
+          c,
+          new HttpProblem(413, "too_large", "The request is too large."),
+          c.get("requestId") as string | undefined,
+        ),
+    });
+  // Registered before the handler below, which answers without calling on.
+  app.use("/api/auth/*", capped(AUTH_MAX_BODY_BYTES));
+  for (const path of PUBLIC_BODY_PATHS) app.use(path, capped(PUBLIC_MAX_BODY_BYTES));
 
   app.on(["GET", "POST"], "/api/auth/*", async (c) =>
     withoutSessionTokens(c.req.raw, await services.auth.handler(c.req.raw)),
