@@ -14,6 +14,7 @@ import {
   StaffingRequirementList,
 } from "@harbour/contracts";
 import {
+  admissionDecision,
   dependencyAssessment,
   dependencyScale,
   dependencyScaleVersion,
@@ -37,6 +38,8 @@ import {
   dependencyInForce,
   LIVE_PERSON_STATUSES,
   type PeriodMinutes,
+  type PresenceFacts,
+  presenceOn,
   SCALE_APPROVAL_MESSAGES,
   type ScaleVersionRecord,
   type StaffingRequirement,
@@ -342,6 +345,34 @@ async function personRecords(
   return { items, currentId: currentDependency(records)?.id ?? null };
 }
 
+/**
+ * The planned admission date of each person being admitted, from the admission decision in force
+ * (the one no later decision supersedes) when it says needs can be met; absent when none.
+ */
+async function plannedAdmissions(
+  tx: Transaction,
+  personIds: readonly string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (personIds.length === 0) return out;
+  const decisions = await tx
+    .select({
+      id: admissionDecision.id,
+      personId: admissionDecision.personId,
+      canMeetNeeds: admissionDecision.canMeetNeeds,
+      plannedAdmissionOn: admissionDecision.plannedAdmissionOn,
+      supersedesId: admissionDecision.supersedesId,
+    })
+    .from(admissionDecision)
+    .where(inArray(admissionDecision.personId, [...personIds]));
+  const superseded = new Set(decisions.map((d) => d.supersedesId).filter(Boolean));
+  for (const d of decisions) {
+    if (superseded.has(d.id) || d.canMeetNeeds === "no" || !d.plannedAdmissionOn) continue;
+    out.set(d.personId, d.plannedAdmissionOn);
+  }
+  return out;
+}
+
 const DEPENDENCY_CONFLICTS: readonly DependencyProblem[] = ["not_current", "initial_exists"];
 
 /** Field by field: jsonb gives keys back in its own order. */
@@ -376,6 +407,7 @@ function requirementItem(
       period,
       source: null,
       notice: r.notice,
+      figure: "none",
       careMinutes: null,
       oneToOneMinutes: null,
       requiredMinutes: null,
@@ -396,6 +428,7 @@ function requirementItem(
     period,
     source: { ...r.source, approvedAt: iso(r.source.approvedAt) },
     notice: r.notice,
+    figure: r.figure,
     careMinutes: r.careMinutes,
     oneToOneMinutes: r.oneToOneMinutes,
     requiredMinutes: r.requiredMinutes,
@@ -1099,22 +1132,33 @@ export const schedulingDependencyRouter = createRouter()
               .from(dependencyScaleVersion)
               .where(eq(dependencyScaleVersion.scaleId, scale.id))
           : [];
+        // Everyone living at the location or being admitted to it; where each is on the date
+        // asked comes from their status, when it began, and a planned admission (rule 9).
         const people = await tx
-          .select({ id: person.id, status: person.status })
+          .select({
+            id: person.id,
+            status: person.status,
+            statusChangedAt: person.statusChangedAt,
+          })
           .from(person)
           .where(
             and(
               eq(person.locationId, id),
-              inArray(person.status, [...LIVE_PERSON_STATUSES]),
+              inArray(person.status, [...LIVE_PERSON_STATUSES, "pre_admission"]),
               isNull(person.deletedAt),
             ),
           );
+        const planned = await plannedAdmissions(
+          tx,
+          people.filter((p) => p.status === "pre_admission").map((p) => p.id),
+        );
         const records = (
           await recordsOf(
             tx,
             people.map((p) => p.id),
           )
         ).map(domainRecord);
+        const today = ukIsoDate(asAt);
         const results = staffingRequirement({
           locationId: id,
           date: query.date,
@@ -1124,10 +1168,19 @@ export const schedulingDependencyRouter = createRouter()
             : null,
           people: people.map((p) => ({
             personId: p.id,
-            present: p.status === "active",
+            presence: presenceOn(
+              {
+                status: p.status as PresenceFacts["status"],
+                statusSince: p.status === "pre_admission" ? null : ukIsoDate(p.statusChangedAt),
+                plannedAdmissionOn: planned.get(p.id) ?? null,
+              },
+              query.date,
+              today,
+            ),
             records: records.filter((r) => r.personId === p.id),
           })),
         });
+        if (results.length === 0) return "unknown_period" as const;
         await audit(c, tx, access, {
           action: A.requirement,
           resourceType: "location",
@@ -1137,6 +1190,11 @@ export const schedulingDependencyRouter = createRouter()
         return results.map(requirementItem);
       });
       if (!items) throw problems.notFound();
+      if (items === "unknown_period") {
+        throw problems.invalid(
+          `The scale in force on ${query.date} has no shift period called "${query.period}".`,
+        );
+      }
       return c.json({ items, asAt: asAt.toISOString() }, 200);
     },
   );

@@ -25555,6 +25555,14 @@
           "notice": {
             "type": "string"
           },
+          "figure": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "at_least",
+              "none"
+            ]
+          },
           "careMinutes": {
             "type": [
               "number",
@@ -25637,8 +25645,17 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "present": {
-                  "type": "boolean"
+                "presence": {
+                  "type": "string",
+                  "enum": [
+                    "present",
+                    "planned_admission",
+                    "away",
+                    "away_return_unknown",
+                    "admission_date_unknown",
+                    "not_yet_admitted",
+                    "unknown"
+                  ]
                 },
                 "standing": {
                   "type": "string",
@@ -25680,6 +25697,7 @@
                     "type": "string",
                     "enum": [
                       "earlier_version",
+                      "later_version",
                       "review_overdue"
                     ]
                   }
@@ -25687,7 +25705,7 @@
               },
               "required": [
                 "personId",
-                "present",
+                "presence",
                 "standing",
                 "recordId",
                 "categoryKey",
@@ -25759,6 +25777,7 @@
           "period",
           "source",
           "notice",
+          "figure",
           "careMinutes",
           "oneToOneMinutes",
           "requiredMinutes",

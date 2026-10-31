@@ -436,8 +436,11 @@ hold no personal data. They sync to no device in Phase 2 (a management tool on t
    `superseded_at`) and applies from that instant. A draft can be discarded with a reason. Only
    one draft and one approved version at a time. Nothing is deleted; the database refuses any
    change to an approved, superseded or discarded version except approved to superseded.
-3. **Version in force** (`scaleVersionInForce`). For a shift period, the version approved latest
-   at or before the period's start; a period that starts before the first approval has no scale.
+3. **Version in force** (`scaleVersionInForce`, `scaleVersionsEffective`). For a shift period, the
+   version that applies at the period's start; a period that starts before the first approval has
+   no scale. A version applies from its approval, unless it moves the shift periods of the version
+   then in force: then it applies from 00:00 UK time the next day, so one day's periods never come
+   from two versions (no gap or overlap; #153 review).
 4. **Approval** (`checkScaleApproval`): only a draft, with no definition problems, different from
    the version in use, by a member who is neither its author nor a contributor. Problems:
    `not_draft`, `invalid_scale`, `unchanged`, `author_cannot_approve` (refused 403 as separation of
@@ -459,29 +462,43 @@ hold no personal data. They sync to no device in Phase 2 (a management tool on t
 8. **Shift periods** (`periodWindows`). A period on a UK date starts at its wall-clock start on that
    date and ends at the next period's start (the next day for the last). Lengths are elapsed time,
    so a 20:00 to 08:00 night is 13 hours on 24/25 October 2026 and 11 on 28/29 March 2026; the
-   care minutes stay as the scale sets them, which the method says.
+   care minutes stay as the scale sets them, and the method and a `clock_change` warning say they
+   are not adjusted (whether they should be is for the CSO, H-710).
 9. **Required care hours** (`staffingRequirement`). For a location, a UK date and optionally one
-   period: the people whose record is at the location with a live status (`active`, `on_leave`,
-   `in_hospital`) now; for each period, the version in force at its start; each person's record
-   in force at its start. Required minutes = the sum over present people of their category's care
-   minutes for the period, plus their one-to-one minutes for it. The result lists minutes per
+   period: the people whose record is at the location (live statuses and `pre_admission`), each
+   placed on the date asked (`presenceOn`, #153 review M1): `present` (living there), `away` (on
+   leave or in hospital, today or earlier), `planned_admission` (being admitted, with the decision
+   in force planning the admission on or before the date), `not_yet_admitted` (planned for later,
+   or a past date); and, where the record cannot say, `away_return_unknown` (away today, asked
+   about a later date: no return date is recorded), `admission_date_unknown` (being admitted with
+   no planned date, asked about today or later) and `unknown` (a date before the person's current
+   status began). For each period, the version in force at its start; each person's record in
+   force at its start. Required minutes = the sum over counted people (`present`,
+   `planned_admission`) of their category's care minutes for the period, plus their one-to-one
+   minutes for it. The result lists minutes per
    category (people, minutes each, minutes), one-to-one minutes per person, the period's
    skill-mix minimums and the method in words, step by step, with the scale's name, version and
    approval. No figure is rounded until shown.
 10. **Never a falsely low figure** (HZ-123). With no scale in force the result is `no_scale` with a
-    warning and no number, never 0. A person with no record in force, a record on another scale
-    (they moved), or a category the version in force no longer has is not counted and is named in
-    a warning, and the result is marked incomplete. A record made on an earlier version is counted
-    by its category key in the version in force and flagged for review; a record older than the
-    scale's review interval is flagged as overdue. People on leave or in hospital are not counted
-    in the required total but are listed with the minutes they would add (H-713). The API refuses
-    the requirement (403) unless the request's scope covers the whole location: a scope limited to
-    assigned people would silently leave people out.
+    warning and no number, never 0. A counted person with no record in force, a record on another
+    scale (they moved), or a category or period the version in force does not have is not counted
+    and is named in a warning; so is anyone the record cannot place (rule 9); the result is then
+    incomplete and the figure is `at_least` ("at least N hours"), or `none` with no number when
+    nobody is counted (just after the first approval; #153 review M3). A location with nobody at
+    all is an exact 0. A record made on an earlier (or later) version is counted by its category
+    key in the version in force and flagged; a record older than the scale's review interval is
+    flagged as overdue; a planned admission counted is said. People on leave or in hospital on the
+    date are not counted but are listed with the minutes they would add (H-713). The API refuses
+    the requirement (403) unless the request's scope covers the whole location, and a period key
+    the scale in force does not have (422).
 11. **Comparison inputs** (`compareStaffing`, for slice 21). Given the rota's care minutes on the
     period and the number of rostered staff holding each skill: `below` when the care minutes or
-    any skill minimum fall short (with the shortfall), `incomplete` when they do not but the
-    requirement is incomplete, `met` only when the requirement is complete and nothing falls
-    short, `no_scale` when there is no scale. Every status has a word as well as an icon on screen
+    any skill minimum fall short (with the shortfall, "at least" when the figure is), `incomplete`
+    when they do not but the requirement is incomplete or has no figure, `met_with_warnings` when
+    complete and nothing falls short but the requirement carries warnings (overdue reviews,
+    earlier versions, people away, a clock change), `met` only with no warning, `no_scale` when
+    there is no scale (no shortfall given). Every warning on the requirement is carried into the
+    comparison (#153 review M2). Every status has a word as well as an icon on screen
     (`STAFFING_STATUS_WORDS`); the comparison advises and never blocks a rota.
 12. **Labelled as the organisation's tool.** Every requirement and comparison carries the source
     (scale, version, approved by and when) and `DEPENDENCY_TOOL_NOTICE`; none carries a score, a

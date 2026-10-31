@@ -72,11 +72,12 @@ const DEFINITION = {
 };
 
 const today = () => ukIsoDate(new Date());
-const tomorrow = () => {
+const inDays = (n: number) => {
   const d = new Date(`${today()}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
+const tomorrow = () => inDays(1);
 
 interface VersionItem {
   id: string;
@@ -96,6 +97,7 @@ interface Requirement {
   period: { key: string } | null;
   source: { kind: string; scaleName: string; versionNumber: number } | null;
   notice: string;
+  figure: string;
   requiredMinutes: number | null;
   careMinutes: number | null;
   oneToOneMinutes: number | null;
@@ -103,6 +105,8 @@ interface Requirement {
   warnings: { code: string; personIds: string[] }[];
   method: string[];
   skillMix: { skill: string; minimumStaff: number }[];
+  awayMinutes: number | null;
+  people: { personId: string; presence: string; standing: string }[];
 }
 
 const requirement = async (who: string, location: string, query: string) =>
@@ -363,6 +367,10 @@ describe("hazard HZ-123 required care hours for a location and shift", () => {
     expect(day.careMinutes).toBe(120);
     expect(day.requiredMinutes).toBe(120);
     expect(day.complete).toBe(false);
+    expect(day.figure).toBe("at_least");
+    expect(day.method).toContain(
+      "Required care hours = 2 hours by category + 0 hours one-to-one = at least 2 hours.",
+    );
     expect(day.warnings.find((w) => w.code === "not_assessed")?.personIds).toHaveLength(4);
     expect(day.method.at(-1)).toContain("may be higher than shown");
     expect(day.skillMix).toEqual([{ skill: "registered_nurse", minimumStaff: 1 }]);
@@ -376,6 +384,85 @@ describe("hazard HZ-123 required care hours for a location and shift", () => {
     const response = await requirement("owner", DEMO.locationId, `date=${tomorrow()}&period=night`);
     const { items } = (await response.json()) as { items: Requirement[] };
     expect(items.map((i) => i.period?.key)).toEqual(["night"]);
+    const unknown = await requirement(
+      "owner",
+      DEMO.locationId,
+      `date=${tomorrow()}&period=twilight`,
+    );
+    expect(unknown.status).toBe(422);
+  });
+
+  const dayOf = async (date: string) => {
+    const response = await requirement("manager", DEMO.locationId, `date=${date}&period=day`);
+    expect(response.status).toBe(200);
+    return ((await response.json()) as { items: Requirement[] }).items[0] as Requirement;
+  };
+
+  it("hazard HZ-123 lists someone in hospital today as away, and on a later date as not known, so the figure is at least", async () => {
+    // The scale was approved during this run, after today's day shift began: date its approval a
+    // month back (the owner sets the guard aside for this test only) so today has a scale.
+    await sql(
+      "ALTER TABLE dependency_scale_version DISABLE TRIGGER dependency_scale_version_guard",
+    );
+    await sql(
+      "UPDATE dependency_scale_version SET approved_at = approved_at - interval '30 days' WHERE state = 'approved'",
+    );
+    await sql("ALTER TABLE dependency_scale_version ENABLE TRIGGER dependency_scale_version_guard");
+    await sql("UPDATE person SET status = 'in_hospital', status_changed_at = now() WHERE id = $1", [
+      ADA,
+    ]);
+    const todays = await dayOf(today());
+    const ada = todays.people.find((p) => p.personId === ADA);
+    expect(ada?.presence).toBe("away");
+    expect(todays.warnings.find((w) => w.code === "people_away")?.personIds).toEqual([ADA]);
+    const later = await dayOf(inDays(7));
+    expect(later.people.find((p) => p.personId === ADA)?.presence).toBe("away_return_unknown");
+    expect(later.complete).toBe(false);
+    expect(later.figure).toBe("at_least");
+    expect(later.warnings.find((w) => w.code === "away_return_unknown")?.personIds).toEqual([ADA]);
+    await sql(
+      "UPDATE person SET status = 'active', status_changed_at = now() - interval '60 days' WHERE id = $1",
+      [ADA],
+    );
+  });
+
+  it("hazard HZ-123 counts a planned admission from its date and leaves an undated one out with a warning", async () => {
+    const planned = "0194d000-0000-7000-8600-0000000000a1";
+    const undated = "0194d000-0000-7000-8600-0000000000a2";
+    const arrival = inDays(3);
+    await sql(
+      `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+       VALUES ($1, $3, 'pre_admission', 'Ivy', 'Planned', '9990000093'),
+              ($2, $3, 'pre_admission', 'Jay', 'Undated', '9990000107')`,
+      [planned, undated, DEMO.locationId],
+    );
+    const [assessment] = await sql<{ id: string }>(
+      "INSERT INTO pre_admission_assessment (person_id) VALUES ($1) RETURNING id",
+      [planned],
+    );
+    await sql(
+      `INSERT INTO admission_decision (person_id, assessment_id, can_meet_needs, reasons,
+         planned_admission_on, decided_by, decided_at)
+       VALUES ($1, $2, 'yes', 'Needs can be met', $3, $4, now())`,
+      [planned, assessment?.id, arrival, DEMO.users.manager.id],
+    );
+    expect((await record({ categoryKey: "high" }, "manager", planned)).status).toBe(201);
+
+    const before = await dayOf(inDays(2));
+    expect(before.people.find((p) => p.personId === planned)?.presence).toBe("not_yet_admitted");
+    expect(before.warnings.find((w) => w.code === "admission_date_unknown")?.personIds).toEqual([
+      undated,
+    ]);
+    expect(before.complete).toBe(false);
+
+    const onArrival = await dayOf(arrival);
+    expect(onArrival.people.find((p) => p.personId === planned)?.presence).toBe(
+      "planned_admission",
+    );
+    expect(onArrival.warnings.find((w) => w.code === "planned_admission")?.personIds).toEqual([
+      planned,
+    ]);
+    expect((onArrival.careMinutes ?? 0) - (before.careMinutes ?? 0)).toBe(180);
   });
 
   it("refuses a scope that does not cover the whole location, and a care worker", async () => {

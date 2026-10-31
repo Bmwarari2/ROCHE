@@ -29533,6 +29533,8 @@ export interface components {
         approvedAt: string | null;
       } | null;
       notice: string;
+      /** @enum {string} */
+      figure: "exact" | "at_least" | "none";
       careMinutes: number | null;
       oneToOneMinutes: number | null;
       requiredMinutes: number | null;
@@ -29552,7 +29554,15 @@ export interface components {
       people: {
         /** Format: uuid */
         personId: string;
-        present: boolean;
+        /** @enum {string} */
+        presence:
+          | "present"
+          | "planned_admission"
+          | "away"
+          | "away_return_unknown"
+          | "admission_date_unknown"
+          | "not_yet_admitted"
+          | "unknown";
         /** @enum {string} */
         standing: "assessed" | "not_assessed" | "other_scale" | "not_in_scale_version";
         /** Format: uuid */
@@ -29561,7 +29571,7 @@ export interface components {
         categoryLabel: string | null;
         careMinutes: number;
         oneToOneMinutes: number;
-        flags: ("earlier_version" | "review_overdue")[];
+        flags: ("earlier_version" | "later_version" | "review_overdue")[];
       }[];
       skillMix: {
         skill: components["schemas"]["StaffingSkill"];

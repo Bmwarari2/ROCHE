@@ -220,8 +220,14 @@ export const StaffingRequirementItem = z
       })
       .nullable(),
     notice: z.string(),
+    /**
+     * `exact` when everyone who may be at the location is counted; `at_least` when someone is
+     * left out, so the hours may be higher; `none` when nobody is counted (no figure).
+     */
+    figure: z.enum(["exact", "at_least", "none"]),
     careMinutes: z.number().nullable(),
     oneToOneMinutes: z.number().nullable(),
+    /** A lower bound when `figure` is `at_least`; null when `none` or with no scale. */
     requiredMinutes: z.number().nullable(),
     /** What people on leave or in hospital would add; not in `requiredMinutes`. */
     awayMinutes: z.number().nullable(),
@@ -238,14 +244,23 @@ export const StaffingRequirementItem = z
     people: z.array(
       z.object({
         personId: uuid,
-        present: z.boolean(),
+        /** Where the person is on the date asked, from their record (rule 9). */
+        presence: z.enum([
+          "present",
+          "planned_admission",
+          "away",
+          "away_return_unknown",
+          "admission_date_unknown",
+          "not_yet_admitted",
+          "unknown",
+        ]),
         standing: z.enum(["assessed", "not_assessed", "other_scale", "not_in_scale_version"]),
         recordId: uuid.nullable(),
         categoryKey: z.string().nullable(),
         categoryLabel: z.string().nullable(),
         careMinutes: z.number(),
         oneToOneMinutes: z.number(),
-        flags: z.array(z.enum(["earlier_version", "review_overdue"])),
+        flags: z.array(z.enum(["earlier_version", "later_version", "review_overdue"])),
       }),
     ),
     skillMix: z.array(z.object({ skill: StaffingSkill, minimumStaff: z.number().int() })),

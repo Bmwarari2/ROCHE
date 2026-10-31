@@ -17,7 +17,9 @@ import {
   formatCareMinutes,
   type NewDependencyRecord,
   type PeriodRequirement,
+  type PersonPresence,
   periodWindows,
+  presenceOn,
   type RequirementPerson,
   SCALE_PROBLEM_MESSAGES,
   type ScaleProblem,
@@ -306,6 +308,42 @@ describe("rules 2 to 5: versions, approval and the version in force", () => {
     expect(scaleVersionInForce([draft], new Date("2026-12-01T00:00:00Z"))).toBeNull();
   });
 
+  it("hazard HZ-123 starts a version that moves the shift periods from the next UK day, so no day has a gap or an overlap", () => {
+    const moved = version({
+      id: "v2",
+      versionNumber: 2,
+      approvedAt: new Date("2026-11-02T12:00:00Z"),
+      definition: {
+        ...DEFINITION,
+        periods: [
+          { key: "day", label: "Day", startMinute: 420 },
+          { key: "night", label: "Night", startMinute: 1140 },
+        ],
+      },
+    });
+    const sameShifts = version({
+      id: "v3",
+      versionNumber: 3,
+      approvedAt: new Date("2026-11-04T12:00:00Z"),
+      definition: { ...moved.definition, reviewIntervalDays: 28 },
+    });
+    const versions = [version({ state: "superseded" }), moved, sameShifts];
+    expect(scaleVersionInForce(versions, new Date("2026-11-02T23:59:00Z"))?.id).toBe("v1");
+    expect(scaleVersionInForce(versions, new Date("2026-11-03T00:00:00Z"))?.id).toBe("v2");
+    expect(scaleVersionInForce(versions, new Date("2026-11-04T12:00:00Z"))?.id).toBe("v3");
+    const [day, night] = staffingRequirement({
+      locationId: LOCATION,
+      date: "2026-11-02",
+      scale: { scaleId: SCALE, name: "North", versions },
+      people: [],
+    });
+    expect([day?.period?.start.toISOString(), night?.period?.start.toISOString()]).toEqual([
+      "2026-11-02T08:00:00.000Z",
+      "2026-11-02T20:00:00.000Z",
+    ]);
+    expect(day?.period?.end).toEqual(night?.period?.start);
+  });
+
   it("uses a location's own scale, otherwise the organisation's", () => {
     const own = { id: "own", locationId: LOCATION };
     const wide = { id: "wide", locationId: null };
@@ -328,7 +366,7 @@ describe("rule 8: shift periods in UK wall-clock time", () => {
     ["the night the clocks go back", "2026-10-24", 780, "2026-10-24T19:00:00.000Z"],
     ["the night the clocks go forward", "2026-03-28", 660, "2026-03-28T20:00:00.000Z"],
     ["a summer night", "2026-07-01", 720, "2026-07-01T19:00:00.000Z"],
-  ])("measures %s in elapsed time", (_, date, minutes, start) => {
+  ])("hazard HZ-123 measures %s in elapsed time", (_, date, minutes, start) => {
     const night = periodWindows(DEFINITION.periods, date)[1];
     expect(night?.minutes).toBe(minutes);
     expect(night?.start.toISOString()).toBe(start);
@@ -462,16 +500,86 @@ describe("rules 6 and 7: a person's category as an append-only chain", () => {
   });
 });
 
+describe("rule 9: who is at the location on a date", () => {
+  const today = "2026-11-02";
+  it.each([
+    ["living there", "active", "2026-09-01", null, today, "present"],
+    ["living there, on a later date", "active", "2026-09-01", null, "2026-11-09", "present"],
+    ["before they were admitted", "active", "2026-09-01", null, "2026-08-31", "unknown"],
+    ["in hospital today", "in_hospital", "2026-11-01", null, today, "away"],
+    [
+      "in hospital, asked about next week",
+      "in_hospital",
+      "2026-11-01",
+      null,
+      "2026-11-09",
+      "away_return_unknown",
+    ],
+    [
+      "on leave, asked about before the leave",
+      "on_leave",
+      "2026-11-01",
+      null,
+      "2026-10-31",
+      "unknown",
+    ],
+    [
+      "a planned admission on Monday, asked about Monday",
+      "pre_admission",
+      null,
+      "2026-11-09",
+      "2026-11-09",
+      "planned_admission",
+    ],
+    [
+      "a planned admission on Monday, asked about Sunday",
+      "pre_admission",
+      null,
+      "2026-11-09",
+      "2026-11-08",
+      "not_yet_admitted",
+    ],
+    [
+      "an admission overdue but not yet made",
+      "pre_admission",
+      null,
+      "2026-10-30",
+      today,
+      "planned_admission",
+    ],
+    [
+      "being admitted with no date, asked about tomorrow",
+      "pre_admission",
+      null,
+      null,
+      "2026-11-03",
+      "admission_date_unknown",
+    ],
+    [
+      "being admitted with no date, asked about last week",
+      "pre_admission",
+      null,
+      null,
+      "2026-10-26",
+      "not_yet_admitted",
+    ],
+  ] as const)("hazard HZ-123 a person %s", (_, status, since, planned, date, expected) => {
+    expect(
+      presenceOn({ status, statusSince: since, plannedAdmissionOn: planned }, date, today),
+    ).toBe(expected);
+  });
+});
+
 describe("rules 9, 10 and 12: required care hours for a location and shift", () => {
   const date = "2026-11-02";
   const scale = { scaleId: SCALE, name: "North House dependency scale", versions: [version()] };
   const person = (
     id: string,
     over: Partial<DependencyRecord> | null,
-    present = true,
+    presence: PersonPresence = "present",
   ): RequirementPerson => ({
     personId: id,
-    present,
+    presence,
     records: over === null ? [] : [record({ id: `rec-${id}`, personId: id, ...over })],
   });
   const people = [
@@ -486,10 +594,12 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
 
   it("hazard HZ-123 adds up the organisation's figures for each period, with the method shown", () => {
     const day = computed(run(), "day");
+    expect(day.figure).toBe("exact");
     expect(day.careMinutes).toBe(60 + 180 + 180);
     expect(day.oneToOneMinutes).toBe(240);
     expect(day.requiredMinutes).toBe(660);
     expect(day.complete).toBe(true);
+    expect(day.warnings).toEqual([]);
     expect(day.categories).toEqual([
       { key: "low", label: "Low", minutesEach: 60, people: 1, minutes: 60 },
       { key: "high", label: "High", minutesEach: 180, people: 2, minutes: 360 },
@@ -524,10 +634,7 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
         approvedAt: new Date("2026-10-01T09:00:00Z"),
       });
       expect(computedResult.method[0]).toContain("your organisation's own scale");
-      const keys = JSON.stringify(Object.keys(computedResult)).toLowerCase();
-      for (const word of ["score", "risk", "safe", "acuity", "recommend"]) {
-        expect(keys).not.toContain(word);
-      }
+      expectNoScore(computedResult);
     }
     expect(DEPENDENCY_TOOL_NOTICE).toContain("does not assess anyone's needs");
   });
@@ -553,7 +660,7 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
     expect(results[0]?.period?.key).toBe("day");
   });
 
-  it("takes the version in force at each period's start when one is approved during the day", () => {
+  it("hazard HZ-123 takes the version in force at each period's start when one is approved during the day", () => {
     const v2 = version({
       id: "v2",
       versionNumber: 2,
@@ -579,15 +686,26 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
     expect(night.source.versionNumber).toBe(2);
     expect(night.categories.find((c) => c.key === "low")?.minutesEach).toBe(30);
     expect(night.warnings.map((w) => w.code)).toContain("earlier_version");
+    // A category recorded on version 2, read for the day period still on version 1.
+    const laterDay = computed(
+      run({
+        scale: { ...scale, versions: [version({ state: "superseded" }), v2] },
+        people: [person("ada", { scaleVersionId: "v2" })],
+      }),
+      "day",
+    );
+    expect(laterDay.people[0]?.flags).toEqual(["later_version"]);
+    expect(laterDay.warnings.map((w) => w.code)).toEqual(["later_version"]);
   });
 
-  it("returns one period when asked", () => {
+  it("returns one period when asked, and nothing for a period the scale lacks", () => {
     expect(run({ periodKey: "night" }).map((r) => r.period?.key)).toEqual(["night"]);
-    expect(run({ periodKey: "twilight" })[0]?.status).toBe("no_scale");
+    expect(run({ periodKey: "twilight" })).toEqual([]);
   });
 
-  it("hazard HZ-123 never counts an uncategorised person as needing nothing: the result is incomplete and names them", () => {
+  it("hazard HZ-123 never counts an uncategorised person as needing nothing: the figure is at least, and names them", () => {
     const day = computed(run({ people: [...people, person("dev", null)] }), "day");
+    expect(day.figure).toBe("at_least");
     expect(day.requiredMinutes).toBe(660);
     expect(day.complete).toBe(false);
     expect(day.warnings).toContainEqual({
@@ -596,9 +714,32 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
         "1 person is not counted: no dependency category is in force. Record their category.",
       personIds: ["dev"],
     });
-    expect(day.method.at(-1)).toBe(
-      "Not counted: 1 person with no usable category, so the required care hours may be higher than shown.",
+    expect(day.method).toContain(
+      "Required care hours = 7 hours by category + 4 hours one-to-one = at least 11 hours.",
     );
+    expect(day.method.at(-1)).toBe(
+      "Not counted: 1 person with no usable category or not known to be at the location, so the required care hours may be higher than shown.",
+    );
+  });
+
+  it("hazard HZ-123 gives no figure when nobody is counted and people are left out (just after the first approval)", () => {
+    const day = computed(run({ people: [person("ada", null), person("ben", null)] }), "day");
+    expect(day).toMatchObject({
+      figure: "none",
+      requiredMinutes: null,
+      careMinutes: null,
+      oneToOneMinutes: null,
+      complete: false,
+    });
+    expect(day.method).toContain(
+      "No required care hours can be shown: nobody at the location is counted, and 2 people are left out (see the warnings).",
+    );
+    expect(day.method.join(" ")).not.toContain("= 0 hours");
+  });
+
+  it("gives an exact 0 for a location with nobody living there", () => {
+    const day = computed(run({ people: [] }), "day");
+    expect(day).toMatchObject({ figure: "exact", requiredMinutes: 0, complete: true });
   });
 
   it.each([
@@ -611,10 +752,10 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
     ],
     ["whose category starts after the period", { effectiveFrom: "2026-11-03" }, "not_assessed"],
   ] as const)("hazard HZ-123 leaves out and names a person %s", (_, over, code) => {
-    const day = computed(run({ people: [person("dev", over)] }), "day");
+    const day = computed(run({ people: [...people, person("dev", over)] }), "day");
     expect(day.complete).toBe(false);
-    expect(day.requiredMinutes).toBe(0);
-    expect(day.people[0]?.standing).toBe(code);
+    expect(day.figure).toBe("at_least");
+    expect(day.people.at(-1)?.standing).toBe(code);
     expect(day.warnings.map((w) => w.code)).toEqual([code]);
   });
 
@@ -623,8 +764,8 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
       run({
         people: [
           ...people,
-          person("eve", { categoryKey: "high" }, false),
-          person("fay", null, false),
+          person("eve", { categoryKey: "high" }, "away"),
+          person("fay", null, "away"),
         ],
       }),
       "day",
@@ -632,15 +773,52 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
     expect(day.requiredMinutes).toBe(660);
     expect(day.awayMinutes).toBe(180);
     expect(day.complete).toBe(true);
-    expect(day.warnings.find((w) => w.code === "people_away")).toEqual({
-      code: "people_away",
-      message: "1 person on leave or in hospital is not counted. They would add 3 hours.",
-      personIds: ["eve"],
-    });
-    expect(day.warnings.find((w) => w.code === "not_assessed")?.personIds).toEqual(["fay"]);
+    expect(day.figure).toBe("exact");
+    expect(day.warnings).toEqual([
+      {
+        code: "people_away",
+        message: "1 person on leave or in hospital is not counted. They would add 3 hours.",
+        personIds: ["eve"],
+      },
+    ]);
     expect(day.method).toContain(
       "Not counted: 1 person on leave or in hospital, who would add 3 hours.",
     );
+  });
+
+  it.each([
+    ["away today with no return date", "away_return_unknown", "away_return_unknown"],
+    ["being admitted with no planned date", "admission_date_unknown", "admission_date_unknown"],
+    ["the record cannot place on the date", "unknown", "presence_unknown"],
+  ] as const)(
+    "hazard HZ-123 never treats a person %s as absent: the figure is at least",
+    (_, presence, code) => {
+      const day = computed(
+        run({ people: [...people, person("gus", { categoryKey: "high" }, presence)] }),
+        "day",
+      );
+      expect(day.complete).toBe(false);
+      expect(day.figure).toBe("at_least");
+      expect(day.requiredMinutes).toBe(660);
+      expect(day.warnings.map((w) => w.code)).toContain(code);
+      expect(day.warnings.find((w) => w.code === code)?.personIds).toEqual(["gus"]);
+    },
+  );
+
+  it("hazard HZ-123 counts a planned admission from its date, and says so", () => {
+    const day = computed(
+      run({ people: [...people, person("hal", { categoryKey: "low" }, "planned_admission")] }),
+      "day",
+    );
+    expect(day.requiredMinutes).toBe(720);
+    expect(day.complete).toBe(true);
+    expect(day.warnings.map((w) => w.code)).toEqual(["planned_admission"]);
+    const before = computed(
+      run({ people: [...people, person("hal", { categoryKey: "low" }, "not_yet_admitted")] }),
+      "day",
+    );
+    expect(before.requiredMinutes).toBe(660);
+    expect(before.warnings).toEqual([]);
   });
 
   it("hazard HZ-123 counts but flags a category older than the review interval", () => {
@@ -673,27 +851,65 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
     );
     expect(day.people[0]?.flags).toEqual([]);
   });
+
+  it.each([
+    ["back", "2026-10-24", "extra", "13 hours", "12 hours"],
+    ["forward", "2026-03-28", "lost", "11 hours", "12 hours"],
+  ])(
+    "hazard HZ-123 says the care minutes are not adjusted on the night the clocks go %s",
+    (_, night, word, length, usual) => {
+      const result = computed(
+        staffingRequirement({
+          locationId: LOCATION,
+          date: night,
+          scale: {
+            ...scale,
+            versions: [version({ approvedAt: new Date("2026-01-01T00:00:00Z") })],
+          },
+          people: [person("ada", { effectiveFrom: "2026-01-01" })],
+        }),
+        "night",
+      );
+      expect(result.requiredMinutes).toBe(20);
+      expect(result.method).toContain(
+        `Care minutes are as your scale sets them for this period; they are not adjusted for the ${word} hour of the clock change.`,
+      );
+      expect(result.warnings.find((w) => w.code === "clock_change")?.message).toBe(
+        `The clocks change during this period, so it lasts ${length} instead of ${usual}. Your scale's care minutes are not adjusted for this.`,
+      );
+    },
+  );
 });
+
+/** No field of a result names a score, a risk level or a judgement of safe staffing (rule 12). */
+function expectNoScore(result: object) {
+  const keys = JSON.stringify(Object.keys(result)).toLowerCase();
+  for (const word of ["score", "risk", "safe", "acuity", "recommend"]) {
+    expect(keys).not.toContain(word);
+  }
+}
 
 describe("rule 11: comparison inputs for the rota", () => {
   const scale = { scaleId: SCALE, name: "North House", versions: [version()] };
-  const people: RequirementPerson[] = [
-    { personId: "ada", present: true, records: [record({ categoryKey: "high" })] },
-  ];
-  const [day] = staffingRequirement({
-    locationId: LOCATION,
-    date: "2026-11-02",
-    periodKey: "day",
-    scale,
-    people,
-  });
-  const incomplete = staffingRequirement({
-    locationId: LOCATION,
-    date: "2026-11-02",
-    periodKey: "day",
-    scale,
-    people: [...people, { personId: "ben", present: true, records: [] }],
-  })[0] as StaffingRequirement;
+  const ada: RequirementPerson = {
+    personId: "ada",
+    presence: "present",
+    records: [record({ categoryKey: "high" })],
+  };
+  const requirementFor = (people: RequirementPerson[]) =>
+    staffingRequirement({
+      locationId: LOCATION,
+      date: "2026-11-02",
+      periodKey: "day",
+      scale,
+      people,
+    })[0] as StaffingRequirement;
+  const day = requirementFor([ada]);
+  const incomplete = requirementFor([ada, { personId: "ben", presence: "present", records: [] }]);
+  const nobody = requirementFor([{ personId: "ben", presence: "present", records: [] }]);
+  const overdue = requirementFor([
+    { ...ada, records: [record({ categoryKey: "high", effectiveFrom: "2026-01-01" })] },
+  ]);
 
   it.each([
     ["enough hours and a nurse", day, 180, 1, "met"],
@@ -702,21 +918,39 @@ describe("rule 11: comparison inputs for the rota", () => {
     ["no nurse", day, 600, 0, "below"],
     ["enough for those counted, but someone is not counted", incomplete, 600, 1, "incomplete"],
     ["short and incomplete", incomplete, 60, 1, "below"],
+    ["nobody counted, so nothing to compare", nobody, 600, 1, "incomplete"],
+    ["enough, but every category is overdue for review", overdue, 600, 1, "met_with_warnings"],
   ] as const)("hazard HZ-123 %s", (_, requirement, minutes, nurses, status) => {
-    const result = compareStaffing(requirement as StaffingRequirement, {
+    const result = compareStaffing(requirement, {
       careMinutes: minutes,
       staffWithSkill: { registered_nurse: nurses },
     });
     expect(result.status).toBe(status);
     expect(result.word).toBe(STAFFING_STATUS_WORDS[status]);
     expect(result.notice).toBe(DEPENDENCY_TOOL_NOTICE);
+    expectNoScore(result);
+  });
+
+  it("hazard HZ-123 carries every warning on the requirement into the comparison", () => {
+    const result = compareStaffing(overdue, {
+      careMinutes: 600,
+      staffWithSkill: { registered_nurse: 1 },
+    });
+    expect(result.word).toBe(
+      "Meets the hours and staff your scale requires, but read the warnings",
+    );
+    expect(result.warnings).toEqual([
+      "1 person has a category older than your review interval of 30 days. Review them.",
+    ]);
+    const none = compareStaffing(nobody, { careMinutes: 600, staffWithSkill: {} });
+    expect(none).toMatchObject({ requiredMinutes: null, shortMinutes: null, figure: "none" });
+    expect(none.warnings.at(-1)).toBe(
+      "Nobody at the location is counted, so the rota cannot be compared with your scale.",
+    );
   });
 
   it("hazard HZ-123 says by how much and which skill is short, in words", () => {
-    const result = compareStaffing(day as StaffingRequirement, {
-      careMinutes: 120,
-      staffWithSkill: {},
-    });
+    const result = compareStaffing(day, { careMinutes: 120, staffWithSkill: {} });
     expect(result.shortMinutes).toBe(60);
     expect(result.skills).toEqual([
       {
@@ -733,6 +967,13 @@ describe("rule 11: comparison inputs for the rota", () => {
     ]);
     expect(result.method.at(-1)).toBe("Rota: 2 hours of care on Day.");
     expect(result.source?.kind).toBe("organisation_scale");
+    const short = compareStaffing(incomplete, {
+      careMinutes: 60,
+      staffWithSkill: { registered_nurse: 1 },
+    });
+    expect(short.warnings).toContain(
+      "The rota gives 1 hour of care on Day; your scale requires at least 3 hours, at least 2 hours short.",
+    );
   });
 
   it("hazard HZ-123 is never met without a scale", () => {
@@ -740,13 +981,18 @@ describe("rule 11: comparison inputs for the rota", () => {
       locationId: LOCATION,
       date: "2026-11-02",
       scale: null,
-      people,
+      people: [ada],
     });
     const result = compareStaffing(none as StaffingRequirement, {
       careMinutes: 9999,
       staffWithSkill: {},
     });
-    expect(result).toMatchObject({ status: "no_scale", requiredMinutes: null, source: null });
+    expect(result).toMatchObject({
+      status: "no_scale",
+      requiredMinutes: null,
+      shortMinutes: null,
+      source: null,
+    });
     expect(result.warnings[0]).toContain("No dependency scale is in force");
   });
 });

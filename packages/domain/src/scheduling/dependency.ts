@@ -56,13 +56,20 @@ export type DependencyAssessmentKind = (typeof DEPENDENCY_ASSESSMENT_KINDS)[numb
 export const DEPENDENCY_TOOL_NOTICE =
   "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing.";
 
-export const STAFFING_STATUSES = ["below", "incomplete", "met", "no_scale"] as const;
+export const STAFFING_STATUSES = [
+  "below",
+  "incomplete",
+  "met_with_warnings",
+  "met",
+  "no_scale",
+] as const;
 export type StaffingStatus = (typeof STAFFING_STATUSES)[number];
 
 /** The word shown beside each status's icon (status never by colour alone). */
 export const STAFFING_STATUS_WORDS: Readonly<Record<StaffingStatus, string>> = {
   below: "Fewer hours or staff than your scale requires",
   incomplete: "Not complete: some people are not counted",
+  met_with_warnings: "Meets the hours and staff your scale requires, but read the warnings",
   met: "Meets the hours and staff your scale requires",
   no_scale: "No dependency scale in force",
 };
@@ -287,18 +294,55 @@ export function checkScaleApproval(
   return problems;
 }
 
-/** The version approved latest at or before an instant, or null before the first (rule 3). */
+const samePeriods = (a: DependencyScaleDefinition, b: DependencyScaleDefinition) =>
+  a.periods.length === b.periods.length &&
+  a.periods.every(
+    (p, i) => p.key === b.periods[i]?.key && p.startMinute === b.periods[i]?.startMinute,
+  );
+
+/**
+ * When each approved version applies from (rule 3): the instant it was approved, unless it moves
+ * the shift periods of the version then in force, when it applies from 00:00 UK time the next day,
+ * so one day's periods never come from two versions (no gap, no overlap). A version superseded
+ * before it applied never applies.
+ */
+export function scaleVersionsEffective(
+  versions: readonly ScaleVersionRecord[],
+): { readonly version: ScaleVersionRecord; readonly from: Date }[] {
+  const approved = versions
+    .filter(
+      (v): v is ScaleVersionRecord & { approvedAt: Date } =>
+        (v.state === "approved" || v.state === "superseded") && v.approvedAt !== null,
+    )
+    .sort((a, b) => a.approvedAt.getTime() - b.approvedAt.getTime());
+  const out: { version: ScaleVersionRecord; from: Date }[] = [];
+  for (const version of approved) {
+    const before = inForceAmong(out, version.approvedAt);
+    const from =
+      before && !samePeriods(before.definition, version.definition)
+        ? ukStartOfDay(plusDays(ukDateOf(version.approvedAt), 1))
+        : version.approvedAt;
+    const previous = out.at(-1);
+    out.push({ version, from: previous && previous.from > from ? previous.from : from });
+  }
+  return out;
+}
+
+function inForceAmong(
+  effective: readonly { version: ScaleVersionRecord; from: Date }[],
+  at: Date,
+): ScaleVersionRecord | null {
+  let found: { version: ScaleVersionRecord; from: Date } | null = null;
+  for (const e of effective) if (e.from <= at && (!found || e.from >= found.from)) found = e;
+  return found?.version ?? null;
+}
+
+/** The version that applies at an instant, or null before the first applies (rule 3). */
 export function scaleVersionInForce(
   versions: readonly ScaleVersionRecord[],
   at: Date,
 ): ScaleVersionRecord | null {
-  let found: ScaleVersionRecord | null = null;
-  for (const version of versions) {
-    if (version.state !== "approved" && version.state !== "superseded") continue;
-    if (!version.approvedAt || version.approvedAt > at) continue;
-    if (!found?.approvedAt || version.approvedAt > found.approvedAt) found = version;
-  }
-  return found;
+  return inForceAmong(scaleVersionsEffective(versions), at);
 }
 
 export interface LiveScale {
@@ -512,13 +556,65 @@ export function checkDependencyRecord(
 }
 
 // ---------------------------------------------------------------------------------------------
-// Rules 9, 10 and 12: required care hours for a location and shift
+// Rules 9, 10 and 12: who is at the location on a date, and required care hours per shift
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * Where a person is on the date asked, as far as their record shows (rule 9):
+ * - `present`: living at the location (counted);
+ * - `planned_admission`: not yet admitted, with a planned admission on or before the date
+ *   (counted, and said);
+ * - `away`: on leave or in hospital on that date, today or earlier (listed, not counted);
+ * - `away_return_unknown`: on leave or in hospital today, asked about a later date with no return
+ *   date recorded (not counted; the figure may be low, so it is incomplete);
+ * - `admission_date_unknown`: being admitted with no planned date, asked about today or later
+ *   (not counted; incomplete);
+ * - `not_yet_admitted`: a planned admission after the date, or the date has passed (not counted,
+ *   nothing to say);
+ * - `unknown`: a date before the person's current status began, which the record cannot place
+ *   (not counted; incomplete).
+ */
+export type PersonPresence =
+  | "present"
+  | "planned_admission"
+  | "away"
+  | "away_return_unknown"
+  | "admission_date_unknown"
+  | "not_yet_admitted"
+  | "unknown";
+
+export interface PresenceFacts {
+  readonly status: "active" | "on_leave" | "in_hospital" | "pre_admission";
+  /** The UK date the current status began, when known. */
+  readonly statusSince: string | null;
+  /** The planned admission date of a person being admitted (the decision in force), or null. */
+  readonly plannedAdmissionOn: string | null;
+}
+
+/** Where a person is on a UK date (rule 9), from their status today and planned admission. */
+export function presenceOn(facts: PresenceFacts, date: string, today: string): PersonPresence {
+  if (facts.status === "pre_admission") {
+    if (facts.plannedAdmissionOn !== null) {
+      return date >= facts.plannedAdmissionOn ? "planned_admission" : "not_yet_admitted";
+    }
+    return date >= today ? "admission_date_unknown" : "not_yet_admitted";
+  }
+  if (facts.statusSince !== null && date < facts.statusSince) return "unknown";
+  if (facts.status === "active") return "present";
+  return date <= today ? "away" : "away_return_unknown";
+}
+
+const COUNTED: readonly PersonPresence[] = ["present", "planned_admission"];
+const UNCERTAIN: readonly PersonPresence[] = [
+  "away_return_unknown",
+  "admission_date_unknown",
+  "unknown",
+];
 
 export interface RequirementPerson {
   readonly personId: string;
-  /** False when on leave or in hospital: listed, not counted (rule 10). */
-  readonly present: boolean;
+  /** Where the person is on the date asked (`presenceOn`). */
+  readonly presence: PersonPresence;
   readonly records: readonly DependencyRecord[];
 }
 
@@ -540,11 +636,11 @@ export interface RequirementInput {
 
 /** Whether a person's record could be used on the period. */
 export type PersonStanding = "assessed" | "not_assessed" | "other_scale" | "not_in_scale_version";
-export type PersonFlag = "earlier_version" | "review_overdue";
+export type PersonFlag = "earlier_version" | "later_version" | "review_overdue";
 
 export interface RequirementPersonLine {
   readonly personId: string;
-  readonly present: boolean;
+  readonly presence: PersonPresence;
   readonly standing: PersonStanding;
   readonly recordId: string | null;
   readonly categoryKey: string | null;
@@ -558,7 +654,7 @@ export interface CategoryLine {
   readonly key: string;
   readonly label: string;
   readonly minutesEach: number;
-  /** Present people counted in this category. */
+  /** People counted in this category. */
   readonly people: number;
   readonly minutes: number;
 }
@@ -569,8 +665,14 @@ export type RequirementWarningCode =
   | "other_scale"
   | "not_in_scale_version"
   | "earlier_version"
+  | "later_version"
   | "review_overdue"
-  | "people_away";
+  | "people_away"
+  | "away_return_unknown"
+  | "planned_admission"
+  | "admission_date_unknown"
+  | "presence_unknown"
+  | "clock_change";
 
 export interface RequirementWarning {
   readonly code: RequirementWarningCode;
@@ -589,6 +691,13 @@ export interface RequirementSource {
   readonly approvedAt: Date | null;
 }
 
+/**
+ * How far the figure goes (rule 10): `exact` when everyone at the location is counted;
+ * `at_least` when someone is left out, so the hours may be higher; `none` when people are left
+ * out and nobody is counted, so there is no figure at all.
+ */
+export type RequirementFigure = "exact" | "at_least" | "none";
+
 export interface PeriodRequirement {
   readonly status: "computed";
   readonly locationId: string;
@@ -596,18 +705,20 @@ export interface PeriodRequirement {
   readonly period: PeriodWindow;
   readonly source: RequirementSource;
   readonly notice: string;
-  /** Present people's category minutes for the period. */
-  readonly careMinutes: number;
-  /** Present people's one-to-one minutes for the period. */
-  readonly oneToOneMinutes: number;
-  readonly requiredMinutes: number;
-  /** What people on leave or in hospital would add (not in `requiredMinutes`). */
+  readonly figure: RequirementFigure;
+  /** Counted people's category minutes for the period; null when there is no figure. */
+  readonly careMinutes: number | null;
+  /** Counted people's one-to-one minutes for the period; null when there is no figure. */
+  readonly oneToOneMinutes: number | null;
+  /** The required minutes; a lower bound when `figure` is `at_least`; null when `none`. */
+  readonly requiredMinutes: number | null;
+  /** What people away from the location would add (never in `requiredMinutes`). */
   readonly awayMinutes: number;
   readonly categories: readonly CategoryLine[];
   readonly oneToOne: readonly { readonly personId: string; readonly minutes: number }[];
   readonly people: readonly RequirementPersonLine[];
   readonly skillMix: readonly { readonly skill: StaffingSkill; readonly minimumStaff: number }[];
-  /** False when a present person is not counted: the required hours are a lower bound. */
+  /** False when anyone who may be at the location is not counted. */
   readonly complete: boolean;
   readonly warnings: readonly RequirementWarning[];
   readonly method: readonly string[];
@@ -637,6 +748,7 @@ export function formatCareMinutes(total: number): string {
 
 const peopleWord = (n: number) => (n === 1 ? "1 person" : `${n} people`);
 const isAre = (n: number) => (n === 1 ? "is" : "are");
+const hasHave = (n: number) => (n === 1 ? "has" : "have");
 
 const NO_SCALE_WARNING: RequirementWarning = {
   code: "no_scale",
@@ -650,23 +762,18 @@ function periodsOfDate(
   versions: readonly ScaleVersionRecord[],
   date: string,
 ): { window: PeriodWindow; version: ScaleVersionRecord | null }[] {
+  const effective = scaleVersionsEffective(versions);
   const dayStart = ukStartOfDay(date);
   const dayEnd = ukStartOfDay(plusDays(date, 1));
-  const atStart = scaleVersionInForce(versions, dayStart);
-  const during = versions
-    .filter(
-      (v): v is ScaleVersionRecord & { approvedAt: Date } =>
-        (v.state === "approved" || v.state === "superseded") &&
-        v.approvedAt !== null &&
-        v.approvedAt > dayStart &&
-        v.approvedAt < dayEnd,
-    )
-    .sort((a, b) => a.approvedAt.getTime() - b.approvedAt.getTime());
-  const relevant = [...(atStart ? [atStart] : []), ...during];
+  const atStart = inForceAmong(effective, dayStart);
+  const during = effective.filter((e) => e.from > dayStart && e.from < dayEnd);
+  const relevant = [
+    ...(atStart ? [{ version: atStart, from: dayStart }] : []),
+    ...during.map((e) => ({ version: e.version, from: e.from })),
+  ];
   const out: { window: PeriodWindow; version: ScaleVersionRecord | null }[] = [];
-  relevant.forEach((version, i) => {
-    const from = version.approvedAt as Date;
-    const to = relevant[i + 1]?.approvedAt ?? null;
+  relevant.forEach(({ version, from }, i) => {
+    const to = relevant[i + 1]?.from ?? null;
     for (const window of periodWindows(version.definition.periods, date)) {
       if (window.start >= from && (to === null || window.start < to)) {
         out.push({ window, version });
@@ -679,15 +786,23 @@ function periodsOfDate(
   return out.sort((a, b) => a.window.start.getTime() - b.window.start.getTime());
 }
 
+/** A period's ordinary length from its own start and the next one's, in minutes. */
+function ordinaryMinutes(periods: readonly DependencyPeriod[], key: string): number {
+  const i = periods.findIndex((p) => p.key === key);
+  const start = periods[i]?.startMinute ?? 0;
+  const next = periods[i + 1]?.startMinute ?? (periods[0]?.startMinute ?? 0) + MINUTES_PER_DAY;
+  return next - start;
+}
+
 function personLine(
   person: RequirementPerson,
-  scaleId: string,
+  scale: ScaleWithVersions,
   version: ScaleVersionRecord,
   window: PeriodWindow,
 ): RequirementPersonLine {
   const empty = {
     personId: person.personId,
-    present: person.present,
+    presence: person.presence,
     careMinutes: 0,
     oneToOneMinutes: 0,
     flags: [] as PersonFlag[],
@@ -703,7 +818,7 @@ function personLine(
     };
   }
   const known = { recordId: record.id, categoryKey: record.categoryKey };
-  if (record.scaleId !== scaleId) {
+  if (record.scaleId !== scale.scaleId) {
     return { ...empty, ...known, standing: "other_scale", categoryLabel: null };
   }
   const definition = version.definition;
@@ -713,7 +828,14 @@ function personLine(
     return { ...empty, ...known, standing: "not_in_scale_version", categoryLabel: null };
   }
   const flags: PersonFlag[] = [];
-  if (record.scaleVersionId !== version.id) flags.push("earlier_version");
+  if (record.scaleVersionId !== version.id) {
+    const recordedOn = scale.versions.find((v) => v.id === record.scaleVersionId);
+    flags.push(
+      recordedOn && recordedOn.versionNumber > version.versionNumber
+        ? "later_version"
+        : "earlier_version",
+    );
+  }
   const interval = definition.reviewIntervalDays;
   if (interval !== null && daysFrom(record.effectiveFrom, ukDateOf(window.start)) > interval) {
     flags.push("review_overdue");
@@ -737,10 +859,18 @@ function periodRequirement(
   version: ScaleVersionRecord,
   window: PeriodWindow,
 ): PeriodRequirement {
-  const people = input.people.map((p) => personLine(p, scale.scaleId, version, window));
-  const counted = people.filter((p) => p.present && p.standing === "assessed");
-  const away = people.filter((p) => !p.present && p.standing === "assessed");
-  const notCounted = people.filter((p) => p.present && p.standing !== "assessed");
+  const people = input.people.map((p) => personLine(p, scale, version, window));
+  const counts = (p: RequirementPersonLine) => COUNTED.includes(p.presence);
+  const counted = people.filter((p) => counts(p) && p.standing === "assessed");
+  const unusable = people.filter((p) => counts(p) && p.standing !== "assessed");
+  const away = people.filter(
+    (p) =>
+      (p.presence === "away" || p.presence === "away_return_unknown") && p.standing === "assessed",
+  );
+  const uncertain = people.filter((p) => UNCERTAIN.includes(p.presence));
+  const leftOut = unusable.length + uncertain.length;
+  const figure: RequirementFigure =
+    leftOut === 0 ? "exact" : counted.length > 0 ? "at_least" : "none";
 
   const categories: CategoryLine[] = version.definition.categories.map((c) => {
     const minutesEach = c.careMinutes.find((e) => e.periodKey === window.key)?.minutes ?? 0;
@@ -761,25 +891,51 @@ function periodRequirement(
       warnings.push({ code, message, personIds: lines.map((l) => l.personId) });
     }
   };
-  const standing = (s: PersonStanding) => people.filter((p) => p.standing === s);
   const n = (lines: RequirementPersonLine[]) => lines.length;
-  const notAssessed = standing("not_assessed");
+  const among = (lines: RequirementPersonLine[], s: PersonStanding) =>
+    lines.filter((p) => p.standing === s);
+  const notAssessed = among(unusable, "not_assessed");
   warn(
     "not_assessed",
     notAssessed,
     `${peopleWord(n(notAssessed))} ${isAre(n(notAssessed))} not counted: no dependency category is in force. Record their category.`,
   );
-  const otherScale = standing("other_scale");
+  const otherScale = among(unusable, "other_scale");
   warn(
     "other_scale",
     otherScale,
     `${peopleWord(n(otherScale))} ${isAre(n(otherScale))} not counted: their category is on another location's scale. Record their category on this location's scale.`,
   );
-  const missing = standing("not_in_scale_version");
+  const missing = among(unusable, "not_in_scale_version");
   warn(
     "not_in_scale_version",
     missing,
-    `${peopleWord(n(missing))} ${isAre(n(missing))} not counted: the scale version in force no longer has their category or one-to-one period. Review their category.`,
+    `${peopleWord(n(missing))} ${isAre(n(missing))} not counted: the scale version in force does not have their category or one-to-one period. Review their category.`,
+  );
+  const presence = (p: PersonPresence) => people.filter((l) => l.presence === p);
+  const returning = presence("away_return_unknown");
+  warn(
+    "away_return_unknown",
+    returning,
+    `${peopleWord(n(returning))} ${isAre(n(returning))} on leave or in hospital today with no return date recorded, so ${n(returning) === 1 ? "is" : "are"} not counted on ${formatUkDate(ukStartOfDay(input.date))}. If they are back by then, the hours your scale requires will be higher.`,
+  );
+  const undated = presence("admission_date_unknown");
+  warn(
+    "admission_date_unknown",
+    undated,
+    `${peopleWord(n(undated))} ${isAre(n(undated))} being admitted with no planned admission date, so ${n(undated) === 1 ? "is" : "are"} not counted. Record the planned date when it is known.`,
+  );
+  const unplaced = presence("unknown");
+  warn(
+    "presence_unknown",
+    unplaced,
+    `${peopleWord(n(unplaced))} ${isAre(n(unplaced))} not counted: the record does not show where they were on ${formatUkDate(ukStartOfDay(input.date))}.`,
+  );
+  const planned = presence("planned_admission");
+  warn(
+    "planned_admission",
+    planned,
+    `${peopleWord(n(planned))} ${isAre(n(planned))} counted from a planned admission on or before this date. Check the admission still stands.`,
   );
   const earlier = people.filter((p) => p.flags.includes("earlier_version"));
   warn(
@@ -787,17 +943,31 @@ function periodRequirement(
     earlier,
     `${peopleWord(n(earlier))} ${isAre(n(earlier))} counted by a category recorded on an earlier version of the scale. Review them against the version in force.`,
   );
+  const later = people.filter((p) => p.flags.includes("later_version"));
+  warn(
+    "later_version",
+    later,
+    `${peopleWord(n(later))} ${isAre(n(later))} counted by a category recorded on a later version of the scale than the one in force for this period.`,
+  );
   const overdue = people.filter((p) => p.flags.includes("review_overdue"));
   warn(
     "review_overdue",
     overdue,
-    `${peopleWord(n(overdue))} ${n(overdue) === 1 ? "has" : "have"} a category older than your review interval of ${version.definition.reviewIntervalDays} days. Review them.`,
+    `${peopleWord(n(overdue))} ${hasHave(n(overdue))} a category older than your review interval of ${version.definition.reviewIntervalDays} days. Review them.`,
   );
   warn(
     "people_away",
     away,
     `${peopleWord(n(away))} on leave or in hospital ${isAre(n(away))} not counted. They would add ${formatCareMinutes(awayMinutes)}.`,
   );
+  const usual = ordinaryMinutes(version.definition.periods, window.key);
+  if (window.minutes !== usual) {
+    warnings.push({
+      code: "clock_change",
+      message: `The clocks change during this period, so it lasts ${formatCareMinutes(window.minutes)} instead of ${formatCareMinutes(usual)}. Your scale's care minutes are not adjusted for this.`,
+      personIds: [],
+    });
+  }
 
   const source: RequirementSource = {
     kind: "organisation_scale",
@@ -808,9 +978,22 @@ function periodRequirement(
     approvedBy: version.approvedBy,
     approvedAt: version.approvedAt,
   };
+  const total =
+    figure === "none"
+      ? [
+          `No required care hours can be shown: nobody at the location is counted, and ${peopleWord(leftOut)} ${isAre(leftOut)} left out (see the warnings).`,
+        ]
+      : [
+          `Required care hours = ${formatCareMinutes(careMinutes)} by category + ${formatCareMinutes(oneToOneMinutes)} one-to-one = ${figure === "at_least" ? "at least " : ""}${formatCareMinutes(requiredMinutes)}.`,
+        ];
   const method = [
     `Scale: ${scale.name}, version ${version.versionNumber}${version.approvedAt ? `, approved on ${formatUkDate(version.approvedAt)}` : ""}. This is your organisation's own scale.`,
     `Period: ${window.label}, ${formatUkDateTime(window.start)} to ${formatUkDateTime(window.end)} (${formatCareMinutes(window.minutes)}).`,
+    ...(window.minutes !== usual
+      ? [
+          `Care minutes are as your scale sets them for this period; they are not adjusted for the ${window.minutes > usual ? "extra" : "lost"} hour of the clock change.`,
+        ]
+      : []),
     ...categories
       .filter((c) => c.people > 0)
       .map(
@@ -820,15 +1003,15 @@ function periodRequirement(
     ...(oneToOne.length > 0
       ? [`One-to-one: ${formatCareMinutes(oneToOneMinutes)} for ${peopleWord(oneToOne.length)}.`]
       : []),
-    `Required care hours = ${formatCareMinutes(careMinutes)} by category + ${formatCareMinutes(oneToOneMinutes)} one-to-one = ${formatCareMinutes(requiredMinutes)}.`,
+    ...total,
     ...(away.length > 0
       ? [
           `Not counted: ${peopleWord(away.length)} on leave or in hospital, who would add ${formatCareMinutes(awayMinutes)}.`,
         ]
       : []),
-    ...(notCounted.length > 0
+    ...(figure === "at_least"
       ? [
-          `Not counted: ${peopleWord(notCounted.length)} with no usable category, so the required care hours may be higher than shown.`,
+          `Not counted: ${peopleWord(leftOut)} with no usable category or not known to be at the location, so the required care hours may be higher than shown.`,
         ]
       : []),
   ];
@@ -840,9 +1023,10 @@ function periodRequirement(
     period: window,
     source,
     notice: DEPENDENCY_TOOL_NOTICE,
-    careMinutes,
-    oneToOneMinutes,
-    requiredMinutes,
+    figure,
+    careMinutes: figure === "none" ? null : careMinutes,
+    oneToOneMinutes: figure === "none" ? null : oneToOneMinutes,
+    requiredMinutes: figure === "none" ? null : requiredMinutes,
     awayMinutes,
     categories,
     oneToOne,
@@ -850,7 +1034,7 @@ function periodRequirement(
     skillMix: version.definition.skillMix
       .filter((s) => s.periodKey === window.key)
       .map((s) => ({ skill: s.skill, minimumStaff: s.minimumStaff })),
-    complete: notCounted.length === 0,
+    complete: leftOut === 0,
     warnings,
     method,
   };
@@ -858,8 +1042,10 @@ function periodRequirement(
 
 /**
  * Required care hours for a location on a UK date, per period (rules 9, 10 and 12): the
- * organisation's figures added up for the people at the location, with the method, the source
- * and the notice. With no scale in force the result says so and carries no figure, never 0.
+ * organisation's figures added up for the people at the location on that date, with the method,
+ * the source and the notice. With no scale in force the result says so and carries no figure,
+ * never 0; with people left out the figure is "at least", or none when nobody is counted. A
+ * period key the scale does not have gives no result (the caller says so).
  */
 export function staffingRequirement(input: RequirementInput): StaffingRequirement[] {
   const noScale = (period: PeriodWindow | null): NoScaleRequirement => ({
@@ -872,13 +1058,13 @@ export function staffingRequirement(input: RequirementInput): StaffingRequiremen
   });
   const scale = input.scale;
   if (!scale) return [noScale(null)];
-  const periods = periodsOfDate(scale.versions, input.date).filter(
-    (p) => !input.periodKey || p.window.key === input.periodKey,
-  );
-  if (periods.length === 0) return [noScale(null)];
-  return periods.map(({ window, version }) =>
-    version ? periodRequirement(input, scale, version, window) : noScale(window),
-  );
+  const all = periodsOfDate(scale.versions, input.date);
+  if (all.length === 0) return [noScale(null)];
+  return all
+    .filter((p) => !input.periodKey || p.window.key === input.periodKey)
+    .map(({ window, version }) =>
+      version ? periodRequirement(input, scale, version, window) : noScale(window),
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -903,20 +1089,25 @@ export interface SkillGap {
 export interface StaffingComparison {
   readonly status: StaffingStatus;
   readonly word: string;
+  /** Null when there is no figure; a lower bound when `figure` is `at_least`. */
   readonly requiredMinutes: number | null;
+  readonly figure: RequirementFigure | null;
   readonly providedMinutes: number;
-  readonly shortMinutes: number;
+  /** How far the rota falls short of the figure; null when there is no figure to compare. */
+  readonly shortMinutes: number | null;
   readonly skills: readonly SkillGap[];
   readonly source: RequirementSource | null;
   readonly notice: string;
+  /** Every warning on the requirement, then the comparison's own. */
   readonly warnings: readonly string[];
   readonly method: readonly string[];
 }
 
 /**
- * The rota against the requirement (rule 11): below when hours or a skill minimum fall short,
- * incomplete when nothing falls short but people are not counted, met only when complete and
- * nothing falls short. It advises; it never blocks a rota.
+ * The rota against the requirement (rule 11): `below` when hours or a skill minimum fall short;
+ * `incomplete` when nothing falls short but people are left out (or there is no figure);
+ * `met_with_warnings` when complete and nothing falls short but the requirement carries warnings;
+ * `met` only when complete, with no warning and nothing short. It advises; it never blocks a rota.
  */
 export function compareStaffing(
   requirement: StaffingRequirement,
@@ -927,8 +1118,9 @@ export function compareStaffing(
       status: "no_scale",
       word: STAFFING_STATUS_WORDS.no_scale,
       requiredMinutes: null,
+      figure: null,
       providedMinutes: provided.careMinutes,
-      shortMinutes: 0,
+      shortMinutes: null,
       skills: [],
       source: null,
       notice: requirement.notice,
@@ -936,7 +1128,8 @@ export function compareStaffing(
       method: [],
     };
   }
-  const shortMinutes = Math.max(0, requirement.requiredMinutes - provided.careMinutes);
+  const required = requirement.requiredMinutes;
+  const shortMinutes = required === null ? null : Math.max(0, required - provided.careMinutes);
   const skills: SkillGap[] = requirement.skillMix.map((s) => {
     const rostered = provided.staffWithSkill[s.skill] ?? 0;
     return {
@@ -947,34 +1140,44 @@ export function compareStaffing(
       short: Math.max(0, s.minimumStaff - rostered),
     };
   });
-  const warnings: string[] = [];
-  if (shortMinutes > 0) {
-    warnings.push(
-      `The rota gives ${formatCareMinutes(provided.careMinutes)} of care on ${requirement.period.label}; your scale requires ${formatCareMinutes(requirement.requiredMinutes)}, ${formatCareMinutes(shortMinutes)} short.`,
+  const own: string[] = [];
+  if (shortMinutes !== null && shortMinutes > 0 && required !== null) {
+    const atLeast = requirement.figure === "at_least" ? "at least " : "";
+    own.push(
+      `The rota gives ${formatCareMinutes(provided.careMinutes)} of care on ${requirement.period.label}; your scale requires ${atLeast}${formatCareMinutes(required)}, ${atLeast}${formatCareMinutes(shortMinutes)} short.`,
     );
   }
   for (const s of skills.filter((g) => g.short > 0)) {
-    warnings.push(
+    own.push(
       `Your scale requires at least ${s.minimumStaff} staff on ${requirement.period.label} with this skill: ${s.label}. The rota has ${s.rostered}.`,
     );
   }
   if (!requirement.complete) {
-    warnings.push(
-      "Some people are not counted, so the hours your scale requires may be higher than shown.",
+    own.push(
+      requirement.figure === "none"
+        ? "Nobody at the location is counted, so the rota cannot be compared with your scale."
+        : "Some people are not counted, so the hours your scale requires may be higher than shown.",
     );
   }
-  const below = shortMinutes > 0 || skills.some((s) => s.short > 0);
-  const status: StaffingStatus = below ? "below" : requirement.complete ? "met" : "incomplete";
+  const below = (shortMinutes ?? 0) > 0 || skills.some((s) => s.short > 0);
+  const status: StaffingStatus = below
+    ? "below"
+    : !requirement.complete
+      ? "incomplete"
+      : requirement.warnings.length > 0
+        ? "met_with_warnings"
+        : "met";
   return {
     status,
     word: STAFFING_STATUS_WORDS[status],
-    requiredMinutes: requirement.requiredMinutes,
+    requiredMinutes: required,
+    figure: requirement.figure,
     providedMinutes: provided.careMinutes,
     shortMinutes,
     skills,
     source: requirement.source,
     notice: requirement.notice,
-    warnings,
+    warnings: [...requirement.warnings.map((w) => w.message), ...own],
     method: [
       ...requirement.method,
       `Rota: ${formatCareMinutes(provided.careMinutes)} of care on ${requirement.period.label}.`,

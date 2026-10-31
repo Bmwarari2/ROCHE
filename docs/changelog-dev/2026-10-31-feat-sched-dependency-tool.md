@@ -88,4 +88,21 @@ boundary default is recorded in the boundary document, and whether it needs an A
 
 ## Review rounds
 
-- None yet.
+- Clinical review round 1 (#153): no High; the boundary holds. Fixed:
+  - M1: who is at the location is worked out for each date asked (`presenceOn`): planned
+    admissions count from their date and are said; someone away today is away that day and "not
+    known" later; an undated admission or a date before the current status began is "not known";
+    anyone not known makes the result incomplete, by name. API tests for people away and for a
+    planned and an undated admission on future dates.
+  - M2: the comparison carries every warning on the requirement and says "met, but read the
+    warnings" (`met_with_warnings`) while any stands.
+  - M3: the figure is `exact`, `at_least` ("at least N hours") or `none` (no number when nobody is
+    counted, never "0 hours"); a location with nobody at all is an exact 0.
+  - Lows: a version that moves the shift times starts the next UK day (no gap or overlap); the
+    method and a warning say care minutes are not adjusted on clock-change nights; an unknown
+    period key is refused (422) instead of reading as "no scale"; a category on a later version is
+    flagged `later_version`; no shortfall is given with `no_scale` or no figure; HZ-123 named in
+    the clock-change and version-per-period tests; the no-score check covers the comparison.
+  - HZ-123 gains the new causes and controls; its target stays 3 until the rota shows the
+    comparison. H-710 and H-713 carry the CSO's questions (clock-change nights, the "met, but"
+    wording, who counts on a future date, planned admissions).
