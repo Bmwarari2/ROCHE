@@ -173,13 +173,22 @@ Branch `feat/meds-domain-record`.
     version and withdraws it with the reason, or the decision says why what it keeps still stands
     (`scheduledStillStands`, carried into the plan).
   - STATUS and the register's summary rows now match the register (76 `partial`, 157 `todo`).
+- Sixth review (cleared to merge, with logged Mediums): a reconciliation begun at 23:00 and
+  completed at 00:30, after a change took effect at 00:00, is still refused, but the message now
+  names the medicine, the version in force and when it took effect, and the decision for the
+  earlier version says to redo it (tested on an ordinary night and both clock-change nights).
+  Logged as open controls for slices 16 and 22: the API applies the plan with the time of
+  recording, never sync or server time (HZ-010); it passes every version of a medicine (P8); the
+  same-day route covers only the day of recording, so a 23:30 dose before an admission recorded at
+  00:30 is not due (a possible missed dose). H-553 asks the CSO to confirm who may give the
+  same-day reason, the single-line extension, the midnight refusal and that dose.
 
 ## Tests
 
 - `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`,
-  `reconciliation.test.ts`: 349 tests after the fifth review, passing under `TZ=UTC`,
-  `TZ=Europe/London` and `TZ=America/New_York`; medicines coverage 99.10% of lines. Whole domain
-  package: 5,228 tests, 99.67% line coverage under each of the three time zones
+  `reconciliation.test.ts`: 353 tests after the sixth review, passing under `TZ=UTC`,
+  `TZ=Europe/London` and `TZ=America/New_York`; medicines coverage 99.13% of lines. Whole domain
+  package: 5,232 tests, 99.67% line coverage under each of the three time zones
   (`pnpm --filter @harbour/domain test:coverage`). The reviewer's probes (rounds 4 and 5) and
   fuzzer (seeds 7, 11 and 23, 9,000 sequences) run clean.
 - `pnpm lint`, the domain typecheck and the markdown link check run clean.

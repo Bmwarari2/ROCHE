@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { draft, entry, PERSON, PRODUCT, TABLET_FACTS, UNIT } from "../../test/medicines-fixtures";
+import { fromUkWallClock } from "../shared/time";
 import type { DmdProductRef } from "./dmd";
 import {
   changeMarEntry,
@@ -1398,6 +1399,102 @@ describe("hazard HZ-121 a letter that extends a course starts a new entry from t
     expect(problems(input("2026-11-09T00:00:00Z", earlierCourse))).toEqual(["start_refused"]);
     expect(problems(input("2026-11-09T00:00:00Z", () => []))).toEqual(["duplicate_product"]);
     expect(problems(input("2026-11-10T00:00:00Z", () => []))).toEqual([]);
+  });
+});
+
+describe("hazard HZ-121 a reconciliation begun at 23:00 and completed at 00:30 names the version that took effect at midnight", () => {
+  it.each([
+    ["an ordinary night", 2026, 11, 15, "16/11/2026 00:00"],
+    ["the night the clocks go back", 2026, 10, 24, "25/10/2026 00:00"],
+    ["the night the clocks go forward", 2027, 3, 27, "28/03/2027 00:00"],
+  ] as const)(
+    "on %s, and completes once the decisions are redone",
+    (_n, year, month, day, from) => {
+      const evening = (h: number, m = 0) => fromUkWallClock(year, month, day, h, m);
+      const startsAt = fromUkWallClock(year, month, day - 10, 0, 0);
+      const recorded = transcribeMarEntry(draft({ startsAt }), TABLET_FACTS, {
+        id: "entry-para",
+        by: NURSE,
+        at: new Date(startsAt.getTime() - 3_600_000),
+        origin: "transcribed",
+        earlierEntries: [],
+      });
+      if (!recorded.ok) throw new Error("transcription refused");
+      const midnight = new Date(evening(23).getTime() + 3_600_000);
+      const change = changeMarEntry([recorded.entry], draft({ startsAt: midnight }), TABLET_FACTS, {
+        id: "entry-para-2",
+        by: NURSE,
+        at: evening(10),
+        origin: "transcribed",
+      });
+      if (!change.ok) throw new Error(change.issues.map((i) => i.message).join(" "));
+      expect(midnight).toEqual(fromUkWallClock(year, month, day + 1, 0, 0));
+      const versions = [change.replaced, change.next];
+      const begun = entriesToReconcile(versions, evening(23));
+      const completedAt = new Date(midnight.getTime() + 30 * 60_000);
+      const now = entriesToReconcile(versions, completedAt);
+      expect([begun[0]?.entryId, now[0]?.entryId]).toEqual(["entry-para", "entry-para-2"]);
+      const letter = source("letter", "discharge_letter", "Discharge letter", {
+        receivedAt: evening(22),
+      });
+      const continueLine = { ...PARA_LINE, id: "item-para" };
+      const input = (atStart: typeof begun, entryId: string) =>
+        completion({
+          reconciliation: {
+            ...reconciliation,
+            triggeredAt: evening(22),
+            entriesAtStart: atStart.map((e) => ({ entryId: e.entryId, version: e.version })),
+            sources: [letter],
+            items: [continueLine],
+          },
+          currentEntries: now,
+          entryVersions: () => versions,
+          earlierEntries: () => versions,
+          entryDecisions: [{ ...continuePara, entryId }],
+          itemDecisions: [],
+          completedAt,
+        });
+      const result = completeReconciliation(input(begun, "entry-para"));
+      expect(result.ok ? [] : result.issues.map((i) => [i.problem, i.message])).toEqual([
+        [
+          "record_changed",
+          `Paracetamol 500mg tablets: version 2 is in force now, from ${from}, in place of version 1 this reconciliation began with. Redo the decisions for it against version 2.`,
+        ],
+        [
+          "unknown_entry",
+          `This decision is for version 1 of Paracetamol 500mg tablets; version 2 is in force now, from ${from}. Redo it against version 2.`,
+        ],
+        [
+          "entry_undecided",
+          "Decide what happens to Paracetamol 500mg tablets: continue, change, stop or ask.",
+        ],
+      ]);
+      // The API takes the entries again when the person redoes the decisions.
+      expect(completeReconciliation(input(now, "entry-para-2"))).toMatchObject({
+        ok: true,
+        plan: { continued: ["entry-para-2"] },
+      });
+    },
+  );
+
+  it("still says a medicine was added or is gone when that is what changed", () => {
+    const added: ReconciledEntry = {
+      entryId: "entry-new",
+      version: 1,
+      personId: PERSON,
+      product: PRODUCT.warfarin,
+    };
+    const result = completeReconciliation(
+      completion({ currentEntries: [paracetamol, alendronic, added] }),
+    );
+    expect(result.ok ? "" : result.issues[0]?.message).toBe(
+      "Warfarin 1mg tablets is on the MAR now but was not when this reconciliation began. Decide it, then complete.",
+    );
+    const gone = completeReconciliation(completion({ currentEntries: [paracetamol] }));
+    expect(gone.ok ? [] : gone.issues.map((i) => i.message).slice(0, 2)).toEqual([
+      "Alendronic acid 70mg tablets was on the MAR when this reconciliation began but is not now. Check what happened to it, then complete.",
+      "A decision is for an entry not on the MAR now.",
+    ]);
   });
 });
 
