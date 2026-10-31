@@ -212,6 +212,89 @@ until their nation pack (Phase 7) and never a partial answer.
 | `medical-examiner.ts` | `MEDICAL_EXAMINER_PACK_SECTIONS`, `missingPackSections` | Pack sections |
 | `rates.ts` | `SAFETY_RATE_KEYS`, `resolveSafetyRates` | Every safety figure from `rate_table` |
 
+### Phase 2 rules (plan slice 7: SAFE-006, SAFE-011, SAFE-012, SAFE-014, SAFE-015, SAFE-016, MEDS-012)
+
+New files under `packages/domain/src/safety/` (lane D adds files, never edits the Phase 1 ones),
+pure functions with table-driven tests. Tenant targets that no law sets are rate-table rows marked
+to verify, shown as targets, never as statutory deadlines. Figures come through
+`resolveSafetyPhase2Rates` (`phase2-rates.ts`).
+
+1. **Safeguarding log** (`safeguarding.ts`; Care Act 2014 s.42; SAFE-006). A concern moves through
+   `concern`, then either `no_referral` (a reason and who decided, never silently) or `referred`
+   (the local authority, how and when, its reference), then `enquiry` (the local authority's s.42
+   enquiry, or the provider's caused enquiry), then `outcome` (the enquiry's finding), then `closed`.
+   The referral target is `safeguarding.referral_hours` after the concern is raised (a tenant
+   target: the law says without delay). Closing needs the Making Safeguarding Personal record: what
+   the person (or their advocate) wanted, and whether it was achieved fully, partly or not, or why
+   they were not asked. Where a member of staff was removed from regulated activity, or would have
+   been, because they harmed or posed a risk of harm, a DBS referral decision (referred with the
+   date, or not required with the reason) is recorded before closing.
+2. **Complaints** (`complaints.ts`; Regulation 16; SAFE-011). `received`, `acknowledged`,
+   `investigating`, `responded`, `closed`, with `appealed` and `appeal_responded`. Acknowledgement
+   target `complaint.acknowledge_working_days` and response target
+   `complaint.response_working_days` (tenant targets: Regulation 16 sets none for independent
+   providers), counted in working days with the nation's bank holidays, paused while waiting for the
+   complainant's consent or information. The final response must say how to go to the Local
+   Government and Social Care Ombudsman, and that it must normally be within
+   `lgsco.time_limit_months` of the complainant knowing of the matter. A compliment is recorded
+   separately and never runs a clock.
+3. **Whistleblowing and speak-up** (`whistleblowing.ts`; SAFE-012; ADR-0089 for the silo). A concern
+   is named, confidential (named to the Freedom to Speak Up lead only) or anonymous (no identity
+   stored, a reply token instead). `received`, `acknowledged`, `under_review`, `outcome_shared`,
+   `closed`, with the acknowledgement target `whistleblowing.acknowledge_working_days`. The
+   outcome is shared with the person who raised it before closing, unless anonymous with no reply
+   token.
+4. **Deaths** (`deaths.ts`; SAFE-014). Expected or unexpected is the clinician's recorded
+   judgement, never decided by Harbour. The steps each needs: verification of death, family told,
+   the medical examiner information pack, the notification under Regulation 16 of the CQC (Registration) Regulations 2009, a LeDeR notification for a
+   person with a learning disability or autism; for an unexpected death, also the police (where the
+   cause may be unnatural or suspicious) and leaving the room and equipment as they are until told
+   otherwise. A mortality review is due `mortality_review.due_days` days after the death (a tenant
+   target).
+5. **Missing person** (`missing-person.ts`; SAFE-015). The timeline: last seen, noticed missing,
+   search started, police called (with reference), found or returned, welfare check, debrief.
+   Police are called no later than `missing_person.police_call_minutes` after the person is noticed
+   missing (a tenant target; immediately when the tenant's risk assessment says so). The Herbert
+   Protocol profile is out of date `herbert_protocol.review_months` after its last review, and the
+   pack says so. The return needs a welfare check and a debrief before the episode closes; a CQC
+   notification is prompted where the person is under a DoLS authorisation or the Mental Health Act.
+6. **Disclosure requests** (`disclosure.ts`; SAFE-016). Types with their legal basis: coroner
+   (Coroners and Justice Act 2009 Schedule 5), Safeguarding Adults Review (Care Act 2014 s.44 and
+   s.45), Domestic Homicide Review (Domestic Violence, Crime and Victims Act 2004 s.9), police and
+   solicitor requests (Data Protection Act 2018 Schedule 2 paragraph 2 and paragraph 5), and Access
+   to Health Records Act 1990 requests about a person who has died. Every disclosure is approved by a
+   holder of `safety.disclosure.approve` who is not the requester, before release, and logged with the
+   basis. Access to Health Records requests are answered within `ahra.response_days` days, or
+   `ahra.recent_record_response_days` days where the records were added in the last
+   `ahra.recent_record_days` days.
+7. **Medication errors and near misses** (`medication-error.ts`; MEDS-012). Questions: what went
+   wrong (omitted dose, wrong dose, wrong medicine, wrong person, wrong time, wrong route, given after
+   it was stopped, other), whether it reached the person (a near miss if not), whether a controlled
+   drug was involved, and whether it may be deliberate or repeated. Tasks: get clinical advice (GP,
+   pharmacist or NHS 111) whenever it reached or may have reached the person; report a controlled drug
+   incident to the area's NHS England Controlled Drugs Accountable Officer; consider safeguarding when
+   deliberate or repeated. Harm and the statutory notifications come from the existing classifier
+   questions. Joining these questions to the incident classifier needs a migration
+   (`classifier_answer.question_key` is checked against the list in the database), so the module is
+   built now and wired in by a later schema slice.
+
+Rate keys: `safeguarding.referral_hours`, `complaint.acknowledge_working_days`,
+`complaint.response_working_days`, `lgsco.time_limit_months`,
+`whistleblowing.acknowledge_working_days`, `mortality_review.due_days`,
+`missing_person.police_call_minutes`, `herbert_protocol.review_months`, `ahra.response_days`,
+`ahra.recent_record_response_days`, `ahra.recent_record_days`.
+
+Permissions used (all in the catalogue): `safety.safeguarding.manage`, `safety.complaint.manage`,
+`safety.whistleblowing.read` (a read permission moves a speak-up concern today because the catalogue
+has no other; slice 24 must add the Freedom to Speak Up lead's own manage permission and move
+`SPEAK_UP_WORKFLOW` to it before any route uses it, ADR-0089), `safety.incident.manage` (deaths, missing person, disclosure requests),
+`safety.disclosure.approve`.
+
+Tests: `safeguarding.test.ts`, `complaints.test.ts`, `whistleblowing.test.ts`, `deaths.test.ts`,
+`missing-person.test.ts`, `disclosure.test.ts`, `medication-error.test.ts`, `phase2-rates.test.ts`:
+every transition and its refusals, every clock across a bank holiday and both clock changes, every
+step list.
+
 ## 5. API and events
 
 `/v1/incidents` (create, list in scope, get, update, close), `/v1/incidents/{id}/classifier`
