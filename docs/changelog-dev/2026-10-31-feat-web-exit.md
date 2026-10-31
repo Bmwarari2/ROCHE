@@ -31,6 +31,13 @@ Branch `feat/web-exit`.
 
 ## What is next
 
+- `POST /v1/people` here is temporary: `feat/web-admission` adds the enquiry route
+  (`people-enquiries.ts`, `people.enquiry.manage`, client ids). Once it is on main this branch drops
+  its own route and the journey records its people through that one.
+- The journey's people stay on the residents list once archived (the list shows every status);
+  each run finishes any person an interrupted run left, so none is left live. `smoke.spec.ts`
+  checks "Allergies not recorded" on Cara's own row, not anywhere in the table.
+
 - Correcting a discharge or death recorded in error from the Leaving tab (the API supports it, with
   step-up for a death); evidence links on checklist items; disposal and loss of property.
 
@@ -53,9 +60,8 @@ Branch `feat/web-exit`.
 - PR #116 security review: `POST /v1/people` refuses an NHS number held only out of the caller's
   scope in the same words as an invalid one, audits both duplicate refusals (denied, without the
   number) and is limited per user (`ENQUIRY_REQUESTS_PER_MINUTE`, default 10); the date of birth is
-  from 1900 and not in the future; unexpected errors are logged by name, database code and stack
-  frames only (`loggableError`), never the message, which can repeat a query's parameters;
-  drafted notification items cannot be ticked by hand before their draft (M2); clearing a money,
+  from 1900 and not in the future (the route moves to `feat/web-admission`, see what is next;
+  the scrubbed error log is that branch's too); drafted notification items cannot be ticked by hand before their draft (M2); clearing a money,
   deposit or DWP flag the plan set needs `finance.ledger.approve` with step-up, and flag changes
   are audited; the person who recorded the departure, as well as whoever planned the exit, may not
   confirm the money returned. Idempotent enquiries (HZ-029) are listed as a known gap in care.md.

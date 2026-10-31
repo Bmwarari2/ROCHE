@@ -21,6 +21,21 @@ import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 test.describe.configure({ mode: "serial" });
 
+test.beforeAll(async ({ browser }, testInfo) => {
+  // A run that stopped half way leaves its people on the residents list: finish them first.
+  test.setTimeout(180_000);
+  const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+  const page = await context.newPage();
+  await signInWithDemoPasskey(page, "owner");
+  const people = await call<{ items: Listed[] }>(page, "GET", "/v1/people");
+  for (const person of people.items.filter(
+    (p) => JOURNEY_FAMILY.test(p.familyName) && p.status !== "archived",
+  )) {
+    await finishLeftover(page, person);
+  }
+  await context.close();
+});
+
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
 const API_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../api");
 const TENANT = "0194d000-0000-7000-8000-000000000001";
@@ -142,6 +157,146 @@ async function holdPropertyAndKey(page: Page, id: string) {
     issuedOn: ukToday(),
     issuedTo: "person",
   });
+}
+
+/** The family name every person this journey records carries, with the run after it. */
+const JOURNEY_FAMILY = /^Example Run[0-9a-z]+$/;
+
+interface Listed {
+  readonly id: string;
+  readonly familyName: string;
+  readonly status: string;
+  readonly version: number;
+}
+
+interface ExitJson {
+  readonly exit: {
+    readonly state: string;
+    readonly version: number;
+    readonly context: Record<string, unknown>;
+    readonly checklist: {
+      readonly key: string;
+      readonly owner: string;
+      readonly status: string;
+      readonly derived: boolean;
+      readonly evidenceType: string | null;
+      readonly evidenceId: string | null;
+      readonly version: number;
+    }[];
+  } | null;
+}
+
+async function tryCall(page: Page, method: string, url: string, data?: unknown) {
+  const response = await page.request.fetch(`${API_URL}${url}`, {
+    method,
+    headers,
+    ...(data === undefined ? {} : { data }),
+  });
+  return response.ok() ? ((await response.json()) as unknown) : null;
+}
+
+/**
+ * Takes a person an earlier, interrupted run left part way to the archived record, as far as the
+ * API lets the signed-in owner (with a fresh sign-in, and never the recorder of these exits) go: so a run leaves no live journey person
+ * behind. Best effort: a step the API refuses is left for the next run.
+ */
+async function finishLeftover(page: Page, person: Listed) {
+  const now = () => new Date().toISOString();
+  const status = (to: string, extra: Record<string, unknown> = {}) =>
+    call<Listed>(page, "GET", `/v1/people/${person.id}`).then((p) =>
+      tryCall(page, "POST", `/v1/people/${person.id}/status`, {
+        to,
+        effectiveAt: now(),
+        version: p.version,
+        ...extra,
+      }),
+    );
+  if (person.status === "enquiry" || person.status === "pre_admission") {
+    await status("not_admitted", { reason: "Left over from an interrupted journey run" });
+  }
+  if (["active", "on_leave", "in_hospital"].includes(person.status)) {
+    const planned = (await tryCall(page, "GET", `/v1/people/${person.id}/exit`)) as ExitJson | null;
+    const flags =
+      planned?.exit?.state === "planned"
+        ? Object.fromEntries(
+            ["holdsResidentsMoney", "holdsDeposit", "hasLoanEquipment", "homeIsDwpAppointee"].map(
+              (k) => [k, planned.exit?.context[k] === true],
+            ),
+          )
+        : {};
+    await status("discharged", {
+      exitKind: "discharge",
+      reason: "Left over from an interrupted journey run",
+      exit: flags,
+    });
+  }
+  // Property and keys still held go back to the person's representative today.
+  const property = (await tryCall(page, "GET", `/v1/people/${person.id}/property`)) as {
+    items: { id: string; status: string; version: number }[];
+  } | null;
+  for (const item of property?.items.filter((i) => i.status === "held") ?? []) {
+    await tryCall(page, "POST", `/v1/people/${person.id}/property/${item.id}/return`, {
+      returnedOn: ukToday(),
+      recipientName: "A representative",
+      recipientCapacity: "representative",
+      signature: { signer: "representative", name: "A representative", signedAt: now() },
+      version: item.version,
+    });
+  }
+  const keys = (await tryCall(page, "GET", `/v1/people/${person.id}/keys`)) as {
+    items: { id: string; outstanding: boolean; version: number }[];
+  } | null;
+  for (const key of keys?.items.filter((k) => k.outstanding) ?? []) {
+    await tryCall(page, "POST", `/v1/people/${person.id}/keys/${key.id}/return`, {
+      on: ukToday(),
+      version: key.version,
+    });
+  }
+  for (let round = 0; round < 3; round++) {
+    const view = (await tryCall(page, "GET", `/v1/people/${person.id}/exit`)) as ExitJson | null;
+    const exit = view?.exit;
+    if (!exit) break;
+    for (const item of exit.checklist.filter((i) => i.status === "pending")) {
+      if (item.evidenceType === "statutory_notification" && item.evidenceId) {
+        const n = (await tryCall(
+          page,
+          "GET",
+          `/v1/notifications/statutory/${item.evidenceId}`,
+        )) as { version: number } | null;
+        if (n) {
+          await tryCall(
+            page,
+            "POST",
+            `/v1/notifications/statutory/${item.evidenceId}/not-required`,
+            {
+              reason: "Left over from an interrupted journey run: an invented person.",
+              version: n.version,
+            },
+          );
+        }
+      } else if (!item.derived) {
+        await tryCall(page, "PUT", `/v1/people/${person.id}/exit/items/${item.key}`, {
+          status: "done",
+          version: item.version,
+        });
+      }
+    }
+    const fresh = ((await tryCall(page, "GET", `/v1/people/${person.id}/exit`)) as ExitJson | null)
+      ?.exit;
+    if (!fresh) break;
+    if (fresh.state === "left" || fresh.state === "recorded") {
+      await tryCall(page, "POST", `/v1/people/${person.id}/exit/moves`, {
+        to: "awaiting_return",
+        version: fresh.version,
+      });
+    } else if (fresh.state === "awaiting_return") {
+      await tryCall(page, "POST", `/v1/people/${person.id}/exit/moves`, {
+        to: "closed",
+        version: fresh.version,
+      });
+    } else break;
+  }
+  await status("archived");
 }
 
 async function checkBothThemes(page: Page, name: string) {

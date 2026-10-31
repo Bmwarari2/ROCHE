@@ -73,7 +73,10 @@ test("a manager signs in, sees the empty home, opens people and a person, and si
   await expect(page.getByRole("heading", { level: 1, name: "Residents" })).toBeVisible();
   const table = page.getByRole("table", { name: "Residents" });
   await expect(table.getByRole("row", { name: /Addie/ })).toBeVisible();
-  await expect(table.getByText("Allergies not recorded")).toBeVisible();
+  // Cara (allergies unknown in the seed) by her own row: other journeys add people to the list.
+  await expect(
+    table.getByRole("row", { name: /Cara/ }).getByText("Allergies not recorded"),
+  ).toBeVisible();
   await expect(table.getByText("No known allergies").first()).toBeVisible();
   await expectAccessible(page, "people");
 

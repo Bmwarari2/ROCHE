@@ -8,7 +8,6 @@ import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
 import { createFlagService } from "./flags/provider";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
-import { loggableError } from "./http/error-log";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { QuotaExceeded } from "./http/quota";
 import { RateLimiter } from "./http/rate-limit";
@@ -304,9 +303,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }
       return response;
     }
-    // Opaque identifiers only: the message (and the stack's first line, which repeats it) may hold
-    // a query's parameters, so log the name, the database's code and the frames (loggableError).
-    logger.error({ requestId: c.get("requestId"), err: loggableError(error) }, "request failed");
+    // Opaque identifiers only: the error message may contain data, so log its name and stack.
+    logger.error(
+      { requestId: c.get("requestId"), err: { name: error.name, stack: error.stack } },
+      "request failed",
+    );
     return problemResponse(
       c,
       new HttpProblem(500, "internal", "Something went wrong on our side. Try again in a moment."),
