@@ -547,7 +547,8 @@
           "person_document",
           "organisation_document",
           "organisation_logo",
-          "staff_hr_document"
+          "staff_hr_document",
+          "elearning_package"
         ]
       },
       "SearchResults": {
@@ -21333,6 +21334,265 @@
         "required": [
           "token",
           "code"
+        ]
+      },
+      "ElearningCourseList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ElearningCourse"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ElearningCourse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "tier": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "standard": {
+            "$ref": "#/components/schemas/ElearningStandard"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "retired"
+            ]
+          },
+          "fileCount": {
+            "type": "integer"
+          },
+          "myAttempt": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "$ref": "#/components/schemas/ElearningAttemptStatus"
+              },
+              "score": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "score"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "title",
+          "topic",
+          "tier",
+          "standard",
+          "status",
+          "fileCount",
+          "myAttempt"
+        ]
+      },
+      "ElearningStandard": {
+        "type": "string",
+        "enum": [
+          "scorm_1_2",
+          "scorm_2004",
+          "xapi"
+        ]
+      },
+      "ElearningAttemptStatus": {
+        "type": "string",
+        "enum": [
+          "in_progress",
+          "completed",
+          "passed",
+          "failed"
+        ]
+      },
+      "ElearningAttemptList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ElearningAttempt"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ElearningAttempt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "courseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ElearningAttemptStatus"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalSeconds": {
+            "type": "integer"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "trainingRecordId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "courseId",
+          "workerId",
+          "status",
+          "score",
+          "totalSeconds",
+          "finishedAt",
+          "trainingRecordId",
+          "createdAt"
+        ]
+      },
+      "ElearningLaunch": {
+        "type": "object",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "courseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "standard": {
+            "$ref": "#/components/schemas/ElearningStandard"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ElearningAttemptStatus"
+          },
+          "token": {
+            "type": "string"
+          },
+          "launchPath": {
+            "type": "string"
+          },
+          "launchQuery": {
+            "type": "string"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suspendData": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entry": {
+            "type": "string",
+            "enum": [
+              "ab-initio",
+              "resume"
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "courseId",
+          "title",
+          "standard",
+          "status",
+          "token",
+          "launchPath",
+          "launchQuery",
+          "location",
+          "suspendData",
+          "entry"
+        ]
+      },
+      "ElearningCommit": {
+        "type": "object",
+        "properties": {
+          "cmi": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 64000
+            }
+          },
+          "finished": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cmi",
+          "finished"
         ]
       },
       "MergeFieldList": {
@@ -47133,6 +47393,594 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/workforce/elearning/courses": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "E-learning courses",
+        "description": "workforce.self.read or workforce.training.manage. The organisation's active courses (training leads also see retired ones), each with the reader's own latest attempt.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Courses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ElearningCourseList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Add an e-learning course from a package",
+        "description": "workforce.training.manage. A SCORM 1.2, SCORM 2004 or xAPI zip of at most 100 MB. Every entry is checked before anything is unpacked (no path leaving the package, no links, no encrypted entries, only allowlisted file types, at most 5,000 files and 500 MB unpacked, no entry unpacking more than 100 times its size), the launch page is found from the manifest, and the archive is scanned for malware and kept in the document store. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 160
+            },
+            "required": true,
+            "name": "title",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z_]{2,60}$"
+            },
+            "required": true,
+            "name": "topic",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2
+            },
+            "required": false,
+            "name": "tier",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ElearningCourse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/elearning/courses/{id}/retire": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Retire an e-learning course",
+        "description": "workforce.training.manage. Staff are no longer offered it; attempts and training records are kept. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ElearningCourse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/elearning/courses/{id}/attempts": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Attempts at an e-learning course",
+        "description": "workforce.training.manage. Every member's attempts, newest first.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ElearningAttemptList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Start or resume my attempt",
+        "description": "workforce.self.read. Resumes the member's attempt in progress, or starts one, and gives a launch token for the content origin (signed, for this attempt only, expiring). Audited when an attempt starts.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ready to launch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ElearningLaunch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/elearning/attempts/{id}": {
+      "patch": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Save what the runtime reported",
+        "description": "workforce.self.read, the member's own attempt. The SCORM data model elements the runtime committed (allowlisted, bounded); the attempt's status only moves forward, and a completion or pass becomes a training record once. Not for xAPI courses (their statements settle them).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ElearningCommit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ElearningAttempt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/e/launch/{token}/files/{path}": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A file of a launched course (content origin only)",
+        "description": "No session: the launch token names one attempt. `path` is the file's path inside the package, URL-encoded as one segment. Only the package's own files of allowlisted types are served, never a folder; the web tier serves them only on the content origin, with its own Content-Security-Policy.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 512
+            },
+            "required": true,
+            "name": "token",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            },
+            "required": true,
+            "name": "path",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or the link has ended"
+          }
+        }
+      }
+    },
+    "/e/launch/{token}/statements": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Keep a launched course's xAPI statements (content origin only)",
+        "description": "No session: the launch token names one attempt. One statement or up to 50, each at most 16 KB, kept as sent (once per statement id); a completed, passed or failed verb settles an xAPI course's attempt, and a completion or pass becomes a training record once. Returns the statement ids, as an xAPI learning record store does.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 512
+            },
+            "required": true,
+            "name": "token",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Kept",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not statements Harbour can keep"
+          },
+          "404": {
+            "description": "The link has ended"
           }
         }
       }

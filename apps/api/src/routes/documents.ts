@@ -249,6 +249,10 @@ export const documentsRouter = createRouter()
       if (q.category === "staff_hr_document") {
         throw problems.invalid("Add HR-only staff documents from the worker's staff file.");
       }
+      // E-learning packages go only through the e-learning route, which checks the archive.
+      if (q.category === "elearning_package") {
+        throw problems.invalid("Add e-learning packages from the e-learning courses page.");
+      }
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
       // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
       if (q.category === "organisation_logo") {

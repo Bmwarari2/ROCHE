@@ -7,6 +7,7 @@ const PRODUCTION = {
   NODE_ENV: "production",
   BETTER_AUTH_SECRET: "a-deployed-secret-that-is-long-enough-0123456789",
   EVIDENCE_LINK_SECRET: "a-deployed-evidence-link-key-long-enough-0123456789",
+  ELEARNING_LAUNCH_SECRET: "a-deployed-elearning-launch-key-long-enough-0123456789",
   SYNC_SIGNING_KEY_PEM: "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----",
   DATABASE_APP_URL: "postgres://harbour_app@db.internal/harbour",
   DATABASE_AUTH_URL: "postgres://harbour_auth@db.internal/harbour",
@@ -27,6 +28,7 @@ describe("loadConfig", () => {
   it.each([
     "BETTER_AUTH_SECRET",
     "EVIDENCE_LINK_SECRET",
+    "ELEARNING_LAUNCH_SECRET",
     "SYNC_SIGNING_KEY_PEM",
     "DATABASE_APP_URL",
     "DATABASE_AUTH_URL",

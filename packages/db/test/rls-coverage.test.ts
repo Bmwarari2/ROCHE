@@ -12,6 +12,7 @@ const APPEND_ONLY_TABLES = [
   "audit_event",
   "record_version",
   "workflow_transition",
+  "elearning_statement",
   "document_signature",
   "destruction_certificate",
   "care_note",

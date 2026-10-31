@@ -81,6 +81,18 @@ const Env = z.object({
     .string()
     .min(32)
     .default("local-development-evidence-link-secret-0123456789"),
+  /**
+   * The key that signs e-learning launch tokens (ADR-0093): the content origin presents one for
+   * one attempt, so it reads that course's files and sends that attempt's statements, nothing
+   * else. From Secrets Manager in deployed environments; the local default is refused in
+   * production.
+   */
+  ELEARNING_LAUNCH_SECRET: z
+    .string()
+    .min(32)
+    .default("local-development-elearning-launch-secret-0123456789"),
+  /** How long a launch token lasts (an attempt can be resumed with a new one). */
+  ELEARNING_LAUNCH_MINUTES: z.coerce.number().int().positive().max(720).default(240),
   /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
@@ -150,6 +162,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (parsed.EVIDENCE_LINK_SECRET.startsWith("local-development")) {
       throw new Error("EVIDENCE_LINK_SECRET must be set in production");
+    }
+    if (parsed.ELEARNING_LAUNCH_SECRET.startsWith("local-development")) {
+      throw new Error("ELEARNING_LAUNCH_SECRET must be set in production");
     }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");

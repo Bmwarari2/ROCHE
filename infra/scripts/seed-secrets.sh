@@ -98,10 +98,12 @@ secret_json() {
       # /v1/sync/jwks under the key ID below.
       openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${WORKDIR}/sync-key.pem" 2>/dev/null
       # evidence_link_secret: the HMAC key for evidence pack codes and link sessions (ADR-0050).
+      # elearning_launch_secret: the HMAC key for e-learning launch tokens (ADR-0093).
       AUTH_SECRET="$(openssl rand -base64 48)" EVIDENCE_SECRET="$(openssl rand -base64 48)" \
+        ELEARNING_SECRET="$(openssl rand -base64 48)" \
         KID="harbour-${ENVIRONMENT}-$(date -u +%Y%m%d%H%M%S)" \
         jq -n --rawfile k "${WORKDIR}/sync-key.pem" \
-        '{auth_secret: env.AUTH_SECRET, evidence_link_secret: env.EVIDENCE_SECRET, sync_signing_key_pem: $k, sync_signing_key_id: env.KID}'
+        '{auth_secret: env.AUTH_SECRET, evidence_link_secret: env.EVIDENCE_SECRET, elearning_launch_secret: env.ELEARNING_SECRET, sync_signing_key_pem: $k, sync_signing_key_id: env.KID}'
       rm -f "${WORKDIR}/sync-key.pem"
       ;;
     powersync/api-token)

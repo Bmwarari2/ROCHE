@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createDatabase, createPool } from "@harbour/db";
+import { DOCUMENT_CATEGORIES, XAPI_STATEMENT_MAX_BYTES } from "@harbour/domain";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
@@ -27,6 +28,7 @@ import { developmentRouter } from "./routes/development";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
+import { elearningLaunchRouter, elearningRouter } from "./routes/elearning";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
@@ -81,6 +83,10 @@ import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
+/** An e-learning package's limit (the `elearning_package` category). */
+const ELEARNING_PACKAGE_MAX_BYTES = DOCUMENT_CATEGORIES.elearning_package.maxBytes;
+/** A batch of xAPI statements: 50 of 16 KB, plus headroom. */
+const ELEARNING_STATEMENTS_MAX_BYTES = 50 * XAPI_STATEMENT_MAX_BYTES + 64 * 1024;
 /** Largest body any /v1/sync route accepts (security review round 4, M4). */
 export const SYNC_MAX_BODY_BYTES = 64 * 1024;
 /**
@@ -235,6 +241,17 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // E-learning packages (ADR-0093): the category's 100 MB plus headroom, refused before it is read.
+  app.use(
+    "/v1/workforce/elearning/courses",
+    bodyLimit({
+      maxSize: ELEARNING_PACKAGE_MAX_BYTES + 64 * 1024,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The package is too large.")),
+    }),
+  );
+  // The e-learning launch routes take no session; statements are small JSON (50 of 16 KB at most).
+  app.use("/e/*", capped(ELEARNING_STATEMENTS_MAX_BYTES));
   // The logo is small (512 KB): a larger body is refused before it is read or decoded.
   app.use(
     "/v1/branding/logo",
@@ -310,6 +327,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", staffFilesRouter);
   app.route("/", developmentRouter);
   app.route("/", evidenceLinkRouter);
+  app.route("/", elearningRouter);
+  app.route("/", elearningLaunchRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
   app.route("/", feedPublishRouter);

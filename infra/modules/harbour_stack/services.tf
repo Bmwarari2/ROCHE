@@ -73,14 +73,15 @@ locals {
   # a ready-made url (sslmode=verify-full) written by infra/scripts/seed-secrets.sh.
   app_secrets = merge(
     {
-      DATABASE_APP_URL      = "${local.secret_arns["db/harbour_app"]}:url::"
-      DATABASE_AUTH_URL     = "${local.secret_arns["db/harbour_auth"]}:url::"
-      DATABASE_OPERATOR_URL = "${local.secret_arns["db/harbour_operator"]}:url::"
-      DATABASE_WORKER_URL   = "${local.secret_arns["db/harbour_worker"]}:url::"
-      BETTER_AUTH_SECRET    = "${local.secret_arns["api"]}:auth_secret::"
-      EVIDENCE_LINK_SECRET  = "${local.secret_arns["api"]}:evidence_link_secret::"
-      SYNC_SIGNING_KEY_PEM  = "${local.secret_arns["api"]}:sync_signing_key_pem::"
-      SYNC_SIGNING_KEY_ID   = "${local.secret_arns["api"]}:sync_signing_key_id::"
+      DATABASE_APP_URL        = "${local.secret_arns["db/harbour_app"]}:url::"
+      DATABASE_AUTH_URL       = "${local.secret_arns["db/harbour_auth"]}:url::"
+      DATABASE_OPERATOR_URL   = "${local.secret_arns["db/harbour_operator"]}:url::"
+      DATABASE_WORKER_URL     = "${local.secret_arns["db/harbour_worker"]}:url::"
+      BETTER_AUTH_SECRET      = "${local.secret_arns["api"]}:auth_secret::"
+      EVIDENCE_LINK_SECRET    = "${local.secret_arns["api"]}:evidence_link_secret::"
+      ELEARNING_LAUNCH_SECRET = "${local.secret_arns["api"]}:elearning_launch_secret::"
+      SYNC_SIGNING_KEY_PEM    = "${local.secret_arns["api"]}:sync_signing_key_pem::"
+      SYNC_SIGNING_KEY_ID     = "${local.secret_arns["api"]}:sync_signing_key_id::"
     },
     { for r in ["harbour_app", "harbour_auth", "harbour_worker"] : "HARBOUR_DB_PASSWORD_${upper(r)}" => "${local.secret_arns["db/${r}"]}:password::" },
   )

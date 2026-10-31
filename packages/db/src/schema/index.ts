@@ -2,6 +2,7 @@ export * from "./auth";
 export * from "./care";
 export * from "./comms";
 export * from "./dpia";
+export * from "./elearning";
 export * from "./enums";
 export * from "./exports";
 export * from "./integrations";
