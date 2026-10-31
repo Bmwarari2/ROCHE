@@ -10,6 +10,7 @@ import {
   ConfirmAdmissionCondition,
   CreateAdmissionDecision,
   CreateBedMove,
+  CreateEnquiry,
   PersonStatusChange,
   PersonStatusChangeResult,
   PersonSummary,
@@ -58,13 +59,14 @@ import {
   preAdmissionCompleteness,
   roomLabelOn,
   ukIsoDate,
+  validateNhsNumber,
   type WelcomeChecklistItemDefinition,
   welcomeChecklistStatus,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { permissionsReaching, requirePermission, withTenant } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
   currentPlacement,
@@ -89,6 +91,7 @@ import { personSummaries } from "./people";
 import {
   audit,
   changeStatus,
+  dbCode,
   invalidOnForeignKey,
   iso,
   PersonParam,
@@ -102,6 +105,12 @@ import {
  * to admit, admission into a dated bed, bed moves and the bed board, room clearance after a death,
  * and the welcome checklist. Every rule is the domain's; reads and writes are audited by record id.
  */
+
+/** The database's refusal of a real person while sample data is loaded (migration 0069). */
+function sampleRefusal(error: unknown): boolean {
+  const e = error as { message?: string; cause?: { message?: string } };
+  return (e.cause?.message ?? e.message) === "remove_sample_data_first";
+}
 
 const DecisionParams = PersonParam.extend({ decisionId: z.uuid() });
 const ConditionParams = DecisionParams.extend({ conditionId: z.uuid() });
@@ -462,6 +471,78 @@ async function summaryOf(tx: Transaction, personId: string): Promise<PersonSumma
 // ------------------------------------------------------------------------------------------------
 
 export const peopleLifecycleRouter = createRouter()
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/people",
+      tags: ["people"],
+      summary: "Record an enquiry: a new person at the start of the lifecycle (people.md rule 1)",
+      description:
+        "people.person.create, with the location in the caller's scope (otherwise 404). The person starts as `enquiry`, which takes contact details and the enquiry only. An NHS number must have ten digits and a valid check digit. A real person waits while sample data is loaded (409 remove_sample_data_first), and an NHS number already recorded is refused (409 nhs_number_in_use, HZ-001). Audited (people.person.create, the person's id only).",
+      security,
+      request: { body: { content: { "application/json": { schema: CreateEnquiry } } } },
+      responses: { 201: jsonBody(PersonSummary, "Recorded"), ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "people.person.create");
+      const body = c.req.valid("json");
+      requireLocationInScope(access, body.locationId);
+      let nhsNumber: string | null = null;
+      if (body.nhsNumber) {
+        const check = validateNhsNumber(body.nhsNumber);
+        if (!check.valid) throw problems.invalid("Enter a valid NHS number, or leave it out.");
+        nhsNumber = check.value;
+      }
+      const summary = await withTenant(c, async (tx) => {
+        const [home] = await tx
+          .select({ id: location.id })
+          .from(location)
+          .where(and(eq(location.id, body.locationId), isNull(location.deletedAt)));
+        if (!home) throw problems.notFound();
+        const [created] = await tx
+          .insert(person)
+          .values({
+            locationId: home.id,
+            status: "enquiry",
+            givenName: body.givenName,
+            familyName: body.familyName,
+            preferredName: body.preferredName ?? null,
+            dateOfBirth: body.dateOfBirth ?? null,
+            nhsNumber,
+          })
+          .returning({ id: person.id })
+          .catch((error: unknown) => {
+            if (dbCode(error) === "23505") {
+              throw new HttpProblem(
+                409,
+                "nhs_number_in_use",
+                "The person was not recorded.",
+                "Someone with this NHS number is already recorded. Search for them instead of recording them again.",
+              );
+            }
+            if (sampleRefusal(error)) {
+              throw new HttpProblem(
+                409,
+                "remove_sample_data_first",
+                "The person was not recorded.",
+                "Remove the sample data before recording real people.",
+              );
+            }
+            throw error;
+          });
+        if (!created) throw problems.conflict();
+        await audit(c, tx, access, {
+          action: "people.person.create",
+          resourceType: "person",
+          resourceId: created.id,
+        });
+        const [out] = await personSummaries(tx, [created.id]);
+        if (!out) throw problems.notFound();
+        return out;
+      });
+      return c.json(summary, 201);
+    },
+  )
   .openapi(
     createRoute({
       method: "post",

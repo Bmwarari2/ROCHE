@@ -330,6 +330,68 @@ async function insertDocument(personId: string): Promise<string> {
 
 // ------------------------------------------------------------------------------------------------
 
+describe("people.md rule 1: recording an enquiry (POST /v1/people)", () => {
+  const enquiry = {
+    locationId: DEMO.locationId,
+    givenName: "Rhoda",
+    familyName: "Example",
+    dateOfBirth: "1938-02-02",
+    nhsNumber: "999 123 4578",
+  };
+
+  it("records a new person as an enquiry, audited by id", async () => {
+    const created = await as("manager", "/v1/people", { method: "POST", body: enquiry });
+    expect(created.status).toBe(201);
+    const person = await json<PersonSummary>(created);
+    expect(person).toMatchObject({
+      status: "enquiry",
+      givenName: "Rhoda",
+      familyName: "Example",
+      nhsNumber: "9991234578",
+      locationId: DEMO.locationId,
+      sample: false,
+    });
+    const audited = await asDemoTenant((c) =>
+      c.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM audit_event
+         WHERE action = 'people.person.create' AND resource_id = $1 AND outcome = 'success'`,
+        [person.id],
+      ),
+    );
+    expect(audited.rows[0]?.n).toBe(1);
+  });
+
+  it("refuses someone without people.person.create", async () => {
+    expect((await as("carer", "/v1/people", { method: "POST", body: enquiry })).status).toBe(403);
+  });
+
+  it("hazard HZ-001 refuses an NHS number with a wrong check digit", async () => {
+    const refused = await as("manager", "/v1/people", {
+      method: "POST",
+      body: { ...enquiry, nhsNumber: "999 123 4579" },
+    });
+    expect(refused.status).toBe(422);
+    expect(await detail(refused)).toContain("NHS number");
+  });
+
+  it("hazard HZ-001 refuses a second person with an NHS number already recorded", async () => {
+    const duplicate = await as("manager", "/v1/people", {
+      method: "POST",
+      body: { ...enquiry, nhsNumber: "999 000 0018" },
+    });
+    expect(duplicate.status).toBe(409);
+    expect(await json<ProblemDetails>(duplicate)).toMatchObject({ code: "nhs_number_in_use" });
+  });
+
+  it("hazard HZ-011 treats a location outside the caller's scope as not found", async () => {
+    const outside = await as("manager", "/v1/people", {
+      method: "POST",
+      body: { ...enquiry, locationId: LODGE.locationId },
+    });
+    expect(outside.status).toBe(404);
+  });
+});
+
 describe("people.md rules 1, 2, 4 and 5: from enquiry to admission", () => {
   let assessmentVersion = 0;
   let decision: AdmissionDecisionItem;

@@ -412,6 +412,48 @@ it) in migration 0022, as a new role version; migration 0024 writes one audit ev
 0022 changed, as the system, in the tenant's hash chain.
 Tests: `packages/db/test/people-lifecycle.test.ts`, `apps/api/test/people-lifecycle.test.ts`.
 
+### Web: leaving the service (PEOP-010)
+
+The record's **Leaving** tab (`/people/{id}/leaving`, `people.person.read`) shows the discharge,
+transfer or death workflow from `GET /v1/people/{id}/exit` and offers only what the API would take.
+The web app decides nothing itself: every rule, permission, step-up and separation-of-duties check
+is the API's, and a refusal is said in words with what to do next.
+
+| State | What the tab shows | Actions offered |
+| --- | --- | --- |
+| Live person, no exit | Nothing in progress | Plan a discharge or transfer; record a discharge or transfer; record a death |
+| Exit `planned` | Checklist, deadlines | Tick items; record that the person has left; cancel the plan with a reason |
+| `left` or `recorded` | Checklist with owners, notifications and hazard ids | Tick items; move to awaiting returns |
+| `awaiting_return` | Returns outstanding and their deadline | Return property and keys; confirm money; close |
+| `closed`, person discharged or deceased | Closed, read-only checklist | Archive the record |
+| Person `archived` | "Archived" (icon and word) above the read-only exit summary | None |
+
+Items counted from their own records are never ticked by hand: property and keys are returned on
+the same tab (`people.property.manage`); statutory notifications (the regulator's death
+notification, the medical examiner information pack, LeDeR) link to their page under
+`/notifications/statutory/{id}`, where `safety.notification.submit` holders submit them (HZ-013).
+
+Permission matrix (the API enforces each; the web hides what the viewer's permissions reaching
+the person do not include):
+
+| Action | Permission | Also |
+| --- | --- | --- |
+| Plan, record a discharge or transfer, move, close, archive, cancel a plan | `people.admission.manage` | A reason to discharge or cancel |
+| Record a death | `people.movement.record` | Whether expected and LeDeR answered explicitly |
+| Tick a people, care, medicines or safety item | `people.admission.manage` or `people.movement.record` | "Not required" only where allowed, with a reason |
+| Confirm residents' money, the deposit or DWP | `finance.ledger.approve` | Step-up; never the person who recorded the exit |
+| Return property or keys | `people.property.manage` | Who received it and who signed |
+
+The status of anyone who is not receiving care (left, died, archived, on leave, in hospital, before
+admission) shows as an icon and a word beside their name on the people list, the record header and
+search. `POST /v1/people` (`people.person.create`, the location in scope) records an enquiry: the
+first step of the lifecycle, so journeys and onboarding can start a person without seeding.
+
+Tests: `apps/web/src/lib/exit.test.ts` (which actions each state and permission set offers, nothing
+after archive, the item words), `apps/api/test/people-lifecycle.test.ts` (recording an enquiry),
+and `apps/web/e2e/exit.spec.ts` (discharge, transfer and death on people the journey records,
+each to archive, with axe in light and dark themes; HZ-001, HZ-013).
+
 ## 7. Offline behaviour (section 17.1)
 
 | Data | On the device | Writes offline | Conflict handling |

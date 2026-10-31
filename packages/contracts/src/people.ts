@@ -79,6 +79,23 @@ export const ExitDetails = z
   .meta({ id: "ExitDetails" });
 export type ExitDetails = z.infer<typeof ExitDetails>;
 
+/**
+ * Records an enquiry: the first status of the lifecycle (rule 1), with the names and, when known,
+ * the date of birth and NHS number. Nothing else is recorded until the pre-admission assessment.
+ */
+export const CreateEnquiry = z
+  .object({
+    locationId: uuid,
+    givenName: text(100).min(1),
+    familyName: text(100).min(1),
+    preferredName: text(100).optional(),
+    dateOfBirth: isoDate.optional(),
+    /** Ten digits with a valid check digit; spaces are ignored. */
+    nhsNumber: text(20).optional(),
+  })
+  .meta({ id: "CreateEnquiry" });
+export type CreateEnquiry = z.infer<typeof CreateEnquiry>;
+
 export const PersonStatusChange = z
   .object({
     to: PersonStatus,
