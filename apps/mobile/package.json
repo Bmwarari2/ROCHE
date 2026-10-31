@@ -56,7 +56,7 @@
     "@types/react": "~19.2.18",
     "react-test-renderer": "19.2.3",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "op-sqlite": {
     "sqlcipher": true

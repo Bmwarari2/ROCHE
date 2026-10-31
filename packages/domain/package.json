@@ -16,8 +16,8 @@
     "@harbour/config": "workspace:*",
     "@types/node": "^22.15.0",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.11",
-    "@vitest/coverage-v8": "^4.1.11",
+    "vitest": "^4.1.12",
+    "@vitest/coverage-v8": "^4.1.12",
     "tsx": "^4.20.0"
   },
   "description": "Harbour domain rules: the 14 bounded contexts' entities, rules and events, with no I/O"

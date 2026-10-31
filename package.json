@@ -62,13 +62,24 @@
     "overrides": {
       "node-forge@<1.4.2": "1.4.2",
       "undici@>=7.0.0 <7.30.1": "7.30.1",
-      "zod@>=4.0.0 <4.6.6": "4.6.6"
+      "zod@>=4.0.0 <4.6.6": "4.6.6",
+      "tmp@<0.2.6": "0.2.7",
+      "basic-ftp@<6.2.1": "6.2.3",
+      "fast-uri@>=3.0.0 <3.1.9": "3.1.9",
+      "uuid@<11.1.1": "11.1.1",
+      "@esbuild-kit/core-utils>esbuild": "0.25.12"
     },
     "auditConfig": {
       "ignoreGhsas": [
         "GHSA-vfj7-8cjw-p6xm",
         "GHSA-qr28-fpjm-wq7f",
-        "GHSA-mrhx-c7xc-m3w5"
+        "GHSA-mrhx-c7xc-m3w5",
+        "GHSA-jmr9-qjv8-65gv",
+        "GHSA-7pqw-9j4j-h8q3",
+        "GHSA-vcc3-ghjq-m6fr",
+        "GHSA-gcqx-w48m-w2h4",
+        "GHSA-g3hv-75wg-m249",
+        "GHSA-3g3m-2fjr-6pw4"
       ]
     }
   },

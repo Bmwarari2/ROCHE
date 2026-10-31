@@ -16,7 +16,7 @@
     "@harbour/config": "workspace:*",
     "@types/node": "^22.15.0",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "openapi-typescript": "^7.13.0"
   },
   "description": "Zod schemas shared by the Harbour API, web and mobile apps (OpenAPI 3.1 source)",
