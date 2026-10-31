@@ -263,7 +263,8 @@ export const DELETE_UPLOAD_ISSUE_SQL =
 export const ROUND_TASKS_SQL = `SELECT t.id, t.tenant_id, t.person_id, t.location_id, t.title,
   t.status, t.due_at, t.window_start, t.window_end, t.priority, t.evidence_required,
   t.required_permission, t.assignee_tenant_user_id, t.version, t.queued_transition,
-  t.from_earlier_plan, p.preferred_name, p.given_name, p.family_name, p.communication_needs,
+  t.from_earlier_plan, t.kind, t.series_id, t.escalation_level,
+  p.preferred_name, p.given_name, p.family_name, p.communication_needs,
   p.location_id AS person_location_id,
   (SELECT COUNT(*) FROM care_note e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
     + (SELECT COUNT(*) FROM observation e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)

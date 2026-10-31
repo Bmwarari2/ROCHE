@@ -141,7 +141,7 @@ describe("hazard HZ-018 a handover item's words on the phone, from the server's 
     ["o-high", "news2", "NEWS2 score 7, high clinical risk"],
     ["o-medium", "news2", "NEWS2, medium clinical risk"],
     ["i-near", "incident", "Incident: a near miss"],
-    ["a-urgent", "alert", "Urgent alert: an observation needs a response now"],
+    ["a-urgent", "alert", "Urgent alert raised: an observation needed an urgent response"],
     ["m-1", "body_map_mark", "Body map: Bruise, left shin, left side"],
     ["n-flagged", "flagged_note", "A care note marked to include in the handover"],
     [
@@ -213,6 +213,7 @@ describe("hazard HZ-018 a handover item's words on the phone, from the server's 
 });
 
 describe("hazard HZ-018 every urgent alert a summary names is worded for what it is about (#50 review round 1, clinical M2)", () => {
+  const UNKNOWN = "Urgent alert raised: open the alert to see what it is about";
   const alert = (kind: string, reason: string) =>
     handoverItemWords({
       kind: "alert",
@@ -223,13 +224,13 @@ describe("hazard HZ-018 every urgent alert a summary names is worded for what it
     });
 
   it.each(HANDOVER_ALERT_KINDS.filter((k) => k !== "care.urgent_result"))("%s", (kind) => {
-    expect(alert(kind, "other")).not.toBe("Urgent alert: see the alert");
+    expect(alert(kind, "other")).not.toBe(UNKNOWN);
   });
 
   it.each(ALERT_REASON_CODES)("care.urgent_result raised by %s", (reason) => {
     const words = alert("care.urgent_result", reason);
-    expect(words).not.toBe("Urgent alert: an observation needs a response now");
-    expect(words).not.toBe("Urgent alert: see the alert");
+    expect(words).not.toBe("Urgent alert raised: an observation needed an urgent response");
+    expect(words).not.toBe(UNKNOWN);
   });
 
   it("words an IDDSI texture alert as one, never as a NEWS2 score", () => {
@@ -238,6 +239,38 @@ describe("hazard HZ-018 every urgent alert a summary names is worded for what it
   });
 
   it("words a kind it does not know as an alert to open", () => {
-    expect(alert("some.new_kind", "other")).toBe("Urgent alert: see the alert");
+    expect(alert("some.new_kind", "other")).toBe(UNKNOWN);
+  });
+
+  it("words a NEWS2 alert by the score and band found, in the past, as published (#123 clinical review, M6)", () => {
+    const words = (params: Record<string, string | number>) =>
+      handoverItemWords({
+        kind: "alert",
+        summary: JSON.stringify({
+          key: "handover.summary.alert",
+          params: { alert: "care_urgent_result", reason: "news2_threshold", ...params },
+        }),
+      });
+    expect(words({ scored: "yes", score: 7, band: "high" })).toBe(
+      "Urgent alert raised: NEWS2 score 7, high clinical risk",
+    );
+    expect(words({ scored: "yes", score: 3, band: "low_medium" })).toBe(
+      "Urgent alert raised: NEWS2 score 3, low-medium clinical risk",
+    );
+    // Compiled before alerts carried the score.
+    expect(words({})).toBe(
+      "Urgent alert raised: a NEWS2 score reached the level for an urgent response",
+    );
+    for (const w of [words({ scored: "yes", score: 7, band: "high" }), words({})]) {
+      expect(w).not.toMatch(/needs a response now/);
+    }
+  });
+
+  it("words both texture alerts for food or a drink, and says they may not be safe (#123 clinical review, M5)", () => {
+    for (const reason of ["iddsi_unsafe_level", "iddsi_level_not_recorded"]) {
+      const words = alert("care.urgent_result", reason);
+      expect(words).toMatch(/food or a drink/);
+      expect(words).toMatch(/which may not be safe$/);
+    }
   });
 });

@@ -12,7 +12,7 @@
  *   row (no title, due time or version; `held-work.ts`) is named from the move itself;
  * - status is always an icon and a word, never colour alone.
  */
-import { communicationFlagLabel, knownAsName } from "@harbour/ui-native/logic";
+import { knownAsName } from "@harbour/ui-native/logic";
 import { type MessageKey, t } from "../i18n/t";
 import { parseCommunicationNeeds } from "../people/person-view";
 import type { FieldError } from "./entries";
@@ -32,10 +32,14 @@ export interface RoundTaskRow extends TaskToMove {
   readonly communication_needs: string | null;
   /** The person's home, for the write scope (null when the person row is not on the device). */
   readonly person_location_id: string | null;
+  /** The task's series, when a schedule (a plan's round) made it. */
+  readonly series_id?: string | null;
   /** Entries saved on this device that answer the task and have not uploaded yet. */
   readonly evidence_waiting: number | null;
   /** Entries for the task Harbour refused, kept in "needs attention" (HZ-006). */
   readonly evidence_refused?: number | null;
+  /** How many times the overdue task has been escalated (0 or null when never). */
+  readonly escalation_level?: number | null;
 }
 
 export type RoundTiming = "overdue" | "due" | "later";
@@ -96,11 +100,24 @@ function personName(row: RoundTaskRow): string | null {
   return family && known !== family ? `${known} ${family}` : known;
 }
 
-/** How many communication needs to flag: unreadable needs still raise one (person-view.ts). */
-function communicationNeedsCount(row: RoundTaskRow): number {
-  if (!row.person_id) return 0;
+/**
+ * The person's communication needs in words (Accessible Information Standard; #123 clinical
+ * review, M3): each need by name, and unreadable needs said as such; null when none recorded.
+ */
+function communicationNeedsWords(row: RoundTaskRow): string | null {
+  if (!row.person_id) return null;
   const { needs, unreadable } = parseCommunicationNeeds(row.communication_needs);
-  return needs.length + (unreadable ? 1 : 0);
+  const names = needs.map((n) =>
+    n.preferredFormat
+      ? t("mobile.round.needWithFormat", { need: n.display, format: n.preferredFormat })
+      : n.display,
+  );
+  if (names.length === 0 && !unreadable) return null;
+  return t("mobile.round.communication", {
+    needs: names.join("; "),
+    unreadable: unreadable ? "yes" : "no",
+    count: names.length,
+  });
 }
 
 function dateTime(value: string | null): string | null {
@@ -127,16 +144,15 @@ export function roundItem(row: RoundTaskRow, now: Date): RoundItem {
       label: t("mobile.round.urgent"),
     });
   }
-  const needs = communicationNeedsCount(row);
-  if (needs > 0) {
-    flags.push({
-      key: "communication",
-      icon: "message-square-text",
-      tone: "info",
-      label: communicationFlagLabel(needs),
-    });
+  const needs = communicationNeedsWords(row);
+  if (needs) {
+    flags.push({ key: "communication", icon: "message-square-text", tone: "info", label: needs });
   }
+  // A plan's round whose flag has not synced is unknown, not "current" (#123 clinical review, L8).
   if (row.from_earlier_plan === 1) notices.push(t("mobile.round.earlierPlan"));
+  else if (row.from_earlier_plan === null && row.series_id) {
+    notices.push(t("mobile.round.earlierPlanUnknown"));
+  }
   let action: RoundItem["action"] = row.evidence_required === 1 ? "evidence" : "mark";
   let chip: RoundChip =
     timing === "later"
@@ -146,7 +162,20 @@ export function roundItem(row: RoundTaskRow, now: Date): RoundItem {
           icon: "clock",
           label: t("mobile.round.later"),
         }
-      : { kind: "status", status: timing, label: t(`mobile.round.${timing}` as MessageKey) };
+      : {
+          kind: "status",
+          status: timing,
+          // An escalated overdue task says so in words (#123 clinical review, L11).
+          label:
+            timing === "overdue" && (row.escalation_level ?? 0) > 0
+              ? t("mobile.round.overdueEscalated")
+              : t(`mobile.round.${timing}` as MessageKey),
+        };
+  if (row.kind?.startsWith("medicines.")) {
+    // Recorded through eMAR on the web until the phone has it (#123 clinical review, L10).
+    notices.push(t("mobile.round.medicinesOnWeb"));
+    action = "none";
+  }
   if (move) {
     notices.push(t("mobile.round.moveWaiting", { to: move.to, reason: move.reason ?? "" }));
     chip = { kind: "flag", tone: "info", icon: "cloud-upload", label: t("mobile.round.waiting") };

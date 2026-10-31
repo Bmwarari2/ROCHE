@@ -32,6 +32,7 @@ import {
   acknowledgementInsert,
   checkTaskMove,
   type HandoverToAcknowledge,
+  moveRefusal,
   type ShownItem,
   type TaskMoveTo,
   type TaskToMove,
@@ -151,6 +152,28 @@ export function useSaveEntry(): (table: OfflineWindowTable, row: EntryRow) => Pr
       });
     },
     [db],
+  );
+}
+
+/**
+ * Why this member may not act on a round task here, by the same rule as a move (`moveRefusal`),
+ * so the evidence path refuses where "Done" would (#123 clinical review, L1); null when they may.
+ * The person's home is the synced row's, as the round query reads it.
+ */
+export function useTaskRefusal(): (
+  task: TaskToMove,
+  personLocationId: string | null,
+) => FieldError | null {
+  const { me } = useSession();
+  const userId = me?.tenantUserId ?? null;
+  const tokenScope = useWriteScope();
+  const scope = tokenScope ?? (appEnv.demoMode ? demoWriteScope : null);
+  return useCallback(
+    (task, personLocationId) => {
+      const key = moveRefusal(task, { userId, scope, personLocationId, newId: newEntryId });
+      return key ? { key } : null;
+    },
+    [userId, scope],
   );
 }
 

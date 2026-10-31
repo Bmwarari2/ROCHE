@@ -121,11 +121,11 @@ describe("what each task on the round says", () => {
         key: "communication",
         icon: "message-square-text",
         tone: "info",
-        label: "Communication need",
+        label: "Communication: British Sign Language",
       },
     ]);
-    expect(roundItem(row({ communication_needs: "not json" }), NOW).flags[0]?.key).toBe(
-      "communication",
+    expect(roundItem(row({ communication_needs: "not json" }), NOW).flags[0]?.label).toBe(
+      "Communication needs could not be read",
     );
     expect(roundItem(row(), NOW).flags).toEqual([]);
   });
@@ -134,6 +134,31 @@ describe("what each task on the round says", () => {
     const item = roundItem(row({ evidence_required: 1, evidence_refused: 1 }), NOW);
     expect(item.action).toBe("evidence");
     expect(item.notices[0]).toMatch(/^An entry for this task was not accepted by Harbour/);
+  });
+
+  it("says it cannot tell when a plan's round has no earlier-plan flag yet (#123 clinical review, L8)", () => {
+    expect(
+      roundItem(row({ from_earlier_plan: null, series_id: "series-1" }), NOW).notices,
+    ).toContain(
+      "This phone cannot tell whether this round is from the current plan: check the current plan",
+    );
+    expect(roundItem(row({ from_earlier_plan: null }), NOW).notices).toEqual([]);
+  });
+
+  it("never offers a medicines task here, before eMAR (#123 clinical review, L10)", () => {
+    const item = roundItem(row({ kind: "medicines.administration" }), NOW);
+    expect(item.action).toBe("none");
+    expect(item.notices).toContain(
+      "Medicines are recorded in Harbour on the web until medicines recording is on the phone.",
+    );
+  });
+
+  it("says an escalated overdue task is escalated, in words (#123 clinical review, L11)", () => {
+    const item = roundItem(
+      row({ window_end: "2026-10-11T09:00:00.000Z", escalation_level: 1 }),
+      NOW,
+    );
+    expect(item.chip.label).toBe("Overdue: escalated");
   });
 
   it("says where to record evidence for a task about nobody", () => {

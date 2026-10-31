@@ -15,6 +15,7 @@ import {
 import {
   type AlertNotification,
   alertConditions,
+  alertNews2FromFlags,
   alertReasonFromFlags,
   checkHandoverKeepsItems,
   compileHandover,
@@ -408,11 +409,19 @@ async function withAlertReasons(
     .select({ id: observation.id, flags: observation.flags })
     .from(observation)
     .where(inArray(observation.id, ids));
-  const reasons = new Map(flagged.map((o) => [o.id, alertReasonFromFlags(o.flags)]));
+  const byId = new Map(
+    flagged.map((o) => [
+      o.id,
+      { reason: alertReasonFromFlags(o.flags), news2: alertNews2FromFlags(o.flags) },
+    ]),
+  );
   return rows.map((r) => {
-    const reason =
-      r.sourceType === "observation" && r.sourceId ? reasons.get(r.sourceId) : undefined;
-    return reason ? { ...r, reason } : r;
+    const found = r.sourceType === "observation" && r.sourceId ? byId.get(r.sourceId) : undefined;
+    if (!found?.reason) return r;
+    // A NEWS2 alert carries what was found (#123 clinical review, M6).
+    return found.reason === "news2_threshold" && found.news2
+      ? { ...r, reason: found.reason, news2: found.news2 }
+      : { ...r, reason: found.reason };
   });
 }
 
