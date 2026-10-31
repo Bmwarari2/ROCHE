@@ -1814,6 +1814,7 @@
   "quality.release.confirmError": "Confirm you have read every record and redaction",
   "quality.release.submit": "{mode, select, reissue {Send a new link} other {Release and make the link}}",
   "quality.release.stepUp": "Releasing a pack or sending a new link needs you to confirm it is you with your passkey or a code from your authenticator app. Then come back to this page and try again.",
+  "quality.release.noOrigin": "Harbour cannot make the link here because this site's address is not set up. Ask your Harbour administrator to set it, then try again.",
   "quality.release.blockedTitle": "Someone else must release this pack",
   "quality.release.blocked": "{why, select, contributor {You composed, edited or redacted this pack. Ask a manager who did not work on it to read it and release it.} no_items {Add at least one record before the pack can be released.} other {You cannot release this pack.}}",
   "quality.link.state": "{state, select, live {Working} expired {Expired} revoked {Withdrawn} replaced {Replaced by a new link} locked {Locked after wrong codes} other {Unknown}}",

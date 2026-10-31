@@ -1,5 +1,4 @@
 import "server-only";
-import { headers } from "next/headers";
 import { cache } from "react";
 import { tenantApi } from "./api";
 import { t } from "./i18n";
@@ -28,15 +27,14 @@ export const getPeopleNames = cache(
 );
 
 /**
- * This site's origin for the link the releaser sends: `PUBLIC_WEB_URL` (set per environment), else
- * the address this request came to.
+ * This site's origin for the link the releaser sends: `PUBLIC_WEB_URL` (set per environment by
+ * Terraform), or the local web server outside production. Nothing from the request decides it
+ * (as for invitations): a forged Host or X-Forwarded-Host must never put an attacker's origin in
+ * front of the token. Null in production without the setting, and release is then not offered.
  */
-export async function webOrigin(): Promise<string> {
-  if (process.env.PUBLIC_WEB_URL) return process.env.PUBLIC_WEB_URL;
-  const incoming = await headers();
-  const host = incoming.get("x-forwarded-host") ?? incoming.get("host") ?? "localhost:3000";
-  const proto =
-    incoming.get("x-forwarded-proto")?.split(",")[0]?.trim() ??
-    (process.env.NODE_ENV === "production" ? "https" : "http");
-  return `${proto}://${host}`;
+export function webOrigin(): string | null {
+  return (
+    process.env.PUBLIC_WEB_URL ??
+    (process.env.NODE_ENV === "production" ? null : "http://localhost:3000")
+  );
 }

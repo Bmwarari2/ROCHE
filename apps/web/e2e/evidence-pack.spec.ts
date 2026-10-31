@@ -135,7 +135,8 @@ test("hazard HZ-050 the manager composes a pack, adds a note and redacts it, but
     .click();
   const redact = main(page).getByLabel("Redacted copy");
   await expect(redact).toBeFocused();
-  await expect(redact).toHaveValue(/Ben joined the music group/);
+  // A note is not read again to prefill (DPIA R13): the composer types the redacted copy.
+  await expect(redact).toHaveValue("");
   // A copy that still holds a long number is refused, in words.
   await redact.fill("Joined the music group. Call 999 000 0018 for more.");
   await main(page).getByRole("button", { name: "Save the redacted copy" }).click();

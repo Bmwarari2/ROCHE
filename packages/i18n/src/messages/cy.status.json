@@ -1815,6 +1815,7 @@
     "quality.release.confirmError",
     "quality.release.submit",
     "quality.release.stepUp",
+    "quality.release.noOrigin",
     "quality.release.blockedTitle",
     "quality.release.blocked",
     "quality.link.state",

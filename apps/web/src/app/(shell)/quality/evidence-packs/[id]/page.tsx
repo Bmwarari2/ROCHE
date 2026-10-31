@@ -127,11 +127,11 @@ async function candidatesFor(
 
 /**
  * The original text of a withheld free-text field, as the composer can already read it, to edit
- * into the redacted copy: a care note's text or tags (found among the people in scope), or an
- * incident's description or immediate actions. Empty when the web cannot read it.
+ * into the redacted copy: an incident's description or immediate actions, read once by its id.
+ * Empty otherwise (a care note would mean reading every person's notes to find it, beyond need,
+ * DPIA R13): the composer opens the record to read it.
  */
 async function originalText(
-  pack: EvidencePackDetail,
   item: EvidencePackDetail["items"][number],
   key: string,
 ): Promise<string> {
@@ -142,16 +142,6 @@ async function originalText(
     });
     if (!data) return "";
     return (key === "description" ? data.description : data.immediateActions) ?? "";
-  }
-  if (item.recordType === "care_note" && (key === "text" || key === "tags")) {
-    const query = packRangeQuery(pack, range);
-    for (const personId of pack.personIds.slice(0, 50)) {
-      const { data } = await api.GET("/v1/people/{id}/notes", {
-        params: { path: { id: personId }, query },
-      });
-      const note = data?.items.find((n) => n.id === item.recordId);
-      if (note) return key === "text" ? note.body : note.tags.join(", ");
-    }
   }
   return "";
 }
@@ -212,7 +202,7 @@ export default async function EvidencePackPage({
       ? pack.items.find((i) => i.id === redactItem && i.exclusionReason === null)
       : undefined;
   const targetField = target?.fields.find((f) => f.key === redactKey && redactable(f));
-  const original = target && targetField ? await originalText(pack, target, targetField.key) : "";
+  const original = target && targetField ? await originalText(target, targetField.key) : "";
 
   // Release and a new link: how long the link may work, from the rate table.
   const issuing = actions.release || actions.reissue;
@@ -224,7 +214,7 @@ export default async function EvidencePackPage({
     : [null, null];
   const choices =
     defaultDays !== null && maxDays !== null ? expiryChoices(defaultDays, maxDays) : [];
-  const origin = await webOrigin();
+  const origin = webOrigin();
 
   const included = pack.items.filter((i) => i.exclusionReason === null);
   const excluded = pack.items.filter((i) => i.exclusionReason !== null);
@@ -327,13 +317,15 @@ export default async function EvidencePackPage({
 
       {/* Always rendered here, so a link just issued stays on screen when the pack refreshes. */}
       <LinkIssuer
-        mode={actions.release ? "release" : actions.reissue ? "reissue" : null}
+        mode={
+          origin === null ? null : actions.release ? "release" : actions.reissue ? "reissue" : null
+        }
         packId={pack.id}
         linkId={latest?.id ?? null}
         version={actions.reissue && latest ? latest.version : pack.version}
         path={path}
         recipientEmail={pack.recipientEmail}
-        origin={origin}
+        origin={origin ?? ""}
         choices={choices}
         defaultDays={defaultDays}
       />

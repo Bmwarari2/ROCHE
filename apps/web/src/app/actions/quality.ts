@@ -1,9 +1,11 @@
 "use server";
 
-import type {
-  EvidencePackDetail,
+import {
+  ComposeEvidencePack,
+  type EvidencePackDetail,
+  RedactEvidenceField,
   StatementOfPurposeContent,
-  StatementOfPurposeVersionItem,
+  type StatementOfPurposeVersionItem,
 } from "@harbour/contracts";
 import { isUuid } from "@/lib/context-cookies";
 import type { ComposeBody, RecordChoice } from "@/lib/evidence-packs";
@@ -23,11 +25,20 @@ const PACKS = "/quality/evidence-packs";
 const SOP = "/quality/statement-of-purpose";
 const packPaths = (id: string) => [PACKS, `${PACKS}/${id}`];
 const notFound = () => refused(t("errors.notFound"), "not_found");
+/** Server actions are public endpoints: anything malformed is refused here, never passed on. */
+const invalid = () => refused(t("care.errors.invalid"));
+const isVersion = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1;
+const isReason = (v: unknown, max = 500): v is string =>
+  typeof v === "string" && v.trim().length >= 1 && v.length <= max;
 
 export async function composeEvidencePack(
   body: ComposeBody,
 ): Promise<ActionResult<EvidencePackDetail>> {
-  return sendQuality("pack", [PACKS], (api) => api.POST("/v1/evidence-packs", { body }));
+  const parsed = ComposeEvidencePack.safeParse(body);
+  if (!parsed.success) return invalid();
+  return sendQuality("pack", [PACKS], (api) =>
+    api.POST("/v1/evidence-packs", { body: parsed.data }),
+  );
 }
 
 export async function addEvidenceItems(
@@ -35,6 +46,9 @@ export async function addEvidenceItems(
   input: { readonly items: readonly RecordChoice[]; readonly version: number },
 ): Promise<ActionResult<EvidencePackDetail>> {
   if (!isUuid(packId)) return notFound();
+  if (!isVersion(input.version) || input.items.length < 1 || input.items.length > 50) {
+    return invalid();
+  }
   return sendQuality("pack", packPaths(packId), (api) =>
     api.POST("/v1/evidence-packs/{id}/items", {
       params: { path: { id: packId } },
@@ -57,6 +71,7 @@ export async function redactEvidenceField(
   input: { readonly text: string; readonly version: number },
 ): Promise<ActionResult<EvidencePackDetail>> {
   if (!isUuid(packId) || !isUuid(itemId) || !/^[a-z_]{1,64}$/.test(key)) return notFound();
+  if (!RedactEvidenceField.safeParse(input).success) return invalid();
   return sendQuality("pack", packPaths(packId), (api) =>
     api.PUT("/v1/evidence-packs/{id}/items/{itemId}/fields/{key}/redaction", {
       params: { path: { id: packId, itemId, key } },
@@ -71,10 +86,15 @@ export interface LinkIssued {
   readonly expiresAt: string;
 }
 
-/** The instant a link chosen to work for `days` days from now stops, by the server's clock. */
-function expiryFor(days: number | null): string | undefined {
+/**
+ * The instant a link chosen to work for `days` days from now stops, by the server's clock;
+ * undefined for the organisation's default (no choice); null when the choice is not a whole
+ * number of days, which is refused rather than quietly replaced by the default. The API holds
+ * the maximum.
+ */
+function expiryFor(days: number | null): string | undefined | null {
   if (days === null) return undefined;
-  if (!Number.isInteger(days) || days < 1 || days > 366) return undefined;
+  if (!Number.isInteger(days) || days < 1 || days > 366) return null;
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
@@ -85,6 +105,7 @@ export async function releaseEvidencePack(
 ): Promise<ActionResult<LinkIssued>> {
   if (!isUuid(packId)) return notFound();
   const expiresAt = expiryFor(input.days);
+  if (expiresAt === null || !isVersion(input.version)) return invalid();
   return sendQuality("pack", packPaths(packId), (api) =>
     api.POST("/v1/evidence-packs/{id}/release", {
       params: { path: { id: packId } },
@@ -101,6 +122,7 @@ export async function reissueEvidenceLink(
 ): Promise<ActionResult<LinkIssued>> {
   if (!isUuid(packId) || !isUuid(linkId)) return notFound();
   const expiresAt = expiryFor(input.days);
+  if (expiresAt === null || !isVersion(input.version)) return invalid();
   return sendQuality("pack", packPaths(packId), (api) =>
     api.POST("/v1/evidence-packs/{id}/links/{linkId}/reissue", {
       params: { path: { id: packId, linkId } },
@@ -114,6 +136,7 @@ export async function revokeEvidencePack(
   input: { readonly reason: string; readonly version: number },
 ): Promise<ActionResult<EvidencePackDetail>> {
   if (!isUuid(packId)) return notFound();
+  if (!isReason(input.reason) || !isVersion(input.version)) return invalid();
   return sendQuality("pack", packPaths(packId), (api) =>
     api.POST("/v1/evidence-packs/{id}/revoke", {
       params: { path: { id: packId } },
@@ -127,6 +150,7 @@ export async function discardEvidencePack(
   input: { readonly reason: string; readonly version: number },
 ): Promise<ActionResult<EvidencePackDetail>> {
   if (!isUuid(packId)) return notFound();
+  if (!isReason(input.reason) || !isVersion(input.version)) return invalid();
   return sendQuality("pack", packPaths(packId), (api) =>
     api.POST("/v1/evidence-packs/{id}/discard", {
       params: { path: { id: packId } },
@@ -155,6 +179,9 @@ export async function saveStatementDraft(
   input: { readonly content: StatementOfPurposeContent; readonly version: number },
 ): VersionResult {
   if (!isUuid(id)) return notFound();
+  if (!StatementOfPurposeContent.safeParse(input.content).success || !isVersion(input.version)) {
+    return invalid();
+  }
   return sendQuality("sop", [SOP], (api) =>
     api.PUT("/v1/statement-of-purpose/versions/{id}", {
       params: { path: { id } },
@@ -165,6 +192,7 @@ export async function saveStatementDraft(
 
 export async function approveStatement(id: string, version: number): VersionResult {
   if (!isUuid(id)) return notFound();
+  if (!isVersion(version)) return invalid();
   return sendQuality("sop", [SOP], (api) =>
     api.POST("/v1/statement-of-purpose/versions/{id}/approve", {
       params: { path: { id } },
@@ -178,6 +206,7 @@ export async function discardStatement(
   input: { readonly reason: string; readonly version: number },
 ): VersionResult {
   if (!isUuid(id)) return notFound();
+  if (!isReason(input.reason) || !isVersion(input.version)) return invalid();
   return sendQuality("sop", [SOP], (api) =>
     api.POST("/v1/statement-of-purpose/versions/{id}/discard", {
       params: { path: { id } },
@@ -192,6 +221,7 @@ export async function recordStatementNotification(
   input: { readonly sentAt: string | null; readonly evidence: string },
 ): VersionResult {
   if (!isUuid(id)) return notFound();
+  if (!isReason(input.evidence)) return invalid();
   // "Just now" is when the server receives the form, never the browser's clock (HZ-090).
   const sentAt = input.sentAt ?? new Date().toISOString();
   if (!isIsoInstant(sentAt)) {
