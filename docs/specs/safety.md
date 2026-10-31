@@ -306,6 +306,33 @@ step list.
 the regulator's own portal in Phase 1 (Harbour prepares and records); direct submission APIs are
 integrations for later phases where they exist.
 
+Complaints and compliments (Phase 2 slice 18; rule 2 above; SAFE-011; `apps/api/src/routes/complaints.ts`;
+tables `complaint` and `compliment` in migration 0080). Every route needs `safety.complaint.manage`
+where the record is: the route checks the record's home (`requireHeldAtLocation`), and row-level
+security checks it again (`app.holds_permission_at`).
+- `POST /v1/complaints` records a complaint. Receipt cannot be in the future, and when the
+  complainant knew of the matter cannot be after receipt. It starts `COMPLAINT_WORKFLOW` with the
+  acknowledgement target written onto the workflow.
+- `GET /v1/complaints` and `GET /v1/complaints/{id}` return each complaint with its clocks: the
+  tenant's targets in working days with the home's nation's bank holidays, pauses added. In England
+  they also give the Ombudsman's time limit from when the complainant knew of the matter.
+- `POST /v1/complaints/{id}/step` acknowledges, investigates, responds, records an appeal and its
+  response, or closes with a reason. A response, first or after an appeal, is refused without the
+  outcome, what was done, the Ombudsman signposted and a kept copy (`complaintResponseProblems`).
+- `PUT /v1/complaints/{id}/pauses` records waits for the complainant before the response, and the
+  response target moves by the working days paused.
+- The deadline of each state (`complaintStateDeadline`) is written onto the workflow
+  (`deadlineOnRecord`), so complaints show on the approvals list. An appeal carries no target of
+  its own.
+- `POST /v1/compliments`, `GET /v1/compliments` and `PUT /v1/compliments/{id}/evidence` record
+  compliments with the staff they praise and the quality statements they are evidence for. A
+  compliment never runs a clock.
+- Outbox events, ids only: `safety.complaint.received`, `safety.complaint.responded`,
+  `safety.complaint.closed`, `safety.compliment.recorded`, `safety.compliment.tagged`. The evidence
+  library (slice 14) and the quality dashboard (slice 47) read them.
+- Audit events carry record ids only, never the complainant's details or what they said.
+- Web screens are slice 62.
+
 Built in slice 7 (`apps/api/src/routes/incidents.ts`, `statutory-notifications.ts`,
 `apps/api/src/services/safety.ts`; tables in migrations 0018 and 0019): `POST /v1/incidents` takes a
 device-generated id, so a replayed offline upload returns the earlier copy with no side effects; the
