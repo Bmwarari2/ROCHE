@@ -4,6 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { createAuth } from "./auth/better-auth";
+import { ssoAuthGate } from "./auth/sso-gate";
 import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
 import { createFlagService } from "./flags/provider";
@@ -88,6 +89,7 @@ import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
 import { speakUpRouter } from "./routes/speak-up";
+import { ssoRouter } from "./routes/sso";
 import { staffFilesRouter } from "./routes/staff-files";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
@@ -95,6 +97,12 @@ import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
 import { workflowsRouter } from "./routes/workflows";
+import {
+  createOidcDiscovery,
+  createSsoHooks,
+  createSsoKeyStore,
+  createTxtLookup,
+} from "./services/sso";
 import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
@@ -153,6 +161,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     idleErrorLogger(logger, "operator"),
   );
   const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
+  const ssoKeys = createSsoKeyStore(config);
   const services: Services = {
     config,
     logger,
@@ -160,7 +169,14 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     appPool,
     authPool,
     operatorPool,
-    auth: createAuth(config, authPool),
+    auth: createAuth(
+      config,
+      authPool,
+      createSsoHooks({ db: createDatabase(appPool), authPool, keys: ssoKeys, logger }),
+    ),
+    ssoKeys,
+    txtLookup: createTxtLookup(config),
+    oidcDiscovery: createOidcDiscovery(config),
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
     transferPackLimiter: new RateLimiter(
@@ -238,6 +254,9 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     });
   // Registered before the handler below, which answers without calling on.
   app.use("/api/auth/*", capped(AUTH_MAX_BODY_BYTES));
+  // Single sign-on in front of Better Auth: SAML refused, the platform.sso flag, SSO sessions held
+  // to their own routes, generic callback errors (ADR-0091; #33 reviews).
+  app.use("/api/auth/*", ssoAuthGate(services));
   for (const path of PUBLIC_BODY_PATHS) {
     const cap = capped(PUBLIC_MAX_BODY_BYTES);
     // A speak-up concern may be long; it has its own cap below (security review M2).
@@ -323,6 +342,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", meRouter);
   app.route("/", brandingRouter);
   app.route("/", searchRouter);
+  app.route("/", ssoRouter);
   app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);

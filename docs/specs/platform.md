@@ -1474,6 +1474,93 @@ organisation.
   or local identifier, replayed and removed by an undo; test NHS numbers; sample data; the expiry
   sweep.
 
+## Phase 2: single sign-on (PLAT-005)
+
+Phase 2 slice 33 ([phase-2.md](../plans/phase-2.md), [ADR-0091](../decisions/0091-single-sign-on.md)):
+per-organisation OpenID Connect sign-in on the Better Auth SSO plugin, built on the slice 9 rules
+15 to 17 (`sso.ts`). Screens are slice 67; this slice is schema, rules and API. SAML 2.0 follows
+when a design partner needs it (H-753). Code: `packages/db/src/schema/sso.ts`, migration 0095,
+`packages/domain/src/platform/sso.ts`, `apps/api/src/routes/sso.ts`, `apps/api/src/services/sso.ts`,
+`apps/api/src/auth/better-auth.ts`.
+
+**Data.** `sso_connection` (one per organisation, mutable, versioned): the provider id Harbour
+derives from the organisation (`harbour-<tenant id>`), the issuer and its discovery URL (https), the
+client id, the name of the private key in the managed secret store and its key id, the roles
+allowed to use SSO, and whether it is switched on. `sso_domain` (mutable, versioned): an email
+domain the organisation claims, the SHA-256 of the DNS TXT token that proves it, when and by whom it
+was verified, and when it was removed. Better Auth's own `auth.sso_provider` row is a projection of
+the connection that only the API writes. Retention: tenant configuration, kept while current, each
+change in `record_version` and the audit trail.
+
+**Rules that are easy to get wrong**
+
+18. No client secret or private key is ever stored in the database, returned by the API or logged.
+    The client authenticates to the provider with `private_key_jwt`; the key lives in the managed
+    secret store under `harbour/sso/<tenant id>/<name>` and is read only at sign-in
+    (`resolvePrivateKey`). Client-secret authentication is refused. Saving a connection checks the
+    key exists in the store (`DescribeSecret`) without reading it. Discovery runs only after these
+    checks, to public https hosts only, and fails with a generic error; identity providers are
+    never trusted origins.
+19. A domain counts only once verified by a DNS TXT record `_harbour-verification.<domain>` holding
+    `harbour-verification=<token>`; the token is shown once and stored only as a hash. Public email
+    domains and malformed names are refused (`checkSsoDomain`); a domain verified by one
+    organisation cannot be verified by another.
+20. Linking: the SSO callback runs `ssoSignInDecision` (rules 15 and 16) for the organisation the
+    provider belongs to, and refuses a provider account already linked to another sign-in (one
+    account, one sign-in, across organisations). An SSO session reaches only that organisation. A
+    new issuer, client or discovery URL switches SSO off until every domain is proved again. An active member with a Harbour sign-in is linked to it; an invited member
+    with none gets a sign-in created and is linked by `app.link_sso_member`, which accepts any open
+    invitation and is audited. Anyone else is refused with the rule's words; nothing is created for
+    them.
+21. Rule 17 holds through the existing session factor (ADR-0072): an SSO session has no Harbour
+    factor recorded, so care records and step-up ask for the passkey or authenticator code on that
+    session (HZ-112). A provider's MFA claim is never read.
+22. Only holders of `platform.tenant.manage` read or change the configuration; every change needs a
+    fresh step-up and is audited (no key names, tokens or domains in the audit scope, only ids and
+    what changed). Better Auth's own provider-management routes are switched off.
+23. Single sign-on is behind the `platform.sso` flag, off by default: with it off the configuration
+    API refuses and the SSO sign-in and callback answer 404. An SSO session carries its
+    organisation on its own row and reaches no other; on Better Auth's routes it may only read
+    itself, sign out and confirm a Harbour code. No implicit linking by email.
+24. While the flag is off, an SSO session is refused and ended on every request: the session
+    middleware checks the flag before it accepts the session or moves its expiry on, on every
+    `/v1` route (the tenantless ones, `/v1/memberships`, `/v1/me/sessions*` and the invitation
+    routes, included) and the operator console, and the auth gate does the same on Better Auth's
+    routes (401 `sso_session_ended`). An idle session is ended at its next request, so nothing it
+    does in between keeps it alive, and switching the flag back on revives none. The flag is
+    changed outside the API (Flagsmith or the `feature_flag` table), so no write path deletes the
+    rows at that moment. The operator console refuses any SSO session.
+25. Wrong Harbour codes are throttled per member across all sessions as well as per session, the
+    sign-in's own code step included (HZ-112): the member's attempts are counted in Postgres; after
+    five in an hour each waits a minute, then four, then 15 (the cap), and at most ten are checked
+    in an hour.
+26. Discovery connects only to the address it checked: its connection's DNS lookup refuses any
+    non-public address, so a host cannot resolve to a public address for the check and a private
+    one for the fetch; the document is refused as soon as it passes 256 KB.
+
+**Permission matrix**
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the SSO configuration and domains | `platform.tenant.manage` | |
+| Save the connection, switch it on or off, add, verify or remove a domain | `platform.tenant.manage` | Step-up |
+| Sign in with SSO | - | Invited or active members only (rules 15, 16, 20) |
+
+**Tests (written before the code)**
+
+- `packages/domain/src/platform/sso.test.ts`: `PLAT-005 SSO connection checks` (https issuer and
+  discovery URL, key name shape, client-secret refused, roles known); `PLAT-005 domain checks`
+  (malformed, public email, verified elsewhere); `PLAT-005 DNS proof` (record name and value, token
+  match, stray records); provider id round trip.
+- `packages/db/test/sso.test.ts`: cross-tenant denial for both tables, only `platform.tenant.manage`,
+  no DELETE, one connection per organisation, a domain verified by only one organisation,
+  `app.link_sso_member` links only an invited member at a verified domain.
+- `apps/api/test/sso.test.ts`: configuration saved with step-up and audited without secrets; a key
+  missing from the store refused; domain added, proved by a mocked DNS answer, refused without it;
+  sign-in started with PKCE and the client id; the resolver links an active member, links and
+  activates an invited one, refuses a stranger, a family member and a role not allowed; an SSO
+  session is refused care records until a Harbour factor is used (HZ-112).
+
 ## Permission matrix
 
 Generated: [permissions.md](permissions.md).

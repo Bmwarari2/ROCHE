@@ -760,6 +760,25 @@ Code lists for [quality.md](quality.md) section 18 (migration 0094). Statuses ar
 | `dspt_submission.outcome` | DSPT status | `standards_met`, `approaching_standards`, `standards_not_met` | `standards_not_met` is submitted but flagged. |
 | `security_certificate.kind` | NCSC Cyber Essentials; ICO data protection fee | `cyber_essentials`, `cyber_essentials_plus`, `ico_registration` | `reference` is the certificate or ICO registration number (1 to 100 characters); `expires_on` only when the certificate states it, after `issued_on`. |
 
+## Single sign-on (Phase 2, slice 33)
+
+Fields for [platform.md](platform.md), Phase 2: single sign-on ([ADR-0091](../decisions/0091-single-sign-on.md);
+migration 0095). OpenID Connect Core 1.0 and Discovery 1.0; RFC 7523 for `private_key_jwt`; RFC 7636
+for PKCE. Retention: tenant configuration, kept while current.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `sso_connection.provider_id` | Harbour | `harbour-<tenant id>` (check `sso_connection_provider_id`) | The id in Better Auth's provider row and the callback path. |
+| `sso_connection.issuer`, `discovery_url` | OIDC Discovery `issuer`, `/.well-known/openid-configuration` | https URLs | The discovered issuer must equal the configured one. |
+| `sso_connection.client_id` | OAuth 2.0 `client_id` | Text, 1 to 200 characters | |
+| `sso_connection.private_key_ref`, `private_key_id` | RFC 7523 client assertion key; JWK `kid` | Store name `harbour/sso/<tenant id>/<name>` (`isSsoKeyRefFor`, and a database check); optional key id | Never a key. Internal: not exported. |
+| `sso_connection.allowed_role_keys` | Harbour role keys | At least one, each an existing role | Rule 16. |
+| `sso_connection.enabled` | Harbour | Boolean | On needs a verified domain and a successful discovery. |
+| `sso_domain.domain` | DNS name | Lower case, two or more labels, not a public mail domain (`checkSsoDomain`) | One organisation may verify a domain at a time. |
+| `sso_domain.token_sha256` | SHA-256 | 64 lower-case hex characters of the TXT token | Secret: never exported or returned. Record `_harbour-verification.<domain>` = `harbour-verification=<token>`. |
+| `sso_domain.verified_at`, `verified_by`, `removed_at` | ISO 8601 UTC; `tenant_user` id | Set together when proved | |
+| `auth.sso_provider.oidc_config` | Better Auth SSO plugin | JSON: issuer, client id, discovery, authorization, token, JWKS and user info endpoints, `private_key_jwt`, PKCE, scopes `openid email profile` | Written only by the API; no secret. |
+
 ## Phase 1 tables completed for the gate
 
 Eight Phase 1 tables that hold personal or care data and were named only in passing above (Phase 1

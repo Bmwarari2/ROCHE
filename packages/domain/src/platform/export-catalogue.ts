@@ -6295,6 +6295,65 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: { description: "When they were taken off the shift." },
     },
   },
+  "public.sso_connection": {
+    context: "platform",
+    description:
+      "The organisation's OpenID Connect single sign-on (platform.md, Phase 2: single sign-on): issuer, discovery URL, client id, the roles allowed to use it and whether it is on. The private key stays in Thapsus's managed secret store; only its name is held, and it is not exported.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      provider_id: { description: "The id the sign-in service knows the connection by." },
+      issuer: { description: "The identity provider's issuer URL." },
+      discovery_url: { description: "The identity provider's OpenID discovery document." },
+      client_id: { description: "Harbour's client id at the identity provider." },
+      private_key_ref: {
+        class: "internal",
+        description:
+          "The name of the private key in Thapsus's managed secret store (never the key).",
+      },
+      private_key_id: {
+        class: "internal",
+        description: "The key id the identity provider registered for that key.",
+      },
+      allowed_role_keys: { description: "Role keys that may sign in with single sign-on." },
+      enabled: { description: "Whether single sign-on is switched on." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.sso_domain": {
+    context: "platform",
+    description:
+      "Email domains the organisation claims for single sign-on, and when each was proved by a DNS record and by whom.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      domain: { description: "The email domain, lower case." },
+      token_sha256: {
+        class: "secret",
+        description: "SHA-256 of the DNS verification token.",
+      },
+      verified_at: "exported",
+      verified_by: "exported",
+      removed_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.staff_checklist_item": {
     context: "workforce",
     description:

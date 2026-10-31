@@ -64,6 +64,10 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.set_speak_up_lead(uuid, boolean)": ["harbour_app"],
   // Runs as harbour_silo_owner so speak-up events hidden from the reader still verify.
   "app.verify_audit_chain()": ["harbour_app", "harbour_owner"],
+  // Single sign-on (migration 0095): the callback's facts and the invited member's link.
+  "app.sso_sign_in_facts(text, text)": ["harbour_app"],
+  "app.link_sso_member(text, text)": ["harbour_app"],
+  "app.sso_key_ref(text)": ["harbour_app"],
 };
 
 let db: TestDatabase;

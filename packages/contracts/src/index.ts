@@ -538,6 +538,7 @@ export * from "./safety-outbreaks";
 export * from "./scheduling";
 export * from "./search";
 export * from "./speak-up";
+export * from "./sso";
 export * from "./staff";
 export * from "./sub-processors";
 export * from "./tasks";

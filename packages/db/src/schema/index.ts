@@ -31,6 +31,7 @@ export * from "./safety";
 export * from "./safety-outbreaks";
 export * from "./safety-records";
 export * from "./sample-data";
+export * from "./sso";
 export * from "./sub-processors";
 export * from "./sync";
 export * from "./work";
