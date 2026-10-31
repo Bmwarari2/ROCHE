@@ -6535,7 +6535,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       total_seconds: { description: "Time spent, as the content reported it.", unit: "seconds" },
       finished_at: { description: "When the member finished (UTC)." },
       training_record_id: { description: "The training record its completion made." },
-      launch_nonce: "internal",
+      launch_nonce: {
+        class: "internal",
+        description: "The current launch's nonce; only the latest launch token works.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
