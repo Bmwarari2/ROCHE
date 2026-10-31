@@ -379,7 +379,17 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
  */
 // A data protection complaint about a sample person is a real complaint record (migration 0082):
 // its foreign key stops the removal rather than the complaint going with the sample.
-const BLOCKS_REMOVAL = ["downtime_pack", "dp_complaint", "escalation_policy_link", "outage"];
+// Data security evidence (migration 0094) refers only to organisation documents, never a person's
+// (the API refuses one), so it never holds up a removal in practice; listed so a document it cites
+// is never removed with a sample.
+const BLOCKS_REMOVAL = [
+  "downtime_pack",
+  "dp_complaint",
+  "dspt_evidence",
+  "escalation_policy_link",
+  "outage",
+  "security_certificate",
+];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {
   const owner = () => db.pool("harbour_owner");
