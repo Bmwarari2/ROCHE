@@ -80,6 +80,28 @@ const as = (
   init: { method?: string; body?: unknown } = {},
 ) => h.request(path, { token: h.tokens[user], tenant: DEMO.tenantId, ...init });
 
+/** A calm set of vital signs for a resident, recorded by the manager; its id. */
+async function recordVitals(n: number): Promise<string> {
+  const response = await as("manager", `/v1/people/${resident(n)}/observations`, {
+    method: "POST",
+    body: {
+      occurredAt: new Date(Date.now() - 60_000).toISOString(),
+      values: {
+        chart: "vitals",
+        respirationRate: 16,
+        spo2: 97,
+        onOxygen: false,
+        systolic: 124,
+        pulse: 72,
+        consciousness: "alert",
+        temperature: 36.8,
+      },
+    },
+  });
+  expect(response.status, await response.clone().text()).toBe(201);
+  return (await json<{ id: string }>(response)).id;
+}
+
 async function createTask(body: Record<string, unknown>): Promise<TaskItem> {
   const response = await as("manager", "/v1/tasks", { method: "POST", body });
   expect(response.status).toBe(201);
@@ -381,12 +403,13 @@ describe("recurring tasks", () => {
       body: { to: "done", version: next?.version },
     });
     expect(without.status).toBe(422);
+    const reading = await recordVitals(1);
     const withEvidence = await as("carer", `/v1/tasks/${next?.id}/transition`, {
       method: "POST",
       body: {
         to: "done",
         evidenceType: "observation",
-        evidenceId: "0194d000-0000-7000-8000-00000000abcd",
+        evidenceId: reading,
         version: next?.version,
       },
     });
@@ -1287,5 +1310,167 @@ describe("hazard HZ-008 hazard HZ-018 hazard HZ-073 escalation reaches every org
     expect((await json<ProblemDetails>(refused)).detail).toContain("placed where they live");
     const placed = await createTask({ ...body, locationId: DEMO.locationId });
     expect(placed.locationId).toBe(DEMO.locationId);
+  });
+});
+
+describe("hazard HZ-029 a task completed directly cites real evidence about its own person", () => {
+  /** A NEWS2 response task that asks for evidence, as the care rules raise it; its id. */
+  async function news2Task(n: number): Promise<string> {
+    return asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO task (kind, title, required_permission, person_id, location_id, due_at,
+                           priority, evidence_required)
+         VALUES ('care.news2_response', 'Respond to NEWS2 score', 'care.assessment.write', $1, $2,
+                 now(), 'urgent', true)
+         RETURNING id`,
+        [resident(n), DEMO.locationId],
+      );
+      return rows[0]?.id ?? "";
+    });
+  }
+
+  /** The task as stored (read as the owner): its status and version. */
+  const stored = (taskId: string) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ status: string; version: number }>(
+        "SELECT status, version FROM task WHERE id = $1",
+        [taskId],
+      );
+      return rows[0] ?? { status: "missing", version: 0 };
+    });
+
+  const complete = async (taskId: string, evidence: Record<string, unknown>) =>
+    as("manager", `/v1/tasks/${taskId}/transition`, {
+      method: "POST",
+      body: { to: "done", version: (await stored(taskId)).version, ...evidence },
+    });
+
+  async function refusals(taskId: string): Promise<string[]> {
+    return asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ reason: string }>(
+        `SELECT reason FROM audit_event
+         WHERE action = 'platform.task.done' AND resource_id = $1 AND outcome = 'denied'
+         ORDER BY occurred_at`,
+        [taskId],
+      );
+      return rows.map((r) => r.reason);
+    });
+  }
+
+  async function stillOpen(taskId: string) {
+    expect((await stored(taskId)).status).toBe("open");
+  }
+
+  it("hazard HZ-029 refuses a note cited as evidence for a NEWS2 task", async () => {
+    const taskId = await news2Task(2);
+    const note = await as("manager", `/v1/people/${resident(2)}/notes`, {
+      method: "POST",
+      body: {
+        category: "health",
+        body: "Settled after a drink.",
+        occurredAt: new Date().toISOString(),
+      },
+    });
+    expect(note.status).toBe(201);
+    const noteId = (await json<{ id: string }>(note)).id;
+    const response = await complete(taskId, { evidenceType: "care_note", evidenceId: noteId });
+    expect(response.status).toBe(422);
+    expect((await json<ProblemDetails>(response)).detail).toBe(
+      "That record cannot stand as evidence for this task.",
+    );
+    await stillOpen(taskId);
+    expect(await refusals(taskId)).toEqual(["evidence_not_accepted"]);
+  });
+
+  it("hazard HZ-029 refuses an entry about another person", async () => {
+    const taskId = await news2Task(2);
+    const elsewhere = await recordVitals(3);
+    const response = await complete(taskId, { evidenceType: "observation", evidenceId: elsewhere });
+    expect(response.status).toBe(422);
+    await stillOpen(taskId);
+    expect(await refusals(taskId)).toEqual(["evidence_wrong_person"]);
+  });
+
+  it("hazard HZ-029 refuses a missing id, a type that is not evidence, and an id without its type", async () => {
+    const taskId = await news2Task(2);
+    const missing = await complete(taskId, {
+      evidenceType: "observation",
+      evidenceId: "0194d000-0000-7000-8000-00000000abcd",
+    });
+    expect(missing.status).toBe(422);
+    const notEvidence = await complete(taskId, {
+      evidenceType: "statutory_notification",
+      evidenceId: "0194d000-0000-7000-8000-00000000abcd",
+    });
+    expect(notEvidence.status).toBe(422);
+    const noType = await complete(taskId, { evidenceId: "0194d000-0000-7000-8000-00000000abcd" });
+    expect(noType.status).toBe(422);
+    await stillOpen(taskId);
+    expect(await refusals(taskId)).toEqual([
+      "evidence_not_found",
+      "evidence_not_accepted",
+      "evidence_incomplete",
+    ]);
+  });
+
+  it("hazard HZ-029 refuses another tenant's entry as not found", async () => {
+    const taskId = await news2Task(2);
+    const client = await h.db.pool("harbour_owner").connect();
+    let foreign = "";
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [OTHER.tenantId],
+      );
+      const { rows } = await client.query<{ id: string }>(
+        `INSERT INTO care_note (person_id, location_id, occurred_at, category, body)
+         VALUES ($1, $2, now(), 'health', 'Recorded elsewhere.') RETURNING id`,
+        [OTHER.personId, OTHER.locationId],
+      );
+      foreign = rows[0]?.id ?? "";
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    expect(foreign).not.toBe("");
+    const response = await complete(taskId, { evidenceType: "care_note", evidenceId: foreign });
+    expect(response.status).toBe(422);
+    await stillOpen(taskId);
+    expect(await refusals(taskId)).toEqual(["evidence_not_found"]);
+  });
+
+  it("hazard HZ-029 completes with the person's own reading, and lets the task be not done with a reason", async () => {
+    const taskId = await news2Task(2);
+    // Evidence goes only with completing: "not done" never carries a record.
+    const skippedWithEvidence = await as("manager", `/v1/tasks/${taskId}/transition`, {
+      method: "POST",
+      body: {
+        to: "skipped",
+        reason: "Refused the observations",
+        evidenceType: "observation",
+        evidenceId: await recordVitals(2),
+        version: 1,
+      },
+    });
+    expect(skippedWithEvidence.status).toBe(422);
+    const reading = await recordVitals(2);
+    const done = await complete(taskId, { evidenceType: "observation", evidenceId: reading });
+    expect(done.status).toBe(200);
+    expect(await json<TaskItem>(done)).toMatchObject({
+      status: "done",
+      evidenceType: "observation",
+      evidenceId: reading,
+    });
+    // The only way past evidence: not done, with the reason.
+    const other = await news2Task(2);
+    const skipped = await as("manager", `/v1/tasks/${other}/transition`, {
+      method: "POST",
+      body: { to: "skipped", reason: "Refused the observations", version: 1 },
+    });
+    expect(skipped.status).toBe(200);
   });
 });

@@ -8,7 +8,12 @@ import {
   safeFileName,
   sniffContentType,
 } from "./documents";
-import { isUnderLegalHold } from "./retention";
+import {
+  type HeldDocumentVersion,
+  isDocumentUnderLegalHold,
+  isUnderLegalHold,
+  type LegalHoldView,
+} from "./retention";
 
 const bytes = (...b: number[]) => new Uint8Array(b);
 const JPEG = bytes(0xff, 0xd8, 0xff, 0xe0, 0, 0x10);
@@ -181,5 +186,71 @@ describe("legal holds", () => {
     ["an unrelated record", { personId: "p3", subjectType: "document", subjectId: "d3" }, false],
   ])("%s", (_label, record, expected) => {
     expect(isUnderLegalHold(record, holds)).toBe(expected);
+  });
+});
+
+describe("legal holds on a document and its versions (security review, 31 October 2026)", () => {
+  const holds: LegalHoldView[] = [
+    { personId: "p1", subjectType: null, subjectId: null, releasedAt: null },
+    { personId: null, subjectType: "document", subjectId: "v1", releasedAt: null },
+    { personId: null, subjectType: "incident", subjectId: "i1", releasedAt: null },
+    {
+      personId: null,
+      subjectType: "incident",
+      subjectId: "i2",
+      releasedAt: new Date("2026-01-01"),
+    },
+    {
+      personId: null,
+      subjectType: "document",
+      subjectId: "r1",
+      releasedAt: new Date("2026-01-01"),
+    },
+  ];
+  const version = (over: Partial<HeldDocumentVersion> = {}): HeldDocumentVersion => ({
+    id: "x",
+    personId: null,
+    subjectType: null,
+    subjectId: null,
+    legalHold: false,
+    ...over,
+  });
+  it.each<[string, HeldDocumentVersion[], boolean]>([
+    ["a document with nothing holding it", [version({ id: "d1", personId: "p9" })], false],
+    ["a document about a held person", [version({ id: "d1", personId: "p1" })], true],
+    ["a document held by its own id", [version({ id: "v1" })], true],
+    ["a document flagged as held", [version({ id: "d1", legalHold: true })], true],
+    [
+      "a document belonging to a held record",
+      [version({ id: "d1", subjectType: "incident", subjectId: "i1" })],
+      true,
+    ],
+    [
+      "a document belonging to a record whose hold was released",
+      [version({ id: "d1", subjectType: "incident", subjectId: "i2" })],
+      false,
+    ],
+    [
+      "a record of another type with the same id",
+      [version({ id: "d1", subjectType: "care_note", subjectId: "i1" })],
+      false,
+    ],
+    [
+      "a later version when the first version is held",
+      [version({ id: "v1" }), version({ id: "v2" }), version({ id: "v3" })],
+      true,
+    ],
+    [
+      "the first version when a later version is flagged",
+      [version({ id: "d1" }), version({ id: "d2", legalHold: true })],
+      true,
+    ],
+    [
+      "versions whose only hold was released",
+      [version({ id: "r1" }), version({ id: "r2" })],
+      false,
+    ],
+  ])("%s", (_label, versions, expected) => {
+    expect(isDocumentUnderLegalHold(versions, holds)).toBe(expected);
   });
 });
