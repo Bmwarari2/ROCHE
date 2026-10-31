@@ -99,6 +99,21 @@ Approved phrases say what happened, never how the person is. Notifications carry
 generic line and a link only. Nothing interprets, scores or predicts
 ([comms.md](../specs/comms.md) rules 7 to 13).
 
+**Medicines record and reconciliation (Phase 2, slice 2)**: these stay inside the boundary and add
+no score or recommendation (`packages/domain/src/medicines/`; [medicines.md](../specs/medicines.md)
+rules 1 to 12). A dose is transcribed exactly as prescribed, as a number and a unit dm+d permits for
+the product; Harbour checks how it is written (a zero before the point, no trailing zero, micrograms,
+nanograms and units in full) and never calculates, converts or range-checks it. Schedules are the
+prescribed wall-clock times expanded over the MAR cycle; Harbour suggests no time and no gap, and
+when a clock change brings two prescribed times together it keeps both doses and flags them for
+the nurse in charge rather than choosing. In a reconciliation a person decides every medicine on
+the MAR and every line in the sources; Harbour never infers a stop from a medicine missing from a
+letter, never pairs a line with an entry itself, and shows a difference on a link the person made by
+dm+d identity only (another VMP, another brand of the same VMP, or not coded), never by comparing
+ingredients. Allergies in the sources are compared with the recorded allergies by the person, who
+confirms it; Harbour matches no allergen (the section 6 grey area, decided in ADR-0082 with slice 3).
+The time-critical and minimum-interval rules (ADR-0082) are slice 3's and are not in this slice.
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built

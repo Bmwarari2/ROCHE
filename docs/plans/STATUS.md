@@ -4,14 +4,14 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 0% done** (0 of 233 register rows `done`; 60 `partial`, 173 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 65 `partial`, 168 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
-| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). No code yet |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) pushed on `feat/meds-domain-record`, not yet merged |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
@@ -53,6 +53,16 @@ touches `phase-1-gate.md`, so expect small conflicts there; take both sides):
    names on the report API.
 
 Reviewer agents (security, accessibility, clinical) were run on 2, 4 and 6 before the pull requests.
+
+**Phase 2 domain slices** (they touch only new folders, so they need not wait for the Phase 1
+gate; [phase-2.md](phase-2.md), "When it starts"):
+
+- `feat/meds-domain-record` (slice 2, lane A, MEDS-001 `partial`): `medicines.md` written in full;
+  `packages/domain/src/medicines/` (dm+d identifiers, structured doses, schedules over the MAR cycle
+  with clock changes, MAR entry states and the second check, reconciliation); HZ-121 added; HZ-003,
+  HZ-005 and HZ-009 domain tests passing; human actions H-550 to H-553. The overall counts above
+  were corrected to the register's (they said 60 `partial` and 173 `todo`). Next in lane A:
+  slice 3 (administration, PRN and CD rules, ADR-0082), then slice 10 (dm+d reference data).
 
 **Next, in order** (from [phase-1-gate.md](phase-1-gate.md), the gate's gap report):
 

@@ -68,10 +68,11 @@
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
+| [HZ-121](#hz-121-medicines-not-reconciled-after-admission-transfer-or-return-from-hospital) | Medicines not reconciled after admission, transfer or return from hospital | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 
-Thirteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Fourteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-121, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
-Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed.
+Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed. HZ-113 to HZ-130 are assigned to Phase 2 slices in [phase-2.md](../plans/phase-2.md) and are added by the slice the plan names, so they arrive out of order (HZ-121 first, with slice 2).
 
 ---
 
@@ -319,7 +320,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (medicines): `hazard HZ-003 expands every supported frequency into the correct doses across a 28-day cycle` (table-driven) | Planned, Phase 2 |
+| `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-003 expands every supported frequency into the correct doses across a 28-day cycle` (table-driven: every day, every other day, every 3 days, weekly on one and two days, fortnightly, monthly, with the cycle length read from the rate table; counted from the day or week the medicine starts; start and stop; each time's own dose; the last day of a shorter month) | Passing (Phase 2 slice 2) |
 | `packages/domain` (medicines): `hazard HZ-003 a dose with no recorded outcome stays outstanding after its window` | Planned, Phase 2 |
 | `packages/domain` (medicines): `hazard HZ-003 time-critical medicines escalate at the earlier threshold` | Planned, Phase 2 |
 | `packages/domain` (medicines): `hazard HZ-003 a round cannot close with outstanding doses without a reason` | Planned, Phase 2 |
@@ -434,7 +435,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 **Description**: the dose, unit, strength, form, route, frequency or timing is entered or transcribed wrongly onto the MAR from a prescription, discharge letter or pharmacy label. Typical errors: milligrams for micrograms, millilitres for milligrams with oral liquids, misplaced decimal points and tenfold errors, "u" read as zero, a weekly medicine entered as daily, the wrong strength or a look-alike product selected.
 
-**Causes**: free-text entry; ambiguous abbreviations; adjacent similar options in a picker; trailing zeros and missing leading zeros; import mapping errors; manual transcription from discharge summaries; changes passed on verbally; the medicines check after a return from hospital recorded by someone who may only record movements, not reconcile medicines (slice 8 review round 3, security finding M2).
+**Causes**: free-text entry; ambiguous abbreviations; adjacent similar options in a picker; trailing zeros and missing leading zeros; import mapping errors; manual transcription from discharge summaries; changes passed on verbally; the medicines check after a return from hospital recorded by someone who may only record movements, not reconcile medicines (slice 8 review round 3, security finding M2); a changed entry edited in place so the old dose and who checked it are lost; an entry checked by the person who wrote it; a dose moved by a clock change read as a new time (Phase 2 slice 2).
 
 **Effects**: overdose or underdose, wrong medicine, harm up to death.
 
@@ -444,11 +445,13 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | Medicines selected only from dm+d; strength and form come from dm+d, never free text | Phase 2 |
-| Design | Structured dose: a number plus a unit from the units permitted for that dm+d product; "micrograms", "nanograms" and "units" always written in full; leading zero enforced (0.5, never .5); trailing zeros never displayed (5, never 5.0) | Phase 2 |
-| Design | Non-daily schedules (for example once weekly) show the day name on every MAR row and in the round view | Phase 2 |
-| Design | A new or changed MAR entry is "Not yet checked" until a second competent user, different from the transcriber, verifies it against the source document, as NICE SC1 recommends for transcription | Phase 2 |
-| Design | The source document (prescription, discharge letter, label) is attached to or referenced from each MAR entry | Phase 2 |
+| Design | Medicines selected only from dm+d; strength and form come from dm+d, never free text. A product is a dm+d VMP (and AMP for a brand) whose identifier has the SNOMED CT concept shape and a valid Verhoeff check digit (`isDmdProduct`), so a typed name cannot stand in for one; products are compared by identity, never ingredient ([medicines.md](../specs/medicines.md) rule 1) | Domain rule built in Phase 2 slice 2; the dm+d picker and reference data in slices 10, 16 and 52 |
+| Design | Structured dose: a number plus a unit from the units permitted for that dm+d product (matched by code); "micrograms", "nanograms" and "units" always written in full, whatever the source calls them; leading zero enforced (0.5, never .5); trailing zeros never displayed (5, never 5.0); a typed dose is taken only in the form it is shown (".5", "5.0", "05", "1,5", "1/2" refused with the form to type); at most 3 decimal places; no conversion between units (rule 2; H-551) | Domain rules built in Phase 2 slice 2 (`parseDoseQuantity`, `formatDose`, `checkDose`); stored and enforced in the API in slice 16 |
+| Design | Non-daily schedules (for example once weekly) show the day name on every MAR row and in the round view (`MarDose.dayName`, `describeSchedule`; rule 5) | Domain rule built in Phase 2 slice 2; shown on the round in slices 48 and 53 |
+| Design | A new or changed MAR entry is "Not yet checked" until a second competent user, different from the transcriber, verifies it against the source document, as NICE SC1 recommends for transcription (`recordSecondCheck`: current medicines competence, not the transcriber, the source compared; rule 6) | Domain rule built in Phase 2 slice 2; API in slice 16 |
+| Design | A check that finds a difference holds the entry ("Do not give") until a corrected version replaces it; a change is a new version that replaces the old from when it takes effect, now or later, never an edit in place, and its author cannot check it; whether an entry awaiting its check may be given is a tenant policy, by default given with the "Not yet checked" notice beside it (`marEntryStatus`; H-550) | Domain rules built in Phase 2 slice 2; API in slice 16 |
+| Design | The source document (prescription, discharge letter, label) is attached to or referenced from each MAR entry; a verbal instruction is not a source (`checkMarEntryDraft`; H-552) | Domain rule built in Phase 2 slice 2; stored in slice 16 |
+| Design | Medicines started or changed by a reconciliation are new entries "Not yet checked", each with the source line's document (HZ-121) | Domain rule built in Phase 2 slice 2 |
 | Design | Imported medicines arrive as "Not yet checked"; the import dry run reports unmapped units | Phase 2 |
 | Design | Pharmacy MAR import replaces manual transcription where a pharmacy is integrated | Phase 5 |
 | Design | No dose calculation or dose-range advice is offered (medical-device boundary) | All phases |
@@ -464,11 +467,13 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (medicines): `hazard HZ-005 rejects a dose whose unit is not permitted for the dm+d product` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-005 formats doses with a leading zero, no trailing zero and micrograms in full` (table-driven) | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-005 a new or changed MAR entry stays not yet checked until a second competent user verifies it` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-005 the checker must be a different user from the transcriber` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-005 non-daily schedules show the day on every MAR row` | Planned, Phase 2 |
+| `packages/domain/src/medicines/dose.test.ts`: `hazard HZ-005 rejects a dose whose unit is not permitted for the dm+d product` (matched by code, never name) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/dose.test.ts`: `hazard HZ-005 formats doses with a leading zero, no trailing zero and micrograms in full` (table-driven: micrograms, nanograms and units in full from every abbreviation; ranges; variable doses; plurals) and `hazard HZ-005 reads a typed dose only in the form it is shown` | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/dose.test.ts`: `hazard HZ-005 medicines come from dm+d, never typed` (identifiers with their check digit; products compared by identity) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-005 a new or changed MAR entry stays not yet checked until a second competent user verifies it` (every origin; the check; a change as a new version; the unchecked policy; a difference holds the entry) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-005 the checker must be a different user from the transcriber` (and the author of a change; competence, the source compared, a difference described) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-005 non-daily schedules show the day on every MAR row` (every other day, weekly, fortnightly, monthly; the wording) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/reconciliation.test.ts`: `hazard HZ-005 new and changed medicines from a reconciliation arrive not yet checked, for a second person` | Passing (Phase 2 slice 2) |
 | `apps/api`: `hazard HZ-005 imported medicines are created as not yet checked` | Planned, Phase 2 |
 | `apps/api/test/people-lifecycle.test.ts`: `hazards HZ-005 and HZ-015 let only someone who may complete a return check's task record it` (a team leader, who records movements but not care plans, is refused the medicines, resuscitation and allergy checks, each refusal audited, and checks belongings back in; a check's assignee without its permission is refused and audited, and records it under an acting-up grant; the nurse in charge records the medicines check) | Passing (Phase 1) |
 
@@ -794,13 +799,13 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | --- | --- | --- |
 | Design | Instants stored in UTC with the device's local offset and the server-received time (master prompt 18) | Built in Phase 0 (data model convention) |
 | Design | Date-only fields such as date of birth stored as dates, not instants | Built in Phase 0 |
-| Design | Schedules defined as wall-clock times in the location's time zone (Europe/London in England) and expanded to instants with the IANA time-zone database, never by adding 24 hours | Phase 2 |
-| Design | Transition rule (proposed; CSO to confirm `[CSO decision - human action]`): a dose in the skipped spring hour moves later by the length of the gap (01:30 becomes 02:30 BST) and is flagged on the round; a dose in the repeated autumn hour happens once, at the first occurrence | Phase 2 |
+| Design | Schedules defined as wall-clock times in the location's time zone (Europe/London in England) and expanded to instants with the IANA time-zone database, never by adding 24 hours (`expandSchedule` over the MAR cycle; [medicines.md](../specs/medicines.md) rule 3) | Domain rule built in Phase 2 slice 2 |
+| Design | Transition rule (proposed; CSO to confirm `[CSO decision - human action]`, H-22): a dose in the skipped spring hour moves later by the length of the gap (01:30 becomes 02:30 BST) and is flagged on the round (`time_skipped`); a dose in the repeated autumn hour happens once, at the first occurrence (`time_repeated`); when a moved time lands on another prescribed time of the same medicine both doses stay, each naming the other, for the nurse in charge, never merged or dropped (rule 4; H-553) | Domain rule built in Phase 2 slice 2 for MAR doses; the round in slices 48 and 53 |
 | Design | Recorded event times (proposed; CSO to confirm `[CSO decision - human action]`): one domain rule, `resolveRecordedUkTime`, for every screen where a person types when something happened, web and mobile. A time in the skipped spring hour is refused; a time in the repeated autumn hour is asked about (BST before the clocks went back, or GMT after) when both have passed, with no default; a time ahead of the clock beyond the drift tolerance is refused and never rolled back to an earlier day. Computed times (schedules, deadlines) keep `fromUkWallClock`. The Care mode forms on the phone use it for every typed time, with the tenant's `sync.clock_drift_flag_minutes` as the tolerance, and show BST or GMT beside times on a clock-change day; a correction keeps the original instant exactly | Built in Phase 1 (domain; mobile, clinical review round 3 H1) |
 | Design | Times written on paper during an outage are resolved with the same rule (`resolvePaperTime` in `packages/domain/src/operations/outage.ts`, using `resolveRecordedUkTime`): a time in the skipped spring hour is refused, a time in the repeated autumn hour must say which one, a time ahead of the clock is refused, and the back-entry keeps the time as written beside the instant ([operations.md](../specs/operations.md) rule 11) | Phase 1 (domain rules built, slice 11) |
 | Design | The web record reads every typed event time through `resolveRecordedUkTime`, in separate day, month, year, hour and minute boxes (so the browser's language cannot swap the day and month); in the repeated hour a required question asks which time, with nothing chosen; the skipped hour and future times are refused. "Now" is the instant the form is sent, not when the page was drawn. Times on the two clock-change days show BST or GMT beside them | Built in Phase 1 slice 9 (web) |
 | Design | Minimum intervals and maximum-in-24-hours computed on elapsed time between UTC instants | Phase 2 |
-| Design | Times always displayed in the location's time zone, 24-hour clock; on transition days the round view states that the clocks changed | Phase 2 |
+| Design | Times always displayed in the location's time zone, 24-hour clock; on transition days the round view states that the clocks changed (`clockChangesIn` names the days in a MAR cycle) | Phase 2 (the days: domain rule built in slice 2) |
 | Design | A device whose time zone differs from the location's shows a warning; displayed times stay in the location's zone | Phase 1 |
 | Design | Domain tests run under `TZ=UTC`, `TZ=Europe/London` and a non-UK zone in CI | Phase 1 |
 | Test | See Verification | Phase 1, Phase 2 |
@@ -816,10 +821,10 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain/src/shared/time.test.ts`: `hazard HZ-009 ukWallClockOccurrences on every minute of the clock-change days` (every minute of 29/03/2026, 25/10/2026, 28/03/2027 and 31/10/2027) and `hazards HZ-009, HZ-010 and HZ-017 resolveRecordedUkTime` (skipped, ambiguous, one past occurrence, future beyond tolerance, impossible dates), run under `TZ=Europe/London`, `TZ=UTC` and `TZ=America/New_York` | Passing (Phase 1) |
 | `apps/web/src/lib/uk-time.test.ts`: `hazard HZ-009 hazard HZ-017 reads every minute of 29/3/2026`, `25/10/2026`, `28/3/2027` and `31/10/2027` `through the form, by the domain rule`; `says the clocks went forward, and asks which time when they went back`; `does not ask when only the first 01:30 has happened yet`; `takes 'now' when the form is sent, not when the page was drawn` (each run with the process in Europe/London, America/New_York and UTC); `packages/ui/src/lib/zoned-time.test.ts`: `hazard HZ-009 hazard HZ-017 shows UK time on every device, across both clock changes`; `packages/ui/src/components/DateInput/DateInput.test.tsx`: `hazard HZ-009 hazard HZ-017 asks which time was meant only when the app's rule says it happened twice`; `apps/web/src/lib/format.test.ts`: `hazard HZ-009 hazard HZ-017 names the zone only on the days the clocks change` | Passing (Phase 1 slice 9) |
 | `packages/domain/src/platform/tasks.test.ts`: `hazard HZ-009 recurring tasks keep UK local times across clock changes` (daily times stay local; a time in the spring gap moves an hour later; hourly intervals count elapsed time) | Passing (Phase 1) |
-| `packages/domain` (medicines): `hazard HZ-009 a 01:30 dose on a spring-forward day moves to 02:30 BST and is flagged` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-009 a 01:30 dose on a clocks-back day occurs once` | Planned, Phase 2 |
+| `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-009 a 01:30 dose on a spring-forward day moves to 02:30 BST and is flagged` (29/03/2026 and 28/03/2027; the days either side unflagged) and `a time moved onto another prescribed time keeps both doses, flagged` | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-009 a 01:30 dose on a clocks-back day occurs once` (25/10/2026 and 31/10/2027, at the first occurrence, flagged) | Passing (Phase 2 slice 2) |
 | `packages/domain` (medicines): `hazard HZ-009 a 4-hour minimum interval spanning a clock change is measured in elapsed time` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-009 an 08:00 daily dose stays at 08:00 local time either side of each transition` | Planned, Phase 2 |
+| `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-009 an 08:00 daily dose stays at 08:00 local time either side of each transition` (all four; 23 or 25 hours apart) and `the MAR names the days in a cycle when the clocks change`; the medicines tests pass under `TZ=UTC`, `TZ=Europe/London` and `TZ=America/New_York` | Passing (Phase 2 slice 2) |
 | `packages/domain` (platform): `hazard HZ-009 date of birth round-trips unchanged under every test time zone` | Planned, Phase 1 |
 | `apps/mobile/src/care/time.test.ts`: `hazard HZ-009 the clock changes (C4, round 3 H1)`: `hazard HZ-009 refuses a time that did not happen when the clocks went forward` (in the default mode too), `hazard HZ-009 asks BST or GMT, with no default, when both have passed`, `hazard HZ-009 asks as soon as the second occurrence has passed`, `hazard HZ-009 keeps 25 hours between the same time on the days either side of a change`, `hazard HZ-009 shows BST or GMT beside times on a clock-change day only`, `hazard HZ-009 keeps an original in the repeated autumn hour exactly, never re-reading it` | Passing (Phase 1, mobile) |
 | `packages/domain` (care): `hazard HZ-009 fluid balance days run from 00:00 to 24:00 UK time` (23- and 25-hour days) | Passing |
@@ -2845,6 +2850,71 @@ person receiving care.
 | `apps/api/test/mfa-session-factor.test.ts`: a password-only session cannot enrol TOTP or a passkey or delete the passkey; a session that used its passkey may add one; a session is refused after five wrong codes; `apps/web/src/lib/problems.test.ts` (`factorChangeRedirect`) | Passing (Phase 1) |
 | `apps/mobile/src/sync/session-signals.test.ts`: `classifyForbidden` reads `mfa_verification_required` as a session code; `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-006 treats a 403 mfa_verification_required from the sync token as an ended session`, `hazard HZ-006 ends the session on a 403 mfa_verification_required instead of parking the entry as refused` | Passing |
 | `apps/api/test/step-up-factor.test.ts`: `hazard HZ-112` table over every step-up permission (password-only, factor inside and outside the window, none enrolled), each step-up route over HTTP, an in-session code refreshing step-up, a backup code and the five-code limit under step-up, no factor enrolled, About me links, residents' money at exit and task links over HTTP, and no API or domain source giving step-up a sign-in time; `mfa-session-factor.test.ts`: a first enrolment's code records no factor; `apps/web/src/components/safety/ManageForms.test.tsx` (the step-up notice asks for the passkey or authenticator code) | Passing (Phase 1) |
+
+---
+
+## HZ-121 Medicines not reconciled after admission, transfer or return from hospital
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-121 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `medicines` module (lead engineer) |
+| Source | Master prompt 9.2 (return reconciliation of medicines), 10.2 (medicines reconciliation on admission, transfer and change with sources and completer); [NICE SC1](https://www.nice.org.uk/guidance/SC1/chapter/1-Recommendations) (medicines reconciliation, as the master prompt cites it); [phase-2.md](../plans/phase-2.md) slice 2; [medicines.md](../specs/medicines.md) rules 7 to 12; related HZ-005 (transcription), HZ-023 (the transfer pack and the return checks), HZ-003, HZ-004 and HZ-007 |
+
+**Description**: when a person is admitted, transferred or comes back from hospital, or their medicines change, the MAR is not compared with what the prescriber now intends, or the comparison is incomplete, so a medicine the hospital stopped carries on, a new medicine (an anticoagulant after surgery, the rest of an antibiotic course) is never started, a changed dose stays at the old one, or the same medicine appears twice under two names.
+
+**Causes**
+
+- No reconciliation is started, or one is started and left open, and nothing on the record says the medicines are not reconciled.
+- A medicine the discharge letter leaves out is read as stopped (or ignored) without anyone confirming it; the omission was an error, or the stop was intended.
+- A new medicine on the letter is not transcribed because only the existing MAR entries were reviewed.
+- What the person or family remembers is taken as the instruction.
+- A source shows another product or brand (tablets for capsules, a different brand of a modified-release medicine) and the MAR entry continues unchanged without anyone noticing.
+- The medicines record changes while a reconciliation is in progress (another user adds or changes an entry), and the completed reconciliation describes a list that no longer exists.
+- A question to the prescriber or ward is raised and the reconciliation is completed before it is answered.
+- There is no discharge letter and nobody records how the medicines were confirmed.
+- New allergies from the hospital are not compared with the recorded allergies (HZ-007).
+- The reconciliation is completed by someone not competent in medicines, or its new entries are never second-checked (HZ-005).
+- A later return is assumed to be covered by an earlier reconciliation.
+
+**Effects**: a stopped medicine given (bleeding on an anticoagulant stopped after a bleed, a fall on a stopped sedative); a new or changed medicine missed (infection, thrombosis, uncontrolled pain, seizures); double dosing from two entries for one medicine; harm up to death.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every MAR entry in force when a reconciliation began needs exactly one decision a person made: continue, change (a new version from the source line that shows it), stop (with the source document that shows it and the reason) or query; Harbour never infers a stop because a source leaves a medicine out, and continuing a medicine no source lists needs a note saying how it was confirmed ([medicines.md](../specs/medicines.md) rule 7) | Domain rule built in Phase 2 slice 2 |
+| Design | Every line in every source needs a decision: linked to one entry decision, started as a new entry, not started with a reason, or queried; a line used twice is refused (rule 8) | Domain rule built in Phase 2 slice 2 |
+| Design | At least one source, each saying what it is; on a return from hospital the discharge letter, or the reason there is none and how the medicines were confirmed; what the person or family says is not enough on its own to start, change or stop a medicine (rule 9; H-552) | Domain rule built in Phase 2 slice 2 |
+| Design | On a link, Harbour shows whether the line names another VMP, another brand of the same VMP, or is not dm+d coded, by identity only and never by ingredient (medical-device boundary); continuing unchanged with a difference needs a note (rule 10) | Domain rule built in Phase 2 slice 2 |
+| Design | Completion is refused while a query is open, a decision is missing or doubled, a new entry's draft fails the transcription rules (HZ-005), the completer's medicines competence is not current, the allergies in the sources have not been compared with the recorded allergies by the completer (no automated matching, ADR-0082 default), the person's involvement (or the reason not) is not recorded, an entry belongs to someone else (HZ-001), or the medicines record changed since the reconciliation began (rule 11) | Domain rule built in Phase 2 slice 2 |
+| Design | New and changed medicines from a reconciliation are entries "Not yet checked", each with its source line's document, so a second competent person checks each (HZ-005) | Domain rule built in Phase 2 slice 2 |
+| Design | Every admission, transfer and return from hospital without a completed reconciliation is listed on the person's medicines record, oldest first, in words with the UK date and time; a reconciliation covers its own event and the person's earlier ones, never a later one; one for a change covers none (rule 12) | Domain rule built in Phase 2 slice 2; shown on the record in slices 16 and 52 |
+| Design | The reconciliation completes the people lifecycle's `medicines_reconciled` return check and applies its plan in one transaction; the return check stays a task for the nurse in charge, escalated when overdue (HZ-023) | Phase 2 (slice 16) |
+| Design | The transfer pack lists medicines from the eMAR; the downtime pack lists doses due (HZ-021, HZ-023) | Phase 2 (slice 49) |
+| Test | See Verification | Phase 2 |
+| Training and user documentation | Medicines reconciliation in the eMAR training; deployer control: the tenant's reconciliation policy names who completes it and how soon after an admission or return (DCB0160 template) | Phase 2 (slice 81) |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-513).
+
+**Justification for level 3**: Harbour can make every medicine and every source line need a person's decision, and keep the record saying it is not reconciled until they are made, but it cannot know whether the discharge letter is right or complete, or whether the person who decides reads it correctly; the remaining likelihood sits with the information the hospital sends and with practice, which the tenant controls. `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/medicines/reconciliation.test.ts`: `hazard HZ-121 every medicine on the MAR needs a decision before a reconciliation completes` (never stops a medicine a letter leaves out; continuing an unlisted medicine needs a note; a stop names its document, never the family's word; the record changed since it began; another person's entry; two decisions for one medicine) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/reconciliation.test.ts`: `hazard HZ-121 every medicine in the sources needs a decision, so a new one is never missed` (an undecided line; a line used twice; not started without a reason; a line not in the sources; a change with no source line; started only from a document; each new entry checked as any entry) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/reconciliation.test.ts`: `hazard HZ-121 continuing a medicine the sources show as a different product needs a note` (another VMP, another brand, not coded; the same product needs none) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/reconciliation.test.ts`: `hazard HZ-121 a reconciliation cannot complete while a query is open` (about an entry, about a line, with no question written) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/reconciliation.test.ts`: `hazard HZ-121 a return from hospital needs the discharge letter or a reason it is not there` | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/reconciliation.test.ts`: `hazard HZ-121 the medicines record says it is not yet reconciled after admission, transfer or return until a reconciliation completes` (in UK time, oldest first; what a reconciliation covers) | Passing (Phase 2 slice 2) |
+| `apps/api`: `hazard HZ-121 a reconciliation completes only with every decision and applies its plan in one transaction, completing the return check` | Planned, Phase 2 (slice 16) |
+| `apps/web` Playwright: `hazard HZ-121 the nurse reconciles medicines after a return from hospital` (with axe) | Planned, Phase 2 (slice 52) |
 
 ---
 
