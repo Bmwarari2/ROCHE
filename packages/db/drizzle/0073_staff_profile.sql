@@ -10,7 +10,6 @@ CREATE TABLE "compliance_item" (
 	"risk_assessment_signed_by" uuid,
 	"expires_on" date,
 	"recheck_due_on" date,
-	"reminders_sent" integer[] DEFAULT '{}'::integer[] NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -56,7 +55,8 @@ ALTER TABLE "compliance_item" ADD CONSTRAINT "compliance_item_verified_by_fk" FO
 ALTER TABLE "compliance_item" ADD CONSTRAINT "compliance_item_risk_assessment_signed_by_fk" FOREIGN KEY ("tenant_id","risk_assessment_signed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "staff_profile" ADD CONSTRAINT "staff_profile_tenant_user_fk" FOREIGN KEY ("tenant_id","tenant_user_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "staff_profile" ADD CONSTRAINT "staff_profile_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "compliance_item_reminder_idx" ON "compliance_item" USING btree ("tenant_id","expires_on","recheck_due_on");--> statement-breakpoint
+CREATE INDEX "compliance_item_reminder_idx" ON "compliance_item" USING btree ("tenant_id","expires_on","recheck_due_on");
+--> statement-breakpoint
 
 -- The staff profile and pre-employment file (slice 11; workforce.md sections 2a, 3 and 5; WORK-002,
 -- WORK-011): the ADR-0002 patterns; read by holders of workforce.staff_file.read or .manage (or the

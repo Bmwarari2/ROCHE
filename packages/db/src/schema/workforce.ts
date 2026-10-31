@@ -6,7 +6,6 @@ import {
   date,
   foreignKey,
   index,
-  integer,
   jsonb,
   pgTable,
   text,
@@ -112,8 +111,6 @@ export const complianceItem = pgTable(
     /** Worked out from the details by the API when the item is saved, for the reminder sweep. */
     expiresOn: date("expires_on"),
     recheckDueOn: date("recheck_due_on"),
-    /** Reminder offsets (days) already raised for the current reminder date. */
-    remindersSent: integer("reminders_sent").array().notNull().default(sql`'{}'::integer[]`),
     ...mutableColumns(),
   },
   (t) => [

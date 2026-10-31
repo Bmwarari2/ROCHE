@@ -36,6 +36,8 @@ export interface StoredUpload {
   readonly subjectType?: string | null;
   readonly subjectId?: string | null;
   readonly previous?: DocumentRow | null;
+  /** A retention class other than the category's, for a document whose kind sets it (right to work copies). */
+  readonly retentionClass?: string;
   /**
    * For a JPEG or PNG: whether the transfer pack can print it, decided by the caller with
    * `imagePrintableOf` before the transaction opens, so no image is decoded while a connection is
@@ -91,7 +93,7 @@ export async function storeDocument(
       category: upload.category,
       title: upload.title,
       fileName: safeFileName(upload.fileName),
-      retentionClass: rules.retentionClass,
+      retentionClass: upload.retentionClass ?? rules.retentionClass,
       storageKey: key,
       contentType: check.contentType,
       sizeBytes: upload.bytes.length,

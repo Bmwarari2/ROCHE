@@ -66,6 +66,7 @@ import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { staffFilesRouter } from "./routes/staff-files";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
@@ -254,6 +255,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
+  app.route("/", staffFilesRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);

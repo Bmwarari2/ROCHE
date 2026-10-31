@@ -15062,6 +15062,725 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/staff-files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Staff files
+     * @description workforce.staff_file.read or .manage. Every staff profile with where its Schedule 3 file stands today: complete or not, outstanding items and items due soon.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Staff files */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Create a staff file
+     * @description workforce.staff_file.manage. One file per member of staff, never one's own. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateStaffFile"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A staff file
+     * @description workforce.staff_file.read or .manage. The profile and every Schedule 3 item with its details, status and notes today; the HR-only documents' details for holders of workforce.hr_document.read. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The staff file */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change a staff profile
+     * @description workforce.staff_file.manage, never on one's own file, against the version you loaded. Audited.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateStaffFile"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/items/{kind}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record a pre-employment check
+     * @description workforce.staff_file.manage, never on one's own file. Records or replaces one Schedule 3 item's details (the detail's kind must be the path's) and verifies it in the caller's name on a date no later than today, or leaves it unverified. An existing item needs expectedVersion. A new expiry or re-check date ends the item's open reminder tasks. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          /** @description A Schedule 3 pre-employment requirement */
+          kind: components["schemas"]["ComplianceItemKind"];
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordComplianceItem"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/items/dbs_certificate/risk-assessment": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Sign the DBS risk assessment
+     * @description workforce.dbs_risk_assessment.sign, never for oneself, in the caller's name, on a date no later than today. Lets a worker with a clear adults' barred list check start supervised before the certificate, or accepts a disclosure on a certificate already seen (workforce.md rule 3). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SignDbsRiskAssessment"];
+        };
+      };
+      responses: {
+        /** @description Signed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/items/{kind}/documents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add an HR-only document (the body is the file)
+     * @description workforce.staff_file.manage and workforce.hr_document.read, never on one's own file. Checked by its contents (JPEG, PNG, WebP or PDF), scanned and stored encrypted, as the document store does. Never to the DBS check: no certificate copy is kept. Right to work copies are kept as right_to_work_copy. Audited.
+     */
+    post: {
+      parameters: {
+        query: {
+          title: string;
+          fileName?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+          /** @description A Schedule 3 pre-employment requirement */
+          kind: components["schemas"]["ComplianceItemKind"];
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "image/jpeg": string;
+          "image/png": string;
+          "image/webp": string;
+          "application/pdf": string;
+          "application/octet-stream": string;
+        };
+      };
+      responses: {
+        /** @description Stored */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffHrDocument"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The file is too large */
+        413: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/staff-files/{id}/documents/{documentId}/content": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Open an HR-only document (audited)
+     * @description workforce.hr_document.read. Every open is audited as workforce.hr_document.viewed.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          documentId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The file */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "image/jpeg": string;
+            "image/png": string;
+            "image/webp": string;
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/staff-file": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * My staff file
+     * @description workforce.self.read. The member's own profile and where each of their checks stands; not the HR-only documents.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Your staff file */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/p/evidence/code": {
     parameters: {
       query?: never;
@@ -22384,6 +23103,12 @@ export interface components {
       missedTasksOmitted?: number;
       /** Format: date */
       missedTasksNotListedBefore?: string;
+      /** Format: uuid */
+      staffProfileId?: string;
+      complianceItemKind?: string;
+      /** Format: date */
+      reminderDueOn?: string;
+      reminderDays?: number;
     } | null;
     CreateTask: {
       title: string;
@@ -22526,7 +23251,8 @@ export interface components {
       | "feed_photo"
       | "care_attachment"
       | "person_document"
-      | "organisation_document";
+      | "organisation_document"
+      | "staff_hr_document";
     DocumentList: {
       items: components["schemas"]["DocumentItem"][];
     };
@@ -25845,6 +26571,266 @@ export interface components {
         kind: string;
         message: string;
       }[];
+    };
+    StaffFileList: {
+      items: components["schemas"]["StaffFileSummary"][];
+      /** Format: date */
+      asOf: string;
+    };
+    StaffFileSummary: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      member: components["schemas"]["StaffName"];
+      /** Format: uuid */
+      locationId: string | null;
+      jobTitle: string;
+      /** Format: date */
+      startsOn: string | null;
+      /** Format: date */
+      leftOn: string | null;
+      complete: boolean;
+      outstanding: components["schemas"]["ComplianceItemKind"][];
+      dueSoon: components["schemas"]["ComplianceItemKind"][];
+    };
+    /**
+     * @description A Schedule 3 pre-employment requirement
+     * @enum {string}
+     */
+    ComplianceItemKind:
+      | "identity_with_photo"
+      | "dbs_certificate"
+      | "conduct_in_care_work"
+      | "references"
+      | "relevant_qualifications"
+      | "employment_history"
+      | "health_fitness"
+      | "right_to_work"
+      | "professional_registration";
+    StaffFileItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      member: components["schemas"]["StaffName"];
+      /** Format: uuid */
+      locationId: string | null;
+      jobTitle: string;
+      pathwayCategory: string | null;
+      registrationBody: components["schemas"]["RegistrationBody"];
+      previousCareWork: boolean;
+      /** Format: date */
+      dateOfBirth: string | null;
+      /** Format: date */
+      startsOn: string | null;
+      /** Format: date */
+      leftOn: string | null;
+      complete: boolean;
+      outstanding: components["schemas"]["ComplianceItemKind"][];
+      items: components["schemas"]["ComplianceItemView"][];
+      documents: components["schemas"]["StaffHrDocument"][] | null;
+      /** Format: date */
+      asOf: string;
+    };
+    /** @enum {string|null} */
+    RegistrationBody: "nmc" | "hcpc" | "swe" | "gmc" | null;
+    ComplianceItemView: {
+      kind: components["schemas"]["ComplianceItemKind"];
+      required: boolean;
+      status: components["schemas"]["ComplianceStatus"];
+      /** Format: uuid */
+      id: string | null;
+      version: number | null;
+      detail: components["schemas"]["ComplianceDetail"];
+      /** Format: date */
+      verifiedOn: string | null;
+      verifiedBy: components["schemas"]["StaffName"];
+      /** Format: date */
+      riskAssessmentSignedOn: string | null;
+      riskAssessmentSignedBy: components["schemas"]["StaffName"];
+      /** Format: date */
+      expiresOn: string | null;
+      /** Format: date */
+      recheckDueOn: string | null;
+      notes: components["schemas"]["ComplianceNote"][];
+    };
+    /** @enum {string} */
+    ComplianceStatus: "satisfied" | "due_soon" | "expired" | "missing" | "not_required";
+    /** @description What a compliance item keeps, by its kind */
+    ComplianceDetail:
+      | {
+          /** @enum {string} */
+          kind: "identity_with_photo";
+          /** @enum {string} */
+          document:
+            | "passport"
+            | "photocard_driving_licence"
+            | "national_identity_card"
+            | "biometric_residence_permit"
+            | "other_photo_document";
+        }
+      | {
+          /** @enum {string} */
+          kind: "dbs_certificate";
+          certificate: {
+            /** @enum {string} */
+            level: "enhanced_adults_barred" | "enhanced" | "standard" | "basic";
+            /** Format: date */
+            issuedOn: string;
+            number: string;
+            /** @enum {string} */
+            result: "clear" | "information_disclosed";
+          } | null;
+          updateService: {
+            subscribed: boolean;
+            /** Format: date */
+            lastCheckedOn: string | null;
+            /** @enum {string|null} */
+            lastResult: "no_new_information" | "new_information" | null;
+          } | null;
+          /** Format: date */
+          barredListClearOn: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "conduct_in_care_work";
+          employersContacted: number;
+        }
+      | {
+          /** @enum {string} */
+          kind: "references";
+          received: number;
+        }
+      | {
+          /** @enum {string} */
+          kind: "relevant_qualifications";
+          qualifications: string[];
+        }
+      | {
+          /** @enum {string} */
+          kind: "employment_history";
+          historyStart: string;
+          applicationMonth: string;
+          periods: {
+            from: string;
+            to: string | null;
+            /** @enum {string} */
+            kind: "employment" | "education" | "explained_gap";
+            explanation?: string;
+          }[];
+        }
+      | {
+          /** @enum {string} */
+          kind: "health_fitness";
+          declaredFit: boolean;
+          adjustmentsAgreed: boolean;
+        }
+      | {
+          /** @enum {string} */
+          kind: "right_to_work";
+          checks: {
+            /** Format: date */
+            checkedOn: string;
+            /** @enum {string} */
+            method: "manual_document" | "online_share_code" | "idsp";
+            /** @enum {string} */
+            permission: "unlimited" | "time_limited";
+            /** Format: date */
+            expiresOn: string | null;
+          }[];
+        }
+      | {
+          /** @enum {string} */
+          kind: "professional_registration";
+          body: components["schemas"]["RegistrationBody"];
+          pin: string;
+          /** Format: date */
+          renewalDueOn: string;
+          /** Format: date */
+          revalidationDueOn: string | null;
+        }
+      | null;
+    /** @description Why an item is not satisfied, or what it must say */
+    ComplianceNote: {
+      /** @enum {string} */
+      code:
+        | "not_verified"
+        | "self_verified"
+        | "dbs_supervised_only"
+        | "dbs_not_clear"
+        | "dbs_update_service_check_due"
+        | "right_to_work_none"
+        | "right_to_work_lapsed"
+        | "right_to_work_checked_late"
+        | "employment_gaps"
+        | "registration_lapsed"
+        | "health_not_declared_fit"
+        | "references_none";
+      reason?: string;
+      /** Format: date */
+      dueOn?: string;
+      /** Format: date */
+      lapsedOn?: string;
+      /** Format: date */
+      checkedOn?: string;
+      gaps?: {
+        from: string;
+        to: string;
+        months: number;
+      }[];
+    };
+    /** @description An HR-only document's details (not its contents) */
+    StaffHrDocument: {
+      /** Format: uuid */
+      id: string;
+      itemKind: components["schemas"]["ComplianceItemKind"];
+      title: string;
+      contentType: string;
+      sizeBytes: number;
+      /** Format: date-time */
+      createdAt: string;
+      status: string;
+    };
+    CreateStaffFile: {
+      /** Format: uuid */
+      tenantUserId: string;
+      /** Format: uuid */
+      locationId: string | null;
+      jobTitle: string;
+      pathwayCategory: string | null;
+      registrationBody: components["schemas"]["RegistrationBody"];
+      previousCareWork: boolean;
+      /** Format: date */
+      dateOfBirth: string | null;
+      /** Format: date */
+      startsOn: string | null;
+      /** Format: date */
+      leftOn: string | null;
+    };
+    UpdateStaffFile: {
+      expectedVersion: number;
+      /** Format: uuid */
+      locationId: string | null;
+      jobTitle: string;
+      pathwayCategory: string | null;
+      registrationBody: components["schemas"]["RegistrationBody"];
+      previousCareWork: boolean;
+      /** Format: date */
+      dateOfBirth: string | null;
+      /** Format: date */
+      startsOn: string | null;
+      /** Format: date */
+      leftOn: string | null;
+    };
+    RecordComplianceItem: {
+      expectedVersion?: number;
+      detail: components["schemas"]["ComplianceDetail"];
+      /** Format: date */
+      verifiedOn: string | null;
+    };
+    SignDbsRiskAssessment: {
+      expectedVersion: number;
+      /** Format: date */
+      signedOn: string;
     };
     /** @description Whether the email with the code was sent */
     EvidenceLinkCodeSent: {

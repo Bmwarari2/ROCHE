@@ -1,5 +1,5 @@
 {
-  "id": "ac4650a8-c106-406c-b45c-06b945a0e24a",
+  "id": "90e66cec-1e7a-48f0-8688-5604cfcb3073",
   "prevId": "a63b808b-5261-4530-b6c8-b2781dbcfc03",
   "version": "7",
   "dialect": "postgresql",
@@ -27017,13 +27017,6 @@
           "type": "date",
           "primaryKey": false,
           "notNull": false
-        },
-        "reminders_sent": {
-          "name": "reminders_sent",
-          "type": "integer[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::integer[]"
         },
         "created_at": {
           "name": "created_at",

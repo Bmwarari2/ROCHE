@@ -4358,11 +4358,6 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       recheck_due_on: {
         description: "When a DBS Update Service status check is next due (UK date).",
       },
-      reminders_sent: {
-        class: "internal",
-        description: "Expiry reminder offsets already raised.",
-        unit: "days",
-      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

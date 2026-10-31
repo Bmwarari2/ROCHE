@@ -77,6 +77,14 @@ export const TaskDetails = z
      * it are not all listed, so the reviewer checks the record (HZ-003).
      */
     missedTasksNotListedBefore: isoDate.optional(),
+    /**
+     * A staff check's expiry reminder (workforce.md section 5): the staff file and item kind, the
+     * date counted down to and the reminder's offset in days. Never the member's name.
+     */
+    staffProfileId: uuid.optional(),
+    complianceItemKind: z.string().optional(),
+    reminderDueOn: isoDate.optional(),
+    reminderDays: z.number().int().optional(),
   })
   .meta({ id: "TaskDetails" });
 export type TaskDetails = z.infer<typeof TaskDetails>;

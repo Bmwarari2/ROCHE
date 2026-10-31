@@ -60,7 +60,7 @@ never deleted.
 | Table | Columns | Rules |
 | --- | --- | --- |
 | `staff_profile` | `tenant_user_id` (the member of staff; one profile each), `location_id` (where they mainly work, or empty), `job_title`, `pathway_category` (Care Workforce Pathway role category, optional), `registration_body` (`nmc`, `hcpc`, `swe`, `gmc` or empty: adds professional registration), `previous_care_work` (adds conduct evidence), `date_of_birth` (optional: for the `staff_file.to_75th_birthday` retention row and the under-18 working time rules), `starts_on`, `left_on` | Keeps its member. Never written by the member themselves |
-| `compliance_item` | `staff_profile_id`, `kind` (one of the Schedule 3 items, one row per kind), `detail` (JSON, `ComplianceDetail` for the kind), `verified_on` and `verified_by` (who saw the evidence, set together), `risk_assessment_signed_on` and `_by` (DBS only), `expires_on` and `recheck_due_on` (worked out from the detail when saved, for the reminder sweep), `reminders_sent` (offsets already raised for the current reminder date) | Keeps its profile and kind; the detail's `kind` is the row's. Verified in the verifier's own name by a holder of manage; the risk assessment signed in the signer's own name by a holder of `workforce.dbs_risk_assessment.sign`; neither ever the worker |
+| `compliance_item` | `staff_profile_id`, `kind` (one of the Schedule 3 items, one row per kind), `detail` (JSON, `ComplianceDetail` for the kind), `verified_on` and `verified_by` (who saw the evidence, set together), `risk_assessment_signed_on` and `_by` (DBS only), `expires_on` and `recheck_due_on` (worked out from the detail when saved, for the reminder sweep) | Keeps its profile and kind; the detail's `kind` is the row's. Verified in the verifier's own name by a holder of manage; the risk assessment signed in the signer's own name by a holder of `workforce.dbs_risk_assessment.sign`; neither ever the worker |
 
 What each kind's `detail` holds (data minimisation: only what the rule needs):
 
@@ -230,8 +230,10 @@ expiry or a re-check date, at `document_expiry.reminder_days.first`, `.second` a
 before it, it raises one task through the task engine (kind `workforce.compliance_expiry`, the
 generic title "Renew a staff check before it expires", no name; `requiredPermission`
 `workforce.staff_file.manage`; assigned to the `hr` role; at the profile's location; source the
-compliance item), once each, recorded in `reminders_sent`. Recording the item again with a new date
-clears `reminders_sent` and cancels its open reminder tasks. Competence changes are published for
+compliance item, with the offset and the date in its details), once each: a task already raised
+for that item, offset and date, whatever its status, stops a second, and the job never changes the
+item. Recording the item again with a new date cancels its open reminder tasks, and the new date's
+reminders follow. Competence changes are published for
 medicines and scheduling (ADR-0085, slice 17).
 
 ## 6. Offline behaviour

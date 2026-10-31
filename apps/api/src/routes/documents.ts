@@ -81,7 +81,7 @@ const UPLOAD_PERMISSION: Record<GeneralDocumentCategory, Permission> = {
 
 const RETENTION_PERMISSION: Permission = "platform.retention.manage";
 const binary = z.string().meta({ format: "binary" });
-const fileBody = {
+export const fileBody = {
   content: {
     "image/jpeg": { schema: binary },
     "image/png": { schema: binary },
@@ -91,7 +91,7 @@ const fileBody = {
   },
   required: true,
 } as const;
-const fileResponse = (description: string) => ({
+export const fileResponse = (description: string) => ({
   content: {
     "image/jpeg": { schema: binary },
     "image/png": { schema: binary },
