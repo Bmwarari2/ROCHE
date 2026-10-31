@@ -183,3 +183,8 @@ export const SetSpeakUpLead = z
 export const SpeakUpLeadChanged = z
   .object({ changed: z.boolean() })
   .meta({ id: "SpeakUpLeadChanged" });
+
+/** Active members the lead may name on a case (the lead alone reads it). */
+export const SpeakUpStaffList = z
+  .object({ items: z.array(StaffName) })
+  .meta({ id: "SpeakUpStaffList" });

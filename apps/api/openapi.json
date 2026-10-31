@@ -8399,6 +8399,20 @@
           "appoint"
         ]
       },
+      "SpeakUpStaffList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "WorkflowInstanceList": {
         "type": "object",
         "properties": {
@@ -45816,6 +45830,65 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SpeakUpLeadChanged"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/staff": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Active members the Freedom to Speak Up lead may name on a case",
+        "description": "The lead only: display names and job titles, for naming case members.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpStaffList"
                 }
               }
             }

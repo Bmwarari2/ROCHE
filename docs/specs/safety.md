@@ -304,7 +304,7 @@ step list.
 
 ### Safeguarding log (plan slice 13: SAFE-006; HZ-126)
 
-Schema and API for Phase 2 rule 1 (migration 0075). The web screens are slice 62.
+Schema and API for Phase 2 rule 1 (migration 0075). The web screens are slice 62 (below).
 
 **Table.** `safeguarding_concern` (mutable, versioned, retention class `serious_incident`): one
 concern about one adult using the service. Columns: location, person, the incident it came from,
@@ -426,7 +426,7 @@ security checks it again (`app.holds_permission_at`).
   foreign keys skip row-level security); an unknown id is a 422. Version history keeps only
   non-personal columns (`app.capture_version_redacted`), because every member reads
   `record_version`.
-- Web screens are slice 62.
+- Web screens: slice 62 (below).
 
 Whistleblowing and speaking up (Phase 2 slice 24; rule 3 above; SAFE-012; ADR-0089;
 `apps/api/src/routes/speak-up.ts`; tables `speak_up_concern`, `speak_up_reporter`,
@@ -461,7 +461,7 @@ workflow, version history or outbox tables, which wider roles read.
   device or request id (scope `{ actor: "anonymous" | "reporter" }`). The lead's and members' own
   actions are audited as theirs. Every audit event about a concern is read only by the lead
   (`audit_speak_up_silo`); the chain still verifies for every reader. No outbox event is published.
-  Web screens are a later slice.
+  Web screens: slice 62 (below).
 
 Built in slice 7 (`apps/api/src/routes/incidents.ts`, `statutory-notifications.ts`,
 `apps/api/src/services/safety.ts`; tables in migrations 0018 and 0019): `POST /v1/incidents` takes a
@@ -799,6 +799,31 @@ reader's own list, never for a representative; trends count only what the reader
 the evidence model, one record per person, a decision after closing, separation of duties, dated
 actions), H-481 (the pack listed, not assembled; its clock; the LeDeR check) and H-482 (the
 learning disability and autism question on the form).
+
+### Web screens (Phase 2 slice 62)
+
+- **Complaints** (`/complaints`, holders of `safety.complaint.manage`): the list, titled by when each
+  complaint arrived and never by the complainant's name, with its state as an icon and a word and
+  the targets still ahead. The record form, and the record with each step the workflow allows. A
+  response asks for the outcome, what was done, the Ombudsman signposted and the kept copy, chosen
+  from documents. Compliments are at `/complaints/compliments`.
+- **Safeguarding** (`/safeguarding`, holders of `safety.safeguarding.manage`): the log with each
+  referral clock in the API's words. Raising a concern is at `/safeguarding/new`
+  (`safety.incident.report`). The record has an update form (referral, enquiry, finding, the
+  person's outcomes, the DBS decision, the measures) that sends only the sections filled in, and
+  each next step with what it still needs. Carers see the protective measures alone on the
+  person's Safeguarding measures tab (`care.plan.read`; HZ-126).
+- **Speak up** (`/speak-up`, every member of staff): raising a named or confidential concern,
+  your own concerns with their replies, and the address of the anonymous page to share. The lead's
+  and members' cases are at `/speak-up/cases`, a page at a time, with "possible flood" in words for
+  the lead. The case view has the steps, messages and, for the lead, the people on the case (from
+  `GET /v1/speak-up/staff`, the lead only).
+- **The anonymous page** (`/speak-up-anonymously/{organisation}`, no sign-in): it says first what
+  anonymous means here. Nothing about the person is kept: no name, IP address, device or cookie,
+  and nothing in the browser's storage. What they write may still identify them. The reply code is
+  shown once and expires. The page names the National Guardian's Office and prescribed persons as
+  other routes. The page's server calls pass on only the client address, for the per-network
+  limit. The code travels only in request bodies, never an address.
 
 ## 6. Offline behaviour
 

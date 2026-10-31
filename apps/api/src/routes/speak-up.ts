@@ -13,6 +13,7 @@ import {
   SpeakUpCaseList,
   SpeakUpLeadChanged,
   type SpeakUpMessage,
+  SpeakUpStaffList,
   SpeakUpStep,
   type SpeakUpThread,
   SpeakUpThreadList,
@@ -931,5 +932,37 @@ export const speakUpRouter = createRouter()
         return result;
       });
       return c.json({ changed }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/speak-up/staff",
+      tags: ["safety"],
+      summary: "Active members the Freedom to Speak Up lead may name on a case",
+      description: "The lead only: display names and job titles, for naming case members.",
+      security,
+      responses: { 200: jsonBody(SpeakUpStaffList, "Members"), ...errorResponses },
+    }),
+    async (c) => {
+      await requirePermission(c, LEAD);
+      const items = await withTenant(c, async (tx) => {
+        const rows = await tx
+          .select({
+            id: tenantUser.id,
+            displayName: tenantUser.displayName,
+            jobTitle: tenantUser.jobTitle,
+          })
+          .from(tenantUser)
+          .where(eq(tenantUser.status, "active"))
+          .orderBy(asc(tenantUser.displayName))
+          .limit(1000);
+        return rows.map((r) => ({
+          id: r.id,
+          displayName: r.displayName,
+          jobTitle: r.jobTitle ?? null,
+        }));
+      });
+      return c.json({ items }, 200);
     },
   );

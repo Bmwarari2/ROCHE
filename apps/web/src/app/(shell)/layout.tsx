@@ -4,11 +4,10 @@ import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext } from "@/lib/api";
-
 import { approvalsShown } from "@/lib/approvals";
 import { accentStyle, brandingShown, logoSrc } from "@/lib/branding";
-
 import { breakGlassReportShown } from "@/lib/break-glass-report";
+import { complaintsShown } from "@/lib/complaints";
 import { readNotifications } from "@/lib/dashboard-data";
 import { dataRightsShown } from "@/lib/data-rights";
 import { downtimeNavShown } from "@/lib/downtime";
@@ -24,7 +23,9 @@ import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { auditsShown, frameworkShown } from "@/lib/quality-programme";
 import { retentionShown } from "@/lib/retention";
 import { roundShown } from "@/lib/round";
+import { safeguardingShown } from "@/lib/safeguarding";
 import { searchShown } from "@/lib/search";
+import { speakUpShown } from "@/lib/speak-up";
 import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
 
@@ -79,6 +80,11 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
+        safeguarding: safeguardingShown(me.permissions) ? t("shell.nav.safeguarding") : undefined,
+        complaints: complaintsShown(me.permissions) ? t("shell.nav.complaints") : undefined,
+        speakUp: speakUpShown(me.permissions, isFamilyMember(me))
+          ? t("shell.nav.speakUp")
+          : undefined,
         approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
