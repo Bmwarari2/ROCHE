@@ -172,7 +172,7 @@ jobs:
     runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags/v')
     # Store binaries leave only after someone approves this deployment: the store-release
-    # environment needs required reviewers, set by the owner (human action H-397). Until then
+    # environment needs required reviewers, set by the owner (human action H-399). Until then
     # GitHub creates it unprotected on first use, so also move EXPO_TOKEN into the environment's
     # secrets, which a job outside it cannot read.
     environment: store-release

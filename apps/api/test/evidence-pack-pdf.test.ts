@@ -127,6 +127,36 @@ describe("hazard HZ-050 the evidence pack renders", () => {
     });
   });
 
+  it("is a well-formed PDF whose page tree matches its pages, the same bytes every time", () => {
+    const bytes = renderEvidencePackPdf(PACK, [NOTE, EARLIER], BUNDLE);
+    const raw = Buffer.from(bytes).toString("latin1");
+    expect(raw.startsWith("%PDF-")).toBe(true);
+    expect(raw.trimEnd().endsWith("%%EOF")).toBe(true);
+    expect(raw).toContain("/Type /Catalog");
+    const pages = pdfPages(bytes);
+    expect(pages.length).toBeGreaterThanOrEqual(1);
+    expect(raw).toContain(`/Count ${pages.length}`);
+    expect(raw.match(/\/Type \/Page\b(?!s)/g)).toHaveLength(pages.length);
+    // Nothing in the render reads the clock, and items are sorted by time: the same manifest,
+    // in any order, gives the same file.
+    const again = renderEvidencePackPdf(PACK, [EARLIER, NOTE], BUNDLE);
+    expect(Buffer.from(again).equals(Buffer.from(bytes))).toBe(true);
+  });
+
+  it("prints the pack's headings in order: the title, the recipient, then each record", () => {
+    const text = render().join("\n");
+    const headings = [
+      "Evidence pack",
+      "For Ivy Inspector, CQC.",
+      "Observation: weight",
+      "Care note: nutrition",
+    ];
+    const at = headings.map((heading) => text.indexOf(heading));
+    expect(at.every((n) => n >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(text).toContain("Where a detail is redacted or withheld, the reason is given.");
+  });
+
   it("says when a pack is not released, and counts one record in the singular", () => {
     const [first = ""] = pdfPages(
       renderEvidencePackPdf({ ...PACK, releasedAt: null }, [EARLIER], BUNDLE),

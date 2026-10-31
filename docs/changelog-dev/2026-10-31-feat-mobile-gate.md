@@ -21,7 +21,7 @@ Branch `feat/mobile-gate`, from `feat/mobile-round-screen` (PR #50).
   `app.config.ts` refuses it in an EAS build; `eas-profiles.test.ts` fails if any EAS profile sets
   either.
 - Store builds: `eas-build` runs in the `store-release` environment, so once the owner adds
-  required reviewers and moves `EXPO_TOKEN` there (H-397), a `v*-rc*` tag cannot build and submit
+  required reviewers and moves `EXPO_TOKEN` there (H-399), a `v*-rc*` tag cannot build and submit
   store binaries without approval. The trigger is unchanged.
 - The gate report (phase-1-gate.md section 1) says what is built, what is unverified and what an
   iOS job needs; the README's end-to-end section is rewritten; HZ-001 and HZ-006 Maestro rows and
@@ -29,14 +29,14 @@ Branch `feat/mobile-gate`, from `feat/mobile-round-screen` (PR #50).
 
 ## What is next
 
-- Run the workflow (H-398) and fix what the first run finds; the gate item stays open until the
+- Run the workflow (H-400) and fix what the first run finds; the gate item stays open until the
   live job passes.
 - An iOS job (phase-1-gate.md section 1), flows for charts and the conflict review.
 
 ## Human actions logged
 
-- H-397: protect `store-release` (required reviewers, `v*` tags) and move `EXPO_TOKEN` into it.
-- H-398: run the `mobile` workflow and record the result.
+- H-399: protect `store-release` (required reviewers, `v*` tags) and move `EXPO_TOKEN` into it.
+- H-400: run the `mobile` workflow and record the result.
 
 ## Tests
 
@@ -59,4 +59,4 @@ Branch `feat/mobile-gate`, from `feat/mobile-round-screen` (PR #50).
   network security config allowing cleartext to loopback only (today the e2e APK allows it to any
   host, Low), pinning actions to commit SHAs, `eas-version` and the Maestro installer (Low,
   existing), demo mode accepting http to any host in release (Low, existing), and whether every
-  rc tag should submit the production profile (owner, with H-397).
+  rc tag should submit the production profile (owner, with H-399).
