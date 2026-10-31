@@ -471,54 +471,17 @@ export function incidentPersonLine(
   return t("safety.incident.person", { name, role: person.role });
 }
 
-/** The post-fall checklist's care tasks (packages/domain/src/safety/post-fall.ts), in its order. */
-export const POST_FALL_TASKS = [
-  "urgent_medical_advice",
-  "post_fall_injury_check",
-  "post_fall_observations",
-  "post_fall_monitoring",
-  "gp_contact",
-  "ng249_falls_pathway",
-  "bone_health_review",
-] as const;
-
-export interface PostFallCheck {
-  readonly task: (typeof POST_FALL_TASKS)[number];
-  readonly title: string;
-  readonly urgent: boolean;
-  /** "Due 31/10/2026 14:05", "Until ...", or null when the organisation's defaults set it. */
-  readonly when: string | null;
-  readonly dateTime: string | null;
-}
-
 /**
- * The checks after a fall that the classifier set as care tasks (HZ-027): shown on the incident
- * page so the person reading it sees, in words, that urgent medical advice is needed, rather than
- * finding it only in the task list. Urgent medical advice comes first. Left out once closed.
+ * Whether the incident page shows its checks after a fall (HZ-027): every fall, in every nation
+ * (the API raises the post-fall tasks everywhere, though the classifier's own task list is
+ * England's), and after closing too, because closing neither waits for nor cancels those tasks.
+ * Not for a reader who sees the incident only in part, to whom the card would say it was a fall.
+ * The card never lists the tasks: no API returns an incident's tasks, so it points to the task
+ * list rather than predicting them.
  */
-export function postFallChecks(
-  classifier: Pick<ClassifierView, "tasks"> | null,
-  closed: boolean,
-  t: Translator,
-): PostFallCheck[] {
-  if (!classifier || closed) return [];
-  const order = (task: string) => POST_FALL_TASKS.indexOf(task as (typeof POST_FALL_TASKS)[number]);
-  return classifier.tasks
-    .filter((task) => order(task.task) >= 0)
-    .sort((a, b) => order(a.task) - order(b.task))
-    .map((task) => {
-      const due = formatDateTime(task.dueAt);
-      const until = formatDateTime(task.until);
-      return {
-        task: task.task as (typeof POST_FALL_TASKS)[number],
-        title: t("safety.incident.postFall.task", { task: task.task }),
-        urgent: task.task === "urgent_medical_advice",
-        when: until
-          ? t("safety.incident.postFall.until", { dateTime: until })
-          : due
-            ? t("safety.incident.postFall.due", { dateTime: due })
-            : null,
-        dateTime: until ? task.until : due ? task.dueAt : null,
-      };
-    });
+export function showsPostFallCard(incident: {
+  readonly type: string;
+  readonly restricted: boolean;
+}): boolean {
+  return incident.type === "fall" && !incident.restricted;
 }

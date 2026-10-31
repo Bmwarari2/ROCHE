@@ -5,22 +5,25 @@ this fixes the ones that are web-only and need no API change.
 
 ## What changed
 
-- **Checks after a fall on the incident page** (HZ-027): the post-fall care tasks the classifier
-  sets are listed under "Checks after the fall", urgent medical advice first with an "Urgent" chip
-  (icon and word) and wording that says why; due and until times in `<time>`; left out once the
-  incident is closed or the viewer sees it only in part (`postFallChecks` in
-  `apps/web/src/lib/incidents.ts`); it says it does not show which checks are done. The incident form's
-  injuries hint says marks on the body map are not linked to the incident yet, so describe them in
-  the incident too.
+- **Checks after a fall on the incident page** (HZ-027): every fall shows "Checks after the fall",
+  in every nation and after the incident is closed (closing neither waits for nor cancels the
+  post-fall tasks), with what the checks are, urgent medical advice when a head injury cannot be
+  ruled out or the person takes anticoagulant or antiplatelet medicine, and a link to the task list
+  where each check shows whether it is due or done. It does not list the tasks itself: the
+  classifier's list is empty outside England and no API returns an incident's tasks
+  (`GET /v1/tasks` has no source filter and `TaskItem` no source), so listing them would be a
+  prediction (#160 clinical review). Not shown to a reader who sees the incident only in part
+  (`showsPostFallCard`). The incident form's injuries hint says marks on the body map are not
+  linked to the incident yet, so describe them in the incident too.
 - **Who checks the law when notifications are not checked yet** (HZ-013): someone who manages
   incidents but cannot submit is no longer told to "ask a nurse"; they check the law themselves and
   tell the Registered Manager, who submits. Anyone else tells the nurse in charge or the Registered
   Manager. "The questions are not on this page yet" became "The questions are not shown to you
   here", which no longer suggests they will appear later.
 - **Body map**: the pressure ulcer category, the medical device question and the bruise question
-  are marked required and asked for in words before sending (the API refused them before); after a
-  mark that raises the incident report and safeguarding guide tasks (the domain's `markTriggers`),
-  a warning notice (icon and title) says "Tell the person in charge now" and why.
+  are marked required and asked for in words before sending (the API refused them before); the saved message says "Mark saved. Any follow-up tasks will appear on the task list.",
+  because the API's answer does not say whether tasks were raised (it raises them only for marks
+  still present), so the page never predicts them (#160 clinical review).
 - **Downtime pack hint**: says the passkey or authenticator code is asked for, not "you may be
   asked to sign in again", and to shred the old pack when a new one is put out.
 - **Sign-in with a backup code**: the second step takes a 6-digit code or one of the backup codes
@@ -59,8 +62,8 @@ this fixes the ones that are web-only and need no API change.
   words made from keys are English only and keep some abbreviations, such as "LA" and "Wtr");
   lists joined with commas in code rather than `Intl.ListFormat`, and merge field names from the
   English-only domain labels; a numeric keypad for the 6-digit code with a "use a backup code"
-  switch; a done or overdue state on each check after a fall (the incident view's tasks carry no
-  done state; API); E2E journeys for the post-fall card, the body map questions and backup-code
+  switch; the incident's own post-fall tasks with their state on the incident page (needs a tasks
+  filter by source in the API); E2E journeys for the post-fall card, the body map questions and backup-code
   sign-in.
 
 ## Human actions logged

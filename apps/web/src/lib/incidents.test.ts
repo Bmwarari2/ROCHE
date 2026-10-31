@@ -20,7 +20,7 @@ import {
   notificationsView,
   notificationWarnings,
   overdueCount,
-  postFallChecks,
+  showsPostFallCard,
 } from "./incidents";
 
 const t = createTranslator("en-GB");
@@ -554,30 +554,35 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
 });
 
 describe("hazard HZ-027 the checks after a fall on the incident page", () => {
-  const tasks = (...kinds: string[]) => ({
-    tasks: kinds.map((kind) => ({
-      task: kind,
-      reason: "Fall",
-      dueAt: "2026-10-31T14:05:00Z",
-      until: kind === "post_fall_monitoring" ? "2026-11-01T14:05:00Z" : null,
-    })),
-  });
+  it.each([
+    // The classifier's task list is empty outside England, but the API raises the post-fall
+    // tasks in every nation, so the card never depends on it.
+    { type: "fall", restricted: false, shown: true },
+    // Closing neither waits for nor cancels the post-fall tasks, so the card stays.
+    { type: "fall", restricted: false, shown: true, status: "closed" },
+    // A reader who sees the incident only in part is not told it was a fall.
+    { type: "fall", restricted: true, shown: false },
+    { type: "medication_error", restricted: false, shown: false },
+  ])(
+    "hazard HZ-027 shows the card for $type (restricted $restricted, status $status): $shown",
+    (c) => {
+      expect(showsPostFallCard(c)).toBe(c.shown);
+    },
+  );
 
-  it("hazard HZ-027 puts urgent medical advice first, as urgent, in words", () => {
-    const checks = postFallChecks(
-      tasks("post_fall_observations", "riddor_absence_check", "urgent_medical_advice"),
-      false,
-      t,
+  it("hazard HZ-027 points to the task list and never predicts the tasks", () => {
+    expect(t("safety.incident.postFall.intro")).toContain(
+      "The tasks stay open after this incident is closed until they are done.",
     );
-    expect(checks.map((c) => c.task)).toEqual(["urgent_medical_advice", "post_fall_observations"]);
-    expect(checks[0]?.urgent).toBe(true);
-    expect(checks[0]?.title).toMatch(/^Get urgent medical advice now/);
-    expect(checks[0]?.when).toMatch(/^Due /);
+    expect(t("safety.incident.postFall.urgentAdvice")).toMatch(/^Get urgent medical advice now if/);
+    expect(t("safety.incident.postFall.link")).toBe(
+      "Open the task list to see which checks are due and done",
+    );
   });
 
-  it("hazard HZ-027 says how long monitoring lasts, and shows nothing once the incident is closed", () => {
-    expect(postFallChecks(tasks("post_fall_monitoring"), false, t)[0]?.when).toMatch(/^Until /);
-    expect(postFallChecks(tasks("urgent_medical_advice"), true, t)).toEqual([]);
-    expect(postFallChecks(null, false, t)).toEqual([]);
+  it("hazard HZ-027 the body map's saved message never says tasks were raised", () => {
+    expect(t("care.bodyMap.savedFollowUp")).toBe(
+      "Mark saved. Any follow-up tasks will appear on the task list.",
+    );
   });
 });

@@ -26,7 +26,7 @@ import {
   incidentTitle,
   notificationKindLabel,
   overdueCount,
-  postFallChecks,
+  showsPostFallCard,
 } from "@/lib/incidents";
 import { communicationSummary, personNames, sampleName } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
@@ -148,7 +148,6 @@ export default async function IncidentPage({
       })
     : null;
 
-  const checks = postFallChecks(incident.classifier, incident.status === "closed", t);
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
@@ -254,36 +253,23 @@ export default async function IncidentPage({
           />
         </Card>
       )}
-      {checks.length > 0 && !incident.restricted ? (
+      {showsPostFallCard(incident) ? (
         <Card as="section" title={t("safety.incident.postFall.title")} headingLevel={2}>
-          <p className="m-0 max-w-prose text-body-dense text-text-secondary">
-            {t("safety.incident.postFall.intro")}
-          </p>
-          <ul className="m-0 mt-3 flex list-none flex-col gap-3 p-0">
-            {checks.map((check) => (
-              <li key={check.task} className="flex flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  {check.urgent ? (
-                    <StatusChip
-                      status="overdue"
-                      label={t("safety.incident.postFall.urgent")}
-                      icon={CircleAlert}
-                    />
-                  ) : null}
-                  <span className={check.urgent ? "font-semibold" : undefined}>{check.title}</span>
-                </span>
-                {check.when ? (
-                  <span className="text-body-dense text-text-secondary">
-                    {check.dateTime ? (
-                      <time dateTime={check.dateTime}>{check.when}</time>
-                    ) : (
-                      check.when
-                    )}
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <div className="flex max-w-prose flex-col gap-3">
+            <p className="m-0">{t("safety.incident.postFall.intro")}</p>
+            <p className="m-0 flex items-start gap-2 font-semibold">
+              <CircleAlert
+                size={20}
+                strokeWidth={1.5}
+                aria-hidden="true"
+                className="mt-0.5 shrink-0"
+              />
+              {t("safety.incident.postFall.urgentAdvice")}
+            </p>
+            <p className="m-0">
+              <Link href="/tasks">{t("safety.incident.postFall.link")}</Link>
+            </p>
+          </div>
         </Card>
       ) : null}
       {incident.restricted ? null : (

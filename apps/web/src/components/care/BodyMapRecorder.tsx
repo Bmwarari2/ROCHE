@@ -1,7 +1,6 @@
 "use client";
 
 import type { CreateBodyMapMark, OutageItem } from "@harbour/contracts";
-import { markTriggers, type PressureUlcerCategory } from "@harbour/domain";
 import {
   Button,
   RadioGroup,
@@ -10,7 +9,6 @@ import {
   TextArea,
   TextField,
 } from "@harbour/ui";
-import { CircleAlert } from "lucide-react";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordBodyMark } from "@/app/actions/care-record";
 import { readNumber, readYesNo } from "@/lib/assessments";
@@ -30,7 +28,6 @@ import { type ActionResult, collectedRefusal, errorFor, partsFor, refused } from
 import { BodyDrawing, type DrawnMark } from "./BodyDrawing";
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
-import { Notice } from "./Notice";
 import { WhenField } from "./WhenField";
 
 type MarkType = CreateBodyMapMark["markType"];
@@ -102,7 +99,6 @@ export function BodyMapRecorder({
   const [markType, setMarkType] = useState<MarkType | "">("");
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [round, setRound] = useState(0);
-  const [raised, setRaised] = useState(false);
   const [pending, startTransition] = useTransition();
   const ids = useFieldIds(FIELDS);
   const entry = useEntryId();
@@ -139,15 +135,6 @@ export function BodyMapRecorder({
     }
     const when = readEntryWhen(form, "occurredAt", t, outages);
     if (!when.ok) return setResult(collectedRefusal(when.problems));
-    // Whether this mark raises the incident report and safeguarding guide tasks (the domain rule
-    // the API applies), so the saved message can say so.
-    const raises =
-      markTriggers({
-        markType,
-        pressureUlcerCategory:
-          markType === "pressure_ulcer" ? (category as PressureUlcerCategory) : null,
-        bruiseExplained: markType === "bruise" ? bruiseExplained : null,
-      }).length > 0;
     startTransition(async () => {
       const outcome = await recordBodyMark(personId, {
         id: entry.id,
@@ -173,7 +160,6 @@ export function BodyMapRecorder({
         ...size("depthMm"),
       });
       setResult(outcome);
-      setRaised(outcome.ok && raises);
       // Kept for review after a reconciled outage: start again, so it is not saved twice.
       if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
@@ -357,16 +343,9 @@ export function BodyMapRecorder({
           </Button>
         </div>
       </form>
-      <FormFeedback result={result} success={t("care.bodyMap.saved")} fieldIds={ids} />
-      {raised ? (
-        <Notice
-          tone="warning"
-          icon={<CircleAlert size={20} strokeWidth={1.5} aria-hidden />}
-          title={t("care.bodyMap.savedRaisedTitle")}
-        >
-          {t("care.bodyMap.savedRaised")}
-        </Notice>
-      ) : null}
+      {/* The API's answer does not say whether follow-up tasks were raised (only for marks still
+          present), so the saved message never predicts them (HZ-027 review). */}
+      <FormFeedback result={result} success={t("care.bodyMap.savedFollowUp")} fieldIds={ids} />
     </div>
   );
 }
