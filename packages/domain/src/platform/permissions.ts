@@ -230,7 +230,12 @@ export const PERMISSIONS = {
   "workforce.training.manage": { description: "Manage the training matrix and competence" },
   "workforce.competence.observe": { description: "Observe and sign off competence" },
   "workforce.supervision.manage": { description: "Schedule and record supervisions" },
-  "workforce.casework.manage": { description: "Manage employee relations casework" },
+  "workforce.casework.manage": {
+    description:
+      "Open employee relations cases and run those one is named on (a silo permission, ADR-0089: no other role reaches a case)",
+    // Casework holds health and allegations of criminal conduct: MFA as for the staff file.
+    sensitive: true,
+  },
   "workforce.self.read": { description: "Read own training, documents and pay" },
   "workforce.staff_file.read": {
     description:
@@ -327,6 +332,17 @@ export const PERMISSIONS = {
   "ai.copilot.use": { description: "Use the AI management copilot (advisory only)" },
   "ai.copilot.manage": { description: "Configure the AI module and provider" },
 } as const satisfies Record<string, PermissionDefinition>;
+
+/**
+ * Silo permissions (ADR-0089): held only through a role that carries nothing else, never by a role
+ * built from "every permission", never through an access grant, and never together with a role
+ * that manages users or roles. Row-level security repeats it (migration 0101 for casework).
+ */
+export const SILO_PERMISSIONS = ["workforce.casework.manage"] as const;
+
+export function isSiloPermission(permission: string): boolean {
+  return (SILO_PERMISSIONS as readonly string[]).includes(permission);
+}
 
 export type Permission = keyof typeof PERMISSIONS;
 

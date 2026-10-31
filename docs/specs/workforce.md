@@ -4,7 +4,8 @@ Master prompt sections 12.1, 12.2 and 12.4, with section 4 (roles) and 18 (data 
 builds the whole employee file from application to leaving ([phase-2.md](../plans/phase-2.md),
 lane B). Payroll itself is integrated, not built (section 12). Sections 2 to 4 and 9 were written by
 slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9)
-and slice 23 (applicant tracking: sections 2b, 4 rules 11 to 13, 5, 8 and 9);
+slice 23 (applicant tracking: sections 2b, 4 rules 11 to 13, 5, 8 and 9) and slice 39 (employee
+relations casework: sections 2c, 3, 4 rules 14 to 18, 5, 8, 9 and 11);
 sections 5 to 8 grow with the schema, API and screen slices. Status per
 feature: [feature register](feature-register.md).
 
@@ -108,6 +109,22 @@ kept for a short period after an unsuccessful application (retention class
 | `job_offer` | `application_id` (one each), `made_on`, `proposed_start_on`, `conditions` (the Schedule 3 items the role needs, `requiredItems`), `status` (`made`, `accepted`, `declined`, `withdrawn`), `responded_on`, `staff_profile_id` | Mutable; accepted only with the member of staff the profile is for |
 | `equality_monitoring` | `vacancy_id`, `answers` (age band, sex, gender identity matches sex registered at birth, ethnic group, disability, religion, sexual orientation; each with `prefer_not_to_say`); a random id and no date | Insert only, once the vacancy has closed and before its counts are released (`vacancy.equality_summarised_at`); never linked to an applicant or application; nobody reads a row, only the counts (rule 12) |
 
+### 2c. Employee relations casework (slice 39, migration 0101)
+
+WORK-010: grievance, disciplinary, capability, sickness absence and probation cases, run as the
+Acas Code of Practice on disciplinary and grievance procedures sets out, with investigation,
+hearings, outcome, appeal, suspension, the timeline, and the DBS barring and regulator referral
+decisions linked to the safeguarding log. A restricted silo (ADR-0089; rule 14): four tenant
+tables with forced row-level security, read only by the members named on a case. No
+`capture_version` (`record_version` is read widely); every change is audited by id instead.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `employee_case` | `case_type`, `subject_tenant_user_id` (the member of staff it is about), `subject_registered` (set by the database from the staff profile when opened), `summary`, `opened_on`, `stage` and `stage_since`, `outcome`, `outcome_decided_on`, `warning_expires_on`, `appeal_outcome`, `appeal_decided_on`, `suspended_on` and `suspension_review_on`, `closed_reason`, `closed_on`, `dbs_referral`, `_on`, `_reason`, `regulator_referral`, `_on`, `_reason`, `safeguarding_incident_id` | Mutable (`expected_version`). Opened open with nothing decided, never about the opener; keeps its type and subject; moves forward only; an outcome stays once decided; a closed case never changes; the safeguarding link is set once, to a concern the member can see |
+| `employee_case_member` | `case_id`, `tenant_user_id`, `member_role` (`CASE_MEMBER_ROLES`), `independence_exception`, `added_by`, `removed_at`, `removed_by` | Mutable, only ever removed. Never the subject; nobody names themselves (but the opener as first case manager); the last case manager stays |
+| `employee_case_hearing` | `case_id`, `kind` (`investigation_meeting`, `hearing`, `appeal_hearing`), `led_by`, `invited_on`, `scheduled_at`, `issue_set_out`, `evidence_shared`, `companion_right_given`, `state`, `held_on`, `accompanied`, `postponed_reason` | Mutable. Led by the member in the matching role; a held, unattended or cancelled one is final |
+| `employee_case_event` | `case_id`, `kind`, `from_stage`, `to_stage`, `occurred_on`, `body` (a note or the appeal grounds only), `recorded_by` | Append-only: the timeline. Written in one's own name, never after the case closes |
+
 ## 3. Permissions
 
 In the catalogue since Phase 0 ([permissions.md](permissions.md)): `workforce.recruitment.manage`,
@@ -141,6 +158,26 @@ Registered Manager, deputy manager and HR in the built-in roles), as section 12.
 database holds it organisation-wide as it does the staff file permissions
 (`app.holds_staff_permission`). Accepting an offer also needs `workforce.staff_file.manage`, which
 creates the staff profile; nobody records their own application or offer.
+
+Slice 39 makes `workforce.casework.manage` a silo permission (ADR-0089; `SILO_PERMISSIONS`), now
+needing MFA (`sensitive`). It lets its holder open a case, and nothing more: a case is read only by
+the members named on it, its holder included. Built-in roles built from every permission (owner,
+Registered Manager, deputy manager) leave it out, and HR's role no longer carries it; the new
+built-in role `employee_relations_lead` (Employee relations caseworker, no person scope) carries
+it alone. Migration 0101 removes it from existing roles that carry anything else, and the database
+refuses a role mixing it with any other permission, an access grant carrying it, someone
+appointing themselves to a role carrying it, and holding it together with a role that manages
+users or roles (`platform.user.manage`, `platform.role.manage`), whichever comes first. What each
+member may do on a case comes from their part on it (rule 16), not from a permission:
+
+| Action | Who |
+| --- | --- |
+| Open a case (never about oneself); become its first case manager | Holder of `workforce.casework.manage` |
+| Read the case, its members, hearings and timeline; add a note | Any member named on it (MFA) |
+| Name or remove members; arrange hearings; move the case on (investigation, hearing, appeal, close); suspension; referral decisions; the safeguarding link | A case manager of the case |
+| Decide the outcome | The hearing chair |
+| Decide the appeal (as the case closes) | The appeal chair |
+| Record what happened at a meeting or hearing | The member leading it, or a case manager |
 
 Staff files are the organisation's employment records, not people's care records, and HR functions
 are organisation-wide (master prompt section 4): a tenant or location role or a grant anywhere
@@ -258,6 +295,53 @@ whatever the clock change.
     talent pool period they agreed to, whichever is later; withdrawing talent pool consent ends
     that period at once. A hired applicant's details move to the staff file and follow it.
 
+14. **Who reads a case** (ADR-0089). Only the members named on it and not removed: no role, grant
+    or break-glass reaches a case, the owner and the Registered Manager included, and a holder of
+    `workforce.casework.manage` reads only the cases they are named on. The member of staff a case
+    is about is never a member of it (they are told in writing, outside Harbour, until slice 58).
+    Every route needs MFA.
+15. **How a case moves** (`casework.ts`, `checkCaseMove`). Stages `open`, `investigation`,
+    `hearing`, `outcome`, `appeal`, `closed`. An investigation needs an investigator named; a
+    hearing may follow the investigation or, where none is needed, the opening. The outcome is
+    decided only after a hearing was held (or, where the employee did not attend twice without
+    good reason, without one; Acas Code paragraph 25), is one the case type allows
+    (`CASE_OUTCOMES`), carries for a warning the date it stops counting (after the decision; the
+    tenant's policy, H-808), and is confirmed with the right of appeal. An appeal follows the
+    outcome, with its grounds; it is decided by the appeal chair after an appeal hearing, as the
+    case closes. Other closings: the outcome accepted, resolved informally (open or under
+    investigation), no case to answer (after investigation), withdrawn, or the member of staff
+    leaving. A case never closes while a suspension is in force or a referral decision due
+    (rule 17) is missing; a closed case never reopens. Dates never go before the current stage's.
+    The timeline shows the days between steps and at the current stage, with no target: what delay
+    is unreasonable is the people's judgement (`caseTimeline`).
+16. **Who takes which part** (`checkMemberAppointment`, `checkMemberRemoval`). Never the member of
+    staff the case is about; nobody names themselves. Where practicable (Acas Code paragraphs 6
+    and 27) the investigator does not chair the hearing, and the appeal is heard by someone who
+    neither investigated nor chaired; a small organisation records why not
+    (`no_other_manager_available`). One person may hold several other parts. The last case
+    manager is never removed.
+17. **Referral decisions** (`referralDecisionsDue`, `checkReferralDecision`). A regulated activity
+    provider must refer to the DBS someone it dismissed, or would have dismissed had they not
+    left, because they harmed or posed a risk of harm (Safeguarding Vulnerable Groups Act 2006
+    section 35); a registered professional's fitness to practise concerns go to their regulator.
+    A DBS decision is due before closing a disciplinary or capability case ending in dismissal (or
+    the member leaving during it), a probation not passed, or any case linked to a safeguarding
+    concern; a regulator decision when the member of staff is on a register and the case ended in
+    dismissal or a final written warning (disciplinary or capability), or is linked to a
+    safeguarding concern. A decision is `referred` on a date or `not_required` with a reason code.
+    Harbour never decides or makes a referral (H-802).
+18. **Hearings and suspension** (`checkHearingInvitation`, `checkHearingChange`,
+    `checkSuspension`). A hearing or appeal hearing is arranged only once the employee has the
+    issue in writing (and, in a disciplinary or capability case, the evidence) and has been told
+    of their statutory right to be accompanied (Employment Relations Act 1999 section 10), for a
+    later date; how much notice is reasonable is the tenant's policy (H-808). An investigation
+    meeting is led by the investigator, a hearing by the hearing chair, an appeal hearing by the
+    appeal chair. A meeting is held (with whether the employee was accompanied, never by whom),
+    not attended, postponed with a reason and rearranged, or cancelled; a held, unattended or
+    cancelled one is final. Suspension is only in a disciplinary case, a precaution while the
+    facts are established and never a sanction: it always carries its next review date, is
+    shown as overdue in words the day after, and ends before the case closes.
+
 Rate keys in use: `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
 `competence.medicines.refresh_months`, `supervision.per_year`, `appraisal.per_year`,
 `document_expiry.reminder_days.first`, `.second`, `.third`, `nmc.revalidation.cycle_years`,
@@ -325,6 +409,29 @@ Audit actions: `workforce.job_template.created`, `.updated`, `workforce.vacancy.
 `workforce.interview.recorded`, `workforce.offer.made`, `.responded`, `workforce.applicant.talent_pool`,
 `workforce.equality_monitoring.added`, `.summarised`.
 
+Slice 39 (employee relations casework). Every route needs MFA; a case the caller is not named on
+is not found; changes to a case take `expectedVersion` (409 when stale); refusals are audited;
+audit events carry the case id and codes only, never the member of staff, the summary, the
+grounds, notes or names.
+
+| Route | Who | Does |
+| --- | --- | --- |
+| `GET /v1/workforce/cases` | Any member of staff | The cases the caller is named on, with their parts |
+| `POST /v1/workforce/cases` | `workforce.casework.manage` | Open a case about another member of staff; the caller becomes its case manager |
+| `GET /v1/workforce/cases/{id}` | A member | The case, members, hearings, referral decisions (with whether each is due) and timeline; audited |
+| `POST /v1/workforce/cases/{id}/members`; `POST .../members/{memberId}/remove` | A case manager | Name a member (rule 16); remove one |
+| `POST /v1/workforce/cases/{id}/move` | Case manager; hearing chair (outcome); appeal chair (appeal decided) | Move the case on (rule 15) |
+| `POST /v1/workforce/cases/{id}/hearings`; `PATCH .../hearings/{hearingId}` | A case manager; the member leading it | Arrange a meeting or hearing; record what happened (rule 18) |
+| `PUT /v1/workforce/cases/{id}/suspension` | A case manager | Suspend, review or end (rule 18) |
+| `PUT /v1/workforce/cases/{id}/referrals` | A case manager | Record a DBS or regulator referral decision (rule 17) |
+| `PUT /v1/workforce/cases/{id}/safeguarding-link` | A case manager who can see the concern | Link the safeguarding concern, once |
+| `POST /v1/workforce/cases/{id}/notes` | A member | Add a note, until the case closes |
+
+Audit actions: `workforce.case.opened`, `.listed`, `.viewed`, `.member_named`, `.member_removed`,
+`.moved`, `.hearing_arranged`, `.hearing_updated`, `.suspension`, `.referral_recorded`,
+`.safeguarding_linked`, `.note_added`. No outbox event is published: nothing outside the case
+learns of it.
+
 ## 6. Offline behaviour
 
 Section 17.1: e-learning modules downloaded in advance are completed offline (plan slice 72).
@@ -373,6 +480,21 @@ history are never copied into the staff file, which receives only the job, the r
 conditions and the start date. Retention: `applicant.unsuccessful` and `applicant.talent_pool`
 ([retention.md](retention.md)); equality monitoring rows follow `applicant.unsuccessful` from the
 vacancy's closing date.
+
+Employee relations casework (slice 39) is purpose B3: special category data (health, in sickness
+absence and capability cases) and allegations of criminal conduct (disciplinary cases and DBS
+referral decisions), possibly more in free text. Lawful basis Article 6(1)(b) and (c) (the
+contract; the Employment Rights Act 1996 and Employment Relations Act 1999 duties; the DBS
+referral duty under the Safeguarding Vulnerable Groups Act 2006 section 35) and 6(1)(f) for
+running fair procedures. Health: Article 9(2)(b) with DPA 2018 Schedule 1 Part 1 paragraph 1.
+Allegations and offences: Article 10 with section 10(5), Schedule 1 Part 1 paragraph 1 and Part 2
+paragraph 18. All under the appropriate policy document (H-576, H-800). Minimisation and
+confidentiality: only the members named on a case read it (rule 14), never the owner or a manager
+as such; no copy in `record_version`; no outbox event; audit events with the case id and codes
+only; who accompanied the employee is never recorded; the case is left out of the
+organisation-wide export (H-805). Retention: with the staff file, from the end of the member of
+staff's employment ([retention.md](retention.md); H-806). The DPIA's R21 (a silo reached by a
+wider role, or the subject of a case disclosed) is answered by the silo and its tests.
 
 ## 9. Acceptance criteria and tests
 
@@ -437,12 +559,37 @@ Slice 23:
   outstanding; stale `expectedVersion`; the counts suppressed; the keep-until date set when the
   last application closes and extended by talent pool consent.
 
+Slice 39:
+
+- `casework.test.ts` (domain, table-driven): every allowed and refused move; outcomes per case
+  type; warnings with and without their end date; the appeal; closing refused while suspended or
+  with a referral decision missing; referral decisions due for each case type and outcome, a
+  registered professional and a safeguarding link; who may take which part, with and without the
+  exception; the last case manager; the hearing invitation's steps; hearing changes; suspension
+  start, review and end; warnings counting; the timeline across a clock change; the silo
+  permission held only by the caseworker role, alone.
+- `packages/db/test/casework.test.ts`: the owner (with every other permission, user and role
+  management included), the Registered Manager, the member of staff, a caseworker not named,
+  a person not yet named, break-glass and another organisation read nothing; only a holder of
+  the silo permission opens a case, never about themselves, and open; members never named
+  by themselves or by anyone but a case manager; the subject never named; the investigator not
+  chairing without the exception; a removed member reads nothing; the last case manager stays;
+  hearings led by the matching member and final once held; forward moves only; a decided outcome
+  kept; an unknown safeguarding concern refused; a closed case never changed; the timeline never
+  changed or deleted; the role, grant, self-appointment and user-management guards.
+- `apps/api/test/casework.test.ts`: the owner and the Registered Manager refused opening a case
+  (audited); not found for the owner, the manager, the member of staff and others until named;
+  MFA for a named member; a disciplinary case from opening through investigation, suspension, a
+  hearing with the Acas steps, the outcome by the hearing chair, an appeal by someone not
+  involved, the DBS decision and the suspension ended, to the appeal decided; stale versions; a
+  member removed; audit events with ids and codes only.
+
 ## 10. Open questions
 
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
 H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 23:
-H-730 to H-735).
+H-730 to H-735; slice 39: H-800 to H-809).
 
 ## 11. Known gaps
 
@@ -459,3 +606,9 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Upload titles and file names travel in the query string, as on `/v1/documents` | They may reach proxy logs | A header or multipart field for every upload route |
 | A refused HR upload (malware, wrong type) | Not audited as `workforce.hr_document.added` denied | Wrap the document store's refusals in audited refusals |
 | The full tenant export runs as the system | Holders of `platform.export.create` export staff files and HR-only documents | Decide with the DPO whether the export needs the HR permissions too (H-577) |
+| Casework does not stop someone holding the caseworker role from being named on a case about a colleague they are close to, or a member reading a case after their own conflict arises (slice 39) | Conflicts of interest are for the case manager to manage | A declared-conflict check when naming members (slice 58) |
+| A case nobody can read once its last case manager leaves (slice 39) | The case stays, unread, until support acts under an approval ticket | The support route (H-804) |
+| Members are any member of the organisation; a portal account could be named (slice 39) | Only a case manager names members, and only staff accounts are offered in the screens | Refuse a member holding only portal roles (slice 58) |
+| Audit events show that a case exists and who acts on it (by ids) to readers of the audit log (slice 39) | The owner and quality lead see case ids and action codes, never the subject or the content | An audit view that hides casework events from those not named (with the speak-up silo, ADR-0089) |
+| Casework is left out of the organisation-wide export and reaches a staff DSAR only through a case member (slice 39) | The provider cannot export its casework in one step | H-805 |
+| Migration 0101 carries its own silo guards for `workforce.casework.manage`; migration 0086 (speak-up) carries the same for `safety.speak_up.manage` | Two sets of guard triggers, one per silo permission | Fold both into `app.silo_permissions()` once both are merged |

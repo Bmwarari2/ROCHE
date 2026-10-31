@@ -689,6 +689,35 @@ of the census for England and Wales (H-733).
 | `equality_monitoring.id` | Harbour | Random UUID (never time-ordered); no date is kept | No link to the applicant |
 | `vacancy.equality_summarised_at` | Harbour | ISO 8601 UTC | When the counts were first released; no form after |
 
+## Workforce: employee relations casework (Phase 2, slice 39)
+
+Code lists for [workforce.md](workforce.md) section 2c (migration 0101). Harbour's own fields,
+following the Acas Code of Practice on disciplinary and grievance procedures (H-801); referral
+decisions follow the Safeguarding Vulnerable Groups Act 2006 section 35 and the regulators'
+referral guidance (H-802). A restricted silo (ADR-0089): read only by the members named on a case
+and left out of the organisation-wide export (H-805).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `employee_case.case_type` | Acas Code (disciplinary, grievance); Acas guidance (capability, sickness absence, probation) | `grievance`, `disciplinary`, `capability`, `sickness_absence`, `probation` | Kept for the life of the case |
+| `employee_case.stage` | Acas Code steps | `open`, `investigation`, `hearing`, `outcome`, `appeal`, `closed` | Moves forward only; closed never reopens |
+| `employee_case.summary` | Harbour | Plain text, 3 to 10,000 characters | Special category or allegation data possible |
+| `employee_case.opened_on`, `stage_since`, `outcome_decided_on`, `appeal_decided_on`, `closed_on` | Harbour | `YYYY-MM-DD` (UK date) | The timeline |
+| `employee_case.outcome` | Acas Code (warnings, dismissal) and Harbour | Grievance `upheld`, `partly_upheld`, `not_upheld`; disciplinary `no_action`, `first_written_warning`, `final_written_warning`, `action_short_of_dismissal`, `dismissal`; capability adds `improvement_plan`, `redeployment`; sickness absence adds `support_plan`, `reasonable_adjustments`; probation `passed`, `extended`, `not_passed` | Per case type (`CASE_OUTCOMES`) |
+| `employee_case.warning_expires_on` | Tenant policy | `YYYY-MM-DD`, after the decision | Warnings only (H-808) |
+| `employee_case.appeal_outcome` | Acas Code | `upheld`, `partly_upheld`, `not_upheld` | Decided by the appeal chair |
+| `employee_case.closed_reason` | Harbour | `outcome_accepted`, `appeal_decided`, `resolved_informally`, `no_case_to_answer`, `withdrawn`, `left_employment` | |
+| `employee_case.suspended_on`, `suspension_review_on` | Acas Code (suspension a precaution) | `YYYY-MM-DD`, set together; review after the start | Disciplinary only; ends before closing |
+| `employee_case.dbs_referral`, `regulator_referral` | SVGA 2006 s.35; NMC, HCPC, SWE, GMC guidance | `referred` (with `_on`, a date) or `not_required` (with `_reason`: `harm_test_not_met`, `not_regulated_activity`, `referred_by_another_body`, `other_recorded_in_case`) | The people's decision; Harbour refers nobody |
+| `employee_case.subject_registered` | Harbour | Boolean, from the staff profile's `registration_body` when opened | Makes the regulator decision due |
+| `employee_case.safeguarding_incident_id` | Harbour | The incident's id (safeguarding log) | Set once, only by someone who can see it |
+| `employee_case_member.member_role` | Acas Code (different people where practicable) | `case_manager`, `investigator`, `hearing_chair`, `appeal_chair`, `note_taker`, `hr_adviser` | Membership is what lets someone read the case |
+| `employee_case_member.independence_exception` | Acas Code ("where practicable") | `no_other_manager_available` or empty | Recorded when one person takes two parts |
+| `employee_case_hearing.kind`, `state` | Acas Code; Employment Relations Act 1999 s.10 | `investigation_meeting`, `hearing`, `appeal_hearing`; `scheduled`, `held`, `not_attended`, `postponed`, `cancelled` | A held, unattended or cancelled one is final |
+| `employee_case_hearing.issue_set_out`, `evidence_shared`, `companion_right_given`, `accompanied` | Acas Code paras 9 to 14; ERA 1999 s.10 | Booleans | Never who accompanied the employee |
+| `employee_case_hearing.postponed_reason` | Harbour | `companion_unavailable`, `employee_unwell`, `employer_request`, `other` | |
+| `employee_case_event.kind` | Harbour | `opened`, `stage_changed`, `member_added`, `member_removed`, `hearing_arranged`, `hearing_updated`, `suspension_started`, `suspension_reviewed`, `suspension_ended`, `referral_recorded`, `safeguarding_linked`, `appeal_grounds`, `note` | Append-only; text only on `note` and `appeal_grounds` |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

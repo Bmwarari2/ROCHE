@@ -80,7 +80,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
-| `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
+| `staff_profile`, `compliance_item` | staff_file (tenant's chosen row) |
+| `employee_case`, `employee_case_member`, `employee_case_hearing`, `employee_case_event` (employee relations casework, slice 39; [workforce.md](workforce.md) section 2c) | staff_file (tenant's chosen row), from the end of the employment of the member of staff the case is about; a warning that has stopped counting (`warning_expires_on`) is kept as the record of the decision, never used again; a shorter period for some cases is open (H-806). A restricted silo: the retention engine's destruction batches reach it as the system, and its certificates carry ids only |
 | `applicant`, `application`, `application_event`, `interview`, `job_offer` (slice 23) | applicant.unsuccessful, or applicant.talent_pool when later; a hired applicant's records follow the staff file |
 | `equality_monitoring` (slice 23) | applicant.unsuccessful, from the vacancy's closing date |
 | `job_template`, `vacancy` (slice 23) | organisation_document |

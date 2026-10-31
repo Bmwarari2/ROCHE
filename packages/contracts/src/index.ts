@@ -500,6 +500,7 @@ export const DEVICE_HEADER = "x-harbour-device";
 
 export * from "./care";
 export * from "./care-planning";
+export * from "./casework";
 export * from "./client-id";
 export * from "./devices";
 export * from "./dpia";

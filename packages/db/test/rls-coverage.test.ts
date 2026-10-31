@@ -9,6 +9,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  */
 
 const APPEND_ONLY_TABLES = [
+  "employee_case_event",
   "audit_event",
   "record_version",
   "workflow_transition",
@@ -50,6 +51,11 @@ const APPEND_ONLY_TABLES = [
   "interview",
   "equality_monitoring",
 ];
+/**
+ * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the
+ * organisation reads; each change is audited by id instead.
+ */
+const UNVERSIONED_SILO_TABLES = ["employee_case", "employee_case_member", "employee_case_hearing"];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
 const GLOBAL_REFERENCE_TABLES = ["form_template", "rate_table", "retention_class"];
@@ -170,10 +176,12 @@ describe("hazard HZ-011 row-level security coverage", () => {
       `SELECT c.table_name FROM information_schema.columns c
        WHERE c.table_schema = 'public' AND c.column_name = 'version'
          AND c.table_name NOT IN ('tenant_group', 'operator_user')
+         AND NOT (c.table_name = ANY ($1))
          AND NOT EXISTS (
            SELECT 1 FROM pg_trigger t JOIN pg_class k ON k.oid = t.tgrelid
            WHERE k.relname = c.table_name AND t.tgname = 'capture_version'
          )`,
+      [UNVERSIONED_SILO_TABLES],
     );
     expect(rows.map((r) => r.table_name)).toEqual([]);
   });
