@@ -28005,6 +28005,502 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/controlled-drugs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A person's controlled drugs register pages
+     * @description Each page (drug, form and strength) with its balance, its last stock check and when the next is due. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The pages */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CdPageList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/controlled-drugs/pages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Open the register page for a controlled drug on the MAR
+     * @description One page per person and dm+d product (drug, form and strength), taking the product and dose unit from the MAR entry, whose dm+d controlled drug schedule must be set. Returns the existing page if there is one. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["OpenCdPage"];
+        };
+      };
+      responses: {
+        /** @description The page */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CdPageSummary"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/controlled-drugs/pages/{pageId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A register page: its entries in order, corrections beside them, and stock checks
+     * @description Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          pageId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The page */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CdPageDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/controlled-drugs/pages/{pageId}/witness-assertions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Sign as witness for what you saw (ADR-0084)
+     * @description The witness, with their own session, a fresh step-up and current medicines competence, signs for the movement and quantity they saw (and the administration, for a dose). The recorder's entry names the signature, which expires after medicines.cd.witness_assertion_minutes and is used once. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          pageId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AssertWitness"];
+        };
+      };
+      responses: {
+        /** @description Signed */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WitnessAssertion"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/controlled-drugs/pages/{pageId}/entries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a receipt, disposal, transfer out, destruction or correction
+     * @description Checked by slice 3's checkCdEntry on the page as it stands, under the person's lock, with the witness's signature or, where policy allows, why there was none; destruction is always witnessed. Administrations are recorded through the administrations API. Needs a fresh step-up. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          pageId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordCdEntry"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CdEntry"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/controlled-drugs/pages/{pageId}/stock-checks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a stock count against a page
+     * @description Compared with the page by slice 3's cdStockCheck. A count that does not balance needs a reason and raises a medication incident through the safety module; the count never changes the balance. Witnessed as an entry is. Needs a fresh step-up. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          pageId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordStockCheck"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StockCheckRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sub-processors": {
     parameters: {
       query?: never;
@@ -39474,6 +39970,7 @@ export interface components {
       timingReason: string | null;
       /** @default null */
       intervalOverrideReason: string | null;
+      controlledDrug?: components["schemas"]["CdWitness"];
       /**
        * Format: date-time
        * @default null
@@ -39491,6 +39988,16 @@ export interface components {
        */
       givenBy: string | null;
     };
+    /** @default null */
+    CdWitness:
+      | {
+          /** Format: uuid */
+          witnessAssertionId: string;
+        }
+      | {
+          noWitnessReason: string;
+        }
+      | null;
     CorrectAdministration: {
       /** Format: uuid */
       id: string;
@@ -39519,6 +40026,7 @@ export interface components {
       timingReason: string | null;
       /** @default null */
       intervalOverrideReason: string | null;
+      controlledDrug?: components["schemas"]["CdWitness"];
       correctionReason: string;
       /** Format: date-time */
       givenAt: string;
@@ -39642,6 +40150,163 @@ export interface components {
     };
     DosingRecordList: {
       dosingRecords: components["schemas"]["DosingRecord"][];
+    };
+    CdPageList: {
+      pages: components["schemas"]["CdPageSummary"][];
+    };
+    CdPageSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      vmpId: string;
+      productName: string;
+      unit: {
+        code: string;
+        name: string;
+      };
+      balance: number;
+      lastStockCheck: components["schemas"]["StockCheck"];
+      /** Format: date-time */
+      nextStockCheckDueAt: string | null;
+      /** @enum {string} */
+      witnessPolicy: "required" | "where_available";
+    };
+    StockCheck: {
+      /** Format: uuid */
+      id: string;
+      counted: number;
+      expected: number;
+      difference: number;
+      resultInWords: string;
+      reason: string | null;
+      checked: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      };
+      /** Format: uuid */
+      witnessId: string | null;
+      noWitnessReason: string | null;
+    } | null;
+    OpenCdPage: {
+      /** Format: uuid */
+      entryId: string;
+    };
+    CdPageDetail: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      vmpId: string;
+      productName: string;
+      unit: {
+        code: string;
+        name: string;
+      };
+      balance: number;
+      lastStockCheck: components["schemas"]["StockCheck"];
+      /** Format: date-time */
+      nextStockCheckDueAt: string | null;
+      /** @enum {string} */
+      witnessPolicy: "required" | "where_available";
+      entries: components["schemas"]["CdEntry"][];
+      stockChecks: components["schemas"]["StockCheck"][];
+    };
+    CdEntry: {
+      /** Format: uuid */
+      id: string;
+      seq: number;
+      movement: components["schemas"]["CdMovement"];
+      quantity: number;
+      balanceAfter: number;
+      /** Format: uuid */
+      correctsId: string | null;
+      /** @enum {string|null} */
+      corrects: "quantity" | "detail" | null;
+      reason: string | null;
+      counterparty: string | null;
+      reference: string | null;
+      /** Format: date-time */
+      occurredAt: string;
+      recorded: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      };
+      /** Format: uuid */
+      witnessId: string | null;
+      noWitnessReason: string | null;
+      flags: string[];
+      /** Format: uuid */
+      administrationId: string | null;
+      correctedBy: string[];
+    };
+    /** @enum {string} */
+    CdMovement:
+      | "receipt"
+      | "administration"
+      | "disposal"
+      | "transfer_out"
+      | "destruction"
+      | "correction";
+    WitnessAssertion: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      pageId: string;
+      /** Format: uuid */
+      witnessId: string;
+      /** Format: date-time */
+      expiresAt: string;
+    };
+    AssertWitness: {
+      movement: components["schemas"]["CdMovement"] | "stock_check";
+      quantity: number;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      administrationId: string | null;
+    };
+    RecordCdEntry: {
+      /** @enum {string} */
+      movement: "receipt" | "disposal" | "transfer_out" | "destruction" | "correction";
+      quantity: number;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      occurredAt: string | null;
+      /** @default null */
+      counterparty: string | null;
+      /** @default null */
+      reference: string | null;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      correctsId: string | null;
+      /**
+       * @default null
+       * @enum {string|null}
+       */
+      corrects: "quantity" | "detail" | null;
+      /** @default null */
+      reason: string | null;
+      witness: components["schemas"]["CdWitness"];
+    };
+    StockCheckRecorded: {
+      stockCheck: components["schemas"]["StockCheck"];
+      incidentRaised: boolean;
+    };
+    RecordStockCheck: {
+      counted: number;
+      /** @default null */
+      reason: string | null;
+      witness: components["schemas"]["CdWitness"];
     };
     SubProcessorOverview: {
       noticeDays: number;

@@ -31228,6 +31228,9 @@
             "maxLength": 2000,
             "default": null
           },
+          "controlledDrug": {
+            "$ref": "#/components/schemas/CdWitness"
+          },
           "givenAt": {
             "type": [
               "string",
@@ -31276,6 +31279,39 @@
           "entryId",
           "outcome"
         ]
+      },
+      "CdWitness": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "witnessAssertionId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "witnessAssertionId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "noWitnessReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "noWitnessReason"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
       },
       "CorrectAdministration": {
         "type": "object",
@@ -31374,6 +31410,9 @@
             "minLength": 1,
             "maxLength": 2000,
             "default": null
+          },
+          "controlledDrug": {
+            "$ref": "#/components/schemas/CdWitness"
           },
           "correctionReason": {
             "type": "string",
@@ -31836,6 +31875,574 @@
         },
         "required": [
           "dosingRecords"
+        ]
+      },
+      "CdPageList": {
+        "type": "object",
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CdPageSummary"
+            }
+          }
+        },
+        "required": [
+          "pages"
+        ]
+      },
+      "CdPageSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vmpId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "name"
+            ]
+          },
+          "balance": {
+            "type": "number"
+          },
+          "lastStockCheck": {
+            "$ref": "#/components/schemas/StockCheck"
+          },
+          "nextStockCheckDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "witnessPolicy": {
+            "type": "string",
+            "enum": [
+              "required",
+              "where_available"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "vmpId",
+          "productName",
+          "unit",
+          "balance",
+          "lastStockCheck",
+          "nextStockCheckDueAt",
+          "witnessPolicy"
+        ]
+      },
+      "StockCheck": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counted": {
+            "type": "number"
+          },
+          "expected": {
+            "type": "number"
+          },
+          "difference": {
+            "type": "number"
+          },
+          "resultInWords": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checked": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "at"
+            ]
+          },
+          "witnessId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "noWitnessReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "counted",
+          "expected",
+          "difference",
+          "resultInWords",
+          "reason",
+          "checked",
+          "witnessId",
+          "noWitnessReason"
+        ]
+      },
+      "OpenCdPage": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "entryId"
+        ]
+      },
+      "CdPageDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vmpId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "name"
+            ]
+          },
+          "balance": {
+            "type": "number"
+          },
+          "lastStockCheck": {
+            "$ref": "#/components/schemas/StockCheck"
+          },
+          "nextStockCheckDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "witnessPolicy": {
+            "type": "string",
+            "enum": [
+              "required",
+              "where_available"
+            ]
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CdEntry"
+            }
+          },
+          "stockChecks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StockCheck"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "vmpId",
+          "productName",
+          "unit",
+          "balance",
+          "lastStockCheck",
+          "nextStockCheckDueAt",
+          "witnessPolicy",
+          "entries",
+          "stockChecks"
+        ]
+      },
+      "CdEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seq": {
+            "type": "integer"
+          },
+          "movement": {
+            "$ref": "#/components/schemas/CdMovement"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "balanceAfter": {
+            "type": "number"
+          },
+          "correctsId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "corrects": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "quantity",
+              "detail",
+              null
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "counterparty": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recorded": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "at"
+            ]
+          },
+          "witnessId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "noWitnessReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "administrationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctedBy": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "movement",
+          "quantity",
+          "balanceAfter",
+          "correctsId",
+          "corrects",
+          "reason",
+          "counterparty",
+          "reference",
+          "occurredAt",
+          "recorded",
+          "witnessId",
+          "noWitnessReason",
+          "flags",
+          "administrationId",
+          "correctedBy"
+        ]
+      },
+      "CdMovement": {
+        "type": "string",
+        "enum": [
+          "receipt",
+          "administration",
+          "disposal",
+          "transfer_out",
+          "destruction",
+          "correction"
+        ]
+      },
+      "WitnessAssertion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "witnessId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "pageId",
+          "witnessId",
+          "expiresAt"
+        ]
+      },
+      "AssertWitness": {
+        "type": "object",
+        "properties": {
+          "movement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CdMovement"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "stock_check"
+                ]
+              }
+            ]
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": -10000000,
+            "maximum": 10000000
+          },
+          "administrationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          }
+        },
+        "required": [
+          "movement",
+          "quantity"
+        ]
+      },
+      "RecordCdEntry": {
+        "type": "object",
+        "properties": {
+          "movement": {
+            "type": "string",
+            "enum": [
+              "receipt",
+              "disposal",
+              "transfer_out",
+              "destruction",
+              "correction"
+            ]
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": -10000000,
+            "maximum": 10000000
+          },
+          "occurredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          },
+          "counterparty": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 300,
+            "default": null
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 300,
+            "default": null
+          },
+          "correctsId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "corrects": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "quantity",
+              "detail",
+              null
+            ],
+            "default": null
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "witness": {
+            "$ref": "#/components/schemas/CdWitness"
+          }
+        },
+        "required": [
+          "movement",
+          "quantity",
+          "witness"
+        ]
+      },
+      "StockCheckRecorded": {
+        "type": "object",
+        "properties": {
+          "stockCheck": {
+            "$ref": "#/components/schemas/StockCheck"
+          },
+          "incidentRaised": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stockCheck",
+          "incidentRaised"
+        ]
+      },
+      "RecordStockCheck": {
+        "type": "object",
+        "properties": {
+          "counted": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "witness": {
+            "$ref": "#/components/schemas/CdWitness"
+          }
+        },
+        "required": [
+          "counted",
+          "witness"
         ]
       },
       "SubProcessorOverview": {
@@ -67157,6 +67764,542 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/controlled-drugs": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A person's controlled drugs register pages",
+        "description": "Each page (drug, form and strength) with its balance, its last stock check and when the next is due. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CdPageList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/controlled-drugs/pages": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Open the register page for a controlled drug on the MAR",
+        "description": "One page per person and dm+d product (drug, form and strength), taking the product and dose unit from the MAR entry, whose dm+d controlled drug schedule must be set. Returns the existing page if there is one. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenCdPage"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CdPageSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/controlled-drugs/pages/{pageId}": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A register page: its entries in order, corrections beside them, and stock checks",
+        "description": "Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "pageId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CdPageDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/controlled-drugs/pages/{pageId}/witness-assertions": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Sign as witness for what you saw (ADR-0084)",
+        "description": "The witness, with their own session, a fresh step-up and current medicines competence, signs for the movement and quantity they saw (and the administration, for a dose). The recorder's entry names the signature, which expires after medicines.cd.witness_assertion_minutes and is used once. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "pageId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssertWitness"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Signed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WitnessAssertion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/controlled-drugs/pages/{pageId}/entries": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record a receipt, disposal, transfer out, destruction or correction",
+        "description": "Checked by slice 3's checkCdEntry on the page as it stands, under the person's lock, with the witness's signature or, where policy allows, why there was none; destruction is always witnessed. Administrations are recorded through the administrations API. Needs a fresh step-up. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "pageId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordCdEntry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CdEntry"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/controlled-drugs/pages/{pageId}/stock-checks": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record a stock count against a page",
+        "description": "Compared with the page by slice 3's cdStockCheck. A count that does not balance needs a reason and raises a medication incident through the safety module; the count never changes the balance. Witnessed as an entry is. Needs a fresh step-up. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "pageId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordStockCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockCheckRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

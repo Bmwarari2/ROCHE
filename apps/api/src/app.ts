@@ -26,6 +26,7 @@ import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
 import { complaintsRouter } from "./routes/complaints";
+import { controlledDrugsRouter } from "./routes/controlled-drugs";
 import { dataProtectionRouter } from "./routes/data-protection";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
@@ -364,6 +365,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dsarRouter);
   app.route("/", medicinesRouter);
   app.route("/", medicineAdministrationsRouter);
+  app.route("/", controlledDrugsRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

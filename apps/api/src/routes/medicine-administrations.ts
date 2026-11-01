@@ -61,6 +61,12 @@ import {
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
+  type CdWitnessInput,
+  pageFor,
+  witnessPolicyFor,
+  writeCdEntry,
+} from "../services/controlled-drugs";
+import {
   type AdministrationRow,
   administrationOut,
   closeOutstandingDoseTask,
@@ -291,6 +297,7 @@ async function store(
     readonly overrides: readonly CompetenceOverride[];
     readonly supersedesId: string | null;
     readonly correctionReason: string | null;
+    readonly cdEntryId?: string | null;
     readonly now: Date;
   },
 ) {
@@ -331,6 +338,7 @@ async function store(
         flags: [...new Set(args.flags)],
         supersedesId: args.supersedesId,
         correctionReason: args.correctionReason,
+        cdEntryId: args.cdEntryId ?? null,
       })
       .returning(),
   );
@@ -428,7 +436,13 @@ export const medicineAdministrationsRouter = createRouter()
           }
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
-          await refuseControlledDrug(tx, entry.id, deny);
+          // A controlled drug given moves stock: its register entry is written with the record, with
+          // a fresh step-up and the witness's signature (slice 34; ADR-0084).
+          const cd =
+            body.outcome === "given" && (await isControlledDrug(tx, entry.id))
+              ? { cdEntryId: randomUUID() }
+              : null;
+          if (cd) requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
 
           // The time is the server's: on the round a dose is recorded as it is given. Only a dose
           // recorded after it was given carries its own time, which slice 3's rules require to be
@@ -506,8 +520,26 @@ export const medicineAdministrationsRouter = createRouter()
               : [],
             supersedesId: null,
             correctionReason: null,
+            cdEntryId: cd?.cdEntryId ?? null,
             now,
           });
+          if (cd && body.amount) {
+            await writeRegisterEntry(c, tx, access, deny, {
+              id: cd.cdEntryId,
+              entry,
+              locationId: facts.person.locationId,
+              movement: "administration",
+              quantity: body.amount.quantity,
+              unitCode: body.amount.unitCode,
+              correctsId: null,
+              corrects: null,
+              reason: null,
+              occurredAt: at,
+              witness: body.controlledDrug as CdWitnessInput,
+              administrationId: body.id,
+              now,
+            });
+          }
           return {
             status: 201 as const,
             administration: await outFor(tx, stored, [...facts.rows, stored]),
@@ -588,7 +620,6 @@ export const medicineAdministrationsRouter = createRouter()
           }
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
-          await refuseControlledDrug(tx, entry.id, deny);
           const at = new Date(body.givenAt);
           // A correction says what happened then, never later than now (security review M2).
           if (at.getTime() > now.getTime()) {
@@ -651,6 +682,10 @@ export const medicineAdministrationsRouter = createRouter()
             facts.rates,
           );
           if (!checked.ok) throw deny(checked.issues);
+          const cdMove = (await isControlledDrug(tx, entry.id))
+            ? registerMoveForCorrection(original, body, at)
+            : null;
+          if (cdMove) requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
           const { stored, escalations } = await store(c, tx, access, {
             id: body.id,
             personId,
@@ -669,8 +704,22 @@ export const medicineAdministrationsRouter = createRouter()
               : [],
             supersedesId: original.id,
             correctionReason: body.correctionReason,
+            cdEntryId: cdMove?.id ?? null,
             now,
           });
+          if (cdMove) {
+            await writeRegisterEntry(c, tx, access, deny, {
+              ...cdMove,
+              entry,
+              locationId: facts.person.locationId,
+              unitCode: body.amount?.unitCode ?? null,
+              reason: cdMove.movement === "correction" ? body.correctionReason : null,
+              occurredAt: now,
+              witness: body.controlledDrug as CdWitnessInput,
+              administrationId: body.id,
+              now,
+            });
+          }
           return {
             status: 201 as const,
             administration: await outFor(tx, stored, [...facts.rows, stored]),
@@ -1124,29 +1173,148 @@ export const medicineAdministrationsRouter = createRouter()
     },
   );
 
-/**
- * Controlled drugs are recorded in the register with two signatures and step-up (slice 34, H-516):
- * until it lands, a controlled drug's dose is refused here rather than recorded by one person
- * (security review M4). The schedule comes from dm+d (slice 10).
- */
-async function refuseControlledDrug(
-  tx: Transaction,
-  entryId: string,
-  deny: (issues: readonly { problem: string; message: string }[]) => Error,
-) {
+/** Whether the entry's dm+d product is a controlled drug (its schedule comes from slice 10). */
+async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {
   const [row] = await tx
     .select({ cd: medication.cdSchedule })
     .from(medication)
     .where(eq(medication.id, entryId));
-  if (row?.cd) {
+  return Boolean(row?.cd);
+}
+
+type Deny = (issues: readonly { problem: string; message: string }[]) => Error;
+
+/** A controlled drug's stock moves only with a fresh step-up and a second signature (ADR-0084). */
+function requireCdSignatures(
+  access: TenantAccess,
+  witness: CdWitnessInput | null,
+  recordId: string,
+  personId: string,
+  deny: Deny,
+) {
+  if (!stepUpFresh(access)) {
+    throw new AuditedRefusal(problems.stepUp(), {
+      action: "medicines.cd.entry_recorded",
+      outcome: "denied",
+      resourceType: "medication_administration",
+      resourceId: recordId,
+      scope: { personId, problems: ["step_up_required"] },
+    });
+  }
+  if (!witness) {
     throw deny([
       {
-        problem: "controlled_drug_register",
+        problem: "cd_witness_required",
         message:
-          "This is a controlled drug. Record it in the controlled drugs register with a witness, not here.",
+          "This is a controlled drug. Record the witness's signature, or, where your policy allows, why no witness was available.",
       },
     ]);
   }
+}
+
+/**
+ * What a correction of a controlled drug's administration does to the register (medicines.md
+ * 14.4): nothing when the amount given and its time stand; an administration entry when a dose
+ * not given before is now given; otherwise a correction of the entry it named, by the signed
+ * change in what was given (a detail correction when only the time moved).
+ */
+function registerMoveForCorrection(
+  original: AdministrationRow,
+  body: z.infer<typeof CorrectAdministration>,
+  at: Date,
+): {
+  id: string;
+  movement: "administration" | "correction";
+  quantity: number;
+  correctsId: string | null;
+  corrects: "quantity" | "detail" | null;
+} | null {
+  const before = original.outcome === "given" && original.quantity ? Number(original.quantity) : 0;
+  const after = body.outcome === "given" && body.amount ? body.amount.quantity : 0;
+  const moved = before > 0 && after > 0 && original.givenAt.getTime() !== at.getTime();
+  if (before === after && !moved) return null;
+  if (before === 0 || !original.cdEntryId) {
+    return after > 0
+      ? {
+          id: randomUUID(),
+          movement: "administration",
+          quantity: after,
+          correctsId: null,
+          corrects: null,
+        }
+      : null;
+  }
+  const change = Math.round((before - after) * 1000) / 1000;
+  return {
+    id: randomUUID(),
+    movement: "correction",
+    quantity: change,
+    correctsId: original.cdEntryId,
+    corrects: change === 0 ? "detail" : "quantity",
+  };
+}
+
+/** Writes the register entry for an administration or its correction, on the person's page. */
+async function writeRegisterEntry(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  access: TenantAccess,
+  deny: Deny,
+  e: {
+    readonly id: string;
+    readonly entry: MarEntry;
+    readonly locationId: string;
+    readonly movement: "administration" | "correction";
+    readonly quantity: number;
+    readonly unitCode: string | null;
+    readonly correctsId: string | null;
+    readonly corrects: "quantity" | "detail" | null;
+    readonly reason: string | null;
+    readonly occurredAt: Date;
+    readonly witness: CdWitnessInput;
+    readonly administrationId: string;
+    readonly now: Date;
+  },
+) {
+  const { page } = await pageFor(tx, e.entry, access.tenantUserId);
+  if (e.unitCode !== null && e.unitCode !== page.unitCode) {
+    throw deny([
+      {
+        problem: "cd_unit",
+        message: `The register counts this medicine in ${page.unitName}. Record the amount in that unit.`,
+      },
+    ]);
+  }
+  const result = await writeCdEntry(tx, {
+    id: e.id,
+    page,
+    movement: e.movement,
+    quantity: e.quantity,
+    occurredAt: e.occurredAt,
+    correctsId: e.correctsId,
+    corrects: e.corrects,
+    reason: e.reason,
+    counterparty: null,
+    reference: null,
+    witness: e.witness,
+    administrationId: e.administrationId,
+    recordedBy: access.tenantUserId,
+    policy: await witnessPolicyFor(tx, e.locationId),
+    now: e.now,
+  });
+  if (!result.ok) throw deny(result.issues);
+  await audit(c, tx, access, {
+    action: "medicines.cd.entry_recorded",
+    resourceType: "controlled_drug_entry",
+    resourceId: result.row.id,
+    scope: {
+      personId: page.personId,
+      pageId: page.id,
+      movement: result.row.movement,
+      seq: result.row.seq,
+      administrationId: e.administrationId,
+    },
+  });
 }
 
 /** One stored entry version, within the caller's scope (RLS). */

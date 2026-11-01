@@ -34,6 +34,7 @@ import {
 } from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import { raiseCdDiscrepancyIncident } from "../services/cd-incidents";
 import {
   draftDeathNotifications,
   withdrawDeathNotifications,
@@ -793,7 +794,22 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       throw error;
     }
   };
+  // A controlled drugs stock check that did not balance raises a medication incident (HZ-115).
+  const raiseCdIncident: OutboxHandler = async (event) => {
+    const p = event.payload as Record<string, unknown> | null;
+    const fields = ["stockCheckId", "personId", "locationId", "checkedBy", "checkedAt"] as const;
+    if (!p || fields.some((f) => typeof p[f] !== "string")) return;
+    await inTenant(event.tenantId, (tx) =>
+      raiseCdDiscrepancyIncident(
+        tx,
+        event.tenantId,
+        p as Parameters<typeof raiseCdDiscrepancyIncident>[2],
+        new Date(),
+      ),
+    );
+  };
   const handlers = new Map<string, OutboxHandler>([
+    ["medicines.cd.stock_discrepancy", raiseCdIncident],
     ["platform.export.downloaded", deleteArchive],
     ["platform.export.revoked", deleteArchive],
     ["platform.document.destroyed", deleteDestroyedDocument],
