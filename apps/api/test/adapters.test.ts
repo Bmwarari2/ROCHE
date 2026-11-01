@@ -102,7 +102,12 @@ describe("adapter selection", () => {
         { provider: "smtp", settings: { from: "a@example.invalid" } },
         {
           production: true,
-          smtp: { host: "smtp.example.invalid", port: 587, tls: "starttls" },
+          smtp: {
+            host: "smtp.example.invalid",
+            port: 587,
+            tls: "starttls",
+            allowedFromDomains: ["example.invalid"],
+          },
           smtpTransport: () => ({ sendMail: async () => ({}), verify: async () => true }) as never,
         },
       ).provider,

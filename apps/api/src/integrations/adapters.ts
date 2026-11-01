@@ -16,6 +16,7 @@ import {
 } from "@harbour/domain";
 import { createTransport, type Transporter } from "nodemailer";
 import type { SmtpConfig } from "../config";
+import { senderAllowed } from "./secret-ref";
 
 /**
  * Adapters for the communication ports (section 15.3). Each port has a mock, used in development,
@@ -101,8 +102,15 @@ export class SmtpEmail implements EmailPort {
   constructor(
     private readonly from: string,
     private readonly transport: SmtpTransport,
+    /** Domains the sender may use (`SMTP_ALLOWED_FROM_DOMAINS`); none allows no sender. */
+    private readonly allowedFromDomains: readonly string[] = [],
   ) {}
   async send(message: EmailMessage): Promise<SendResult> {
+    // Checked again at send, not only when the connection is saved: a row written before the
+    // rule, or a domain since removed from the list, sends nothing (#164 security review, L2).
+    if (!senderAllowed(this.from, this.allowedFromDomains)) {
+      return { ok: false, retryable: false, error: "SenderNotAllowed" };
+    }
     try {
       const result = await this.transport.sendMail({
         from: this.from,
@@ -239,6 +247,7 @@ export function createAdapter<K extends PortName>(
     adapter = new SmtpEmail(
       String(connection?.settings.from ?? ""),
       (options.smtpTransport ?? smtpTransport)(options.smtp),
+      options.smtp.allowedFromDomains,
     );
   } else if (port === "comms.push" && provider === "expo") {
     adapter = new ExpoPush();

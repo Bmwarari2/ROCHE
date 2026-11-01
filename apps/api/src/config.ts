@@ -135,6 +135,12 @@ const Env = z.object({
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASSWORD: z.string().min(1).optional(),
   /**
+   * Comma-separated domains an organisation's sender address may use (#164 security review, L2),
+   * exactly, never their subdomains. Production with a relay must name them; elsewhere the
+   * invented `example.invalid` only.
+   */
+  SMTP_ALLOWED_FROM_DOMAINS: z.string().default(""),
+  /**
    * Where single sign-on private keys live (ADR-0091, ADR-0098): Secret Manager in europe-west2
    * (regional secrets in GCP_PROJECT_ID), or keys given in SSO_TEST_KEYS (a JSON map of store name
    * to PEM) for development and tests. Production refuses anything but `gcp`; no key is ever
@@ -185,6 +191,8 @@ export interface SmtpConfig {
   readonly tls: "implicit" | "starttls" | "none";
   readonly user?: string;
   readonly password?: string;
+  /** Domains a sender address may use, lower-cased; none means no sender is allowed. */
+  readonly allowedFromDomains: readonly string[];
 }
 
 export type Config = z.infer<typeof Env> & {
@@ -220,6 +228,11 @@ export function flagsmithHost(betterAuthUrl: string): string | null {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.parse(env);
+  for (const domain of list(parsed.SMTP_ALLOWED_FROM_DOMAINS)) {
+    if (!DOMAIN.test(domain.toLowerCase())) {
+      throw new Error("SMTP_ALLOWED_FROM_DOMAINS must list domain names only");
+    }
+  }
   if (parsed.NODE_ENV === "production") {
     if (parsed.BETTER_AUTH_SECRET.startsWith("local-development")) {
       throw new Error("BETTER_AUTH_SECRET must be set in production");
@@ -264,6 +277,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       if (Boolean(parsed.SMTP_USER) !== Boolean(parsed.SMTP_PASSWORD)) {
         throw new Error("SMTP_USER and SMTP_PASSWORD must be set together in production");
       }
+      if (list(parsed.SMTP_ALLOWED_FROM_DOMAINS).length === 0) {
+        throw new Error("SMTP_ALLOWED_FROM_DOMAINS must be set in production with SMTP_HOST");
+      }
     }
     if (parsed.SSO_KEY_STORE !== "gcp") throw new Error("SSO_KEY_STORE must be gcp in production");
     if (parsed.SSO_LOOKUPS !== "system")
@@ -304,9 +320,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   };
 }
 
+/** A domain name, as SMTP_ALLOWED_FROM_DOMAINS lists them (no wildcard, no address). */
+const DOMAIN = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$/;
+
 /** Production sends only through a named relay; elsewhere Mailpit on its default port. */
 function smtpConfig(parsed: z.infer<typeof Env>): SmtpConfig | null {
   if (parsed.NODE_ENV === "production" && !parsed.SMTP_HOST) return null;
+  const named = list(parsed.SMTP_ALLOWED_FROM_DOMAINS).map((d) => d.toLowerCase());
+  const allowedFromDomains =
+    named.length > 0 ? named : parsed.NODE_ENV === "production" ? [] : ["example.invalid"];
   const tls = parsed.SMTP_TLS ?? (parsed.SMTP_HOST ? "starttls" : "none");
   return {
     host: parsed.SMTP_HOST ?? "127.0.0.1",
@@ -314,5 +336,6 @@ function smtpConfig(parsed: z.infer<typeof Env>): SmtpConfig | null {
     tls,
     ...(parsed.SMTP_USER ? { user: parsed.SMTP_USER } : {}),
     ...(parsed.SMTP_PASSWORD ? { password: parsed.SMTP_PASSWORD } : {}),
+    allowedFromDomains,
   };
 }
