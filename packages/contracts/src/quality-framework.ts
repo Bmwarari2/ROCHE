@@ -114,3 +114,9 @@ export const EvidenceCoverage = z
     gaps: z.array(z.string()),
   })
   .meta({ id: "EvidenceCoverage" });
+
+export type FrameworkVersionSummary = z.infer<typeof FrameworkVersionSummary>;
+export type FrameworkMappingView = z.infer<typeof FrameworkMappingView>;
+export type FrameworkMappingEntry = z.infer<typeof FrameworkMappingEntry>;
+export type EvidenceLinkItem = z.infer<typeof EvidenceLinkItem>;
+export type EvidenceCoverage = z.infer<typeof EvidenceCoverage>;

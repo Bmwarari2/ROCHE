@@ -860,3 +860,177 @@ with the controls above and a `hazard HZ-128 ...` test for each.
 Vendor PDF and structured import (a PDF can already be a version's document), the starter
 templates as drafts, and the change log screen (slice 65); acknowledgement of a policy by people
 outside the staff (not planned).
+
+## 19. Audit programme and mock inspections (slice 19: QUAL-004; migration 0081)
+
+Schema and API for rules 8 to 15 (section 17). Spec, schema, permission matrix and test list
+before the code; the screens are slice 64. Builds on the framework library (section 18).
+
+### 19.1 Schema (migration 0081)
+
+| Table | Kind | Key columns | Security | Retention class |
+| --- | --- | --- | --- | --- |
+| `audit_starter_template` | Global reference | key, kind, title, framework version, questions, source | No tenant; read by every role, written only by the owner role in migrations | Not exported (global) |
+| `audit_template` | Mutable aggregate, tenant | key (unique in the organisation), kind, title, framework version, questions (1 to 200: key, text, weight, statement ids, whether a shortfall needs an action), starter key, state (`active`, `retired`) | Tenant policy; restrictive: `quality.audit.manage` anywhere or a job; the framework version published; the key fixed; retired is final; no delete | `organisation_document` |
+| `audit_schedule` | Mutable aggregate, tenant | template, location (one schedule each), frequency (1 to 60 months), first due date | Tenant policy; restrictive: `quality.audit.manage` at the location; the location the organisation's own (foreign key); no delete | `tenant_configuration` |
+| `audit_record` | Mutable aggregate until completed, tenant | template and its version, kind, title, questions and framework version (copied by the database from the template at the start), location, audit date, answers, state (`in_progress`, `completed`), score percent, points achieved and possible, self-rating, started by, completed by and at | Tenant policy; restrictive: `quality.audit.manage` at the location; starts in progress in the starter's name; the template, framework, place and date never change; the location the organisation's own (foreign key); only completion records the self-rating and the score, which must be the score of the saved answers (points worked out by the database, the percentage within 0.001), with every question answered; a completed audit never changes; no delete | `organisation_document` |
+| `audit_action` | Append-only, tenant | audit, question key, description (3 to 1000 characters), owner, due date, task | Tenant policy; restrictive through the audit's location; only on a question of a completed audit, by the person who completed it, due on or after the audit; the owner a member of the organisation (foreign key; the task points back through its source) | `organisation_document` |
+
+Seven starter templates are seeded (medication, care plans, IPC, environment, dignity, night visit,
+mock inspection; 36 questions in all), mapped to statements of framework version 1; the IPC one is
+the template slice 31 uses. They are Harbour's drafting, to be reviewed (H-760).
+
+### 19.2 Permissions
+
+| Permission | Allows | Held by |
+| --- | --- | --- |
+| `quality.audit.manage` (anywhere) | Read the starters; add, change and retire the organisation's templates | Owner, group executive (read), quality lead, and any role given it |
+| `quality.audit.manage` (at a location) | Schedule audits there; start, answer and complete audits there; read them, their scores, findings and actions | As above |
+| `quality.evidence.manage` | Tag a completed audit as evidence (record type `audit`), read in the tagger's scope | As in section 18 |
+
+Action owners get a task (`quality.audit_action`) that needs `quality.audit.manage` to complete, so
+an owner must be an active member who holds it at the audit's location (`mayBeAssigned`, as the
+task engine requires of any assignee). Whether owners without it should complete their own actions
+is H-762.
+
+### 19.3 API
+
+| Route | Does |
+| --- | --- |
+| `GET /v1/quality/audit-starters` | The starter templates |
+| `GET /v1/quality/audit-templates` | The organisation's templates |
+| `POST /v1/quality/audit-templates` | From a starter (`starterKey`) or the organisation's own; `checkAuditTemplate` against a published framework version (422 with the problems, 409 for a used key); `quality.audit.template_saved` |
+| `PUT /v1/quality/audit-templates/{id}` | Title, framework version and questions against the read version; audits already started keep theirs; `quality.audit.template_saved` |
+| `POST /v1/quality/audit-templates/{id}/retire` | Final; `quality.audit.template_retired` |
+| `GET /v1/quality/audit-schedules[?locationId]` | Each schedule with its last completed audit, next due date (`nextAuditDue`, or the first due date) and whether it is overdue on today's UK date |
+| `POST /v1/quality/audit-schedules` | An active template at a visible location; `quality.audit.scheduled` |
+| `GET /v1/quality/audits[?locationId&kind&state]` | Newest first, at most 500 |
+| `GET /v1/quality/audits/{id}` | Score (`scoreAudit`) with its method in words, findings by statement (`auditFindingsByStatement`), actions, the self-rating with its CQC words, and whether its framework version is still in force |
+| `POST /v1/quality/audits` | Start from an active template at a visible location, dated today or earlier; a mock inspection only when its template is mapped to the framework version in force (409 otherwise); `quality.audit.started` |
+| `PUT /v1/quality/audits/{id}/answers` | Merge answers for the audit's own questions against the read version; `quality.audit.answered` |
+| `POST /v1/quality/audits/{id}/complete` | `checkAuditCompletion` with the rating scale from the rate table; a missing action due date takes `quality.audit.action_due_days` after the audit (`defaultActionDueOn`); owners must be active members who run audits at the location (422 otherwise); stores the score and points, the actions and a task for each owner; `quality.audit.completed` |
+
+Refusals decided in the API and those the database raises are audited as denied. No route works
+out a rating from a score (rule 15).
+
+### 19.4 Tests
+
+- `packages/db/test/quality-audits.test.ts`: the seven starters, read-only to the application and
+  in step with the domain's kinds; an audit copies its template's questions and framework version
+  whatever was sent; the template, framework and place fixed; only completion records the
+  self-rating; a completed audit never changes or goes; actions only on a completed audit's own
+  questions, due on or after it, append-only; a retired template fixed; audits seen only at
+  locations where the member runs audits; nothing to a care worker or another organisation
+  (HZ-011). `rls-coverage.test.ts` lists `audit_action` as append-only.
+- `apps/api/test/quality-audits.test.ts`: starters to a quality lead, refused to a care worker;
+  templates from a starter, once per key, refused with an unknown statement or duplicate keys;
+  schedules with their next due date; an audit keeping its questions after its template changes; a
+  future date refused; answers scored with the method and findings, stale and unknown answers
+  refused; completion refused without an action or with a rating off the scale; completion with the
+  default due date and the owner's task; the schedule counting it; a completed audit tagged as
+  evidence; mock inspections refused once a later framework version is in force while past audits
+  keep theirs; every change and refusal audited.
+
+## 20. Web screens: framework, evidence library and audits (slice 64; QUAL-001, QUAL-002, QUAL-004)
+
+Screens for sections 18 and 19, on the API as it stands (no API change; the contracts export a
+few more inferred types). Branch `feat/web-quality-framework-audits`.
+
+### 20.1 Screens
+
+| Path | Who | Shows and does |
+| --- | --- | --- |
+| `/quality/framework` | Anyone who works with quality evidence (section 18.2) | Framework versions, the one in force marked with an icon and a word |
+| `/quality/framework/[id]` | As above; the mapping for `quality.evidence.manage` | Key questions and statements with the source; the organisation's mapping (local title, owner role, evidence categories per statement) saved as the next version, earlier versions kept |
+| `/quality/framework/[id]/evidence-coverage` | `quality.evidence.manage` | Records per statement in the framework's order; a gap said as "No evidence" with an icon, never sorted away; a summary of how many statements have none |
+| `/quality/framework/[id]/statements/[statementId]` | `quality.evidence.manage` | The records tagged against the statement, removed tags kept with who and why; remove a tag with a reason |
+| `/quality/evidence/tag?recordType&recordId` | `quality.evidence.manage` | A record's tags (removable with a reason) and tagging it against statements of the version in force; reached from an incident (not restricted) and from a completed audit |
+| `/quality/audits` | `quality.audit.manage` | Schedules with the next due date (overdue said with the date), audits in progress, mock inspections and completed audits with their scores |
+| `/quality/audits/templates` | `quality.audit.manage` | The organisation's templates, active or retired; add one from a starter |
+| `/quality/audits/templates/[id]` | `quality.audit.manage` | Questions with weights, the statements each evidences and whether a shortfall needs an action; its schedules; schedule at a location; retire (final, confirmed) |
+| `/quality/audits/new` | `quality.audit.manage` | Start an audit or mock inspection: template, location, date (today or earlier); a mock inspection the API refuses off the framework in force is said in its words |
+| `/quality/audits/[id]` | `quality.audit.manage` at the location | Score with its method, the self-rating with its CQC words, findings by statement, actions with owners and due dates; while in progress the answers form, then completion with an action per shortfall (owner: the auditor, or a member where the reader may list members; due date optional, the tenant default otherwise) and the self-rating as a person's choice; once completed, "Tag as evidence" |
+
+The side bar gains "Framework and evidence" and "Audits". Every browser-handled form posts
+(`method="post"`); every problem is said at its field and in a summary linked to it; arrivals
+focus the page heading and say what was done.
+
+### 20.2 Tests
+
+- `apps/web/src/lib/quality-programme.test.ts`: who sees what; version and coverage statuses;
+  reading the mapping, tag, answers and completion forms; actions only where a required
+  question fell short; the self-rating choices; scores in words.
+- `apps/web/e2e/quality-programme.spec.ts` (Playwright, axe in light and dark on every state):
+  mapping a statement and reading coverage and a statement's evidence; an audit from a starter
+  through scheduling, answers, refused and then accepted completion, and tagging; a mock
+  inspection.
+
+## 18. Data security evidence (slice 32: QUAL-012)
+
+Schema, API and renewal tasks for rules 29 to 31 (section 17.3); the screens are slice 65.
+Migration 0094 (lane E; renumbered at merge). Stacked on slice 20 (the breach register and data
+protection complaints, platform.md rules 18 to 27), which it links to.
+
+### 18.1 Tables
+
+All have `tenant_id`, forced RLS, the tenant policy and restrictive policies binding `harbour_app`
+and `harbour_owner`; the application never deletes.
+
+| Table | Kind | What it holds |
+| --- | --- | --- |
+| `dspt_assertion` | mutable aggregate (`version`) | One DSPT assertion the organisation tracks for a financial year (`2025/26`): its reference as the toolkit numbers it (`1.1.1`), title, status (`not_started`, `in_progress`, `met`, `not_met`, `not_applicable`), notes and an owner |
+| `dspt_evidence` | append-only | Evidence linked to an assertion: an organisation document (never a person's), and later its unlinking, each with who and when; the current evidence is each document's latest event |
+| `dspt_submission` | mutable aggregate | The organisation's DSPT submission for a financial year (one per year): the day submitted, the outcome (`standards_met`, `approaching_standards`, `standards_not_met`) and the toolkit's reference |
+| `security_certificate` | mutable aggregate | A Cyber Essentials, Cyber Essentials Plus or ICO registration record: reference (certificate number or ICO registration number), issued on, the expiry the certificate states (if any), the issuing body and a copy (an organisation document) |
+
+### 18.2 Rules
+
+32. Everything needs `quality.dsar.manage` held across the whole organisation, as the breach
+    register (platform.md rule 18): a manager who holds it for one home only is refused by the API
+    and sees nothing through row-level security (`app.holds_role_permission_at(..., NULL)`). The
+    system (no member, the organisation's view) reads all four tables, for the renewal job and the
+    organisation's full export; it never writes them.
+33. The overview (`GET /v1/data-security`) works out, on every read from the rate table, the DSPT
+    status for the year in question (`dsptStatus`, rule 30), each certificate kind's status
+    (`certificateStatus`, rule 31; `missing` when there is no record, never assumed current), the
+    current year's assertions by status with those `met` but holding no evidence counted apart,
+    and links to the breach register and complaints (open breaches, those past the ICO clock, open
+    complaints). The DSAR register joins when slice 15 lands.
+34. An assertion is unique per organisation, year and reference. Marking it `met` needs at least one
+    piece of evidence linked; `not_met` and `not_applicable` need notes. Evidence, and a
+    certificate's copy, must be an available organisation document: category
+    `organisation_document`, no person, not removed, attached to nothing or only to an organisation
+    record (`app.is_organisation_document`, checked by the API and again in the RLS policies);
+    linking one already linked, or unlinking one not linked, is refused.
+35. A DSPT submission is one per year, for a year whose deadline is not more than a year away,
+    submitted on a day not in the future; it may be corrected (history kept). A certificate is
+    issued on a day not in the future; a stated expiry is after issue. A later record of the same
+    kind supersedes the earlier one for its status (the newest by issue date counts).
+36. Renewal tasks (hourly worker, once each): when the DSPT year is `due_soon` or `overdue` and not
+    submitted, one task `quality.dspt_submission` due on the deadline; when the newest certificate of
+    a kind is `due_soon` or `expired`, one task `quality.certificate_renewal` due on its expiry. Each
+    goes to the owner role with `quality.dsar.manage` required, carries ids only and a generic
+    title, falls due at 23:59 UK time on the day, and is raised once per kind, source and due time
+    (two certificates expiring the same day each get one). A sweep that fails for any reason but a
+    missing rate fails the organisation's job, so the failed-job alarm sees it; it runs beside the
+    DoLS reminders so one failing never skips the other.
+37. Audit: every read and change writes `audit_event` with ids and codes only (never notes, titles
+    or references).
+
+### 18.3 Permission matrix
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the overview, assertions, evidence, submissions and certificates; record and change them | `quality.dsar.manage`, organisation-wide | RLS checks it again |
+| Link evidence | also the document is the organisation's and available | API and composite key |
+
+Retention: interim `audit_event` (8 years from creation) until the DPO sets periods (H-810).
+
+### 18.4 Tests
+
+- `packages/db/test/data-security-evidence.test.ts`: isolation across organisations, a manager for
+  one home sees nothing, append-only evidence, check constraints, one submission per year.
+- `apps/api/test/data-security-evidence.test.ts`: permissions, the overview's statuses from the rate
+  table (missing, current, due soon, expired, DSPT due and submitted), assertion rules (met needs
+  evidence, notes for not met), evidence refusals (a person's document, unknown, already linked),
+  stale versions, audit without text, and the renewal tasks raised once.

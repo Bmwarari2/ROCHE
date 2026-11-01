@@ -7,6 +7,7 @@ import {
   DISCLOSURE_TYPES,
   DISCLOSURE_WORKFLOW,
   type DisclosureRequestView,
+  disclosurePackStorageKey,
   disclosurePrepareProblems,
   legalBasis,
 } from "./disclosure";
@@ -105,5 +106,16 @@ describe("disclosure requests (safety.md Phase 2 rule 6)", () => {
     });
     const old = ahraDueAt(received, addUkDays(received, -(rates.ahraRecentRecordDays + 1)), rates);
     expect(old).toEqual({ dueAt: addUkDays(received, rates.ahraResponseDays - 1), recent: false });
+  });
+});
+
+describe("disclosurePackStorageKey (rule 42)", () => {
+  const t = "0194d000-0000-7000-8000-000000000001";
+  const r = "0194d000-0000-7000-8000-000000000002";
+  const p = "0194d000-0000-7000-8000-000000000003";
+  it("is built from UUIDs only", () => {
+    expect(disclosurePackStorageKey(t, r, p)).toBe(`tenants/${t}/disclosures/${r}/${p}.json`);
+    expect(() => disclosurePackStorageKey(t, "../x", p)).toThrow(RangeError);
+    expect(() => disclosurePackStorageKey("Ada", r, p)).toThrow(RangeError);
   });
 });

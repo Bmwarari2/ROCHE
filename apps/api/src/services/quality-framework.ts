@@ -24,9 +24,9 @@ import { asc, eq } from "drizzle-orm";
  */
 
 /**
- * The tables an evidence link may point at, by record type: the evidence pack's record types.
- * Audits, compliments, policies and surveys join here when their slices add their tables
- * (19, 18, 25 and Phase 3); until then they are refused as not yet available.
+ * The tables an evidence link may point at, by record type: the evidence pack's record types and
+ * audits (slice 19). Compliments, policies and surveys join here when their slices add their
+ * tables (18, 25 and Phase 3); until then they are refused as not yet available.
  */
 export const EVIDENCE_RECORD_TABLES: Readonly<Record<string, string>> = {
   incident: "incident",
@@ -39,6 +39,7 @@ export const EVIDENCE_RECORD_TABLES: Readonly<Record<string, string>> = {
   activity_record: "activity_record",
   visit_log: "visit_log",
   advance_care_record: "advance_care_record",
+  audit: "audit_record",
 };
 
 type VersionRow = typeof frameworkVersion.$inferSelect;

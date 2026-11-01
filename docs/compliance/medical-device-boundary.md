@@ -29,6 +29,14 @@ This statement is used, unchanged, in the clinical safety case, the user guides,
 | Enforce safety rules on record-keeping | Refuse an administration without person, dose and outcome; block a duplicate within the prescribed minimum interval (the interval comes from the prescription or PRN protocol, not from Harbour) |
 | Draft, summarise and search records with the optional AI module, labelled as drafts for human review | Shift handover draft generated from records |
 
+**Training and competence (Phase 2, slice 17)**: these stay inside the boundary and add no
+score. Training, observed competence sign-offs, supervision and revalidation are records about
+staff, not about a person receiving care. The competence port (ADR-0085;
+`packages/domain/src/workforce/competence-port.ts`) answers whether a member holds an unwithdrawn,
+in-date sign-off for a named competence on a UK date, from dates the organisation recorded; it
+blocks an action the organisation's rules say needs the competence, and makes no judgement about
+the person, the medicine or the dose.
+
 ## 4. What Harbour must never do
 
 | Harbour must never | Notes |
@@ -143,6 +151,17 @@ signatures, not the medicine.
 
 **Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 
+**Outbreaks and IPC audits (Phase 2, slice 31)**: these stay inside the boundary and add no score
+about a person. The outbreak's illness is declared by a person, never derived; Harbour's
+detection only applies UKHSA's published reporting thresholds to recorded cases and drafts the
+report (section 4 rule 7 of [safety.md](../specs/safety.md)). The case line list stores what
+staff observed and what tests reported (symptoms as codes, test results, vaccination answers,
+outcomes); the UKHSA report fields are counts and dates over those records, with missing values
+listed rather than guessed. An IPC audit is read against the Code of Practice criteria with the
+audit's own arithmetic over the organisation's answers, which measures the service, not a person.
+Nothing labels a person as infected or likely infected, predicts spread or recommends isolation
+or treatment ([safety.md](../specs/safety.md) section 11).
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built
@@ -156,6 +175,14 @@ signatures, not the medicine.
 | AI summaries that include clinical notes | 6 | Draft labelled "generated from records"; scope lock blocks interpretation; covered by the DPIA AI addendum |
 | Weight-loss or fluid alerts | 1 | Allowed only as tenant-configured thresholds, displayed as "your policy threshold", not as Harbour's assessment |
 | Risk assessment rating (likelihood x severity) | 1 | Decided in [ADR-0032](../decisions/0032-risk-assessment-rating.md) (proposed, CSO to accept, H-60): the assessor's own likelihood and severity, multiplied and banded with the published NPSA 2008 matrix (1 to 3 low, 4 to 6 moderate, 8 to 12 high, 15 to 25 extreme); the formula is shown and Harbour adds no parameters. The falls template is never rated (NICE NG249 1.1.1) |
+
+**Re-checked for Phase 2 slice 37 (deaths and missing persons, 31 October 2026)**: no. Whether a
+death was expected, and whether its cause may be unnatural, is the clinician's judgement as
+recorded, never Harbour's; until it is recorded Harbour lists every step the safer answer needs,
+which is a checklist, not an assessment. The mortality review records findings and lessons, never a
+score. The police call time is the tenant's own target from the rate table, applied as written; the
+Herbert Protocol profile copies what the record already holds and says where each part came from.
+Nothing interprets clinical data.
 
 ## 7. The question every clinical PR answers
 

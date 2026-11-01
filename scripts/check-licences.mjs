@@ -38,6 +38,10 @@ const EXCEPTIONS = new Map([
     "parse-cache-control",
     "BSD-3-Clause per its LICENSE file; the package field says only BSD (dev tool: Lighthouse CI)",
   ],
+  [
+    "xml-escape",
+    'MIT per its LICENSE file; the package field says "MIT License" (samlify, via the SSO plugin; ADR-0091)',
+  ],
 ]);
 
 function allowed(expression) {

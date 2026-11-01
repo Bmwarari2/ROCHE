@@ -34,13 +34,21 @@ import {
 } from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import { raiseDataSecurityReminders } from "../services/data-security";
 import {
   draftDeathNotifications,
   withdrawDeathNotifications,
 } from "../services/death-notifications";
+import {
+  openDeathRecord,
+  raiseHerbertReviews,
+  withdrawDeathRecord,
+} from "../services/deaths-missing";
+import { raiseDevelopmentReminders } from "../services/development";
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
+import { endLeaversAccess } from "../services/leavers";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
@@ -494,6 +502,17 @@ export async function remindStaffFileExpiry(deps: TaskDeps, now = new Date()): P
 }
 
 /**
+ * Leavers' access (workforce.md rule 22): ended from the day after the leaving date, once each.
+ */
+export async function sweepLeaverAccess(deps: TaskDeps, now = new Date()): Promise<number> {
+  const ended = await eachTenant(deps, "leaver-access", (tx, tenantId) =>
+    endLeaversAccess(tx, tenantId, now),
+  );
+  if (ended > 0) deps.logger.info({ ended }, "leavers' access ended");
+  return ended;
+}
+
+/**
  * Policy read-and-sign reminders and review tasks (quality.md section 18.3; HZ-128).
  */
 export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<number> {
@@ -501,6 +520,33 @@ export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<
     raisePolicyReminders(tx, tenantId, now),
   );
   if (raised > 0) deps.logger.info({ raised }, "policy reminders raised");
+  return raised;
+}
+
+/**
+ * Training and competence expiry reminders (workforce.md section 5; HZ-119): one task for HR per
+ * reminder day before a required topic or a competence runs out, never twice.
+ */
+export async function remindDevelopmentExpiry(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "development-reminders", (tx, tenantId) =>
+    raiseDevelopmentReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "training and competence reminders raised");
+  return raised;
+}
+
+/**
+ * Data security renewal tasks (quality.md rule 36): the DSPT deadline and Cyber Essentials and ICO
+ * registration expiries, each raised once to the owner role.
+ */
+export async function remindDataSecurityRenewals(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const raised = await eachTenant(deps, "data-security-renewals", (tx, tenantId) =>
+    raiseDataSecurityReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "Data security renewal tasks raised");
   return raised;
 }
 
@@ -549,6 +595,21 @@ export async function raiseCandourBlocked(deps: TaskDeps, now = new Date()): Pro
     ),
   );
   if (raised > 0) deps.logger.info({ raised }, "incidents held open by the duty of candour");
+  return raised;
+}
+
+/**
+ * Herbert Protocol profiles past their review get a review task each (slice 37; HZ-127), escalated
+ * by the task engine when overdue.
+ */
+export async function raiseHerbertProfileReviews(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const raised = await eachTenant(deps, "herbert-profile-reviews", (tx, tenantId) =>
+    raiseHerbertReviews(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "Herbert Protocol profile reviews raised");
   return raised;
 }
 
@@ -789,9 +850,11 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       async (event) => {
         const exitRecordId = exitIdOf(event.payload);
         if (!exitRecordId) return;
-        await inTenant(event.tenantId, (tx) =>
-          draftDeathNotifications(tx, event.tenantId, exitRecordId, new Date()),
-        );
+        await inTenant(event.tenantId, async (tx) => {
+          await draftDeathNotifications(tx, event.tenantId, exitRecordId, new Date());
+          // The death record: the judgement, the steps and the mortality review (slice 37).
+          await openDeathRecord(tx, event.tenantId, exitRecordId);
+        });
       },
     ],
     [
@@ -799,9 +862,10 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       async (event) => {
         const exitRecordId = exitIdOf(event.payload);
         if (!exitRecordId || (event.payload as { from?: unknown }).from !== "deceased") return;
-        await inTenant(event.tenantId, (tx) =>
-          withdrawDeathNotifications(tx, exitRecordId, new Date()),
-        );
+        await inTenant(event.tenantId, async (tx) => {
+          await withdrawDeathNotifications(tx, exitRecordId, new Date());
+          await withdrawDeathRecord(tx, exitRecordId);
+        });
       },
     ],
   ]);
