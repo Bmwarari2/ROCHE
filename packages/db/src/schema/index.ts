@@ -15,6 +15,7 @@ export * from "./imports";
 export * from "./induction";
 export * from "./integrations";
 export * from "./invitations";
+export * from "./lms-import";
 export * from "./mca";
 export * from "./onboarding";
 export * from "./operations";

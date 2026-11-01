@@ -612,6 +612,19 @@ Logged by slice 67 (PLAT-014 web wizard) on 31 October 2026.
 | H-898 | Agree the import file limits shown to people (5,000 rows, the 12 MiB upload) with the design partner, and whether a larger home needs more | Brian with the design partner | `IMPORT_LIMITS`; `IMPORT_UPLOAD_MAX_BYTES` | None (default applied) | open |
 | H-899 | Confirm that the SSO settings screens (the other half of slice 67) wait for the SSO API, and schedule them | Brian | phase-2.md slice 67 | SSO settings screens | open |
 
+## Phase 2: learning platform imports (slice 78)
+
+Logged by slice 78 (WORK-006 LMS imports; ADR-0102) on 1 November 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1250 | Choose the first learning platform with the design partner, register for its API, build the live `LearningPlatformClient` against its sandbox and the live credential store adapter (credentials written to the managed secret store under the source's `secret_ref`, removed when the source ends); until then `LMS_API` is `off` in production and only the mock exists | Brian | `apps/api/src/integrations/lms/learning-platform.ts`; H-520 | Pulls from a platform | open |
+| H-1251 | Decide whether xAPI statements from an external platform should be imported beside completions, and how they relate to slice 43's own statement store | Brian with the DPO | workforce.md section 13.7 | xAPI imports | open |
+| H-1252 | Build the training import screens (sources, mappings, links, the dry-run report and commit, skips, certificates) with the accessibility review | Web lane | workforce.md section 13.4 | Imports without the API | open |
+| H-1253 | Check the column headings of the design partner's platform's completion export against `LMS_CSV_HEADINGS`, with invented or test data only, and add any the platform uses | Brian with the design partner | `packages/domain/src/workforce/lms-import.ts` | Real file imports | open |
+| H-1254 | Confirm with the DPO that the learning platform is the organisation's own processor (H-520's recommended answer), where each candidate holds data (UK or an adequacy decision or the IDTA), and record it in the sub-processor notes and the DPIA (R25) | DPO | ADR-0102; sub-processors.md section 2a | Switching on a platform | open |
+| H-1255 | Review with the CSO that an imported completion counts towards the training matrix and the rota's training checks exactly as a Harbour record does (HZ-124), and whether certain topics should need a certificate before they count | CSO | hazard-log.md HZ-124 | Clinical safety sign-off of slice 78 | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

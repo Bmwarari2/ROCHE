@@ -927,3 +927,175 @@ pay or date of absence. Screens follow with slice 56.
 | Unauthorised absence is not drawn from the rota or leave records | Rota and leave (slice 36 onward) |
 | The family feed does not yet check staff image consent before a staff photo is published | Feed publishing checks (slice 56, H-905) |
 | Sponsor records follow the staff file's retention row; any sponsor-specific minimum is unconfirmed | H-901 |
+
+## 13. Imports of external training records (slice 78, migration 0132)
+
+Plan slice 78 (WORK-006, with the training matrix of WORK-005; ADR-0102). An organisation whose
+staff train on an external learning platform brings their completions into Harbour's training
+records, from a file the platform exports or by a pull through the learning platform port. The
+platform is the organisation's own processor, not a Thapsus sub-processor, unless the DPO decides
+otherwise (H-520; ADR-0102). Nothing here is clinical: an imported completion is a training record
+like any other (workforce.md rule 5), and it never creates a competence sign-off (HZ-119, HZ-124).
+
+### 13.1 Records
+
+- `lms_source`: a learning platform the organisation imports from.
+  - `name` and `kind`: `file` for uploads, or `api` for pulls.
+  - For an API source, `external_organisation_id` (the platform's id for the organisation) and
+    `secret_ref`. The database makes `secret_ref` itself (`lms/{tenant}/{source}`); a caller
+    never sends it, so no organisation can point a source at another's credentials.
+  - `status` (`active`, `ended`) and `ended_at`. Ending is final.
+- `lms_course_map`: a source's course code mapped to a training topic. It has a tier only for
+  Oliver McGowan training, and an `active` flag. One mapping per code.
+- `lms_learner_link`: a source's stable learner id linked to one member of staff by a person, with
+  `linked_by`. One live link each way, per source. Ending a link soft-deletes it; a new link is a
+  new row.
+- `lms_import`: one staged import, by `csv`, `json` or `api`. It holds:
+  - the row count and the SHA-256 of what came in;
+  - `status` (`open`, `closed`, `discarded`);
+  - the latest dry run: its number, time, runner, counts by class, and the SHA-256 of its ready
+    rows.
+
+  It never holds the file.
+- `lms_import_row`: one completion as checked:
+  - the learner id, course code, completion and expiry dates, the platform's record id (or one
+    derived from the learner, course and date) and the provider;
+  - its problems, by code;
+  - its class at the latest dry run, with the member, topic and tier it resolved to;
+  - its outcome (`pending`, `imported` with the training record made from it, or `skipped` with a
+    reason), who resolved it and when.
+- `training_record` gains:
+  - `source` (`harbour` or `lms`);
+  - for an imported record, `lms_source_id`, `lms_import_row_id` and `external_record_id`, which
+    is unique per source.
+- Training certificates are documents in the new `training_certificate` category, attached to a
+  training record (`subject_type = 'training_record'`).
+
+### 13.2 Rules (`packages/domain/src/workforce/lms-import.ts`, table-driven tests)
+
+1. **Sources.** A holder of `workforce.training.manage` adds a source. An API source is off until
+   the organisation connects it: the pull needs `LMS_API` on (a mock until H-1250) and credentials
+   under the source's own secret name. Production refuses anything but `off`.
+2. **What is read.** Only the learner id, course code, completion date, expiry date, record id
+   and provider are read, from a CSV by heading or a JSON list.
+   - Any other column (a name, an email, a score) is ignored and never stored.
+   - Dates are `dd/mm/yyyy` or `yyyy-mm-dd`.
+   - Learner ids and course codes are letters, digits and `._:/-`, never an `@`, so an email is
+     never a learner id.
+   - Each row is checked, and a value that fails a check is not kept, only the problem.
+   - The import wizard's limits apply (5,000 rows).
+3. **Matching by stable id, never by name.** A row's member is the live link for its learner id.
+   With none, the row is `unmatched_learner` and waits for a person to link the learner. A person
+   links only someone else, in their own name.
+4. **Dry run first.** Staging runs the first dry run, and a person can run it again after linking
+   or mapping.
+   - It classifies every pending row: `ready`, `unmatched_learner`, `unmapped_course` (no active
+     mapping), `already_recorded` (rule 7), `own_record` (rule 5) or `invalid`.
+   - It stores each row's class and the counts, and counts one more dry run.
+   - A commit names the latest dry run's number. It is refused (`dry_run_stale`) if that is not
+     the latest, or if the ready rows it would import differ from what that dry run showed (by
+     their SHA-256).
+5. **Never one's own.** A row whose member is the importer is `own_record`: someone else imports
+   it, as slice 17 never lets a member record their own training.
+6. **Imported, never overwriting.** A commit turns each ready row into a new training record.
+   - The record has `source = 'lms'`, the row's dates and the provider (the source's name when
+     the row has none).
+   - The database refuses an imported record that differs from its ready row.
+   - It keeps an imported record's completion, member and source fixed. It never turns a Harbour
+     record into an imported one, or the reverse.
+   - Renewing a topic ends its open reminders, as recording it in Harbour does.
+   - Rows that are not ready stay pending; the import closes once none is pending.
+7. **Not twice.** A completion is `already_recorded` when this source has imported its record id
+   before. It is also `already_recorded` when the member already has a live record of the same
+   topic, tier and completion date (made in Harbour or imported), or when an earlier row of the
+   same import is the same completion. The database's unique index on the platform's record id
+   backs this up.
+8. **Certificates.** For an API source, each imported record's certificate is fetched after the
+   commit, outside its transaction.
+   - Each certificate, from the port or uploaded for a training record, is checked by its
+     contents, size-limited (10 MB), scanned for malware and stored as a `training_certificate`
+     document.
+   - A certificate that fails the scan is refused and counted; its record stands.
+   - A certificate is read as its training record is: by readers of development records, and by
+     the member it is about. Only a holder of `workforce.training.manage` adds one, never for
+     their own record.
+   - The general document routes neither take nor offer the category.
+9. **Skipping and discarding.** A pending row can be skipped with a reason, once. Discarding an
+   import leaves its pending rows unimported, and its imported records stand.
+
+### 13.3 Permissions
+
+| Action | Permission |
+| --- | --- |
+| Sources, course mappings, learner links, imports, dry runs, commits, skips, discards, certificates | `workforce.training.manage`; never one's own link, record or certificate |
+| Reading imported records and certificates | As training records (slice 17): readers of development records, and the member |
+
+The import tables are read and written only by holders of `workforce.training.manage`. The database
+enforces the same with forced row-level security.
+
+### 13.4 API
+
+- `GET` and `POST /v1/workforce/lms-sources`, and `POST /v1/workforce/lms-sources/{id}/end`.
+- `GET` and `POST /v1/workforce/lms-sources/{id}/courses`, and
+  `PATCH /v1/workforce/lms-sources/{id}/courses/{mapId}`.
+- `GET` and `POST /v1/workforce/lms-sources/{id}/learners`, and
+  `POST /v1/workforce/lms-sources/{id}/learners/{linkId}/end`.
+- `GET /v1/workforce/lms-sources/{id}/imports`; `POST` to the same path uploads a file,
+  `{ format, content }`. `POST /v1/workforce/lms-sources/{id}/pull` pulls (409
+  `integration_not_connected` while off or without credentials). Both stage the import and dry run
+  it.
+- `GET /v1/workforce/lms-imports/{id}`, and `POST` to its `dry-run`, `commit`
+  (`{ dryRunNumber }`), `rows/{rowId}/skip` and `discard`.
+- `POST /v1/workforce/members/{memberId}/training-records/{recordId}/certificate` (the file's bytes).
+
+### 13.5 Audit
+
+Audit events carry ids, codes and counts only, never a learner id, a name or a file's content:
+- `workforce.lms_source.created` and `.ended`;
+- `workforce.lms_course.mapped` and `.changed`;
+- `workforce.lms_learner.linked` and `.unlinked`, with the member;
+- `workforce.lms_import.staged`, `.dry_run`, `.committed`, `.discarded` and `.row_skipped`;
+- `workforce.training.imported`, one per record, with the member and topic;
+- `workforce.training_certificate.added`, including refusals.
+
+### 13.6 Tests
+
+- Domain (`lms-import.test.ts`):
+  - dates and record ids;
+  - each row problem, with no value kept from a failed check;
+  - CSV by heading with names ignored, and JSON;
+  - each class, and its precedence;
+  - the same completion twice in one file;
+  - the dry run's fingerprint;
+  - course mapping tiers.
+- Database (`lms-import.test.ts`):
+  - the code lists in step;
+  - the secret named by the database;
+  - a source fixed, ending once;
+  - links only to someone else, in the linker's name, one live link each way;
+  - dry runs counting up one at a time;
+  - an imported record only from a ready row, exactly, once per record id, never changed;
+  - a Harbour record never made imported;
+  - rows resolved once, only while the import is open;
+  - only holders of the permission, inside the organisation;
+  - certificates read as their record.
+- API (`lms-import.test.ts`):
+  - a file staged and dry run, keeping no name or email;
+  - a commit refused for a dry run that is not the latest, and when a link changed since;
+  - a Harbour record left alone;
+  - the importer's own row left for someone else;
+  - rows skipped, and the import closing;
+  - a second import of the same file all already recorded;
+  - a pull refused until connected, then staged, imported and its certificates stored, one
+    refused by the scan;
+  - certificate uploads (never one's own, never infected, never through the general routes);
+  - audit with ids only.
+
+### 13.7 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| No live learning platform client: pulls reach only the mock | H-1250 (choose a platform, build its client against its sandbox, assess it as the organisation's processor) |
+| xAPI statements from a platform are not imported; slice 43's own e-learning runtime records its own completions | A later slice, once a platform is chosen (H-1251) |
+| No screens: the routes are API-only | The web slice for training (H-1252) |
+| A platform's file layouts beyond the headings in `LMS_CSV_HEADINGS` are unverified | H-1253 |

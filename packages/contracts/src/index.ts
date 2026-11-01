@@ -523,6 +523,7 @@ export * from "./imports";
 export * from "./induction";
 export * from "./invitations";
 export * from "./letters";
+export * from "./lms-import";
 export * from "./mca";
 export * from "./members";
 export * from "./onboarding";

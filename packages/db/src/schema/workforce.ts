@@ -11,6 +11,7 @@ import {
   pgTable,
   text,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
@@ -221,10 +222,29 @@ export const trainingRecord = pgTable(
     completedOn: date("completed_on").notNull(),
     expiresOn: date("expires_on"),
     provider: text("provider"),
+    /**
+     * `harbour` (recorded in Harbour) or `lms` (imported; workforce.md section 13 rule 6). An
+     * imported record names its source, import row and the platform's record id, and keeps its
+     * completion as imported. Foreign keys to lms_source and lms_import_row are in migration 0132.
+     */
+    source: text("source").notNull().default("harbour"),
+    lmsSourceId: uuid("lms_source_id"),
+    lmsImportRowId: uuid("lms_import_row_id"),
+    externalRecordId: text("external_record_id"),
     ...mutableColumns(),
   },
   (t) => [
     unique("training_record_tenant_id_id_key").on(t.tenantId, t.id),
+    uniqueIndex("training_record_external_key")
+      .on(t.tenantId, t.lmsSourceId, t.externalRecordId)
+      .where(sql`external_record_id IS NOT NULL`),
+    check("training_record_source", sql`source IN ('harbour', 'lms')`),
+    check(
+      "training_record_imported",
+      sql`(source = 'lms') = (lms_source_id IS NOT NULL)
+        AND (source = 'lms') = (lms_import_row_id IS NOT NULL)
+        AND (source = 'lms') = (external_record_id IS NOT NULL)`,
+    ),
     workerRef("training_record_worker_fk", t, t.workerId),
     index("training_record_worker_idx").on(t.tenantId, t.workerId),
     check("training_record_topic", sql`topic IN (${sqlList(TRAINING_TOPIC_CODES)})`),

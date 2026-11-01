@@ -16,6 +16,11 @@ import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import {
+  LearningPlatformAdapter,
+  MemoryLearningPlatformSecrets,
+  MockLearningPlatformClient,
+} from "./integrations/lms/learning-platform";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
@@ -48,6 +53,7 @@ import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { invitationsRouter } from "./routes/invitations";
 import { letterTemplatesRouter } from "./routes/letter-templates";
 import { lettersRouter } from "./routes/letters";
+import { lmsImportRouter } from "./routes/lms-import";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { memberSessionsRouter } from "./routes/member-sessions";
@@ -148,6 +154,9 @@ export interface AppHandle {
   readonly app: ReturnType<typeof createRouter>;
   readonly services: Services;
   readonly signer: SyncTokenSigner;
+  /** The learning platform mock and its credentials (development and tests). */
+  readonly learningPlatformMock: MockLearningPlatformClient;
+  readonly learningPlatformSecrets: MemoryLearningPlatformSecrets;
   close(): Promise<void>;
 }
 
@@ -165,6 +174,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   );
   const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
   const ssoKeys = createSsoKeyStore(config);
+  const learningPlatformMock = new MockLearningPlatformClient();
+  const learningPlatformSecrets = new MemoryLearningPlatformSecrets();
   const services: Services = {
     config,
     logger,
@@ -182,6 +193,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     oidcDiscovery: createOidcDiscovery(config),
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
+    learningPlatform:
+      config.LMS_API === "mock"
+        ? new LearningPlatformAdapter(learningPlatformMock, learningPlatformSecrets)
+        : null,
     transferPackLimiter: new RateLimiter(
       "transfer_pack",
       config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
@@ -282,6 +297,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     "/v1/documents/*",
     "/v1/people/:id/photo",
     "/v1/workforce/staff-files/:id/items/:kind/documents",
+    "/v1/workforce/members/:memberId/training-records/:recordId/certificate",
   ]) {
     app.use(
       path,
@@ -302,6 +318,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
           c,
           new HttpProblem(413, "too_large", "The file is too large. Import it a home at a time."),
         ),
+    }),
+  );
+  // A learning platform's file of completions, capped as an import (workforce.md section 13).
+  app.use(
+    "/v1/workforce/lms-sources/:id/imports",
+    bodyLimit({
+      maxSize: IMPORT_MAX_BODY_BYTES,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The file is too large.")),
     }),
   );
   // The logo is small (512 KB): a larger body is refused before it is read or decoded.
@@ -393,6 +418,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", caseworkRouter);
   app.route("/", inductionRouter);
   app.route("/", developmentRouter);
+  app.route("/", lmsImportRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
@@ -470,6 +496,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     app,
     services,
     signer,
+    learningPlatformMock,
+    learningPlatformSecrets,
     close: async () => {
       await Promise.all([appPool.end(), authPool.end(), operatorPool.end()]);
     },

@@ -258,6 +258,10 @@ export const documentsRouter = createRouter()
       if (q.category === "staff_hr_document") {
         throw problems.invalid("Add HR-only staff documents from the worker's staff file.");
       }
+      // Training certificates go only with their training record (workforce.md section 13).
+      if (q.category === "training_certificate") {
+        throw problems.invalid("Add a training certificate from the member's training record.");
+      }
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
       // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
       if (q.category === "organisation_logo") {

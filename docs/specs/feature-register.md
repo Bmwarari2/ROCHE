@@ -15,7 +15,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Medicines | `MEDS` | 10.2-10.3 | 14 | 13 | 1 | 0 |
 | Safety and notifications | `SAFE` | 11.1 | 16 | 0 | 16 | 0 |
 | Quality and governance | `QUAL` | 11.2 | 13 | 4 | 9 | 0 |
-| Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 6 | 5 | 2 |
+| Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 5 | 6 | 2 |
 | Rostering, time and pay | `SCHED` | 12.3 | 12 | 4 | 8 | 0 |
 | Operations | `OPS` | 13 | 28 | 27 | 1 | 0 |
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **136** | **95** | **2** |
+| **Total** | | | **233** | **135** | **96** | **2** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -163,7 +163,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | WORK-003 | Sponsor-licence compliance (Appendix D records, salary floor check, 10-working-day reporting) | 12.1 | 2 | done | [workforce](workforce.md#12-sponsor-licence-staff-data-protection-and-ldss-slice-35-migration-0097) (rule 9, section 12) | `packages/domain/src/workforce/sponsor.ts`, `packages/domain/src/workforce/sponsorship.ts`, `packages/db/drizzle/0097_sponsor_licence.sql`, `apps/api/src/routes/sponsorship.ts` | `packages/domain/src/workforce/sponsor.test.ts`, `packages/domain/src/workforce/sponsorship.test.ts`, `packages/db/test/sponsorship.test.ts`, `apps/api/test/sponsorship.test.ts` | - |
 | WORK-004 | Onboarding and Care Certificate (16 standards) induction | 12.1 | 2 | partial | [workforce](workforce.md#2d-induction-the-care-certificate-and-leavers-slice-29-migration-0091) (section 2d, rules 19 to 23) | `packages/domain/src/workforce/induction.ts`, `packages/db/src/schema/induction.ts`, `packages/db/drizzle/0091_onboarding_and_leavers.sql`, `apps/api/src/routes/induction.ts`, `packages/contracts/src/induction.ts` | `packages/domain/src/workforce/induction.test.ts`, `packages/db/test/induction.test.ts`, `apps/api/test/induction.test.ts` | - |
 | WORK-005 | Training matrix with Skills for Care topics and Oliver McGowan tiers | 12.2 | 2 | todo | [workforce](workforce.md#4-rules-that-are-easy-to-get-wrong) (rule 5) | `packages/domain/src/workforce/training.ts`, `packages/domain/src/workforce/rates.ts`, `packages/db/drizzle/0079_training_competence.sql`, `apps/api/src/routes/development.ts`, `apps/api/src/services/development.ts` | `packages/domain/src/workforce/training.test.ts`, `packages/db/test/training-competence.test.ts`, `apps/api/test/training-competence.test.ts` | - |
-| WORK-006 | SCORM and xAPI e-learning player and LMS integration | 12.2, 15.3 | 2 | todo | - | - | - | - |
+| WORK-006 | SCORM and xAPI e-learning player and LMS integration | 12.2, 15.3 | 2 | partial | [workforce](workforce.md#13-imports-of-external-training-records-slice-78-migration-0132) (section 13; LMS imports, slice 78) | `packages/domain/src/workforce/lms-import.ts`, `packages/db/src/schema/lms-import.ts`, `packages/db/drizzle/0132_lms_import.sql`, `apps/api/src/routes/lms-import.ts`, `apps/api/src/integrations/lms/learning-platform.ts`, `packages/contracts/src/lms-import.ts` | `packages/domain/src/workforce/lms-import.test.ts`, `packages/db/test/lms-import.test.ts`, `apps/api/test/lms-import.test.ts` | - |
 | WORK-007 | LDSS claim tracking | 12.2 | 2 | done | [workforce](workforce.md#12-sponsor-licence-staff-data-protection-and-ldss-slice-35-migration-0097) (section 12) | `packages/domain/src/workforce/sponsorship.ts` (`checkLdssTransition`), `apps/api/src/routes/sponsorship.ts` | `packages/domain/src/workforce/sponsorship.test.ts`, `packages/db/test/sponsorship.test.ts`, `apps/api/test/sponsorship.test.ts` | - |
 | WORK-008 | Observed competence sign-offs that gate actions | 12.2 | 2 | todo | [workforce](workforce.md#4-rules-that-are-easy-to-get-wrong) (rule 6) | `packages/domain/src/workforce/competence.ts`, `packages/domain/src/workforce/rostering.ts`, `packages/domain/src/workforce/rates.ts`, `packages/domain/src/workforce/competence-port.ts`, `apps/api/src/services/competence-port.ts`, `packages/db/drizzle/0079_training_competence.sql` | `packages/domain/src/workforce/competence.test.ts`, `packages/domain/src/workforce/rostering.test.ts`, `packages/domain/src/workforce/competence-port.test.ts`, `packages/db/test/training-competence.test.ts`, `apps/api/test/training-competence.test.ts` | - |
 | WORK-009 | Supervision and appraisal scheduler with spot checks | 12.2 | 2 | todo | [workforce](workforce.md#4-rules-that-are-easy-to-get-wrong) (rule 7) | `packages/domain/src/workforce/supervision.ts`, `packages/domain/src/workforce/rates.ts`, `apps/api/src/routes/development.ts` (supervisions) | `packages/domain/src/workforce/supervision.test.ts`, `apps/api/test/training-competence.test.ts` | - |

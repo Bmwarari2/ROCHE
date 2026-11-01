@@ -43,6 +43,12 @@ needs the DPA check, the DPIA update and tenant notice before it processes famil
 | Flagsmith (feature flags) | Self-hosted by Thapsus in AWS eu-west-2; flag evaluations use tenant, location and role IDs only |
 | pg-boss, Typst, Playwright (PDF), antivirus scanning | Run inside Thapsus's AWS account |
 
+### 2a. The organisation's own processors (not Thapsus sub-processors)
+
+| Service | Why it is not a Thapsus sub-processor | Status |
+| --- | --- | --- |
+| A learning platform the organisation imports training completions from (workforce.md section 13; ADR-0102) | The organisation chooses and contracts the platform; Harbour receives its completions (a file the organisation uploads, or a pull through the learning platform port with the organisation's own credentials) and sends it nothing but the request. Whether a platform holds data in the UK, or under an adequacy decision or the IDTA, is the organisation's to check, and the DPO confirms this treatment (H-520, H-1254) | No live client: mock only (H-1250) |
+
 ## 3. Optional AI providers (off by default, enabled per tenant)
 
 Used only when a tenant enables the AI module after signing the DPIA AI addendum. Data is pseudonymised before sending; no provider may train on tenant data; prompts and responses are audited for 12 months.

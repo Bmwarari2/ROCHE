@@ -5,6 +5,7 @@ export * from "./dbs";
 export * from "./employment-history";
 export * from "./expiry";
 export * from "./induction";
+export * from "./lms-import";
 export * from "./rates";
 export * from "./recruitment";
 export * from "./registration";
