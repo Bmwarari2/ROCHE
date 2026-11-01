@@ -88,6 +88,8 @@ export const tenant = pgTable(
     sector: text("sector").notNull().default("independent"),
     privacyNoticeUrl: text("privacy_notice_url"),
     dpaSignedOn: date("dpa_signed_on"),
+    /** The version of the staff privacy notice in force (WORK-011; slice 35), set by the DPO's lead. */
+    staffPrivacyNoticeVersion: text("staff_privacy_notice_version"),
     usesDataBeyondDirectCare: boolean("uses_data_beyond_direct_care"),
     marketingEnabled: boolean("marketing_enabled").notNull().default(false),
     aiFreeTextEnabled: boolean("ai_free_text_enabled").notNull().default(false),
@@ -618,7 +620,7 @@ export const bankHoliday = pgTable(
   (t) => [unique("bank_holiday_nation_date").on(t.nation, t.date)],
 );
 
-/** Versioned document store (section 9.1); content lives in S3 under SSE-KMS. */
+/** Versioned document store (section 9.1); content lives in Cloud Storage under a customer-managed key. */
 export const document = pgTable(
   "document",
   {

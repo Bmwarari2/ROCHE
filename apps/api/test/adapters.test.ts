@@ -99,10 +99,22 @@ describe("adapter selection", () => {
     expect(
       createAdapter(
         "comms.email",
-        { provider: "ses", settings: { from: "a@example.invalid" } },
-        { production: true },
+        { provider: "smtp", settings: { from: "a@example.invalid" } },
+        {
+          production: true,
+          smtp: { host: "smtp.example.invalid", port: 587, tls: "starttls" },
+          smtpTransport: () => ({ sendMail: async () => ({}), verify: async () => true }) as never,
+        },
       ).provider,
-    ).toBe("ses");
+    ).toBe("smtp");
+    // Production email stays off until a relay is configured (ADR-0098).
+    expect(
+      createAdapter(
+        "comms.email",
+        { provider: "smtp", settings: { from: "a@example.invalid" } },
+        { production: true, smtp: null },
+      ).provider,
+    ).toBe("unconfigured");
     expect(
       createAdapter("comms.push", { provider: "expo", settings: {} }, { production: true })
         .provider,

@@ -34,7 +34,7 @@ import {
   UNROUTED_ACTIONS,
 } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { submitHolders } from "../src/services/safety";
+import { locationInfectionCases, submitHolders } from "../src/services/safety";
 import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
@@ -1806,6 +1806,33 @@ describe("UKHSA outbreak detection", () => {
       return rows[0]?.n;
     });
     expect(count).toBe(1);
+  });
+
+  it("hazard HZ-013 deciding another illness's report never resets respiratory detection", async () => {
+    // A diarrhoea and vomiting report detection drafted is decided after the respiratory cases.
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO statutory_notification (location_id, source_key, kind, due_at, retention_class,
+           status, not_required_reason)
+         VALUES ($1, $2, 'ukhsa_outbreak', now(), 'serious_incident', 'not_required', 'Not linked')`,
+        [
+          DEMO.locationId,
+          `outbreak:${DEMO.locationId}:diarrhoea_vomiting:${new Date().toISOString()}`,
+        ],
+      ),
+    );
+    const context = {
+      tenantId: DEMO.tenantId,
+      userId: null,
+      scope: "tenant" as const,
+      locationIds: [],
+    };
+    const cases = await withRequestContext(deps.appDb, context, (tx) =>
+      locationInfectionCases(tx, DEMO.locationId),
+    );
+    expect(cases.filter((c) => c.syndrome === "acute_respiratory").length).toBeGreaterThanOrEqual(
+      2,
+    );
   });
 
   it("hazard HZ-013 leaves a draft's version alone when a classification changes nothing in it", async () => {

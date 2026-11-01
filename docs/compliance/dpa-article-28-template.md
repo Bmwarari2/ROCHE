@@ -102,12 +102,12 @@ This agreement lasts as long as the Processor processes Personal Data for the Co
 
 | Area | Measure |
 | --- | --- |
-| Location | Production personal data hosted in AWS eu-west-2 (London) |
-| Encryption | AES-256 at rest (database, files, backups, mobile store); TLS 1.2 or higher in transit; keys in AWS KMS, rotated yearly |
+| Location | Production personal data hosted in Google Cloud europe-west2 (London), with an organisation policy that refuses resources in any other location ([ADR-0098](../decisions/0098-production-on-google-cloud.md)) |
+| Encryption | AES-256 at rest (database, files, backups, mobile store); TLS 1.2 or higher in transit; customer-managed keys in Cloud KMS (europe-west2), rotated automatically; a key per organisation for cryptographic shredding |
 | Tenant isolation | `tenant_id` on every row; Postgres row-level security with `FORCE ROW LEVEL SECURITY`; non-owner application role; isolation tests in CI |
 | Access control | MFA (passkeys, TOTP) for every role that can read care records; role- and attribute-based access; step-up for sensitive actions; break-glass with justification and alerts |
 | Audit | Append-only audit of every create, update, delete, view of a care record, export, login, permission change and sync event; pgAudit |
-| Resilience | Multi-AZ database; daily snapshots and point-in-time recovery retained 35 days; RPO 15 minutes, RTO 4 hours; quarterly restore drill |
+| Resilience | Cloud SQL regional high availability (a standby in a second London zone); automated backups and point-in-time recovery, retained for the period set in the Google Cloud Terraform `[confirm the period - engineering]`; RPO 15 minutes, RTO 4 hours; quarterly restore drill |
 | Vulnerability management | Critical and high findings fixed within 14 days; CodeQL, gitleaks, Trivy, SBOM in CI; annual external penetration test |
 | Logging | Security logs kept at least 6 months, UTC, tamper-evident, without personal data |
 | Mobile | Encrypted local store, auto-lock, remote wipe, root and jailbreak detection |

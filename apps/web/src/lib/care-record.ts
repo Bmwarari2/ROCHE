@@ -25,6 +25,7 @@ export type RecordTab =
   | "capacity"
   | "activities"
   | "reviews"
+  | "safeguarding"
   | "hospital"
   | "pre-admission"
   | "admission"
@@ -66,6 +67,8 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "capacity", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
   { tab: "reviews", needs: "care.plan.read" },
+  // The protective measures of open safeguarding concerns, for carers (SAFE-006; HZ-126).
+  { tab: "safeguarding", needs: "care.plan.read" },
   { tab: "hospital", needs: "people.movement.record" },
   // Admission and belongings (people.md rules 4 to 7; PEOP-005, PEOP-007).
   { tab: "pre-admission", needs: "people.person.read" },

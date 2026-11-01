@@ -30,7 +30,11 @@ be swapped without losing a core tool.
     Changesets, a development tool;
   - `parse-cache-control` (BSD-3-Clause per its LICENSE file, whose three clauses it carries; the
     package field says only "BSD"): a dependency of Lighthouse, run by Lighthouse CI, a development
-    tool (added 31/10/2026).
+    tool (added 31/10/2026);
+- allows these shipped packages whose licence is on the allowlist but whose package field is not an
+  SPDX identifier:
+  - `xml-escape` (MIT per its LICENSE file; the field says "MIT License"): a dependency of
+    `samlify`, through the Better Auth SSO plugin (ADR-0091) (added 31/10/2026).
 
 Any new exception needs a row here and in the script, with the reason.
 

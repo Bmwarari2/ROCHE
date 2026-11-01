@@ -72,37 +72,43 @@ describe("sub-processor register", () => {
     }
   });
 
+  it("hosts in Google Cloud London and names no email provider until one is chosen (ADR-0098, H-08)", () => {
+    expect(SUB_PROCESSORS.gcp_hosting).toMatchObject({
+      name: "Google Cloud EMEA Limited",
+      location: "Google Cloud europe-west2 (London)",
+      outsideUk: false,
+    });
+    const services = Object.values(SUB_PROCESSORS).map((sp) => sp.service);
+    expect(services.some((s) => /\bSES\b|Simple Email Service/.test(s))).toBe(false);
+  });
+
   it.each<[string, SubProcessorConfig, SubProcessorKey[]]>([
-    ["a tenant with no options", config(), ["aws_hosting", "aws_ses", "sentry", "grafana"]],
+    ["a tenant with no options", config(), ["gcp_hosting", "sentry", "grafana"]],
     [
       "with mobile push",
       config([], { mobilePush: true }),
-      ["aws_hosting", "aws_ses", "sentry", "grafana", "expo_push", "apns_fcm"],
+      ["gcp_hosting", "sentry", "grafana", "expo_push", "apns_fcm"],
     ],
-    [
-      "with SMS",
-      config([], { sms: true }),
-      ["aws_hosting", "aws_ses", "sentry", "grafana", "uk_sms_gateway"],
-    ],
+    ["with SMS", config([], { sms: true }), ["gcp_hosting", "sentry", "grafana", "uk_sms_gateway"]],
     [
       "with AI through Bedrock London",
       config(["module.ai"], {}, "bedrock_london"),
-      ["aws_hosting", "aws_ses", "sentry", "grafana", "bedrock_london"],
+      ["gcp_hosting", "sentry", "grafana", "bedrock_london"],
     ],
     [
       "with AI through the Anthropic API",
       config(["module.ai"], {}, "anthropic"),
-      ["aws_hosting", "aws_ses", "sentry", "grafana", "anthropic"],
+      ["gcp_hosting", "sentry", "grafana", "anthropic"],
     ],
     [
       "with AI on the tenant's own key",
       config(["module.ai"], {}, "tenant_own"),
-      ["aws_hosting", "aws_ses", "sentry", "grafana"],
+      ["gcp_hosting", "sentry", "grafana"],
     ],
     [
       "with a provider chosen but the AI module off",
       config([], {}, "bedrock_eu"),
-      ["aws_hosting", "aws_ses", "sentry", "grafana"],
+      ["gcp_hosting", "sentry", "grafana"],
     ],
   ])("in use for %s", (_label, input, expected) => {
     expect(subProcessorsInUse(input)).toEqual(expected);
@@ -469,11 +475,11 @@ describe("rules 24 and 25 responses as stored, append-only", () => {
         row("acknowledged", 2, { noticeId: null }),
         row("acknowledged", 7),
         row("objected", 9),
-        row("acknowledged", 3, { subProcessorKey: "aws_hosting", noticeId: null }),
+        row("acknowledged", 3, { subProcessorKey: "gcp_hosting", noticeId: null }),
       ]),
     ).toEqual([
       { key: "sentry", acknowledgedAt: at(7) },
-      { key: "aws_hosting", acknowledgedAt: at(3) },
+      { key: "gcp_hosting", acknowledgedAt: at(3) },
     ]);
   });
 });

@@ -52,6 +52,7 @@ describe("record tabs", () => {
       "capacity",
       "activities",
       "reviews",
+      "safeguarding",
       "hospital",
       "pre-admission",
       "admission",

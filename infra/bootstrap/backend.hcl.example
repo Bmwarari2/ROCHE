@@ -1,0 +1,4 @@
+# Copy to backend.hcl (git-ignored) and run:
+#   terraform init -backend-config=backend.hcl
+bucket = "harbour-tfstate-<state-project-id>"
+prefix = "bootstrap/<env>"

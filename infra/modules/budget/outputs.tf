@@ -1,4 +1,3 @@
-output "budget_name" {
-  description = "Budget name."
-  value       = aws_budgets_budget.monthly.name
+output "created" {
+  value = length(google_billing_budget.this) == 1
 }

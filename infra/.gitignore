@@ -1,5 +1,7 @@
 # Local, account-specific Terraform inputs. Only the *.example files are committed.
 envs/*/backend.hcl
+bootstrap/backend.hcl
+bootstrap/*.tfvars
 envs/*/terraform.tfvars
 envs/*/*.auto.tfvars
 

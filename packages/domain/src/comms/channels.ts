@@ -4,7 +4,7 @@ import { isPlausibleEmail } from "../shared/email";
 /**
  * Family notification channels (INTG-011; comms.md section 4 rule 14; ADR-0060). Email, SMS
  * and push reach a family member through the integration ports (`comms.email`, `comms.sms`,
- * `comms.push`, integrations/ports.ts), whose adapters are SES, a UK SMS gateway and Expo push,
+ * `comms.push`, integrations/ports.ts), whose adapters are SMTP, a UK SMS gateway and Expo push,
  * each with a mock and a contract test. Providers report bounces, complaints, unregistered devices
  * and opt-outs in their own formats; adapters translate them into the provider-neutral
  * `FamilyChannelEvent` below, and these rules decide what each one does to the channel. Nothing

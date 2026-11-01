@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "accepted; partly superseded by ADR-0098"
 date: 2026-10-11
 decision-makers: Claude Code (build), Brian (product owner, informed)
 consulted: master prompt sections 5.3, 6 and 9.1; ADR-0001, ADR-0002, ADR-0031; docs/compliance/retention-and-deletion.md
@@ -7,6 +7,11 @@ informed: Brian
 ---
 
 # Search on Postgres full-text search
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the residency driver, which now reads Google Cloud europe-west2 (London).
+> The rejected Amazon OpenSearch option is kept as written. The decision is unchanged. The text
+> below is kept as decided.
 
 ## Context and problem statement
 

@@ -4,19 +4,8 @@ import { connect } from "node:net";
 import { dirname, join, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import {
-  AbortMultipartUploadCommand,
-  CompleteMultipartUploadCommand,
-  CreateMultipartUploadCommand,
-  DeleteObjectsCommand,
-  GetObjectCommand,
-  HeadBucketCommand,
-  ListObjectVersionsCommand,
-  NoSuchKey,
-  PutObjectCommand,
-  S3Client,
-  UploadPartCommand,
-} from "@aws-sdk/client-s3";
+import type { Bucket } from "@google-cloud/storage";
+import { Storage } from "@google-cloud/storage";
 import type {
   DocumentStoragePort,
   HealthResult,
@@ -26,19 +15,20 @@ import type {
 
 /**
  * Document storage and malware scanning adapters (section 9.1, ASVS V5). Local disk for development
- * and tests; S3 (SSE-KMS by bucket default, versioned) in AWS; ClamAV over its INSTREAM protocol
- * in AWS; a mock scanner that recognises the EICAR test file for tests.
+ * and tests; Cloud Storage in europe-west2 (CMEK by bucket default, ADR-0098) in Google Cloud;
+ * ClamAV over its INSTREAM protocol; a mock scanner that recognises the EICAR test file for tests.
  */
 
-/** S3 multipart parts (the minimum is 5 MiB): the most of an export held in memory at once. */
-const PART_BYTES = 8 * 1024 * 1024;
+/** The only Google Cloud location personal data may be stored in (ADR-0098). */
+export const ALLOWED_GCS_LOCATIONS: readonly string[] = ["EUROPE-WEST2"];
 
 /**
  * A document's bytes, an export's archive (`exportStoragePrefix` plus `export.zip`), or an issued
- * DSAR bundle (`dsarBundleStorageKey`, #149 M3).
+ * DSAR bundle (`dsarBundleStorageKey`, #149 M3), or an issued disclosure pack
+ * (`disclosurePackStorageKey`, SAFE-016).
  */
 const KEY_PATTERN =
-  /^(tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip)|dsar\/tenants\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)$/;
+  /^(tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip|disclosures\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)|dsar\/tenants\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)$/;
 
 function assertKey(key: string): void {
   if (!KEY_PATTERN.test(key)) throw new Error("Invalid storage key");
@@ -102,8 +92,8 @@ export class LocalDocumentStorage implements DocumentStoragePort {
 }
 
 /**
- * Stored bytes that could not be deleted. `code` is S3's error code for the first object (or
- * `VersionsRemain`), which the worker logs; never the key or anything else about the object.
+ * Stored bytes that could not be deleted. `code` is Cloud Storage's error code for the first object
+ * (or `VersionsRemain`), which the worker logs; never the key or anything else about the object.
  */
 export class StorageDeleteFailed extends Error {
   constructor(
@@ -115,161 +105,133 @@ export class StorageDeleteFailed extends Error {
   }
 }
 
-export class S3DocumentStorage implements DocumentStoragePort {
-  readonly provider = "s3";
+/** What the adapter uses of a Cloud Storage bucket: the SDK's `Bucket`, or a double in tests. */
+export type GcsBucket = Pick<Bucket, "file" | "getFiles" | "getMetadata">;
+
+function errorCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "number" || typeof code === "string" ? String(code) : "DeleteError";
+}
+
+function notFound(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 404;
+}
+
+/**
+ * Cloud Storage in europe-west2 (ADR-0098). Each object is written under the bucket's customer-
+ * managed key, named again on every write; the only object metadata is the content type (no file
+ * name, title or anything else that could identify a person). The bucket keeps generations, so
+ * destruction deletes every one of them.
+ */
+export class GcsDocumentStorage implements DocumentStoragePort {
+  readonly provider = "gcs";
 
   constructor(
-    private readonly bucket: string,
-    private readonly client: S3Client = new S3Client({}),
+    private readonly bucket: GcsBucket,
+    private readonly kmsKeyName: string,
   ) {}
 
-  async put(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+  /** The adapter for a named bucket; the client finds its credentials in the environment. */
+  static forBucket(projectId: string, bucket: string, kmsKeyName: string): GcsDocumentStorage {
+    return new GcsDocumentStorage(new Storage({ projectId }).bucket(bucket), kmsKeyName);
+  }
+
+  private file(key: string) {
     assertKey(key);
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: bytes,
-        ContentType: contentType,
-        // Bucket default encryption is SSE-KMS (infra); ask for it explicitly as well.
-        ServerSideEncryption: "aws:kms",
-      }),
-    );
+    return this.bucket.file(key, { kmsKeyName: this.kmsKeyName });
+  }
+
+  async put(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    await this.file(key).save(Buffer.from(bytes), {
+      resumable: false,
+      contentType,
+      metadata: { contentType },
+      validation: "crc32c",
+    });
   }
 
   async get(key: string): Promise<Uint8Array | null> {
-    assertKey(key);
     try {
-      const result = await this.client.send(
-        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-      );
-      return result.Body ? new Uint8Array(await result.Body.transformToByteArray()) : null;
+      const [bytes] = await this.file(key).download();
+      return new Uint8Array(bytes);
     } catch (error) {
-      if (error instanceof NoSuchKey) return null;
+      if (notFound(error)) return null;
       throw error;
     }
   }
 
   /**
-   * Writes a stream of unknown length as a multipart upload in parts of `PART_BYTES`, so at most
-   * one part is held in memory; SSE-KMS as for every object. A failed upload is aborted.
+   * Writes a stream of unknown length as a resumable upload, which holds one chunk in memory at a
+   * time. An upload that fails is never finalised, so no partial object is left.
    */
   async putStream(key: string, source: AsyncIterable<Uint8Array>, contentType: string) {
-    assertKey(key);
-    const { UploadId } = await this.client.send(
-      new CreateMultipartUploadCommand({
-        Bucket: this.bucket,
-        Key: key,
-        ContentType: contentType,
-        ServerSideEncryption: "aws:kms",
-      }),
-    );
-    const parts: { ETag: string | undefined; PartNumber: number }[] = [];
-    const upload = async (body: Buffer) => {
-      const PartNumber = parts.length + 1;
-      const { ETag } = await this.client.send(
-        new UploadPartCommand({ Bucket: this.bucket, Key: key, UploadId, PartNumber, Body: body }),
-      );
-      parts.push({ ETag, PartNumber });
-    };
-    try {
-      let pending: Buffer[] = [];
-      let size = 0;
-      for await (const chunk of source) {
-        pending.push(Buffer.from(chunk));
-        size += chunk.length;
-        if (size >= PART_BYTES) {
-          await upload(Buffer.concat(pending));
-          pending = [];
-          size = 0;
-        }
-      }
-      if (size > 0 || parts.length === 0) await upload(Buffer.concat(pending));
-      await this.client.send(
-        new CompleteMultipartUploadCommand({
-          Bucket: this.bucket,
-          Key: key,
-          UploadId,
-          MultipartUpload: { Parts: parts },
-        }),
-      );
-    } catch (error) {
-      await this.client
-        .send(new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId }))
-        .catch(() => undefined);
-      throw error;
-    }
+    const target = this.file(key).createWriteStream({
+      resumable: true,
+      contentType,
+      metadata: { contentType },
+      validation: "crc32c",
+    });
+    await pipeline(Readable.from(source), target);
   }
 
   async getStream(key: string): Promise<AsyncIterable<Uint8Array> | null> {
-    assertKey(key);
-    try {
-      const result = await this.client.send(
-        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-      );
-      return (result.Body as AsyncIterable<Uint8Array> | undefined) ?? null;
-    } catch (error) {
-      if (error instanceof NoSuchKey) return null;
-      throw error;
-    }
+    const file = this.file(key);
+    const [exists] = await file.exists();
+    return exists ? file.createReadStream() : null;
   }
 
   /**
-   * Deletes every version and delete marker, so nothing survives destruction in a versioned bucket.
-   * A batch delete answers 200 with the objects it could not delete in `Errors` (Quiet only leaves
-   * out the ones it did), so any error throws; and the versions are listed again afterwards, so
-   * anything still there throws too. The caller's retry then goes on until the key is empty
+   * Deletes every generation of the key, so nothing survives destruction in a versioned bucket.
+   * Any generation that cannot be deleted throws, and the generations are listed again afterwards,
+   * so anything still there throws too. The caller's retry then goes on until the key is empty
    * (security review of #134, M2).
    */
   async destroy(key: string): Promise<void> {
     assertKey(key);
-    const versions = await this.versionsOf(key);
-    // DeleteObjects takes at most 1,000 objects.
-    for (let at = 0; at < versions.length; at += 1000) {
-      const result = await this.client.send(
-        new DeleteObjectsCommand({
-          Bucket: this.bucket,
-          Delete: { Objects: versions.slice(at, at + 1000), Quiet: true },
-        }),
-      );
-      const failed = result.Errors ?? [];
-      if (failed.length > 0) {
-        throw new StorageDeleteFailed(failed[0]?.Code ?? "DeleteObjectsError", failed.length);
+    const generations = await this.generationsOf(key);
+    let failed = 0;
+    let firstCode: string | null = null;
+    for (const generation of generations) {
+      try {
+        await this.bucket.file(key, { generation }).delete();
+      } catch (error) {
+        if (notFound(error)) continue;
+        failed += 1;
+        firstCode ??= errorCode(error);
       }
     }
-    const left = await this.versionsOf(key);
+    if (failed > 0) throw new StorageDeleteFailed(firstCode ?? "DeleteError", failed);
+    const left = await this.generationsOf(key);
     if (left.length > 0) throw new StorageDeleteFailed("VersionsRemain", left.length);
   }
 
-  /** Every version and delete marker stored under exactly this key. */
-  private async versionsOf(key: string): Promise<{ Key: string; VersionId: string }[]> {
-    const found: { Key: string; VersionId: string }[] = [];
-    let keyMarker: string | undefined;
-    let versionMarker: string | undefined;
-    do {
-      const page = await this.client.send(
-        new ListObjectVersionsCommand({
-          Bucket: this.bucket,
-          Prefix: key,
-          KeyMarker: keyMarker,
-          VersionIdMarker: versionMarker,
-        }),
-      );
-      for (const v of [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]) {
-        if (v.Key === key && v.VersionId) found.push({ Key: key, VersionId: v.VersionId });
-      }
-      keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
-      versionMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
-    } while (keyMarker);
-    return found;
+  /** Every generation stored under exactly this key, live or noncurrent. */
+  private async generationsOf(key: string): Promise<string[]> {
+    const [files] = await this.bucket.getFiles({ prefix: key, versions: true, autoPaginate: true });
+    return files
+      .filter((f) => f.name === key && f.metadata.generation !== undefined)
+      .map((f) => String(f.metadata.generation));
   }
 
+  /**
+   * Healthy only when the bucket is reachable, in europe-west2, encrypted by default with the
+   * configured key, and keeps no soft-deleted copies (which would outlive destruction).
+   */
   async health(): Promise<HealthResult> {
     try {
-      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+      const [metadata] = await this.bucket.getMetadata();
+      if (!ALLOWED_GCS_LOCATIONS.includes(String(metadata.location ?? "").toUpperCase())) {
+        return { ok: false, detail: "bucket outside europe-west2" };
+      }
+      if (metadata.encryption?.defaultKmsKeyName !== this.kmsKeyName) {
+        return { ok: false, detail: "bucket default key is not the configured key" };
+      }
+      if (Number(metadata.softDeletePolicy?.retentionDurationSeconds ?? 0) > 0) {
+        return { ok: false, detail: "bucket keeps soft-deleted objects" };
+      }
       return { ok: true, detail: "bucket reachable" };
     } catch (error) {
-      return { ok: false, detail: error instanceof Error ? error.name : "unreachable" };
+      return { ok: false, detail: `unreachable (${errorCode(error)})` };
     }
   }
 }

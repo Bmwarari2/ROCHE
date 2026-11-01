@@ -39,7 +39,7 @@ import {
   SESSION_EXPIRES_IN_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "../auth/better-auth";
-import { sessionFactorState } from "../auth/session-factor";
+import { endSsoSession, sessionFactorState, sessionSsoTenant } from "../auth/session-factor";
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
@@ -47,6 +47,12 @@ import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
 import { bindSession, sessionOnRevokedDevice } from "../services/devices";
+import {
+  type OidcDiscovery,
+  type SsoKeyStore,
+  ssoEnabledFor,
+  type TxtLookup,
+} from "../services/sso";
 import { writeAudit } from "./audit";
 import { HttpProblem, problems } from "./problem";
 import type { RateLimiter } from "./rate-limit";
@@ -55,6 +61,14 @@ import type { MemoryThrottle } from "./throttle";
 // The device id is the PowerSync client id, a UUID. Anything else is not trusted into the audit
 // trail or a task, and reads as no device (security review round 4; #21 S-L6).
 const DEVICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** An SSO session whose organisation has switched single sign-on off, or used where SSO never reaches. */
+export const SSO_OFF = () =>
+  new HttpProblem(
+    401,
+    "sso_session_ended",
+    "Single sign-on is not available here. Sign in with your Harbour passkey or password.",
+  );
 
 export function deviceIdOf(header: string | undefined): string | null {
   return header && DEVICE_ID.test(header) ? header.toLowerCase() : null;
@@ -68,6 +82,12 @@ export interface Services {
   readonly authPool: pg.Pool;
   readonly operatorPool: pg.Pool;
   readonly auth: Auth;
+  /** Single sign-on private keys by store name (Secret Manager in Google Cloud; ADR-0091, ADR-0098). */
+  readonly ssoKeys: SsoKeyStore;
+  /** DNS TXT records, for domain proofs (rule 19). */
+  readonly txtLookup: TxtLookup;
+  /** OpenID discovery when a connection is saved (ADR-0091). */
+  readonly oidcDiscovery: OidcDiscovery;
   /** Feature flags through OpenFeature (catalogue, the organisation's rows, optional Flagsmith). */
   readonly flags: FlagService;
   readonly storage: DocumentStoragePort;
@@ -108,6 +128,8 @@ export interface SessionInfo {
   readonly sessionCreatedAt: Date;
   /** When the session was last used (written at most once a minute; `activityDue`). */
   readonly lastActiveAt: Date;
+  /** The organisation whose single sign-on made the session, or null (ADR-0091). */
+  readonly ssoTenantId: string | null;
 }
 
 export interface Membership {
@@ -192,6 +214,13 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     query: { disableRefresh: true },
   });
   if (result) {
+    // An SSO session is refused, and ended, on every route while its organisation's flag is off,
+    // before anything moves its expiry on: the tenantless routes too (#33 re-check 3, M).
+    const ssoTenantId = await sessionSsoTenant(authPool, result.session.id);
+    if (ssoTenantId !== null && !(await ssoEnabledFor(c.get("services"), ssoTenantId))) {
+      await endSsoSession(authPool, result.session.id);
+      throw SSO_OFF();
+    }
     const now = Date.now();
     const expiresAt = new Date(result.session.expiresAt).getTime();
     if (expiresAt - (SESSION_EXPIRES_IN_SECONDS - SESSION_UPDATE_AGE_SECONDS) * 1000 <= now) {
@@ -209,6 +238,7 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       twoFactorEnabled: user.twoFactorEnabled === true,
       sessionCreatedAt: new Date(result.session.createdAt),
       lastActiveAt: new Date(result.session.updatedAt),
+      ssoTenantId,
     });
   } else {
     c.set("session", null);
@@ -384,6 +414,10 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     }
     throw problems.notAMember();
   }
+  // An SSO session reaches only the organisation whose provider signed it in (#33 review H2).
+  // The flag was checked by the session middleware for this request (#33 re-check 3).
+  const ssoTenant = session.ssoTenantId;
+  if (ssoTenant !== null && ssoTenant !== membership.tenantId) throw problems.notAMember();
 
   const now = new Date();
   const deviceId = deviceIdOf(c.req.header(DEVICE_HEADER));

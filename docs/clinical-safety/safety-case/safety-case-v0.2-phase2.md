@@ -17,6 +17,7 @@
 | Version | Date | Status | Change |
 | --- | --- | --- | --- |
 | 0.2 draft A | 31/10/2026 | Draft | First draft for plan slice 85, covering the Phase 2 hazards added so far (section 2) |
+| 0.2 draft B | 31/10/2026 | Draft | Production hosting changed to Google Cloud europe-west2 ([ADR-0098](../../decisions/0098-production-on-google-cloud.md)): v0.1's hosting, notifications and document storage rows and assumption 8 replaced (section 1) |
 
 **Distribution**: Thapsus engineering; Brian (top management); the CSO once appointed. Not for
 tenants until signed ([README](README.md)).
@@ -37,6 +38,23 @@ the clinical risk management system, the assumptions, the Phase 1 hazards and th
 the deployer information and the known limitations. Neither report is signed. Harbour cannot sign
 its own safety case: every rating and residual risk below is an engineering proposal until a
 Clinical Safety Officer reviews and accepts it (sections 8 and 10).
+
+### Changes to v0.1's system definition
+
+On 31/10/2026 the owner moved production from AWS eu-west-2 to Google Cloud europe-west2 (London)
+([ADR-0098](../../decisions/0098-production-on-google-cloud.md)). This replaces these parts of v0.1:
+
+| v0.1 item | Now |
+| --- | --- |
+| 2.3 Hosting | Production: Google Cloud europe-west2, enforced by the organisation policy `gcp.resourceLocations`; Cloud Run for the API, worker, PowerSync and web, each with at least one instance; not yet provisioned (H-04, H-1000). Dev and staging: Supabase London, unchanged (ADR-0008). Safety relevance unchanged: availability of the record, with the downtime pack as the continuity path (HZ-021) |
+| 2.3 Notifications | Email through an SMTP provider still to be chosen (H-08); until then production email is off, so delivery outside the app rests on in-app notification, SMS and push. No safety function depends on email ([ADR-0060](../../decisions/0060-family-notification-channels.md)). SMS and push still run against mocks (INTG-011) |
+| 2.3 Document storage | Cloud Storage with customer-managed Cloud KMS keys; downloads stream through the API, each authorised and audited, with no signed URLs, and a quarantined document is never served; ClamAV runs as a sidecar beside the API. The Cloud Storage adapter is built behind the same port (ADR-0098); the buckets are not yet provisioned |
+| Assumption 8 | Production runs as ADR-0098 describes (Cloud SQL for PostgreSQL 17 with regional high availability and point-in-time recovery, RPO 15 minutes and RTO 4 hours), which is not yet provisioned |
+
+One new limitation for the CSO: the worker's alerts to the operator (`worker.job.failed`,
+`escalation.unrouted.daily`, HZ-008 and HZ-013) were defined as CloudWatch alarms and must be
+redefined as Cloud Monitoring alerts when the Terraform is rewritten; until then they are not live
+(H-171).
 
 ## 2. What this draft covers
 
@@ -83,7 +101,7 @@ Ratings are severity, likelihood and risk level, as the hazard log gives them. S
 | HZ-123 | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Very low / 2 | H-710, H-543 |
 | HZ-124 | Major / Medium / 3 | Major / Low / 3 until rota eligibility gating lands, then Very low / 2 | H-543 (recommended rating applied 31/10/2026; not yet rated by the CSO) |
 | HZ-126 | Catastrophic / Medium / 4 | Catastrophic / Low / 4 until H-599 is settled, then Very low / 3 | H-595 (recommended rating applied 31/10/2026; not yet rated by the CSO), H-599 |
-| HZ-127 | Not rated (no entry; recommended Major / Medium / 3, H-543) | Not rated (recommended Major / Low / 3) | Entry needed with slice 37 |
+| HZ-127 | Major / Medium / 3 (recommended rating, H-543; not yet rated by the CSO) | Major / Low / 3 | H-543 (recommended rating applied 31/10/2026) |
 | HZ-128 | Considerable / Medium / 3 | Considerable / Low / 2 | H-543 (recommended rating applied 31/10/2026; not yet rated by the CSO), H-740 |
 | HZ-130 | Major / Medium / 3 | Major / Low / 3 | H-543, H-680 |
 

@@ -73,6 +73,12 @@ export async function inContext<T>(
         );
       }
       if (context.family) await client.query("SELECT set_config('app.family', 'true', true)");
+      if (context.speakUp) {
+        await client.query(
+          "SELECT set_config('app.speak_up', 'true', true), set_config('app.speak_up_token', $1, true)",
+          [context.speakUp.replyTokenHash ?? ""],
+        );
+      }
     }
     const result = await fn(client);
     await client.query("COMMIT");

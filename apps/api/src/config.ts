@@ -1,9 +1,22 @@
 import { z } from "zod";
 
 /**
- * API configuration from the environment. Secrets come from AWS Secrets Manager in deployed
- * environments (injected as environment variables by ECS) and from `.env` locally; never from Git.
+ * API configuration from the environment. Secrets come from Google Cloud Secret Manager in deployed
+ * environments (injected as environment variables by the platform, ADR-0098) and from `.env`
+ * locally; never from Git.
  */
+
+/** The only Google Cloud region personal data may live in (ADR-0098). */
+export const GCP_REGIONS = ["europe-west2"] as const;
+
+const GCP_PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+/** A Cloud KMS key in an allowed region: projects/<p>/locations/<region>/keyRings/<r>/cryptoKeys/<k>. */
+const KMS_KEY = new RegExp(
+  `^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/locations/(${GCP_REGIONS.join("|")})/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}$`,
+);
+/** Bucket names as Cloud Storage takes them (no dotted, domain-named buckets). */
+const BUCKET = /^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$/;
+
 const Env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().default(4000),
@@ -74,7 +87,7 @@ const Env = z.object({
   INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN: z.coerce.number().int().positive().default(10),
   /**
    * The server key for evidence pack links (ADR-0050): one-time codes are stored as an HMAC under
-   * it, and the link session cookie is signed with it. From Secrets Manager in deployed
+   * it, and the link session cookie is signed with it. From Secret Manager in deployed
    * environments; the local default is refused in production.
    */
   EVIDENCE_LINK_SECRET: z
@@ -84,22 +97,66 @@ const Env = z.object({
   /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
+  /**
+   * Public speak-up limits (ADR-0089, security review H1), counted in Postgres across instances:
+   * requests per minute from one network (an IPv6 /64 or an IPv4 address), requests per minute to
+   * one organisation, and anonymous concerns per organisation per UK day.
+   */
+  SPEAK_UP_REQUESTS_PER_MINUTE_PER_NETWORK: z.coerce.number().int().positive().default(10),
+  SPEAK_UP_REQUESTS_PER_MINUTE_PER_TENANT: z.coerce.number().int().positive().default(60),
+  SPEAK_UP_ANONYMOUS_PER_DAY: z.coerce.number().int().positive().default(50),
+  /** Keys the network hash in the speak-up counts (a secret from the managed store; L6). */
+  SPEAK_UP_THROTTLE_SECRET: z
+    .string()
+    .min(32)
+    .default("local-development-speak-up-throttle-secret-0123456789"),
   /** How long a verified link session lasts in the browser (never past the link's own expiry). */
   EVIDENCE_LINK_SESSION_MINUTES: z.coerce.number().int().positive().max(240).default(60),
-  /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
-  DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
+  /** Where document bytes live: local disk (development and tests) or Cloud Storage (Google Cloud). */
+  DOCUMENT_STORAGE: z.enum(["local", "gcs"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
-  S3_DOCUMENTS_BUCKET: z.string().optional(),
-  /** The full export's archives (PLAT-015): the exports bucket in AWS (SSE-KMS, lifecycle expiry). */
+  /** The Google Cloud project the buckets belong to. Credentials come from the runtime's identity. */
+  GCP_PROJECT_ID: z.string().regex(GCP_PROJECT).optional(),
+  GCS_DOCUMENTS_BUCKET: z.string().regex(BUCKET).optional(),
+  /** The full export's archives (PLAT-015): the exports bucket (CMEK, lifecycle expiry). */
   LOCAL_EXPORTS_DIR: z.string().default(".data/exports"),
-  S3_EXPORTS_BUCKET: z.string().optional(),
-  /** Malware scanning of uploads: ClamAV (AWS), the EICAR-aware mock (tests), or none (quarantine all). */
+  GCS_EXPORTS_BUCKET: z.string().regex(BUCKET).optional(),
+  /** The customer-managed Cloud KMS key both buckets encrypt with, in europe-west2. */
+  GCS_KMS_KEY: z.string().regex(KMS_KEY).optional(),
+  /**
+   * The SMTP relay for email (the `smtp` provider of comms.email). Unset in production, email is not
+   * configured and every send fails clearly; elsewhere it defaults to Mailpit (docker-compose.yml).
+   * The password comes from Secret Manager, never Git.
+   */
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  /** implicit: TLS from the first byte (port 465); starttls: upgrade required; none: local only. */
+  SMTP_TLS: z.enum(["implicit", "starttls", "none"]).optional(),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASSWORD: z.string().min(1).optional(),
+  /**
+   * Where single sign-on private keys live (ADR-0091, ADR-0098): Secret Manager in europe-west2
+   * (regional secrets in GCP_PROJECT_ID), or keys given in SSO_TEST_KEYS (a JSON map of store name
+   * to PEM) for development and tests. Production refuses anything but `gcp`; no key is ever
+   * stored in the database.
+   */
+  SSO_KEY_STORE: z.enum(["gcp", "memory"]).default("memory"),
+  SSO_TEST_KEYS: z.string().default("{}"),
+  /**
+   * DNS proofs and OpenID discovery: the network, or in tests SSO_MOCK_TXT (JSON map of record
+   * name to values, or a path to such a file, read on each lookup) and endpoints from the issuer.
+   */
+  SSO_LOOKUPS: z.enum(["system", "mock"]).default("system"),
+  SSO_MOCK_TXT: z.string().default("{}"),
+  /** Origins of a local identity provider for the end-to-end test only; refused in production. */
+  SSO_TEST_IDP_ORIGINS: z.string().default(""),
+  /** Malware scanning of uploads: ClamAV, the EICAR-aware mock (tests), or none (quarantine all). */
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
   CLAMD_PORT: z.coerce.number().int().default(3310),
   /**
    * Flagsmith (ADR-0001, H-13): optional, and off unless the environment's server-side key is set
-   * (from Secrets Manager, never Git). Unreachable, every flag falls back to the catalogue default.
+   * (from Secret Manager, never Git). Unreachable, every flag falls back to the catalogue default.
    */
   FLAGSMITH_API_URL: z.url().default("http://localhost:8000/api/v1"),
   FLAGSMITH_ENVIRONMENT_KEY: z.string().optional(),
@@ -121,11 +178,22 @@ const Env = z.object({
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
 
+/** The SMTP relay the `smtp` email provider sends through, or null when email is not configured. */
+export interface SmtpConfig {
+  readonly host: string;
+  readonly port: number;
+  readonly tls: "implicit" | "starttls" | "none";
+  readonly user?: string;
+  readonly password?: string;
+}
+
 export type Config = z.infer<typeof Env> & {
+  readonly smtp: SmtpConfig | null;
   readonly webOrigins: readonly string[];
   readonly trustedProxies: readonly string[];
   /** `IMPORT_TEST_NHS_NUMBERS`, defaulted by environment: off in production unless set. */
   readonly importTestNhsNumbers: boolean;
+  readonly ssoTestIdpOrigins: readonly string[];
 };
 
 const DATABASE_URL_KEYS = [
@@ -159,6 +227,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.EVIDENCE_LINK_SECRET.startsWith("local-development")) {
       throw new Error("EVIDENCE_LINK_SECRET must be set in production");
     }
+    if (parsed.SPEAK_UP_THROTTLE_SECRET.startsWith("local-development")) {
+      throw new Error("SPEAK_UP_THROTTLE_SECRET must be set in production");
+    }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");
     // A live organisation's DCB0160 assessment must cover the release it runs (HZ-014 and the
@@ -168,10 +239,38 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     for (const key of DATABASE_URL_KEYS) {
       if (!env[key]) throw new Error(`${key} must be set in production`);
     }
-    if (parsed.DOCUMENT_STORAGE !== "s3" || !parsed.S3_DOCUMENTS_BUCKET) {
-      throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
+    if (parsed.DOCUMENT_STORAGE !== "gcs") {
+      throw new Error("DOCUMENT_STORAGE must be gcs in production");
     }
-    if (!parsed.S3_EXPORTS_BUCKET) throw new Error("S3_EXPORTS_BUCKET must be set in production");
+    for (const key of [
+      "GCP_PROJECT_ID",
+      "GCS_DOCUMENTS_BUCKET",
+      "GCS_EXPORTS_BUCKET",
+      "GCS_KMS_KEY",
+    ] as const) {
+      if (!parsed[key]) throw new Error(`${key} must be set in production`);
+    }
+    if (parsed.GCS_DOCUMENTS_BUCKET === parsed.GCS_EXPORTS_BUCKET) {
+      throw new Error("GCS_EXPORTS_BUCKET must not be the documents bucket in production");
+    }
+    // Email stays off until a provider is chosen; once a relay is named it must be a real one, over TLS.
+    if (parsed.SMTP_HOST) {
+      if ((parsed.SMTP_TLS ?? "starttls") === "none") {
+        throw new Error("SMTP_TLS cannot be none in production");
+      }
+      if (/^(localhost|127\.|::1$|\[::1\]$)/i.test(parsed.SMTP_HOST)) {
+        throw new Error("SMTP_HOST cannot be a local catcher in production");
+      }
+      if (Boolean(parsed.SMTP_USER) !== Boolean(parsed.SMTP_PASSWORD)) {
+        throw new Error("SMTP_USER and SMTP_PASSWORD must be set together in production");
+      }
+    }
+    if (parsed.SSO_KEY_STORE !== "gcp") throw new Error("SSO_KEY_STORE must be gcp in production");
+    if (parsed.SSO_LOOKUPS !== "system")
+      throw new Error("SSO_LOOKUPS must be system in production");
+    if (parsed.SSO_TEST_IDP_ORIGINS !== "") {
+      throw new Error("SSO_TEST_IDP_ORIGINS must not be set in production");
+    }
     if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
       throw new Error("AUTH_SIGN_IN_PER_MINUTE cannot be above 10 in production");
     }
@@ -195,10 +294,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   return {
     ...parsed,
+    smtp: smtpConfig(parsed),
     webOrigins: list(parsed.WEB_ORIGINS),
     trustedProxies: list(parsed.TRUSTED_PROXY_CIDRS),
     importTestNhsNumbers:
       (parsed.IMPORT_TEST_NHS_NUMBERS ?? (parsed.NODE_ENV === "production" ? "off" : "on")) ===
       "on",
+    ssoTestIdpOrigins: list(parsed.SSO_TEST_IDP_ORIGINS),
+  };
+}
+
+/** Production sends only through a named relay; elsewhere Mailpit on its default port. */
+function smtpConfig(parsed: z.infer<typeof Env>): SmtpConfig | null {
+  if (parsed.NODE_ENV === "production" && !parsed.SMTP_HOST) return null;
+  const tls = parsed.SMTP_TLS ?? (parsed.SMTP_HOST ? "starttls" : "none");
+  return {
+    host: parsed.SMTP_HOST ?? "127.0.0.1",
+    port: parsed.SMTP_PORT ?? (tls === "implicit" ? 465 : parsed.SMTP_HOST ? 587 : 1025),
+    tls,
+    ...(parsed.SMTP_USER ? { user: parsed.SMTP_USER } : {}),
+    ...(parsed.SMTP_PASSWORD ? { password: parsed.SMTP_PASSWORD } : {}),
   };
 }
