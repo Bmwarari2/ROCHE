@@ -14,6 +14,7 @@ import {
   questionWords,
   readAnswer,
   readAnswers,
+  readContactsAnswers,
   readIncidentForm,
 } from "./incident-forms";
 import { notificationsView } from "./incidents";
@@ -332,6 +333,35 @@ describe("reading the record an incident form (#42 review; HZ-027)", () => {
         emergencyServicesCalled: emergency,
         gpContacted: gp,
       });
+    },
+  );
+
+  it.each<[string, Record<string, string>, unknown]>([
+    [
+      "both answered later",
+      { emergencyServicesCalled: "yes", gpContacted: "no" },
+      { ok: true, answers: { emergencyServicesCalled: true, gpContacted: false } },
+    ],
+    [
+      "one still not known",
+      { emergencyServicesCalled: "not_known", gpContacted: "yes" },
+      { ok: true, answers: { emergencyServicesCalled: null, gpContacted: true } },
+    ],
+    [
+      "nothing chosen",
+      {},
+      {
+        ok: false,
+        errors: {
+          emergencyServicesCalled: "Say whether the emergency services were called",
+          gpContacted: "Say whether the GP was contacted",
+        },
+      },
+    ],
+  ])(
+    "hazard HZ-090 reads the answers recorded later on the incident's page: %s (H-264)",
+    (_label, values, out) => {
+      expect(readContactsAnswers(form(values), t)).toEqual(out);
     },
   );
 

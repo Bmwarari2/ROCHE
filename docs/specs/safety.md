@@ -555,8 +555,10 @@ Recommended answers applied 31/10/2026 (reviewed at the testing phase):
   migration 0118 drops the columns' NOT NULL, expand only, with the default false kept for earlier
   clients) and the API raises an urgent `safety.record_contacts` task for holders of
   `safety.incident.manage` at the location, done once both are answered; the incident cannot close
-  while either is not known (`incidentCloseProblems`). The incident page and the evidence pack say
-  "Not known yet". The contract still defaults an omitted answer to false for earlier clients
+  while either is not known (`incidentCloseProblems`; the web's close offer says so). The incident
+  page says "Not known yet" and, for the person who raised it or a holder of
+  `safety.incident.manage`, offers a form to record the answers once known
+  (`IncidentContactsForm`, `PUT /v1/incidents/{id}`); the evidence pack says "Not known yet". The contract still defaults an omitted answer to false for earlier clients
   (expand); the contract phase makes both answers required.
 - **Learning disability and autism (H-482, HZ-013).** For a person we support who died, the form
   asks "Did they have a learning disability?" and "Were they autistic?" (yes, no or not known yet,

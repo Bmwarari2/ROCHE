@@ -83,6 +83,15 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
     });
   });
 
+  it.each([
+    ["the emergency services not known yet", { emergencyServicesCalled: null, gpContacted: true }],
+    ["the GP not known yet", { emergencyServicesCalled: false, gpContacted: null }],
+  ])("hazard HZ-090 says to record %s before closing (H-264)", (_label, answers) => {
+    const view = incidentManageView({ ...incident(), ...answers }, manager, null);
+    expect(view?.close).toMatchObject({ kind: "blocked", contactsNotKnown: true });
+    expect(t("safety.manage.close.contacts")).toMatch(/emergency services .* GP/);
+  });
+
   it("offers sending it back to open while under review", () => {
     expect(incidentManageView(incident({ status: "under_review" }), manager, null)?.review).toBe(
       "open",

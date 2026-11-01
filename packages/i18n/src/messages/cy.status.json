@@ -3458,6 +3458,10 @@
     "care.round.forWhom",
     "operations.reconcile.entry",
     "operations.reconcile.entryHidden",
-    "operations.reconcile.entryKind"
+    "operations.reconcile.entryKind",
+    "safety.incident.contactsStillOpen",
+    "safety.incident.contactsSave",
+    "safety.incident.contactsSaved",
+    "safety.manage.close.contacts"
   ]
 }

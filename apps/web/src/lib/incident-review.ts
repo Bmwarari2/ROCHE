@@ -41,6 +41,8 @@ export type CloseOffer =
       readonly notifications: readonly { readonly id: string; readonly kind: string }[];
       readonly questions: number;
       readonly candour: CandourBlock;
+      /** The emergency services or GP answer is still "Not known yet" (H-264, HZ-090). */
+      readonly contactsNotKnown?: true;
     };
 
 /** What the duty of candour still needs before closing (`candourCloseBlock`, HZ-013). */
@@ -82,7 +84,8 @@ export function incidentManageView(
   incident: Pick<
     IncidentDetail,
     "status" | "raisedBy" | "restricted" | "openQuestionCount" | "classifier" | "people"
-  >,
+  > &
+    Partial<Pick<IncidentDetail, "emergencyServicesCalled" | "gpContacted">>,
   viewer: { readonly tenantUserId: string; readonly permissions: readonly string[] },
   candourRecord: CandourRead,
 ): IncidentManageView | null {
@@ -104,15 +107,28 @@ export function incidentManageView(
   const record = candourRecord === "unread" ? null : candourRecord;
   const block = candourCloseBlock(record?.state ?? null, candourCloseFacts(incident, record));
   const candour: CandourBlock = { ...block, unknown };
+  // "Not known yet" stays open until answered, as the API's close check says (H-264).
+  const contactsNotKnown =
+    incident.emergencyServicesCalled === null || incident.gpContacted === null;
   if (
     notifications.length > 0 ||
     questions > 0 ||
     candour.noRecord ||
     candour.open ||
     candour.stillToTell.length > 0 ||
-    unknown
+    unknown ||
+    contactsNotKnown
   ) {
-    return { review, close: { kind: "blocked", notifications, questions, candour } };
+    return {
+      review,
+      close: {
+        kind: "blocked",
+        notifications,
+        questions,
+        candour,
+        ...(contactsNotKnown ? { contactsNotKnown: true as const } : {}),
+      },
+    };
   }
   return { review, close: { kind: "form" } };
 }

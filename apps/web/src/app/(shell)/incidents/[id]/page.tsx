@@ -10,6 +10,7 @@ import { CommunicationStatus } from "@/components/people/CommunicationStatus";
 import { AfterDeath } from "@/components/safety/AfterDeath";
 import { CandourSection } from "@/components/safety/CandourSection";
 import { ClassifierQuestions } from "@/components/safety/ClassifierQuestions";
+import { IncidentContactsForm } from "@/components/safety/IncidentContactsForm";
 import { IncidentManage } from "@/components/safety/IncidentManage";
 import { IncidentNotifications } from "@/components/safety/IncidentNotifications";
 import { InvestigationSection } from "@/components/safety/InvestigationSection";
@@ -290,6 +291,16 @@ export default async function IncidentPage({
               ["contactNotes", incident.contactNotes],
             ]}
           />
+          {/* "Not known yet" stays open until answered, here (H-264, HZ-090). */}
+          {mayAnswer &&
+          (incident.emergencyServicesCalled === null || incident.gpContacted === null) ? (
+            <IncidentContactsForm
+              incidentId={incident.id}
+              version={incident.version}
+              emergencyServicesCalled={incident.emergencyServicesCalled}
+              gpContacted={incident.gpContacted}
+            />
+          ) : null}
         </Card>
       )}
       {showsPostFallCard(incident) ? (

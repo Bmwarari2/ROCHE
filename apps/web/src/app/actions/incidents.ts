@@ -102,6 +102,32 @@ export async function reviewIncident(
 }
 
 /**
+ * Record what is now known about whether the emergency services were called and the GP contacted
+ * (H-264, HZ-090): the person who raised it or a holder of `safety.incident.manage`, with the
+ * version the page showed. "Not known yet" stays null and keeps its task open.
+ */
+export async function recordIncidentContacts(
+  incidentId: string,
+  input: {
+    readonly emergencyServicesCalled: boolean | null;
+    readonly gpContacted: boolean | null;
+    readonly version: number;
+  },
+): Promise<ActionResult<IncidentDetail>> {
+  if (!isUuid(incidentId)) return refused(t("errors.notFound"), "not_found");
+  return sendAndRevalidate(["/incidents", "/notifications/statutory"], (api) =>
+    api.PUT("/v1/incidents/{id}", {
+      params: { path: { id: incidentId } },
+      body: {
+        emergencyServicesCalled: input.emergencyServicesCalled,
+        gpContacted: input.gpContacted,
+        version: input.version,
+      },
+    }),
+  );
+}
+
+/**
  * Close an incident with a reason (`safety.incident.manage`, never the person who raised it). The
  * API refuses while a notification is a draft or ready, a question is open or the candour record
  * is open, and says which.

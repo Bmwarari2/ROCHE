@@ -280,6 +280,37 @@ const yesNoNotKnown = (form: FormValues, name: string): boolean | null | undefin
   return value === "yes" ? true : value === "no" ? false : undefined;
 };
 
+/**
+ * The emergency services and GP answers recorded later on the incident's page (H-264): yes, no or
+ * "Not known yet" (null), each chosen, never assumed.
+ */
+export function readContactsAnswers(
+  form: FormValues,
+  t: Translator,
+):
+  | {
+      readonly ok: true;
+      readonly answers: {
+        readonly emergencyServicesCalled: boolean | null;
+        readonly gpContacted: boolean | null;
+      };
+    }
+  | { readonly ok: false; readonly errors: FieldErrors } {
+  const emergencyServicesCalled = yesNoNotKnown(form, "emergencyServicesCalled");
+  const gpContacted = yesNoNotKnown(form, "gpContacted");
+  const errors: Record<string, string> = {};
+  if (emergencyServicesCalled === undefined) {
+    errors.emergencyServicesCalled = t("safety.record.error", { field: "emergencyServicesCalled" });
+  }
+  if (gpContacted === undefined) {
+    errors.gpContacted = t("safety.record.error", { field: "gpContacted" });
+  }
+  if (emergencyServicesCalled === undefined || gpContacted === undefined) {
+    return { ok: false, errors };
+  }
+  return { ok: true, answers: { emergencyServicesCalled, gpContacted } };
+}
+
 /** Incident types that ask when the person was found (H-262, HZ-027). */
 export const FOUND_AT_TYPES: readonly IncidentType[] = ["fall", "missing_person"];
 

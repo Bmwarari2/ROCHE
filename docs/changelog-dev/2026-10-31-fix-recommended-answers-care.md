@@ -64,6 +64,8 @@ that change what is built for care, safety, mobile and medicines items whose cod
   `CreateIncident` (an omitted answer still defaults to false for earlier clients).
 - HZ-126 at residual 4 until H-599 is settled blocks a production release that relies on the
   safeguarding log.
+- A web form to record a death's learning disability and autism answers after the incident was
+  recorded (the API takes them on `PUT /v1/incidents/{id}`; the web has no form yet).
 
 ## Human actions logged
 
@@ -89,6 +91,6 @@ addressed. Ratings are now worded as recommended ratings, not the CSO's (HZ-092,
 HZ-126, HZ-128, HZ-130 and safety case v0.2); H-381, H-543, H-551, H-595 and H-27 say which
 sign-off stays with the CSO, Brian or the pharmacist; HZ-126's residual 4 is a release blocker in
 STATUS.md; an incident cannot close while the emergency services or GP answer is not known yet
-(a closed death cancels its LeDeR facts task); an IDDSI entry from before the care profile existed
+(a closed death cancels its LeDeR facts task), and the incident page gains a form to record those answers once known, with the close offer saying what is still open; an IDDSI entry from before the care profile existed
 or with a drifting device clock is compared with the level now; the handover lead is tested across
 both clock changes; the contract phase for the not known yet default is logged above.
