@@ -59,6 +59,17 @@
 # only, active, on leave or in hospital: once a person is an enquiry, discharged, has died or is
 # archived, they and their care record leave managers' devices (security review S8 and L1).
 # Assigned people leave with their assignment.
+#
+# The member's own shifts and clock (scheduling.md section 18; Phase 2 slice 71):
+#   shift_days            UTC calendar days of the member's own shifts, two days back and eight ahead
+#                         (shiftWindowDays in ../client/window.ts), minted by the API only for holders
+#                         of scheduling.timesheet.self: empty otherwise, and then no shift or clock
+#                         event syncs (fails closed). Only the member's own rows sync, by
+#                         auth.user_id(): never a colleague's shift or clock event.
+#   my_shifts             the member's published, uncancelled shifts on a published assignment
+#   my_clock_events       the member's own clock events
+# No lone-worker table syncs: logical replication bypasses row-level security, and a synced event
+# would show a duress press for what it is. The phone reads its session through the API instead.
 
 config:
   edition: 3
@@ -865,3 +876,28 @@ streams:
           AND handover.location_id IN auth.parameter('handover_location_ids')
           AND handover.deleted_at IS NULL
           AND substring(handover.shift_end, 1, 10) IN auth.parameter('offline_days')
+
+  my_shifts:
+    auto_subscribe: true
+    query: >-
+      SELECT shift.id, shift.tenant_id, shift.location_id, shift.label, shift.kind,
+             shift.starts_at, shift.ends_at, shift.break_minutes, shift.changed_after_publish_at
+      FROM shift, shift_assignment
+      WHERE shift.id = shift_assignment.shift_id
+        AND shift.tenant_id = auth.parameter('tenant_id')
+        AND shift_assignment.tenant_id = auth.parameter('tenant_id')
+        AND shift_assignment.worker_id = auth.user_id()
+        AND shift_assignment.deleted_at IS NULL
+        AND shift_assignment.published_at IS NOT NULL
+        AND shift.deleted_at IS NULL
+        AND shift.published_at IS NOT NULL
+        AND substring(shift.starts_at, 1, 10) IN auth.parameter('shift_days')
+
+  my_clock_events:
+    auto_subscribe: true
+    query: >-
+      SELECT id, tenant_id, worker_id, kind, shift_id, location_id, device_time, recorded_at, flags
+      FROM clock_event
+      WHERE tenant_id = auth.parameter('tenant_id')
+        AND worker_id = auth.user_id()
+        AND substring(device_time, 1, 10) IN auth.parameter('shift_days')

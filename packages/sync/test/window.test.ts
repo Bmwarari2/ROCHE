@@ -5,6 +5,7 @@ import {
   nextWindowChange,
   OFFLINE_DAYS_CLAIM,
   offlineWindowDays,
+  shiftWindowDays,
 } from "../src/client/window";
 
 /** The offline window carried in the `offline_days` sync token claim (ADR-0011). */
@@ -75,5 +76,27 @@ describe("nextWindowChange", () => {
     ["2026-12-31T23:59:59Z", "2027-01-01T00:00:00.000Z"],
   ])("after %s is %s", (now, expected) => {
     expect(nextWindowChange(new Date(now)).toISOString()).toBe(expected);
+  });
+});
+
+describe("shiftWindowDays (scheduling.md section 18)", () => {
+  it("covers two days back and eight ahead, oldest first", () => {
+    const days = shiftWindowDays(new Date("2026-10-11T23:30:00Z"));
+    expect(days[0]).toBe("2026-10-09");
+    expect(days.at(-1)).toBe("2026-10-19");
+    expect(days).toHaveLength(11);
+  });
+
+  it("crosses a month and the clock change without a gap", () => {
+    expect(shiftWindowDays(new Date("2026-10-24T12:00:00Z"))).toContain("2026-10-25");
+    expect(shiftWindowDays(new Date("2026-10-30T12:00:00Z")).slice(-3)).toEqual([
+      "2026-11-05",
+      "2026-11-06",
+      "2026-11-07",
+    ]);
+  });
+
+  it("refuses an invalid date", () => {
+    expect(() => shiftWindowDays(new Date("not a date"))).toThrow(RangeError);
   });
 });

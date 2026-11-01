@@ -187,6 +187,14 @@ describe("sync streams definition", () => {
   it("takes the people in scope from the token, never from the device", () => {
     for (const { stream, query } of streamQueries()) {
       if (stream === "my_locations") continue;
+      // The member's own shifts and clock events: by their own id only, in the token's shift days
+      // (scheduling.md section 18); tested in shift-streams.test.ts.
+      if (stream === "my_shifts" || stream === "my_clock_events") {
+        expect(query, stream).toContain("auth.user_id()");
+        expect(query, stream).toContain("IN auth.parameter('shift_days')");
+        expect(query, stream).not.toContain("connection.parameter");
+        continue;
+      }
       // Each family from its own claims (ADR-0071 review round 1, C-M1 and S-M1): assigned people
       // only when the family's permission reaches them, locations only where it does.
       const family = FAMILY[stream];

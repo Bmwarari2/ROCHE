@@ -66,6 +66,11 @@ export interface SyncTokenClaims {
    */
   readonly offline_days: readonly string[];
   /**
+   * The UTC days of the member's own shifts and clock events (`shift_days`, scheduling.md section
+   * 18): empty unless the member holds `scheduling.timesheet.self`, so no shift syncs (fails closed).
+   */
+  readonly shift_days?: readonly string[];
+  /**
    * The day and night shift start times (minutes after midnight, UK time) of each nation the
    * organisation has homes in (`england`, `wales` and so on), from the rate table, sent where the
    * handover family reaches. Not read by any stream: the phone works out from it which handover it

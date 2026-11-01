@@ -527,6 +527,70 @@ const held_entry = new Table(
   { localOnly: true },
 );
 
+// ------------------------------------------------------------------------------------------------
+// The member's own shifts, clock and lone working (scheduling.md section 18; Phase 2 slice 71).
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * The member's own published, uncancelled shifts in the shift days (`my_shifts`). No personal data
+ * beyond that the member works it: the label is the template's name.
+ */
+const shift = new Table(
+  {
+    tenant_id: column.text,
+    location_id: column.text,
+    label: column.text,
+    /** `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away` or `training`. */
+    kind: column.text,
+    starts_at: column.text,
+    ends_at: column.text,
+    break_minutes: column.integer,
+    /** When the shift last changed after it was published; empty when it has not. */
+    changed_after_publish_at: column.text,
+  },
+  { indexes: { by_starts: ["starts_at"] } },
+);
+
+/**
+ * The member's own clock events in the shift days (`my_clock_events`), and the ones the phone
+ * records: append-only, a client UUID, inserted on the phone and sent to `POST /v1/me/clock-events`
+ * (the device's time and, once received, the server's; HZ-010). `recorded_at` and `flags` come only
+ * from the server's copy.
+ */
+const clock_event = new Table(
+  {
+    tenant_id: column.text,
+    worker_id: column.text,
+    /** `in`, `out`, `break_start` or `break_end`. */
+    kind: column.text,
+    shift_id: column.text,
+    location_id: column.text,
+    device_time: column.text,
+    recorded_at: column.text,
+    /** The server's flags as a JSON array of codes (late upload, device clock ahead, ...). */
+    flags: column.text,
+  },
+  { indexes: { by_device_time: ["device_time"] } },
+);
+
+/**
+ * Upload-only: the member's lone-worker actions (starting a session and its events), queued on the
+ * phone and sent to the API's lone-worker routes in order. Never synced down: the phone reads its
+ * session from `GET /v1/lone-worker/sessions/mine`, which shows a duress press as an ordinary
+ * check-in, so nothing on the device or from the server tells a duress press apart once it is sent
+ * (HZ-125). `action` is `start` or `event`; `body` is the request as JSON.
+ */
+const lone_worker_outbox = new Table(
+  {
+    tenant_id: column.text,
+    action: column.text,
+    session_id: column.text,
+    body: column.text,
+    queued_at: column.text,
+  },
+  { insertOnly: true },
+);
+
 export const AppSchema = new Schema({
   person,
   allergy,
@@ -552,6 +616,9 @@ export const AppSchema = new Schema({
   handover_staff_acknowledgement,
   upload_issue,
   held_entry,
+  shift,
+  clock_event,
+  lone_worker_outbox,
 });
 
 export type Database = (typeof AppSchema)["types"];
@@ -578,6 +645,19 @@ export type HandoverAcknowledgementRecord = Database["handover_acknowledgement"]
 export type HandoverStaffAcknowledgementRecord = Database["handover_staff_acknowledgement"];
 export type UploadIssueRecord = Database["upload_issue"];
 export type HeldEntryRecord = Database["held_entry"];
+export type ShiftRecord = Database["shift"];
+export type ClockEventRecord = Database["clock_event"];
+
+/** The member's own shifts and clock events (`my_shifts`, `my_clock_events`), kept for the shift days. */
+export const SHIFT_TABLES = ["shift", "clock_event"] as const;
+
+/**
+ * Tables for the member's own clock and lone working that the phone writes: a clock event (an
+ * insert, to `POST /v1/me/clock-events`) and a lone-worker action (an insert-only queue, to the
+ * lone-worker routes).
+ */
+export const SHIFT_WRITABLE_TABLES = ["clock_event", "lone_worker_outbox"] as const;
+export type ShiftWritableTable = (typeof SHIFT_WRITABLE_TABLES)[number];
 
 /**
  * Reference data for people in scope, never evicted while the assignment (or the location scope)

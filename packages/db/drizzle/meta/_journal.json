@@ -673,6 +673,13 @@
       "when": 1793480057404,
       "tag": "0113_lone_worker_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1793495329858,
+      "tag": "0135_shift_clock_sync",
+      "breakpoints": true
     }
   ]
 }
