@@ -191,6 +191,15 @@ a medication incident (B1's incident record), whose words name no drug or count.
 `controlled_drugs_register` (2 years from the page's last entry; entries recording an
 administration keep the longer `mar_chart` period). No new recipient or sub-processor.
 
+Rounds and conflict review (Phase 2 slice 48, migration 0134): B1 now also covers a second record
+of a dose uploaded from a device after one was held (the record as the device sent it, who sent
+it and when, and what the server found wrong with it), kept for the nurse in charge, and its
+resolution with the reviewer's reason. A dose found given twice raises a medication incident (B1
+and the safety module's incident processing). The
+location round shows each person's doses and when-required medicines to members who give
+medicines there, within their scope. Retention class `mar_chart`. No new recipient or
+sub-processor.
+
 Notes:
 
 - The photo in the point-of-care header (B1) is a safety control against wrong-person selection (hazard HZ-001), not an optional feature, so it is not consent-based. Photos shared with families (B8) are.

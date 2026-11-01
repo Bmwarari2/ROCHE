@@ -162,6 +162,14 @@ and the rate table; a variable dose comes only from a dosing record a person tra
 another checked. Escalations and outstanding-dose tasks say what was recorded or not recorded, in
 fixed words, and leave what follows to the organisation's policy and the prescriber.
 
+**Rounds, escalation and conflict review (Phase 2, slice 48)**: re-checked; still inside the
+boundary. The round lists the prescribed doses in a time slot and their state in words, from the
+windows the organisation sets in the rate table; its order (late, due, not yet due, recorded;
+time-critical first) is a fixed display rule, not a priority score about the person. Escalation
+and handover reuse the task engine. A second record of a dose from a device is kept for a person
+to decide; Harbour never picks which record is right, and a dose found given twice raises an
+incident for people to investigate. Nothing suggests a dose, a change or a treatment.
+
 **Controlled drugs register (Phase 2, slice 34)**: re-checked; still inside the boundary. The
 register records movements people make and checks arithmetic and signatures (the running balance,
 a witness who is a second person, a count against the page); it says nothing about the medicine,

@@ -1796,6 +1796,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       due_at: { description: "The scheduled dose's time (instant, UTC)." },
       standing_id: { description: "The record that stands (medication_administration.id)." },
       uploaded: { description: "The uploaded record as the device sent it, as JSON." },
+      problems: {
+        description: "What Harbour found wrong with the upload when it arrived (codes).",
+      },
       device_at: { description: "The device's clock when it was recorded." },
       device_offset_ms: {
         description: "The device's offset from Harbour's clock at its last sync.",
@@ -1805,7 +1808,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       received_at: { description: "When Harbour received it (instant, UTC)." },
       resolved_by: { description: "Who resolved it (tenant_user.id)." },
       resolved_at: { description: "When it was resolved (instant, UTC)." },
-      resolution: { description: "first_stands or corrected." },
+      resolution: { description: "first_stands, corrected or both_given (a dose given twice)." },
       correction_id: {
         description: "The correction made, when corrected (medication_administration.id).",
       },

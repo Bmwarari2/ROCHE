@@ -19529,6 +19529,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "problems": {
+          "name": "problems",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "device_at": {
           "name": "device_at",
           "type": "timestamp with time zone",
@@ -19624,6 +19631,46 @@
             }
           ],
           "isUnique": false,
+          "where": "resolved_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "medication_administration_conflict_open_dose_key": {
+          "name": "medication_administration_conflict_open_dose_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "medication_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "due_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "uploaded_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
           "where": "resolved_at IS NULL",
           "concurrently": false,
           "method": "btree",
@@ -19751,7 +19798,7 @@
       "checkConstraints": {
         "medication_administration_conflict_resolution": {
           "name": "medication_administration_conflict_resolution",
-          "value": "(resolved_by IS NULL AND resolved_at IS NULL AND resolution IS NULL AND correction_id IS NULL\n           AND resolution_note IS NULL)\n       OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL\n           AND length(btrim(coalesce(resolution_note, ''))) > 0\n           AND ((resolution = 'first_stands' AND correction_id IS NULL)\n             OR (resolution = 'corrected' AND correction_id IS NOT NULL)))"
+          "value": "(resolved_by IS NULL AND resolved_at IS NULL AND resolution IS NULL AND correction_id IS NULL\n           AND resolution_note IS NULL)\n       OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL\n           AND length(btrim(coalesce(resolution_note, ''))) > 0\n           AND ((resolution IN ('first_stands', 'both_given') AND correction_id IS NULL)\n             OR (resolution = 'corrected' AND correction_id IS NOT NULL)))"
         }
       },
       "isRLSEnabled": false

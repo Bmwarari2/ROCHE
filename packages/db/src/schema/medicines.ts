@@ -1048,6 +1048,8 @@ export const medicationAdministrationConflict = pgTable(
     standingId: uuid("standing_id").notNull(),
     /** The uploaded record as the device sent it. */
     uploaded: jsonb("uploaded").notNull(),
+    /** Every problem the rules found with the upload, not only that the dose was recorded. */
+    problems: text("problems").array().notNull().default(sql`'{}'::text[]`),
     deviceAt: timestamp("device_at", { withTimezone: true }),
     deviceOffsetMs: integer("device_offset_ms"),
     uploadedBy: uuid("uploaded_by").notNull(),
@@ -1093,13 +1095,17 @@ export const medicationAdministrationConflict = pgTable(
     index("medication_administration_conflict_open_idx")
       .on(t.tenantId, t.personId)
       .where(sql`resolved_at IS NULL`),
+    // One open conflict per dose and uploader, so no one can flood the review queue.
+    uniqueIndex("medication_administration_conflict_open_dose_key")
+      .on(t.tenantId, t.personId, t.medicationId, t.dueAt, t.uploadedBy)
+      .where(sql`resolved_at IS NULL`),
     check(
       "medication_administration_conflict_resolution",
       sql`(resolved_by IS NULL AND resolved_at IS NULL AND resolution IS NULL AND correction_id IS NULL
            AND resolution_note IS NULL)
        OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL
            AND length(btrim(coalesce(resolution_note, ''))) > 0
-           AND ((resolution = 'first_stands' AND correction_id IS NULL)
+           AND ((resolution IN ('first_stands', 'both_given') AND correction_id IS NULL)
              OR (resolution = 'corrected' AND correction_id IS NOT NULL)))`,
     ),
   ],

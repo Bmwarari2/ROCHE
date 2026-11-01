@@ -1089,6 +1089,18 @@ sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, t
 | `ldss_claim.course_title`, `completed_on`, `claimed_amount` | Skills for Care LDSS (England) | Plain text, 2 to 200; `YYYY-MM-DD`; pounds as claimed | Harbour holds no funding figure (H-903) |
 | `ldss_claim.status`, `reference`, `submitted_on`, `paid_on`, `reason` | Harbour | `planned`, `submitted`, `paid`, `rejected`, `withdrawn`; plain text | Submitted needs a reference and date; paid a date; rejected or withdrawn a reason |
 
+## Conflict review (Phase 2, slice 48)
+
+Migration 0134 ([medicines.md](medicines.md) section 15). Retention class `mar_chart`; every column
+is exported.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `medication_administration_conflict.uploaded` | Harbour | JSON: the record as the device sent it (id, outcome, amount, reason, time given) | Never changes. |
+| `medication_administration_conflict.problems` | Harbour | Problem codes from `checkAdministration` | What the server found wrong when the upload arrived. Never changes. |
+| `medication_administration_conflict.resolution` | Harbour | `first_stands`, `corrected`, `both_given` | `corrected` names the correction; `both_given` raises a medication incident whose id is the conflict's. |
+| `medication_administration_conflict.due_at`, `device_at`, `received_at`, `resolved_at` | ISO 8601 instant | UTC | `received_at` and `resolved_at` are the server's clock. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

@@ -1126,11 +1126,15 @@ most 12 hours. For each person living at the location whom the caller may see (s
 RLS and person scope), it gives:
 - the scheduled doses in the slot, each with its window, its state in words (`Not due yet`, `Due
   now`, `Late: no outcome recorded`, `Outcome recorded`) and the notices its tags switch on.
-  Time-critical doses come first within each person, then by due time.
+  Doses are ordered by state (late, due now, not due yet, recorded), time-critical first within
+  each state, then by due time. Any dose in the 24 hours before the slot that is still late with no
+  outcome is included, so an earlier missed dose never drops off the round. The person view
+  inherits this.
 - each when-required medicine that may be given now, with when it was last given, by whom, the
   24-hour total, what remains and when the interval allows the next (`prnStatus`).
 
-People are ordered by room and then name, so the round follows the building. The person view
+People are ordered by room and then name, so the round follows the building. Each person's rates
+(windows, tolerance) come from their own nation's rate table. The person view
 (`GET /v1/people/{id}/medicine-round`) and the location view use the same function.
 
 ### 15.2 Escalation of outstanding doses
@@ -1150,23 +1154,42 @@ again.
 
 ### 15.4 Conflict review (two devices, one dose)
 
-A record uploaded from a device (one sending its time and offset) for a scheduled dose that
-already has a record on the server is never dropped:
+A record uploaded from a bound device (the `x-harbour-device` header naming the device the session
+is bound to) for a scheduled dose that already has a record on the server is never dropped. On the
+web, with no device, the second record is refused in words, because the person is there to see it.
 - It is stored as a conflict (`medication_administration_conflict`): the uploaded record as sent,
-  the record that stands, the device's time and who sent it.
-- A review task for the nurse in charge is raised, urgent for a time-critical dose. The task names
-  no medicine.
+  what the server found wrong with it (`problems`, codes), the record that stands, the device's time
+  and who sent it.
+- One open conflict per dose and uploader: a further upload of the same dose by the same person
+  joins the open conflict (a partial unique index enforces it).
+- A review task for the nurse in charge is raised. It is urgent when the dose is time-critical or
+  when the two records disagree (one given, one not), because until it is reviewed the MAR shows
+  only the first. The task names no medicine.
 - The upload gets `202 Accepted` with the conflict's id, so the device stops resending it.
-  Resending the same client id returns the same conflict.
+  Resending the same client id returns the same conflict; the same id sent for another person,
+  dose or outcome is refused (`409`).
 
-`GET /v1/medicine-administration-conflicts?locationId=` lists open conflicts. `GET
+Device refusals other than a duplicate (for example a dose over the maximum recorded offline) are
+still refused with their problem; whether to keep them for review too is human action H-1272.
+
+A round record may carry `givenAt` up to `medicines.record_delay_tolerance_minutes` before it is
+recorded (section 13; #162); a time in the future beyond the clock drift allowance is refused.
+
+`GET /v1/medicine-administration-conflicts?locationId=` (or `?personId=`; one is required) lists
+open conflicts. `GET
 /v1/medicine-administration-conflicts/{id}` shows both records side by side. `POST .../resolve`,
 with `medicines.record.manage`, records the decision and why. Its outcome is either:
 - `first_stands`: the record on the server stands and the upload was a duplicate; or
 - `corrected`: the nurse in charge corrected the record that stands through the corrections
-  route, and the correction's id is named.
+  route, and the correction's id is named. The correction must supersede the record that stood
+  (directly or through its chain) and be recorded after the upload arrived; or
+- `both_given`: the dose was given twice. A medication incident is raised for the person through
+  the outbox (`medicines.administration.double_dose`, handled by safety; its words name no
+  medicine). The second dose stays on the conflict and the incident; it is not added to the MAR
+  history, so when-required totals do not count it (human action H-1270).
 
-A conflict is resolved once, never edited, and its task is closed. The upload itself never
+A conflict is resolved once, never edited, and its task is closed. Every refusal, including a
+second attempt to resolve, is audited. The upload itself never
 becomes an administration record without a person's decision.
 
 The table is append-only, apart from the resolution, which is set once. It has forced RLS and
@@ -1176,4 +1199,5 @@ person scope, and its retention class is `mar_chart`.
 
 - Audit actions, carrying ids only: `medicines.round.viewed`, `medicines.administration.conflict_raised`,
   `.conflict_viewed`, `.conflict_resolved`.
-- Outbox event: `medicines.administration.conflict_raised`.
+- Outbox events: `medicines.administration.conflict_raised`; `medicines.administration.double_dose`
+  (raises a medication incident whose id is the conflict's, so applying it twice raises one).

@@ -39045,7 +39045,7 @@ export interface paths {
     put?: never;
     /**
      * Resolve a conflict: the record that stands, or the correction made
-     * @description With medicines.record.manage. first_stands: the record on the server stands and the upload was the same dose sent twice. corrected: the record was corrected through the corrections route, naming the correction, which must correct this dose. Resolved once, with why; its task is closed. Audited, refusals included.
+     * @description With medicines.record.manage. first_stands: the record on the server stands and the upload was the same dose sent twice. corrected: the record was corrected through the corrections route, naming the correction, which must supersede the record that stood and be made after the upload. both_given: the dose was given twice; a medication incident is raised. Resolved once, with why; its task is closed. Audited, refusals included.
      */
     post: {
       parameters: {
@@ -55913,6 +55913,7 @@ export interface components {
         /** Format: date-time */
         givenAt: string | null;
       };
+      problems: string[];
       /** Format: date-time */
       deviceAt: string | null;
       /** Format: uuid */
@@ -55921,7 +55922,7 @@ export interface components {
       receivedAt: string;
       resolution: {
         /** @enum {string} */
-        outcome: "first_stands" | "corrected";
+        outcome: "first_stands" | "corrected" | "both_given";
         /** Format: uuid */
         correctionId: string | null;
         note: string;
@@ -55933,7 +55934,7 @@ export interface components {
     };
     ResolveAdministrationConflict: {
       /** @enum {string} */
-      outcome: "first_stands" | "corrected";
+      outcome: "first_stands" | "corrected" | "both_given";
       /**
        * Format: uuid
        * @default null

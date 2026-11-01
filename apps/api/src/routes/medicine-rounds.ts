@@ -20,6 +20,7 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { publish } from "../outbox";
 import { medicinesRates, personAdministrations } from "../services/medicine-administrations";
 import {
   CONFLICT_TASK,
@@ -99,13 +100,16 @@ export const medicineRoundsRouter = createRouter()
           )
           .orderBy(asc(person.roomLabel), asc(person.familyName), asc(person.givenName));
         const rounds = [];
-        let rates: Awaited<ReturnType<typeof medicinesRates>> | null = null;
+        // Each person's nation decides their rates (security review L8).
+        const ratesByNation = new Map<string, Awaited<ReturnType<typeof medicinesRates>>>();
         for (const p of people) {
           const entries = (await personEntries(tx, p.id)).map((s) => s.entry);
           if (entries.length === 0) continue;
+          const { nation } = await loadPerson(tx, p.id);
+          let rates = ratesByNation.get(nation);
           if (!rates) {
-            const one = await loadPerson(tx, p.id);
-            rates = await medicinesRates(tx, access.tenantId, one.nation, ukIsoDate(now));
+            rates = await medicinesRates(tx, access.tenantId, nation, ukIsoDate(now));
+            ratesByNation.set(nation, rates);
           }
           const rows = await personAdministrations(tx, p.id);
           const round = roundFor({ entries, rows, rates }, { from, to }, now, now);
@@ -138,6 +142,9 @@ export const medicineRoundsRouter = createRouter()
     async (c) => {
       const access = await requireAnyPermission(c, [MANAGE, ADMINISTER]);
       const q = c.req.valid("query");
+      if (!q.locationId && !q.personId) {
+        throw problems.invalid("Choose a location or a person.");
+      }
       const out = await withTenant(c, async (tx) => {
         const personIds = q.locationId
           ? (
@@ -217,7 +224,7 @@ export const medicineRoundsRouter = createRouter()
       tags,
       summary: "Resolve a conflict: the record that stands, or the correction made",
       description:
-        "With medicines.record.manage. first_stands: the record on the server stands and the upload was the same dose sent twice. corrected: the record was corrected through the corrections route, naming the correction, which must correct this dose. Resolved once, with why; its task is closed. Audited, refusals included.",
+        "With medicines.record.manage. first_stands: the record on the server stands and the upload was the same dose sent twice. corrected: the record was corrected through the corrections route, naming the correction, which must supersede the record that stood and be made after the upload. both_given: the dose was given twice; a medication incident is raised. Resolved once, with why; its task is closed. Audited, refusals included.",
       security,
       request: {
         params: ConflictParam,
@@ -264,24 +271,46 @@ export const medicineRoundsRouter = createRouter()
               },
             );
           if (!row || row.resolvedAt) {
-            throw problems.conflict("This conflict has been resolved already.");
+            // Audited like any other refusal (security review L6).
+            throw new AuditedRefusal(
+              problems.conflict("This conflict has been resolved already."),
+              {
+                action: "medicines.administration.conflict_resolved",
+                outcome: "denied",
+                resourceType: "medication_administration_conflict",
+                resourceId: id,
+                scope: { personId: first.personId, problems: ["already_resolved"] },
+              },
+            );
           }
           const rows = await personAdministrations(tx, row.personId);
           if (body.outcome === "corrected") {
-            // The correction must be a record that corrects this dose (any record in its chain).
-            const correction = rows.find((r) => r.id === body.correctionId);
-            if (
-              !correction?.supersedesId ||
-              correction.medicationId !== row.medicationId ||
-              correction.dueAt?.getTime() !== row.dueAt.getTime()
+            // The correction must supersede the standing record, directly or through its chain, and
+            // be recorded after the upload arrived (security review M3).
+            const byId = new Map(rows.map((r) => [r.id, r]));
+            const correction = body.correctionId ? byId.get(body.correctionId) : undefined;
+            let reaches = false;
+            for (
+              let at = correction?.supersedesId ?? null, hops = 0;
+              at !== null && hops < rows.length;
+              at = byId.get(at)?.supersedesId ?? null, hops++
             ) {
+              if (at === row.standingId) {
+                reaches = true;
+                break;
+              }
+            }
+            if (!correction || !reaches || correction.recordedAt < row.receivedAt) {
               throw deny(
                 "correction_not_for_dose",
                 "Name the correction made to this dose through the corrections route.",
               );
             }
           } else if (body.correctionId !== null) {
-            throw deny("correction_not_expected", "A record that stands names no correction.");
+            throw deny(
+              "correction_not_expected",
+              "Name a correction only when you corrected the record.",
+            );
           }
           const [updated] = await guardConcurrent(() =>
             tx
@@ -322,6 +351,27 @@ export const medicineRoundsRouter = createRouter()
               correctionId: body.correctionId,
             },
           });
+          if (body.outcome === "both_given") {
+            // A dose given twice is a medication incident, raised by safety through the outbox
+            // (HZ-004; clinical review H1). The second dose is on the conflict, not the MAR history.
+            const [where] = await tx
+              .select({ locationId: person.locationId })
+              .from(person)
+              .where(eq(person.id, row.personId));
+            await publish(tx, {
+              context: "medicines",
+              aggregateType: "medication_administration_conflict",
+              aggregateId: id,
+              type: "medicines.administration.double_dose",
+              payload: {
+                conflictId: id,
+                personId: row.personId,
+                locationId: where?.locationId ?? null,
+                resolvedBy: access.tenantUserId,
+                dueAt: row.dueAt.toISOString(),
+              },
+            });
+          }
           return conflictOut(tx, updated as ConflictRow, rows);
         }),
       );

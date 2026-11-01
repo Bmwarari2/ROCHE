@@ -34,7 +34,7 @@ import {
 } from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
-import { raiseCdDiscrepancyIncident } from "../services/cd-incidents";
+import { raiseCdDiscrepancyIncident, raiseDoubleDoseIncident } from "../services/cd-incidents";
 import { raiseDataSecurityReminders } from "../services/data-security";
 import {
   draftDeathNotifications,
@@ -869,8 +869,23 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       ),
     );
   };
+  // A dose found given twice in conflict review raises a medication incident (HZ-004; slice 48).
+  const raiseDoubleDose: OutboxHandler = async (event) => {
+    const p = event.payload as Record<string, unknown> | null;
+    const fields = ["conflictId", "personId", "locationId", "resolvedBy", "dueAt"] as const;
+    if (!p || fields.some((f) => typeof p[f] !== "string")) return;
+    await inTenant(event.tenantId, (tx) =>
+      raiseDoubleDoseIncident(
+        tx,
+        event.tenantId,
+        p as Parameters<typeof raiseDoubleDoseIncident>[2],
+        new Date(),
+      ),
+    );
+  };
   const handlers = new Map<string, OutboxHandler>([
     ["medicines.cd.stock_discrepancy", raiseCdIncident],
+    ["medicines.administration.double_dose", raiseDoubleDose],
     ["platform.export.downloaded", deleteArchive],
     ["platform.export.revoked", deleteArchive],
     ["platform.document.destroyed", deleteDestroyedDocument],

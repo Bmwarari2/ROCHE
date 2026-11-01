@@ -26,6 +26,18 @@ screens (#128, `docs/user-guides/`).
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 48, rounds, escalation and conflict review** (`feat/meds-rounds`, MEDS-002, from
+slice 34 with #162's final head (559440bb) merged in): migration 0134 adds
+`medication_administration_conflict`. The API gives the round for a location by time slot (late
+doses first, earlier late doses included, time-critical first, when-required medicines with when
+last given), keeps a bound device's second record of a dose as a conflict with an urgent review
+task when it matters, and lets the nurse in charge resolve it once (`first_stands`, `corrected` or
+`both_given`, which raises a medication incident). Outstanding doses escalate through the existing
+worker job and reach the shift handover as tasks. The API supplies `competenceAtRecording` and the
+delay tolerance to #162's rules. 0134 also restores 0099's sample-removal tables (H-1278). API only;
+screens are slice 53. Next for medicines: slice 50 (printable page), slice 28, slice 53. Open:
+H-1270 to H-1279.
+
 **Phase 2 slice 34, the controlled drugs register** (`feat/meds-cd-register`, MEDS-005, from
 slice 22 with #162's latest head merged in): migration 0128 adds pages, append-only entries with the
 running balance checked by the database, witness signatures (the witness's own step-up, for the

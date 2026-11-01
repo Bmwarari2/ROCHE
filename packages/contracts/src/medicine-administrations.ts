@@ -262,12 +262,14 @@ export const AdministrationConflictOut = z
       reason: z.object({ code: z.string(), note: z.string().nullable() }).nullable(),
       givenAt: isoDateTime.nullable(),
     }),
+    /** What the server found wrong with the upload when it arrived (problem codes). */
+    problems: z.array(z.string()),
     deviceAt: isoDateTime.nullable(),
     uploadedBy: uuid,
     receivedAt: isoDateTime,
     resolution: z
       .object({
-        outcome: z.enum(["first_stands", "corrected"]),
+        outcome: z.enum(["first_stands", "corrected", "both_given"]),
         correctionId: uuid.nullable(),
         note: z.string(),
         by: uuid,
@@ -281,6 +283,7 @@ export const AdministrationConflictList = z
   .object({ conflicts: z.array(AdministrationConflictOut) })
   .meta({ id: "AdministrationConflictList" });
 
+/** One of locationId or personId is required (checked by the route). */
 export const ConflictsQuery = z.object({
   locationId: uuid.optional(),
   personId: uuid.optional(),
@@ -290,7 +293,11 @@ export const ConflictsQuery = z.object({
 
 export const ResolveConflict = z
   .object({
-    outcome: z.enum(["first_stands", "corrected"]),
+    /**
+     * first_stands: the same dose sent twice; corrected: the MAR was corrected; both_given: the dose
+     * was given twice, which raises a medication incident.
+     */
+    outcome: z.enum(["first_stands", "corrected", "both_given"]),
     /** The correction made through the corrections route, when corrected. */
     correctionId: uuid.nullable().default(null),
     note: reason,

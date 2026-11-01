@@ -437,11 +437,21 @@ export const medicineAdministrationsRouter = createRouter()
             return { status: 200 as const, administration: await outFor(tx, resent, facts.rows) };
           }
           // A device's upload is never dropped: a resend of a record kept as a conflict finds it.
-          const upload = body.deviceOffsetMs !== null || access.deviceId !== null;
-          if (upload) {
-            const kept = await conflictForClientRecord(tx, body.id);
-            if (kept) return { status: 202 as const, conflict: kept };
+          // Only a request from a device bound to the session counts as an upload (security
+          // review H1), and any request with a kept record's id finds that conflict (L5).
+          const upload = access.deviceId !== null;
+          const kept = await conflictForClientRecord(tx, body.id, {
+            personId,
+            entryId: body.entryId,
+            dueAt: body.dueAt,
+            outcome: body.outcome,
+          });
+          if (kept === "mismatch") {
+            throw problems.conflict(
+              "This record id cannot be used. Read the record again and resend.",
+            );
           }
+          if (kept) return { status: 202 as const, conflict: kept };
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
           // A controlled drug given moves stock: its register entry is written with the record, with
@@ -555,13 +565,9 @@ export const medicineAdministrationsRouter = createRouter()
                 entry,
                 dueAt: input.dueAt as Date,
                 standing,
-                uploaded: {
-                  id: body.id,
-                  outcome: body.outcome,
-                  amount: body.amount,
-                  reason: body.reason,
-                  givenAt: body.givenAt,
-                },
+                // The whole record as the device sent it, for the nurse in charge (clinical M7).
+                uploaded: body,
+                problems: checked.issues.map((x) => x.problem),
                 deviceAt,
                 deviceOffsetMs: body.deviceOffsetMs,
                 rates: facts.rates,
@@ -581,7 +587,8 @@ export const medicineAdministrationsRouter = createRouter()
             escalations: checked.escalations,
             givenBeforeRecordedReason: gbr?.reason ?? null,
             deviceAt,
-            deviceOffsetMs: gbr ? body.deviceOffsetMs : null,
+            // The offset used whenever the request carried its own time (clinical M6).
+            deviceOffsetMs: body.givenAt ? body.deviceOffsetMs : null,
             administeredBy: giverId,
             overrides: checked.flags.includes("competence_override")
               ? [giver.override, gbr ? me.override : null].filter(

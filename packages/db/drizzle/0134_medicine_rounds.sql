@@ -7,6 +7,7 @@ CREATE TABLE "medication_administration_conflict" (
 	"due_at" timestamp with time zone NOT NULL,
 	"standing_id" uuid NOT NULL,
 	"uploaded" jsonb NOT NULL,
+	"problems" text[] DEFAULT '{}'::text[] NOT NULL,
 	"device_at" timestamp with time zone,
 	"device_offset_ms" integer,
 	"uploaded_by" uuid NOT NULL,
@@ -25,7 +26,7 @@ CREATE TABLE "medication_administration_conflict" (
            AND resolution_note IS NULL)
        OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL
            AND length(btrim(coalesce(resolution_note, ''))) > 0
-           AND ((resolution = 'first_stands' AND correction_id IS NULL)
+           AND ((resolution IN ('first_stands', 'both_given') AND correction_id IS NULL)
              OR (resolution = 'corrected' AND correction_id IS NOT NULL))))
 );--> statement-breakpoint
 ALTER TABLE "medication_administration" DROP CONSTRAINT "medication_administration_flags";--> statement-breakpoint
@@ -36,6 +37,7 @@ ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_admi
 ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_administration_conflict_uploaded_by_fk" FOREIGN KEY ("tenant_id","uploaded_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_administration_conflict_resolved_by_fk" FOREIGN KEY ("tenant_id","resolved_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "medication_administration_conflict_open_idx" ON "medication_administration_conflict" USING btree ("tenant_id","person_id") WHERE resolved_at IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "medication_administration_conflict_open_dose_key" ON "medication_administration_conflict" USING btree ("tenant_id","person_id","medication_id","due_at","uploaded_by") WHERE resolved_at IS NULL;--> statement-breakpoint
 ALTER TABLE "medication_administration" ADD CONSTRAINT "medication_administration_flags" CHECK (flags <@ ARRAY['early', 'late', 'interval_override', 'competence_override',
         'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',
         'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',
@@ -68,12 +70,12 @@ BEGIN
     RETURN NEW;
   END IF;
   IF (NEW.id, NEW.tenant_id, NEW.person_id, NEW.client_record_id, NEW.medication_id, NEW.due_at,
-      NEW.standing_id, NEW.uploaded, NEW.device_at, NEW.device_offset_ms, NEW.uploaded_by,
-      NEW.received_at, NEW.created_at)
+      NEW.standing_id, NEW.uploaded, NEW.problems, NEW.device_at, NEW.device_offset_ms,
+      NEW.uploaded_by, NEW.received_at, NEW.created_at)
      IS DISTINCT FROM
      (OLD.id, OLD.tenant_id, OLD.person_id, OLD.client_record_id, OLD.medication_id, OLD.due_at,
-      OLD.standing_id, OLD.uploaded, OLD.device_at, OLD.device_offset_ms, OLD.uploaded_by,
-      OLD.received_at, OLD.created_at)
+      OLD.standing_id, OLD.uploaded, OLD.problems, OLD.device_at, OLD.device_offset_ms,
+      OLD.uploaded_by, OLD.received_at, OLD.created_at)
      OR OLD.resolved_at IS NOT NULL THEN
     RAISE EXCEPTION 'medication_administration_conflict: what it holds never changes; it is resolved once'
       USING ERRCODE = 'check_violation';

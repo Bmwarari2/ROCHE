@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { DEVICE_HEADER } from "@harbour/contracts";
 import { createDatabase } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { ukDateOf, ukStartOfDay } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixedCompetence } from "../src/integrations/medicines-ports";
-import { escalateOutstandingDoses } from "../src/jobs/tasks";
+import { escalateOutstandingDoses, outboxHandlers, relayOutbox } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { createHarness, type Harness } from "./support/harness";
 
@@ -29,8 +30,12 @@ const ML = { code: "258773002", name: "ml" };
 const SOURCE = { kind: "prescription", reference: "Prescription, Dr A Example, 31/10/2026" };
 const MINUTE = 60_000;
 const competence = fixedCompetence();
-const send = (user: string, path: string, init: { method?: string; body?: unknown } = {}) =>
-  h.request(path, { token: h.tokens[user], tenant: DEMO.tenantId, ...init });
+const DEVICE = "0194d000-0000-7000-8600-0000000000de";
+const send = (
+  user: string,
+  path: string,
+  init: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
+) => h.request(path, { token: h.tokens[user], tenant: DEMO.tenantId, ...init });
 const json = async <T>(r: Response) => (await r.json()) as T;
 
 function ukTime(at: Date): string {
@@ -173,33 +178,42 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     const dose = round.people
       .find((p) => p.personId === ADA)
       ?.doses.find((d) => d.entryId === critical);
-    const record = (id: string, deviceOffsetMs: number | null) =>
+    const record = (id: string, device: boolean, entryId = critical) =>
       send("manager", `/v1/people/${ADA}/medicine-administrations`, {
         method: "POST",
+        headers: device ? { [DEVICE_HEADER]: DEVICE } : {},
         body: {
           id,
-          entryId: critical,
+          entryId,
           dueAt: dose?.dueAt,
           outcome: "given",
           amount: { quantity: 1, unitCode: TABLET.code },
           timingReason: "Given with breakfast",
-          deviceOffsetMs,
+          deviceOffsetMs: device ? 0 : null,
         },
       });
-    const first = await record(randomUUID(), 0);
+    const first = await record(randomUUID(), false);
     expect(first.status, await first.clone().text()).toBe(201);
     const standingId = (await json<{ administration: { id: string } }>(first)).administration.id;
-    // On the web a second record is refused in words: the person sees it.
-    expect((await record(randomUUID(), null)).status).toBe(422);
+    // On the web (no bound device) a second record is refused in words: the person sees it.
+    expect((await record(randomUUID(), false)).status).toBe(422);
     // From a device it is kept, and a resend finds the same conflict.
     const secondId = randomUUID();
-    const second = await record(secondId, 0);
+    const second = await record(secondId, true);
     expect(second.status, await second.clone().text()).toBe(202);
     const raised = await json<{ conflictId: string; standingId: string }>(second);
     expect(raised.standingId).toBe(standingId);
-    const again = await record(secondId, 0);
+    const again = await record(secondId, true);
     expect(again.status).toBe(202);
     expect((await json<{ conflictId: string }>(again)).conflictId).toBe(raised.conflictId);
+    // The same id sent for another dose is refused, not matched to the conflict (security L4).
+    expect((await record(secondId, true, routine)).status).toBe(409);
+    // A further upload of the dose by the same person joins the open conflict (security H1).
+    const third = await record(randomUUID(), true);
+    expect(third.status).toBe(202);
+    expect((await json<{ conflictId: string }>(third)).conflictId).toBe(raised.conflictId);
+    // The list needs a location or a person.
+    expect((await send("manager", "/v1/medicine-administration-conflicts")).status).toBe(422);
     const tasks = await asDemo(
       async (c) =>
         (
@@ -212,13 +226,19 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     expect(tasks).toEqual([{ priority: "urgent", status: "open" }]);
 
     const list = await json<{
-      conflicts: { id: string; standing: { id: string }; uploaded: { id: string } }[];
+      conflicts: {
+        id: string;
+        standing: { id: string };
+        uploaded: { id: string };
+        problems: string[];
+      }[];
     }>(
       await send("manager", `/v1/medicine-administration-conflicts?locationId=${DEMO.locationId}`),
     );
     const shown = list.conflicts.find((x) => x.id === raised.conflictId);
     expect(shown?.standing.id).toBe(standingId);
     expect(shown?.uploaded.id).toBe(secondId);
+    expect(shown?.problems.length).toBeGreaterThan(0);
 
     const resolve = (body: Record<string, unknown>, who = "manager") =>
       send(who, `/v1/medicine-administration-conflicts/${raised.conflictId}/resolve`, {
@@ -251,6 +271,45 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
         ).rows[0]?.status,
     );
     expect(done).toBe("done");
+
+    // Once resolved, a later upload opens a new conflict; found given twice, it raises an incident.
+    const fourth = await record(randomUUID(), true);
+    expect(fourth.status, await fourth.clone().text()).toBe(202);
+    const next = await json<{ conflictId: string }>(fourth);
+    expect(next.conflictId).not.toBe(raised.conflictId);
+    const twice = await send(
+      "manager",
+      `/v1/medicine-administration-conflicts/${next.conflictId}/resolve`,
+      {
+        method: "POST",
+        body: { outcome: "both_given", correctionId: randomUUID(), note: "Given twice" },
+      },
+    );
+    expect(twice.status).toBe(422);
+    const both = await send(
+      "manager",
+      `/v1/medicine-administration-conflicts/${next.conflictId}/resolve`,
+      { method: "POST", body: { outcome: "both_given", note: "Given on both tablets" } },
+    );
+    expect(both.status, await both.clone().text()).toBe(200);
+    const deps = {
+      workerPool: h.db.pool("harbour_worker"),
+      appDb: createDatabase(h.db.pool("harbour_app")),
+      logger: createLogger("silent"),
+    };
+    while ((await relayOutbox(deps, outboxHandlers(deps))) > 0) {
+      // Drain the outbox.
+    }
+    const incidents = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ type: string; person_ids: string[] }>(
+            "SELECT type, person_ids FROM incident WHERE id = $1",
+            [next.conflictId],
+          )
+        ).rows,
+    );
+    expect(incidents).toEqual([{ type: "medication", person_ids: [ADA] }]);
   });
 });
 

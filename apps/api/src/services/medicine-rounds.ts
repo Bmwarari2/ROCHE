@@ -14,7 +14,7 @@ import {
   SCHEDULED_DOSE_WORDS,
   scheduledDoseState,
 } from "@harbour/domain";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import type { AppEnv, TenantAccess } from "../http/context";
@@ -35,6 +35,8 @@ import { UNCHECKED_POLICY } from "./medicines";
  * each when-required medicine that may be given now, with when it was last given. The person and
  * location views share it.
  */
+const STATE_ORDER = { late: 0, due: 1, not_yet_due: 2, recorded: 3 } as const;
+
 export function roundFor(
   facts: {
     readonly entries: readonly MarEntry[];
@@ -51,32 +53,42 @@ export function roundFor(
     .flatMap((entry) => {
       const versionIds = entryVersionIds(entry, facts.entries);
       const status = marEntryStatus(entry, at, UNCHECKED_POLICY);
-      return marEntryDoses(entry, range).map((d) => {
+      // The slot's doses, and any dose in the 24 hours before it still late with no outcome, so an
+      // earlier missed dose is never off the round (clinical review M4).
+      const reach = { from: new Date(range.from.getTime() - 86_400_000), to: range.to };
+      return marEntryDoses(entry, reach).flatMap((d) => {
         const window = doseWindow(d.dueAt, isTimeCritical(entry), facts.rates);
         const recorded = eff.some(
           (r) => versionIds.has(r.medicationId) && r.dueAt?.getTime() === d.dueAt.getTime(),
         );
         const state = scheduledDoseState(window, recorded, now);
-        return {
-          entryId: entry.id,
-          productName: entry.product.name,
-          dueAt: d.dueAt.toISOString(),
-          date: d.date,
-          time: d.time,
-          doseInWords: formatDose(d.dose),
-          timeCritical: window.timeCritical,
-          state,
-          stateInWords: SCHEDULED_DOSE_WORDS[state],
-          opensAt: window.opensAt.toISOString(),
-          lateAfter: window.lateAfter.toISOString(),
-          notices: [...doseNotices(entry, facts.rates)],
-          entryStatus: status,
-        };
+        if (d.dueAt.getTime() < range.from.getTime() && state !== "late") return [];
+        return [
+          {
+            entryId: entry.id,
+            productName: entry.product.name,
+            dueAt: d.dueAt.toISOString(),
+            date: d.date,
+            time: d.time,
+            doseInWords: formatDose(d.dose),
+            timeCritical: window.timeCritical,
+            state,
+            stateInWords: SCHEDULED_DOSE_WORDS[state],
+            opensAt: window.opensAt.toISOString(),
+            lateAfter: window.lateAfter.toISOString(),
+            notices: [...doseNotices(entry, facts.rates)],
+            entryStatus: status,
+          },
+        ];
       });
     })
-    // Time-critical doses first (HZ-003), then by due time.
+    // Late first, then due now, then not due yet, then recorded; time-critical first within each
+    // (HZ-003; clinical review M5), then by due time.
     .sort(
-      (a, b) => Number(b.timeCritical) - Number(a.timeCritical) || a.dueAt.localeCompare(b.dueAt),
+      (a, b) =>
+        STATE_ORDER[a.state] - STATE_ORDER[b.state] ||
+        Number(b.timeCritical) - Number(a.timeCritical) ||
+        a.dueAt.localeCompare(b.dueAt),
     );
   const whenRequired = facts.entries
     .filter(
@@ -109,13 +121,36 @@ export const CONFLICT_TASK = "medicines.administration.conflict";
 const CONFLICT_MESSAGE =
   "This dose was already recorded on another device. Your record is kept for the nurse in charge to review; it is not added to the MAR until they decide.";
 
-/** The conflict a device's record was kept as, if it was (a resend finds it). */
-export async function conflictForClientRecord(tx: Transaction, clientRecordId: string) {
+/**
+ * The conflict a device's record was kept as, if it was (a resend finds it); "mismatch" when the
+ * id was kept for another person, dose or outcome (security review L4).
+ */
+export async function conflictForClientRecord(
+  tx: Transaction,
+  clientRecordId: string,
+  expect: {
+    readonly personId: string;
+    readonly entryId: string;
+    readonly dueAt: string | null;
+    readonly outcome: string;
+  },
+) {
   const [row] = await tx
     .select()
     .from(medicationAdministrationConflict)
     .where(eq(medicationAdministrationConflict.clientRecordId, clientRecordId));
-  return row ? { conflictId: row.id, standingId: row.standingId, message: CONFLICT_MESSAGE } : null;
+  if (!row) return null;
+  const sent = row.uploaded as { outcome?: string };
+  if (
+    row.personId !== expect.personId ||
+    row.medicationId !== expect.entryId ||
+    expect.dueAt === null ||
+    row.dueAt.getTime() !== new Date(expect.dueAt).getTime() ||
+    sent.outcome !== expect.outcome
+  ) {
+    return "mismatch" as const;
+  }
+  return { conflictId: row.id, standingId: row.standingId, message: CONFLICT_MESSAGE };
 }
 
 /**
@@ -133,12 +168,27 @@ export async function raiseConflict(
     readonly entry: MarEntry;
     readonly dueAt: Date;
     readonly standing: AdministrationRow;
-    readonly uploaded: unknown;
+    readonly uploaded: { readonly outcome: string } & Record<string, unknown>;
+    readonly problems: readonly string[];
     readonly deviceAt: Date | null;
     readonly deviceOffsetMs: number | null;
     readonly rates: MedicinesRates;
   },
 ) {
+  // One open conflict per dose and uploader: a further upload joins it (security review H1).
+  const [open] = await tx
+    .select()
+    .from(medicationAdministrationConflict)
+    .where(
+      and(
+        eq(medicationAdministrationConflict.personId, e.personId),
+        eq(medicationAdministrationConflict.medicationId, e.entry.id),
+        eq(medicationAdministrationConflict.dueAt, e.dueAt),
+        eq(medicationAdministrationConflict.uploadedBy, access.tenantUserId),
+        isNull(medicationAdministrationConflict.resolvedAt),
+      ),
+    );
+  if (open) return { conflictId: open.id, standingId: open.standingId, message: CONFLICT_MESSAGE };
   const [row] = await tx
     .insert(medicationAdministrationConflict)
     .values({
@@ -148,18 +198,24 @@ export async function raiseConflict(
       dueAt: e.dueAt,
       standingId: e.standing.id,
       uploaded: e.uploaded,
+      problems: [...e.problems],
       deviceAt: e.deviceAt,
       deviceOffsetMs: e.deviceOffsetMs,
       uploadedBy: access.tenantUserId,
     })
     .returning();
   const conflict = row as ConflictRow;
+  // Urgent when the dose is time-critical or the two records disagree (one given, one not): until
+  // reviewed the MAR shows only the first (clinical review H2).
   const timeCritical = isTimeCritical(e.entry);
+  const differ = e.uploaded.outcome !== e.standing.outcome;
   await tx.insert(task).values({
     kind: CONFLICT_TASK,
-    title: timeCritical
-      ? "A time-critical dose was recorded twice on different devices: review both records now"
-      : "A dose was recorded twice on different devices: review both records",
+    title: differ
+      ? "Two devices recorded different outcomes for one dose: review both records now"
+      : timeCritical
+        ? "A time-critical dose was recorded twice on different devices: review both records now"
+        : "A dose was recorded twice on different devices: review both records",
     requiredPermission: "medicines.record.manage",
     personId: e.personId,
     locationId: e.locationId,
@@ -167,13 +223,19 @@ export async function raiseConflict(
     sourceId: conflict.id,
     assigneeRoleKey: "clinical_lead",
     dueAt: new Date(),
-    priority: timeCritical ? "urgent" : "routine",
+    priority: timeCritical || differ ? "urgent" : "routine",
   });
   await auditInTx(tx, access, {
     action: "medicines.administration.conflict_raised",
     resourceType: "medication_administration_conflict",
     resourceId: conflict.id,
-    scope: { personId: e.personId, standingId: e.standing.id, clientRecordId: e.clientRecordId },
+    scope: {
+      personId: e.personId,
+      standingId: e.standing.id,
+      clientRecordId: e.clientRecordId,
+      problems: e.problems,
+      outcomesDiffer: differ,
+    },
     requestId: c.get("requestId"),
   });
   await publish(tx, {
@@ -217,13 +279,14 @@ export async function conflictOut(
       reason: up.reason ? { code: up.reason.code, note: up.reason.note ?? null } : null,
       givenAt: up.givenAt ?? null,
     },
+    problems: [...row.problems],
     deviceAt: row.deviceAt?.toISOString() ?? null,
     uploadedBy: row.uploadedBy,
     receivedAt: row.receivedAt.toISOString(),
     resolution:
       row.resolvedAt && row.resolvedBy && row.resolution
         ? {
-            outcome: row.resolution as "first_stands" | "corrected",
+            outcome: row.resolution as "first_stands" | "corrected" | "both_given",
             correctionId: row.correctionId,
             note: row.resolutionNote ?? "",
             by: row.resolvedBy,
