@@ -54248,10 +54248,10 @@ export interface components {
       undoneAt: string | null;
     };
     /**
-     * @description What a batch imports (people in slice 26)
+     * @description What a batch imports (people in slice 26; medicines, care plans and staff files in slice 51)
      * @enum {string}
      */
-    ImportRecordType: "people";
+    ImportRecordType: "people" | "medicines" | "care_plans" | "staff_files";
     /**
      * @description Where a batch stands; forward only
      * @enum {string}

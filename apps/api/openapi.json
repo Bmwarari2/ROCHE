@@ -41035,9 +41035,12 @@
       "ImportRecordType": {
         "type": "string",
         "enum": [
-          "people"
+          "people",
+          "medicines",
+          "care_plans",
+          "staff_files"
         ],
-        "description": "What a batch imports (people in slice 26)"
+        "description": "What a batch imports (people in slice 26; medicines, care plans and staff files in slice 51)"
       },
       "ImportBatchStatus": {
         "type": "string",

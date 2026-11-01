@@ -14,9 +14,11 @@ const count = z.number().int().min(0);
 /** The largest CSV text one upload takes, in characters (the request body is capped too). */
 export const IMPORT_MAX_CSV_CHARACTERS = 10_000_000;
 
-export const ImportRecordType = z
-  .enum(["people"])
-  .meta({ id: "ImportRecordType", description: "What a batch imports (people in slice 26)" });
+export const ImportRecordType = z.enum(["people", "medicines", "care_plans", "staff_files"]).meta({
+  id: "ImportRecordType",
+  description:
+    "What a batch imports (people in slice 26; medicines, care plans and staff files in slice 51)",
+});
 export type ImportRecordType = z.infer<typeof ImportRecordType>;
 
 export const ImportBatchStatus = z
