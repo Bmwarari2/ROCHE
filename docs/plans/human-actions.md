@@ -639,6 +639,22 @@ Logged by slice 67 (PLAT-014 web wizard) on 31 October 2026.
 | H-898 | Agree the import file limits shown to people (5,000 rows, the 12 MiB upload) with the design partner, and whether a larger home needs more | Brian with the design partner | `IMPORT_LIMITS`; `IMPORT_UPLOAD_MAX_BYTES` | None (default applied) | open |
 | H-899 | Confirm that the SSO settings screens (the other half of slice 67) wait for the SSO API, and schedule them | Brian | phase-2.md slice 67 | SSO settings screens | open |
 
+## Phase 2: Thapsus-HR link (slices 86 to 90)
+
+Logged on 01/11/2026 with [ADR-0126](../decisions/0126-thapsus-hr-link.md), when the owner asked for
+Harbour to share rota, time, pay and staff records with Thapsus-HR without exports. Each item's
+recommended answer is in force until the testing-phase review
+([recommended-answers.md](recommended-answers.md)).
+
+| # | Action | Owner | What the build produced | Unblocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1340 | Confirm the default owner for each kind of data: Thapsus-HR for employee records, leavers, pay rates, leave and sickness; Harbour for care shifts, clocking, timesheet approval and pay units, recruitment, DBS, right to work, training and competence. Recommended answer: as ADR-0126 sets out | Brian | ADR-0126; [integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014) section 11 | Slices 87 to 89 | open (recommended answer in force) |
+| H-1341 | Decide whether Thapsus-HR is a sub-processor of Harbour or the provider's own processor, and add the sharing as a purpose in the records of processing. Recommended answer: when the provider contracts for Thapsus-HR separately, it is the provider's own processor and a recipient the provider instructs, not a Harbour sub-processor; when Thapsus sells the two products as one service, it joins the sub-processor register and the DPIA | DPO lead | Plan data protection row for slices 87 to 89; DPIA risk R30 | Turning the link on for a real tenant | open (recommended answer in force) |
+| H-1342 | Decide how the link is sold, and add a clause to both products' contracts saying that the provider instructs the sharing. Recommended answer: included at no extra charge for customers of both products | Brian | ADR-0126 | Selling the link | open (recommended answer in force) |
+| H-1343 | Schedule the Thapsus-HR changes the link needs (integrations.md section 11.9: shift, leave, sickness and timesheet events; shifts and clock events owned by a partner; a pay inputs route; a narrow pay-rate read) in Thapsus-HR's own plan. Until they ship, Harbour builds against the mock and only employees, leavers, locations, and leave and sickness read by polling can go live | Brian (Thapsus-HR engineering) | The contract mock (slice 86) and the list in section 11.9 | Live rota, clocking and pay flows | open |
+| H-1344 | Confirm the staleness limit: how old the last good sync may be before rota and staffing screens warn. Recommended answer: 15 minutes by default; a tenant may lower it, and raise it to 60 minutes at most | Clinical safety officer | HZ-133 controls in slice 88 | Rota warnings for linked tenants | open (recommended answer in force) |
+| H-1345 | Rate HZ-133 and review its controls before a linked tenant goes live | Clinical safety officer | HZ-133 in the hazard log (slice 86) | A linked tenant going live | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
