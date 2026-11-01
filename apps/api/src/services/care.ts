@@ -136,8 +136,9 @@ const textOrNull = (value: unknown): string | null => (typeof value === "string"
  * The IDDSI food and drink levels in force when the food or drink was given (H-166, HZ-016), from
  * the care profile's history (`record_version`, a copy of the row before each change, valid until
  * the change): the oldest copy still valid after the entry's time, or the profile as it is now when
- * none is. An entry made before the profile existed had no level prescribed in Harbour. Each level
- * says whether it has changed since, so the entry still tells staff the level is different now.
+ * none is. For an entry from before the profile existed no history covers its time, so the level
+ * now is used, as before. Each level says whether it has changed since, so the entry still tells
+ * staff the level is different now.
  */
 export async function iddsiLevelsAt(
   tx: Transaction,
@@ -158,16 +159,16 @@ export async function iddsiLevelsAt(
     )
     .orderBy(asc(recordVersion.validTo))
     .limit(1);
+  // No history covers a time before the profile existed: the level now is used, as before, so an
+  // entry is never judged against "no level" on a guess (HZ-016).
   const firstFrom = version?.validFrom ?? profile.createdAt;
   const then =
-    firstFrom.getTime() > at.getTime()
-      ? { food: null, drink: null }
-      : !version
-        ? now
-        : {
-            food: textOrNull((version.data as Record<string, unknown>).iddsi_food_level),
-            drink: textOrNull((version.data as Record<string, unknown>).iddsi_drink_level),
-          };
+    !version || firstFrom.getTime() > at.getTime()
+      ? now
+      : {
+          food: textOrNull((version.data as Record<string, unknown>).iddsi_food_level),
+          drink: textOrNull((version.data as Record<string, unknown>).iddsi_drink_level),
+        };
   return {
     ...then,
     foodChangedSince: then.food !== now.food,
