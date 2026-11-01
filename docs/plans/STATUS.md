@@ -24,6 +24,22 @@ screens (#128, `docs/user-guides/`).
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
+recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
+H-213, H-214, H-262, H-264 (migration 0118), H-267, H-269, H-270, H-381, H-410, H-420, H-481,
+H-482, H-543, H-551 and H-595. Left open, each with a note in
+[human-actions.md](human-actions.md):
+- H-125: the native module binding the database key to the device passcode (iOS
+  `SecAccessControl` with `.userPresence`, Android Keystore with device-credential
+  authentication); the interim rule (Care mode enrols only devices with strong biometrics) is built.
+- H-228: the print test of the letterhead and window address on real DL and C5 envelopes.
+- H-268: back-entry from paper on the incident and assessment APIs and their web forms (needs
+  `outage_id`, the paper time and reference on `incident` and `assessment`: a migration, the
+  back-entry checks in both routes and the paper record choice on both forms).
+- H-306: judging a task move's permission at the time of care waits for the phone to send that
+  time (H-309, whose default keeps the check at upload).
+- HZ-127's rating (H-543) waits for its hazard-log entry with slice 37.
+
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or
 security change rather than a web one:
