@@ -9,6 +9,12 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  */
 
 const APPEND_ONLY_TABLES = [
+  "staff_checklist_item",
+  "shadow_shift",
+  "probation_review",
+  "employee_case_event",
+  "staff_privacy_acknowledgement",
+  "staff_image_consent",
   "audit_event",
   "record_version",
   "workflow_transition",
@@ -38,6 +44,8 @@ const APPEND_ONLY_TABLES = [
   "downtime_pack",
   "evidence_pack_item",
   "framework_mapping",
+  "audit_action",
+  "outbreak_case",
   "letter",
   "feed_item",
   "feed_item_withdrawal",
@@ -47,11 +55,37 @@ const APPEND_ONLY_TABLES = [
   "dcb0160_record",
   "sub_processor_notice",
   "sub_processor_response",
+  "competence_sign_off",
+  "competence_withdrawal",
+  "rota_publication",
+  "roster_override",
   "policy_signature",
   "processor_breach_notice",
   "processor_breach_notice_ack",
   "dependency_assessment",
   "lone_worker_event",
+  "pulse_survey_participation",
+  "pulse_survey_response",
+  "recognition",
+  "application_event",
+  "interview",
+  "equality_monitoring",
+  "dspt_evidence",
+  // Deaths and missing persons (slice 37, migration 0099).
+  "death_step",
+  "missing_event",
+];
+/**
+ * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the
+ * organisation reads; each change is audited by id instead (speak-up.test.ts and casework.test.ts
+ * prove it).
+ */
+const UNVERSIONED_SILO_TABLES = [
+  "employee_case",
+  "employee_case_member",
+  "employee_case_hearing",
+  "speak_up_concern",
+  "speak_up_case_member",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
@@ -173,10 +207,12 @@ describe("hazard HZ-011 row-level security coverage", () => {
       `SELECT c.table_name FROM information_schema.columns c
        WHERE c.table_schema = 'public' AND c.column_name = 'version'
          AND c.table_name NOT IN ('tenant_group', 'operator_user')
+         AND NOT (c.table_name = ANY ($1))
          AND NOT EXISTS (
            SELECT 1 FROM pg_trigger t JOIN pg_class k ON k.oid = t.tgrelid
            WHERE k.relname = c.table_name AND t.tgname = 'capture_version'
          )`,
+      [UNVERSIONED_SILO_TABLES],
     );
     expect(rows.map((r) => r.table_name)).toEqual([]);
   });

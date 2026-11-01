@@ -8,7 +8,7 @@ kept for them.
 ## What changed
 
 - `apps/web`: "Lone working" in the navigation for holders of the check-in, monitor or manage
-  permission ([scheduling.md](../specs/scheduling.md) section 14.8a).
+  permission ([scheduling.md](../specs/scheduling.md) section 15.8a).
   - `/lone-working`: the worker's own session. Start (where, kind of work, how long, how often),
     check in, ask for help (one press, never disabled, "call 999" if it may not have been sent) and
     finish (asks first). Duress is never offered or named on the web (H-1140).

@@ -12,7 +12,7 @@ import { MAX_ROUTE_STEPS, ROUTE_CHANNELS, readRoute, targetValue } from "@/lib/l
 import { type ActionResult, collectedRefusal, errorFor } from "@/lib/outcome";
 
 /**
- * Naming the on-call route (H-539; scheduling.md section 14.3 rules 1 and 4). Step 1 is the
+ * Naming the on-call route (H-539; scheduling.md section 15.3 rules 1 and 4). Step 1 is the
  * on-call person or role, told the moment an alarm is raised; a later step is the Registered
  * Manager; every step reaches people away from the app. The API checks every role and person
  * again and refuses in words. Saving a valid route switches lone-worker check-ins on.

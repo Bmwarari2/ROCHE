@@ -86,7 +86,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 14; HZ-125). A worker
+ * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 15; HZ-125). A worker
  * starts a session and checks in; an overdue check-in, a help request or a duress check-in raises
  * an alarm to the organisation's named on-call route (H-539), which keeps escalating and is sent
  * again until a person acknowledges it. Alarm rows are written only by the system (services/

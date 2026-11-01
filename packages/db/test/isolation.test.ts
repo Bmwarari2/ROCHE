@@ -9,6 +9,8 @@ import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./suppo
 
 let db: TestDatabase;
 let tenantTables: string[];
+/** Tables the application role has no SELECT on (equality monitoring: counted, never read). */
+let unreadableTables: string[];
 
 beforeAll(async () => {
   db = await createTestDatabase();
@@ -17,7 +19,18 @@ beforeAll(async () => {
     `SELECT table_name FROM information_schema.columns
      WHERE table_schema = 'public' AND column_name = 'tenant_id' ORDER BY table_name`,
   );
-  tenantTables = rows.map((r) => r.table_name);
+  const readable = await db.pool("harbour_owner").query<{ table_name: string; readable: boolean }>(
+    `SELECT DISTINCT table_name,
+       has_column_privilege('harbour_app', 'public.' || table_name, 'tenant_id', 'SELECT') AS readable
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND column_name = 'tenant_id'`,
+  );
+  unreadableTables = readable.rows
+    .filter((r) => !r.readable)
+    .map((r) => r.table_name)
+    .sort();
+  // Tables the application role may not read at all are checked by their own test below.
+  tenantTables = rows.map((r) => r.table_name).filter((t) => !unreadableTables.includes(t));
 });
 
 afterAll(async () => {
@@ -49,6 +62,23 @@ describe("hazard HZ-011 tenant isolation for harbour_app", () => {
         return Number(rows[0]?.n);
       });
       expect({ table, leaked }).toEqual({ table, leaked: 0 });
+    }
+  });
+
+  it("reads no row of the tables it may not read at all, and only those are unreadable", async () => {
+    // Equality monitoring, and anonymous survey responses released and waiting (scheduling.md
+    // section 16 rule 3), reached only through their definer functions.
+    expect(unreadableTables).toEqual([
+      "equality_monitoring",
+      "pulse_survey_response",
+      "pulse_survey_response_pending",
+    ]);
+    for (const table of unreadableTables) {
+      await expect(
+        inContext(app(), ctx(TENANT_A, ids.a.manager, "tenant"), (c) =>
+          c.query(`SELECT count(*) FROM ${table}`),
+        ),
+      ).rejects.toThrow(/permission denied/);
     }
   });
 

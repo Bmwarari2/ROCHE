@@ -14,7 +14,7 @@ import type { FieldProblem } from "./outcome";
 import { formatUkTime } from "./uk-time";
 
 /**
- * Lone-worker screens (SCHED-012, Phase 2 slice 61; scheduling.md section 14; HZ-125). The API
+ * Lone-worker screens (SCHED-012, Phase 2 slice 61; scheduling.md section 15; HZ-125). The API
  * decides every rule: who may start, check in, see the board, acknowledge and name the route. These
  * helpers only order and word what the API returns, and check a form before it is sent. Duress is
  * never offered or named on the worker's own screens: a duress check-in reads as a check-in, and
@@ -61,7 +61,7 @@ export const OUTCOMES: readonly LoneWorkerOutcome[] = [
 ];
 
 // ---------------------------------------------------------------------------------------------
-// The monitor board: duress first (scheduling.md section 14.3 rule 9)
+// The monitor board: duress first (scheduling.md section 15.3 rule 9)
 
 /** Duress first, then help, then an overdue check-in, then a session not finished. */
 const REASON_RANK: Record<LoneWorkerAlarmReason, number> = {

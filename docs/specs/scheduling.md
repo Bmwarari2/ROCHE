@@ -6,7 +6,8 @@ builds rotas, time and attendance and the pay rules engine for care homes
 is integrated, not built (section 12). Slice 5 wrote this specification and the Working Time rules
 (SCHED-003); slice 6 added the pay rules (section 4b), and the schema slices (12, 21, 27, 30, 36,
 40, 44, 46) confirm their tables against section 2. Slice 12 adds the dependency tool and the
-required care hours per shift (section 13). Status per feature:
+required care hours per shift (section 13); slice 21 adds the rota builder (section 14). Status
+per feature:
 [feature register](feature-register.md).
 
 ## 1. Purpose and register rows
@@ -679,7 +680,156 @@ audited. Outbox: `scheduling.dependency_scale_approved` (scale, version, locatio
 - The placement's free-text `dependency_category` (Phase 1 admission form) is left as it is and is
   not read by the requirement; whether to retire it is H-716.
 
-## 14. Lone-worker safety (slice 46; SCHED-012)
+## 14. Rota builder (slice 21; SCHED-001, SCHED-002)
+
+Master prompt section 12.3 (the rota builder with skills, continuity, swaps, bank and agency; the
+safe staffing planner comparing rota hours and skill mix with the dependency requirement, showing
+the gap and the method) and section 12's rule that a worker without the required DBS result, right
+to work or competence cannot be rostered. Hazards HZ-123 and HZ-124. Slice 21 builds the schema
+and API; the screens are slice 59, clock-in on the day slice 27, offline swaps slice 71. Human
+actions H-830 to H-839.
+
+### Schema (migration 0083)
+
+| Table | Kind | Columns | Retention class |
+| --- | --- | --- | --- |
+| `shift_template` | mutable, `expected_version`, archived | `location_id`, `name`, `kind` (`SHIFT_KINDS`), `start_minute`, `end_minute` (UK wall clock; an end at or before the start is the next day), `break_minutes`, `required_competences`, `required_skills`, `supervised`, `counts_as_care` | `rota_and_timesheet` |
+| `shift_pattern` | mutable, archived | `location_id`, `name`, `cycle_days` (1 to 56), `entries` (`[{ day, templateId, count }]`) | `rota_and_timesheet` |
+| `rota` | mutable | `location_id`, `starts_on`, `ends_on` (at most 42 days; live rotas at a location never overlap), `state` (`draft`, `published`), `published_at` | `rota_and_timesheet` |
+| `rota_publication` | append-only | `rota_id`, `published_by`, `published_at`, `first_shift_start`, `notice_minutes`, counts of shifts, open shifts, overrides and working time findings, `staffing` (`[{ date, periodKey, status }]`), `check_digest` | `rota_and_timesheet` |
+| `shift` | mutable, cancelled with a reason | `rota_id`, `location_id`, `template_id`, `label`, `kind`, `starts_at`, `ends_at`, `break_minutes`, `required_competences`, `required_skills`, `supervised`, `counts_as_care`, `published_at`, `changed_after_publish_at` | `rota_and_timesheet` |
+| `shift_assignment` | mutable, removed with a reason | `shift_id`, `location_id` (the shift's), `worker_id`, `published_at`; one live assignment per shift | `rota_and_timesheet` |
+| `roster_override` | append-only | `assignment_id`, `location_id`, `worker_id`, `blocker_keys` (each with its reason; never a right to work or `not_active`), `justification` (10 to 1000 characters), `created_by`; given only with the assignment | `rota_and_timesheet` |
+
+A shift is one position for one member. Row-level security: the rota tables are read with
+`scheduling.rota.read` or `.manage` where the rota is (`app.reads_rota`) and written with `.manage`
+there (`app.manages_rota`); a member reads their own assignments and shifts once published with
+`scheduling.timesheet.self` through any role (`app.holds_self_permission`); overrides are read by
+holders of `.manage` or `.approve` there and given only with `.approve`, in the giver's name, never
+for themselves. Guards: a rota, template or pattern keeps its location; a shift keeps its rota and
+starts on one of its dates; an assignment keeps its shift and worker, is to a live shift, and a
+member is never on two live shifts that overlap (one member's assignments are serialised with an
+advisory lock the API also takes before checking every location); rotas at a location are started
+one at a time; an override is for a live assignment of its worker, made in the same transaction. Earlier versions in `record_version` follow the rota's read rule.
+
+### Rules
+
+1. **Shift shapes** (`checkShiftShape`): start and end are whole minutes in the day; a break is
+   whole minutes, shorter than the shift; competences are the organisation's observed competences
+   (`COMPETENCES`); skills are the dependency scale's (`STAFFING_SKILLS`); each listed once. Times
+   are UK wall clock (`shiftTimes`), so a 20:00 to 08:00 night is 13 hours on the night the clocks
+   go back and 11 on the night they go forward.
+2. **Patterns** (`checkPattern`, `patternShifts`): a cycle of live templates by day; applied to a
+   rota, the cycle's day 0 is the UK date the pattern was made, so the next rota carries on. Applying
+   makes open shifts.
+3. **Assigning** (HZ-124; `combinedRosterDecision` with `rosterChecks` and the competence port):
+   on every UK date the shift touches (a night is checked on the date it ends too, so a right to
+   work or a sign-off expiring overnight blocks): whether the member works for the organisation
+   that day (`memberActiveOn`: active, started, not left; `not_active`, never overridable); the
+   staff file's DBS (the newest certificate decides; new information from the Update Service on
+   any certificate blocks), right to work and (where the role is registered) a registration on the
+   role's own register, counting only items verified by someone other than the member; and each
+   competence the shift needs from the competence port, which blocks if the sign-off has lapsed by
+   then or now. No staff file means no DBS and no right to work. A blocked member is refused (422
+   `not_eligible`; `right_to_work` or `not_active` when those block, never overridable) unless a
+   holder of `scheduling.rota.approve` at the location overrides with a justification and the
+   blocker keys they were shown (each with its reason: `dbs:<reason>`, `competence:<name>:<reason>`);
+   if the blockers have changed since, the override is refused (409 `blockers_changed`). Never for
+   their own shift. Only members with a live role at the location or across the organisation are
+   answered for; anyone else reads as not found. A member already on an overlapping live shift
+   anywhere is refused (409). The answer gives each blocker's kind in words, never a DBS detail. A
+   shift's required skills describe the position and do not block (H-836).
+4. **Skills held** (`workerSkills`), for the whole shift (on each date it touches):
+   `registered_nurse` when the role is on the NMC register and the registration is current (the
+   part of the register is not yet recorded, H-835); `medicines_competent` and
+   `moving_and_handling` from the competence port (`medicines_administration`,
+   `moving_and_handling_hoist`); nobody is a `driver` until drivers are recorded (H-835).
+5. **The rota against the requirement** (HZ-123; `staffingProvided` then `compareStaffing`): per
+   date of the rota and each shift period of the scale in force, the care minutes of assigned
+   `work` shifts the organisation counts as care (`counts_as_care`; not housekeeping, kitchen or
+   office) inside the period less each shift's break in proportion, and for each skill the fewest
+   holders on shift at any moment of the period (`fewestPresent`: a handover overlap or two
+   holders one after the other never count as two); shifts of the neighbouring rotas at the
+   location that reach into the period count too; open shifts, sleep-ins, on-call and training give
+   no care minutes. The comparison carries the requirement's source, notice, method and every
+   warning, adds the rota's own (open care shifts, members on shift under an override), and says
+   "met, but" (`met_with_warnings`) whenever a warning stands. It advises and never blocks.
+6. **Working time** (advice only; `checkWorkingTime`): for each member on the rota, every live
+   assignment of theirs at any location from the longest reference period before the rota to the
+   day after it, with planned breaks placed in the middle of each shift (H-833), only the rota's
+   own days known; no working-time setting or opt-out is recorded until slice 30, so none is
+   applied (H-832); both of a young worker's restricted windows are checked until the contract's
+   late working is recorded; a staff file without a date of birth or start date gives
+   `cannot_check`, never an adult's rules by default. Findings use hours worked at other locations
+   too (only this rota's shift ids are returned).
+7. **The check before publishing** (`rotaCheck`; `GET /v1/rotas/{id}/check`): the comparison per
+   date and period, each member's working time, every assignment's eligibility again with whether
+   an override still covers it (`overrideCovers`: an override covers only what it named), the open
+   shifts, the notice the rota would give now and a digest of all of it. It needs
+   `scheduling.rota.manage` and `care.plan.read` in a scope covering the whole location (H-837),
+   and is audited as a care-record view.
+8. **Publishing**: locks the rota (every change to its shifts and assignments takes the same lock),
+   and sends back the digest; a changed check is refused (409 `check_changed`) so the new one is
+   read first; the publisher must have read that check themselves within the hour (its digest is on
+   their own `scheduling.rota.checked` audit event; 409 `check_not_seen`); an assignment the rule
+   now blocks with no override covering it is refused (422 `ineligible_assignments`); each period
+   that is `below`, `incomplete` or `no_scale` must be acknowledged by name
+   (`periodsToAcknowledge`; 422 `periods_not_acknowledged`); any other warning (`met, but`, a
+   working time finding or `cannot_check`, an open shift, an override standing) needs
+   `acknowledgeWarnings` (422 `warnings_not_acknowledged`). Publishing marks the shifts and assignments
+   published, records the publication with the notice before the first shift and what the
+   publisher was shown, and raises `scheduling.rota_published`. A change after publishing (a shift
+   added or cancelled, a member put on or taken off) is marked on the shift for notice (H-834) and
+   the rota is published again; the rota then reads `changedSincePublished` until it is (a task or
+   a daily re-check of published rotas is H-839).
+
+### API, audit and outbox
+
+| Route | What |
+| --- | --- |
+| `GET`, `POST /v1/locations/{id}/shift-templates`; `POST /v1/shift-templates/{id}/archive` | Templates |
+| `GET`, `POST /v1/locations/{id}/shift-patterns`; `POST /v1/shift-patterns/{id}/archive` | Patterns |
+| `GET`, `POST /v1/locations/{id}/rotas`; `GET /v1/rotas/{id}` | Rotas with shifts, who is on them and publications |
+| `POST /v1/rotas/{id}/apply-pattern`, `POST /v1/rotas/{id}/shifts`, `POST /v1/shifts/{id}/cancel` | Shifts |
+| `GET /v1/shifts/{id}/eligibility?workerId=` | The rostering rule for a member on a shift |
+| `POST /v1/shifts/{id}/assignment`; `POST /v1/shift-assignments/{id}/remove` | Assigning, with an optional override, and the member's working time as advice |
+| `GET /v1/rotas/{id}/check`; `POST /v1/rotas/{id}/publish` | The check and publishing |
+| `GET /v1/me/shifts?from=&to=` | A member's own published shifts |
+
+Audit events (opaque ids only, never a blocker's detail, a justification or a finding):
+`scheduling.shift_template.created`, `.archived`; `scheduling.shift_pattern.created`, `.archived`;
+`scheduling.rota.created`, `.pattern_applied`, `.checked`, `.published`; `scheduling.shift.added`,
+`.cancelled`, `.assigned`; `scheduling.eligibility.checked`; `scheduling.roster_override.given`;
+`scheduling.shift_assignment.removed`. Refusals are audited. Outbox:
+`scheduling.rota_published` (rota, location, publication).
+
+### Test list
+
+- Domain: `packages/domain/src/scheduling/rota.test.ts` (shapes, clock changes, patterns, what the
+  rota gives on a period, "met, but", working time from planned shifts, notice, overlaps, the
+  window) and `packages/domain/src/workforce/roster-checks.test.ts` (the staff file's checks on a
+  day; an override covers only what it named).
+- Database: `packages/db/test/rota.test.ts` (cross-tenant denial on all seven tables; who reads
+  and builds; a member's own published shifts only; no overlapping rotas; shifts inside their rota;
+  nobody on two shifts at once; overrides only by an approver, never for a right to work, a short
+  justification, another's name or oneself, never changed; publications append-only).
+- API: `apps/api/test/rota.test.ts` (templates, patterns at UK times, rotas; the rule on
+  assigning, overrides and refusals; working time advice and `cannot_check`; the check with and
+  without a scale; publishing with the digest, the acknowledgement and the notice; eligibility
+  lapsing before publishing; a member's own shifts; another organisation's rota not found).
+
+### As built (slice 21)
+
+- Domain: `packages/domain/src/scheduling/rota.ts` and `packages/domain/src/workforce/roster-checks.ts`;
+  `RosterInput` takes the competence port's decision.
+- Schema: `packages/db/src/schema/rota.ts`; migration `0083_rota_builder.sql`.
+- API: `apps/api/src/routes/rota.ts`, `apps/api/src/services/rota.ts`; the requirement is shared
+  with slice 12's route through `apps/api/src/services/staffing-requirement.ts`; contracts in
+  `packages/contracts/src/rota.ts`.
+- Not in this slice: swaps with approval and open-shift offers (H-838), the clock-in check on the
+  day (slice 27), the screens (slice 59), offline swap requests (slice 71).
+
+## 15. Lone-worker safety (slice 46; SCHED-012)
 
 Staff who work alone (domiciliary visits, night shifts) check in on a schedule. A missed check-in,
 a call for help or a duress check-in raises an alarm to the organisation's named on-call route
@@ -688,7 +838,7 @@ HZ-125; employee-monitoring DPIA (H-527); human actions H-1030 to H-1039. The we
 slice 61 and the mobile app slice 71. No rota or shift table exists yet (slice 21), so a session
 stands alone: the worker starts it.
 
-### 14.1 Schema (migration 0113)
+### 15.1 Schema (migration 0113)
 
 | Table | Kind | What it holds |
 | --- | --- | --- |
@@ -704,7 +854,7 @@ their own session and events; alarms are inserted and resolved only by the syste
 tenant scope), and acknowledged only by a monitor who is not the worker. History in
 `record_version` is redacted (no worker, note or outcome). Records stay on the server for now.
 
-### 14.2 Permissions and figures
+### 15.2 Permissions and figures
 
 | Permission | Who has it by default | What it allows |
 | --- | --- | --- |
@@ -717,7 +867,7 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
 `lone_worker.realert_minutes`, `lone_worker.offline_flag_minutes`, `lone_worker.session_max_hours`,
 `lone_worker.location_days`, and the existing `sync.clock_drift_flag_minutes`.
 
-### 14.3 Rules
+### 15.3 Rules
 
 1. **Off until the route is named.** A session starts only when the organisation has saved a
    valid route under the chain key `scheduling.lone_worker.alarm`: step 1 the on-call person or
@@ -769,7 +919,7 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
 10. **Never held up.** The sweep runs each session and alarm in its own savepoint: one that fails
    is audited and the others go on.
 
-### 14.4 The offline rule
+### 15.4 The offline rule
 
 The server decides only from check-ins it has received, by the time the worker made them:
 
@@ -787,7 +937,7 @@ The server decides only from check-ins it has received, by the time the worker m
   check-in from an offline device", flagged, and everyone alerted is told the worker was safe at
   that time, not now. If the worker is overdue again by now, the alarm stays open.
 
-### 14.5 Location evidence (H-527)
+### 15.5 Location evidence (H-527)
 
 Off by default (`scheduling.lone_worker.location`, a location-level flag). When on, the device may
 attach one point to the event it sends (check-in, help, duress, finish); nothing is collected
@@ -796,7 +946,7 @@ erases each point (coordinates cleared, the row kept as proof of the erasure) af
 `lone_worker.location_days`, on the database's clock. Never used to judge performance or
 timekeeping (R22).
 
-### 14.6 API, audit and outbox
+### 15.6 API, audit and outbox
 
 | Route | Permission | Notes |
 | --- | --- | --- |
@@ -815,14 +965,14 @@ alarms not yet raised, resolutions after late check-ins, re-alerts and location 
 events: `scheduling.lone_worker.alarm_raised`, `scheduling.lone_worker.alarm_resolved`.
 Notifications carry no personal data.
 
-### 14.7 Retention and data protection
+### 15.7 Retention and data protection
 
 `lone_worker` (3 years from the session's finish) for sessions, events and alarms; location points
 are not retained beyond `lone_worker.location_days`. Records of processing B3; data standards
 "Lone-worker safety". The DPO confirms the employee-monitoring DPIA covers it before it is switched
 on (H-1033).
 
-### 14.8a Web screens (slice 61)
+### 15.8a Web screens (slice 61)
 
 `/lone-working` in the navigation, for holders of any of the three permissions
 (`loneWorkerNavShown`). Every rule stays in the API; the pages order and word what it returns.
@@ -871,7 +1021,7 @@ on (H-1033).
   first, no Registered Manager later, minutes out of order and a step reaching people only inside
   Harbour (`readRoute`); the API checks every role and person again.
 
-### 14.8 Test list
+### 15.8 Test list
 
 - Domain, table-driven: session checks, event acceptance offline and late, next due, status, the
   offline rule end to end, resolution, acknowledgement, re-alert, route checks, figures present.
@@ -883,3 +1033,132 @@ on (H-1033).
   status words, duress never named on the worker's screen, the start, acknowledge and route forms'
   refusals); `apps/web/e2e/lone-working.spec.ts` (route, start, check in, help, the board and
   acknowledging, with axe).
+
+## 16. Staff wellbeing and voice (slice 44; SCHED-011)
+
+Pulse surveys, recognition notes and wellbeing check-ins (master prompt 12.3, "Staff wellbeing and
+voice"; CQC Well-led, workforce wellbeing). The organisation hears its staff without being able to
+single anyone out. A survey's results show only when enough people answered. A survey response
+cannot be traced to the person who gave it. A check-in is the member's own until they choose to
+share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decision about a member
+(UK GDPR Article 22 does not arise). Exit interviews, turnover by team and the speak-up link to slice
+24 are later work (H-1083).
+
+### Schema
+
+- `pulse_survey`: `location_id` (the home whose staff it asks; null for the whole organisation),
+  `title`, `questions` (jsonb array of `{ id, kind: "scale" | "free_text", text }`), `opens_on`,
+  `closes_on`, `state` (`draft`, `open`, `closed`), `created_by`, and the mutable columns.
+- `pulse_survey_participation`: `(tenant_id, survey_id, member_id)` and nothing else: no time and
+  no link to a response. It stops a second response and lets a member see that they took part.
+- `pulse_survey_response`: `id` (a random UUID, never time-ordered), `tenant_id`, `survey_id`,
+  `submitted_week` (the Monday of the UK week it came in) and `answers` (jsonb object keyed by
+  question id: a whole number from 1 to 5 for a scale, text up to 2,000 characters for free text).
+  It has no member, no creator, no exact time, no version history and no audit row that names it.
+  The application role cannot read or write it directly. A response first waits in
+  `pulse_survey_response_pending` and moves here, in a shuffled order, in the transaction that closes
+  the survey (`app.release_pulse_responses`), so no response shares a transaction with the
+  participation it came with. Both tables are reached only through definer functions owned by the
+  NOLOGIN role `harbour_wellbeing_owner`: `app.submit_pulse_response`, the release, and
+  `app.pulse_survey_results`.
+- `recognition`: `from_member_id`, `to_member_id`, `location_id` (the recipient's home), `message`
+  (up to 500 characters), `created_at`. Append-only.
+- `wellbeing_check_in`: `member_id`, `location_id` (the member's home), `mood` (1 to 5, the member's
+  own word for how they are), `note` (optional, up to 1,000 characters), `shared_at` (null unless
+  the member shares it), `created_at`. Only `shared_at` ever changes, and only the member changes it.
+
+### Rules
+
+1. **Survey life** (`checkSurveyMove`). A survey moves draft, then open, then closed, never back. Its
+   questions and dates are fixed once it opens. It has 1 to 20 questions with distinct ids and
+   non-empty text, and it closes on or after the day it opens (`checkSurveyDefinition`).
+2. **Who answers** (`app.submit_pulse_response`). A member holding `scheduling.wellbeing.self`
+   answers an open survey, between its dates, once. They must be on a staff profile made before the
+   survey opened, by an account also made before then (at its home, for a home's survey; neither
+   creation date can be changed), and never its writer or a holder of
+   `scheduling.wellbeing.manage` there, who could otherwise make up respondents or take away their
+   own answers. Each answer is checked against
+   the survey's questions (`checkResponse`). At least one question must be answered.
+3. **No link to the member**. The response row holds no member and no exact time: the week
+   only: the week the survey closed, the same for every response. Its id is random. The participation row holds no time and a random id.
+   Nothing is audited as an answer arrives. When the survey closes, one audit event
+   `scheduling.pulse_survey.responded` is written for each response, naming the survey only, so the
+   audit never shows answers arriving. Its actor is anonymous:
+   no member, no sign-in, no roles, no address, no device, no request id. A request log shows only
+   that a member took part, which the participation row already records; it never holds an answer.
+4. **Minimum group size**. The size is `wellbeing.survey_min_group_size` from the rate
+   table. An organisation may raise it and never lower it: the larger of the global row and its
+   own applies. Results show only once the survey has closed, so a manager cannot watch answers
+   arrive one at a time. They show only when at least that many people answered (`resultsVisible`).
+   Each question shows only when at least that many answered it. A survey whose last day has passed
+   is closed within the hour by the worker as the system (`closeEndedSurveysJob`), which may do
+   nothing else to it. Below the size, the results say
+   "Fewer than N people answered" and give no count, average, spread or text. There is no breakdown,
+   filter or export of responses: a home that wants its own results runs its own survey.
+   Free-text answers come in alphabetical order, never the order they arrived. A scale's counts
+   show all or none: when any point was chosen by fewer than the size, every count is hidden, zeros
+   too, since a hidden count could otherwise be worked out from the number who answered
+   (`suppressCounts`). Comparing two overlapping surveys of
+   the same people can still narrow down answers; that remains a risk the DPIA records (R28).
+5. **Recognition**. A member holding `scheduling.wellbeing.self` thanks a colleague, never
+   themselves. The note is seen by its sender, its recipient and the holders of
+   `scheduling.wellbeing.manage` at the recipient's home. It is append-only and is never part of a
+   performance record.
+6. **Check-ins are the member's**. A member holding `scheduling.wellbeing.self` records
+   their own check-ins and sees them. A manager (`scheduling.wellbeing.manage` at the member's home)
+   sees a check-in only while it is shared. The member may share or stop sharing at any time;
+   stopping hides it again. A check-in is never a referral or a judgement. The screen points to the
+   organisation's own support (its employee assistance details) and to emergency help, set by the
+   organisation (H-1084).
+
+### Permissions
+
+| Action | Permission |
+| --- | --- |
+| Answer a survey; thank a colleague; own check-ins | `scheduling.wellbeing.self` (any role in force) |
+| Write, open and close surveys; read results; read recognition and shared check-ins at a home | `scheduling.wellbeing.manage` at the home (organisation-wide for an organisation survey) |
+
+Built-in roles: every staff role holding `scheduling.timesheet.self` also holds
+`scheduling.wellbeing.self`. The owner, the Registered Manager and the deputy hold both.
+
+### API
+
+- `GET /v1/pulse-surveys` (manage: the surveys at homes in reach; self: open surveys the member may
+  answer, with `answered`), `POST /v1/pulse-surveys`, `PATCH /v1/pulse-surveys/{id}` (draft only,
+  `expected_version`), `POST /v1/pulse-surveys/{id}/open`, `POST /v1/pulse-surveys/{id}/close`.
+- `POST /v1/pulse-surveys/{id}/responses` returns 204, with no id and no time.
+  `GET /v1/pulse-surveys/{id}/results` returns the results or `visible: false` with the size.
+- `GET /v1/recognition` (`mine=received|sent`, or `locationId` for a manager);
+  `POST /v1/recognition`.
+- `GET /v1/wellbeing-check-ins` (own; or `locationId` for a manager: shared only; the
+  organisation's export holds only shared check-ins, a member's private ones reach them through a
+  subject access request);
+  `POST /v1/wellbeing-check-ins`; `POST /v1/wellbeing-check-ins/{id}/sharing` (`shared: boolean`).
+
+### Audit
+
+Ids only, never a note, a message, an answer or a mood. Survey writes are audited as
+`scheduling.pulse_survey.*`. Each response is audited as `scheduling.pulse_survey.responded` when the
+survey closes, with an anonymous actor and the survey only. Results views are audited as
+`scheduling.pulse_survey.results_viewed`, with whether they were visible. Recognition is audited as
+`scheduling.recognition.given`. Check-ins are audited as `scheduling.wellbeing_check_in.recorded`,
+`.shared`, `.unshared` and `.viewed`; a manager's view names the check-ins, never their content.
+
+### Test list
+
+- Domain (`wellbeing.test.ts`, table-driven): survey definitions, moves, response checks, the UK
+  week (including across the clock change), the visibility rule at, below and above the size, and
+  the size never lowered by an organisation.
+- Database (`wellbeing.test.ts`):
+  - cross-tenant denial on every table;
+  - the response table is closed to the application role;
+  - a second response is refused;
+  - an ineligible member is refused;
+  - results are refused while the survey is open and below the size;
+  - a tenant row cannot lower the size;
+  - recognition cannot go to oneself;
+  - check-ins: the manager sees only shared ones, and only the member shares;
+  - append-only and guard triggers.
+- API (`wellbeing.test.ts`): the whole flow with the anonymous audit actor. The response leaves no
+  trace naming the member. Results hidden below the size and shown at it, with free text sorted.
+  Recognition and check-in visibility. Another organisation's ids not found.

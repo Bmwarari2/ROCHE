@@ -18,7 +18,7 @@ import { MAX_ROUTE_STEPS, OUTCOMES, WORK_KINDS } from "@/lib/lone-worker";
 import { type ActionResult, problemMessage, refused } from "@/lib/outcome";
 
 /**
- * Lone-worker writes (scheduling.md section 14; HZ-125), sent to the API as the signed-in person.
+ * Lone-worker writes (scheduling.md section 15; HZ-125), sent to the API as the signed-in person.
  * The API checks every rule again and refuses in its own words. Sessions and events carry the
  * client's id, so a retry after a lost connection records once. The web app never offers duress
  * (H-1140), so no action here sends one.

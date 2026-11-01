@@ -28,7 +28,7 @@ import { createLogger } from "../src/logger";
 import { createHarness, type Harness, LODGE } from "./support/harness";
 
 /**
- * Lone-worker safety through the API (SCHED-012, Phase 2 slice 46; scheduling.md section 14;
+ * Lone-worker safety through the API (SCHED-012, Phase 2 slice 46; scheduling.md section 15;
  * HZ-125): off until the organisation names its on-call route; sessions and idempotent events;
  * the offline rule (a check-in made on time but sent late never counts as missed, and one that
  * arrives after the alarm resolves it as a late check-in, flagged, unless the worker is overdue

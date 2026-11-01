@@ -33,7 +33,7 @@ import { roleHolders, toldOf } from "./role-holders";
 import { permissionHolders } from "./safety";
 
 /**
- * Lone-worker safety (SCHED-012; scheduling.md section 14; HZ-125): the alarm side. Everything
+ * Lone-worker safety (SCHED-012; scheduling.md section 15; HZ-125): the alarm side. Everything
  * here runs as the system (no user, tenant scope), from the API straight after a worker's event
  * and from the per-minute sweep, which repairs anything the API did not finish. Alarm rows are
  * written by nobody else (migration 0113). Notifications carry no personal data: the title and

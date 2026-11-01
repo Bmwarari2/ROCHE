@@ -649,4 +649,45 @@ describe("#149 re-check L1: earlier versions show only what their table's export
     expect(data).not.toHaveProperty("bundle_storage_key");
     expect(data).toHaveProperty("bundle_sha256");
   });
+
+  it("reads a table with column grants, such as an invitation, without its secret token", async () => {
+    // The application role cannot read invitation.token_hash, so reading the whole row was
+    // refused (42501) and a staff member's invitation could not be reviewed or sent (slice 66).
+    const client = await h.db.pool("harbour_owner").connect();
+    let invitationId = "";
+    let invitedId = "";
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true),
+                set_config('app.user_id', $2, true)`,
+        [DEMO.tenantId, DEMO.users.owner.id],
+      );
+      invitedId = (
+        await client.query<{ id: string }>(
+          `INSERT INTO tenant_user (display_name, email, status, mfa_required)
+           VALUES ('Ivy Invited', $1, 'invited', true) RETURNING id`,
+          [`ivy.${Date.now()}@example.invalid`],
+        )
+      ).rows[0]?.id as string;
+      invitationId = (
+        await client.query<{ id: string }>(
+          `INSERT INTO invitation (tenant_user_id, token_hash, expires_at, created_by)
+           VALUES ($1, repeat('b', 64), now() + interval '1 day', $2) RETURNING id`,
+          [invitedId, DEMO.users.owner.id],
+        )
+      ).rows[0]?.id as string;
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+    const records = await withRequestContext(
+      createDatabase(h.db.pool("harbour_app")),
+      { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) => recordsOf(tx, "invitation", [invitationId]),
+    );
+    const record = records.get(invitationId);
+    expect(record).toHaveProperty("tenant_user_id", invitedId);
+    expect(record).not.toHaveProperty("token_hash");
+  });
 });

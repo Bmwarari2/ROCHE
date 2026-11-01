@@ -44,32 +44,32 @@ describe("records of processing purposes", () => {
     [
       "a residential home with nothing optional",
       config(),
-      ["B1", "B2", "B3", "B4", "B5", "B6", "B7"],
+      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B16"],
     ],
     [
       "with the family portal",
       config(["module.family_portal"]),
-      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"],
+      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B16"],
     ],
     [
       "with marketing",
       config([], { marketing: true }),
-      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B9"],
+      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B9", "B16"],
     ],
     [
       "with AI but not on free text",
       config(["module.ai"]),
-      ["B1", "B2", "B3", "B4", "B5", "B6", "B7"],
+      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B16"],
     ],
     [
       "with free text switched on but the AI module off",
       config([], { ai_free_text: true }),
-      ["B1", "B2", "B3", "B4", "B5", "B6", "B7"],
+      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B16"],
     ],
     [
       "with AI on free text",
       config(["module.ai"], { ai_free_text: true }),
-      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B10"],
+      ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B10", "B16"],
     ],
   ])("register for %s", (_label, input, ids) => {
     expect(recordsOfProcessingRegister(input).map((r) => r.id)).toEqual(ids);

@@ -6,6 +6,7 @@ import {
   date,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -13,7 +14,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
-import { id, mutableColumns, tenantId } from "./_columns";
+import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
 import { location, tenantUser } from "./platform";
 
 /**
@@ -134,6 +135,205 @@ export const complianceItem = pgTable(
       "compliance_item_risk_assessment",
       sql`(risk_assessment_signed_on IS NULL) = (risk_assessment_signed_by IS NULL)
         AND (risk_assessment_signed_on IS NULL OR kind = 'dbs_certificate')`,
+    ),
+  ],
+);
+
+/**
+ * Training, observed competence, supervision and revalidation (workforce.md section 2b; WORK-005,
+ * WORK-008, WORK-009, WORK-012; plan slice 17, migration 0079). Keyed by the member of staff
+ * (`worker_id`), so training and supervision leads need not read the pre-employment file. Medicines
+ * and scheduling never read these tables: they ask the competence port (ADR-0085).
+ */
+
+/** `TRAINING_TOPICS` in packages/domain, kept in step by test/training-competence.test.ts. */
+export const TRAINING_TOPIC_CODES = [
+  "care_certificate",
+  "safeguarding_adults",
+  "safeguarding_children",
+  "moving_and_handling",
+  "infection_prevention_and_control",
+  "fire_safety",
+  "health_and_safety",
+  "basic_life_support",
+  "food_hygiene",
+  "medicines",
+  "mental_capacity_and_dols",
+  "equality_diversity_and_human_rights",
+  "information_governance",
+  "dementia_awareness",
+  "fluids_and_nutrition",
+  "oliver_mcgowan",
+] as const;
+
+/** `COMPETENCES` in packages/domain, kept in step by test/training-competence.test.ts. */
+export const COMPETENCE_CODES = [
+  "medicines_administration",
+  "controlled_drugs",
+  "insulin_administration",
+  "epilepsy_rescue_medication",
+  "moving_and_handling_hoist",
+  "catheter_care",
+  "enteral_feeding",
+  "oxygen_therapy",
+] as const;
+
+export const SUPERVISION_KINDS = ["supervision", "appraisal", "spot_check"] as const;
+
+const workerRef = staffRef;
+
+export const trainingRequirement = pgTable(
+  "training_requirement",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    roleKey: text("role_key").notNull(),
+    topic: text("topic").notNull(),
+    refreshYears: integer("refresh_years"),
+    tier: integer("tier"),
+    active: boolean("active").notNull().default(true),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("training_requirement_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("training_requirement_role_topic_key").on(t.tenantId, t.roleKey, t.topic),
+    check("training_requirement_topic", sql`topic IN (${sqlList(TRAINING_TOPIC_CODES)})`),
+    check("training_requirement_role_key", sql`role_key ~ '^[a-z][a-z0-9_]{1,63}$'`),
+    check(
+      "training_requirement_refresh",
+      sql`refresh_years IS NULL OR refresh_years BETWEEN 1 AND 10`,
+    ),
+    check(
+      "training_requirement_tier",
+      sql`(tier IS NULL) = (topic <> 'oliver_mcgowan') AND (tier IS NULL OR tier IN (1, 2))`,
+    ),
+  ],
+);
+
+export const trainingRecord = pgTable(
+  "training_record",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    workerId: uuid("worker_id").notNull(),
+    topic: text("topic").notNull(),
+    tier: integer("tier"),
+    completedOn: date("completed_on").notNull(),
+    expiresOn: date("expires_on"),
+    provider: text("provider"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("training_record_tenant_id_id_key").on(t.tenantId, t.id),
+    workerRef("training_record_worker_fk", t, t.workerId),
+    index("training_record_worker_idx").on(t.tenantId, t.workerId),
+    check("training_record_topic", sql`topic IN (${sqlList(TRAINING_TOPIC_CODES)})`),
+    check(
+      "training_record_tier",
+      sql`(tier IS NULL) = (topic <> 'oliver_mcgowan') AND (tier IS NULL OR tier IN (1, 2))`,
+    ),
+    check("training_record_expiry", sql`expires_on IS NULL OR expires_on >= completed_on`),
+    check(
+      "training_record_provider",
+      sql`provider IS NULL OR length(btrim(provider)) BETWEEN 2 AND 160`,
+    ),
+  ],
+);
+
+export const competenceSignOff = pgTable(
+  "competence_sign_off",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    workerId: uuid("worker_id").notNull(),
+    competence: text("competence").notNull(),
+    observedOn: date("observed_on").notNull(),
+    observerId: uuid("observer_id").notNull().default(sql`app.current_user_id()`),
+    validUntil: date("valid_until").notNull(),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("competence_sign_off_tenant_id_id_key").on(t.tenantId, t.id),
+    workerRef("competence_sign_off_worker_fk", t, t.workerId),
+    workerRef("competence_sign_off_observer_fk", t, t.observerId),
+    index("competence_sign_off_worker_idx").on(t.tenantId, t.workerId, t.competence),
+    check("competence_sign_off_competence", sql`competence IN (${sqlList(COMPETENCE_CODES)})`),
+    check("competence_sign_off_valid_until", sql`valid_until > observed_on`),
+    check("competence_sign_off_not_self", sql`observer_id <> worker_id`),
+  ],
+);
+
+export const competenceWithdrawal = pgTable(
+  "competence_withdrawal",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    signOffId: uuid("sign_off_id").notNull(),
+    reason: text("reason").notNull(),
+    withdrawnBy: uuid("withdrawn_by").notNull().default(sql`app.current_user_id()`),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("competence_withdrawal_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("competence_withdrawal_sign_off_key").on(t.tenantId, t.signOffId),
+    foreignKey({
+      name: "competence_withdrawal_sign_off_fk",
+      columns: [t.tenantId, t.signOffId],
+      foreignColumns: [competenceSignOff.tenantId, competenceSignOff.id],
+    }),
+    staffRef("competence_withdrawal_by_fk", t, t.withdrawnBy),
+    check("competence_withdrawal_reason", sql`length(btrim(reason)) BETWEEN 10 AND 500`),
+  ],
+);
+
+export const supervisionRecord = pgTable(
+  "supervision_record",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    workerId: uuid("worker_id").notNull(),
+    kind: text("kind").notNull(),
+    heldOn: date("held_on").notNull(),
+    heldBy: uuid("held_by").notNull().default(sql`app.current_user_id()`),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("supervision_record_tenant_id_id_key").on(t.tenantId, t.id),
+    workerRef("supervision_record_worker_fk", t, t.workerId),
+    workerRef("supervision_record_held_by_fk", t, t.heldBy),
+    index("supervision_record_worker_idx").on(t.tenantId, t.workerId),
+    check("supervision_record_kind", sql`kind IN (${sqlList(SUPERVISION_KINDS)})`),
+    check("supervision_record_not_self", sql`held_by <> worker_id`),
+  ],
+);
+
+export const revalidationEvidence = pgTable(
+  "revalidation_evidence",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    workerId: uuid("worker_id").notNull(),
+    cycleDueOn: date("cycle_due_on").notNull(),
+    practiceHours: integer("practice_hours").notNull().default(0),
+    cpdHours: integer("cpd_hours").notNull().default(0),
+    participatoryCpdHours: integer("participatory_cpd_hours").notNull().default(0),
+    feedbackPieces: integer("feedback_pieces").notNull().default(0),
+    reflectiveAccounts: integer("reflective_accounts").notNull().default(0),
+    reflectiveDiscussion: boolean("reflective_discussion").notNull().default(false),
+    healthAndCharacter: boolean("health_and_character").notNull().default(false),
+    professionalIndemnity: boolean("professional_indemnity").notNull().default(false),
+    confirmation: boolean("confirmation").notNull().default(false),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("revalidation_evidence_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("revalidation_evidence_cycle_key").on(t.tenantId, t.workerId, t.cycleDueOn),
+    workerRef("revalidation_evidence_worker_fk", t, t.workerId),
+    check(
+      "revalidation_evidence_counts",
+      sql`practice_hours BETWEEN 0 AND 10000 AND cpd_hours BETWEEN 0 AND 1000
+        AND participatory_cpd_hours BETWEEN 0 AND cpd_hours
+        AND feedback_pieces BETWEEN 0 AND 100 AND reflective_accounts BETWEEN 0 AND 100`,
     ),
   ],
 );

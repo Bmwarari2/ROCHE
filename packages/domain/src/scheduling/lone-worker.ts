@@ -2,7 +2,7 @@ import { type EscalationStep, validateChain } from "../platform/notifications";
 import { MINUTES_PER_HOUR, MS_PER_MINUTE } from "./intervals";
 
 /**
- * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 14; HZ-125).
+ * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 15; HZ-125).
  *
  * A member of staff working alone (a domiciliary visit, a night shift) starts a session with a
  * check-in interval. Each check-in is an append-only event with a client UUID. When a check-in is
@@ -11,7 +11,7 @@ import { MINUTES_PER_HOUR, MS_PER_MINUTE } from "./intervals";
  * re-sent, until a person acknowledges it. A duress check-in looks like an ordinary one to anyone
  * watching the worker's screen and raises an urgent alarm; a help request raises one openly.
  *
- * The offline rule (scheduling.md section 14.4): the server decides from the device time of the
+ * The offline rule (scheduling.md section 15.4): the server decides from the device time of the
  * check-ins it has received, never from when they arrived. A check-in made on time on a device that
  * was offline therefore never counts as missed once it arrives; one that arrives after the alarm was
  * raised resolves that alarm as a late check-in from an offline device, flagged, and everyone who
@@ -370,7 +370,7 @@ export const ALARM_REASON_WORDS: Record<LoneWorkerAlarmReason, string> = {
 
 /**
  * What the worker's own screen shows for an event: a duress check-in reads exactly as an ordinary
- * one, so a person standing over them cannot tell (scheduling.md section 14.3).
+ * one, so a person standing over them cannot tell (scheduling.md section 15.3).
  */
 export function kindShownToWorker(kind: LoneWorkerEventKind): LoneWorkerEventKind {
   return kind === "duress" ? "check_in" : kind;

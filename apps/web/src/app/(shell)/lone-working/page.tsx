@@ -21,7 +21,7 @@ export const metadata: Metadata = { title: t("scheduling.loneWorker.title") };
 const REFRESH_SECONDS = 60;
 
 /**
- * Lone working (SCHED-012, slice 61; scheduling.md section 14). The worker's own session: start
+ * Lone working (SCHED-012, slice 61; scheduling.md section 15). The worker's own session: start
  * one, check in, ask for help, finish. Monitors and those who name the route are linked to the
  * board and the route. The page never shows or offers duress (H-1140).
  */

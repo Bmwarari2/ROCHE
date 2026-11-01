@@ -67,6 +67,12 @@ export const FLAGS = {
     licensed: true,
     remote: true,
   },
+  "platform.sso": {
+    description:
+      "Single sign-on with the organisation's identity provider (off until security review; ADR-0091)",
+    defaultEnabled: false,
+    licensed: false,
+  },
   "locale.welsh": {
     description: "Welsh language interface and Active Offer",
     defaultEnabled: false,

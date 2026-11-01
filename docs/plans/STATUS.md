@@ -7,6 +7,8 @@ gate passes on `main` (section 19, definition of complete).
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 77 `partial`, 156 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
+only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
+screens (#128, `docs/user-guides/`).
 
 | Phase | Scope | State |
 | --- | --- | --- |
@@ -21,6 +23,39 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 7 Expansion | Nation packs, children's homes | Not started |
 
 ## Where to pick up (resumed 31/10/2026)
+
+**Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
+while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or
+security change rather than a web one:
+- Acknowledging an overdue statutory notification alert stops its escalation chain although the
+  notification is still not submitted (API, `platform.ts` acknowledge; the safeguarding log already
+  re-alerts daily, #155).
+- The inspector's evidence pack link has no page to enter the one-time code: the `/p/evidence`
+  routes answer JSON on the API's origin with an HttpOnly session cookie, so a web page needs a
+  cross-origin cookie or a proxy decision (security review).
+- Body map marks recorded on the web are not linked to an incident (API: the incident form has no
+  marks input; the body map route does not take an incident id). The hints now say so.
+- The downtime pack needs step-up, but `operations.downtime.read` is not marked step-up in the
+  permission catalogue, so the generated matrix does not say so (domain; marking it would make the
+  whole Downtime page need step-up).
+- The break-glass search alert links to `/settings/audit`, which does not exist, and the record
+  alert sends people to an audit log with no screen; "data protection lead" means the quality lead
+  role for one alert and the named lead for the other (API).
+- The DPIA signature's typed name is not checked against the account (domain and API).
+- A deputy manager cannot record a statutory notification as submitted without an acting-up
+  grant, and acting-up grants have no screen (a web screen over the grants API, its own slice).
+
+**Phase 2 slice 66, the data rights screens** (`feat/web-data-rights`, from #149 with #156 merged
+in): Data rights in the menu for holders of `quality.dsar.manage` across the organisation, with the
+DSAR workbench (clock in words, identity, pause and extension, collection with the "not searched"
+list first, record review with other people's names marked, the response with step-up and a file
+to send), the breach register (ICO clock in words from the rate table) and data protection
+complaints (acknowledgement and update clocks). Journeys with axe in light and dark pass locally.
+Fixed on the way: the DSAR record view and bundle read every column (`to_jsonb`), which the
+invitation table's column grants refuse, so any member of staff's request failed (belongs in
+#149). Not built yet: a contact's own request, rectification decisions, correcting breach facts,
+complaint links, and a record that no longer exists (H-881). Merge order: #149, then #156, then
+this branch (the merge kept migration 0082 after 0077, with 0082's journal time after 0077's).
 
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.

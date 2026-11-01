@@ -198,11 +198,20 @@ export const PERMISSIONS = {
     careRecord: true,
   },
   "safety.safeguarding.manage": { description: "Manage the safeguarding log", careRecord: true },
+  "safety.outbreak.manage": {
+    description: "Declare and close outbreaks, keep the case line list and the UKHSA report fields",
+    careRecord: true,
+  },
   "safety.complaint.manage": {
     description: "Manage complaints and compliments",
     careRecord: true,
   },
   "safety.whistleblowing.read": { description: "Read speak-up concerns (anonymised)" },
+  "safety.speak_up.manage": {
+    description:
+      "Freedom to Speak Up lead: receive, manage and reply to speak-up concerns (a silo permission, ADR-0089)",
+    careRecord: true,
+  },
   "safety.disclosure.approve": { description: "Approve coroner, police and solicitor disclosures" },
   // quality
   "quality.audit.manage": { description: "Run audits and mock inspections" },
@@ -237,11 +246,21 @@ export const PERMISSIONS = {
       "Approve a statement of purpose revision (the registered provider or manager; not its author)",
   },
   // workforce
-  "workforce.recruitment.manage": { description: "Manage applicants and pre-employment files" },
+  "workforce.recruitment.manage": {
+    description:
+      "Manage job templates, vacancies, applicants, interviews and offers, and read equality monitoring counts",
+    // Applicants' data includes equality monitoring (special category): MFA as for the staff file.
+    sensitive: true,
+  },
   "workforce.training.manage": { description: "Manage the training matrix and competence" },
   "workforce.competence.observe": { description: "Observe and sign off competence" },
   "workforce.supervision.manage": { description: "Schedule and record supervisions" },
-  "workforce.casework.manage": { description: "Manage employee relations casework" },
+  "workforce.casework.manage": {
+    description:
+      "Open employee relations cases and run those one is named on (a silo permission, ADR-0089: no other role reaches a case)",
+    // Casework holds health and allegations of criminal conduct: MFA as for the staff file.
+    sensitive: true,
+  },
   "workforce.self.read": { description: "Read own training, documents and pay" },
   "workforce.staff_file.read": {
     description:
@@ -257,6 +276,17 @@ export const PERMISSIONS = {
       "Open and add HR-only staff documents (identity, right to work, health); every view is audited",
     sensitive: true,
   },
+  "workforce.immigration.read": {
+    description:
+      "Read sponsored workers' immigration and sponsor licence records (HR only); every view is audited",
+    sensitive: true,
+  },
+  "workforce.sponsor.manage": {
+    description:
+      "Record sponsored workers, Appendix D records, absences and reportable changes (HR only)",
+    sensitive: true,
+  },
+  "workforce.ldss.manage": { description: "Track Learning and Development Support Scheme claims" },
   "workforce.dbs_risk_assessment.sign": {
     description:
       "Sign the DBS risk assessment that lets a worker start supervised or accepts a disclosure",
@@ -283,6 +313,13 @@ export const PERMISSIONS = {
   "scheduling.lone_worker.manage": {
     description: "Name the on-call route for lone-worker alarms",
     sensitive: true,
+  },
+  "scheduling.wellbeing.manage": {
+    description:
+      "Run staff pulse surveys and read their results above the minimum group size, recognition and check-ins members share",
+  },
+  "scheduling.wellbeing.self": {
+    description: "Answer staff surveys, thank colleagues and keep own wellbeing check-ins",
   },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
@@ -354,6 +391,18 @@ export const PERMISSIONS = {
   "ai.copilot.use": { description: "Use the AI management copilot (advisory only)" },
   "ai.copilot.manage": { description: "Configure the AI module and provider" },
 } as const satisfies Record<string, PermissionDefinition>;
+
+/**
+ * Silo permissions (ADR-0089): held only through a role that carries nothing else, never by a role
+ * built from "every permission", never through an access grant, and never together with a role
+ * that manages users or roles. Row-level security repeats it (migration 0086 for speak-up, 0101 for
+ * casework).
+ */
+export const SILO_PERMISSIONS = ["safety.speak_up.manage", "workforce.casework.manage"] as const;
+
+export function isSiloPermission(permission: string): boolean {
+  return (SILO_PERMISSIONS as readonly string[]).includes(permission);
+}
 
 export type Permission = keyof typeof PERMISSIONS;
 

@@ -12,7 +12,7 @@ import { loneWorkerAccess, routeRoleOptions } from "@/lib/lone-worker";
 export const metadata: Metadata = { title: t("scheduling.loneWorker.route.title") };
 
 /**
- * The on-call route for lone-worker alarms (H-539; scheduling.md section 14.3 rules 1, 4 and 5).
+ * The on-call route for lone-worker alarms (H-539; scheduling.md section 15.3 rules 1, 4 and 5).
  * Until a valid route is saved no session can start. Roles are the staff roles that can see and
  * acknowledge alarms; a named person is offered only to those who may list the team, from the
  * active members. The API checks both again and refuses a role or person that cannot monitor.

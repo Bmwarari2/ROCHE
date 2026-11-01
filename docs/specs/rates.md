@@ -131,6 +131,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |
 | sponsor.switching_evidence_months | 3 | months | 2025-07-22 | - | uk | master prompt 12.1 ("3-month switching evidence") | to-verify |
 | sponsor.counted_weekly_hours_max | 48 | hours | 2025-07-22 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, salary requirements (pay counted for at most 48 hours a week) | to-verify |
+| sponsor.unauthorised_absence_working_days | 10 | working_days | 2000-01-01 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, reporting duties (a sponsored worker absent without permission for more than 10 consecutive working days is reported) | to-verify |
+| sponsor.visa_expiry_warning_days | 90 | days | 2025-01-01 | - | uk | Harbour default: how far ahead a sponsored worker's visa expiry is flagged (no statutory figure) | to-verify |
 | fnc.weekly.standard | 267.68 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
 | fnc.weekly.standard | 254.06 | GBP_per_week | 2025-04-01 | 2026-03-31 | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost | verified |
 | fnc.weekly.higher | 368.24 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
@@ -181,6 +183,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ahra.response_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5) (40 days) and the Northern Ireland Order 1993 | to-verify |
 | ahra.recent_record_response_days | 21 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) (21 days where the record was made in the 40 days before the application) | to-verify |
 | ahra.recent_record_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) | to-verify |
+| speak_up.reply_token_days | 180 | days | 2000-01-01 | - | all | Harbour default: how long an anonymous reporter's reply token opens their concern after it was raised; no statutory figure (ADR-0089; H-721) | to-verify |
+| coroner.prevention_report_response_days | 56 | days | 2013-07-25 | - | england | Coroners (Investigations) Regulations 2013 reg 29(3) (a response to a prevention of future deaths report within 56 days) | to-verify |
+| coroner.prevention_report_response_days | 56 | days | 2013-07-25 | - | wales | Coroners (Investigations) Regulations 2013 reg 29(3) (a response to a prevention of future deaths report within 56 days) | to-verify |
 | candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | https://www.legislation.gov.uk/uksi/2014/2936/regulation/20 (reg 20(7) "prolonged pain" and "prolonged psychological harm", and reg 20(9)(a)(ii): a continuous period of at least 28 days); master prompt 11.1 | verified |
 | cqc.reg18.prolonged_harm_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(5)(g): prolonged pain or psychological harm, and an impairment that is not temporary, mean a continuous period of at least 28 days) | verified |
 | cqc.reg18.interruption_hours | 24 | hours | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(2)(g)(ii) and (iv): utilities, fire alarms or safety devices out for longer than a continuous period of 24 hours) | verified |
@@ -231,6 +236,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | training.default_refresh_years | 3 | years | 2000-01-01 | - | all | master prompt 12.2 (tenant may set sooner) | master-prompt |
 | training.oliver_mcgowan.refresh_years | 3 | years | 2000-01-01 | - | england | master prompt 12.2 (Oliver McGowan Code of Practice 2025) | master-prompt |
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
+| competence.default_refresh_months | 12 | months | 2000-01-01 | - | all | Harbour default for observed competences other than medicines (no statutory figure; tenant may set sooner; H-690) | to-verify |
+| retention.staff_file.birthday_age | 75 | years | 2000-01-01 | - | all | NHS Records Management Code of Practice (staff records to the 75th birthday); retention.md staff_file.to_75th_birthday | master-prompt |
 | supervision.per_year | 6 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | appraisal.per_year | 1 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | document_expiry.reminder_days.first | 90 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
@@ -255,14 +262,15 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ecm.tolerance_minutes.medium | 30 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.low | 60 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | notification.missed_visit_escalation_minutes | 10 | minutes | 2000-01-01 | - | all | master prompt 9.1, 19 Phase 4 gate | master-prompt |
-| lone_worker.grace_minutes | 15 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 14.4, HZ-125): how long after a lone worker's check-in is due before the alarm goes to the on-call route; it also absorbs ordinary sync delay from an offline device; no published figure; tenant default; CSO to confirm (H-1030) | to-verify |
-| lone_worker.check_in_min_minutes | 15 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 14.2): the closest check-ins may be set, against alarm fatigue; tenant default; CSO to confirm (H-1030) | to-verify |
-| lone_worker.check_in_max_minutes | 120 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 14.2): the furthest apart check-ins may be set, so a hurt worker is never unmissed for long; HSE INDG73 sets no interval; tenant default; CSO to confirm (H-1030) | to-verify |
-| lone_worker.realert_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 14.5, HZ-125): an open lone-worker alarm is sent again to everyone on the route this often until a person acknowledges it; tenant default; CSO to confirm (H-1030) | to-verify |
-| lone_worker.offline_flag_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 14.4): a check-in received this long after it was made is flagged as sent from an offline device; tenant default | to-verify |
-| lone_worker.session_max_hours | 14 | hours | 2000-01-01 | - | all | Harbour default (scheduling.md section 14.2): the longest one lone-working session may be planned for; tenant default | to-verify |
-| lone_worker.location_days | 30 | days | 2000-01-01 | - | all | Harbour default (scheduling.md section 14.6, H-527): location evidence attached to a lone-worker event is erased this many days after it was captured; the shortest that lets an alarm be reviewed; DPO to confirm in the employee-monitoring DPIA (H-1033) | to-verify |
+| lone_worker.grace_minutes | 15 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 15.4, HZ-125): how long after a lone worker's check-in is due before the alarm goes to the on-call route; it also absorbs ordinary sync delay from an offline device; no published figure; tenant default; CSO to confirm (H-1030) | to-verify |
+| lone_worker.check_in_min_minutes | 15 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 15.2): the closest check-ins may be set, against alarm fatigue; tenant default; CSO to confirm (H-1030) | to-verify |
+| lone_worker.check_in_max_minutes | 120 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 15.2): the furthest apart check-ins may be set, so a hurt worker is never unmissed for long; HSE INDG73 sets no interval; tenant default; CSO to confirm (H-1030) | to-verify |
+| lone_worker.realert_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 15.5, HZ-125): an open lone-worker alarm is sent again to everyone on the route this often until a person acknowledges it; tenant default; CSO to confirm (H-1030) | to-verify |
+| lone_worker.offline_flag_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour default (scheduling.md section 15.4): a check-in received this long after it was made is flagged as sent from an offline device; tenant default | to-verify |
+| lone_worker.session_max_hours | 14 | hours | 2000-01-01 | - | all | Harbour default (scheduling.md section 15.2): the longest one lone-working session may be planned for; tenant default | to-verify |
+| lone_worker.location_days | 30 | days | 2000-01-01 | - | all | Harbour default (scheduling.md section 15.6, H-527): location evidence attached to a lone-worker event is erased this many days after it was captured; the shortest that lets an alarm be reviewed; DPO to confirm in the employee-monitoring DPIA (H-1033) | to-verify |
 | task.overdue_escalation_minutes | 30 | minutes | 2000-01-01 | - | all | Harbour default for the task engine (master prompt 9.1): an overdue task escalates once to the nurse in charge; tenant default | to-verify |
+| wellbeing.survey_min_group_size | 5 | count | 2000-01-01 | - | all | Harbour default for staff pulse surveys (scheduling.md section 16 rule 4): results show only once the survey has closed and at least this many people answered (and each question only when this many answered it); an organisation may raise it with its own row but never lower it; no published figure (the ICO's anonymisation guidance sets none); DPO to confirm (H-1080) | to-verify |
 | statutory_notification.escalation_minutes | 60 | minutes | 2000-01-01 | - | all | Harbour default (safety.md rule 10, HZ-013): an overdue statutory notification alerts the holders of safety.notification.submit at once and escalates to the Nominated Individual (owner role) after this many minutes unless the tenant sets its own chain; tenant default | to-verify |
 | homecare.min_planned_visit_minutes | 30 | minutes | 2000-01-01 | - | england | master prompt 13.2 (NICE NG21: shorter planned visits flagged) | master-prompt |
 | enquiry.first_response_working_hours | 1 | working_hours | 2000-01-01 | - | all | master prompt 13.1; tenant default | master-prompt |
@@ -362,6 +370,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
   (£12.82 an hour) as the lower going rate for occupation codes 6135 and 6136, but does not say which
   column applies to care workers, and the page shows no effective date (last updated 22 July 2025, used
   as `valid_from`). Confirm the applicable rate and its start date with the Home Office sponsor guidance.
+- `sponsor.unauthorised_absence_working_days` (10) and `sponsor.visa_expiry_warning_days` (90, a Harbour
+  default): confirm the absence reporting threshold against the current guidance for sponsors and the
+  warning window with the organisation's HR lead before the sponsor module is used (H-900, H-902).
 - `sponsor.switching_evidence_months` (3): section 12.1 asks for "3-month switching evidence" without
   defining it. It is read here as the evidence period for in-country switching into the care worker
   route. Confirm the rule and its start date before the sponsor module (Phase 2) uses it.

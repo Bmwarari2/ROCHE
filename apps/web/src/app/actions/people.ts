@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { justificationProblem } from "@/lib/people";
+import { BREAK_GLASS_REASON_CODES } from "@/lib/search";
 
 export type BreakGlassOutcome =
   | { readonly ok: true; readonly expiresAt: string }
@@ -26,6 +27,7 @@ export type BreakGlassOutcome =
 export async function openBreakGlass(
   personId: string,
   justification: string,
+  reasonCode?: string,
 ): Promise<BreakGlassOutcome> {
   if (!isUuid(personId)) return { ok: false, reason: "not-found" };
   const reason = justification.trim();
@@ -34,7 +36,14 @@ export async function openBreakGlass(
 
   const api = await tenantApi();
   const { data, error } = await api.POST("/v1/people/break-glass", {
-    body: { personId, justification: reason },
+    body: {
+      personId,
+      justification: reason,
+      // The weekly report counts openings by the reason chosen (PLAT-006); an unknown code is left out.
+      ...(reasonCode && (BREAK_GLASS_REASON_CODES as readonly string[]).includes(reasonCode)
+        ? { reasonCode: reasonCode as (typeof BREAK_GLASS_REASON_CODES)[number] }
+        : {}),
+    },
   });
   if (data) {
     revalidatePath(`/people/${personId}`);

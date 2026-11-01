@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 14; HZ-125). Enumerations
+ * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 15; HZ-125). Enumerations
  * mirror packages/domain (`scheduling/lone-worker.ts`); the API tests keep them in step. The web
  * screens are slice 61 and the mobile app slice 71.
  */

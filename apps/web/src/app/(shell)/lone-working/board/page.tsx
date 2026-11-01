@@ -29,7 +29,7 @@ export const metadata: Metadata = { title: t("scheduling.loneWorker.board.title"
 const REFRESH_SECONDS = 30;
 
 /**
- * The lone-worker monitor board (scheduling.md section 14.8a; HZ-125). Open alarms come first,
+ * The lone-worker monitor board (scheduling.md section 15.8a; HZ-125). Open alarms come first,
  * duress first, then help, an overdue check-in and a session not finished, each with the worker's
  * name to contact and the acknowledge form. Then every open session but the viewer's own, those
  * with an alarm first. Status is an icon and words, never colour alone. After an acknowledgement

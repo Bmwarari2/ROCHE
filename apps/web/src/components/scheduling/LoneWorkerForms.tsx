@@ -28,7 +28,7 @@ import { type ActionResult, collectedRefusal, errorFor, outcomeUnknown } from "@
 import { isEditing, startEditing, stopEditing, whenIdle } from "@/lib/round-editing";
 
 /**
- * Lone-worker forms (scheduling.md section 14.8a; HZ-125). Every write carries the client's id,
+ * Lone-worker forms (scheduling.md section 15.8a; HZ-125). Every write carries the client's id,
  * kept only for a retry straight after a lost answer, so a retry records once and a later press is
  * never taken for the earlier one. The worker's buttons offer check-in, help and finish only:
  * duress is never offered or named on the web (H-1140).

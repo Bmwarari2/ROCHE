@@ -109,3 +109,17 @@ export function ahraDueAt(
   const days = recent ? rates.ahraRecentRecordResponseDays : rates.ahraResponseDays;
   return { dueAt: addUkDays(receivedAt, days - 1), recent };
 }
+
+const UUID_SHAPED = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Where an issued pack is kept (exports bucket): built from UUIDs only, never a name (rule 42). */
+export function disclosurePackStorageKey(
+  tenantId: string,
+  requestId: string,
+  packId: string,
+): string {
+  if (![tenantId, requestId, packId].every((id) => UUID_SHAPED.test(id))) {
+    throw new RangeError("Disclosure pack keys are built from UUIDs only.");
+  }
+  return `tenants/${tenantId.toLowerCase()}/disclosures/${requestId.toLowerCase()}/${packId.toLowerCase()}.json`;
+}
