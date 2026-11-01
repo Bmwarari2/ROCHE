@@ -131,3 +131,26 @@ export const CdPageDetail = CdPageSummary.extend({
 export const StockCheckRecorded = z
   .object({ stockCheck: StockCheckOut, incidentRaised: z.boolean() })
   .meta({ id: "StockCheckRecorded" });
+
+/** Who a witness may sign for on a page: members who may record there, not the witness (slice 54). */
+export const CdRecorderList = z
+  .object({ recorders: z.array(z.object({ id: uuid, name: z.string() })) })
+  .meta({ id: "CdRecorderList" });
+
+/**
+ * The witness signatures waiting for the signed-in recorder on a page: unused and unexpired, named
+ * for this recorder only (slice 54; ADR-0084 on the web).
+ */
+export const CdWaitingAssertions = z
+  .object({
+    assertions: z.array(
+      z.object({
+        id: uuid,
+        movement: z.union([CdMovement, z.literal("stock_check")]),
+        quantity: z.number(),
+        witnessName: z.string(),
+        expiresAt: isoDateTime,
+      }),
+    ),
+  })
+  .meta({ id: "CdWaitingAssertions" });

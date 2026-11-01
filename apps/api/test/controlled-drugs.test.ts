@@ -183,6 +183,32 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
     receiptId = entry.id;
   });
 
+  it("lists whom a witness may sign for, never themselves (slice 54)", async () => {
+    const r = await send("carer", `/v1/controlled-drugs/pages/${pageId}/recorders`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    const ids = (await json<{ recorders: { id: string; name: string }[] }>(r)).recorders.map(
+      (x) => x.id,
+    );
+    expect(ids).toContain(DEMO.users.manager.id);
+    expect(ids).not.toContain(DEMO.users.carer.id);
+  });
+
+  it("hazard HZ-116 shows a recorder only the witness signatures waiting for them (slice 54)", async () => {
+    const forManager = await witness(pageId, "disposal", 1);
+    const forOwner = await witness(pageId, "disposal", 1, null, "carer", DEMO.users.owner.id);
+    const mine = await json<{
+      assertions: { id: string; movement: string; quantity: number; witnessName: string }[];
+    }>(await send("manager", `/v1/controlled-drugs/pages/${pageId}/witness-assertions`));
+    const ids = mine.assertions.map((a) => a.id);
+    expect(ids).toContain(forManager);
+    expect(ids).not.toContain(forOwner);
+    expect(mine.assertions.find((a) => a.id === forManager)).toMatchObject({
+      movement: "disposal",
+      quantity: 1,
+      witnessName: DEMO.users.carer.name,
+    });
+  });
+
   it("hazard HZ-119 refuses a witness whose medicines competence is not current", async () => {
     const key = `${DEMO.tenantId}:${DEMO.users.carer.id}`;
     competence.held.set(key, "expired");

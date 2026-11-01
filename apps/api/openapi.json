@@ -32259,6 +32259,83 @@
           "correction"
         ]
       },
+      "CdRecorderList": {
+        "type": "object",
+        "properties": {
+          "recorders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "recorders"
+        ]
+      },
+      "CdWaitingAssertions": {
+        "type": "object",
+        "properties": {
+          "assertions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "movement": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CdMovement"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "stock_check"
+                      ]
+                    }
+                  ]
+                },
+                "quantity": {
+                  "type": "number"
+                },
+                "witnessName": {
+                  "type": "string"
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "movement",
+                "quantity",
+                "witnessName",
+                "expiresAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "assertions"
+        ]
+      },
       "WitnessAssertion": {
         "type": "object",
         "properties": {
@@ -68039,7 +68116,165 @@
         }
       }
     },
+    "/v1/controlled-drugs/pages/{pageId}/recorders": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Who a witness may sign for on this page",
+        "description": "Members who may record controlled drugs at the person's home (medicines.cd.administer there), never the witness themselves, by name: for choosing whom they watched (ADR-0084 on the web; slice 54). Not audited: no register content is read.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "pageId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CdRecorderList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/controlled-drugs/pages/{pageId}/witness-assertions": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "The witness signatures waiting for you on this page",
+        "description": "Unused, unexpired witness signatures on this page that name the signed-in member as recorder, with the witness's name, the movement and the quantity they signed for: the recorder chooses one when recording (ADR-0084 on the web; slice 54). Never another recorder's.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "pageId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signatures waiting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CdWaitingAssertions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "medicines"

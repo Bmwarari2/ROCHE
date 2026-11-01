@@ -4,6 +4,8 @@ import {
   CdPageDetail,
   CdPageList,
   CdPageSummary,
+  CdRecorderList,
+  CdWaitingAssertions,
   OpenCdPage,
   RecordCdEntry,
   RecordStockCheck,
@@ -16,6 +18,7 @@ import {
   controlledDrugWitnessAssertion,
   medication,
   type Transaction,
+  tenantUser,
 } from "@harbour/db";
 import {
   type CdWitnessPolicy,
@@ -25,7 +28,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, auditInTx, withAuditedRefusal } from "../http/audit";
 import {
@@ -53,6 +56,7 @@ import { medicinesRates } from "../services/medicine-administrations";
 import { guardConcurrent, lockPerson, personEntries } from "../services/medicines";
 import { loadPerson } from "../services/people";
 import { rateNumber } from "../services/rates";
+import { permissionHolders, withTenantWideScope } from "../services/safety";
 import {
   conflictResponse,
   createRouter,
@@ -342,6 +346,103 @@ export const controlledDrugsRouter = createRouter()
         };
       });
       return c.json(out, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/controlled-drugs/pages/{pageId}/recorders",
+      tags,
+      summary: "Who a witness may sign for on this page",
+      description:
+        "Members who may record controlled drugs at the person's home (medicines.cd.administer there), never the witness themselves, by name: for choosing whom they watched (ADR-0084 on the web; slice 54). Not audited: no register content is read.",
+      security,
+      request: { params: PageParam },
+      responses: {
+        200: jsonBody(CdRecorderList, "Recorders"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, WITNESS);
+      const { pageId } = c.req.valid("param");
+      const recorders = await withTenant(c, async (tx) => {
+        const [page] = await tx
+          .select({ personId: controlledDrugPage.personId })
+          .from(controlledDrugPage)
+          .where(eq(controlledDrugPage.id, pageId));
+        if (!page) throw problems.notFound();
+        const person = await loadPerson(tx, page.personId);
+        return withTenantWideScope(tx, async () => {
+          const ids = (
+            await permissionHolders(tx, ADMINISTER, person.locationId, new Date())
+          ).filter((id) => id !== access.tenantUserId);
+          if (ids.length === 0) return [];
+          const rows = await tx
+            .select({ id: tenantUser.id, name: tenantUser.displayName })
+            .from(tenantUser)
+            .where(inArray(tenantUser.id, ids));
+          return rows.sort((a, b) => a.name.localeCompare(b.name));
+        });
+      });
+      return c.json({ recorders }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/controlled-drugs/pages/{pageId}/witness-assertions",
+      tags,
+      summary: "The witness signatures waiting for you on this page",
+      description:
+        "Unused, unexpired witness signatures on this page that name the signed-in member as recorder, with the witness's name, the movement and the quantity they signed for: the recorder chooses one when recording (ADR-0084 on the web; slice 54). Never another recorder's.",
+      security,
+      request: { params: PageParam },
+      responses: {
+        200: jsonBody(CdWaitingAssertions, "Signatures waiting"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requireAnyPermission(c, [ADMINISTER, "medicines.stock.manage"]);
+      const { pageId } = c.req.valid("param");
+      const now = new Date();
+      const assertions = await withTenant(c, async (tx) => {
+        const [page] = await tx
+          .select({ id: controlledDrugPage.id })
+          .from(controlledDrugPage)
+          .where(eq(controlledDrugPage.id, pageId));
+        if (!page) throw problems.notFound();
+        const rows = await tx
+          .select({
+            id: controlledDrugWitnessAssertion.id,
+            movement: controlledDrugWitnessAssertion.movement,
+            quantity: controlledDrugWitnessAssertion.quantity,
+            expiresAt: controlledDrugWitnessAssertion.expiresAt,
+            witnessName: tenantUser.displayName,
+          })
+          .from(controlledDrugWitnessAssertion)
+          .innerJoin(tenantUser, eq(tenantUser.id, controlledDrugWitnessAssertion.witnessId))
+          .where(
+            and(
+              eq(controlledDrugWitnessAssertion.pageId, pageId),
+              eq(controlledDrugWitnessAssertion.recorderId, access.tenantUserId),
+              isNull(controlledDrugWitnessAssertion.usedAt),
+              gt(controlledDrugWitnessAssertion.expiresAt, now),
+            ),
+          )
+          .orderBy(desc(controlledDrugWitnessAssertion.assertedAt));
+        return rows.map((r) => ({
+          id: r.id,
+          movement: r.movement as "receipt",
+          quantity: Number(r.quantity),
+          witnessName: r.witnessName,
+          expiresAt: r.expiresAt.toISOString(),
+        }));
+      });
+      return c.json({ assertions }, 200);
     },
   )
   .openapi(
