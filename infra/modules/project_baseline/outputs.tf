@@ -14,3 +14,8 @@ output "service_agents" {
   }
 }
 
+
+output "services" {
+  description = "The APIs enabled on the project."
+  value       = sort([for s in google_project_service.this : s.service])
+}
