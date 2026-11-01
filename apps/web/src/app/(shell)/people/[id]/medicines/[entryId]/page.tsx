@@ -24,13 +24,25 @@ import { getPerson, readOrFail } from "@/lib/person-record";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string; entryId: string }>;
+const ARRIVALS = new Set(["transcribed", "checked", "stopped"]);
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export async function generateMetadata(): Promise<Metadata> {
   return recordMetadata("medicines", t("medicines.entry.title"));
 }
 
-function Version({ entry, latest }: { readonly entry: MedicineEntry; readonly latest: boolean }) {
+const who = (id: string, me: string) =>
+  t("medicines.field.by", { who: id === me ? "you" : "other" });
+
+function Version({
+  entry,
+  latest,
+  me,
+}: {
+  readonly entry: MedicineEntry;
+  readonly latest: boolean;
+  readonly me: string;
+}) {
   const chip = entryChip(entry.state, t);
   const when = (iso: string | null) => formatDateTime(iso) ?? "";
   const withdrawn = entry.state === "withdrawn";
@@ -76,15 +88,28 @@ function Version({ entry, latest }: { readonly entry: MedicineEntry; readonly la
         })}
       </dd>
       <dt className="font-semibold">{t("medicines.field.transcribed")}</dt>
-      <dd className="m-0">{when(entry.transcribed.at)}</dd>
+      <dd className="m-0">
+        {t("medicines.field.whenBy", {
+          when: when(entry.transcribed.at),
+          by: who(entry.transcribed.id, me),
+        })}
+      </dd>
       {entry.secondCheck ? (
         <>
           <dt className="font-semibold">{t("medicines.field.checked")}</dt>
           <dd className="m-0">
-            {t("medicines.check.outcomeOption", { outcome: entry.secondCheck.outcome })},{" "}
-            {when(entry.secondCheck.at)}
-            {entry.secondCheck.difference ? `: ${entry.secondCheck.difference}` : ""}
+            {t("medicines.field.checkValue", {
+              outcome: t("medicines.check.outcomeOption", { outcome: entry.secondCheck.outcome }),
+              when: when(entry.secondCheck.at),
+              by: who(entry.secondCheck.id, me),
+            })}
           </dd>
+          {entry.secondCheck.difference ? (
+            <>
+              <dt className="font-semibold">{t("medicines.check.difference")}</dt>
+              <dd className="m-0 whitespace-pre-wrap">{entry.secondCheck.difference}</dd>
+            </>
+          ) : null}
         </>
       ) : null}
       {entry.stop ? (
@@ -98,12 +123,6 @@ function Version({ entry, latest }: { readonly entry: MedicineEntry; readonly la
           </dd>
         </>
       ) : null}
-      {entry.withdrawn ? (
-        <>
-          <dt className="font-semibold">{t("medicines.field.withdrawn")}</dt>
-          <dd className="m-0">{entry.withdrawn.reason}</dd>
-        </>
-      ) : null}
     </dl>
   );
   return (
@@ -115,7 +134,18 @@ function Version({ entry, latest }: { readonly entry: MedicineEntry; readonly la
         <StatusChip status={chip.status} label={chip.label} icon={chip.icon} />
         {!withdrawn ? <span className="text-body-dense">{entry.status.words}</span> : null}
       </p>
-      {withdrawn ? <del className="text-text-secondary">{body}</del> : body}
+      {withdrawn ? (
+        <>
+          <p className="m-0">
+            <span className="font-semibold">{t("medicines.field.withdrawn")}</span>{" "}
+            {entry.withdrawn?.reason}
+          </p>
+          <p className="sr-only">{t("medicines.entry.withdrawnKept")}</p>
+          <del className="text-text-secondary">{body}</del>
+        </>
+      ) : (
+        body
+      )}
     </li>
   );
 }
@@ -157,8 +187,8 @@ async function EntryTab({
 
   return (
     <>
-      {done === "transcribed" ? (
-        <RecordedArrival message={t("medicines.form.done")} param="done" />
+      {done && ARRIVALS.has(done) ? (
+        <RecordedArrival message={t("medicines.entry.done", { done })} param="done" />
       ) : null}
       <Card as="section" title={entry.product.name} headingLevel={2}>
         <div className="flex flex-col gap-3">
@@ -168,6 +198,9 @@ async function EntryTab({
           </p>
           {entry.status.notice ? <p className="m-0 font-semibold">{entry.status.notice}</p> : null}
           <p className="m-0 text-body-dense">{t("medicines.entry.asTranscribed")}</p>
+          <ul className="m-0 list-none p-0">
+            <Version entry={entry} latest={entry.version === latestVersion} me={me.tenantUserId} />
+          </ul>
         </div>
       </Card>
       {mayCheck(entry, me.tenantUserId, me.permissions) ? (
@@ -176,7 +209,7 @@ async function EntryTab({
             personId={id}
             entryId={entry.id}
             source={sourceWords}
-            allergies={<PersonCheck person={person} />}
+            person={<PersonCheck person={person} />}
           />
         </Card>
       ) : entry.state === "not_yet_checked" ? (
@@ -184,13 +217,24 @@ async function EntryTab({
       ) : null}
       {mayStop(entry, me.permissions) && entry.version === latestVersion ? (
         <Card as="section" title={t("medicines.stop.title")} headingLevel={3}>
-          <StopForm personId={id} entryId={entry.id} version={latestVersion} />
+          <StopForm
+            personId={id}
+            entryId={entry.id}
+            version={latestVersion}
+            product={entry.product.name}
+            person={<PersonCheck person={person} />}
+          />
         </Card>
       ) : null}
       <Card as="section" title={t("medicines.entry.history")} headingLevel={3}>
         <ul className="m-0 flex list-none flex-col gap-4 p-0">
           {versions.map((v) => (
-            <Version key={v.id} entry={v} latest={v.version === latestVersion} />
+            <Version
+              key={v.id}
+              entry={v}
+              latest={v.version === latestVersion}
+              me={me.tenantUserId}
+            />
           ))}
         </ul>
       </Card>

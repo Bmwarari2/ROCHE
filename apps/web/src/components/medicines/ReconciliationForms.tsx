@@ -21,7 +21,7 @@ import {
 } from "@/app/actions/medicines";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
-import { t } from "@/lib/i18n";
+import { characterCount, t } from "@/lib/i18n";
 import {
   LINE_SAYS,
   type ProductHit,
@@ -33,9 +33,16 @@ import {
   readReconciliationSource,
   reconciliationHref,
 } from "@/lib/medicines";
-import { errorFor } from "@/lib/outcome";
+import { type ActionResult, errorFor } from "@/lib/outcome";
 import { dateTimeLabels, ukRepeatedTime } from "@/lib/uk-time";
-import { DRAFT_FIELDS, DraftFields, ProductPicker, useMedicineSubmit } from "./MedicineForms";
+import {
+  AskedReason,
+  DRAFT_FIELDS,
+  DraftFields,
+  ProductPicker,
+  useArrival,
+  useMedicineSubmit,
+} from "./MedicineForms";
 
 /**
  * Reconciliation forms (medicines.md section 13 rule 6): sources, then lines, then a decision by a
@@ -44,6 +51,7 @@ import { DRAFT_FIELDS, DraftFields, ProductPicker, useMedicineSubmit } from "./M
  */
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
+const count = (remaining: number) => characterCount(remaining);
 
 /** Starts a reconciliation for an outstanding event, or for a change. */
 export function StartReconciliationForm({
@@ -61,11 +69,8 @@ export function StartReconciliationForm({
   const { result, pending, submit } = useMedicineSubmit(
     () => ({
       ok: true as const,
-      body: {
-        trigger,
-        eventId,
-        triggeredAt: eventId ? null : new Date().toISOString(),
-      },
+      // The API takes its own clock for a change, never the device's (HZ-010).
+      body: { trigger, eventId, triggeredAt: null },
     }),
     (body) => startReconciliation(personId, body),
     (rec) => {
@@ -79,7 +84,7 @@ export function StartReconciliationForm({
           {pending ? t("common.saving") : label}
         </Button>
       </div>
-      <FormFeedback result={result} success="" />
+      <FormFeedback result={result} success={t("medicines.rec.started")} />
     </form>
   );
 }
@@ -134,6 +139,8 @@ export function AddSourceForm({
         hint={t("medicines.rec.currentBecauseHint")}
         rows={2}
         maxLength={2000}
+        formatCount={count}
+        error={errorFor(result, "currentBecause")}
       />
       <div>
         <Button type="submit" variant="secondary" icon={<FilePlus2 {...icon} />} disabled={pending}>
@@ -150,14 +157,12 @@ export function AddItemForm({
   personId,
   recId,
   sources,
-  allergies,
 }: {
   readonly personId: string;
   readonly recId: string;
   readonly sources: readonly { readonly id: string; readonly label: string }[];
-  readonly allergies: ReactNode;
 }) {
-  const ids = useFieldIds(["sourceId", "asWritten", "says"]);
+  const ids = useFieldIds(["sourceId", "asWritten", "says", "product"]);
   const [product, setProduct] = useState<ProductHit | null>(null);
   const offered = new Set(sources.map((s) => s.id));
   const { result, pending, submit } = useMedicineSubmit(
@@ -183,6 +188,7 @@ export function AddItemForm({
         hint={t("medicines.rec.asWrittenHint")}
         rows={2}
         maxLength={2000}
+        formatCount={count}
         error={errorFor(result, "asWritten")}
       />
       <RadioGroup
@@ -196,7 +202,11 @@ export function AddItemForm({
         }))}
         error={errorFor(result, "says")}
       />
-      <ProductPicker chosen={product} onChoose={setProduct} allergies={allergies} />
+      <ProductPicker
+        chosen={product}
+        onChoose={setProduct}
+        inputId={ids.product ?? "line-product"}
+      />
       <div>
         <Button type="submit" variant="secondary" icon={<ListPlus {...icon} />} disabled={pending}>
           {pending ? t("common.saving") : t("medicines.rec.addLine")}
@@ -224,20 +234,54 @@ function LinesSupporting({
   );
 }
 
-/** A person's decision about one current entry. */
+/** The reasons the API may ask for on a change or start, shown once it does. */
+function AskedReasons({
+  ids,
+  result,
+  names,
+}: {
+  readonly ids: Readonly<Record<string, string>>;
+  readonly result: ActionResult<unknown> | null;
+  readonly names: readonly ("reanchorReason" | "withdrawLaterReason" | "earlierDosesDueReason")[];
+}) {
+  const labels = {
+    reanchorReason: t("medicines.form.reanchorReason"),
+    withdrawLaterReason: t("medicines.form.withdrawLaterReason"),
+    earlierDosesDueReason: t("medicines.form.earlierDoses"),
+  };
+  return (
+    <>
+      {names.map((name) => (
+        <AskedReason key={name} id={ids[name]} name={name} label={labels[name]} result={result} />
+      ))}
+    </>
+  );
+}
+
+/**
+ * A person's decision about one current entry, saved at the reconciliation's version on the page:
+ * if someone else has decided anything since, it is refused and the page shows theirs (clinical
+ * review of slice 52, H1; HZ-121).
+ */
 export function EntryDecisionForm({
   personId,
   recId,
+  version,
   entryId,
+  product: productName,
+  headingId,
   lines,
-  allergies,
   scheduled,
 }: {
   readonly personId: string;
   readonly recId: string;
+  readonly version: number;
   readonly entryId: string;
+  /** The medicine's name, for the form's words. */
+  readonly product: string;
+  /** The heading that names the medicine, which labels the form. */
+  readonly headingId: string;
   readonly lines: readonly { readonly id: string; readonly label: string }[];
-  readonly allergies: ReactNode;
   /** A version of this medicine starts later than now: continuing or changing it asks why it stands. */
   readonly scheduled: string | null;
 }) {
@@ -249,20 +293,28 @@ export function EntryDecisionForm({
     "note",
     "confirmedWith",
     "scheduledStillStands",
+    "reanchorReason",
+    "withdrawLaterReason",
   ]);
   const [kind, setKind] = useState("");
   const [product, setProduct] = useState<ProductHit | null>(null);
   const offered = new Set(lines.map((l) => l.id));
   const { result, pending, submit } = useMedicineSubmit(
     (form) => readEntryDecision(form, t, entryId, offered, product),
-    (decision) => decideReconciliation(personId, recId, { on: "entry", decision }),
+    (decision) => decideReconciliation(personId, recId, version, { on: "entry", decision }),
   );
   return (
-    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form
+      method="post"
+      className="flex flex-col gap-4"
+      onSubmit={submit}
+      noValidate
+      aria-labelledby={headingId}
+    >
       <RadioGroup
         id={ids.decision}
         name="decision"
-        legend={t("medicines.rec.decide")}
+        legend={t("medicines.rec.decideAbout", { product: productName })}
         options={["continue", "change", "stop", "query"].map((k) => ({
           value: k,
           label: t("medicines.rec.entryDecision", { kind: k }),
@@ -278,6 +330,8 @@ export function EntryDecisionForm({
             label={t("medicines.rec.note")}
             rows={2}
             maxLength={2000}
+            formatCount={count}
+            error={errorFor(result, "note")}
           />
           <TextField
             id={ids.confirmedWith}
@@ -285,17 +339,12 @@ export function EntryDecisionForm({
             label={t("medicines.rec.confirmedWith")}
             hint={t("medicines.rec.confirmedWithHint")}
             autoComplete="off"
+            error={errorFor(result, "confirmedWith")}
           />
         </>
       ) : null}
       {kind === "change" ? (
-        <DraftFields
-          product={product}
-          onProduct={setProduct}
-          result={result}
-          ids={ids}
-          allergies={allergies}
-        />
+        <DraftFields product={product} onProduct={setProduct} result={result} ids={ids} />
       ) : null}
       {kind === "stop" ? (
         <TextArea
@@ -304,6 +353,7 @@ export function EntryDecisionForm({
           label={t("medicines.stop.reason")}
           rows={2}
           maxLength={2000}
+          formatCount={count}
           error={errorFor(result, "reason")}
         />
       ) : null}
@@ -315,6 +365,7 @@ export function EntryDecisionForm({
           hint={t("medicines.rec.questionHint")}
           rows={2}
           maxLength={2000}
+          formatCount={count}
           error={errorFor(result, "question")}
         />
       ) : null}
@@ -326,13 +377,22 @@ export function EntryDecisionForm({
           hint={t("medicines.rec.scheduledStillStandsHint", { scheduled })}
           rows={2}
           maxLength={2000}
+          formatCount={count}
           error={errorFor(result, "scheduledStillStands")}
         />
+      ) : null}
+      {kind === "change" ? (
+        <AskedReasons ids={ids} result={result} names={["reanchorReason", "withdrawLaterReason"]} />
+      ) : null}
+      {kind === "stop" ? (
+        <AskedReasons ids={ids} result={result} names={["withdrawLaterReason"]} />
       ) : null}
       {kind && kind !== "query" ? <LinesSupporting lines={lines} /> : null}
       <div>
         <Button type="submit" variant="secondary" icon={<Save {...icon} />} disabled={pending}>
-          {pending ? t("common.saving") : t("medicines.rec.saveDecision")}
+          {pending
+            ? t("common.saving")
+            : t("medicines.rec.saveDecisionAbout", { product: productName })}
         </Button>
       </div>
       <FormFeedback result={result} success={t("medicines.rec.decided")} fieldIds={ids} />
@@ -340,31 +400,49 @@ export function EntryDecisionForm({
   );
 }
 
-/** A person's decision about one line no entry answers. */
+/** A person's decision about one line no entry answers, saved at the version on the page. */
 export function ItemDecisionForm({
   personId,
   recId,
+  version,
   itemId,
-  allergies,
+  line,
+  headingId,
 }: {
   readonly personId: string;
   readonly recId: string;
+  readonly version: number;
   readonly itemId: string;
-  readonly allergies: ReactNode;
+  /** The line as written, for the form's words. */
+  readonly line: string;
+  readonly headingId: string;
 }) {
-  const ids = useFieldIds([...DRAFT_FIELDS, "decision", "reason", "question"]);
+  const ids = useFieldIds([
+    ...DRAFT_FIELDS,
+    "decision",
+    "reason",
+    "question",
+    "reanchorReason",
+    "earlierDosesDueReason",
+  ]);
   const [kind, setKind] = useState("");
   const [product, setProduct] = useState<ProductHit | null>(null);
   const { result, pending, submit } = useMedicineSubmit(
     (form) => readItemDecision(form, t, itemId, product),
-    (decision) => decideReconciliation(personId, recId, { on: "item", decision }),
+    (decision) => decideReconciliation(personId, recId, version, { on: "item", decision }),
   );
   return (
-    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form
+      method="post"
+      className="flex flex-col gap-4"
+      onSubmit={submit}
+      noValidate
+      aria-labelledby={headingId}
+    >
       <RadioGroup
         id={ids.decision}
         name="decision"
-        legend={t("medicines.rec.decide")}
+        legend={t("medicines.rec.decideAbout", { product: line })}
         options={["start", "not_started", "query"].map((k) => ({
           value: k,
           label: t("medicines.rec.itemDecision", { kind: k }),
@@ -373,13 +451,14 @@ export function ItemDecisionForm({
         error={errorFor(result, "decision")}
       />
       {kind === "start" ? (
-        <DraftFields
-          product={product}
-          onProduct={setProduct}
-          result={result}
-          ids={ids}
-          allergies={allergies}
-        />
+        <>
+          <DraftFields product={product} onProduct={setProduct} result={result} ids={ids} />
+          <AskedReasons
+            ids={ids}
+            result={result}
+            names={["reanchorReason", "earlierDosesDueReason"]}
+          />
+        </>
       ) : null}
       {kind === "not_started" ? (
         <TextArea
@@ -388,6 +467,7 @@ export function ItemDecisionForm({
           label={t("medicines.rec.notStartedReason")}
           rows={2}
           maxLength={2000}
+          formatCount={count}
           error={errorFor(result, "reason")}
         />
       ) : null}
@@ -399,12 +479,13 @@ export function ItemDecisionForm({
           hint={t("medicines.rec.questionHint")}
           rows={2}
           maxLength={2000}
+          formatCount={count}
           error={errorFor(result, "question")}
         />
       ) : null}
       <div>
         <Button type="submit" variant="secondary" icon={<Save {...icon} />} disabled={pending}>
-          {pending ? t("common.saving") : t("medicines.rec.saveDecision")}
+          {pending ? t("common.saving") : t("medicines.rec.saveDecisionAbout", { product: line })}
         </Button>
       </div>
       <FormFeedback result={result} success={t("medicines.rec.decided")} fieldIds={ids} />
@@ -418,13 +499,13 @@ export function CompleteForm({
   recId,
   version,
   isReturn,
-  allergies,
+  person,
 }: {
   readonly personId: string;
   readonly recId: string;
   readonly version: number;
   readonly isReturn: boolean;
-  readonly allergies: ReactNode;
+  readonly person: ReactNode;
 }) {
   const ids = useFieldIds([
     "allergiesCompared",
@@ -432,15 +513,17 @@ export function CompleteForm({
     "notInvolvedReason",
     "noDischargeLetterReason",
   ]);
+  const arrive = useArrival();
   const [involved, setInvolved] = useState("");
   const { result, pending, submit } = useMedicineSubmit(
     (form) => readCompletion(form, t, version),
     (body) => completeReconciliation(personId, recId, body),
+    () => arrive(reconciliationHref(personId, recId), "completed"),
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <p className="m-0 max-w-prose">{t("medicines.rec.completeIntro")}</p>
-      {allergies}
+      {person}
       <Checkbox
         id={ids.allergiesCompared}
         name="allergiesCompared"
@@ -467,6 +550,7 @@ export function CompleteForm({
           label={t("medicines.rec.notInvolvedReason")}
           rows={2}
           maxLength={2000}
+          formatCount={count}
           error={errorFor(result, "notInvolvedReason")}
         />
       ) : null}
@@ -478,6 +562,7 @@ export function CompleteForm({
           hint={t("medicines.rec.noDischargeLetterHint")}
           rows={2}
           maxLength={2000}
+          formatCount={count}
           error={errorFor(result, "noDischargeLetterReason")}
         />
       ) : null}

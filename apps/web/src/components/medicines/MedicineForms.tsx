@@ -10,9 +10,9 @@ import {
   TextArea,
   TextField,
 } from "@harbour/ui";
-import { Ban, ClipboardCheck, Pill, Search } from "lucide-react";
+import { Ban, ClipboardCheck, Pill, Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useEffect, useId, useState, useTransition } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState, useTransition } from "react";
 import {
   checkMedicine,
   searchProducts,
@@ -21,7 +21,7 @@ import {
 } from "@/app/actions/medicines";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
-import { t } from "@/lib/i18n";
+import { characterCount, t } from "@/lib/i18n";
 import {
   DOSE_KINDS,
   entryHref,
@@ -42,8 +42,10 @@ import { dateTimeLabels, ukRepeatedTime } from "@/lib/uk-time";
 /**
  * The medicines record forms (MEDS-001; medicines.md section 13 rules 3 to 5). Each is read here
  * first, so a mistake is said at its field; the API runs every medicines rule again and its words
- * are shown as they are. A dose is sent exactly as typed. The person's allergies are shown beside
- * the product (passed in as `allergies`), never matched to it by Harbour.
+ * are shown as they are. A dose is sent as the number typed, with dm+d's unit. The person and every
+ * allergy are shown at the top of each form (`person`), never matched by Harbour. After a save the
+ * page reloads at an address that says what was done, so the outcome is announced and focus is
+ * not lost when the form itself goes (accessibility review of slice 52, H3).
  */
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
@@ -52,8 +54,39 @@ const dateLabels = {
   month: t("care.date.month"),
   year: t("care.date.year"),
 };
+const count = (remaining: number) => characterCount(remaining);
 
-/** Sends a read form; on success refreshes the page and runs `after`. */
+/** Field keys of one dose time, for the error summary's links. */
+const slotKeys = (slot: number) =>
+  [`time-${slot}`, `slot-${slot}-quantity`, `slot-${slot}-from`, `slot-${slot}-to`] as const;
+
+/** Every field the draft can show, so each error links to its field. */
+export const DRAFT_FIELDS = [
+  "form",
+  "product",
+  "route",
+  "unit",
+  "doseKind",
+  "directionsKind",
+  "pattern",
+  "intervalDays",
+  "weekdays",
+  "intervalWeeks",
+  "anchorOn",
+  "dayOfMonth",
+  "prn-quantity",
+  "prn-from",
+  "prn-to",
+  ...Array.from({ length: TIME_SLOTS }, (_, i) => slotKeys(i + 1)).flat(),
+  "prescriber",
+  "startsAt",
+  "stopsAt",
+  "reviewOn",
+  "indication",
+  "specialInstructions",
+] as const;
+
+/** Sends a read form; on success runs `after` (usually a reload at a `?done=` address). */
 export function useMedicineSubmit<T, R>(
   read: (form: FormWithAll) => Read<T>,
   act: (body: T) => Promise<ActionResult<R>>,
@@ -70,32 +103,41 @@ export function useMedicineSubmit<T, R>(
       const outcome = await act(parsed.body);
       setResult(outcome);
       if (outcome.ok) {
-        after?.(outcome.data);
-        router.refresh();
+        if (after) after(outcome.data);
+        else router.refresh();
       }
     });
   };
   return { result, pending, submit };
 }
 
-/** Finds a product in dm+d and keeps the one chosen; the parent receives it. */
+/** Reloads `path` saying what was done, so the page announces it and focuses its heading. */
+export function useArrival() {
+  const router = useRouter();
+  return (path: string, done: string) => {
+    router.push(`${path}?done=${done}&at=${Date.now()}`);
+    router.refresh();
+  };
+}
+
+/** Finds a medicine in the NHS medicines list (dm+d) and keeps the one chosen. */
 export function ProductPicker({
   chosen,
   onChoose,
   error,
-  allergies,
+  inputId,
 }: {
   readonly chosen: ProductHit | null;
   readonly onChoose: (product: ProductHit | null) => void;
   readonly error?: string | undefined;
-  readonly allergies: ReactNode;
+  readonly inputId: string;
 }) {
-  const id = useId();
   const [query, setQuery] = useState("");
   const [found, setFound] = useState<ProductHit[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const search = () =>
+  const search = () => {
+    if (pending) return;
     startTransition(async () => {
       const outcome = await searchProducts(query);
       if (!outcome.ok || !outcome.data) {
@@ -110,12 +152,17 @@ export function ProductPicker({
           : t("medicines.search.found", { count: outcome.data.items.length }),
       );
     });
+  };
+  const choose = (product: ProductHit | null) => {
+    onChoose(product);
+    if (product) setMessage(t("medicines.search.chosen", { name: product.name }));
+  };
   return (
-    <fieldset className="m-0 flex flex-col gap-3 border-0 p-0" id={`${id}-product`}>
+    <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
       <legend className="mb-2 font-semibold">{t("medicines.form.product")}</legend>
       <div className="flex flex-wrap items-end gap-3">
         <TextField
-          id={`${id}-query`}
+          id={inputId}
           name="productQuery"
           label={t("medicines.search.label")}
           hint={t("medicines.search.hint")}
@@ -135,7 +182,7 @@ export function ProductPicker({
           variant="secondary"
           icon={<Search {...icon} />}
           onClick={search}
-          disabled={pending}
+          aria-disabled={pending}
         >
           {t("medicines.search.submit")}
         </Button>
@@ -145,83 +192,139 @@ export function ProductPicker({
       </p>
       {found && found.length > 0 ? (
         <RadioGroup
-          id={`${id}-results`}
+          id={`${inputId}-results`}
           name="vmpId"
           legend={t("medicines.search.results")}
           options={found.map((p) => ({ value: p.vmpId, label: p.name }))}
           {...(chosen ? { defaultValue: chosen.vmpId } : {})}
-          onValueChange={(value: string) => onChoose(found.find((p) => p.vmpId === value) ?? null)}
+          onValueChange={(value: string) => choose(found.find((p) => p.vmpId === value) ?? null)}
         />
       ) : null}
       {chosen ? (
-        <div className="flex flex-col gap-2 rounded-input border border-border p-3">
-          <p className="m-0 flex items-center gap-2 font-semibold">
-            <Pill {...icon} />
-            {t("medicines.form.chosen", { name: chosen.name })}
-          </p>
-          {allergies}
-        </div>
+        <p className="m-0 flex items-center gap-2 rounded-input border border-border p-3 font-semibold">
+          <Pill {...icon} />
+          {t("medicines.form.chosen", { name: chosen.name })}
+        </p>
       ) : null}
     </fieldset>
   );
 }
 
-/** What a version says (product, route, directions, dates, prescriber): shared by transcription and reconciliation. */
-export function DraftFields({
-  product,
-  onProduct,
-  result,
+/** One dose: an amount, a range, or nothing to type for "variable". */
+function DoseFields({
   ids,
-  allergies,
+  prefix,
+  kind,
+  result,
+  each,
 }: {
-  readonly product: ProductHit | null;
-  readonly onProduct: (p: ProductHit | null) => void;
-  readonly result: ActionResult<unknown> | null;
   readonly ids: Readonly<Record<string, string>>;
-  readonly allergies: ReactNode;
+  readonly prefix: string;
+  readonly kind: string;
+  readonly result: ActionResult<unknown> | null;
+  /** True for a when-required dose ("each time"), false for a dose at a time. */
+  readonly each: boolean;
 }) {
-  const [directionsKind, setDirectionsKind] = useState("regular");
-  const [doseKind, setDoseKind] = useState("amount");
-  const [pattern, setPattern] = useState("every_day");
   const err = (name: string) => errorFor(result, name);
-  const doseFields = (prefix: string, label: string) =>
-    doseKind === "variable" ? null : doseKind === "range" ? (
+  if (kind === "variable") {
+    return <p className="m-0 text-body-dense">{t("medicines.form.variableHint")}</p>;
+  }
+  if (kind === "range") {
+    return (
       <div className="flex flex-wrap gap-3">
         <TextField
-          id={`${ids.form}-${prefix}from`}
+          id={ids[`${prefix}from`]}
           name={`${prefix}from`}
-          label={t("medicines.form.from", { label })}
+          label={t("medicines.form.rangeFrom", { each: String(each) })}
+          hint={t("medicines.form.inUnit")}
           inputMode="decimal"
           autoComplete="off"
           error={err(`${prefix}from`)}
         />
         <TextField
-          id={`${ids.form}-${prefix}to`}
+          id={ids[`${prefix}to`]}
           name={`${prefix}to`}
-          label={t("medicines.form.to", { label })}
+          label={t("medicines.form.rangeTo", { each: String(each) })}
+          hint={t("medicines.form.inUnit")}
           inputMode="decimal"
           autoComplete="off"
+          error={err(`${prefix}to`)}
         />
       </div>
-    ) : (
-      <TextField
-        id={`${ids.form}-${prefix}quantity`}
-        name={`${prefix}quantity`}
-        label={t("medicines.form.quantity", { label })}
-        hint={t("medicines.form.quantityHint")}
-        inputMode="decimal"
-        autoComplete="off"
-        error={err(`${prefix}quantity`)}
-      />
     );
+  }
+  return (
+    <TextField
+      id={ids[`${prefix}quantity`]}
+      name={`${prefix}quantity`}
+      label={t("medicines.form.amount", { each: String(each) })}
+      hint={t("medicines.form.quantityHint")}
+      inputMode="decimal"
+      autoComplete="off"
+      error={err(`${prefix}quantity`)}
+    />
+  );
+}
+
+/**
+ * What a version says (product, route, directions, dates, prescriber): shared by transcription and
+ * reconciliation. Everything after the product starts again when the product changes, so a dose
+ * typed for one strength is never carried to another (clinical review of slice 52, M7; HZ-005).
+ */
+export function DraftFields({
+  product,
+  onProduct,
+  result,
+  ids,
+}: {
+  readonly product: ProductHit | null;
+  readonly onProduct: (p: ProductHit | null) => void;
+  readonly result: ActionResult<unknown> | null;
+  readonly ids: Readonly<Record<string, string>>;
+}) {
   return (
     <>
       <ProductPicker
         chosen={product}
         onChoose={onProduct}
-        error={err("product")}
-        allergies={allergies}
+        error={errorFor(result, "product")}
+        inputId={ids.product ?? "product"}
       />
+      <DraftDetails key={product?.vmpId ?? "none"} product={product} result={result} ids={ids} />
+    </>
+  );
+}
+
+function DraftDetails({
+  product,
+  result,
+  ids,
+}: {
+  readonly product: ProductHit | null;
+  readonly result: ActionResult<unknown> | null;
+  readonly ids: Readonly<Record<string, string>>;
+}) {
+  const [directionsKind, setDirectionsKind] = useState("regular");
+  const [doseKind, setDoseKind] = useState("amount");
+  const [pattern, setPattern] = useState("every_day");
+  const [slots, setSlots] = useState(1);
+  const added = useRef(false);
+  useEffect(() => {
+    if (!added.current) return;
+    document.getElementById(ids[`time-${slots}`] ?? "")?.focus();
+  }, [slots, ids]);
+  // An error on a slot the form is not showing yet shows that slot.
+  useEffect(() => {
+    for (let slot = TIME_SLOTS; slot > slots; slot--) {
+      if (slotKeys(slot).some((k) => errorFor(result, k))) {
+        setSlots(slot);
+        return;
+      }
+    }
+  }, [result, slots]);
+  const err = (name: string) => errorFor(result, name);
+  return (
+    <>
       <SelectField
         id={ids.route}
         name="route"
@@ -264,7 +367,7 @@ export function DraftFields({
         error={err("directionsKind")}
       />
       {directionsKind === "when_required" ? (
-        doseFields("prn-", t("medicines.form.eachDose"))
+        <DoseFields ids={ids} prefix="prn-" kind={doseKind} result={result} each={true} />
       ) : (
         <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
           <legend className="mb-2 font-semibold">{t("medicines.form.schedule")}</legend>
@@ -295,9 +398,14 @@ export function DraftFields({
                 id={ids.weekdays}
                 tabIndex={-1}
                 className="m-0 flex flex-col gap-1 border-0 p-0"
+                {...(err("weekdays") ? { "aria-describedby": `${ids.weekdays}-error` } : {})}
               >
                 <legend className="mb-2">{t("medicines.form.weekdays")}</legend>
-                {err("weekdays") ? <p className="hb-field__error m-0">{err("weekdays")}</p> : null}
+                {err("weekdays") ? (
+                  <p id={`${ids.weekdays}-error`} className="hb-field__error m-0">
+                    {err("weekdays")}
+                  </p>
+                ) : null}
                 {WEEKDAYS.map((d) => (
                   <Checkbox
                     key={d}
@@ -336,25 +444,47 @@ export function DraftFields({
               error={err("dayOfMonth")}
             />
           ) : null}
-          <p className="m-0 text-body-dense">
-            {t("medicines.form.timesHint", { slots: TIME_SLOTS })}
-          </p>
-          {Array.from({ length: TIME_SLOTS }, (_, i) => i + 1).map((slot) => (
+          {Array.from({ length: slots }, (_, i) => i + 1).map((slot) => (
             <fieldset key={slot} className="m-0 flex flex-wrap gap-3 border-0 p-0">
               <legend className="mb-1 text-body-dense font-semibold">
                 {t("medicines.form.timeSlot", { slot })}
               </legend>
               <TextField
-                id={slot === 1 ? ids["time-1"] : `${ids.form}-time-${slot}`}
+                id={ids[`time-${slot}`]}
                 name={`time-${slot}`}
                 label={t("medicines.form.time")}
                 hint={t("medicines.form.timeHint")}
                 autoComplete="off"
                 error={err(`time-${slot}`)}
               />
-              {doseFields(`slot-${slot}-`, t("medicines.form.atThisTime"))}
+              <DoseFields
+                ids={ids}
+                prefix={`slot-${slot}-`}
+                kind={doseKind}
+                result={result}
+                each={false}
+              />
             </fieldset>
           ))}
+          {slots < TIME_SLOTS ? (
+            <div>
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<Plus {...icon} />}
+                onClick={() => {
+                  added.current = true;
+                  setSlots((n) => Math.min(TIME_SLOTS, n + 1));
+                }}
+              >
+                {t("medicines.form.addTime")}
+              </Button>
+            </div>
+          ) : (
+            <p className="m-0 text-body-dense">
+              {t("medicines.form.timesMax", { slots: TIME_SLOTS })}
+            </p>
+          )}
         </fieldset>
       )}
       <TextField
@@ -397,6 +527,8 @@ export function DraftFields({
         hint={t("medicines.form.indicationHint")}
         rows={2}
         maxLength={1000}
+        formatCount={count}
+        error={err("indication")}
       />
       <TextArea
         id={ids.specialInstructions}
@@ -405,36 +537,12 @@ export function DraftFields({
         hint={t("medicines.form.optional")}
         rows={2}
         maxLength={2000}
+        formatCount={count}
+        error={err("specialInstructions")}
       />
     </>
   );
 }
-
-export const DRAFT_FIELDS = [
-  "form",
-  "product",
-  "route",
-  "unit",
-  "doseKind",
-  "directionsKind",
-  "pattern",
-  "intervalDays",
-  "weekdays",
-  "intervalWeeks",
-  "anchorOn",
-  "dayOfMonth",
-  "time-1",
-  "prn-quantity",
-  "prn-from",
-  "slot-1-quantity",
-  "slot-1-from",
-  "prescriber",
-  "startsAt",
-  "stopsAt",
-  "reviewOn",
-  "indication",
-  "specialInstructions",
-] as const;
 
 /** Where a source document came from: its kind and reference. */
 function SourceFields({
@@ -474,13 +582,13 @@ function SourceFields({
 }
 
 /** A reason the API asked for, shown once it has (its words are the field's error). */
-function AskedReason({
+export function AskedReason({
   id,
   name,
   label,
   result,
 }: {
-  readonly id: string;
+  readonly id: string | undefined;
   readonly name: string;
   readonly label: string;
   readonly result: ActionResult<unknown> | null;
@@ -491,16 +599,26 @@ function AskedReason({
     if (asked) setShown(true);
   }, [asked]);
   if (!asked && !shown) return null;
-  return <TextArea id={id} name={name} label={label} rows={2} maxLength={2000} error={asked} />;
+  return (
+    <TextArea
+      id={id}
+      name={name}
+      label={label}
+      rows={2}
+      maxLength={2000}
+      formatCount={count}
+      error={asked}
+    />
+  );
 }
 
 /** Transcribing a new medicine from its source. */
 export function TranscribeForm({
   personId,
-  allergies,
+  person,
 }: {
   readonly personId: string;
-  readonly allergies: ReactNode;
+  readonly person: ReactNode;
 }) {
   const ids = useFieldIds([
     ...DRAFT_FIELDS,
@@ -509,13 +627,13 @@ export function TranscribeForm({
     "reanchorReason",
     "earlierDosesDueReason",
   ]);
-  const router = useRouter();
+  const arrive = useArrival();
   const [product, setProduct] = useState<ProductHit | null>(null);
   const { result, pending, submit } = useMedicineSubmit(
     (form) => readTranscription(form, t, product),
     (body) => transcribeMedicine(personId, body),
     (entry) => {
-      if (entry) router.push(`${entryHref(personId, entry.id)}?done=transcribed&at=${Date.now()}`);
+      if (entry) arrive(entryHref(personId, entry.id), "transcribed");
     },
   );
   return (
@@ -523,13 +641,8 @@ export function TranscribeForm({
       <p className="m-0 max-w-prose" id={ids.form}>
         {t("medicines.form.intro")}
       </p>
-      <DraftFields
-        product={product}
-        onProduct={setProduct}
-        result={result}
-        ids={ids}
-        allergies={allergies}
-      />
+      {person}
+      <DraftFields product={product} onProduct={setProduct} result={result} ids={ids} />
       <SourceFields ids={ids} result={result} legend={t("medicines.form.source")} />
       <TextArea
         id={ids.earlierDosesDueReason}
@@ -538,6 +651,8 @@ export function TranscribeForm({
         hint={t("medicines.form.earlierDosesHint")}
         rows={2}
         maxLength={2000}
+        formatCount={count}
+        error={errorFor(result, "earlierDosesDueReason")}
       />
       <AskedReason
         id={ids.reanchorReason}
@@ -560,23 +675,25 @@ export function CheckForm({
   personId,
   entryId,
   source,
-  allergies,
+  person,
 }: {
   readonly personId: string;
   readonly entryId: string;
   readonly source: string;
-  readonly allergies: ReactNode;
+  readonly person: ReactNode;
 }) {
   const ids = useFieldIds(["comparedWithSource", "outcome", "difference"]);
+  const arrive = useArrival();
   const [outcome, setOutcome] = useState("");
   const { result, pending, submit } = useMedicineSubmit(
     (form) => readCheck(form, t),
     (body) => checkMedicine(personId, entryId, body),
+    () => arrive(entryHref(personId, entryId), "checked"),
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <p className="m-0 max-w-prose">{t("medicines.check.intro", { source })}</p>
-      {allergies}
+      {person}
       <Checkbox
         id={ids.comparedWithSource}
         name="comparedWithSource"
@@ -604,6 +721,7 @@ export function CheckForm({
           hint={t("medicines.check.differenceHint")}
           rows={3}
           maxLength={2000}
+          formatCount={count}
           error={errorFor(result, "difference")}
         />
       ) : null}
@@ -622,10 +740,14 @@ export function StopForm({
   personId,
   entryId,
   version,
+  product,
+  person,
 }: {
   readonly personId: string;
   readonly entryId: string;
   readonly version: number;
+  readonly product: string;
+  readonly person: ReactNode;
 }) {
   const ids = useFieldIds([
     "effectiveAt",
@@ -634,13 +756,16 @@ export function StopForm({
     "sourceReference",
     "withdrawLaterReason",
   ]);
+  const arrive = useArrival();
   const { result, pending, submit } = useMedicineSubmit(
     (form) => readStop(form, t, version),
     (body) => stopMedicine(personId, entryId, body),
+    () => arrive(entryHref(personId, entryId), "stopped"),
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <p className="m-0 max-w-prose">{t("medicines.stop.intro")}</p>
+      {person}
       <DateTimeInput
         id={ids.effectiveAt}
         name="effectiveAt"
@@ -655,6 +780,7 @@ export function StopForm({
         label={t("medicines.stop.reason")}
         rows={3}
         maxLength={2000}
+        formatCount={count}
         error={errorFor(result, "reason")}
       />
       <SourceFields ids={ids} result={result} legend={t("medicines.stop.source")} />
@@ -666,7 +792,7 @@ export function StopForm({
       />
       <div>
         <Button type="submit" variant="destructive" icon={<Ban {...icon} />} disabled={pending}>
-          {pending ? t("common.saving") : t("medicines.stop.submit")}
+          {pending ? t("common.saving") : t("medicines.stop.submit", { product })}
         </Button>
       </div>
       <FormFeedback result={result} success={t("medicines.stop.done")} fieldIds={ids} />

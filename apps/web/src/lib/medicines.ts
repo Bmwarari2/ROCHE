@@ -15,8 +15,8 @@ import { readDateField, readDateTimeField } from "./uk-time";
 /**
  * The medicines record screens (MEDS-001, MEDS-006; medicines.md section 13; slice 52). Pure and
  * unit tested. The API runs every medicines rule; these read the forms into the contract so a
- * mistake is said at its field before anything is sent. A dose is sent exactly as typed (a number
- * and dm+d's unit), never rounded or rewritten. Harbour never matches a medicine to an allergy or a
+ * mistake is said at its field before anything is sent. A dose is sent as the number typed (a
+ * trailing zero is not kept: "1.50" is 1.5) with dm+d's unit, never rounded or converted. Harbour never matches a medicine to an allergy or a
  * person, and never stops a medicine: people decide.
  */
 
@@ -135,9 +135,12 @@ const text = (form: FormWithAll, name: string) => {
 };
 const optional = (form: FormWithAll, name: string) => text(form, name) || null;
 
-/** A dose quantity as typed: a number above zero with at most 3 decimal places. */
+/**
+ * A dose quantity as the number typed: above zero, at most 3 decimal places, no leading zero before
+ * a whole number ("007" is refused, so a slip is not read as 7). Never rounded (HZ-005).
+ */
 export function readQuantity(raw: string): number | null {
-  if (!/^\d+(\.\d{1,3})?$/.test(raw)) return null;
+  if (!/^(0|[1-9]\d*)(\.\d{1,3})?$/.test(raw)) return null;
   const value = Number(raw);
   return value > 0 && value <= 10_000_000 ? value : null;
 }
@@ -200,7 +203,12 @@ export function readDraft(
     const times: { time: string; dose: Dose }[] = [];
     for (let slot = 1; slot <= TIME_SLOTS; slot++) {
       const time = text(form, `time-${slot}`);
-      if (!time) continue;
+      const dosed = ["quantity", "from", "to"].some((f) => text(form, `slot-${slot}-${f}`) !== "");
+      if (!time) {
+        // A dose with no time is never dropped silently (HZ-005).
+        if (dosed) errors[`time-${slot}`] = t("medicines.form.timeMissing");
+        continue;
+      }
       if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
         errors[`time-${slot}`] = t("medicines.form.timeError");
         continue;

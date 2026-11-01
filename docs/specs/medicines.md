@@ -599,8 +599,10 @@ Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
 The person record's **Medicines** tab, for holders of `medicines.record.manage`,
 `medicines.emar.administer` or `care.plan.read` (the API's read rule); writing needs
 `medicines.record.manage`. Every page sits inside the record frame, so the point-of-care header
-(name, photo, date of birth, NHS number and allergies) is above every medicine, and the allergy chip
-is repeated beside each form that records a medicine. Harbour never matches a medicine to an
+(name, photo, date of birth, NHS number and allergies) is above every medicine, and each form that
+records a medicine repeats, at its top, the person's name, date of birth and NHS number, the allergy
+status and every allergy with its severity and reaction, most severe first (`PersonCheck`; the full
+identity bar there is H-1287). Harbour never matches a medicine to an
 allergy or to a person: the screens show both, and people compare them.
 
 **Rules**
@@ -623,7 +625,11 @@ allergy or to a person: the screens show both, and people compare them.
    monthly on a day; and one to eight times, each with its dose) or when required (one dose). A
    dose is an amount, a range or "variable", with its unit; it is sent and shown exactly as
    entered. The prescriber, the start, and the source document (its kind and reference) are
-   required; the stop, review date, indication and special instructions are optional. The API's
+   required; the stop, review date, indication and special instructions are optional. One dose time
+   is shown, with "Add another dose time" up to eight. A dose with no time is refused, never
+   dropped. A dose is the number typed (a leading zero is refused; "1.50" is sent as 1.5). Changing
+   the product starts the route, unit and doses again. After saving, the entry opens and says so.
+   The API's
    refusals (for example a restart needing a reason) are shown at their fields with their words,
    and a reason field appears only when the API asks for it.
 4. **Second check**: offered to a holder of `medicines.record.manage` other than the transcriber,
@@ -642,7 +648,10 @@ allergy or to a person: the screens show both, and people compare them.
    discharge letter where the API asks). Harbour never decides: a line that says "stop" does not
    stop anything until a person decides it. A refused completion shows every problem in the API's
    words (listing them by entry and line needs an API change: H-1283). Continuing or changing a
-   medicine with a version that starts later asks why that version still stands.
+   medicine with a version that starts later asks why that version still stands. Each entry shows
+   its state and route beside its decision. A decision is saved at the reconciliation's version on
+   the person's screen; if anyone decided anything since, it is refused (the API records the last
+   saver as the decider of the set: H-1286). A change reconciliation takes the server's time.
 7. **Self-administration** (MEDS-006's self-administration records) is not in slice 16's API, so
    there is no screen yet (H-1281).
 8. **Status as an icon and a word**: Not yet checked, Checked, Difference found, Stopped, Replaced,

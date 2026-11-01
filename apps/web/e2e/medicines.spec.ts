@@ -76,7 +76,7 @@ async function fillWhen(
   void page;
 }
 
-test("a medicine is transcribed, checked by another person, reconciled and stopped", async ({
+test("hazard HZ-005 hazard HZ-121 a medicine is transcribed, checked by another person, reconciled and stopped", async ({
   browser,
 }) => {
   test.setTimeout(300_000);
@@ -94,13 +94,18 @@ test("a medicine is transcribed, checked by another person, reconciled and stopp
   await main(manager).getByRole("link", { name: "Add a medicine" }).click();
   const form = region(manager, "Add a medicine");
   await form.getByRole("button", { name: "Add the medicine" }).click();
-  await expect(form.getByText("Find the medicine in dm+d and choose it.").first()).toBeVisible();
-  await form.getByLabel("Find the medicine in dm+d").fill(PRODUCT.search);
-  await form.getByRole("button", { name: "Search dm+d" }).click();
+  await expect(
+    form.getByText("Find the medicine and choose it from the list.").first(),
+  ).toBeVisible();
+  await bothThemes(manager, "add a medicine with errors");
+  await form.getByLabel("Find the medicine").fill(PRODUCT.search);
+  await form.getByRole("button", { name: "Search medicines" }).click();
   await form.getByRole("radio", { name: PRODUCT.name }).check();
-  await expect(form.getByText(`Chosen: ${PRODUCT.name}`)).toBeVisible();
+  await expect(form.getByText(`Chosen: ${PRODUCT.name}`, { exact: true })).toBeVisible();
   // The person and their allergies are beside the medicine.
-  await expect(form.getByRole("note").filter({ hasText: "Allergies:" }).first()).toBeVisible();
+  await expect(form.getByRole("region", { name: "Who this medicine is for" })).toContainText(
+    "Allergies:",
+  );
   await form.getByLabel("Route").selectOption({ label: "Oral" });
   await form.getByLabel("Dose unit").selectOption({ label: "tablet" });
   const slot = form.getByRole("group", { name: "Dose time 1" });
@@ -133,6 +138,9 @@ test("a medicine is transcribed, checked by another person, reconciled and stopp
   await check.getByRole("radio", { name: "It matches the source" }).check();
   await bothThemes(nurse, "second check");
   await check.getByRole("button", { name: "Record the second check" }).click();
+  await expect(
+    main(nurse).getByRole("status").filter({ hasText: "Second check recorded." }),
+  ).toBeVisible();
   await expect(main(nurse).getByText("Checked", { exact: true }).first()).toBeVisible();
   await nurse.context().close();
 
@@ -156,8 +164,8 @@ test("a medicine is transcribed, checked by another person, reconciled and stopp
   await linesCard.getByLabel("From which source").selectOption({ index: 1 });
   await linesCard.getByLabel("The line as written").fill("Ibuprofen 200mg one at night");
   await linesCard.getByRole("radio", { name: "Continue" }).check();
-  await linesCard.getByLabel("Find the medicine in dm+d").fill(PRODUCT.search);
-  await linesCard.getByRole("button", { name: "Search dm+d" }).click();
+  await linesCard.getByLabel("Find the medicine").fill(PRODUCT.search);
+  await linesCard.getByRole("button", { name: "Search medicines" }).click();
   await linesCard.getByRole("radio", { name: PRODUCT.name }).check();
   await linesCard.getByRole("button", { name: "Add a line" }).click();
   await expect(linesCard.getByText("Line added.")).toBeVisible();
@@ -170,7 +178,7 @@ test("a medicine is transcribed, checked by another person, reconciled and stopp
     .getByLabel("Why the version starting later still stands")
     .fill("The clinic letter confirms it starts tomorrow");
   await decide.getByRole("checkbox", { name: /Continue: Ibuprofen 200mg one at night/ }).check();
-  await decide.getByRole("button", { name: "Save the decision" }).click();
+  await decide.getByRole("button", { name: `Save the decision about ${PRODUCT.name}` }).click();
   await expect(decide.getByText("Decision: Continue as it is")).toBeVisible();
 
   const complete = region(manager, "5. Complete the reconciliation");
@@ -178,6 +186,9 @@ test("a medicine is transcribed, checked by another person, reconciled and stopp
   await complete.getByRole("radio", { name: "Yes" }).check();
   await bothThemes(manager, "reconciliation decided");
   await complete.getByRole("button", { name: "Complete the reconciliation" }).click();
+  await expect(
+    main(manager).getByRole("status").filter({ hasText: "Reconciliation completed." }),
+  ).toBeVisible();
   await expect(main(manager).getByText("Completed", { exact: true }).first()).toBeVisible();
 
   // Stopped by a person, with a reason and the instruction's source.
@@ -187,8 +198,10 @@ test("a medicine is transcribed, checked by another person, reconciled and stopp
   await stop.getByLabel("Why it stops").fill("Pain settled; GP stopped it");
   await stop.getByLabel("Kind of source").selectOption({ label: "Prescriber's instruction" });
   await stop.getByLabel("Source reference").fill(`GP call ${RUN}`);
-  await stop.getByRole("button", { name: "Stop the medicine" }).click();
-  await expect(main(manager).getByText("Medicine stopped.")).toBeVisible();
+  await stop.getByRole("button", { name: `Stop ${PRODUCT.name}` }).click();
+  await expect(
+    main(manager).getByRole("status").filter({ hasText: "Medicine stopped." }),
+  ).toBeVisible();
   await expect(region(manager, "Every version")).toContainText("Pain settled; GP stopped it");
   await bothThemes(manager, "medicine stopped");
   await manager.context().close();

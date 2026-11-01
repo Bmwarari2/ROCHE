@@ -32,7 +32,7 @@ async function NewMedicine({ params }: { readonly params: Params }) {
   return (
     <>
       <Card as="section" title={t("medicines.new.title")} headingLevel={2}>
-        <TranscribeForm personId={id} allergies={<PersonCheck person={person} />} />
+        <TranscribeForm personId={id} person={<PersonCheck person={person} />} />
       </Card>
       <p className="m-0">
         <Link href={medicinesHref(id)} className="inline-flex min-h-target items-center underline">

@@ -157,21 +157,31 @@ export type OneDecision =
 
 /**
  * One person's decision about one entry or line. The API takes every decision at once and replaces
- * the earlier set, so this reads the reconciliation as it stands now and replaces only the
- * decision for that entry or line, at the version read (a stale one is refused).
+ * the earlier set, so this reads the reconciliation, refuses if it has moved on from the version on
+ * the person's screen, and replaces only the decision for that entry or line at that version (the
+ * API refuses a stale one too). The API records the saver as the decider of the whole set (H-1286).
  */
 export async function decideReconciliation(
   personId: string,
   recId: string,
+  /** The version on the person's screen: anything decided since by someone else refuses this. */
+  seenVersion: number,
   one: OneDecision,
 ): Promise<ActionResult<unknown>> {
-  if (!isUuid(personId) || !isUuid(recId)) return notFound();
+  if (!isUuid(personId) || !isUuid(recId) || !Number.isInteger(seenVersion)) return notFound();
   return send(personId, async (api) => {
     const current = await api.GET("/v1/people/{id}/medicine-reconciliations/{recId}", {
       params: { path: { id: personId, recId } },
     });
     if (!current.data) return current;
     const rec = current.data;
+    if (rec.version !== seenVersion) {
+      // Never overwrite a decision the person has not seen (clinical review of slice 52, H1).
+      return {
+        error: { code: "version_conflict" },
+        response: new Response(null, { status: 409 }),
+      };
+    }
     const entryDecisions =
       one.on === "entry"
         ? [...rec.entryDecisions.filter((d) => d.entryId !== one.decision.entryId), one.decision]
@@ -182,7 +192,7 @@ export async function decideReconciliation(
         : rec.itemDecisions;
     return api.PUT("/v1/people/{id}/medicine-reconciliations/{recId}/decisions", {
       params: { path: { id: personId, recId } },
-      body: { expectedVersion: rec.version, entryDecisions, itemDecisions },
+      body: { expectedVersion: seenVersion, entryDecisions, itemDecisions },
     });
   });
 }

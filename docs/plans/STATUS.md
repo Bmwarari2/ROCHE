@@ -37,7 +37,7 @@ word, one entry with its versions (withdrawn struck through), transcription from
 second check by another person, stopping with a reason and a source, and reconciliation from sources
 and lines to each person's decision and completion; the person and their allergies beside every
 form. A dm+d product search on the API's port (`GET /v1/medicines/products`). Self-administration is
-not in slice 16's API (H-1281). Open: H-1280 to H-1285.
+not in slice 16's API (H-1281). Open: H-1280 to H-1287.
 
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.

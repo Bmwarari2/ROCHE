@@ -18,4 +18,9 @@ it. MEDS-001 web; MEDS-006 partly (self-administration is not in slice 16's API:
 - The person (name, date of birth, NHS number) and their allergies sit beside every form; Harbour
   never matches them.
 - API: `GET /v1/medicines/products` on the dm+d port; demo competence with the fixtures on.
-- Docs: medicines.md section 13, human actions H-1280 to H-1285.
+- After the clinical-safety and accessibility reviews: every allergy listed beside each form; a
+  decision refused if the reconciliation moved on since the page was shown; a dose with no time
+  refused; the product change resets the dose; who transcribed and checked shown; outcomes
+  announced after each save; error links reach every field; plainer words.
+- Docs: medicines.md section 13, hazard log rows for HZ-001, HZ-005, HZ-007, HZ-010 and HZ-121,
+  medical-device-boundary.md, human actions H-1280 to H-1287.

@@ -105,7 +105,7 @@ describe("states, each as an icon and a word", () => {
   });
 });
 
-describe("hazard HZ-005 a dose is sent exactly as typed", () => {
+describe("hazard HZ-005 a dose is sent as the number typed, never rounded", () => {
   it.each([
     ["2", 2],
     ["0.5", 0.5],
@@ -113,7 +113,7 @@ describe("hazard HZ-005 a dose is sent exactly as typed", () => {
   ] as const)("keeps %s as %s", (raw, value) => {
     expect(readQuantity(raw)).toBe(value);
   });
-  it.each(["0", "1.2345", "-1", "two", "1,5", ""])("refuses %j", (raw) => {
+  it.each(["0", "1.2345", "-1", "two", "1,5", "", "007", "01.5"])("refuses %j", (raw) => {
     expect(readQuantity(raw)).toBeNull();
   });
 
@@ -203,6 +203,12 @@ describe("hazard HZ-005 a dose is sent exactly as typed", () => {
     });
   });
 
+  it("hazard HZ-005 never drops a dose whose time was left empty", () => {
+    expect(
+      readDraft(form({ ...regular, "time-2": "", "slot-2-quantity": "1" }), t, PARACETAMOL, NOW),
+    ).toMatchObject({ ok: false, errors: { "time-2": expect.any(String) } });
+  });
+
   it("needs the source's kind and reference to transcribe", () => {
     expect(readTranscription(form(regular), t, PARACETAMOL, NOW)).toMatchObject({
       ok: false,
@@ -222,7 +228,7 @@ describe("hazard HZ-005 a dose is sent exactly as typed", () => {
   });
 });
 
-describe("the second check and stopping", () => {
+describe("hazard HZ-005 the second check and stopping", () => {
   it("needs the source compared and an outcome; a difference in words", () => {
     expect(readCheck(form({ outcome: "matches_source" }), t)).toMatchObject({
       ok: false,
@@ -258,7 +264,7 @@ describe("the second check and stopping", () => {
   });
 });
 
-describe("reconciliation: a person decides every entry and line", () => {
+describe("hazard HZ-121 reconciliation: a person decides every entry and line", () => {
   it("reads a source and a line as written", () => {
     expect(
       readReconciliationSource(

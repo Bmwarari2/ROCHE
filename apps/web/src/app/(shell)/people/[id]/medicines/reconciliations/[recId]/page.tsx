@@ -13,27 +13,52 @@ import {
   EntryDecisionForm,
   ItemDecisionForm,
 } from "@/components/medicines/ReconciliationForms";
+import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { decisionFor, MEDICINES_WRITER, medicinesHref, medicinesShown } from "@/lib/medicines";
+import {
+  decisionFor,
+  entryChip,
+  MEDICINES_WRITER,
+  medicinesHref,
+  medicinesShown,
+} from "@/lib/medicines";
 import { getPerson, readOrFail } from "@/lib/person-record";
-import { recordMetadata } from "@/lib/record-metadata";
+import { firstParam, recordMetadata } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string; recId: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export async function generateMetadata(): Promise<Metadata> {
   return recordMetadata("medicines", t("medicines.rec.title"));
 }
 
-const decisionWords = (d: { readonly kind: string } | null, on: "entry" | "item") =>
-  d
+/** A decision so far, as an icon and words; none yet says so. */
+function DecisionChip({
+  decided,
+  on,
+}: {
+  readonly decided: { readonly kind: string } | null;
+  readonly on: "entry" | "item";
+}) {
+  const words = decided
     ? t(on === "entry" ? "medicines.rec.entryDecision" : "medicines.rec.itemDecision", {
-        kind: d.kind,
+        kind: decided.kind,
       })
     : t("medicines.rec.undecided");
+  return (
+    <p className="m-0 flex flex-wrap items-center gap-2">
+      <StatusChip
+        status={decided ? "done" : "due"}
+        label={t("medicines.rec.decision", { words })}
+        icon={decided ? CircleCheck : Hourglass}
+      />
+    </p>
+  );
+}
 
 /**
  * A reconciliation (medicines.md section 13 rule 6), in order: the sources, the lines from each as
@@ -41,7 +66,13 @@ const decisionWords = (d: { readonly kind: string } | null, on: "entry" | "item"
  * completion. Harbour decides nothing: a line that says "stop" stops nothing until a person decides
  * it, and completion applies the decisions only when the API's rules pass.
  */
-async function ReconciliationTab({ params }: { readonly params: Params }) {
+async function ReconciliationTab({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { id, recId } = await params;
   if (!isUuid(recId)) notFound();
   const { person } = await getPerson(id);
@@ -78,8 +109,10 @@ async function ReconciliationTab({ params }: { readonly params: Params }) {
   const atStart = new Set(rec.entriesAtStart.map((e) => e.entryId));
   const entries = record.entries.filter((e) => atStart.has(e.id));
 
+  const arrived = firstParam((await searchParams).done) === "completed";
   return (
     <>
+      {arrived ? <RecordedArrival message={t("medicines.rec.completed")} param="done" /> : null}
       <Card as="section" title={t("medicines.rec.title")} headingLevel={2}>
         <div className="flex flex-col gap-2">
           <p className="m-0 flex flex-wrap items-center gap-2">
@@ -142,7 +175,7 @@ async function ReconciliationTab({ params }: { readonly params: Params }) {
               <h4 id="add-line" className="m-0 text-body font-semibold">
                 {t("medicines.rec.addLine")}
               </h4>
-              <AddItemForm personId={id} recId={recId} sources={sources} allergies={allergies} />
+              <AddItemForm personId={id} recId={recId} sources={sources} />
             </section>
           ) : null}
         </div>
@@ -155,20 +188,34 @@ async function ReconciliationTab({ params }: { readonly params: Params }) {
           <ul className="m-0 flex list-none flex-col gap-6 p-0">
             {entries.map((e) => {
               const decided = decisionFor(rec, { entryId: e.id });
+              const chip = entryChip(e.state, t);
+              const headingId = `entry-${e.id}`;
               return (
                 <li key={e.id} className="flex flex-col gap-3 border-b border-border pb-4">
-                  <h4 className="m-0 text-body font-semibold">{e.product.name}</h4>
-                  <p className="m-0 text-body-dense">{e.directionsInWords}</p>
-                  <p className="m-0 font-semibold">
-                    {t("medicines.rec.decision", { words: decisionWords(decided, "entry") })}
+                  <h4 id={headingId} className="m-0 text-body font-semibold">
+                    {e.product.name}
+                  </h4>
+                  <p className="m-0 flex flex-wrap items-center gap-2">
+                    <StatusChip status={chip.status} label={chip.label} icon={chip.icon} />
+                    <span className="text-body-dense">{e.status.words}</span>
                   </p>
+                  {e.status.notice ? <p className="m-0 font-semibold">{e.status.notice}</p> : null}
+                  <p className="m-0 text-body-dense">
+                    {t("medicines.rec.entryLine", {
+                      route: e.route.name,
+                      directions: e.directionsInWords,
+                    })}
+                  </p>
+                  <DecisionChip decided={decided} on="entry" />
                   {writer ? (
                     <EntryDecisionForm
                       personId={id}
                       recId={recId}
+                      version={rec.version}
                       entryId={e.id}
+                      product={e.product.name}
+                      headingId={headingId}
                       lines={lines}
-                      allergies={allergies}
                       scheduled={
                         Date.parse(e.startsAt) > Date.now()
                           ? t("medicines.rec.startsLater", { when: when(e.startsAt) })
@@ -190,18 +237,21 @@ async function ReconciliationTab({ params }: { readonly params: Params }) {
             <ul className="m-0 flex list-none flex-col gap-6 p-0">
               {rec.items.map((i) => {
                 const decided = decisionFor(rec, { itemId: i.id });
+                const headingId = `line-${i.id}`;
                 return (
                   <li key={i.id} className="flex flex-col gap-3 border-b border-border pb-4">
-                    <h4 className="m-0 text-body font-semibold">{lineLabel(i)}</h4>
-                    <p className="m-0 font-semibold">
-                      {t("medicines.rec.decision", { words: decisionWords(decided, "item") })}
-                    </p>
+                    <h4 id={headingId} className="m-0 text-body font-semibold">
+                      {lineLabel(i)}
+                    </h4>
+                    <DecisionChip decided={decided} on="item" />
                     {writer ? (
                       <ItemDecisionForm
                         personId={id}
                         recId={recId}
+                        version={rec.version}
                         itemId={i.id}
-                        allergies={allergies}
+                        line={i.asWritten}
+                        headingId={headingId}
                       />
                     ) : null}
                   </li>
@@ -219,7 +269,7 @@ async function ReconciliationTab({ params }: { readonly params: Params }) {
             recId={recId}
             version={rec.version}
             isReturn={rec.trigger === "return_from_hospital"}
-            allergies={allergies}
+            person={allergies}
           />
         </Card>
       ) : rec.completed ? (
@@ -234,7 +284,10 @@ async function ReconciliationTab({ params }: { readonly params: Params }) {
   );
 }
 
-export default async function ReconciliationPage(props: { readonly params: Params }) {
+export default async function ReconciliationPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { id } = await props.params;
   return (
     <RecordFrame personId={id} tab="medicines">

@@ -124,6 +124,14 @@ runs the slice 2 rules unchanged and adds no calculation, suggestion or ingredie
 MAR route lists the prescribed doses the domain expands; dm+d facts (permitted routes and units)
 come from the reference data, and with none loaded nothing is transcribed rather than guessed.
 
+**Medicines record screens (Phase 2, slice 52)**: re-checked; still inside the boundary. The product
+search matches the words of dm+d's names only and lists them alphabetically, with no suggestion,
+ranking or default choice. The person's identity and every allergy are shown beside each form and
+never matched to the medicine; the screens say people compare them. A dose is the number typed with
+dm+d's unit; nothing is calculated or converted. In reconciliation nothing is decided or inferred: a
+line that says stop changes nothing until a person decides it, and completion applies only the
+people's decisions.
+
 **Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
