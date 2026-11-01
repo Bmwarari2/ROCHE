@@ -3,8 +3,10 @@ import { fileURLToPath } from "node:url";
 import {
   bootstrapRoles,
   ensureDatabase,
+  ensurePgaudit,
   LOCAL_ROLE_PASSWORDS,
   LOGIN_ROLES,
+  pgauditReady,
   type RolePasswords,
   runMigrations,
 } from "@harbour/db/admin";
@@ -22,12 +24,13 @@ import { createLogger } from "../logger";
  * One-off bootstrap and migration task (infra `migrate` task definition; locally the same steps are
  * `pnpm db:bootstrap && pnpm db:migrate && pnpm db:seed`). Idempotent: safe to run on every deploy.
  *
- * 1. As the RDS master user: create or update the Harbour roles and the database.
+ * 1. As the database administrator: create or update the Harbour roles and the database, then
+ *    pgAudit in it (required in production).
  * 2. As harbour_owner: apply migrations, then load the statutory figures and retention schedule.
  * 3. On the PowerSync bucket-storage instance: create its login role.
  *
- * The admin connection arrives as parts (DATABASE_HOST, DATABASE_ADMIN_USER, ...) because RDS rotates
- * the master password and it may contain characters reserved in URLs.
+ * The admin connection arrives as parts (DATABASE_HOST, DATABASE_ADMIN_USER, ...) because the
+ * administrator's password comes from Secret Manager and may contain characters reserved in URLs.
  */
 
 const env = process.env;
@@ -97,6 +100,29 @@ await withClient(admin, async (client) => {
   await ensureDatabase(client, databaseName);
 });
 logger.info("roles and database in place");
+
+// pgAudit in the Harbour database (section 5.5): required in production, where Cloud SQL offers
+// it once the cloudsql.enable_pgaudit flag is on; skipped elsewhere when the server lacks it.
+const pgaudit = await withClient(
+  env.DATABASE_ADMIN_URL
+    ? (() => {
+        const url = new URL(env.DATABASE_ADMIN_URL);
+        url.pathname = `/${databaseName}`;
+        return url.toString();
+      })()
+    : adminUrl(
+        databaseName,
+        env.DATABASE_HOST,
+        env.DATABASE_PORT,
+        env.DATABASE_ADMIN_USER,
+        env.DATABASE_ADMIN_PASSWORD,
+      ),
+  (client) => ensurePgaudit(client),
+);
+if (production && !pgauditReady(pgaudit)) {
+  throw new Error(`pgaudit is ${pgaudit}: turn on the cloudsql.enable_pgaudit flag`);
+}
+logger.info({ pgaudit }, "pgaudit checked");
 
 const ownerUrl =
   env.DATABASE_OWNER_URL ??

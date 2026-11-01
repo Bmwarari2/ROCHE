@@ -170,7 +170,7 @@ the second step (TOTP or a passkey) within the step-up window.
     `export.link_expiry_hours_max` (`checkExportDownload`, `exportExpiresAt`). The link in the
     notification is a pointer to that check, not a bearer link: the API then streams the file or
     mints a storage URL lasting `EXPORT_DOWNLOAD_URL_SECONDS` (5 minutes). Files are stored in the
-    eu-west-2 export bucket with SSE-KMS under the organisation's own prefix
+    europe-west2 export bucket with CMEK ([ADR-0098](../decisions/0098-production-on-google-cloud.md)) under the organisation's own prefix
     (`exportStoragePrefix`: `tenants/<tenant>/exports/<export>/`), and are deleted at expiry, not
     just hidden. Another owner asks for their own export (HZ-070).
 13. **Request and worker.** Needs `platform.export.create` (owner) with step-up
@@ -473,7 +473,8 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   download recorded before the bytes leave, then the archive deleted by the worker; a second fetch is 410
   `export_already_downloaded`). The API streams the archive itself rather than minting a storage
   URL, so the one-time fetch holds. Requested, revoked and downloaded are audited, refusals too.
-- Storage: the exports bucket (`S3_EXPORTS_BUCKET`; eu-west-2, SSE-KMS, lifecycle expiry) at
+- Storage: the exports bucket (`GCS_EXPORTS_BUCKET`; europe-west2 Cloud Storage with CMEK and lifecycle expiry
+  under [ADR-0098](../decisions/0098-production-on-google-cloud.md)) at
   `tenants/<tenant>/exports/<export>/export.zip`, through the storage port, which now writes and
   reads streams (multipart upload, at most one 8 MiB part in memory). The download opens the
   archive before claiming the single fetch (a failed read leaves it untaken), streams it, and the
@@ -505,7 +506,7 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   and the requester told in the app and by email, ids only ("Your data export is ready", a link to
   the export page). Incomplete or an error: `failed` with its problems, audited (only when it was still queued or
   running), the requester told by ids only, the archive deleted, `worker.job.failed` logged; another
-  organisation's row raises `security.export.foreign_rows` (CloudWatch alarm
+  organisation's row raises `security.export.foreign_rows` (Cloud Monitoring alert
   `<prefix>-export-foreign-rows`). Cancelled while it was built: the archive is deleted and no one
   is told it is ready. #78 review: the ZIP writer reads its source and drains the deflater together
   and stops both on a failure; a write waits on the archive's reader only until it drains, closes

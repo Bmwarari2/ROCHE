@@ -1,6 +1,6 @@
 /**
  * Integration ports (`integrations` bounded context, section 15.3). A port is the interface a module
- * depends on; adapters (mock, SES, Expo, a UK SMS gateway, later GP Connect, payroll and so on)
+ * depends on; adapters (mock, SMTP, Expo, a UK SMS gateway, later GP Connect, payroll and so on)
  * implement it in the API. Every port has a mock, so a tenant without the partner still gets a
  * working product, and a contract test that every adapter must pass.
  *

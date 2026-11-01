@@ -79022,7 +79022,7 @@
                       "string",
                       "null"
                     ],
-                    "pattern": "^arn:aws:secretsmanager:eu-west-2:",
+                    "pattern": "^projects\\/[a-z][a-z0-9-]{4,28}[a-z0-9]\\/locations\\/europe-west2\\/secrets\\/[A-Za-z0-9_-]{1,255}(\\/versions\\/(latest|[1-9][0-9]*))?$",
                     "default": null
                   }
                 },

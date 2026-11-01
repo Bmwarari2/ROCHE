@@ -28,7 +28,7 @@ approved, and never put health details where they do not belong.
 
 | Phase 1 rows | Later rows |
 | --- | --- |
-| COMMS-007 letter and email templates with approval (slice 11); COMMS-001 family portal and app mode (slice 12): updates feed and consented care plan sections; INTG-011 communications (SES email, SMS gateway, Expo push, ICS calendar, click-to-call): domain side and ports only, adapters behind mocks and contract tests; COMMS-006 handover acknowledgement (care.md) | COMMS-002 visit booking (its domain rule is built early here, rule 17), messaging, invoices, surveys, complaints and documents to sign (Phase 4); COMMS-003 the person's own portal; COMMS-004 professional access; COMMS-005 internal messaging (Phase 4); COMMS-008 (Phase 4) |
+| COMMS-007 letter and email templates with approval (slice 11); COMMS-001 family portal and app mode (slice 12): updates feed and consented care plan sections; INTG-011 communications (email, SMS gateway, Expo push, ICS calendar, click-to-call): domain side and ports only, adapters behind mocks and contract tests; COMMS-006 handover acknowledgement (care.md) | COMMS-002 visit booking (its domain rule is built early here, rule 17), messaging, invoices, surveys, complaints and documents to sign (Phase 4); COMMS-003 the person's own portal; COMMS-004 professional access; COMMS-005 internal messaging (Phase 4); COMMS-008 (Phase 4) |
 
 The family feed builds on the sharing rules in [people.md](people.md) rule 13 and
 `packages/domain/src/people/sharing.ts`; it never decides on its own who may see a section.
@@ -404,7 +404,7 @@ by the caller.
     - values are formatted in British style (dd/mm/yyyy, 24-hour UK time, pounds and pence);
     - for an HTML email every value and every piece of the template's own text is escaped
       (`escapeHtml`), paragraphs become `<p>` and line breaks `<br>`; nothing in a template or value
-      can inject markup (as built, Harbour sends email as plain text through SES, the rendered
+      can inject markup (as built, Harbour sends email as plain text through the email port, the rendered
       `text` as the body, checked by the port's guard, `outboundBodyProblem`);
     - the rendered email subject is checked again for header-breaking characters (a value could
       carry one) and must pass the outbound title check (`outboundTitleProblem`);
@@ -456,7 +456,7 @@ confirmation; returns problems and the lint), `POST /v1/feed-items/{id}/withdraw
 `GET /v1/people/{id}/feed/exposure?decision=`, `GET /v1/locations/{id}/visit-bookings` (with the
 bookings to review), `PUT /v1/locations/{id}/visit-booking-settings`,
 `POST /v1/locations/{id}/visit-restrictions`, `GET /v1/family-notifications/problems`. Provider
-webhooks (SES bounce and complaint notifications, the SMS gateway's delivery receipts and replies,
+webhooks (the email provider's bounce and complaint notifications, the SMS gateway's delivery receipts and replies,
 Expo push receipts) are inbound integrations: validated, quarantined on failure, translated into
 `FamilyChannelEvent`.
 
@@ -536,7 +536,8 @@ under `care_record` as the history of what was shared. New personal data: family
 (email, mobile number, push token) with verification, opt-out and bounce state; notification and
 delivery logs (address, template, status, provider message id; never content); feed views;
 confirmation reasons; photo consent and best-interests outcomes for photos; visit bookings and
-location restrictions. Sub-processors: Amazon SES (family email), a UK-only SMS gateway and, for
+location restrictions. Sub-processors: the email provider still to be chosen (family email; Amazon SES until
+[ADR-0098](../decisions/0098-production-on-google-cloud.md), now H-08), a UK-only SMS gateway and, for
 the family app mode, Expo push with APNs and FCM (United States; safeguard to confirm, H-112) are
 pending entries in [sub-processors.md](../compliance/sub-processors.md) (H-105). No personal data
 leaves in a message body beyond the recipient's own address.
@@ -580,7 +581,7 @@ Field mapping: [data-standards.md](data-standards.md#packs-and-governance-phase-
 - API: `hazard HZ-022 the family feed returns nothing without a sharing decision in force`;
   withdrawal and suspension close the feed on the next request; every view writes `feed_view`;
   portal sessions resolved with `resolveAccess(..., "portal")`; `hazard HZ-060` adapters refuse a
-  non-generic title; webhook events update channels; contract tests for the SMS mock and the SES
+  non-generic title; webhook events update channels; contract tests for the SMS mock and the email
   and Expo adapters; audit events for every route.
 - API (templates): `hazard HZ-051 a letter cannot be made with another person's details`; email
   delivery through the guarded `comms.email` port, which refuses a header-unsafe subject again; a
@@ -629,7 +630,8 @@ tests, revised after the clinical and security review; the sharing changes in `p
 portal session rules in `platform`; the comms permissions in the catalogue and roles; the
 quiet-hours rows in [rates.md](rates.md). Not built here, by design: schema (including section 2.1,
 which is a schema-step requirement), API, web and mobile (other slices are changing them), and the
-adapters (SES and Expo exist from Phase 0; the SMS adapter is a mock until H-105). The feed's photo
+adapters (email and Expo exist from Phase 0, the email adapter written for SES and to be replaced
+by an SMTP adapter under [ADR-0098](../decisions/0098-production-on-google-cloud.md); the SMS adapter is a mock until H-105). The feed's photo
 rule reads `consent_record` and `capacity_assessment` through the care rules, and a best-interests
 decision about photos through `PhotoBestInterestsView` until the care schema adds the decision kind
 and outcome. The publishing hold reads `FeedIncidentView` and candour states until safety exposes
@@ -661,7 +663,7 @@ Slice 11 (letter and email templates, API part 2a; `feat/comms-letter-templates-
 | `POST .../versions/{versionId}/approve`, `.../retire` | Approve: `checkTemplateApproval` (not the author or an editor, no problems, different from the version in use), then the database's guard; the old version superseded; retiring with a reason takes the template out of use; `.approved`, `.retired` |
 
 Audit rows hold ids and codes only, never typed reasons (H-223). The email port gains a plain-text
-`body` (H-225): SES sends it in place of the title and link, and the evidence pack code email now
+`body` (H-225): the email adapter sends it in place of the title and link, and the evidence pack code email now
 has a generic subject ("Your code to open an evidence pack") with the code and guidance in the
 body. Tests: `apps/api/test/letter-templates.test.ts`, `adapters.test.ts`, `evidence-link.test.ts`.
 Next, part 2b: preview, sending and the letters list, with the PDF writer.

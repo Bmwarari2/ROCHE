@@ -2,7 +2,7 @@ import type { Client } from "pg";
 
 /**
  * Cluster-level roles (ADR-0002). Roles are not created by migrations because they span
- * databases and need CREATEROLE; an administrator (RDS master user locally `harbour_admin`) runs
+ * databases and need CREATEROLE; an administrator (Cloud SQL's `postgres` user, locally `harbour_admin`) runs
  * this once per cluster via `pnpm db:bootstrap`. Passwords come from the environment or secrets
  * manager; local and CI defaults are only for disposable databases.
  */
@@ -92,8 +92,8 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   await client.query("GRANT harbour_import_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_silo_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_member_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
-  // PowerSync needs logical replication. RDS does not allow the REPLICATION attribute and uses
-  // the rds_replication role instead.
+  // PowerSync needs logical replication. Cloud SQL (with cloudsql.logical_decoding on) and plain
+  // Postgres take the REPLICATION attribute; the rds_replication fallback is for Amazon RDS.
   try {
     await client.query("ALTER ROLE harbour_sync REPLICATION");
   } catch {

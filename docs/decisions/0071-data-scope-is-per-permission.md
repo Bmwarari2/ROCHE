@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "accepted; partly superseded by ADR-0098"
 date: 2026-10-12
 decision-makers: Claude Code (lead engineer), on a security finding against ADR-0002; Brian may supersede
 consulted: master prompt section 4 (RBAC decides what, attribute scope decides to whom) and 5.3; ADR-0002; ADR-0033; ADR-0061; #26 review round 2 (S1, `placesHoldingPermission`)
@@ -7,6 +7,12 @@ informed: everyone working in this repository, the data protection lead, the CSO
 ---
 
 # Data scope is per permission
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the CloudWatch metric filters and alarms of review round 5 in
+> `infra/modules/observability`. They become Cloud Monitoring log-based metrics and alert policies
+> when the Terraform is rewritten for Google Cloud. The decision on data scope is unchanged. The
+> text below is kept as decided.
 
 ## Context and problem statement
 

@@ -30,19 +30,14 @@ export interface SubProcessorDefinition {
 
 /** Mirrors docs/compliance/sub-processors.md sections 1 and 3 (a test keeps them in step). */
 export const SUB_PROCESSORS = {
-  aws_hosting: {
-    name: "Amazon Web Services",
-    service: "RDS, S3, ECS Fargate, KMS, Secrets Manager, CloudWatch, CloudFront, WAF",
+  // ADR-0098: production hosting on Google Cloud. The email provider is not yet chosen (H-08) and
+  // joins the catalogue when it is; production email is off until then.
+  gcp_hosting: {
+    name: "Google Cloud EMEA Limited",
+    service:
+      "Cloud SQL, Cloud Storage, Cloud Run, Cloud KMS, Secret Manager, Cloud Logging, Cloud Armor, Cloud CDN",
     purpose: "Hosting, storage, backups and compute",
-    location: "AWS eu-west-2 (London)",
-    outsideUk: false,
-    use: { kind: "always" },
-  },
-  aws_ses: {
-    name: "Amazon Web Services",
-    service: "Simple Email Service (SES)",
-    purpose: "Transactional email",
-    location: "AWS eu-west-2 (London)",
+    location: "Google Cloud europe-west2 (London)",
     outsideUk: false,
     use: { kind: "always" },
   },
