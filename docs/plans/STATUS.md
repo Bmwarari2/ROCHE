@@ -24,6 +24,110 @@ screens (#128, `docs/user-guides/`).
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Paused 01/11/2026: where to resume
+
+All build work is paused at the owner's request. The account also reached its monthly spend
+limit at about 06:40 UTC, which had already stopped the builder sessions. Each builder was asked to
+commit and push its part-done work, with what is left in the commit body. Read the newest commit
+on each branch below before carrying on.
+
+**On `main` since the last status update**: batch 2 (#163), Google Cloud production (#164,
+ADR-0098), medicines administration rules (slice 3, #162, seven clinical review rounds) and the
+Google Cloud adapter follow-ups (#165). Main's highest migration is 0103.
+
+**Open pull request**: #166 (`fix/deps-and-image-scan`, dependency advisories and container image
+scanning). Every check passed except the Playwright job, which hung for six hours and was
+cancelled by the runner. Re-run that job, then merge.
+
+**Branches waiting to merge.** Migrations must reach `main` in increasing number order, or together
+in one integration batch: the Drizzle migrator skips a migration whose journal time is older than
+the newest one applied. Never edit a migration that is on `main`.
+
+- **Batch 3a** (merge first):
+  - 0104 `feat/sched-bank-agency`
+  - 0107 `feat/sched-absence-leave`
+  - 0108 `feat/quality-dashboard-pir`
+  - 0109 `feat/sched-time-attendance`
+  - 0110 `feat/meds-dmd-reference`
+  - 0111 `feat/meds-record-schema`
+  - 0112 `feat/work-elearning`
+  - 0113 `feat/sched-lone-worker`
+  - 0114 `feat/web-training-competence`
+  - 0115 `feat/sched-wellbeing`
+  - 0116 `feat/sched-pay-runs`
+  - 0117 `feat/platform-crypto-shred`
+  - 0118 `fix/recommended-answers-care`. Not ready: the clinical re-review fixes are part done
+    (commit 8ff73957 lists what is left).
+  - Branches with no migration:
+    - `feat/web-rota`
+    - `feat/web-pay-time`
+    - `feat/web-wellbeing-lone-worker`
+    - `feat/mobile-tablet-split`
+    - `feat/web-responsive-360`
+    - `docs/guides-safety-quality-platform`
+    - `fix/safety-gaps-from-guides`
+    - `chore/drizzle-snapshot-chain`
+    - `docs/security-controls-gcp`
+    - `fix/platform-sso-followups`
+    - `feat/web-medicines-record`
+- **Batch 3b**:
+  - 0120 `feat/work-vetting-adapters`
+  - 0121 `feat/web-workforce-people`
+  - 0122 `fix/recommended-answers-safety`
+  - 0123 `feat/meds-administration-schema`
+  - 0124 `feat/web-safety-events`
+  - 0125 `feat/web-staff-file`
+  - 0127 `feat/sched-payroll-export`
+  - 0128 `feat/meds-cd-register`
+  - 0129 `fix/recommended-answers-platform`
+  - 0130 `feat/web-retention-shred`
+  - 0131 `feat/integrations-dmd-download`
+  - 0132 `feat/work-lms-import`
+  - Then 0133 to 0138 from the work in progress below.
+- **When building the batches:**
+  - Respace the journal `when` values of migrations that are not on `main` yet.
+  - Make the highest migration in the batch redefine `app.sample_removal_tables()` as the union of
+    every branch's list. 0111 drops the death, missing and outbreak tables from it.
+  - Merge the hazard log section by section, never by concatenating.
+  - Point slice 52's `GET /v1/medicines/products?q=` at slice 10's dm+d tables.
+
+**Work in progress when paused** (part-done, pushed or being pushed):
+
+| Branch | Slice | Migration | Human actions |
+| --- | --- | --- | --- |
+| `feat/meds-rounds` | 48 medicines rounds | 0134 | H-1270 to H-1279 |
+| `feat/integrations-esign-ocr` | 79 e-signature and OCR | 0133 | H-1260 to H-1269 |
+| `feat/meds-errors-reviews` | 45 medication errors and reviews | 0135 | H-1290 to H-1299 |
+| `feat/platform-import-clinical` | 51 clinical import | 0136 | H-1300 to H-1309 |
+| `chore/phase-2-cleanups` | Phase 2 tidy-up | 0137 | none |
+| `feat/meds-stock` | 42 medicines stock (HZ-132, ADR-0103) | 0138 | H-1320 to H-1329 |
+| `feat/mobile-shifts-checkins` | 71 mobile shifts and check-ins | none | H-1310 to H-1319 |
+| `feat/web-cd-register` | 54 web controlled drugs register | none | H-1330 to H-1339 |
+
+`chore/phase-2-cleanups` covers:
+- the axe helper waiting for the page title;
+- hazard log and duplicate section fixes;
+- the reserved numbers in phase-2.md;
+- moving disclosure packs out of the exports bucket;
+- a backfill of built-in role grants made before today.
+
+**Not started in Phase 2:**
+- self-administration (H-1281);
+- slices 28, 38, 49, 50, 53 and 55;
+- mobile slices 68 to 70 and 72;
+- guides 81 and 82;
+- the slice 85 gate record;
+- member lifecycle screens (H-566);
+- the dm+d download Terraform, which waits for slice 10 to land.
+
+Phases 3 to 7 are not started.
+
+**Next free numbers**: migration 0139, human actions block H-1340, hazard HZ-133.
+
+**Human questions**: every open question takes its recommended answer until the testing-phase
+review ([recommended-answers.md](recommended-answers.md)). Ten Brian decisions still have no default:
+H-09, H-105, H-521, H-522, H-535, H-569, H-663, H-664, H-781 and H-829.
+
 ## Where to pick up (resumed 31/10/2026)
 
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
