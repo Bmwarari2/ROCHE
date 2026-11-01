@@ -5,7 +5,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 gate passes on `main` (section 19, definition of complete).
 
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
-**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 77 `partial`, 156 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
@@ -159,6 +159,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
+- slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
 - slice 23 applicant tracking offered (0085; H-730 to H-739), not started.
 
 **Numbering in use:** migrations: 0071 is #123; each Phase 2 schema branch writes one

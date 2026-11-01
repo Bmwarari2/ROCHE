@@ -37,6 +37,7 @@ import {
   runEscalations,
   sweepEvidenceBundlesJob,
   sweepLeaverAccess,
+  sweepLoneWorkersJob,
 } from "./tasks";
 
 /**
@@ -100,6 +101,7 @@ const QUEUES = {
   exportExpiry: "export-expiry",
   statementOverdue: "statement-of-purpose-overdue",
   importExpiry: "import-expiry",
+  loneWorkers: "lone-worker-sweep",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -218,10 +220,15 @@ await work(QUEUES.statementOverdue, async () => {
 await work(QUEUES.importExpiry, async () => {
   await expireImportsJob(deps);
 });
+// Lone-worker safety (HZ-125): every minute, as check-ins and alarms are measured in minutes.
+await work(QUEUES.loneWorkers, async () => {
+  await sweepLoneWorkersJob(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
 await boss.schedule(QUEUES.escalations, "* * * * *");
+await boss.schedule(QUEUES.loneWorkers, "* * * * *");
 await boss.schedule(QUEUES.assignments, "*/5 * * * *");
 await boss.schedule(QUEUES.deliveries, "* * * * *");
 await boss.schedule(QUEUES.taskSeries, "*/15 * * * *");

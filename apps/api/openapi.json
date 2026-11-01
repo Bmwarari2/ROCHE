@@ -44801,6 +44801,743 @@
         "required": [
           "items"
         ]
+      },
+      "LoneWorkerRoute": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "boolean"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoneWorkerRouteStep"
+            }
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          },
+          "locationEvidence": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "on",
+          "steps",
+          "problems",
+          "locationEvidence",
+          "version"
+        ]
+      },
+      "LoneWorkerRouteStep": {
+        "type": "object",
+        "properties": {
+          "afterMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "targetRoleKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "targetTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "in_app",
+                "push",
+                "email",
+                "sms"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 4
+          }
+        },
+        "required": [
+          "afterMinutes",
+          "channels"
+        ]
+      },
+      "SetLoneWorkerRoute": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoneWorkerRouteStep"
+            },
+            "minItems": 1,
+            "maxItems": 6
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "steps",
+          "version"
+        ]
+      },
+      "LoneWorkerMine": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/LoneWorkerOwnSession"
+          },
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "session",
+          "on"
+        ]
+      },
+      "LoneWorkerOwnSession": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workKind": {
+            "$ref": "#/components/schemas/LoneWorkerWorkKind"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "plannedEndAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "intervalMinutes": {
+            "type": "integer"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LoneWorkerSessionStatus"
+          },
+          "nextDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "overdueAlarmOpen": {
+            "type": "boolean"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoneWorkerOwnEvent"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "workKind",
+          "startedAt",
+          "plannedEndAt",
+          "intervalMinutes",
+          "finishedAt",
+          "status",
+          "nextDueAt",
+          "overdueAlarmOpen",
+          "events",
+          "version"
+        ]
+      },
+      "LoneWorkerWorkKind": {
+        "type": "string",
+        "enum": [
+          "domiciliary_visit",
+          "night_shift",
+          "other"
+        ]
+      },
+      "LoneWorkerSessionStatus": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "due",
+          "alarm",
+          "finished"
+        ]
+      },
+      "LoneWorkerOwnEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LoneWorkerEventKind"
+          },
+          "deviceAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "late": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "deviceAt",
+          "receivedAt",
+          "late"
+        ]
+      },
+      "LoneWorkerEventKind": {
+        "type": "string",
+        "enum": [
+          "check_in",
+          "duress",
+          "help",
+          "finish"
+        ]
+      },
+      "StartLoneWorkerSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workKind": {
+            "$ref": "#/components/schemas/LoneWorkerWorkKind"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "plannedEndAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "intervalMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "workKind",
+          "startedAt",
+          "plannedEndAt",
+          "intervalMinutes"
+        ]
+      },
+      "LoneWorkerEventResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LoneWorkerEventKind"
+          },
+          "effectiveAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "late": {
+            "type": "boolean"
+          },
+          "nextDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "effectiveAt",
+          "late",
+          "nextDueAt",
+          "message"
+        ]
+      },
+      "RecordLoneWorkerEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LoneWorkerEventKind"
+          },
+          "deviceAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LoneWorkerLocationPoint"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "deviceAt"
+        ]
+      },
+      "LoneWorkerLocationPoint": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "accuracyMetres": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100000
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "accuracyMetres"
+        ]
+      },
+      "LoneWorkerBoard": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoneWorkerBoardItem"
+            }
+          },
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "on"
+        ]
+      },
+      "LoneWorkerBoardItem": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workerTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workKind": {
+            "$ref": "#/components/schemas/LoneWorkerWorkKind"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "plannedEndAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "intervalMinutes": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LoneWorkerSessionStatus"
+          },
+          "statusWords": {
+            "type": "string"
+          },
+          "nextDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastCheckInAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastCheckInLate": {
+            "type": "boolean"
+          },
+          "openAlarmIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "workerTenantUserId",
+          "locationId",
+          "workKind",
+          "startedAt",
+          "plannedEndAt",
+          "intervalMinutes",
+          "status",
+          "statusWords",
+          "nextDueAt",
+          "lastCheckInAt",
+          "lastCheckInLate",
+          "openAlarmIds"
+        ]
+      },
+      "LoneWorkerAlarmList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoneWorkerAlarmItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "LoneWorkerAlarmItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workerTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/LoneWorkerAlarmReason"
+          },
+          "reasonWords": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LoneWorkerAlarmState"
+          },
+          "stateWords": {
+            "type": "string"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "raisedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastAlertedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "alertCount": {
+            "type": "integer"
+          },
+          "lastCheckInAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastCheckInLate": {
+            "type": "boolean"
+          },
+          "resolvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "acknowledgedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "acknowledgedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/LoneWorkerOutcome"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "incidentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "location": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              "longitude": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              },
+              "accuracyMetres": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "capturedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "latitude",
+              "longitude",
+              "accuracyMetres",
+              "capturedAt"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "sessionId",
+          "workerTenantUserId",
+          "workerName",
+          "locationId",
+          "reason",
+          "reasonWords",
+          "state",
+          "stateWords",
+          "dueAt",
+          "raisedAt",
+          "lastAlertedAt",
+          "alertCount",
+          "lastCheckInAt",
+          "lastCheckInLate",
+          "resolvedAt",
+          "acknowledgedBy",
+          "acknowledgedAt",
+          "outcome",
+          "note",
+          "incidentId",
+          "location",
+          "version"
+        ]
+      },
+      "LoneWorkerAlarmReason": {
+        "type": "string",
+        "enum": [
+          "overdue",
+          "not_finished",
+          "duress",
+          "help"
+        ]
+      },
+      "LoneWorkerAlarmState": {
+        "type": "string",
+        "enum": [
+          "open",
+          "acknowledged",
+          "resolved_by_check_in",
+          "resolved_late_check_in",
+          "resolved_by_finish"
+        ]
+      },
+      "LoneWorkerOutcome": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "safe_confirmed",
+          "help_sent",
+          "emergency_services_called",
+          "other",
+          null
+        ]
+      },
+      "AcknowledgedLoneWorkerAlarm": {
+        "type": "object",
+        "properties": {
+          "alarm": {
+            "$ref": "#/components/schemas/LoneWorkerAlarmItem"
+          },
+          "incidentSuggested": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "alarm",
+          "incidentSuggested"
+        ]
+      },
+      "AcknowledgeLoneWorkerAlarm": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/LoneWorkerOutcome"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "incidentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "outcome",
+          "note",
+          "version"
+        ]
       }
     },
     "parameters": {}
@@ -94907,6 +95644,614 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lone-worker/route": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "The on-call route for lone-worker alarms (H-539)",
+        "description": "Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached. Holders of scheduling.lone_worker.check_in, .monitor or .manage.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The route",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerRoute"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Name the on-call route for lone-worker alarms (H-539)",
+        "description": "scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLoneWorkerRoute"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerRoute"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lone-worker/sessions": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Start a lone-working session",
+        "description": "scheduling.lone_worker.check_in, for oneself, at a location where one works. Refused in words while the organisation has named no valid on-call route (the feature is off). The check-in interval and length are within the organisation's figures. The client's id makes a retry return the first session. One open session per worker. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartLoneWorkerSession"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already started with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerMine"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerMine"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lone-worker/sessions/mine": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Your open lone-working session",
+        "description": "scheduling.lone_worker.check_in. The open session with when the next check-in is due. A duress check-in reads as an ordinary check-in here, and a duress or help alarm is never shown.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Yours",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerMine"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lone-worker/sessions/{id}/events": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Check in, ask for help, raise duress or finish",
+        "description": "scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the organisation's flag is on. Audited (duress as an event like any other).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordLoneWorkerEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already recorded with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerEventResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerEventResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lone-worker/board": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Lone workers now",
+        "description": "scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Board",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerBoard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lone-worker/alarms": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Lone-worker alarms",
+        "description": "scheduling.lone_worker.monitor. Alarms at the locations where one holds it, newest first, open ones only unless a state is asked for. Each says why it was raised and its state in words, the last check-in and the latest location evidence while it is kept. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/LoneWorkerAlarmState"
+            },
+            "required": false,
+            "name": "state",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Alarms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoneWorkerAlarmList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lone-worker/alarms/{id}/acknowledge": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Acknowledge a lone-worker alarm",
+        "description": "scheduling.lone_worker.monitor where the alarm is, by someone other than the worker, with what was done. This, not reading a notification, is what stops the alarm: it acknowledges every notification about it and ends its escalation. Anything but safe confirmed suggests an incident, which can be linked here. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeLoneWorkerAlarm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcknowledgedLoneWorkerAlarm"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

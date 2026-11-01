@@ -76,6 +76,8 @@ const APPEND_ONLY_TABLES = [
   // Deaths and missing persons (slice 37, migration 0099).
   "death_step",
   "missing_event",
+  // Lone-worker check-ins (slice 46).
+  "lone_worker_event",
 ];
 /**
  * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the

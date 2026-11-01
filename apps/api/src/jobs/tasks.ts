@@ -49,6 +49,7 @@ import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../service
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
 import { endLeaversAccess } from "../services/leavers";
+import { LONE_WORKER_UNROUTED_ACTION, sweepLoneWorkers } from "../services/lone-worker";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
@@ -374,6 +375,8 @@ export const UNROUTED_ACTIONS = [
   // An incident the duty of candour holds open, with no one who manages incidents there to tell
   // (#120 review round 4, M2).
   CANDOUR_BLOCKED_UNROUTED_ACTION,
+  // A lone-worker alarm step, or the whole route, that reached nobody but the worker (HZ-125).
+  LONE_WORKER_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */
@@ -580,6 +583,19 @@ export async function escalateSafeguardingReferrals(
   );
   if (escalated > 0) deps.logger.info({ escalated }, "overdue safeguarding referrals escalated");
   return escalated;
+}
+
+/**
+ * Lone-worker safety (SCHED-012, HZ-125), every minute: reminders, alarms past the grace period,
+ * help and duress alarms the API did not raise, re-alerts until acknowledged, resolutions after
+ * late check-ins, and erasing location evidence at its date.
+ */
+export async function sweepLoneWorkersJob(deps: TaskDeps, now = new Date()): Promise<number> {
+  const acted = await eachTenant(deps, "lone-worker-sweep", (tx, tenantId) =>
+    sweepLoneWorkers(tx, tenantId, now),
+  );
+  if (acted > 0) deps.logger.info({ acted }, "lone-worker alarms raised or re-sent");
+  return acted;
 }
 
 /**

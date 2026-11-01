@@ -60,6 +60,8 @@ export type ExportRetention =
   | "staff_file"
   | "applicant.unsuccessful"
   | "data_rights_case"
+  | "lone_worker"
+  | "lone_worker_location"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -1226,6 +1228,157 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       document_id: { description: "A copy of the card, letter or message (document.id)." },
       recorded_by: { description: "The member of staff who recorded it (tenant_user.id)." },
       retention_class: { description: "The retention class (always complaint)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.lone_worker_alarm": {
+    context: "scheduling",
+    description:
+      "Each alarm raised for a lone worker (an overdue check-in, an unfinished session, a help request or duress), how often it was sent and how it ended.",
+    treatment: "tenant_rows",
+    retention: "lone_worker",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      session_id: { description: "The session (lone_worker_session.id)." },
+      location_id: "exported",
+      worker_tenant_user_id: { description: "The member of staff working alone (tenant_user.id)." },
+      reason: {
+        description: "Why the alarm was raised.",
+        codes: {
+          overdue: "A check-in was overdue past the grace period.",
+          not_finished: "The session passed its planned end without being finished.",
+          duress: "A duress check-in.",
+          help: "A help request.",
+        },
+      },
+      state: {
+        description: "Where the alarm is.",
+        codes: {
+          open: "Open: still being sent until a person acknowledges it.",
+          acknowledged: "Acknowledged by a person other than the worker, with what was done.",
+          resolved_by_check_in: "The worker checked in or finished after the alarm.",
+          resolved_late_check_in:
+            "A check-in made before the alarm arrived late from an offline device.",
+          resolved_by_finish: "The worker finished the session after the alarm.",
+        },
+      },
+      due_at: { description: "When the missed check-in was due; empty for help and duress." },
+      raised_at: "exported",
+      trigger_event_id: { description: "The help or duress event (lone_worker_event.id)." },
+      last_alerted_at: "exported",
+      alert_count: { description: "How many times the alarm was sent.", unit: "count" },
+      escalation_step: {
+        description: "How many steps of the on-call route have been told.",
+        unit: "count",
+      },
+      resolved_at: "exported",
+      resolved_by_event_id: { description: "The event that resolved it (lone_worker_event.id)." },
+      acknowledged_by: "exported",
+      acknowledged_at: "exported",
+      outcome: {
+        description: "What the person who acknowledged it found.",
+        codes: {
+          safe_confirmed: "The worker was confirmed safe.",
+          help_sent: "Help was sent.",
+          emergency_services_called: "The emergency services were called.",
+          other: "Something else, described in the note.",
+        },
+      },
+      note: { description: "What was done, in the acknowledger's words." },
+      incident_id: { description: "The incident reported about it (incident.id), if linked." },
+      retention_class: { description: "The retention class (lone_worker)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.lone_worker_event": {
+    context: "scheduling",
+    description:
+      "Each check-in, help request, duress check-in and finish, append-only, with the device's time, when the server received it and whether it was sent late from an offline device.",
+    treatment: "tenant_rows",
+    retention: "lone_worker",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      session_id: { description: "The session (lone_worker_session.id)." },
+      kind: {
+        description: "What the worker did.",
+        codes: {
+          check_in: "Checked in to say they were safe.",
+          duress: "Checked in under duress (looks like a check-in to anyone watching).",
+          help: "Asked for help.",
+          finish: "Finished the session.",
+        },
+      },
+      device_at: { description: "When the worker made it, by the device's clock (instant, UTC)." },
+      received_at: { description: "When the server received it (instant, UTC)." },
+      effective_at: {
+        description: "The time it counts from: the device time, never later than its receipt.",
+      },
+      late: { description: "True when it was sent late from an offline device." },
+      created_by: "exported",
+    },
+  },
+  "public.lone_worker_location": {
+    context: "scheduling",
+    description:
+      "Location evidence: one point attached to one lone-worker event while the organisation's flag was on, never a track, erased at its date (H-527).",
+    treatment: "tenant_rows",
+    retention: "lone_worker_location",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      event_id: { description: "The event it was captured with (lone_worker_event.id)." },
+      session_id: { description: "The session (lone_worker_session.id)." },
+      latitude: { description: "Latitude (WGS 84); empty once erased.", unit: "degrees" },
+      longitude: { description: "Longitude (WGS 84); empty once erased.", unit: "degrees" },
+      accuracy_metres: { description: "How accurate the device said it was.", unit: "metres" },
+      delete_after: { description: "When the point is erased (instant, UTC)." },
+      cleared_at: { description: "When the point was erased; empty while kept." },
+      created_at: "exported",
+    },
+  },
+  "public.lone_worker_session": {
+    context: "scheduling",
+    description:
+      "Each lone-working session a member of staff started: where, what kind of work, when it started and was planned to end, the check-in interval and when it finished (scheduling.md section 17).",
+    treatment: "tenant_rows",
+    retention: "lone_worker",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: { description: "The location the worker works from (location.id)." },
+      worker_tenant_user_id: { description: "The member of staff working alone (tenant_user.id)." },
+      work_kind: {
+        description: "The kind of lone working.",
+        codes: {
+          domiciliary_visit: "Visits in people's homes.",
+          night_shift: "A shift alone at a location.",
+          other: "Other lone working.",
+        },
+      },
+      started_at: { description: "When the session started (instant, UTC)." },
+      planned_end_at: { description: "When the worker planned to finish (instant, UTC)." },
+      interval_minutes: { description: "How often the worker checks in.", unit: "minutes" },
+      finished_at: { description: "When the worker finished; empty while open." },
+      reminder_sent_for: {
+        description: "The due time of the last check-in reminder the worker was sent.",
+      },
+      retention_class: { description: "The retention class (lone_worker)." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

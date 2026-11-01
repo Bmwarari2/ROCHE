@@ -44273,6 +44273,603 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/lone-worker/route": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The on-call route for lone-worker alarms (H-539)
+     * @description Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached. Holders of scheduling.lone_worker.check_in, .monitor or .manage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The route */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerRoute"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Name the on-call route for lone-worker alarms (H-539)
+     * @description scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SetLoneWorkerRoute"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerRoute"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start a lone-working session
+     * @description scheduling.lone_worker.check_in, for oneself, at a location where one works. Refused in words while the organisation has named no valid on-call route (the feature is off). The check-in interval and length are within the organisation's figures. The client's id makes a retry return the first session. One open session per worker. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StartLoneWorkerSession"];
+        };
+      };
+      responses: {
+        /** @description Already started with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerMine"];
+          };
+        };
+        /** @description Started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerMine"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/sessions/mine": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Your open lone-working session
+     * @description scheduling.lone_worker.check_in. The open session with when the next check-in is due. A duress check-in reads as an ordinary check-in here, and a duress or help alarm is never shown.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Yours */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerMine"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/sessions/{id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Check in, ask for help, raise duress or finish
+     * @description scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the organisation's flag is on. Audited (duress as an event like any other).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordLoneWorkerEvent"];
+        };
+      };
+      responses: {
+        /** @description Already recorded with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerEventResult"];
+          };
+        };
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerEventResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/board": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Lone workers now
+     * @description scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Board */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerBoard"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/alarms": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Lone-worker alarms
+     * @description scheduling.lone_worker.monitor. Alarms at the locations where one holds it, newest first, open ones only unless a state is asked for. Each says why it was raised and its state in words, the last check-in and the latest location evidence while it is kept. Audited.
+     */
+    get: {
+      parameters: {
+        query?: {
+          state?: components["schemas"]["LoneWorkerAlarmState"];
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Alarms */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerAlarmList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/alarms/{id}/acknowledge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Acknowledge a lone-worker alarm
+     * @description scheduling.lone_worker.monitor where the alarm is, by someone other than the worker, with what was done. This, not reading a notification, is what stops the alarm: it acknowledges every notification about it and ends its escalation. Anything but safe confirmed suggests an incident, which can be linked here. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AcknowledgeLoneWorkerAlarm"];
+        };
+      };
+      responses: {
+        /** @description Acknowledged */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AcknowledgedLoneWorkerAlarm"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -56330,6 +56927,202 @@ export interface components {
         /** Format: date-time */
         createdAt: string;
       }[];
+    };
+    LoneWorkerRoute: {
+      on: boolean;
+      steps: components["schemas"]["LoneWorkerRouteStep"][];
+      problems: {
+        code: string;
+        message: string;
+      }[];
+      locationEvidence: boolean;
+      version: number | null;
+    };
+    LoneWorkerRouteStep: {
+      afterMinutes: number;
+      targetRoleKey?: string;
+      /** Format: uuid */
+      targetTenantUserId?: string;
+      channels: ("in_app" | "push" | "email" | "sms")[];
+    };
+    SetLoneWorkerRoute: {
+      steps: components["schemas"]["LoneWorkerRouteStep"][];
+      version: number | null;
+    };
+    LoneWorkerMine: {
+      session: components["schemas"]["LoneWorkerOwnSession"];
+      on: boolean;
+    };
+    LoneWorkerOwnSession: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      workKind: components["schemas"]["LoneWorkerWorkKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      plannedEndAt: string;
+      intervalMinutes: number;
+      /** Format: date-time */
+      finishedAt: string | null;
+      status: components["schemas"]["LoneWorkerSessionStatus"];
+      /** Format: date-time */
+      nextDueAt: string | null;
+      overdueAlarmOpen: boolean;
+      events: components["schemas"]["LoneWorkerOwnEvent"][];
+      version: number;
+    } | null;
+    /** @enum {string} */
+    LoneWorkerWorkKind: "domiciliary_visit" | "night_shift" | "other";
+    /** @enum {string} */
+    LoneWorkerSessionStatus: "ok" | "due" | "alarm" | "finished";
+    LoneWorkerOwnEvent: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["LoneWorkerEventKind"];
+      /** Format: date-time */
+      deviceAt: string;
+      /** Format: date-time */
+      receivedAt: string;
+      late: boolean;
+    };
+    /** @enum {string} */
+    LoneWorkerEventKind: "check_in" | "duress" | "help" | "finish";
+    StartLoneWorkerSession: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      workKind: components["schemas"]["LoneWorkerWorkKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      plannedEndAt: string;
+      intervalMinutes: number;
+    };
+    LoneWorkerEventResult: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["LoneWorkerEventKind"];
+      /** Format: date-time */
+      effectiveAt: string;
+      late: boolean;
+      /** Format: date-time */
+      nextDueAt: string | null;
+      message: string;
+    };
+    RecordLoneWorkerEvent: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["LoneWorkerEventKind"];
+      /** Format: date-time */
+      deviceAt: string;
+      location?: components["schemas"]["LoneWorkerLocationPoint"];
+    };
+    LoneWorkerLocationPoint: {
+      latitude: number;
+      longitude: number;
+      accuracyMetres: number | null;
+    } | null;
+    LoneWorkerBoard: {
+      items: components["schemas"]["LoneWorkerBoardItem"][];
+      on: boolean;
+    };
+    LoneWorkerBoardItem: {
+      /** Format: uuid */
+      sessionId: string;
+      /** Format: uuid */
+      workerTenantUserId: string;
+      /** Format: uuid */
+      locationId: string;
+      workKind: components["schemas"]["LoneWorkerWorkKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      plannedEndAt: string;
+      intervalMinutes: number;
+      status: components["schemas"]["LoneWorkerSessionStatus"];
+      statusWords: string;
+      /** Format: date-time */
+      nextDueAt: string | null;
+      /** Format: date-time */
+      lastCheckInAt: string | null;
+      lastCheckInLate: boolean;
+      openAlarmIds: string[];
+    };
+    LoneWorkerAlarmList: {
+      items: components["schemas"]["LoneWorkerAlarmItem"][];
+    };
+    LoneWorkerAlarmItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      sessionId: string;
+      /** Format: uuid */
+      workerTenantUserId: string;
+      workerName: string | null;
+      /** Format: uuid */
+      locationId: string;
+      reason: components["schemas"]["LoneWorkerAlarmReason"];
+      reasonWords: string;
+      state: components["schemas"]["LoneWorkerAlarmState"];
+      stateWords: string;
+      /** Format: date-time */
+      dueAt: string | null;
+      /** Format: date-time */
+      raisedAt: string;
+      /** Format: date-time */
+      lastAlertedAt: string;
+      alertCount: number;
+      /** Format: date-time */
+      lastCheckInAt: string | null;
+      lastCheckInLate: boolean;
+      /** Format: date-time */
+      resolvedAt: string | null;
+      /** Format: uuid */
+      acknowledgedBy: string | null;
+      /** Format: date-time */
+      acknowledgedAt: string | null;
+      outcome: components["schemas"]["LoneWorkerOutcome"];
+      note: string | null;
+      /** Format: uuid */
+      incidentId: string | null;
+      location: {
+        latitude: number;
+        longitude: number;
+        accuracyMetres: number | null;
+        /** Format: date-time */
+        capturedAt: string;
+      } | null;
+      version: number;
+    };
+    /** @enum {string} */
+    LoneWorkerAlarmReason: "overdue" | "not_finished" | "duress" | "help";
+    /** @enum {string} */
+    LoneWorkerAlarmState:
+      | "open"
+      | "acknowledged"
+      | "resolved_by_check_in"
+      | "resolved_late_check_in"
+      | "resolved_by_finish";
+    /** @enum {string|null} */
+    LoneWorkerOutcome:
+      | "safe_confirmed"
+      | "help_sent"
+      | "emergency_services_called"
+      | "other"
+      | null;
+    AcknowledgedLoneWorkerAlarm: {
+      alarm: components["schemas"]["LoneWorkerAlarmItem"];
+      incidentSuggested: boolean;
+    };
+    AcknowledgeLoneWorkerAlarm: {
+      outcome: components["schemas"]["LoneWorkerOutcome"];
+      note: string;
+      /** Format: uuid */
+      incidentId?: string | null;
+      version: number;
     };
   };
   responses: never;

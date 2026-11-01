@@ -49,6 +49,7 @@ import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { invitationsRouter } from "./routes/invitations";
 import { letterTemplatesRouter } from "./routes/letter-templates";
 import { lettersRouter } from "./routes/letters";
+import { loneWorkerRouter } from "./routes/lone-worker";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { memberSessionsRouter } from "./routes/member-sessions";
@@ -427,6 +428,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", rotaRouter);
   app.route("/", agencyRouter);
   app.route("/", timeAttendanceRouter);
+  app.route("/", loneWorkerRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

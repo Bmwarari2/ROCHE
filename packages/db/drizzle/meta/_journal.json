@@ -666,6 +666,13 @@
       "when": 1793480057403,
       "tag": "0109_time_attendance",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1793480057404,
+      "tag": "0113_lone_worker_safety",
+      "breakpoints": true
     }
   ]
 }
