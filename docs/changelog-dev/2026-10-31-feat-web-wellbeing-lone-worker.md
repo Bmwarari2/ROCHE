@@ -1,9 +1,9 @@
-# Lone-working web screens (Phase 2 slice 61, part 1)
+# Lone-working and wellbeing web screens (Phase 2 slice 61)
 
 Branch `feat/web-wellbeing-lone-worker`, cut from `feat/sched-lone-worker` (slice 46). No
-migration. Hazard HZ-125; human actions H-1140 to H-1146. The wellbeing screens, the other half of
-slice 61, wait for the wellbeing API (`feat/sched-wellbeing`, not yet pushed); H-1147 to H-1149 are
-kept for them.
+migration. Hazard HZ-125; human actions H-1140 to H-1149. `feat/sched-wellbeing` (slice 44,
+migration 0115) is merged in; lone-worker safety moved to scheduling.md section 15 (14 is the rota
+builder, 16 wellbeing).
 
 ## What changed
 
@@ -21,6 +21,19 @@ kept for them.
   press never shows through on it. OpenAPI and the generated client regenerated.
 - Strings `scheduling.loneWorker.*` in English; Welsh marked untranslated (H-1143).
 
+## Wellbeing screens
+
+- `/wellbeing`: surveys to answer, own check-ins (private unless shared, with a switch on each),
+  thanks to and from colleagues by name.
+- `/wellbeing/surveys/{id}/answer`: the anonymous answer form, saying what is and is not recorded.
+- `/wellbeing/surveys`, `/new`, `/{id}`: writing, opening and closing surveys; results only once
+  closed and above the minimum group size, per question, scale counts all or none.
+- `/wellbeing/team`: shared check-ins and thanks at one home, by name.
+- API: names on thanks and shared check-ins; `GET /v1/recognition/colleagues` (staff only, never a
+  portal, suspended or removed account; thanks to anyone else refused); a scale's counts hidden when
+  one point holds more than the answers less the size (a unanimous answer showed everyone's).
+- Accessibility and security reviews ran; their findings were fixed or logged (H-1147, H-1148).
+
 ## Reviews
 
 The accessibility and clinical-safety reviewers ran on the screens; their findings were fixed
@@ -31,6 +44,10 @@ the acknowledgement retried after a re-alert; the monitor's own session off the 
 left for the CSO and DPO are H-1140 to H-1146.
 
 ## Tests
+
+- `apps/web/src/lib/wellbeing.test.ts`, `apps/web/e2e/wellbeing.spec.ts` (with axe), and
+  `apps/api/test/wellbeing.test.ts` (names, the colleague list leaving out portal and suspended
+  accounts, unanimous counts hidden).
 
 - `apps/web/src/lib/lone-worker.test.ts` (table-driven: order with duress first, status words,
   forms' refusals, announcements, the retry window).

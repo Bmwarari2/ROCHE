@@ -12,6 +12,8 @@ import {
   PulseSurveyList,
   PulseSurveyListQuery,
   PulseSurveyResults,
+  RecognitionColleagues,
+  RecognitionColleaguesQuery,
   RecognitionItem,
   RecognitionList,
   RecognitionListQuery,
@@ -21,8 +23,11 @@ import {
   pulseSurvey,
   pulseSurveyParticipation,
   recognition,
+  staffProfile,
   type Transaction,
+  tenantUser,
   wellbeingCheckIn,
+  withRequestContext,
 } from "@harbour/db";
 import {
   can,
@@ -43,6 +48,7 @@ import type { Context } from "hono";
 import { writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { accessRowsOf, workLocationIds } from "../services/access-rows";
 import {
   conflictResponse,
   createRouter,
@@ -112,9 +118,68 @@ function surveyItem(row: SurveyRow, answered: boolean | null): z.infer<typeof Pu
   };
 }
 
-const checkInItem = (r: typeof wellbeingCheckIn.$inferSelect): z.infer<typeof CheckInItem> => ({
+/**
+ * Which of these members work at the home as staff: through a staff role in force there (never a
+ * portal role, nor one mixing portal and staff permissions, as `workLocationIds` decides for the
+ * location switcher), or a staff profile there. Read as the system, since a member may not read
+ * colleagues' roles; only the answer leaves (slice 61 security review M1).
+ */
+async function staffAt(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  locationId: string,
+  ids: readonly string[],
+): Promise<ReadonlySet<string>> {
+  if (ids.length === 0) return new Set();
+  return withRequestContext(
+    c.get("services").db,
+    { tenantId: access.tenantId, userId: null, scope: "tenant", locationIds: [] },
+    async (tx) => {
+      const now = new Date();
+      const rows = await accessRowsOf(tx, ids);
+      const staff = new Set(
+        ids.filter((id) => {
+          const r = rows.get(id);
+          return r !== undefined && workLocationIds(r, [locationId], now).includes(locationId);
+        }),
+      );
+      const profiles = await tx
+        .select({ id: staffProfile.tenantUserId })
+        .from(staffProfile)
+        .where(
+          and(
+            eq(staffProfile.locationId, locationId),
+            isNull(staffProfile.deletedAt),
+            inArray(staffProfile.tenantUserId, [...ids]),
+          ),
+        );
+      for (const p of profiles) staff.add(p.id);
+      return staff;
+    },
+  );
+}
+
+/** Members' names by id, for the screens to say who (slice 61); ids not found are left out. */
+async function namesOf(
+  tx: Transaction,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const rows = await tx
+    .select({ id: tenantUser.id, name: tenantUser.displayName })
+    .from(tenantUser)
+    .where(inArray(tenantUser.id, unique));
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+const checkInItem = (
+  r: typeof wellbeingCheckIn.$inferSelect,
+  names: ReadonlyMap<string, string> = new Map(),
+): z.infer<typeof CheckInItem> => ({
   id: r.id,
   memberId: r.memberId,
+  memberName: names.get(r.memberId) ?? null,
   locationId: r.locationId,
   mood: r.mood,
   note: r.note,
@@ -122,10 +187,15 @@ const checkInItem = (r: typeof wellbeingCheckIn.$inferSelect): z.infer<typeof Ch
   createdAt: r.createdAt.toISOString(),
 });
 
-const recognitionItem = (r: typeof recognition.$inferSelect): z.infer<typeof RecognitionItem> => ({
+const recognitionItem = (
+  r: typeof recognition.$inferSelect,
+  names: ReadonlyMap<string, string> = new Map(),
+): z.infer<typeof RecognitionItem> => ({
   id: r.id,
   fromMemberId: r.fromMemberId,
   toMemberId: r.toMemberId,
+  fromName: names.get(r.fromMemberId) ?? null,
+  toName: names.get(r.toMemberId) ?? null,
   locationId: r.locationId,
   message: r.message,
   createdAt: r.createdAt.toISOString(),
@@ -539,7 +609,22 @@ export const wellbeingRouter = createRouter()
             : raw.reason === "no_size"
               ? "Results cannot show: no minimum group size is set."
               : `Fewer than ${size} people answered, so the results are not shown.`;
-        return { ...raw, minGroupSize: size, message };
+        // A point chosen by nearly everyone tells a manager what the few others chose, and a
+        // unanimous answer tells them everyone's: hide every count unless at least the size chose
+        // something else than each point (slice 61 security review L1).
+        const questions = raw.questions?.map((q) => {
+          const answered = q.answered;
+          if (q.kind !== "scale" || !q.counts || size === null || answered === undefined) return q;
+          return q.counts.some((n) => n !== null && n > answered - size)
+            ? { ...q, counts: q.counts.map(() => null) }
+            : q;
+        });
+        return {
+          ...raw,
+          ...(questions ? { questions } : {}),
+          minGroupSize: size,
+          message,
+        };
       });
       return c.json(result, 200);
     },
@@ -574,7 +659,11 @@ export const wellbeingRouter = createRouter()
             resourceType: "recognition",
             scope: { locationId, count: rows.length },
           });
-          return rows.map(recognitionItem);
+          const names = await namesOf(
+            tx,
+            rows.flatMap((r) => [r.fromMemberId, r.toMemberId]),
+          );
+          return rows.map((r) => recognitionItem(r, names));
         });
         return c.json({ items }, 200);
       }
@@ -590,9 +679,59 @@ export const wellbeingRouter = createRouter()
           )
           .orderBy(desc(recognition.createdAt))
           .limit(500);
-        return rows.map(recognitionItem);
+        const names = await namesOf(
+          tx,
+          rows.flatMap((r) => [r.fromMemberId, r.toMemberId]),
+        );
+        return rows.map((r) => recognitionItem(r, names));
       });
       return c.json({ items }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/recognition/colleagues",
+      tags: ["scheduling"],
+      summary: "Colleagues one may thank at a home",
+      description:
+        "scheduling.wellbeing.self, at a home where the member works: the active members who work there, by name, never the member themself. Refused with the same words wherever the member does not work, so it never says who works where.",
+      security,
+      request: { query: RecognitionColleaguesQuery },
+      responses: { 200: jsonBody(RecognitionColleagues, "Colleagues"), ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, SELF);
+      const { locationId } = c.req.valid("query");
+      const items = await withTenant(c, async (tx) => {
+        const [mine] = (
+          await tx.execute<{ ok: boolean }>(
+            sql`SELECT app.works_at(${access.tenantUserId}::uuid, ${locationId}::uuid) AS ok`,
+          )
+        ).rows;
+        if (!mine?.ok) throw problems.forbidden();
+        return tx
+          .select({ id: tenantUser.id, name: tenantUser.displayName })
+          .from(tenantUser)
+          .where(
+            and(
+              eq(tenantUser.status, "active"),
+              isNull(tenantUser.deletedAt),
+              sql`${tenantUser.id} <> ${access.tenantUserId}`,
+              sql`app.works_at(${tenantUser.id}, ${locationId}::uuid)`,
+            ),
+          )
+          .orderBy(tenantUser.displayName)
+          .limit(1000);
+      });
+      // Staff only: never a family member's or a resident's portal account at the home.
+      const staff = await staffAt(
+        c,
+        access,
+        locationId,
+        items.map((i) => i.id),
+      );
+      return c.json({ items: items.filter((i) => staff.has(i.id)) }, 200);
     },
   )
   .openapi(
@@ -620,6 +759,11 @@ export const wellbeingRouter = createRouter()
           )
         ).rows;
         // The same words whatever the reason, so the route never says where someone works.
+        if (
+          works?.ok &&
+          !(await staffAt(c, access, body.locationId, [body.toMemberId])).has(body.toMemberId)
+        )
+          throw problems.invalid("We could not send that. Check the colleague and the home.");
         if (!works?.ok)
           throw problems.invalid("We could not send that. Check the colleague and the home.");
         const [row] = await tx
@@ -632,13 +776,14 @@ export const wellbeingRouter = createRouter()
           })
           .returning();
         if (!row) throw new Error("recognition not stored");
+        const names = await namesOf(tx, [row.fromMemberId, row.toMemberId]);
         await audit(c, tx, access, {
           action: A.recognised,
           resourceType: "recognition",
           resourceId: row.id,
           scope: { toMemberId: row.toMemberId, locationId: row.locationId },
         });
-        return recognitionItem(row);
+        return recognitionItem(row, names);
       });
       return c.json(item, 201);
     },
@@ -678,7 +823,11 @@ export const wellbeingRouter = createRouter()
             resourceType: "wellbeing_check_in",
             scope: { locationId, ids: rows.map((r) => r.id) },
           });
-          return rows.map(checkInItem);
+          const names = await namesOf(
+            tx,
+            rows.map((r) => r.memberId),
+          );
+          return rows.map((r) => checkInItem(r, names));
         });
         return c.json({ items, support: WELLBEING_SUPPORT }, 200);
       }
@@ -691,7 +840,7 @@ export const wellbeingRouter = createRouter()
             .where(eq(wellbeingCheckIn.memberId, access.tenantUserId))
             .orderBy(desc(wellbeingCheckIn.createdAt))
             .limit(500)
-        ).map(checkInItem),
+        ).map((r) => checkInItem(r)),
       );
       return c.json({ items, support: WELLBEING_SUPPORT }, 200);
     },

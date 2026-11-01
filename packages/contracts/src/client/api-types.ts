@@ -41894,6 +41894,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/recognition/colleagues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Colleagues one may thank at a home
+     * @description scheduling.wellbeing.self, at a home where the member works: the active members who work there, by name, never the member themself. Refused with the same words wherever the member does not work, so it never says who works where.
+     */
+    get: {
+      parameters: {
+        query: {
+          locationId: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Colleagues */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RecognitionColleagues"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/wellbeing-check-ins": {
     parameters: {
       query?: never;
@@ -54988,11 +55056,20 @@ export interface components {
       fromMemberId: string;
       /** Format: uuid */
       toMemberId: string;
+      fromName: string | null;
+      toName: string | null;
       /** Format: uuid */
       locationId: string;
       message: string;
       /** Format: date-time */
       createdAt: string;
+    };
+    RecognitionColleagues: {
+      items: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+      }[];
     };
     NewRecognition: {
       /** Format: uuid */
@@ -55010,6 +55087,7 @@ export interface components {
       id: string;
       /** Format: uuid */
       memberId: string;
+      memberName: string | null;
       /** Format: uuid */
       locationId: string;
       mood: number;

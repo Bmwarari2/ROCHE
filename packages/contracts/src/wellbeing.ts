@@ -111,6 +111,9 @@ export const RecognitionItem = z
     id: uuid,
     fromMemberId: uuid,
     toMemberId: uuid,
+    /** The sender's and recipient's names as the organisation holds them (slice 61). */
+    fromName: z.string().nullable(),
+    toName: z.string().nullable(),
     locationId: uuid,
     message: z.string(),
     createdAt: isoDateTime,
@@ -126,6 +129,13 @@ export const RecognitionListQuery = z.object({
   locationId: uuid.optional(),
 });
 
+/** The colleagues a member may thank at a home where they work, by name (slice 61). */
+export const RecognitionColleagues = z
+  .object({ items: z.array(z.object({ id: uuid, name: z.string() })) })
+  .meta({ id: "RecognitionColleagues" });
+
+export const RecognitionColleaguesQuery = z.object({ locationId: uuid });
+
 export const NewRecognition = z
   .object({
     toMemberId: uuid,
@@ -139,6 +149,8 @@ export const CheckInItem = z
   .object({
     id: uuid,
     memberId: uuid,
+    /** For a manager's view of shared check-ins: the member's name; null on one's own. */
+    memberName: z.string().nullable(),
     locationId: uuid,
     mood: z.number().int().min(1).max(5),
     note: z.string().nullable(),
@@ -170,3 +182,26 @@ export const NewCheckIn = z
   .meta({ id: "NewCheckIn" });
 
 export const ShareCheckIn = z.object({ shared: z.boolean() }).meta({ id: "ShareCheckIn" });
+
+export type SurveyQuestion = z.infer<typeof SurveyQuestion>;
+export type PulseSurveyState = z.infer<typeof PulseSurveyState>;
+export type PulseSurveyItem = z.infer<typeof PulseSurveyItem>;
+export type PulseSurveyList = z.infer<typeof PulseSurveyList>;
+export type PulseSurveyListQuery = z.infer<typeof PulseSurveyListQuery>;
+export type NewPulseSurvey = z.infer<typeof NewPulseSurvey>;
+export type EditPulseSurvey = z.infer<typeof EditPulseSurvey>;
+export type MovePulseSurvey = z.infer<typeof MovePulseSurvey>;
+export type PulseResponse = z.infer<typeof PulseResponse>;
+export type PulseQuestionResult = z.infer<typeof PulseQuestionResult>;
+export type PulseSurveyResults = z.infer<typeof PulseSurveyResults>;
+export type RecognitionItem = z.infer<typeof RecognitionItem>;
+export type RecognitionList = z.infer<typeof RecognitionList>;
+export type RecognitionListQuery = z.infer<typeof RecognitionListQuery>;
+export type RecognitionColleagues = z.infer<typeof RecognitionColleagues>;
+export type RecognitionColleaguesQuery = z.infer<typeof RecognitionColleaguesQuery>;
+export type NewRecognition = z.infer<typeof NewRecognition>;
+export type CheckInItem = z.infer<typeof CheckInItem>;
+export type CheckInList = z.infer<typeof CheckInList>;
+export type CheckInListQuery = z.infer<typeof CheckInListQuery>;
+export type NewCheckIn = z.infer<typeof NewCheckIn>;
+export type ShareCheckIn = z.infer<typeof ShareCheckIn>;

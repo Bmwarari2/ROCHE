@@ -546,7 +546,7 @@ Logged by slice 12 (the dependency tool, [scheduling.md](../specs/scheduling.md)
 | H-1080 | Confirm the minimum group size for staff pulse surveys (`wellbeing.survey_min_group_size`, Harbour default 5, to verify; an organisation can raise it and never lower it) and that Article 6(1)(f) with the Article 9(2)(b) condition for shared check-ins is the right basis | DPO | `docs/specs/rates.md`, `docs/compliance/records-of-processing.md`, scheduling.md section 16 | Wellbeing results | open |
 | H-1081 | Close the residual DPIA R28 risks: provision the NOLOGIN role `harbour_wellbeing_owner` in every environment (`pnpm db:bootstrap`) before migration 0115 runs; decide whether overlapping surveys of the same home should be refused or warned about; decide whether the system's read of shared check-ins should be narrowed to the export alone; run VACUUM on `pulse_survey_response_pending` after releases and record the write-ahead log and backup window in the DPIA; tell staff on the survey form that free text can identify them; confirm statement logging (pgAudit) does not record the parameters of `app.submit_pulse_response`; record that operators with direct database access could link a response to its participation row by transaction metadata, and that operator access stays approved and logged | DPO with the platform lead | `docs/compliance/dpia-template.md` R28, migration 0115 | Wellbeing surveys | open |
 | H-1082 | Confirm the `staff_wellbeing` retention (2 years from creation, a survey from its close) and build its destruction job for surveys, participation, responses, recognition and check-ins | DPO | `docs/specs/retention.md` | Retention | open |
-| H-1083 | Build the wellbeing screens (web and mobile: survey writer, answer form, results, thanks, check-ins with the sharing switch), exit interviews, turnover by team and the speak-up link to slice 24 | Brian | phase-2.md slice 44, scheduling.md section 16 | Wellbeing screens | open |
+| H-1083 | Build the wellbeing screens for mobile (the web screens are built in slice 61: survey writer, answer form, results, thanks, check-ins with the sharing switch), exit interviews, turnover by team and the speak-up link to slice 24 | Brian | phase-2.md slice 44, scheduling.md section 16 | Wellbeing screens | open |
 | H-1084 | Let the organisation set its own support wording for check-ins (its employee assistance service and who to contact); until then a general message points to the manager, an employee assistance service and 999 | Brian with the organisation | `apps/api/src/routes/wellbeing.ts` (`WELLBEING_SUPPORT`) | Check-in support | open |
 
 ## Phase 2: rota builder (slice 21)
@@ -636,9 +636,9 @@ Logged by slice 46 (lone-worker safety, [scheduling.md](../specs/scheduling.md) 
 ## Phase 2: wellbeing and lone-worker web screens (slice 61)
 
 Logged by slice 61 (the lone-working web screens, [scheduling.md](../specs/scheduling.md) section
-15.8a) on 31 October 2026, from the block H-1140 to H-1149 the lead assigned. H-1147 to H-1149 are
-kept for the wellbeing screens, which wait for the wellbeing API (`feat/sched-wellbeing`, not yet
-pushed).
+15.8a) on 31 October 2026, from the block H-1140 to H-1149 the lead assigned: H-1140 to H-1146 for the
+lone-working screens, H-1147 to H-1149 for the wellbeing screens (scheduling.md section 16, "Web
+screens").
 
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -649,6 +649,9 @@ pushed).
 | H-1144 | Confirm with the DPO that the board shows the latest location point as text (coordinates and accuracy, no map and no map provider) while the alarm is open | DPO lead | scheduling.md 14.5 and 15.8a; H-527 | None | Open |
 | H-1145 | Decide, with the DPO, whether the board shows a contact number for the worker (it says "contact them now" and shows their name only); and whether a session's length entered as elapsed hours is acceptable on the nights the clocks change (built: the planned finish is the start plus the hours and minutes entered, so a night shift on the night the clocks go back needs an hour more) | CSO with the DPO lead | scheduling.md 15.8a; HZ-125 (slice 61 clinical review, findings 11 and 14) | None | Open |
 | H-1146 | Decide whether the incident reported after an acknowledgement must be linked to the alarm from the web (the API accepts `incidentId`; the web links to a new incident without passing the alarm), and whether the board's reads every 30 seconds should be audited as often as they are | CSO with the DPO lead | scheduling.md 15.8a; H-1035 | None | Open |
+| H-1147 | Approve the words on the survey answer page (what is and is not recorded, that results show only after closing and above the size, that written answers are shown as written) and the five check-in words (struggling, not great, okay, good, very good); confirm with the DPO that "Harbour keeps nothing that links your answers to you" holds for operators too while a survey is open (the participation and the pending answer are written in one transaction until the survey closes and shuffles them; security review I2) | DPO lead with the design partner | scheduling.md section 16 "Web screens"; DPIA R28 | None | Open |
+| H-1148 | Confirm that every member holding `scheduling.wellbeing.self` may see, by name, the staff at the homes where they work (to choose whom to thank), including agency workers; and move the same staff-only rule into the database's `recognition_insert` policy and `app.works_at` in a forward migration (the API applies it today: portal and mixed roles never count; security review M1) | DPO lead | scheduling.md section 16; records-of-processing.md | None | Open |
+| H-1149 | Try the wellbeing screens with staff and a manager (answering, check-ins and sharing, thanks, writing and closing a survey, results), and translate them into Welsh (the strings are marked untranslated) | Brian with the design partner | scheduling.md section 16 "Web screens" | None | Open |
 
 ## Per tenant at onboarding
 

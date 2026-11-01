@@ -160,7 +160,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
-- slice 61 lone-working web screens, `feat/web-wellbeing-lone-worker` (cut from `feat/sched-lone-worker`; no migration; HZ-125; H-1140 to H-1146): the worker's session, the monitor board with duress first, the on-call route; the board API names each worker and leaves out the viewer's own session. The wellbeing screens wait for the wellbeing API (`feat/sched-wellbeing`, not pushed; H-1147 to H-1149 kept for them);
+- slice 61 lone-working web screens, `feat/web-wellbeing-lone-worker` (cut from `feat/sched-lone-worker`; no migration; HZ-125; H-1140 to H-1146): the worker's session, the monitor board with duress first, the on-call route; the board API names each worker and leaves out the viewer's own session. With `feat/sched-wellbeing` merged in, the wellbeing screens too (surveys, the anonymous answer form, results above the minimum group size with scale counts all or none, thanks, check-ins shared by choice; H-1147 to H-1149); the wellbeing API gained names, a staff-only colleague list and near-unanimous count suppression; lone-worker safety is scheduling.md section 15;
 - slice 23 applicant tracking offered (0085; H-730 to H-739), not started.
 
 **Numbering in use:** migrations: 0071 is #123; each Phase 2 schema branch writes one

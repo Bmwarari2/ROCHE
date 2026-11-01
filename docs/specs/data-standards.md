@@ -1063,6 +1063,7 @@ exported (only a closed survey's results above the minimum group size leave Harb
 | `wellbeing_check_in.mood` | Harbour | Whole number 1 (low) to 5 (good), the member's own word | Never a score |
 | `wellbeing_check_in.note` | Harbour | Plain text up to 1,000 characters; possibly health | |
 | `wellbeing_check_in.shared_at` | Harbour | ISO 8601 UTC, or empty while private | Set by the database |
+| `RecognitionItem.fromName`, `toName`; `CheckInItem.memberName`; `RecognitionColleagues.items[].name` (API, slice 61) | Harbour | The member's display name, or null when none is held | Read from `tenant_user`, never stored with the record; `memberName` only on a manager's view of shared check-ins |
 
 ## Platform operational tables (not part of the MODS export)
 

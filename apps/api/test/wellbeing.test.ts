@@ -198,8 +198,9 @@ describe("SCHED-011 pulse surveys", () => {
     };
     expect(shown.visible).toBe(true);
     expect(shown.respondents).toBe(2);
-    // Both chose 4: a count at the size shows.
-    expect(shown.questions[0]?.counts).toEqual([0, 0, 0, 2, 0]);
+    // Both chose 4: unanimous, so the counts would tell the manager each person's answer. Every
+    // count is hidden (slice 61 security review L1), though the question's answers are visible.
+    expect(shown.questions[0]?.counts).toEqual([null, null, null, null, null]);
     // Alphabetical, never the order they came in.
     expect(shown.questions[1]?.texts).toEqual([
       "Apples in the staff room",
@@ -274,13 +275,63 @@ describe("SCHED-011 recognition and check-ins", () => {
     });
     expect(r.status).toBe(201);
     const received = (await (await as("manager", "/v1/recognition?mine=received")).json()) as {
-      items: { message: string }[];
+      items: { message: string; fromName: string | null; toName: string | null }[];
     };
     expect(received.items.map((i) => i.message)).toContain("Thank you for covering on Sunday");
+    // Who it is from and to, by name (slice 61).
+    const note = received.items.find((i) => i.message === "Thank you for covering on Sunday");
+    expect(note?.fromName).toBe(DEMO.users.carer.name);
+    expect(note?.toName).toBe(DEMO.users.manager.name);
     const [given] = await sql<{ scope: unknown }>(
       "SELECT scope FROM audit_event WHERE action = 'scheduling.recognition.given'",
     );
     expect(JSON.stringify(given)).not.toMatch(/Sunday/);
+  });
+
+  it("lists the colleagues one may thank where one works, never oneself, refusing elsewhere (slice 61)", async () => {
+    const listed = await as("carer", `/v1/recognition/colleagues?locationId=${LOC}`);
+    expect(listed.status).toBe(200);
+    const { items } = (await listed.json()) as { items: { id: string; name: string }[] };
+    expect(items.map((i) => i.id)).toContain(DEMO.users.manager.id);
+    expect(items.map((i) => i.id)).not.toContain(DEMO.users.carer.id);
+    expect(items.find((i) => i.id === DEMO.users.manager.id)?.name).toBe(DEMO.users.manager.name);
+    const elsewhere = await as(
+      "carer",
+      `/v1/recognition/colleagues?locationId=${crypto.randomUUID()}`,
+    );
+    expect(elsewhere.status).toBe(403);
+  });
+
+  it("never lists a family member's portal account or a suspended member as a colleague, nor thanks them (slice 61 security review M1)", async () => {
+    const family = crypto.randomUUID();
+    const away = crypto.randomUUID();
+    await sql(
+      `INSERT INTO tenant_user (id, display_name, email, status) VALUES
+         ($1, 'Fern Family', 'fern.family@example.invalid', 'active'),
+         ($2, 'Sol Suspended', 'sol.suspended@example.invalid', 'suspended')`,
+      [family, away],
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+       SELECT $1, r.id, $2, 'Relative' FROM role r WHERE r.key = 'family_representative'`,
+      [family, LOC],
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+       SELECT $1, r.id, $2, 'Carer' FROM role r WHERE r.key = 'care_worker'`,
+      [away, LOC],
+    );
+    const { items } = (await (
+      await as("carer", `/v1/recognition/colleagues?locationId=${LOC}`)
+    ).json()) as { items: { id: string }[] };
+    expect(items.map((i) => i.id)).not.toContain(family);
+    expect(items.map((i) => i.id)).not.toContain(away);
+    const thanked = await post("carer", "/v1/recognition", {
+      toMemberId: family,
+      locationId: LOC,
+      message: "Thank you",
+    });
+    expect(thanked.status).toBe(422);
   });
 
   it("a manager sees a check-in only while the member shares it", async () => {
@@ -311,6 +362,13 @@ describe("SCHED-011 recognition and check-ins", () => {
         .status,
     ).toBe(200);
     expect(await managerSees()).toContain(checkIn.id);
+    // The manager sees whose it is, by name (slice 61).
+    const shared = (await (
+      await as("manager", `/v1/wellbeing-check-ins?locationId=${LOC}`)
+    ).json()) as {
+      items: { id: string; memberName: string | null }[];
+    };
+    expect(shared.items.find((i) => i.id === checkIn.id)?.memberName).toBe(DEMO.users.carer.name);
     // Only the member changes whether it is shared.
     expect(
       (await post("manager", `/v1/wellbeing-check-ins/${checkIn.id}/sharing`, { shared: false }))

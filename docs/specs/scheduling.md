@@ -1134,6 +1134,40 @@ Built-in roles: every staff role holding `scheduling.timesheet.self` also holds
   organisation's export holds only shared check-ins, a member's private ones reach them through a
   subject access request);
   `POST /v1/wellbeing-check-ins`; `POST /v1/wellbeing-check-ins/{id}/sharing` (`shared: boolean`).
+- Slice 61 additions: recognition items carry `fromName` and `toName`; a manager's view of shared
+  check-ins carries `memberName` (never on a member's own list); `GET /v1/recognition/colleagues
+  ?locationId` (self, at a home where the reader works, else 403 in the same words wherever) lists
+  the active members who work there as staff, by name, never the reader, never a portal account (a
+  role mixing portal and staff permissions, or a portal role, does not count, as for the location
+  switcher) and never a suspended or removed member; thanks to anyone else is refused. Results hide
+  every count of a scale question when one point holds more than the number who answered less the
+  size, so a unanimous or near-unanimous answer never shows what the few others chose.
+
+### Web screens (slice 61)
+
+`/wellbeing` in the navigation for holders of either permission (`wellbeingNavShown`).
+
+- **Wellbeing** (`/wellbeing`, self): the surveys waiting for the member (answered ones marked);
+  their check-ins (how they are, from five words; a note; "Share this check-in with my manager",
+  never ticked for them; each earlier check-in marked Private or Shared, with a button to change
+  it); thanks to a colleague at a home where both work (colleagues read for one home at a time) and
+  the thanks they received and sent, by name. The organisation's support words show with the
+  check-ins.
+- **Answering** (`/wellbeing/surveys/{id}/answer`): before the questions, what is recorded (that
+  you took part; your answers and the week the survey closed, the same for everyone) and what is
+  not (your name, when you answered, anything linking your answers to you), that results show only
+  after the survey closes and when enough people answered, and that written answers are shown as
+  written. Every question optional, at least one answered. The answer goes with nothing about the
+  person, and the page that follows says it was sent.
+- **Staff surveys** (`/wellbeing/surveys`, manage): the surveys with their state in words;
+  writing one (`/wellbeing/surveys/new`: who is asked, the title, the dates, 1 to 20 questions each
+  a 1 to 5 scale or written words) as a draft; a survey's page opens or closes it, each asking first
+  and saying it cannot be undone. Results only once closed: the API's message when hidden; when
+  shown, each question only when enough answered it, a scale's counts all or none (the web hides
+  every count if the API hides one, and again when one point holds more than the answers less the
+  size), written answers in alphabetical order. No breakdown, filter or export.
+- **What your team shares** (`/wellbeing/team`, manage): for one home at a time, named, the
+  check-ins members share with the manager (only while shared) and the thanks between colleagues.
 
 ### Audit
 
