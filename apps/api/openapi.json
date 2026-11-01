@@ -31999,6 +31999,9 @@
           "certificatesRefused": {
             "type": "integer"
           },
+          "certificatesNotFetched": {
+            "type": "integer"
+          },
           "message": {
             "type": "string"
           }
@@ -32008,6 +32011,7 @@
           "imported",
           "certificates",
           "certificatesRefused",
+          "certificatesNotFetched",
           "message"
         ]
       },

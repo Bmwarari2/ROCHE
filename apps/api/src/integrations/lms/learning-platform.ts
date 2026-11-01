@@ -27,8 +27,19 @@ export interface LearningPlatformClient {
   }): Promise<Uint8Array | null>;
 }
 
+/**
+ * What the managed store holds under a source's secret: the credential and the platform
+ * organisation it was issued for, written by the connection handshake. The adapter uses only that
+ * organisation, so a caller's `external_organisation_id` can never reach another's data (security
+ * review M4).
+ */
+export interface LearningPlatformSecret {
+  readonly credential: string;
+  readonly organisationId: string;
+}
+
 export interface LearningPlatformSecrets {
-  credential(secretRef: string): Promise<string | null>;
+  secret(secretRef: string): Promise<LearningPlatformSecret | null>;
 }
 
 export class LearningPlatformNotConnected extends Error {
@@ -46,6 +57,18 @@ export class LearningPlatformUnavailable extends Error {
 
 /** Most completions one pull may return; more is refused, as a file over the row limit. */
 export const PULL_LIMIT = 5000;
+/** A certificate's largest size, as the document category's (10 MB). */
+export const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
+/** How long one call may take before it is given up (security review M3). */
+export const CALL_TIMEOUT_MS = 10_000;
+
+function within<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 export class LearningPlatformAdapter {
   constructor(
@@ -56,16 +79,18 @@ export class LearningPlatformAdapter {
   private async open(source: LearningPlatformSource) {
     if (!source.secretRef || !source.externalOrganisationId)
       throw new LearningPlatformNotConnected();
-    const credential = await this.secrets.credential(source.secretRef);
-    if (!credential) throw new LearningPlatformNotConnected();
-    return { credential, organisationId: source.externalOrganisationId };
+    const secret = await this.secrets.secret(source.secretRef);
+    if (!secret || secret.organisationId !== source.externalOrganisationId) {
+      throw new LearningPlatformNotConnected();
+    }
+    return { credential: secret.credential, organisationId: secret.organisationId };
   }
 
   async pull(source: LearningPlatformSource): Promise<readonly LmsCompletionInput[]> {
     const opened = await this.open(source);
     let completions: readonly LmsCompletionInput[];
     try {
-      completions = await this.client.listCompletions(opened);
+      completions = await within(this.client.listCompletions(opened), CALL_TIMEOUT_MS * 3);
     } catch {
       throw new LearningPlatformUnavailable();
     }
@@ -77,7 +102,8 @@ export class LearningPlatformAdapter {
   async certificate(source: LearningPlatformSource, recordId: string): Promise<Uint8Array | null> {
     const opened = await this.open(source);
     try {
-      return await this.client.certificate({ ...opened, recordId });
+      const bytes = await within(this.client.certificate({ ...opened, recordId }), CALL_TIMEOUT_MS);
+      return bytes && bytes.length <= CERTIFICATE_MAX_BYTES ? bytes : null;
     } catch {
       return null;
     }
@@ -116,11 +142,11 @@ export class MockLearningPlatformClient implements LearningPlatformClient {
 
 /** Credentials by secret name, in memory (development and tests only). */
 export class MemoryLearningPlatformSecrets implements LearningPlatformSecrets {
-  private readonly values = new Map<string, string>();
-  put(secretRef: string, credential: string): void {
-    this.values.set(secretRef, credential);
+  private readonly values = new Map<string, LearningPlatformSecret>();
+  put(secretRef: string, secret: LearningPlatformSecret): void {
+    this.values.set(secretRef, secret);
   }
-  async credential(secretRef: string): Promise<string | null> {
+  async secret(secretRef: string): Promise<LearningPlatformSecret | null> {
     return this.values.get(secretRef) ?? null;
   }
 }

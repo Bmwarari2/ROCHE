@@ -97,6 +97,12 @@ const A = {
 } as const;
 const RESOURCE = "lms_import";
 
+/**
+ * Most certificates one commit fetches and scans in its request (security review M3); the rest are
+ * counted, and added from their training records (H-1256 moves fetching to the job queue).
+ */
+const CERTIFICATES_PER_COMMIT = 50;
+
 const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 
 const refused = (problem: HttpProblem, action: string, id: string | null, reason: string) =>
@@ -221,11 +227,16 @@ const rowItem = (r: RowRow) => ({
   skipReason: r.skipReason,
 });
 
-async function sourceOf(tx: Transaction, id: string): Promise<SourceRow> {
-  const [row] = await tx
+/**
+ * A source, locked when `lock` is set: commits, links and mappings of one source take turns, so
+ * a commit never imports by a link or mapping changed under it (security review M1).
+ */
+async function sourceOf(tx: Transaction, id: string, lock = false): Promise<SourceRow> {
+  const query = tx
     .select()
     .from(lmsSource)
     .where(and(eq(lmsSource.id, id), isNull(lmsSource.deletedAt)));
+  const [row] = lock ? await query.for("update") : await query;
   if (!row) throw problems.notFound();
   return row;
 }
@@ -600,7 +611,7 @@ export const lmsImportRouter = createRouter()
         );
       }
       const item = await change(c, access, A.courseMapped, id, async (tx) => {
-        await sourceOf(tx, id);
+        await sourceOf(tx, id, true);
         const [row] = await tx
           .insert(lmsCourseMap)
           .values({ sourceId: id, courseCode: body.courseCode, topic: body.topic, tier: body.tier })
@@ -642,6 +653,7 @@ export const lmsImportRouter = createRouter()
         );
       }
       const item = await change(c, access, A.courseChanged, mapId, async (tx) => {
+        await sourceOf(tx, id, true);
         const [row] = await tx
           .update(lmsCourseMap)
           .set(body)
@@ -712,7 +724,7 @@ export const lmsImportRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const item = await change(c, access, A.learnerLinked, id, async (tx) => {
-        await sourceOf(tx, id);
+        await sourceOf(tx, id, true);
         if (body.workerId === access.tenantUserId) {
           throw refused(
             new HttpProblem(403, "own_development_record", "Someone else links you."),
@@ -758,6 +770,7 @@ export const lmsImportRouter = createRouter()
       const access = await requirePermission(c, TRAINING);
       const { id, linkId } = c.req.valid("param");
       const item = await change(c, access, A.learnerUnlinked, linkId, async (tx) => {
+        await sourceOf(tx, id, true);
         const [row] = await tx
           .update(lmsLearnerLink)
           .set({ deletedAt: new Date() })
@@ -996,7 +1009,7 @@ export const lmsImportRouter = createRouter()
         if (!imp) throw problems.notFound();
         if (imp.status !== "open") throw RAISED.lms_import_closed as HttpProblem;
         if (dryRunNumber !== imp.dryRunNumber) throw stale("not_latest_dry_run");
-        const source = await sourceOf(tx, imp.sourceId);
+        const source = await sourceOf(tx, imp.sourceId, true);
         const { rows, classified } = await classifyPending(tx, imp, access.tenantUserId);
         if (sha256(lmsDryRunFingerprint(classified)) !== imp.dryRunSha256) {
           throw stale("changed_since_dry_run");
@@ -1049,10 +1062,12 @@ export const lmsImportRouter = createRouter()
       // one refused or missing leaves its record standing.
       let certificates = 0;
       let certificatesRefused = 0;
+      let certificatesNotFetched = 0;
       const adapter = c.get("services").learningPlatform;
       if (made.source.kind === "api" && adapter) {
         const { scanner } = c.get("services");
-        for (const r of made.records) {
+        certificatesNotFetched = Math.max(0, made.records.length - CERTIFICATES_PER_COMMIT);
+        for (const r of made.records.slice(0, CERTIFICATES_PER_COMMIT)) {
           const bytes = await adapter.certificate(made.source, r.recordId).catch(() => null);
           if (!bytes) continue;
           try {
@@ -1098,6 +1113,7 @@ export const lmsImportRouter = createRouter()
           imported: made.records.length,
           certificates,
           certificatesRefused,
+          certificatesNotFetched,
           message:
             pending > 0
               ? `Imported ${made.records.length}. ${pending} still need a person: link the learner, map the course or skip the row.`

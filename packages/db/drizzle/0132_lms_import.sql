@@ -89,7 +89,7 @@ CREATE TABLE "lms_import_row" (
 	CONSTRAINT "lms_import_row_ids" CHECK ((learner_id = '' OR learner_id ~ '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$')
         AND (course_code = '' OR course_code ~ '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$')
         AND length(record_id) BETWEEN 1 AND 240 AND position('@' in record_id) = 0),
-	CONSTRAINT "lms_import_row_provider" CHECK (provider IS NULL OR length(btrim(provider)) BETWEEN 2 AND 160),
+	CONSTRAINT "lms_import_row_provider" CHECK (provider IS NULL OR (length(btrim(provider)) BETWEEN 2 AND 160 AND position('@' in provider) = 0 AND provider !~ '^[-=+@]')),
 	CONSTRAINT "lms_import_row_class" CHECK (class IS NULL OR class IN ('ready', 'unmatched_learner', 'unmapped_course', 'already_recorded', 'own_record', 'invalid')),
 	CONSTRAINT "lms_import_row_outcome" CHECK (outcome IN ('pending', 'imported', 'skipped')),
 	CONSTRAINT "lms_import_row_topic" CHECK ((topic IS NULL OR topic IN ('care_certificate', 'safeguarding_adults', 'safeguarding_children', 'moving_and_handling', 'infection_prevention_and_control', 'fire_safety', 'health_and_safety', 'basic_life_support', 'food_hygiene', 'medicines', 'mental_capacity_and_dols', 'equality_diversity_and_human_rights', 'information_governance', 'dementia_awareness', 'fluids_and_nutrition', 'oliver_mcgowan'))
@@ -456,7 +456,16 @@ BEGIN
         AND r.tier IS NOT DISTINCT FROM NEW.tier
         AND r.completed_on = NEW.completed_on
         AND r.expires_on IS NOT DISTINCT FROM NEW.expires_on
-        AND r.record_id = NEW.external_record_id) THEN
+        AND r.record_id = NEW.external_record_id
+        -- The link and the mapping the row was classified by still stand (security review M1).
+        AND EXISTS (SELECT 1 FROM public.lms_learner_link l
+                    WHERE l.tenant_id = r.tenant_id AND l.source_id = i.source_id
+                      AND l.learner_id = r.learner_id AND l.worker_id = r.worker_id
+                      AND l.deleted_at IS NULL)
+        AND EXISTS (SELECT 1 FROM public.lms_course_map m
+                    WHERE m.tenant_id = r.tenant_id AND m.source_id = i.source_id
+                      AND m.course_code = r.course_code AND m.topic = r.topic
+                      AND m.tier IS NOT DISTINCT FROM r.tier AND m.active)) THEN
     RAISE EXCEPTION 'training_record_import_mismatch' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
@@ -503,17 +512,48 @@ ALTER TABLE public.lms_import_row ADD CONSTRAINT lms_import_row_training_record_
 -- and is read as that record is: by readers of development records, or by the member it is about;
 -- added only by a holder of workforce.training.manage, for someone else's record.
 CREATE OR REPLACE FUNCTION app.training_record_worker(p_record_id uuid) RETURNS uuid
-LANGUAGE sql STABLE AS $$
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
   SELECT r.worker_id FROM public.training_record r WHERE r.id = p_record_id
 $$;
 --> statement-breakpoint
-CREATE POLICY document_training_certificate ON public.document AS RESTRICTIVE FOR ALL
+-- Read, added and changed as separate rules (security review M2): a change (retention, a tombstone)
+-- by anyone who reads the certificate, other than the member it is about.
+CREATE POLICY document_training_certificate_read ON public.document AS RESTRICTIVE FOR SELECT
   TO harbour_app
   USING (category <> 'training_certificate' OR app.is_system()
     OR (subject_type = 'training_record' AND (app.reads_development()
-        OR app.reads_own_development(app.training_record_worker(subject_id)))))
+        OR app.reads_own_development(app.training_record_worker(subject_id)))));
+--> statement-breakpoint
+CREATE POLICY document_training_certificate_insert ON public.document AS RESTRICTIVE FOR INSERT
+  TO harbour_app
   WITH CHECK (category <> 'training_certificate' OR app.is_system()
     OR (app.holds_staff_permission('workforce.training.manage')
         AND person_id IS NULL
         AND subject_type = 'training_record'
         AND app.training_record_worker(subject_id) <> app.current_user_id()));
+--> statement-breakpoint
+CREATE POLICY document_training_certificate_update ON public.document AS RESTRICTIVE FOR UPDATE
+  TO harbour_app
+  USING (category <> 'training_certificate' OR app.is_system()
+    OR (subject_type = 'training_record' AND app.reads_development()
+        AND app.training_record_worker(subject_id) IS DISTINCT FROM app.current_user_id()))
+  WITH CHECK (category <> 'training_certificate' OR app.is_system()
+    OR (subject_type = 'training_record' AND app.reads_development()
+        AND app.training_record_worker(subject_id) IS DISTINCT FROM app.current_user_id()));
+--> statement-breakpoint
+CREATE POLICY document_training_certificate_delete ON public.document AS RESTRICTIVE FOR DELETE
+  TO harbour_app
+  USING (category <> 'training_certificate' OR app.is_system());
+--> statement-breakpoint
+-- Earlier versions of the import tables follow their own rule (security review L5; as 0097).
+CREATE POLICY record_version_lms ON public.record_version AS RESTRICTIVE FOR SELECT
+  TO harbour_app
+  USING (table_name NOT IN ('lms_source', 'lms_course_map', 'lms_learner_link', 'lms_import',
+      'lms_import_row')
+    OR app.is_system() OR app.holds_staff_permission('workforce.training.manage'));
+--> statement-breakpoint
+-- One imported record per member, topic, tier and date, whichever import or record id brought it
+-- (security review L7).
+CREATE UNIQUE INDEX training_record_imported_completion_key ON public.training_record
+  (tenant_id, worker_id, topic, coalesce(tier, 0), completed_on)
+  WHERE source = 'lms' AND deleted_at IS NULL;

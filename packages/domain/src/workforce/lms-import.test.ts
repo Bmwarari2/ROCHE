@@ -89,6 +89,8 @@ describe("WORK-006 rule 2 checking a row", () => {
     ["an expiry that is not a date", { expiresOn: "soon" }, ["expires_on"]],
     ["a record id with a space", { recordId: "rec 1" }, ["record_id"]],
     ["a provider of one letter", { provider: "A" }, ["provider"]],
+    ["a provider that is an email", { provider: "trainer@example.invalid" }, ["provider"]],
+    ["a provider that is a formula", { provider: "=HYPERLINK(1)" }, ["provider"]],
   ])("%s", (_name, over, problems) => {
     expect(row(over).problems).toEqual(problems);
   });

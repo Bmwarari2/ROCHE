@@ -185,6 +185,8 @@ export const LmsCommitResult = z
     certificates: z.number().int(),
     /** Certificates refused by the malware scan or not readable; the records stand. */
     certificatesRefused: z.number().int(),
+    /** Certificates not fetched by this commit (over the per-commit limit); add them per record. */
+    certificatesNotFetched: z.number().int(),
     message: z.string(),
   })
   .meta({ id: "LmsCommitResult" });

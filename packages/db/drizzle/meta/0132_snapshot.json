@@ -16526,7 +16526,7 @@
         },
         "lms_import_row_provider": {
           "name": "lms_import_row_provider",
-          "value": "provider IS NULL OR length(btrim(provider)) BETWEEN 2 AND 160"
+          "value": "provider IS NULL OR (length(btrim(provider)) BETWEEN 2 AND 160 AND position('@' in provider) = 0 AND provider !~ '^[-=+@]')"
         },
         "lms_import_row_class": {
           "name": "lms_import_row_class",

@@ -970,12 +970,17 @@ like any other (workforce.md rule 5), and it never creates a competence sign-off
     is unique per source.
 - Training certificates are documents in the new `training_certificate` category, attached to a
   training record (`subject_type = 'training_record'`).
+- Earlier versions of the import tables (`record_version`) are read only by holders of
+  `workforce.training.manage`.
 
 ### 13.2 Rules (`packages/domain/src/workforce/lms-import.ts`, table-driven tests)
 
 1. **Sources.** A holder of `workforce.training.manage` adds a source. An API source is off until
    the organisation connects it: the pull needs `LMS_API` on (a mock until H-1250) and credentials
-   under the source's own secret name. Production refuses anything but `off`.
+   under the source's own secret name. Production refuses anything but `off`. The secret holds
+   the credential with the platform organisation it was issued for. The adapter uses only that
+   organisation, and refuses a source whose `external_organisation_id` differs, so a caller can
+   never reach another organisation's data on the platform. Each call times out.
 2. **What is read.** Only the learner id, course code, completion date, expiry date, record id
    and provider are read, from a CSV by heading or a JSON list.
    - Any other column (a name, an email, a score) is ignored and never stored.
@@ -983,6 +988,8 @@ like any other (workforce.md rule 5), and it never creates a competence sign-off
    - Learner ids and course codes are letters, digits and `._:/-`, never an `@`, so an email is
      never a learner id.
    - Each row is checked, and a value that fails a check is not kept, only the problem.
+   - A provider is an organisation's name: never an email (`@`), and never starting with `=`,
+     `+`, `-` or `@`, so it cannot carry a formula into an export.
    - The import wizard's limits apply (5,000 rows).
 3. **Matching by stable id, never by name.** A row's member is the live link for its learner id.
    With none, the row is `unmatched_learner` and waits for a person to link the learner. A person
@@ -1000,7 +1007,11 @@ like any other (workforce.md rule 5), and it never creates a competence sign-off
 6. **Imported, never overwriting.** A commit turns each ready row into a new training record.
    - The record has `source = 'lms'`, the row's dates and the provider (the source's name when
      the row has none).
-   - The database refuses an imported record that differs from its ready row.
+   - The database refuses an imported record that differs from its ready row, or whose learner
+     link or course mapping no longer stands.
+   - Commits, links and mappings of one source take turns under a lock on the source, so a commit
+     never imports by a link or mapping changed under it.
+   - There is one imported record per member, topic, tier and date, whichever import brought it.
    - It keeps an imported record's completion, member and source fixed. It never turns a Harbour
      record into an imported one, or the reverse.
    - Renewing a topic ends its open reminders, as recording it in Harbour does.
@@ -1016,6 +1027,9 @@ like any other (workforce.md rule 5), and it never creates a competence sign-off
      contents, size-limited (10 MB), scanned for malware and stored as a `training_certificate`
      document.
    - A certificate that fails the scan is refused and counted; its record stands.
+   - One commit fetches at most 50 certificates, each within a timeout and at most 10 MB. The
+     rest are counted as not fetched, to be added from their records; moving the fetching to the
+     job queue is H-1256.
    - A certificate is read as its training record is: by readers of development records, and by
      the member it is about. Only a holder of `workforce.training.manage` adds one, never for
      their own record.
@@ -1099,3 +1113,5 @@ Audit events carry ids, codes and counts only, never a learner id, a name or a f
 | xAPI statements from a platform are not imported; slice 43's own e-learning runtime records its own completions | A later slice, once a platform is chosen (H-1251) |
 | No screens: the routes are API-only | The web slice for training (H-1252) |
 | A platform's file layouts beyond the headings in `LMS_CSV_HEADINGS` are unverified | H-1253 |
+| Certificates are fetched in the commit's request, at most 50 at a time | H-1256 (the job queue, with a per-organisation limit) |
+| No route opens a certificate yet; the database's read rule is tested directly | The training screens (H-1252) |

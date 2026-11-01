@@ -136,7 +136,15 @@ export function stageLmsRow(
   if (recordText !== "" && !isLmsRecordId(recordText)) problems.push("record_id");
   const providerText = input.provider?.trim() ?? "";
   const provider = providerText === "" ? null : providerText;
-  if (provider && (provider.length < 2 || provider.length > 160 || unstorableText(provider))) {
+  // A provider is an organisation's name: never an email, never a spreadsheet formula.
+  if (
+    provider &&
+    (provider.length < 2 ||
+      provider.length > 160 ||
+      unstorableText(provider) ||
+      provider.includes("@") ||
+      /^[-=+@]/.test(provider))
+  ) {
     problems.push("provider");
   }
   // A value that broke a check is never kept as given, nor in a derived id: only its problem is.

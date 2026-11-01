@@ -1,7 +1,7 @@
 # 1 November 2026: imports of external training records (slice 78; WORK-006; ADR-0102)
 
 Branch `feat/work-lms-import`, from `feat/work-training-competence` (already in `main`). Migration
-0132. Human actions H-1250 to H-1255.
+0132. Human actions H-1250 to H-1257.
 
 - **Spec:** [workforce.md](../specs/workforce.md) section 13. **ADR:** ADR-0102 (a staged import,
   dry run first, learners matched by stable id; the learning platform is the organisation's own
@@ -32,6 +32,21 @@ Branch `feat/work-lms-import`, from `feat/work-training-competence` (already in 
 - **Docs:** HZ-124 gains a cause, a control and tests. Records of processing (B3), the
   sub-processor notes (the organisation's own processors), data standards and the feature register
   are updated.
+
+## Security review fixes
+
+- Commits, links and mappings of one source take turns under a lock on the source. The database
+  also refuses an imported record whose link or mapping no longer stands.
+- The certificate policy is split into read, insert, update and delete, so retention can change
+  certificates.
+- Earlier versions of the import tables are read only by importers.
+- The adapter uses only the platform organisation stored with the credential.
+- Certificate fetches are capped per commit, with a timeout and a size limit (H-1256 moves them to
+  the job queue).
+- A provider can never be an email or a formula.
+- There is one imported record per member, topic, tier and date.
+- `training_record_worker` gets a fixed search path, and a test shows the app role cannot switch
+  the guards off.
 
 ## Not built
 

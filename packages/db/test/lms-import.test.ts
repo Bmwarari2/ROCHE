@@ -331,6 +331,51 @@ describe("hazard HZ-124 WORK-006 the LMS import schema", () => {
     expect(mine.rows).toEqual([{ source: "lms" }]);
   });
 
+  it("refuses an imported record once its link has ended, and keeps earlier versions to the importers", async () => {
+    const src = (await asHr(async (c) => one(source(c, "file", "Second hub")))).id;
+    const linked = await asHr(async (c) => one(link(c, src, "L-7", a.northManager)));
+    await asHr((c) =>
+      c.query(
+        `INSERT INTO lms_course_map (source_id, course_code, topic) VALUES ($1, 'FIRE-01', 'fire_safety')`,
+        [src],
+      ),
+    );
+    const imp = (await asHr(async (c) => one(newImport(c, src)))).id;
+    const row = (
+      await asHr(async (c) =>
+        one(
+          c.query<{ id: string }>(
+            `INSERT INTO lms_import_row (import_id, row_number, learner_id, course_code, completed_on,
+               record_id, problems, class, worker_id, topic)
+             VALUES ($1, 1, 'L-7', 'FIRE-01', DATE '2026-10-01', 'rec-7', '{}', 'ready', $2, 'fire_safety')
+             RETURNING id`,
+            [imp, a.northManager],
+          ),
+        ),
+      )
+    ).id;
+    await asHr((c) =>
+      c.query("UPDATE lms_learner_link SET deleted_at = now() WHERE id = $1", [linked.id]),
+    );
+    expect(
+      await code(asHr((c) => imported(c, { src, row, worker: a.northManager, recordId: "rec-7" }))),
+    ).toBe("training_record_import_mismatch");
+    const versions = (as: typeof asHr) =>
+      as(
+        async (c) =>
+          (await c.query("SELECT 1 FROM record_version WHERE table_name LIKE 'lms_%'")).rowCount,
+      );
+    expect(await versions(asHr)).toBeGreaterThan(0);
+    expect(await versions(asNorth)).toBe(0);
+    expect(await versions(asCarer)).toBe(0);
+  });
+
+  it("never lets the app role switch the guards off", async () => {
+    expect(
+      await code(asHr((c) => c.query("SET LOCAL session_replication_role = replica"))),
+    ).toMatch(/permission denied/);
+  });
+
   it("reads a training certificate as its training record, added only for someone else", async () => {
     const cert = (c: pg.PoolClient, recordId: string) =>
       c.query(

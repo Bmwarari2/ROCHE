@@ -320,7 +320,17 @@ describe("WORK-006 pulling from a learning platform through the port", () => {
     const refused = await post("manager", `/v1/workforce/lms-sources/${API}/pull`);
     expect(refused.status).toBe(409);
     expect(((await refused.json()) as { code: string }).code).toBe("integration_not_connected");
-    h.handle.learningPlatformSecrets.put(`lms/${DEMO.tenantId}/${API}`, "invented-credential");
+    // Credentials issued for another platform organisation are refused: only the one stored
+    // with the credential is ever used.
+    h.handle.learningPlatformSecrets.put(`lms/${DEMO.tenantId}/${API}`, {
+      credential: "invented-credential",
+      organisationId: "lms-org-other",
+    });
+    expect((await post("manager", `/v1/workforce/lms-sources/${API}/pull`)).status).toBe(409);
+    h.handle.learningPlatformSecrets.put(`lms/${DEMO.tenantId}/${API}`, {
+      credential: "invented-credential",
+      organisationId: "lms-org-demo",
+    });
     h.handle.learningPlatformMock.completions = [
       { learnerId: "U-1", courseCode: "IPC-1", completedOn: "2026-10-10", recordId: "c-1" },
       { learnerId: "U-2", courseCode: "IPC-1", completedOn: "2026-10-11", recordId: "c-2" },
@@ -345,7 +355,12 @@ describe("WORK-006 pulling from a learning platform through the port", () => {
       certificatesRefused: number;
       detail: Detail;
     };
-    expect(result).toMatchObject({ imported: 2, certificates: 1, certificatesRefused: 1 });
+    expect(result).toMatchObject({
+      imported: 2,
+      certificates: 1,
+      certificatesRefused: 1,
+      certificatesNotFetched: 0,
+    });
     expect(result.detail.import.status).toBe("closed");
     const docs = await sql<{ category: string; subject_type: string }>(
       "SELECT category, subject_type FROM document WHERE category = 'training_certificate'",

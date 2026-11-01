@@ -251,7 +251,7 @@ export const lmsImportRow = pgTable(
     ),
     check(
       "lms_import_row_provider",
-      sql`provider IS NULL OR length(btrim(provider)) BETWEEN 2 AND 160`,
+      sql`provider IS NULL OR (length(btrim(provider)) BETWEEN 2 AND 160 AND position('@' in provider) = 0 AND provider !~ '^[-=+@]')`,
     ),
     check("lms_import_row_class", sql`class IS NULL OR class IN (${sqlList(LMS_ROW_CLASS_CODES)})`),
     check("lms_import_row_outcome", sql`outcome IN (${sqlList(LMS_ROW_OUTCOME_CODES)})`),

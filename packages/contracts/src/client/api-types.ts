@@ -52310,6 +52310,7 @@ export interface components {
       imported: number;
       certificates: number;
       certificatesRefused: number;
+      certificatesNotFetched: number;
       message: string;
     };
     CommitLmsImport: {
