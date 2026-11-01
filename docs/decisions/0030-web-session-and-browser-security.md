@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "accepted; partly superseded by ADR-0098"
 date: 2026-10-11
 decision-makers: Claude Code (build), Brian (product owner, informed)
 consulted: security-reviewer agent
@@ -7,6 +7,11 @@ informed: Brian
 ---
 
 # Web sessions, token exposure and the browser security policy
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the `TRUSTED_PROXY_CIDRS` example (the VPC, NAT gateways and CloudFront
+> ranges), which becomes the Google Cloud external load balancer's ranges. The session and browser
+> policy is unchanged. The text below is kept as decided.
 
 ## Context and problem statement
 

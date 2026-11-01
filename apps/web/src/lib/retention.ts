@@ -154,7 +154,7 @@ export function destroyOutcome(result: {
   };
 }
 
-/** "storage_delete_all_versions:s3" as words: every stored version deleted, and where. */
+/** "storage_delete_all_versions:gcs" as words: every stored version deleted, and where. */
 export function methodWords(method: string, t: Translator): string {
   const [how, where] = method.split(":");
   if (how === "storage_delete_all_versions") {

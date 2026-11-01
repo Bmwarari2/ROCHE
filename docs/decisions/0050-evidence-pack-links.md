@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "accepted; partly superseded by ADR-0098"
 date: 2026-10-11
 decision-makers: Claude Code (build), Brian (product owner, informed)
 consulted: security-reviewer agent (first review and the fix pass); DPO to review the redaction rules and defaults (H-96)
@@ -7,6 +7,12 @@ informed: Brian
 ---
 
 # Evidence pack links: hashed random tokens bound to one recipient by an emailed code
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the S3 and SES details. The rejected presigned S3 URL option would now be a
+> Cloud Storage V4 signed URL (still rejected for the same reasons), and the code email goes through
+> the SMTP provider still to be chosen (H-08). The token design is unchanged. The text below is kept
+> as decided.
 
 ## Context and problem statement
 

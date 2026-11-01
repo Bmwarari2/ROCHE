@@ -1,10 +1,16 @@
 ---
-status: accepted
+status: accepted; partly superseded by ADR-0098
 date: 2026-10-11
 decision-makers: Brian (Thapsus Cargo Ltd, Appendix default); recorded by Claude Code
 ---
 
 # Production hosting: AWS eu-west-2, with Supabase London permitted for dev and pilots
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: production on AWS eu-west-2 and the later move of pilots to RDS. Production
+> runs on Google Cloud europe-west2 on Cloud SQL for PostgreSQL 17, and pilots move to Cloud SQL.
+> Supabase London for development, staging and pilots is unchanged. The text below is kept as
+> decided.
 
 ## Context and problem statement
 

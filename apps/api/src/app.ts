@@ -212,7 +212,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
       60_000,
     ),
-    adapterFor: createAdapterResolver({ production: config.NODE_ENV === "production", mocks }),
+    adapterFor: createAdapterResolver({
+      production: config.NODE_ENV === "production",
+      mocks,
+      smtp: config.smtp,
+    }),
     mockEmail: mocks.email,
     evidenceLinkThrottles: {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),

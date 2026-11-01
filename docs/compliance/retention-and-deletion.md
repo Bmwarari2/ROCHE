@@ -37,6 +37,7 @@ stateDiagram-v2
 - Erasure requests under Art 17 are honoured only where no retention obligation applies; otherwise the request is refused with the reason recorded and given to the requester ([dsar-procedure.md](dsar-procedure.md)).
 - Audit events about a record are kept as long as the record, then shredded with it, except the destruction event itself.
 - Security logs are kept at least 6 months (master prompt 5.3) and then deleted on a fixed schedule.
+- The production audit archive is a Cloud Storage bucket with a **locked** retention policy of 365 days ([ADR-0098](../decisions/0098-production-on-google-cloud.md), [H-55](../plans/human-actions.md)), which replaces S3 Object Lock in compliance mode: no archived object can be deleted or replaced before it is 365 days old, and a locked policy cannot be shortened or removed.
 
 ## 3. Legal holds
 
@@ -50,15 +51,16 @@ stateDiagram-v2
 
 ## 4. Cryptographic shredding
 
-Deleting rows from the live database does not remove copies from backups (point-in-time recovery and snapshots are kept for 35 days) or from object storage versions. Cryptographic shredding makes those copies unreadable.
+Deleting rows from the live database does not remove copies from backups (Cloud SQL automated backups and point-in-time recovery, kept for the retention period set in the Google Cloud Terraform, [ADR-0098](../decisions/0098-production-on-google-cloud.md)) or from object storage versions. Cryptographic shredding makes those copies unreadable.
 
 | Element | Design |
 | --- | --- |
-| Envelope encryption | Content columns that hold free text and documents, and S3 objects, are encrypted with a data encryption key (DEK) per person (or per staff member for workforce records). DEKs are wrapped by a per-tenant key in AWS KMS |
-| Shredding | Destroy the DEKs for the batch, then purge the rows and delete all S3 object versions. Any copy left in a backup or replica is ciphertext without a key |
-| Whole-tenant exit | At the end of a contract, after the tenant's free export, the tenant KMS key is scheduled for deletion (minimum KMS waiting period applies) once live data is purged ([DPA clause 9](dpa-article-28-template.md#9-deletion-or-return-at-the-end-of-the-services-art-283g)) |
+| Envelope encryption | Content columns that hold free text and documents, and Cloud Storage objects, are encrypted with a data encryption key (DEK) per person (or per staff member for workforce records). DEKs are wrapped by a per-organisation key in Cloud KMS (a regional key ring in europe-west2, [ADR-0098](../decisions/0098-production-on-google-cloud.md)) |
+| Shredding | Destroy the DEKs for the batch, then purge the rows and delete all Cloud Storage object versions. Any copy left in a backup or replica is ciphertext without a key |
+| Whole-tenant exit | At the end of a contract, after the tenant's free export, the organisation's Cloud KMS key version is scheduled for destruction once live data is purged; destroying the key version shreds everything still encrypted under it. Cloud KMS destroys a version only after its scheduled-destruction delay, not at once ([DPA clause 9](dpa-article-28-template.md#9-deletion-or-return-at-the-end-of-the-services-art-283g)) |
 | Mobile devices | Records leave devices through sync (eviction) and on remote wipe; device stores are SQLCipher-encrypted with device-bound keys |
 | Restore safety | A restore from backup re-applies the shredding log before the database is reopened, so shredded records cannot reappear ([restore runbook](../runbooks/restore.md)) |
+| Status | Not built yet. Encryption today is at the bucket and instance level (CMEK), the API has no Cloud KMS adapter, and per-organisation keys and the shredding above are being built on `feat/platform-crypto-shred` ([ADR-0098](../decisions/0098-production-on-google-cloud.md)) |
 
 | Search vectors | The generated `tsvector` search columns (ADR-0070, migration 0066) are plain-text copies of names, rooms, document titles and note text. Purging the row removes them, and they leave backups as the row does; but they are not encrypted, so if a source column (such as `care_note.body`) is envelope-encrypted, its vector must be dropped or redesigned in the same change, or the words outlive the key (H-380) |
 
@@ -76,7 +78,7 @@ Each shredded batch produces a certificate, stored as a signed PDF in the tenant
 | Rule applied | Schedule entry and version from [../specs/retention.md](../specs/retention.md), trigger date, period |
 | Holds check | Confirmation that no legal hold applied at destruction time |
 | Approval | Reviewer name, role, step-up authentication time |
-| Method | Key destruction (key IDs), row purge, object version deletion; backup expiry date after which no ciphertext remains |
+| Method | Key destruction (key and key version IDs, the Cloud KMS scheduled-destruction delay and the date the version is destroyed), row purge, object version deletion; backup expiry date after which no ciphertext remains |
 | Integrity | SHA-256 of the certificate, signed by the Harbour signing key |
 
 ## 6. Phase plan

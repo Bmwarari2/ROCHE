@@ -61,10 +61,10 @@ describe("the test-only switches are refused off a local database", () => {
       refused: /points at db\.abcdefgh\.supabase\.co/,
     },
     {
-      name: "an RDS host even in CI",
+      name: "a Cloud SQL host even in CI",
       env: { CI: "true" },
-      urls: ["postgres://u:p@harbour.cluster.eu-west-2.rds.amazonaws.com/harbour"],
-      refused: /points at harbour\.cluster/,
+      urls: ["postgres://u:p@a1b2c3d4e5f6.f7g8h9.europe-west2.sql.goog:5432/harbour"],
+      refused: /points at a1b2c3d4e5f6\.f7g8h9/,
     },
     { name: "an unreadable URL", urls: ["not a url"], refused: /unreadable host/ },
     // node-postgres takes a `host` query parameter over the URL's host (security re-review L-4).
