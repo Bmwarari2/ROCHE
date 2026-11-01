@@ -51,12 +51,13 @@ async function assertion(
   movement: string,
   quantity: number,
   witness: string = a.carer,
+  recorder: string = a.manager,
 ): Promise<string> {
   const { rows } = await c.query<{ id: string }>(
     `INSERT INTO controlled_drug_witness_assertion (person_id, page_id, movement, quantity,
-       witness_id, expires_at)
-     VALUES ($1, $2, $3, $4, $5, now() + interval '10 minutes') RETURNING id::text`,
-    [personId, pageId, movement, quantity, witness],
+       witness_id, recorder_id, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now() + interval '10 minutes') RETURNING id::text`,
+    [personId, pageId, movement, quantity, witness, recorder],
   );
   return (rows[0] as { id: string }).id;
 }
@@ -202,7 +203,7 @@ describe("hazard HZ-011 the register is isolated by tenant and follows the perso
   });
 });
 
-describe("hazard HZ-009 the running balance is checked by the database", () => {
+describe("hazard HZ-115 the running balance is checked by the database", () => {
   it("takes the next entry whose balance follows, and refuses a wrong balance, place or order", async () => {
     const take = (e: Partial<Parameters<typeof entry>[1]>) =>
       refused(manager, (c) =>
@@ -294,7 +295,21 @@ describe("hazard HZ-116 a second signature is a second person who signed for wha
           ...e,
         });
       });
-    expect(await destroy({ witness: a.manager })).toBe("23514");
+    expect(await destroy({ witness: a.manager })).not.toBeNull();
+    // A signature names the recorder the witness watched: nobody else's entry may use it.
+    let forOther = "";
+    await inContext(app(), manager, async (c) => {
+      forOther = await assertion(
+        c,
+        a.personCara,
+        CARA_PAGE,
+        "destruction",
+        1,
+        a.carer,
+        a.northManager,
+      );
+    });
+    expect(await destroy({ assertionId: forOther })).toBe("23514");
     expect(await destroy({ noWitness: "Nobody else on shift" })).toBe("23514");
     let wrong = "";
     await inContext(app(), manager, async (c) => {

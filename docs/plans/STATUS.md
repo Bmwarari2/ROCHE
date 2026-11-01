@@ -24,6 +24,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 34, the controlled drugs register** (`feat/meds-cd-register`, MEDS-005, from
+slice 22 with #162's latest head merged in): migration 0128 adds pages, append-only entries with the
+running balance checked by the database, witness signatures (the witness's own step-up, for the
+recorder and what they watched, used once) and stock checks; a count that does not balance raises a
+medication incident through the safety module. A controlled drug given writes its register entry
+with the administration; corrections are margin entries. Next for medicines: slice 50 (printable
+page), slice 28, slice 48 and the screens. Open: H-1200 to H-1209.
+
 **Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
 with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
 UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the

@@ -1004,8 +1004,8 @@ and ADR-0084 as phase-2.md records them, with HZ-009, HZ-115, HZ-116 and HZ-119.
 | --- | --- | --- | --- |
 | `controlled_drug_page` | Never changes | person, dm+d `vmp_id` (drug, form and strength) with dm+d's name and the unit, opened by and at; one page per person and VMP | `controlled_drugs_register` |
 | `controlled_drug_entry` | Append-only | page, `seq` (its place on the page), movement (`receipt`, `administration`, `disposal`, `transfer_out`, `destruction`, `correction`), quantity (signed for a quantity correction, 0 for a detail correction), `balance_after`, the entry a correction puts right and what it corrects, the reason, who it came from or went to and the reference (for example the pharmacy's delivery note), when it happened, recorded by and at (the server's clock), the witness and the assertion they signed, or why no witness was available, flags, and the administration it records | `controlled_drugs_register` (and `mar_chart` for administrations) |
-| `controlled_drug_witness_assertion` | Created by the witness, used once | page, the movement and quantity witnessed, the administration when there is one, the witness, when, when it expires (`medicines.cd.witness_assertion_minutes`), and the entry or stock check that used it | `controlled_drugs_register` |
-| `controlled_drug_stock_check` | Append-only | page, the count, the balance expected, the difference, who counted, the witness and their assertion, when, and the reason when it did not balance | `controlled_drugs_register` |
+| `controlled_drug_witness_assertion` | Created by the witness, used once | page, the movement and quantity witnessed, the administration when there is one, the witness, the recorder they watched, when, when it expires (`medicines.cd.witness_assertion_minutes`), and the entry or stock check that used it | `controlled_drugs_register` |
+| `controlled_drug_stock_check` | Append-only | page, the count, the balance expected, the difference, who counted, the witness and their assertion, or why no witness was available (flagged for manager review), when, and the reason when it did not balance | `controlled_drugs_register` |
 
 Database rules:
 - Forced RLS by tenant and person scope on all four tables. Composite keys tie every row to one
@@ -1016,8 +1016,9 @@ Database rules:
   the rules.
 - **Corrections**: a correction names an entry on the same page and says whether it corrects the
   quantity or a detail. No other movement names an entry.
-- **Witness**: a witness is never the recorder. Destruction is always witnessed. An assertion is
-  used once, before it expires, by an entry whose page, movement and quantity match it.
+- **Witness**: a witness is never the recorder, nor, for a dose, the member who gave it.
+  Destruction is always witnessed. An assertion is used once, before it expires, by an entry made
+  by the recorder the witness named, whose page, movement, quantity and administration match it.
 - **Never edited**: entries, pages and stock checks have no UPDATE or DELETE for the application.
   An assertion changes only by being used, once.
 - `recorded_at` and `checked_at` are the server's clock.
@@ -1026,7 +1027,8 @@ Database rules:
 
 1. The witness, signed in with their own session and a fresh step-up, records what they
    witnessed: `POST /v1/controlled-drugs/pages/{pageId}/witness-assertions` with the movement and
-   quantity (and the administration, for a dose). This needs `medicines.cd.witness` and current
+   quantity, the administration for a dose, and the member they watched record it. Only that
+   member's entry may use the signature. This needs `medicines.cd.witness` and current
    medicines competence. It returns an assertion that expires after
    `medicines.cd.witness_assertion_minutes`.
 2. The recorder, also with a fresh step-up, records the entry naming that assertion. The witness
@@ -1041,7 +1043,8 @@ witness, who signs on the same device with their own factor, is slice 70.
 ### 14.3 Routes
 
 - `GET /v1/people/{id}/controlled-drugs`: the person's pages, each with its balance, its last stock
-  check and when the next is due.
+  check and when the next is due. A page never checked is due from when it was opened. No task
+  raises an overdue check yet (H-1206).
 - `POST /v1/people/{id}/controlled-drugs/pages`: opens the page for a MAR entry whose dm+d product
   is a controlled drug. The page takes that product and its dose unit.
 - `GET /v1/controlled-drugs/pages/{pageId}`: the page's entries in order. Each correction is shown
@@ -1049,7 +1052,8 @@ witness, who signs on the same device with their own factor, is slice 70.
 - `POST /v1/controlled-drugs/pages/{pageId}/entries`: a receipt, disposal, transfer out,
   destruction or correction, checked by `checkCdEntry` under the person's lock. The recorder needs
   `medicines.cd.administer` and a fresh step-up.
-- `POST /v1/controlled-drugs/pages/{pageId}/stock-checks`: a count, witnessed under the same rules.
+- `POST /v1/controlled-drugs/pages/{pageId}/stock-checks`, with `medicines.cd.administer` or
+  `medicines.stock.manage`: a count, witnessed under the same rules.
   `cdStockCheck` compares it with the page. A count that does not balance needs a reason and
   publishes `medicines.cd.stock_discrepancy`, which the safety module turns into a medication
   incident. The incident's id is the stock check's, so the event is never applied twice. The count
@@ -1060,15 +1064,26 @@ witness, who signs on the same device with their own factor, is slice 70.
 Slice 22's refusal is removed. Recording a dose from a MAR entry whose product is a controlled drug
 (`cd_schedule` set) works as follows:
 - **Given**: writes, in the same transaction, an `administration` entry on the person's page for
-  that product (opened if needed) for the amount given, in the page's unit. It needs a fresh
-  step-up and a witness assertion for that administration, or, where the policy allows, why no
-  witness was available. The administration's `cd_entry_id` names the entry, and the entry names
+  that product (opened if needed) for the amount given, in the page's unit. It needs
+  `medicines.cd.administer`, a fresh step-up and a witness assertion for that administration, or,
+  where the policy allows, why no witness was available. The member who gave it records it, and
+  the witness is neither of them.
+- **A dose recorded after it was given**, older than the page's last entry, is entered when it is
+  recorded, with a reference to the administration that holds the time given. This keeps the
+  register in time order and never leaves the dose off the MAR (H-1204).
+- **Taken by the person themselves or given by family**: refused for a controlled drug until the
+  CSO decides whether such doses move the home's stock (H-1202). The administration's `cd_entry_id` names the entry, and the entry names
   the administration.
-- **Any other outcome**: moves no stock and writes no entry.
+- **Any other outcome** (refused, not given, not available, withheld): moves no stock and writes
+  no entry.
 - **A correction** that changes how much was given: writes a quantity correction on the page,
-  witnessed under the same rules, naming the administration's entry. A correction of only the time
+  witnessed under the same rules, naming the chain's register entry. A correction of only the time
   writes a detail correction. A correction to "given" from another outcome writes an
-  administration entry.
+  administration entry at the time given. A correction that moves no stock carries the chain's
+  entry forward, so a later correction corrects it. A correction from "given" to another outcome
+  puts the dose back in stock (H-1203 asks whether it should be a disposal instead).
+- The page's unit is the MAR entry's dose unit when the page opens (H-1205). Patch site rotation
+  is not in this slice (H-1209).
 
 The printable per-page export is slice 50.
 

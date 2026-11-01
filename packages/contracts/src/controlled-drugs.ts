@@ -33,6 +33,8 @@ export const AssertWitness = z
     quantity: z.number().min(-10_000_000).max(10_000_000),
     /** The administration they saw given (its client id), for a dose. */
     administrationId: uuid.nullable().default(null),
+    /** The member they watched record it: only that member's entry may use the signature. */
+    recorderId: uuid,
   })
   .meta({ id: "AssertWitness" });
 

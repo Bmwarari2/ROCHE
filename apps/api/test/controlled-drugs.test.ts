@@ -82,10 +82,11 @@ const witness = async (
   quantity: number,
   administrationId: string | null = null,
   who = "carer",
+  recorder: string = DEMO.users.manager.id,
 ) => {
   const r = await send(who, `/v1/controlled-drugs/pages/${pageId}/witness-assertions`, {
     method: "POST",
-    body: { movement, quantity, administrationId },
+    body: { movement, quantity, administrationId, recorderId: recorder },
   });
   expect(r.status, await r.clone().text()).toBe(201);
   return (await json<{ id: string }>(r)).id;
@@ -103,7 +104,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-describe("hazards HZ-009 and HZ-116 the register page and its entries", () => {
+describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
   let entryId = "";
   let pageId = "";
   let receiptId = "";
@@ -122,6 +123,10 @@ describe("hazards HZ-009 and HZ-116 the register page and its entries", () => {
     const page = await json<{ id: string; balance: number; witnessPolicy: string }>(first);
     expect(page.balance).toBe(0);
     expect(page.witnessPolicy).toBe("required");
+    // A page never checked is due a count from when it was opened.
+    expect(
+      (page as unknown as { nextStockCheckDueAt: string | null }).nextStockCheckDueAt,
+    ).not.toBeNull();
     pageId = page.id;
     expect((await json<{ id: string }>(await open())).id).toBe(pageId);
   });
@@ -141,10 +146,29 @@ describe("hazards HZ-009 and HZ-116 the register page and its entries", () => {
     const lone = await receive({ witness: { noWitnessReason: "Nobody else on shift" } });
     expect(lone.status).toBe(422);
     expect((await json<{ code: string }>(lone)).code).toBe("cd_witness_required");
-    const self = await receive({
-      witness: { witnessAssertionId: await witness(pageId, "receipt", 28, null, "manager") },
+    const selfSign = await send(
+      "manager",
+      `/v1/controlled-drugs/pages/${pageId}/witness-assertions`,
+      {
+        method: "POST",
+        body: { movement: "receipt", quantity: 28, recorderId: DEMO.users.manager.id },
+      },
+    );
+    expect(selfSign.status).toBe(422);
+    // A signature for another recorder cannot be used by this one.
+    const forOwner = await receive({
+      witness: {
+        witnessAssertionId: await witness(
+          pageId,
+          "receipt",
+          28,
+          null,
+          "carer",
+          DEMO.users.owner.id,
+        ),
+      },
     });
-    expect(self.status).toBe(422);
+    expect(forOwner.status).toBe(422);
     const other = await receive({
       witness: { witnessAssertionId: await witness(pageId, "receipt", 27) },
     });
@@ -157,6 +181,18 @@ describe("hazards HZ-009 and HZ-116 the register page and its entries", () => {
     expect(entry.balanceAfter).toBe(28);
     expect(entry.witnessId).toBe(DEMO.users.carer.id);
     receiptId = entry.id;
+  });
+
+  it("hazard HZ-119 refuses a witness whose medicines competence is not current", async () => {
+    const key = `${DEMO.tenantId}:${DEMO.users.carer.id}`;
+    competence.held.set(key, "expired");
+    const r = await send("carer", `/v1/controlled-drugs/pages/${pageId}/witness-assertions`, {
+      method: "POST",
+      body: { movement: "receipt", quantity: 1, recorderId: DEMO.users.manager.id },
+    });
+    competence.held.set(key, "current");
+    expect(r.status).toBe(422);
+    expect((await json<{ code: string }>(r)).code).toBe("cd_witness_not_competent");
   });
 
   it("needs a fresh step-up from the recorder and the witness", async () => {
@@ -176,6 +212,39 @@ describe("hazards HZ-009 and HZ-116 the register page and its entries", () => {
     } finally {
       await ageSession(auth, session, 0);
     }
+  });
+
+  it("refuses a controlled drug from someone without medicines.cd.administer, and one taken by the person themselves", async () => {
+    const round = await json<{ doses: { entryId: string; dueAt: string }[] }>(
+      await send("manager", `/v1/people/${ADA}/medicine-round`),
+    );
+    const dueAt = round.doses.find((d) => d.entryId === entryId)?.dueAt;
+    const carer = await send("carer", `/v1/people/${ADA}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: randomUUID(),
+        entryId,
+        dueAt,
+        outcome: "given",
+        amount: { quantity: 1, unitCode: TABLET.code },
+        controlledDrug: { noWitnessReason: "Nobody else on shift" },
+      },
+    });
+    expect(carer.status).toBe(403);
+    const self = await send("manager", `/v1/people/${ADA}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: randomUUID(),
+        entryId,
+        dueAt,
+        outcome: "self_administered",
+        amount: { quantity: 1, unitCode: TABLET.code },
+      },
+    });
+    expect(self.status).toBe(422);
+    expect((await json<{ code: string }>(self)).code).toBe(
+      "administration_cd_outcome_not_recorded",
+    );
   });
 
   it("records a controlled drug given with its register entry, witnessed, in one transaction", async () => {
@@ -209,9 +278,33 @@ describe("hazards HZ-009 and HZ-116 the register page and its entries", () => {
     givenDueAt = dueAt as string;
   });
 
-  it("writes a margin correction on the register when a controlled drug's administration is corrected", async () => {
+  it("writes a margin correction on the register when a controlled drug's administration is corrected, through a correction that moved no stock", async () => {
+    // First a correction that changes nothing the register counts: it carries the entry forward.
+    const records = await json<{ administrations: { id: string; givenAt: string }[] }>(
+      await send(
+        "manager",
+        `/v1/people/${ADA}/medicine-administrations?from=${encodeURIComponent(
+          new Date(Date.now() - 60 * MINUTE).toISOString(),
+        )}&to=${encodeURIComponent(new Date(Date.now() + 60 * MINUTE).toISOString())}`,
+      ),
+    );
+    const givenAt = records.administrations.find((a) => a.id === givenId)?.givenAt as string;
+    const first = randomUUID();
+    const same = await send("manager", `/v1/medicine-administrations/${givenId}/corrections`, {
+      method: "POST",
+      body: {
+        id: first,
+        correctionReason: "The reason for the timing was recorded on the wrong dose",
+        entryId,
+        dueAt: givenDueAt,
+        outcome: "given",
+        amount: { quantity: 1, unitCode: TABLET.code },
+        givenAt,
+      },
+    });
+    expect(same.status, await same.clone().text()).toBe(201);
     const id = randomUUID();
-    const r = await send("manager", `/v1/medicine-administrations/${givenId}/corrections`, {
+    const r = await send("manager", `/v1/medicine-administrations/${first}/corrections`, {
       method: "POST",
       body: {
         id,

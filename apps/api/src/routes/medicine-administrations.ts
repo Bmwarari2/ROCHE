@@ -62,6 +62,7 @@ import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
   type CdWitnessInput,
+  pageEntries,
   pageFor,
   witnessPolicyFor,
   writeCdEntry,
@@ -438,11 +439,23 @@ export const medicineAdministrationsRouter = createRouter()
           if (!entry) throw problems.notFound();
           // A controlled drug given moves stock: its register entry is written with the record, with
           // a fresh step-up and the witness's signature (slice 34; ADR-0084).
-          const cd =
-            body.outcome === "given" && (await isControlledDrug(tx, entry.id))
-              ? { cdEntryId: randomUUID() }
-              : null;
-          if (cd) requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
+          const isCd = await isControlledDrug(tx, entry.id);
+          if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
+          const cd = isCd && body.outcome === "given" ? { cdEntryId: randomUUID() } : null;
+          if (cd) {
+            requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
+            // The giver records a controlled drug themselves, so the witness is a second person
+            // to both (security review H2).
+            if (body.givenBy && body.givenBy !== access.tenantUserId) {
+              throw deny([
+                {
+                  problem: "cd_given_by_recorder",
+                  message:
+                    "A controlled drug is recorded by the member who gave it, with a witness.",
+                },
+              ]);
+            }
+          }
 
           // The time is the server's: on the round a dose is recorded as it is given. Only a dose
           // recorded after it was given carries its own time, which slice 3's rules require to be
@@ -537,6 +550,7 @@ export const medicineAdministrationsRouter = createRouter()
               occurredAt: at,
               witness: body.controlledDrug as CdWitnessInput,
               administrationId: body.id,
+              givenBy: giverId,
               now,
             });
           }
@@ -682,10 +696,14 @@ export const medicineAdministrationsRouter = createRouter()
             facts.rates,
           );
           if (!checked.ok) throw deny(checked.issues);
-          const cdMove = (await isControlledDrug(tx, entry.id))
-            ? registerMoveForCorrection(original, body, at)
-            : null;
-          if (cdMove) requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
+          const isCd = await isControlledDrug(tx, entry.id);
+          if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
+          const cdMove = isCd ? registerMoveForCorrection(original, body, at) : null;
+          if (cdMove) {
+            requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
+            // The witness is never the giver or the recorder: the signature check and the
+            // register trigger compare both (security review H2).
+          }
           const { stored, escalations } = await store(c, tx, access, {
             id: body.id,
             personId,
@@ -704,7 +722,9 @@ export const medicineAdministrationsRouter = createRouter()
               : [],
             supersedesId: original.id,
             correctionReason: body.correctionReason,
-            cdEntryId: cdMove?.id ?? null,
+            // A correction that moves no stock carries the chain's register entry forward, so a later
+            // correction corrects that entry (security review M1, clinical review H1).
+            cdEntryId: cdMove?.id ?? original.cdEntryId,
             now,
           });
           if (cdMove) {
@@ -714,7 +734,9 @@ export const medicineAdministrationsRouter = createRouter()
               locationId: facts.person.locationId,
               unitCode: body.amount?.unitCode ?? null,
               reason: cdMove.movement === "correction" ? body.correctionReason : null,
-              occurredAt: now,
+              // A dose newly given is entered at the time given; a correction when it is made.
+              occurredAt: cdMove.movement === "administration" ? at : now,
+              givenBy: giverId,
               witness: body.controlledDrug as CdWitnessInput,
               administrationId: body.id,
               now,
@@ -1184,6 +1206,23 @@ async function isControlledDrug(tx: Transaction, entryId: string): Promise<boole
 
 type Deny = (issues: readonly { problem: string; message: string }[]) => Error;
 
+/**
+ * A controlled drug taken by the person themselves or given by family is not recorded here until
+ * the CSO decides whether such doses move the home's stock (H-1202): recording them with no
+ * register entry would leave the balance overstated (security review M3, clinical review M4).
+ */
+function refuseUnheldCdOutcome(outcome: string, deny: Deny) {
+  if (outcome === "self_administered" || outcome === "given_by_family") {
+    throw deny([
+      {
+        problem: "cd_outcome_not_recorded",
+        message:
+          "A controlled drug taken by the person themselves or given by family is not recorded here yet. Tell the nurse in charge, who records it with the register.",
+      },
+    ]);
+  }
+}
+
 /** A controlled drug's stock moves only with a fresh step-up and a second signature (ADR-0084). */
 function requireCdSignatures(
   access: TenantAccess,
@@ -1192,6 +1231,16 @@ function requireCdSignatures(
   personId: string,
   deny: Deny,
 ) {
+  // Moving controlled drug stock needs medicines.cd.administer (security review H1).
+  if (!can(access.effective, "medicines.cd.administer")) {
+    throw new AuditedRefusal(problems.forbidden(), {
+      action: "medicines.cd.entry_recorded",
+      outcome: "denied",
+      resourceType: "medication_administration",
+      resourceId: recordId,
+      scope: { personId, problems: ["missing_permission"] },
+    });
+  }
   if (!stepUpFresh(access)) {
     throw new AuditedRefusal(problems.stepUp(), {
       action: "medicines.cd.entry_recorded",
@@ -1273,10 +1322,24 @@ async function writeRegisterEntry(
     readonly occurredAt: Date;
     readonly witness: CdWitnessInput;
     readonly administrationId: string;
+    readonly givenBy: string;
     readonly now: Date;
   },
 ) {
-  const { page } = await pageFor(tx, e.entry, access.tenantUserId);
+  const { page, opened } = await pageFor(tx, e.entry, access.tenantUserId);
+  if (opened) {
+    await audit(c, tx, access, {
+      action: "medicines.cd.page_opened",
+      resourceType: "controlled_drug_page",
+      resourceId: page.id,
+      scope: { personId: page.personId },
+    });
+  }
+  // The register goes in time order. A dose recorded after it was given, older than the page's
+  // last entry, is entered when it is recorded, naming the administration that holds the time
+  // given, so the dose is never left off the MAR (clinical review H2; H-1204).
+  const last = (await pageEntries(tx, page.id)).at(-1);
+  const late = last !== undefined && e.occurredAt.getTime() < last.occurredAt.getTime();
   if (e.unitCode !== null && e.unitCode !== page.unitCode) {
     throw deny([
       {
@@ -1290,15 +1353,18 @@ async function writeRegisterEntry(
     page,
     movement: e.movement,
     quantity: e.quantity,
-    occurredAt: e.occurredAt,
+    occurredAt: late ? e.now : e.occurredAt,
     correctsId: e.correctsId,
     corrects: e.corrects,
     reason: e.reason,
     counterparty: null,
-    reference: null,
+    reference: late
+      ? "Recorded after it was given: the time given is on the administration record"
+      : null,
     witness: e.witness,
     administrationId: e.administrationId,
     recordedBy: access.tenantUserId,
+    givenBy: e.givenBy,
     policy: await witnessPolicyFor(tx, e.locationId),
     now: e.now,
   });
@@ -1314,6 +1380,13 @@ async function writeRegisterEntry(
       seq: result.row.seq,
       administrationId: e.administrationId,
     },
+  });
+  await publish(tx, {
+    context: "medicines",
+    aggregateType: "controlled_drug_entry",
+    aggregateId: result.row.id,
+    type: "medicines.cd.entry_recorded",
+    payload: { personId: page.personId, pageId: page.id, entryId: result.row.id },
   });
 }
 

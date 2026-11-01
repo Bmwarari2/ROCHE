@@ -151,11 +151,11 @@ async function summary(
     unit: { code: page.unitCode, name: page.unitName },
     balance: Number(entries.at(-1)?.balanceAfter ?? 0),
     lastStockCheck: last ? stockCheckOut(last, page.unitName) : null,
-    nextStockCheckDueAt: last
-      ? cdStockCheckDueAt(last.checkedAt, {
-          cdStockCheckIntervalDays: stockCheckIntervalDays,
-        }).toISOString()
-      : null,
+    // Counted from the last check, or from when the page was opened if it has never been checked
+    // (slice 34 clinical review M3).
+    nextStockCheckDueAt: cdStockCheckDueAt(last?.checkedAt ?? page.openedAt, {
+      cdStockCheckIntervalDays: stockCheckIntervalDays,
+    }).toISOString(),
     witnessPolicy: policy,
   };
 }
@@ -392,6 +392,23 @@ export const controlledDrugsRouter = createRouter()
               },
             );
           }
+          if (body.recorderId === access.tenantUserId) {
+            throw new AuditedRefusal(
+              refusal([
+                {
+                  problem: "witness_is_recorder",
+                  message: "A witness signs for someone else's entry, never their own.",
+                },
+              ]),
+              {
+                action: "medicines.cd.witness_asserted",
+                outcome: "denied",
+                resourceType: "controlled_drug_page",
+                resourceId: pageId,
+                scope: { personId: page.personId, problems: ["witness_is_recorder"] },
+              },
+            );
+          }
           const person = await loadPerson(tx, page.personId);
           const minutes = await rateNumber(tx, access.tenantId, ASSERTION_MINUTES, person.nation);
           const [row] = await tx
@@ -403,6 +420,7 @@ export const controlledDrugsRouter = createRouter()
               quantity: String(body.quantity),
               administrationId: body.administrationId,
               witnessId: access.tenantUserId,
+              recorderId: body.recorderId,
               expiresAt: new Date(now.getTime() + minutes * 60_000),
             })
             .returning();
@@ -555,7 +573,7 @@ export const controlledDrugsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, ADMINISTER);
+      const access = await requireAnyPermission(c, [ADMINISTER, "medicines.stock.manage"]);
       const { pageId } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
@@ -609,6 +627,8 @@ export const controlledDrugsRouter = createRouter()
                   "witnessAssertionId" in body.witness ? body.witness.witnessAssertionId : null,
                 noWitnessReason:
                   "noWitnessReason" in body.witness ? body.witness.noWitnessReason : null,
+                // A lone count is flagged for the manager, as an entry is (security review L2).
+                flags: "noWitnessReason" in body.witness ? ["no_witness_for_review"] : [],
               })
               .returning(),
           );

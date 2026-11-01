@@ -497,6 +497,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain/src/care/plan-tasks.test.ts`: `hazard HZ-004 a round's window never reaches the next round's` (table-driven over an ordinary day and the spring and autumn changes of 2026 and 2027, for daily 01:00 and 02:00, 01:30 and 02:30, 00:30 and 01:30, 08:00 and 08:45, every hour and every half hour on the clock, hourly and four-hourly turns: every round has a window on both sides, none wider than the tenant's figures, and each window ends strictly before the next begins; `merges ... into one round on ..., when the clocks going forward brings them together` (01:00 and 02:00 in 2026 and 2027, 01:30 and 02:30, 01:05 and 02:00); full windows on an ordinary day; the same windows however the range is cut; times under 10 minutes apart refused across midnight, between weekdays (Monday 23:55 and Tuesday 00:00; Sunday and the next Monday), across a fortnight and within a monthly day), `hazard HZ-004 carries an unchanged action's series to the new version, so no round is cancelled or made twice`; `apps/api/test/rounds-and-handover.test.ts`: `hazard HZ-004 a new version carries an unchanged action's rounds forward, never cancelling or making one twice` | Passing (Phase 1 slice 5) |
 | `apps/api/test/device-integrity.test.ts`: `hazard HZ-004 judges the round a handed-over entry answers on its owner's permission when the care was recorded, never the manager's` | Passing (Phase 1, Device integrity) |
 | `apps/api/test/device-integrity.test.ts`: `hazard HZ-040 hazard HZ-004 refuses a sender who never used the device: the device sends its report as the sender first (#25 review round 2, H1)`, `hazard HZ-040 hazard HZ-004 takes no more entries than the hold reported, however much the sender reports (#25 review round 2, H1)`, `hazard HZ-040 hazard HZ-004 refuses a hand-over once the device reports nothing waiting for the owner (#25 review round 2, H1)`, `hazard HZ-040 hazard HZ-004 refuses an entry timed before the owner first used the device (#25 review round 2, H1)`, `hazard HZ-040 hazard HZ-004 refuses an entry about someone never in the owner's care, though the manager may see them (#25 review round 2, H1)`, `hazard HZ-040 hazard HZ-004 refuses a hand-over id reused for another owner (#25 review round 2, H1)`, `hazard HZ-040 hazard HZ-004 takes a hand-over from a revoked device only for entries recorded before the revocation, the owner's own as well as a manager's` | Passing (Phase 1, Device integrity, #25 review round 2) |
+| `apps/api` (slice 34): a controlled drug dose recorded after it was given, older than the page's last entry, is entered when it is recorded (naming the administration that holds the time given) rather than refused, so it is never left off the MAR and given again (H-1204); a controlled drug taken by the person themselves or given by family is refused until H-1202 | Noted (Phase 2 slice 34) |
 
 ---
 
@@ -934,6 +935,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/mobile` Maestro `hazard-HZ-009-device-zone.yaml`: a device in another zone shows location time and a warning | Planned, Phase 1 |
 | `packages/domain/src/operations/outage.test.ts`: `hazard HZ-009 hazard HZ-017 a time in the hour skipped on 29/03/2026 is refused`; `hazard HZ-009 hazard HZ-017 a time in the hour repeated on 25/10/2026 asks which one`; `hazard HZ-009 hazard HZ-017 resolves the repeated hour to the earlier time the person chose` (and the later); the hours after each change; `hazard HZ-009 a time before the autumn change resolves to summer time` | Passing (Phase 1, slice 11) |
 | `apps/web/src/lib/incidents.test.ts`: `hazard HZ-009 tells the two 01:30s apart on the night the clocks go back` (a notification's due time on 25/10/2026 says BST or GMT) | Passing (slice 9, part 2) |
+| `apps/api` (slice 34): register times are instants (UTC), shown in UK time; a page's next stock count is due `medicines.cd.stock_check_interval_days` UK days after the last (`cdStockCheckDueAt`, `addUkDays`, so a clock change neither shortens nor lengthens it); register entries go in time order on the server's clock | Noted (Phase 2 slice 34) |
 
 ---
 
@@ -1090,6 +1092,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/api/test/people-enquiries.test.ts`: `hazard HZ-011 refuses an enquiry at a home outside the caller's locations as not found, and audits it` (a denied audit with the location's id; the owner, tenant-wide, may), `hazard HZ-011 answers a location outside the caller's access as not found` (the services at a location; a care worker has none) (PEOP-005 and PEOP-007 web) | Passing (Phase 1) |
 | `packages/db/test/medicines-record.test.ts`: `hazard HZ-011 the medicines record is isolated by tenant and follows the person's scope` (every version, time and reconciliation row is tied to one person by composite keys; another tenant and a member without the person in scope see and write nothing) | Passing (Phase 2 slice 16) |
 | `packages/db/test/medicine-administrations.test.ts`: `hazard HZ-011 administrations are isolated by tenant and follow the person's scope` (all three tables); `packages/sync/test/medicines-stream-contract.test.ts`: `hazard HZ-011 the medicines round stream is a contract until slice 68` (no medicines table published to devices before its isolation tests); `apps/api/test/medicine-administrations.test.ts`: `hazard HZ-011 audit by id only` | Passing (Phase 2 slice 22) |
+| `packages/db/test/controlled-drugs.test.ts`: `hazard HZ-011 the register is isolated by tenant and follows the person's scope` (all four tables); `apps/api/test/controlled-drugs.test.ts`: `hazard HZ-011 lists the person's pages, and audits by id, never the drug or the count` | Passing (Phase 2 slice 34) |
 
 ---
 
@@ -3042,6 +3045,57 @@ person receiving care.
 
 ---
 
+## HZ-115 A controlled drugs register entry altered, a balance wrong, or a discrepancy not noticed
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-115 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `medicines` module (lead engineer) |
+| Source | Master prompt 10.2 (electronic controlled drugs register with running balances); Misuse of Drugs Regulations 2001 as the master prompt reads them; [phase-2.md](../plans/phase-2.md) slice 34; [medicines.md](../specs/medicines.md) rules 24 to 27 and section 14; ADR-0083; related HZ-004, HZ-116 and HZ-119 |
+
+**Description**: a controlled drugs register entry is changed or removed after it is made, the balance on a page is wrong, or a stock count that does not match the register goes unnoticed, so a loss, a diversion or an error in administration is hidden.
+
+**Causes**
+
+- An entry edited or deleted instead of corrected; a correction that does not say what it corrects.
+- A balance typed rather than worked out, or entries out of order.
+- A dose given and recorded on the MAR without its register entry, or recorded twice.
+- A correction of a correction that deducts stock twice or never returns it.
+- A count that does not balance treated as a typing error and "fixed" with a correction, with no incident.
+- No count for a long time, so a discrepancy grows unseen.
+
+**Effects**: a loss or diversion of a controlled drug is hidden; a person's doses are wrongly recorded; the home cannot account for its stock to an inspector or the police.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Entries, pages and stock checks are append-only: no UPDATE or DELETE grant for the application and triggers refusing changes; a mistake is a correction entry naming the entry it puts right, shown beside it (ADR-0083) | Built in Phase 2 slice 34 |
+| Design | The database checks every entry: the next place on the page, never earlier than the entry before, and the balance after it following from that entry's (never below zero), as well as slice 3's `checkCdEntry` | Built in Phase 2 slice 34 |
+| Design | A controlled drug given writes its register entry in the same transaction as the administration, each naming the other; a correction writes a margin correction from the chain's register entry, and one that moves no stock carries that entry forward | Built in Phase 2 slice 34 |
+| Design | A stock count is compared with the page; any difference needs what was found and raises a medication incident through the safety module (once, by the stock check's id); the count never changes the balance | Built in Phase 2 slice 34 |
+| Design | Each page shows when its next count is due (`medicines.cd.stock_check_interval_days`, from the last count or the page's opening); an overdue count raises no task yet (H-1206) | Built in Phase 2 slice 34 |
+| Training and user documentation | Deployer control: counting practice, investigating discrepancies and reporting to the controlled drugs accountable officer (DCB0160 template) | Phase 2 (slice 81) |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-1207).
+
+**Justification for level 3**: Harbour makes the register tamper-evident and arithmetically sound and raises every discrepancy, but a physical loss is found only when someone counts.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/medicines/controlled-drugs.test.ts` (slice 3 rules: page key, running balance, margin corrections, stock checks) | Passing (Phase 2 slice 3) |
+| `packages/db/test/controlled-drugs.test.ts`: `hazard HZ-115 the running balance is checked by the database` (a wrong balance, place or order refused; a correction only on its own page, with a reason and what it corrects; no update or delete) and `hazard HZ-115 a stock check counts against the page as it stands` | Passing (Phase 2 slice 34) |
+| `apps/api/test/controlled-drugs.test.ts`: `hazards HZ-115 and HZ-116 the register page and its entries` (a dose given writes its entry; a margin correction through a correction that moved no stock; `hazard HZ-115 raises a medication incident through the safety module when a count does not balance`) | Passing (Phase 2 slice 34) |
+| `packages/db/test/controlled-drugs.test.ts`: `hazard HZ-004 an administration and its register entry name each other` | Passing (Phase 2 slice 34) |
+
+---
+
 ## HZ-116 A two-person check done by one person or not genuinely witnessed
 
 | Field | Value |
@@ -3074,7 +3128,8 @@ person receiving care.
 | Design | The second check of a MAR entry and of a dosing record is refused from the person who wrote it, from someone whose medicines competence is not current, and without the checker confirming they compared it with the source ([medicines.md](../specs/medicines.md) rules 6 and 18) | Domain rules built in Phase 2 slices 2 and 3 |
 | Design | Every controlled drugs entry has a witness who is not the recorder; where the tenant's policy is `required` (by default residential, nursing, respite and children's homes) always; where it is `where_available` (home care, supported living, live-in, complex care, day services) a lone worker may record why there was none, and the entry is flagged for manager review; a witness and a "none" on one entry is refused; a blank witness is refused; destruction is always witnessed (rule 27). A margin correction says whether it puts right the quantity or another detail such as the time; a correction of a detail changes the balance by none, so it cannot pass for a mistyped 0, and is witnessed like any entry (rule 26) | Domain rule built in Phase 2 slice 3 (`checkCdEntry`, `defaultCdWitnessPolicy`; blank witness and the zero correction from the #162 clinical review) |
 | Design | A competence override is refused when the approver is the member themselves (rule 22; HZ-119) | Domain rule built in Phase 2 slice 3 |
-| Design | The witness signs in on the same device with their own enrolled factor, re-verified by the server on sync; on the web a second step-up (ADR-0084) | Planned, slices 34 and 70 |
+| Design | On the web the witness signs first with their own session and a fresh step-up, for exactly the movement, quantity, administration and recorder they watched; the signature expires after `medicines.cd.witness_assertion_minutes`, is used once, and the database refuses it for anything else; the witness is never the recorder nor, for a dose, the giver; the recorder needs `medicines.cd.administer` and a fresh step-up (ADR-0084 as phase-2.md records it; [medicines.md](../specs/medicines.md) 14.2) | Built in Phase 2 slice 34 |
+| Design | The witness signs in on the same device with their own enrolled factor, re-verified by the server on sync | Planned, slice 70 |
 | Training and user documentation | Deployer control: the tenant's witness policy per service, and what "witnessed" means (watching the dose given or the drug destroyed, not signing afterwards) (DCB0160 template) | Phase 2 (slice 81) |
 
 **Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-513).
@@ -3090,7 +3145,8 @@ person receiving care.
 | `packages/domain/src/medicines/controlled-drugs.test.ts`: `hazard HZ-116 a controlled drugs entry is witnessed by a second person, as the tenant's policy says` (the default by service type; the recorder refused as witness; no witness refused under `required`; a lone worker's reason flagged under `where_available`; destruction always witnessed; a witness and a "none" refused) | Passing (Phase 2 slice 3) |
 | `packages/domain/src/medicines/controlled-drugs.test.ts`: `hazard HZ-116 refuses %s` (an empty or blank witness under either policy, beside a reason there was none, and to a destruction) and `hazard HZ-116 a margin correction that %s` (a correction of a detail taken with its reason and the balance unchanged; one that says it corrects a detail but changes the quantity, a quantity corrected by nothing, and one that does not say what it puts right, refused) | Passing (#162 clinical review) |
 | `packages/domain/src/medicines/competence.test.ts`: `refuses an override approved by the member themselves` (in `hazard HZ-119 expired medicines competence blocks an administration unless someone else overrides it`) | Passing (Phase 2 slice 3) |
-| `apps/api`: `hazard HZ-116 a witness on the same device must sign in with their own factor, and the server re-verifies it` | Planned, Phase 2 (slices 34, 70) |
+| `packages/db/test/controlled-drugs.test.ts`: `hazard HZ-116 a second signature is a second person who signed for what is recorded` (the recorder refused; a signature for another recorder, a mismatched quantity or a reused signature refused; destruction never unwitnessed) and `lets an assertion change only by being used, once`; `apps/api/test/controlled-drugs.test.ts`: `hazards HZ-115 and HZ-116 the register page and its entries` (the witness signing their own entry refused; a signature for another recorder refused; step-up for recorder and witness; a carer without `medicines.cd.administer` refused; destruction only with a witness); `apps/api/test/medicine-administrations.test.ts`: `refuses a controlled drug given without the witness's signature` | Passing (Phase 2 slice 34) |
+| `apps/api`: `hazard HZ-116 a witness on the same device must sign in with their own factor, and the server re-verifies it` | Planned, Phase 2 (slice 70) |
 | `packages/db/test/medicine-administrations.test.ts`: `hazard HZ-116 a second signature is a second person` (never the recorder or the giver; once per record); `apps/api/test/medicine-administrations.test.ts`: `hazard HZ-116 takes a witness's second signature, never the recorder's, never on a corrected record and only after step-up` and `hazard HZ-116 controlled drugs wait for the register (slice 34)` (a controlled drug's dose refused here, H-1167). No time limit on signing yet (H-1166) | Passing (Phase 2 slice 22) |
 
 ---
@@ -3147,6 +3203,7 @@ person receiving care.
 | `packages/domain/src/medicines/competence.test.ts`: `hazard HZ-119 a member never signed off is refused outright: only a lapsed competence may be overridden` (with no override, and with one someone else approved, with a reason, in force) and `hazard HZ-119 competence lapses at 00:00 UK time on the days the clocks change` (lapsing on 28/03/2027 at 00:00 GMT and 31/10/2027 at 00:00 BST, and signed off on 29/03/2026 and 25/10/2026: current the minute before, expired at 00:00) | Passing (#162 clinical review) |
 | `packages/domain/src/medicines/competence.test.ts`: `hazard HZ-119 medicines competence lasts the rate table's months from its sign-off` (the day of the sign-off, the minute before it lapses, 00:00 UK time on the day it lapses, 29 February) and `hazard HZ-119 expired medicines competence blocks an administration unless someone else overrides it` (the member themselves, someone else's override, no reason, too long, not yet or no longer in force) | Passing (Phase 2 slice 3) |
 | `apps/api/test/medicine-administrations.test.ts`: `hazard HZ-119 competence from the port`: `refuses someone with no sign-off, and records under an override of an expired one, flagged` (competence and any override read from the port at the time, never the request; the override stored with the record); `hazards HZ-004 and HZ-119 a dose recorded after it was given (#162)` (a time before the server's and a reason; the recorder's competence now; always flagged and escalated; refused from a recorder without current competence) | Passing (Phase 2 slice 22) |
+| `apps/api/test/controlled-drugs.test.ts`: `hazard HZ-119 refuses a witness whose medicines competence is not current` (a controlled drugs witness needs current competence from the port) | Passing (Phase 2 slice 34) |
 
 ---
 

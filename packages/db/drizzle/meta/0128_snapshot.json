@@ -13314,6 +13314,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "flags": {
+          "name": "flags",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -13438,6 +13445,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "controlled_drug_stock_check_flags": {
+          "name": "controlled_drug_stock_check_flags",
+          "value": "flags <@ ARRAY['no_witness_for_review']::text[]"
+        },
         "controlled_drug_stock_check_counted": {
           "name": "controlled_drug_stock_check_counted",
           "value": "counted >= 0 AND expected >= 0"
@@ -13511,6 +13522,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "recorder_id": {
+          "name": "recorder_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "asserted_at": {
           "name": "asserted_at",
           "type": "timestamp with time zone",
@@ -13571,6 +13588,21 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "controlled_drug_witness_assertion_recorder_fk": {
+          "name": "controlled_drug_witness_assertion_recorder_fk",
+          "tableFrom": "controlled_drug_witness_assertion",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "recorder_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -13595,6 +13627,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "controlled_drug_witness_assertion_two_people": {
+          "name": "controlled_drug_witness_assertion_two_people",
+          "value": "witness_id <> recorder_id"
+        },
         "controlled_drug_witness_assertion_movement": {
           "name": "controlled_drug_witness_assertion_movement",
           "value": "movement IN ('receipt', 'administration', 'disposal', 'transfer_out', 'destruction', 'correction', 'stock_check')"

@@ -75,9 +75,11 @@ CREATE TABLE "controlled_drug_stock_check" (
 	"witness_id" uuid,
 	"witness_assertion_id" uuid,
 	"no_witness_reason" text,
+	"flags" text[] DEFAULT '{}'::text[] NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "controlled_drug_stock_check_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "controlled_drug_stock_check_assertion_key" UNIQUE("tenant_id","witness_assertion_id"),
+	CONSTRAINT "controlled_drug_stock_check_flags" CHECK (flags <@ ARRAY['no_witness_for_review']::text[]),
 	CONSTRAINT "controlled_drug_stock_check_counted" CHECK (counted >= 0 AND expected >= 0),
 	CONSTRAINT "controlled_drug_stock_check_difference" CHECK (difference = counted - expected),
 	CONSTRAINT "controlled_drug_stock_check_reason" CHECK (difference = 0 OR length(btrim(coalesce(reason, ''))) > 0),
@@ -96,12 +98,14 @@ CREATE TABLE "controlled_drug_witness_assertion" (
 	"quantity" numeric(12, 3) NOT NULL,
 	"administration_id" uuid,
 	"witness_id" uuid NOT NULL,
+	"recorder_id" uuid NOT NULL,
 	"asserted_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
 	"used_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "controlled_drug_witness_assertion_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "controlled_drug_witness_assertion_tenant_person_id_key" UNIQUE("tenant_id","person_id","id"),
+	CONSTRAINT "controlled_drug_witness_assertion_two_people" CHECK (witness_id <> recorder_id),
 	CONSTRAINT "controlled_drug_witness_assertion_movement" CHECK (movement IN ('receipt', 'administration', 'disposal', 'transfer_out', 'destruction', 'correction', 'stock_check')),
 	CONSTRAINT "controlled_drug_witness_assertion_expiry" CHECK (expires_at > asserted_at)
 );
@@ -121,6 +125,7 @@ ALTER TABLE "controlled_drug_stock_check" ADD CONSTRAINT "controlled_drug_stock_
 ALTER TABLE "controlled_drug_stock_check" ADD CONSTRAINT "controlled_drug_stock_check_witness_fk" FOREIGN KEY ("tenant_id","witness_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "controlled_drug_witness_assertion" ADD CONSTRAINT "controlled_drug_witness_assertion_page_fk" FOREIGN KEY ("tenant_id","person_id","page_id") REFERENCES "public"."controlled_drug_page"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "controlled_drug_witness_assertion" ADD CONSTRAINT "controlled_drug_witness_assertion_witness_fk" FOREIGN KEY ("tenant_id","witness_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "controlled_drug_witness_assertion" ADD CONSTRAINT "controlled_drug_witness_assertion_recorder_fk" FOREIGN KEY ("tenant_id","recorder_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "controlled_drug_entry_administration_key" ON "controlled_drug_entry" USING btree ("tenant_id","administration_id") WHERE administration_id IS NOT NULL AND movement = 'administration';--> statement-breakpoint
 CREATE INDEX "controlled_drug_stock_check_page_idx" ON "controlled_drug_stock_check" USING btree ("tenant_id","page_id","checked_at");--> statement-breakpoint
 ALTER TABLE "medication_administration" ADD CONSTRAINT "medication_administration_flags" CHECK (flags <@ ARRAY['early', 'late', 'interval_override', 'competence_override',
@@ -181,10 +186,11 @@ CREATE TRIGGER controlled_drug_witness_assertion_guard
 --> statement-breakpoint
 
 -- Uses a witness assertion for an entry or a stock check: the same page, witness, movement,
--- quantity and administration, unused and not expired (ADR-0084).
+-- quantity and administration, by the recorder the witness named, unused and not expired
+-- (ADR-0084; slice 34 security review M2).
 CREATE OR REPLACE FUNCTION app.controlled_drug_use_assertion(
   p_tenant uuid, p_assertion uuid, p_page uuid, p_witness uuid, p_movement text,
-  p_quantity numeric, p_administration uuid
+  p_quantity numeric, p_administration uuid, p_recorder uuid
 ) RETURNS void
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -192,6 +198,7 @@ BEGIN
    WHERE a.tenant_id = p_tenant AND a.id = p_assertion AND a.page_id = p_page
      AND a.witness_id = p_witness AND a.movement = p_movement AND a.quantity = p_quantity
      AND a.administration_id IS NOT DISTINCT FROM p_administration
+     AND a.recorder_id = p_recorder
      AND a.used_at IS NULL AND a.expires_at > now();
   IF NOT FOUND THEN
     RAISE EXCEPTION 'controlled_drug: the witness did not sign for this, or the signature has expired or been used'
@@ -230,7 +237,16 @@ BEGIN
   END IF;
   IF NEW.witness_assertion_id IS NOT NULL THEN
     PERFORM app.controlled_drug_use_assertion(NEW.tenant_id, NEW.witness_assertion_id,
-      NEW.page_id, NEW.witness_id, NEW.movement, NEW.quantity, NEW.administration_id);
+      NEW.page_id, NEW.witness_id, NEW.movement, NEW.quantity, NEW.administration_id,
+      NEW.recorded_by);
+  END IF;
+  -- The witness to a dose is never the member who gave it (slice 34 security review H2).
+  IF NEW.administration_id IS NOT NULL AND NEW.witness_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM public.medication_administration a
+       WHERE a.tenant_id = NEW.tenant_id AND a.id = NEW.administration_id
+         AND NEW.witness_id IN (a.recorded_by, a.administered_by)) THEN
+    RAISE EXCEPTION 'controlled_drug_entry: the witness did not give or record the dose'
+      USING ERRCODE = 'check_violation';
   END IF;
   IF NEW.administration_id IS NOT NULL AND NOT EXISTS (
       SELECT 1 FROM public.medication_administration a
@@ -260,7 +276,7 @@ BEGIN
   END IF;
   IF NEW.witness_assertion_id IS NOT NULL THEN
     PERFORM app.controlled_drug_use_assertion(NEW.tenant_id, NEW.witness_assertion_id,
-      NEW.page_id, NEW.witness_id, 'stock_check', NEW.counted, NULL);
+      NEW.page_id, NEW.witness_id, 'stock_check', NEW.counted, NULL, NEW.checked_by);
   END IF;
   RETURN NEW;
 END

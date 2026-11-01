@@ -40270,6 +40270,8 @@ export interface components {
        * @default null
        */
       administrationId: string | null;
+      /** Format: uuid */
+      recorderId: string;
     };
     RecordCdEntry: {
       /** @enum {string} */

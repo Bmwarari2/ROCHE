@@ -135,6 +135,8 @@ export async function assertionProblem(
     readonly quantity: number;
     readonly administrationId: string | null;
     readonly recordedBy: string;
+    /** Who gave the dose, for an administration: never its witness. */
+    readonly givenBy?: string | null;
     readonly now: Date;
   },
 ): Promise<{ witnessId: string | null; issue: CdEntryIssue | null }> {
@@ -151,18 +153,20 @@ export async function assertionProblem(
     a.pageId !== expect.pageId ||
     a.movement !== expect.movement ||
     Number(a.quantity) !== expect.quantity ||
-    (a.administrationId ?? null) !== expect.administrationId
+    (a.administrationId ?? null) !== expect.administrationId ||
+    a.recorderId !== expect.recordedBy
   ) {
     return mismatch(
       "The witness signed for something else. They sign again for exactly what is recorded.",
     );
   }
-  if (a.witnessId === expect.recordedBy) {
+  if (a.witnessId === expect.recordedBy || a.witnessId === expect.givenBy) {
     return {
       witnessId: a.witnessId,
       issue: {
         problem: "witness_is_recorder",
-        message: "The witness must be someone other than the person recording the entry.",
+        message:
+          "The witness must be someone other than the person recording the entry or giving the dose.",
       },
     };
   }
@@ -183,6 +187,7 @@ export interface NewCdEntry {
   readonly witness: CdWitnessInput;
   readonly administrationId: string | null;
   readonly recordedBy: string;
+  readonly givenBy?: string | null;
   readonly policy: CdWitnessPolicy;
   readonly now: Date;
 }
@@ -204,6 +209,7 @@ export async function writeCdEntry(
     quantity: e.quantity,
     administrationId: e.administrationId,
     recordedBy: e.recordedBy,
+    givenBy: e.givenBy ?? null,
     now: e.now,
   });
   const noWitnessReason = "noWitnessReason" in e.witness ? e.witness.noWitnessReason : null;

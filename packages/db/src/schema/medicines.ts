@@ -818,6 +818,8 @@ export const controlledDrugWitnessAssertion = pgTable(
     /** The administration witnessed, for a dose. */
     administrationId: uuid("administration_id"),
     witnessId: uuid("witness_id").notNull(),
+    /** The member the witness watched record it: only their entry may use the signature. */
+    recorderId: uuid("recorder_id").notNull(),
     assertedAt: timestamp("asserted_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     usedAt: timestamp("used_at", { withTimezone: true }),
@@ -840,6 +842,8 @@ export const controlledDrugWitnessAssertion = pgTable(
       ],
     }),
     memberRef("controlled_drug_witness_assertion_witness_fk", t.tenantId, t.witnessId),
+    memberRef("controlled_drug_witness_assertion_recorder_fk", t.tenantId, t.recorderId),
+    check("controlled_drug_witness_assertion_two_people", sql`witness_id <> recorder_id`),
     check(
       "controlled_drug_witness_assertion_movement",
       sql`movement IN ('receipt', 'administration', 'disposal', 'transfer_out', 'destruction', 'correction', 'stock_check')`,
@@ -978,10 +982,15 @@ export const controlledDrugStockCheck = pgTable(
     witnessId: uuid("witness_id"),
     witnessAssertionId: uuid("witness_assertion_id"),
     noWitnessReason: text("no_witness_reason"),
+    flags: text("flags").array().notNull().default(sql`'{}'::text[]`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("controlled_drug_stock_check_tenant_id_id_key").on(t.tenantId, t.id),
+    check(
+      "controlled_drug_stock_check_flags",
+      sql`flags <@ ARRAY['no_witness_for_review']::text[]`,
+    ),
     unique("controlled_drug_stock_check_assertion_key").on(t.tenantId, t.witnessAssertionId),
     foreignKey({
       name: "controlled_drug_stock_check_page_fk",

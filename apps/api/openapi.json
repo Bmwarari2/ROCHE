@@ -32314,11 +32314,16 @@
             ],
             "format": "uuid",
             "default": null
+          },
+          "recorderId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "movement",
-          "quantity"
+          "quantity",
+          "recorderId"
         ]
       },
       "RecordCdEntry": {
