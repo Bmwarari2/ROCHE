@@ -321,6 +321,11 @@ the slices it depends on.
 | 83 | User guides: safety, quality and platform | D, E, F | SAFE, QUAL, PLAT, INTG rows | Sections for the Registered Manager, quality lead and data protection lead | - | 62 to 67, 75 to 79 |
 | 84 | DPIA Phase 2 | F | - | DPIA template section 7B and risks R20 to R29 in the template and the in-app prefill (`packages/domain/src/platform/dpia.ts` and its test), as Phase 1 did for R13 to R19 | - | 11, 15, 20, 24, 26, 30, 33, 39, 44, 76 |
 | 85 | Safety case v0.2 and the Phase 2 gate record | all | - | `docs/plans/phase-2-gate.md`, clinical safety case v0.2 in `docs/clinical-safety/safety-case/`, `docs/demo/` Phase 2 walkthrough, STATUS | - | every slice |
+| 86 | Thapsus-HR link: port, contract mock and rules | H | INTG-014 | [integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014) section 11 (written with this plan, [ADR-0126](../decisions/0126-thapsus-hr-link.md)). `ThapsusHrPort` in `ports.ts`; a contract-tested mock built from Thapsus-HR's published OpenAPI document, pinned by its commit; table-driven domain rules in `packages/domain/src/integrations/thapsus-hr.ts`: the owner of each kind of data, refusing a tenant outside the UK, matching, the outbound field allow-lists, staleness, the double-payment guard (HZ-133) | - | 21, 30, 36 |
+| 87 | Thapsus-HR link: connection, people and locations | H | INTG-014 | Schema: connection settings on `integration_connection`, `hr_person_link`, `hr_location_link`, `hr_sync_state` and `hr_delivery`, with forced RLS. API: connect with step-up, owners, location mapping, the match review queue. The signed webhook receiver through the inbound quarantine queue; employee pull and nightly reconciliation; leavers end sign-in; starters hired in Harbour created in Thapsus-HR. Permissions `integrations.hr_link.*` with the built-in role backfill | 0139 | 86, 23, 29 |
+| 88 | Thapsus-HR link: rota, clocking and absence | H, C | INTG-014, SCHED-002, SCHED-004, SCHED-010 | Published, changed and cancelled shifts and clock events out through the outbox. Leave and sickness in through the scheduling absence port as read-only absences (source `thapsus_hr`, dates and type only), raising cover-needed tasks. The staleness note on rota and safe-staffing screens; drift detection (HZ-123, HZ-124, HZ-133) | 0140 if the absence source needs a column | 87, 21, 30, 40 |
+| 89 | Thapsus-HR link: pay without exports | H, C | INTG-014, SCHED-005, SCHED-008 | Thapsus-HR's pay periods become the pay reference periods. Hourly rates are read for the minimum wage check. Approved units by pay code go out for each pay period, with pay codes mapped at connection. The payroll export (slice 76) is switched off for a linked tenant whose pay goes through Thapsus-HR | - | 88, 36, 76 |
+| 90 | Thapsus-HR link: screens and guide | H | INTG-014 | Web: connect and owners (step-up), location mapping, match review, sync health and staleness; "Managed in Thapsus-HR" read-only labels on the staff file, absence and pay screens; Playwright with axe; a user guide section for the HR lead and the Registered Manager | - | 87 to 89, 56, 59, 60 |
 
 ## Hazards expected in this phase
 
@@ -347,6 +352,7 @@ H-543). Every test name carries the hazard id.
 | HZ-128 | Staff follow a superseded policy or procedure | 25 | 65 |
 | HZ-129 | A quality indicator or audit score falsely reassures (missing data shown as good, a wrong denominator) | 47 | 65 |
 | HZ-130 | Imported records mis-mapped, duplicated or attached to the wrong person | 26 | 51, 67, 79 |
+| HZ-133 | Staff data from the HR platform out of date, matched to the wrong person or changed outside its owner, so a worker on leave, sick or gone is rostered, or a care shift changes without Harbour's checks | 86 | 87, 88, 89, 90 |
 
 Existing hazards that gain their Phase 2 controls and tests (the planned rows already in the log):
 
@@ -427,6 +433,7 @@ listed for the DPO (H-520).
 | 77 | B3: vetting results | - | R25 | IDSP and DBS e-bulk providers (H-520, H-521, H-522) |
 | 78 | B3: external training records | - | R25 | LMS providers (H-520) |
 | 79 | B1: scanned MARs | - | R25 | DocuSign only if a tenant switches it on (H-540) |
+| 87 to 89 | B3: staff records, rota, clocking, absence dates and pay units shared with the provider's Thapsus-HR tenant (new purpose; contract with the employee and legal obligation, Article 9(2)(b) for sickness dates) | The fields each flow carries ([integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014) section 11.8) | R30 | Thapsus-HR only if Thapsus sells it with Harbour; otherwise the provider's own processor (H-1341) |
 
 Other slices add no new personal data beyond the rows above. The mobile slices (68 to 73) hold B1
 and B3 data on devices under the existing measures for R2 and R8 (encryption, auto-lock, remote
@@ -465,7 +472,8 @@ check-ins (46), sponsor records (35), payroll exports (76) and import batches (2
 | NMW, holiday and SSP rule tables pass | Table-driven tests in `packages/domain/src/scheduling` for NMW per pay reference period, holiday accrual and rolled-up pay, and SSP, reading figures from the seeded rate rows (slice 6, extended in 36); a test that fails if any of those figures appears as a literal in the scheduling source |
 | Cyber Essentials technical controls evidenced | `docs/compliance/cyber-essentials.md` with evidence for each of the five control themes (slice 80) |
 | ISO 27001 control mapping drafted (section 19 scope) | `docs/compliance/iso27001-controls.md` (slice 80) |
-| Every Phase 2 register row `done` (definition of done) | The register: 59 rows linking spec, code, tests and user documentation (slices 81 to 83) |
+| A provider using Thapsus-HR shares rota, time and pay without exports | Contract tests against the Thapsus-HR mock: a published shift, a clock event and approved pay units reach it; its leave and a leaver reach the rota; no payroll export file is made for the tenant (slices 86 to 89, HZ-133) |
+| Every Phase 2 register row `done` (definition of done) | The register: 60 rows linking spec, code, tests and user documentation (slices 81 to 83) |
 | Every hazard-log entry has a test | `grep -rn "HZ-1" apps packages` against the log for HZ-113 to HZ-130 and the extended rows |
 | WCAG scans clean | Playwright and axe on every new screen (slices 52 to 67), at 360 px (slice 74) |
 | Clinical safety case v0.2 drafted | `docs/clinical-safety/safety-case/` (slice 85; signature H-545) |

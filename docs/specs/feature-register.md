@@ -21,15 +21,15 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
 | Communication and portals | `COMMS` | 15.1 | 8 | 4 | 4 | 0 |
 | Reporting and analytics | `INSI` | 15.2 | 6 | 6 | 0 | 0 |
-| Integrations | `INTG` | 15.3 | 13 | 11 | 2 | 0 |
+| Integrations | `INTG` | 15.3 | 14 | 12 | 2 | 0 |
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **153** | **80** | **0** |
+| **Total** | | | **234** | **154** | **80** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Rows | 12 | 54 | 59 | 45 | 23 | 17 | 16 | 7 |
+| Rows | 12 | 54 | 60 | 45 | 23 | 17 | 16 | 7 |
 
 Part A estimates "about 190 features". This register has more rows because it separates items that
 ship in different phases (for example the Phase 1 core charts and the Phase 5 further charts), and adds
@@ -37,6 +37,9 @@ features that appear only in sections 5.1, 9 to 17 or 19 (data-protection toolin
 supported living 13.3, day services 13.7, employee relations 12.4, disclosure requests 11.1, Kiosk
 mode, the nation packs and the children's homes module). Where Part A lists an item twice (for
 example key safe access under both 9.2 and 13), it has one row that cites both sections.
+
+Rows the owner adds after the master prompt cite the ADR that records the request: INTG-014, the
+Thapsus-HR link ([ADR-0126](../decisions/0126-thapsus-hr-link.md), 01/11/2026).
 
 ## How to update this file
 
@@ -259,6 +262,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | INTG-011 | Communications (email, SMS gateway, Expo push, ICS calendar, click-to-call) | 15.3 | 1 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/comms/channels.ts`, `notify-plan.ts`, `notify-calendar.ts`, `notify-rates.ts`, `packages/domain/src/integrations/ports.ts`, `apps/api/src/integrations/adapters.ts` (SMTP email, ADR-0098) | `packages/domain/src/comms/channels.test.ts`, `notify-plan.test.ts`, `notify-calendar.test.ts`, `apps/api/src/integrations/smtp.test.ts` | - |
 | INTG-012 | Directories and lead sources (carehome.co.uk, Autumna, Lottie) | 15.3 | 3 | todo | - | - | - | - |
 | INTG-013 | E-signature and OCR adapters (optional DocuSign, camera scanning with OCR for paper MARs) | 15.3 | 2 | todo | - | - | - | - |
+| INTG-014 | Thapsus-HR link: staff records, leave, rota, clocking and pay shared with the provider's Thapsus-HR tenant without file exports, one owner for each kind of data (added at the owner's request on 01/11/2026, [ADR-0126](../decisions/0126-thapsus-hr-link.md)) | 15.3 | 2 | todo | [integrations](integrations.md#11-thapsus-hr-link-intg-014) | - | - | - |
 | AI-001 | AI gateway with per-tenant enablement (off by default) and provider choice | 16, 16.3 | 6 | todo | - | - | - | - |
 | AI-002 | Ask Harbour over governed data | 16.1 | 6 | todo | - | - | - | - |
 | AI-003 | Summaries and drafting (handovers, reports, letters, policies, notification wording) | 16.1 | 6 | todo | - | - | - | - |
