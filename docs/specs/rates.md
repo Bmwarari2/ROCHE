@@ -284,6 +284,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | medicines.paracetamol.min_interval_hours | 4 | hours | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
 | medicines.bisphosphonate.before_food_minutes | 30 | minutes | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
 | medicines.review_interval_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2 (annual medication review) | master-prompt |
+| medicines.review_due_soon_days | 28 | days | 2000-01-01 | - | all | Harbour default (medicines.md section 14.2, to verify): how soon before a medication review is due the tracker shows it as due soon; tenant default (H-1293) | to-verify |
 | medicines.ordering_cycle_days | 28 | days | 2000-01-01 | - | all | master prompt 10.2 | master-prompt |
 | medicines.fridge_min_celsius | 2 | celsius | 2000-01-01 | - | all | master prompt 10.2 | master-prompt |
 | medicines.fridge_max_celsius | 8 | celsius | 2000-01-01 | - | all | master prompt 10.2 | master-prompt |

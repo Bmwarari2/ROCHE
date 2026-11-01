@@ -1289,6 +1289,87 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.medication_error": {
+    context: "medicines",
+    description:
+      "Medication errors and near misses on medication incidents (MEDS-012; medicines.md section 14.1): what went wrong (NRLS categories), the stage, the medicine and dose record, the triage answers and what was done.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      incident_id: { description: "The medication incident (incident.id)." },
+      person_id: "exported",
+      medication_id: {
+        description: "The version of the person's medicines entry, when known (medication.id).",
+      },
+      administration_id: {
+        description:
+          "The administration record it concerns, when there is one (medication_administration.id).",
+      },
+      kinds: {
+        description:
+          "What went wrong, from the NRLS medication incident error categories as Harbour adapts them (MEDICATION_ERROR_KINDS).",
+      },
+      stage: { description: "The stage of the medication process (MEDICATION_ERROR_STAGES)." },
+      reached_person: {
+        description: "yes, no or unsure: whether it reached the person (no: a near miss).",
+      },
+      controlled_drug: {
+        description: "yes, no or unsure: whether a controlled drug was involved, as answered.",
+      },
+      deliberate_or_repeated: {
+        description: "yes, no or unsure: whether it may be deliberate or repeated.",
+      },
+      immediate_actions: { description: "What was done straight away, as written." },
+      clinician_told_at: {
+        description: "When the prescriber or clinician was told (instant, UTC).",
+      },
+      clinician_told: { description: "Who was told, as written." },
+      advice_given: { description: "The advice given, as written." },
+      root_cause: { description: "The root cause found, as written." },
+      cd_reported_on: {
+        description:
+          "The date the controlled drug incident was reported to the Controlled Drugs Accountable Officer.",
+      },
+      cd_report_reference: { description: "The reference the accountable officer gave." },
+      retention_class: { description: "The retention class (always serious_incident)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medication_review": {
+    context: "medicines",
+    description:
+      "Medication reviews (MEDS-013; medicines.md section 14.2): scheduled, then done by a named clinician with the outcome in their words.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      due_on: { description: "The date the review is due (UK date)." },
+      done_on: { description: "The date it was done (UK date); empty while scheduled." },
+      clinician_name: { description: "The clinician who did it, as written." },
+      clinician_role: { description: "gp, pharmacist, prescriber, consultant or other." },
+      outcome: { description: "The outcome in the clinician's words." },
+      recorded_by: { description: "Who recorded it as done (tenant_user.id)." },
+      correction_reason: { description: "Why a review already done was changed." },
+      retention_class: { description: "The retention class (always mar_chart)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.medication_reconciliation_source": {
     context: "medicines",
     description: "The documents a reconciliation compares against (rule 9).",

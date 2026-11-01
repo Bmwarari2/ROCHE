@@ -961,3 +961,98 @@ A variable dose is given only from a checked dosing record (rule 18).
   checked by `checkDosingRecord`.
 - **Reading**: `GET /v1/medicines/{entryId}/dosing-records`.
 - **Database**: the record's content never changes, and the check is set once.
+
+## 14. Medication errors, reviews and reports (slice 45; MEDS-012, MEDS-013)
+
+Hazard HZ-131; human actions H-1290 to H-1299. Builds on slice 7's `medicationErrorTriage`
+([safety.md](safety.md) Phase 2 rule 7) and slice 22's administrations. Nothing here diagnoses,
+scores a person or recommends a treatment (medical-device boundary): it records what happened and
+what a named person decided, and counts records.
+
+### 14.1 Medication errors and near misses on the incident
+
+A medication incident (incident `type` `medication`) may carry one **medication error record**
+(`medication_error`, one per incident, mutable with `expected_version`), about one person on the
+incident:
+
+- **What went wrong**: one or more kinds from Harbour's list, which follows the NRLS medication
+  incident error categories (National Reporting and Learning System, NHS England; kept by Learn
+  from Patient Safety Events) as the source, with the source named in the code
+  (`MEDICATION_ERROR_SOURCE`): omitted dose, wrong dose or strength, wrong frequency, wrong
+  medicine, wrong person, wrong time, wrong route, wrong formulation, wrong quantity, given after
+  it was stopped, known allergy or contraindication, expired medicine, wrong storage, monitoring not
+  done, record unclear or missing, other (H-1290 confirms the list).
+- **The stage** (NRLS stage of the medication process): prescribing, transcribing, dispensing or
+  supply, administration, monitoring, storage, other.
+- **The medicine and the dose record**, each optional: a version of one of the person's medicines
+  entries (`medication_id`), and an administration record (`administration_id`) for that person.
+  Both are checked to belong to the person on the incident.
+- **Slice 7's questions**: whether it reached the person (`yes`, `no`, `unsure`; a near miss when
+  no), whether a controlled drug was involved, and whether it may be deliberate or repeated. A
+  controlled drug is presumed `yes` when the chosen medicine carries a CD schedule.
+- **What was done**: immediate actions (text), the prescriber or clinician told (when, and who, as
+  text), the advice given (text), the root cause found (text, once known), the controlled drug
+  report (the date and the reference the area's Controlled Drugs Accountable Officer gave).
+
+Severity, harm and the statutory notifications stay on the incident and its classifier, which
+this slice does not change. The **prompts** (`medicationErrorTriage`) are returned with the record
+and shown, never sent anywhere by Harbour:
+
+- **Clinical advice** whenever it reached or may have reached the person, or a dose was omitted.
+- **Controlled drug report** to the area's NHS England Controlled Drugs Accountable Officer for
+  every controlled drug incident or concern (H-594 recommended answer), until its date and
+  reference are recorded.
+- **Safeguarding**: answer the incident's own safeguarding question (`safeguarding.concern`) when
+  the error may be deliberate or repeated, caused or risked significant harm, or suggests neglect
+  (H-549 recommended answer). A person decides; nothing is referred automatically.
+- **CQC**: a medication error is notifiable only through what it caused or shows (a death, an injury
+  meeting regulation 18(2)(a) or (b), abuse or neglect), which the classifier already decides; the
+  record says so in words and never raises a notification itself.
+
+### 14.2 Medication reviews (MEDS-013)
+
+A **medication review** (`medication_review`, mutable with `expected_version`) is scheduled for a
+person (`due_on`) and recorded as done (`done_on`) by a named clinician (`clinician_name`,
+`clinician_role`: GP, pharmacist, nurse or other prescriber, consultant, other), with the outcome in
+the clinician's words (`outcome`, text). Harbour never suggests a change. Once done, it cannot be
+changed except by a correction with a reason. The tracker (`reviewStatus`) shows for each person on
+medicines: the last review done, the next due (the scheduled date, or the last done plus
+`medicines.review_interval_months`, or "not scheduled" when there is neither), and a status in
+words: overdue, due within `medicines.review_due_soon_days`, scheduled, not scheduled.
+
+### 14.3 Reports (information only)
+
+- **Competence overrides and doses recorded after they were given** (`countReportedFlags`): per
+  member and period, at a location, from administration records' flags (HZ-119, H-1067).
+- **PRN and psychotropic use** (slice 28's report, built here because slice 28's PRN protocols are
+  not built): per person and period, the doses given of when-required entries, of entries tagged
+  `psychotropic`, and of both, with the medicine names, counted from the records only. The report
+  says it is a count of records for a clinician's review, never a judgement of the person or the
+  prescribing.
+- **Medication error trend**: per location and month, errors and near misses by kind and stage.
+
+### 14.4 Permissions
+
+| Action | Permission |
+| --- | --- |
+| Add a medication error record to an incident one can see | `safety.incident.report` |
+| Change it (actions, prescriber told, root cause, CD report) | `safety.incident.manage`, or the member who added it |
+| Read it | `safety.incident.read` (with the incident's own scope) |
+| Schedule and record reviews; read the tracker | `medicines.record.manage` |
+| Read the reports | `medicines.record.manage` at the location |
+
+### 14.5 Schema (migration 0135)
+
+`medication_error` and `medication_review`: `tenant_id`, forced row-level security, the person's
+scope (and for an error the incident's: `app.incident_visible`), history in `record_version`,
+retention `serious_incident` for errors (as their incident) and `mar_chart` for reviews.
+
+### 14.6 Test list
+
+- Domain, table-driven: the error kinds and stages, the checks on an error record, the triage with
+  the controlled drug presumption, the review status at, before and after the due dates, the
+  next-due arithmetic over month ends, the PRN and psychotropic counts, the trend.
+- Database: isolation for both tables; an error only on a visible incident about one of its
+  people; the medicine and dose record of that person only; a done review fixed.
+- API: add, read and change an error record with its prompts; the CD report clearing its prompt;
+  refusals in words; reviews scheduled and done; the tracker; the three reports.

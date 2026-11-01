@@ -47,6 +47,7 @@ export * from "./medicines/dose";
 export * from "./medicines/dosing-record";
 export * from "./medicines/intervals";
 export * from "./medicines/mar-entry";
+export * from "./medicines/medication-review";
 export * from "./medicines/rates";
 export * from "./medicines/reconciliation";
 export * from "./medicines/schedule";

@@ -170,6 +170,19 @@ Retention class `mar_chart`. Escalations become tasks for the nurse in charge, t
 that name no medicine. No new recipient or sub-processor; administrations are not yet sent to
 devices (the round stream is a contract until slice 68).
 
+Medication errors and reviews (Phase 2 slice 45, migration 0135): B1 now also covers medication
+reviews (the date due and done, the clinician's name and role as written, and the outcome in the
+clinician's words), and B7 (incidents) the medication error details on a medication incident (what
+went wrong, the stage, the medicine and dose record, whether it reached the person, whether a
+controlled drug or deliberate or repeated, what was done, who was told, the advice, the root cause
+and the controlled drug report's date and reference). Health data under Article 9(2)(h) as the rest
+of the care record; errors are kept as their incident (`serious_incident`), reviews as the
+medicines record (`mar_chart`). The reports (competence overrides by member, PRN and psychotropic
+doses by person, errors by month) are read-only counts for managers holding
+`medicines.record.manage` across the location, audited, and never exported as a new dataset. No new
+recipient: the controlled drug report and any safeguarding concern are made by a person through
+their own routes; Harbour records only the date and reference.
+
 Notes:
 
 - The photo in the point-of-care header (B1) is a safety control against wrong-person selection (hazard HZ-001), not an optional feature, so it is not consent-based. Photos shared with families (B8) are.

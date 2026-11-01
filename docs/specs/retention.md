@@ -78,6 +78,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `incident` with `retention_class` `care_record` (no notification applies), and its `incident_person`, `classifier_answer` and `investigation` rows | care_record |
 | `incident` with `retention_class` `serious_incident` (set once any notification applies), its people, answers, `candour_record` and `investigation`, and `statutory_notification` | serious_incident |
 | `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
+| `medication_error` (slice 45; one per medication incident, kept with its incident) | serious_incident |
+| `medication_review` (slice 45) | mar_chart |
 | `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |

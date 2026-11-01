@@ -282,9 +282,9 @@ to verify, shown as targets, never as statutory deadlines. Figures come through
    pharmacist or NHS 111) whenever it reached or may have reached the person; report a controlled drug
    incident to the area's NHS England Controlled Drugs Accountable Officer; consider safeguarding when
    deliberate or repeated. Harm and the statutory notifications come from the existing classifier
-   questions. Joining these questions to the incident classifier needs a migration
-   (`classifier_answer.question_key` is checked against the list in the database), so the module is
-   built now and wired in by a later schema slice.
+   questions. Slice 45 records these answers in their own table on the incident
+   (`medication_error`, [medicines.md](medicines.md) section 14.1) rather than as classifier
+   questions, so the classifier is unchanged.
 
 Rate keys: `safeguarding.referral_hours`, `complaint.acknowledge_working_days`,
 `complaint.response_working_days`, `lgsco.time_limit_months`,

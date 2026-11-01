@@ -853,6 +853,22 @@ is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/
 | `medication.tags` | Harbour (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |
 | `medication.minimum_interval_minutes`, `prn_max_per_24h` | Harbour | Minutes; numeric in the dose's unit | As the prescription states. |
 
+## Medication errors and reviews (Phase 2, slice 45)
+
+Migration 0135 ([medicines.md](medicines.md) section 14). Every column is exported; errors are
+kept as their incident (`serious_incident`), reviews as the medicines record (`mar_chart`).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `medication_error.kinds` | NRLS medication incident error categories (NHS England), as adapted (`MEDICATION_ERROR_SOURCE`) | `omitted_dose`, `wrong_dose`, `wrong_medicine`, `wrong_person`, `wrong_time`, `wrong_route`, `given_after_stopped`, `wrong_frequency`, `wrong_formulation`, `wrong_quantity`, `allergy_or_contraindication`, `expired_medicine`, `wrong_storage`, `monitoring_not_done`, `record_unclear_or_missing`, `other` | One or more; the list is to verify against the current LFPSE categories (H-1290). |
+| `medication_error.stage` | NRLS stage of the medication process | `prescribing`, `transcribing`, `dispensing`, `administration`, `monitoring`, `storage`, `other` | |
+| `medication_error.reached_person`, `controlled_drug`, `deliberate_or_repeated` | Harbour | `yes`, `no`, `unsure`, or empty | `reached_person` `no` is a near miss. |
+| `medication_error.clinician_told_at` | ISO 8601 instant | UTC | With `clinician_told` (text), both or neither. |
+| `medication_error.cd_reported_on`, `cd_report_reference` | Harbour | ISO 8601 date; text up to 120 characters | Both or neither; only when a controlled drug was or may have been involved. |
+| `medication_review.due_on`, `done_on` | ISO 8601 date | UK dates | |
+| `medication_review.clinician_role` | Harbour | `gp`, `pharmacist`, `prescriber`, `consultant`, `other` | |
+| `medication_review.outcome` | Harbour | Text up to 4,000 characters, the clinician's words | Never a Harbour suggestion. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
