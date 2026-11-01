@@ -202,8 +202,36 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
       });
       if (result.ok)
         expect(marEntryStatus(result.entry, inForce, "give_with_notice").words).toBe(
-          "Not yet checked",
+          origin === "import" ? "Imported, not yet checked" : "Not yet checked",
         );
+    },
+  );
+
+  it.each<[string, "give_with_notice" | "hold_until_checked", boolean]>([
+    ["a transcribed entry, give with notice", "give_with_notice", true],
+    ["a transcribed entry, hold until checked", "hold_until_checked", false],
+  ])("H-548: %s may be given: %s", (_name, policy, mayGive) => {
+    const result = transcribeMarEntry(draft(), TABLET_FACTS, { ...newMeta, id: "entry-10" });
+    if (!result.ok) throw new Error("not transcribed");
+    expect(marEntryStatus(result.entry, inForce, policy).mayGive).toBe(mayGive);
+  });
+
+  it.each(["give_with_notice", "hold_until_checked"] as const)(
+    "H-548: an imported entry is never given before its second check (policy %s), and is once checked",
+    (policy) => {
+      const result = transcribeMarEntry(draft(), TABLET_FACTS, {
+        ...newMeta,
+        id: "entry-11",
+        origin: "import",
+      });
+      if (!result.ok) throw new Error("not transcribed");
+      expect(marEntryStatus(result.entry, inForce, policy)).toEqual({
+        words: "Imported, not yet checked",
+        mayGive: false,
+        notice: MAR_ENTRY_NOTICES.importedNotChecked,
+      });
+      const imported = { ...checked(), origin: "import" as const };
+      expect(marEntryStatus(imported, inForce, policy).mayGive).toBe(true);
     },
   );
 

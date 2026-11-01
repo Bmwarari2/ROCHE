@@ -26,6 +26,7 @@ import {
   searchVector,
   tenantId,
 } from "./_columns";
+import { importBatch } from "./imports";
 import { outage } from "./operations";
 import { contact, person } from "./people";
 import { document, location, tenantUser } from "./platform";
@@ -472,9 +473,16 @@ export const carePlan = pgTable(
     signOffUnableReason: text("sign_off_unable_reason"),
     signedOffAt: timestamp("signed_off_at", { withTimezone: true }),
     signedOffRecordedBy: uuid("signed_off_recorded_by"),
+    /** The import batch that created the draft (slice 51, migration 0136), never changed. */
+    importBatchId: uuid("import_batch_id"),
     ...mutableColumns(),
   },
   (t) => [
+    foreignKey({
+      name: "care_plan_import_batch_fk",
+      columns: [t.tenantId, t.importBatchId],
+      foreignColumns: [importBatch.tenantId, importBatch.id],
+    }),
     unique("care_plan_tenant_id_id_key").on(t.tenantId, t.id),
     unique("care_plan_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personRef("care_plan_person_fk", t),

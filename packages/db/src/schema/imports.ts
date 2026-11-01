@@ -16,7 +16,7 @@ import { createdColumns, id, tenantId } from "./_columns";
 import { location, tenant, tenantUser } from "./platform";
 
 /** `IMPORT_RECORD_TYPES` in packages/domain (imports.ts). */
-export const IMPORT_RECORD_TYPE_SQL = sqlList(["people"]);
+export const IMPORT_RECORD_TYPE_SQL = sqlList(["people", "medicines", "care_plans", "staff_files"]);
 /** `IMPORT_BATCH_STATUSES` in packages/domain (imports.ts). */
 export const IMPORT_BATCH_STATUS_SQL = sqlList([
   "staged",

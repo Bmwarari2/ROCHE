@@ -798,6 +798,8 @@ export type UncheckedEntryPolicy = "give_with_notice" | "hold_until_checked";
 export const MAR_ENTRY_NOTICES = {
   notYetChecked:
     "Not yet checked against the source document. A second person competent in medicines must check it.",
+  importedNotChecked:
+    "Imported, not yet checked: do not give until a second person competent in medicines has checked it against the source document. Tell the nurse in charge.",
   holdUntilChecked:
     "Not yet checked: do not give until a second person competent in medicines has checked it against the source document. Tell the nurse in charge.",
   differenceFound:
@@ -876,7 +878,15 @@ export function marEntryStatus(
   const join = (notice: string | null) =>
     [notice, dayNotice, ending].filter(Boolean).join(" ") || null;
   let status: MarEntryStatus;
-  if (entry.secondCheck === null) {
+  if (entry.secondCheck === null && entry.origin === "import") {
+    // H-548 (slice 51): an imported medicine is never given before its second check, whatever
+    // the organisation's policy for other unchecked entries; it is not on a round until then.
+    status = {
+      words: "Imported, not yet checked",
+      mayGive: false,
+      notice: join(MAR_ENTRY_NOTICES.importedNotChecked),
+    };
+  } else if (entry.secondCheck === null) {
     status =
       policy === "give_with_notice"
         ? { words: "Not yet checked", mayGive: true, notice: join(MAR_ENTRY_NOTICES.notYetChecked) }

@@ -659,6 +659,13 @@
       "when": 1793480000000,
       "tag": "0111_medicines_record",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1793600000000,
+      "tag": "0136_clinical_imports",
+      "breakpoints": true
     }
   ]
 }

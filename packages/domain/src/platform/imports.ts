@@ -1,4 +1,7 @@
+import { PCSP_DOMAINS } from "../care/care-plan";
+import { MAR_SOURCE_KINDS } from "../medicines/mar-entry";
 import { validateNhsNumber } from "../people/nhs-number";
+import { IDENTITY_DOCUMENTS, RIGHT_TO_WORK_METHODS } from "../workforce/staff-file";
 
 /**
  * Import validation (PLAT-014; platform.md, Phase 2 rules 11 to 26; ADR-0092). Pure: a file is read
@@ -11,8 +14,11 @@ import { validateNhsNumber } from "../people/nhs-number";
  * when every row is valid, and is undone only within the window while nothing has changed since.
  */
 
-/** Record types an import takes (slice 26: people; contacts, allergies and staff follow). */
-export const IMPORT_RECORD_TYPES = ["people"] as const;
+/**
+ * Record types an import takes: people (slice 26); medicines, care plans and staff files (slice
+ * 51, platform.md rules 27 to 31). Contacts and allergies follow.
+ */
+export const IMPORT_RECORD_TYPES = ["people", "medicines", "care_plans", "staff_files"] as const;
 export type ImportRecordType = (typeof IMPORT_RECORD_TYPES)[number];
 
 /** Where a batch stands (platform.md rules 19 to 25): forward only. */
@@ -123,9 +129,157 @@ export const ALLERGY_IMPORT_FIELDS: ImportFields = {
   },
 };
 
+/**
+ * Medicines (slice 51, rule 28; medicines.md rule 1), matched to their person by NHS number only.
+ * The medicine is the dm+d product its code names, with dm+d's own name: the file has no name
+ * column, so a typed name can never become a medicine (HZ-005). Each arrives not yet checked.
+ */
+export const MEDICINE_IMPORT_FIELDS: ImportFields = {
+  person_nhs_number: { kind: "nhs_number", label: "Person's NHS number", required: true },
+  vmp_id: { kind: "text", label: "dm+d VMP code", required: true, max: 18 },
+  amp_id: { kind: "text", label: "dm+d AMP code", required: false, max: 18 },
+  route_code: { kind: "text", label: "Route code", required: true, max: 18 },
+  directions: {
+    kind: "code",
+    label: "Directions",
+    required: true,
+    codes: ["regular", "when_required"],
+  },
+  dose_quantity: { kind: "text", label: "Dose", required: true, max: 12 },
+  dose_unit_code: { kind: "text", label: "Dose unit code", required: true, max: 18 },
+  times: { kind: "text", label: "Times", required: false, max: 120 },
+  indication: { kind: "text", label: "Indication", required: false, max: 500 },
+  special_instructions: {
+    kind: "text",
+    label: "Special instructions",
+    required: false,
+    max: 500,
+  },
+  prescriber: { kind: "text", label: "Prescriber", required: true, max: 200 },
+  starts_on: { kind: "date", label: "Start date", required: true, notFuture: false },
+  stops_on: { kind: "date", label: "Stop date", required: false, notFuture: false },
+  source_kind: { kind: "code", label: "Source", required: true, codes: MAR_SOURCE_KINDS },
+  source_reference: { kind: "text", label: "Source reference", required: true, max: 200 },
+};
+
+/** Care plans (slice 51, rule 29): one row per need domain, matched by NHS number, as a draft. */
+export const CARE_PLAN_IMPORT_FIELDS: ImportFields = {
+  person_nhs_number: { kind: "nhs_number", label: "Person's NHS number", required: true },
+  domain: { kind: "code", label: "Domain", required: true, codes: PCSP_DOMAINS },
+  need: { kind: "text", label: "Need", required: true, max: 4000 },
+  outcome: { kind: "text", label: "Outcome", required: true, max: 4000 },
+  strengths: { kind: "text", label: "Strengths", required: false, max: 4000 },
+  contingency: { kind: "text", label: "Contingency", required: false, max: 4000 },
+};
+
+/** The staff file checks an import takes (rule 30); the others are recorded by hand. */
+export const STAFF_FILE_IMPORT_KINDS = [
+  "identity_with_photo",
+  "dbs_certificate",
+  "right_to_work",
+  "professional_registration",
+  "references",
+  "relevant_qualifications",
+] as const;
+
+/**
+ * Staff files (slice 51, rule 30): one check per row, matched to a staff file by the member's
+ * work email, never verified by the import. Never a DBS certificate's contents, a share code or
+ * health details (data-standards.md).
+ */
+export const STAFF_FILE_IMPORT_FIELDS: ImportFields = {
+  member_email: { kind: "text", label: "Work email", required: true, max: 254 },
+  kind: { kind: "code", label: "Check", required: true, codes: STAFF_FILE_IMPORT_KINDS },
+  identity_document: {
+    kind: "code",
+    label: "Identity document",
+    required: false,
+    codes: IDENTITY_DOCUMENTS,
+  },
+  dbs_level: {
+    kind: "code",
+    label: "DBS level",
+    required: false,
+    codes: ["enhanced_adults_barred", "enhanced", "standard", "basic"],
+  },
+  dbs_issued_on: { kind: "date", label: "DBS issue date", required: false, notFuture: true },
+  dbs_certificate_number: {
+    kind: "text",
+    label: "DBS certificate number",
+    required: false,
+    max: 12,
+  },
+  dbs_result: {
+    kind: "code",
+    label: "DBS result",
+    required: false,
+    codes: ["clear", "information_disclosed"],
+  },
+  dbs_update_service: {
+    kind: "code",
+    label: "On the Update Service",
+    required: false,
+    codes: ["yes", "no"],
+  },
+  barred_list_clear_on: {
+    kind: "date",
+    label: "Barred list check date",
+    required: false,
+    notFuture: true,
+  },
+  right_to_work_method: {
+    kind: "code",
+    label: "Right to work method",
+    required: false,
+    codes: RIGHT_TO_WORK_METHODS,
+  },
+  right_to_work_checked_on: {
+    kind: "date",
+    label: "Right to work check date",
+    required: false,
+    notFuture: true,
+  },
+  right_to_work_permission: {
+    kind: "code",
+    label: "Right to work permission",
+    required: false,
+    codes: ["unlimited", "time_limited"],
+  },
+  right_to_work_expires_on: {
+    kind: "date",
+    label: "Right to work expiry",
+    required: false,
+    notFuture: false,
+  },
+  registration_body: {
+    kind: "code",
+    label: "Register",
+    required: false,
+    codes: ["nmc", "hcpc", "swe", "gmc"],
+  },
+  registration_pin: { kind: "text", label: "PIN", required: false, max: 12 },
+  registration_renewal_due_on: {
+    kind: "date",
+    label: "Renewal date",
+    required: false,
+    notFuture: false,
+  },
+  revalidation_due_on: {
+    kind: "date",
+    label: "Revalidation date",
+    required: false,
+    notFuture: false,
+  },
+  references_received: { kind: "text", label: "References received", required: false, max: 3 },
+  qualifications: { kind: "text", label: "Qualifications", required: false, max: 1000 },
+};
+
 /** The fields each record type takes. */
 export const IMPORT_FIELDS: Readonly<Record<ImportRecordType, ImportFields>> = {
   people: PERSON_IMPORT_FIELDS,
+  medicines: MEDICINE_IMPORT_FIELDS,
+  care_plans: CARE_PLAN_IMPORT_FIELDS,
+  staff_files: STAFF_FILE_IMPORT_FIELDS,
 };
 
 export type ImportErrorCode =
@@ -144,7 +298,26 @@ export type ImportErrorCode =
   | "duplicate"
   | "already_in_harbour"
   | "too_many_same_birth_date"
-  | "too_many_possible_duplicates";
+  | "too_many_possible_duplicates"
+  // Slice 51 (rules 27 to 31)
+  | "person_not_found"
+  | "invalid_dmd_code"
+  | "dmd_unknown"
+  | "medicine_refused"
+  | "invalid_dose"
+  | "invalid_times"
+  | "times_required"
+  | "times_not_taken"
+  | "indication_required"
+  | "stops_before_start"
+  | "care_plan_draft_exists"
+  | "invalid_email"
+  | "staff_file_not_found"
+  | "own_staff_file"
+  | "check_already_recorded"
+  | "detail_required"
+  | "detail_not_for_check"
+  | "invalid_number";
 
 export interface ImportError {
   /** The 1-based data row; 0 for a problem with the file itself (a column). */
@@ -164,6 +337,11 @@ export interface ImportValidation {
   readonly rows: readonly Readonly<Record<string, string>>[];
   readonly errors: readonly ImportError[];
   readonly rowCount: number;
+}
+
+/** The plain words for an error code about a column labelled `label` (never the value). */
+export function importErrorMessage(code: ImportErrorCode, label: string): string {
+  return message(code, label);
 }
 
 function message(code: ImportErrorCode, label: string): string {
@@ -198,6 +376,42 @@ function message(code: ImportErrorCode, label: string): string {
       return `${label} is already on someone's record in Harbour. Remove the row and make any change on that record.`;
     case "too_many_same_birth_date":
       return `More than ${label} rows share one date of birth. Check the date of birth column is the right one and holds each person's own date, then upload the file again.`;
+    case "person_not_found":
+      return `No one in Harbour has this ${label.toLowerCase()}. Import or add the person first; a row is never matched by name.`;
+    case "invalid_dmd_code":
+      return `${label} is not a dm+d code: it must be the code's digits, with a valid check digit.`;
+    case "dmd_unknown":
+      return `${label} is not in the dm+d reference data Harbour holds, so the medicine cannot be imported. Check the code; a medicine is never imported by its name.`;
+    case "medicine_refused":
+      return `${label}: the medicine cannot be recorded like this.`;
+    case "invalid_dose":
+      return `${label} must be a number above zero, with at most three decimal places.`;
+    case "invalid_times":
+      return `${label} must be 24-hour times such as 08:00 20:00, each once.`;
+    case "times_required":
+      return `Give the ${label.toLowerCase()} for a regular medicine.`;
+    case "times_not_taken":
+      return `A when-required medicine has no ${label.toLowerCase()}: leave the column blank.`;
+    case "indication_required":
+      return `Give the ${label.toLowerCase()} for a when-required medicine.`;
+    case "stops_before_start":
+      return `${label} must be on or after the start date.`;
+    case "care_plan_draft_exists":
+      return `This person already has a draft care plan. Finish or discard it before importing another.`;
+    case "invalid_email":
+      return `${label} must be an email address.`;
+    case "staff_file_not_found":
+      return `No staff file in Harbour belongs to the member with this ${label.toLowerCase()}. Create the staff file first; a row is never matched by name.`;
+    case "own_staff_file":
+      return "This row is for your own staff file. Someone else imports or records your checks.";
+    case "check_already_recorded":
+      return `This check is already on the member's staff file. Change it on the staff file instead.`;
+    case "detail_required":
+      return `Fill in ${label.toLowerCase()} for this check.`;
+    case "detail_not_for_check":
+      return `${label} is not used for this check. Leave it blank.`;
+    case "invalid_number":
+      return `${label} must be a whole number.`;
     case "too_many_possible_duplicates":
       return `More than ${label} rows may be people already in Harbour or each other. The file may repeat people, or a name column may be mapped wrongly: check it and upload it again, a home at a time.`;
   }

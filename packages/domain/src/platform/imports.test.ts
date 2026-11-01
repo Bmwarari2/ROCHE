@@ -392,8 +392,13 @@ describe("PLAT-014 matching columns", () => {
     expect(JSON.stringify(result)).not.toMatch(/Ada|Example|9990000018|nhs_numbr/);
   });
 
-  it("takes people as the one record type of this slice", () => {
-    expect(Object.keys(IMPORT_FIELDS)).toEqual(["people"]);
+  it("takes people, and from slice 51 medicines, care plans and staff files", () => {
+    expect(Object.keys(IMPORT_FIELDS)).toEqual([
+      "people",
+      "medicines",
+      "care_plans",
+      "staff_files",
+    ]);
     expect(IMPORT_FIELDS.people).toBe(PERSON_IMPORT_FIELDS);
   });
 });

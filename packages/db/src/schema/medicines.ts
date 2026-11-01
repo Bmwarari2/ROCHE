@@ -16,6 +16,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
+import { importBatch } from "./imports";
 import { person, placement } from "./people";
 import { hospitalTransfer } from "./people-lifecycle";
 import { document, tenantUser } from "./platform";
@@ -126,6 +127,12 @@ export const medication = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
+    // Slice 51 (migration 0136): the batch that created an imported medicine.
+    foreignKey({
+      name: "medication_import_batch_fk",
+      columns: [t.tenantId, t.importBatchId],
+      foreignColumns: [importBatch.tenantId, importBatch.id],
+    }),
     unique("medication_tenant_id_id_key").on(t.tenantId, t.id),
     unique("medication_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     unique("medication_medicine_version_key").on(t.tenantId, t.medicineId, t.version),

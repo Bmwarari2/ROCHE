@@ -1478,6 +1478,84 @@ organisation.
   or local identifier, replayed and removed by an undo; test NHS numbers; sample data; the expiry
   sweep.
 
+### Importing medicines, care plans and staff files (slice 51)
+
+Phase 2 slice 51 (PLAT-014, WORK-013) adds three record types to the import wizard: `medicines`,
+`care_plans` and `staff_files`. The upload, staging, dry run, commit, undo window, expiry and
+"nothing echoed" rules above apply unchanged; these rules add what each type needs. Code:
+`packages/domain/src/platform/imports-clinical.ts`, the field sets in
+`packages/domain/src/platform/imports.ts`, migration 0136, `apps/api/src/routes/platform-imports.ts`
+and `apps/api/src/services/platform-imports-clinical.ts`. Hazards: HZ-130, HZ-005 (medicines),
+HZ-024 (care plans), HZ-124 (staff files), HZ-072 (sample data).
+
+**Schema** (migration 0136):
+
+| Table or column | Change | Rules |
+| --- | --- | --- |
+| `import_batch.record_type` | Adds `medicines`, `care_plans`, `staff_files` | The batch's home (`location_id`) is where the rate table is read for the undo window; the records keep their own people and files |
+| `medication.import_batch_id` | Already added by migration 0111; now a foreign key to its batch, with the people guard's rule | Set only as the medicine is created by its batch's commit, never changed; `origin = 'import'` exactly when it is set |
+| `care_plan.import_batch_id` | New | The same rule; set only on a draft |
+| `compliance_item.import_batch_id` | New | The same rule; set only on an unverified item |
+| `app.import_reachable` | Per type | Medicines: `medicines.record.manage` and `people.person.read`. Care plans: `care.plan.write` and `people.person.read`. Staff files: `workforce.staff_file.manage`. All with `platform.import.run`, across the organisation |
+| `app.undo_import_batch` | Per type | Medicines are withdrawn, never deleted (the medicines record is append-only); care plan drafts and staff file checks are removed. Each only while unchanged |
+| `app.sample_removal_tables()` | Redefined | The union of migrations 0099's and 0111's lists, so every table either added is removed with a sample person (HZ-072) |
+
+**Rules that are easy to get wrong** (continuing the numbering above):
+
+27. **The types and who imports them.** Each type has its own field set (`IMPORT_FIELDS`), its
+    own permissions (the table above, checked by the API and again by `app.import_reachable`)
+    and its own audit action per record created (`medicines.entry.imported`,
+    `care.plan.imported`, `workforce.compliance_item.imported`). Every type is matched to its
+    record by identifier only: a person by NHS number (a 999-range number only in test
+    environments), a staff file by the member's work email. A row whose person or file Harbour
+    does not hold is refused, never matched by name (HZ-130).
+28. **Medicines arrive not yet checked and are held until checked** (H-548, HZ-005). The medicine
+    is the dm+d product its VMP code (and optional AMP code) names: the code must have the
+    dm+d shape and check digit and be held by the reference data, and the stored name is
+    dm+d's. The file has no name column, so a typed name never becomes a medicine. The route and
+    dose unit must be ones dm+d gives for the product, and the medicines rules
+    (`transcribeMarEntry`) run on each row as for one transcribed by hand: one entry per product
+    for a person (rule 6), a when-required medicine's indication, a regular one's times (every
+    day; any other pattern is transcribed by hand). Each arrives with `origin = 'import'` and
+    state "not yet checked", and `marEntryStatus` holds it, "Imported, not yet checked", off every
+    round and MAR until a second person competent in medicines checks it against its source,
+    whatever the organisation's policy for other unchecked entries (H-550). An undo withdraws
+    the batch's medicines, only while none of them has been checked.
+29. **Care plans arrive as drafts** (HZ-024). One row is one need domain for a person; a person's
+    rows become one draft plan with a section for each, at the person's home. A person who
+    already has a draft is refused (one draft per person). Nothing is published: a person reviews
+    each draft, adds actions and sign-off, and publishes it as for one written by hand. An undo
+    removes the drafts only while every one is unchanged and unpublished.
+30. **Staff file checks arrive unverified** (HZ-124). One row is one check of a member's staff
+    file: identity, DBS (level, issue date, number and result together, or only the barred list
+    check date), right to work, professional registration, references or qualifications. Health,
+    employment history and conduct are never imported, nor a DBS certificate's contents. A check
+    the file already holds is refused (it is changed on the staff file), as is a row for the
+    importer's own file. Each arrives with no verifier: it counts only once a holder of
+    `workforce.staff_file.manage` who has seen the evidence verifies it on the staff file. An undo
+    removes the checks only while none has been verified or changed.
+31. **The dry run shows every row's outcome** (`clinicalDryRun`): `rowOutcomes` lists each row as
+    `creates` or `refused`, with the errors by row and column; `createsCount` says how many
+    records committing creates; the words say what happens to them. There are no possible
+    duplicates to acknowledge (rows are matched by identifier only). Commit and undo are as
+    rules 23 and 24, by type.
+
+**Tests (written before the code)**:
+
+- `packages/domain/src/platform/imports-clinical.test.ts`: every field and type rule of each
+  type, table-driven (`hazard HZ-005 imported medicines`, `hazard HZ-024 imported care plans
+  arrive as drafts`, `hazard HZ-124 imported staff file checks are never verified`); what a row
+  becomes; every row's outcome.
+- `packages/domain/src/medicines/mar-entry.test.ts`: `H-548` an imported entry is never given
+  before its second check, under either policy.
+- `packages/db/test/imports-clinical.test.ts`: the record types; `app.import_reachable` per
+  type; a record tied to its batch only as it commits; the per-type undo (medicines withdrawn,
+  refused once checked; drafts and checks removed, refused once changed); the sample removal
+  list.
+- `apps/api/test/imports-clinical.test.ts`: each type end to end over HTTP (upload, dry run with
+  every row's outcome, commit with step-up, undo), the refusals of rules 27 to 30, an imported
+  medicine held off the MAR until checked, nothing echoed.
+
 ## Phase 2: single sign-on (PLAT-005)
 
 Phase 2 slice 33 ([phase-2.md](../plans/phase-2.md), [ADR-0091](../decisions/0091-single-sign-on.md)):
