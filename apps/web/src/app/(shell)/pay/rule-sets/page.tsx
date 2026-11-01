@@ -41,7 +41,7 @@ export default async function RuleSetsPage() {
       />
       <SiloStatus />
       {canManage ? (
-        <Card headingLevel={2} title={t("payTime.ruleSets.newTitle")}>
+        <Card as="section" headingLevel={2} title={t("payTime.ruleSets.newTitle")}>
           <RuleSetForm />
         </Card>
       ) : null}

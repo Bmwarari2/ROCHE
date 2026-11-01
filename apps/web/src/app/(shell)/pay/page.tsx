@@ -44,7 +44,7 @@ export default async function PayPage() {
         </ButtonLink>
       </div>
       {canManage ? (
-        <Card headingLevel={2} title={t("payTime.pay.newTitle")}>
+        <Card as="section" headingLevel={2} title={t("payTime.pay.newTitle")}>
           <NewPayRunForm />
         </Card>
       ) : null}

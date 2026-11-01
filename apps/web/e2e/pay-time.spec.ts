@@ -123,7 +123,9 @@ test("the owner opens pay runs and rule sets, and each form says what it needs",
 
   const start = region(page, "Start a pay run");
   await start.getByRole("button", { name: "Start pay run" }).click();
-  await expect(start.getByText("Choose weekly or monthly.").first()).toBeVisible();
+  await expect(
+    start.getByText(/The first day of the period must include a day, month and year/).first(),
+  ).toBeVisible();
   await start.getByRole("heading", { name: "Start a pay run" }).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, -80));
   await bothThemes(page, "pay run errors");

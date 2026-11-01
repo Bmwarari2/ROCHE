@@ -62,7 +62,7 @@ export default async function PayRunPage({ params }: { readonly params: Promise<
       <title>{runName}</title>
       <PageHeader eyebrow={t("payTime.pay.title")} title={runName} />
       <SiloStatus />
-      <Card headingLevel={2} title={t("payTime.run.status")}>
+      <Card as="section" headingLevel={2} title={t("payTime.run.status")}>
         <div className="flex flex-col gap-3">
           <p className="m-0 flex flex-wrap items-center gap-2">
             <SafetyChip chip={payRunChip(run, t)} />

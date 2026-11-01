@@ -7,7 +7,14 @@ import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { absenceChip, absencesShown, coverChip, ROTA_APPROVE, SELF } from "@/lib/pay-time";
+import {
+  absenceChip,
+  absencesShown,
+  coverChip,
+  ROTA_APPROVE,
+  ROTA_MANAGE,
+  SELF,
+} from "@/lib/pay-time";
 import { addDays, ukToday } from "@/lib/uk-time";
 
 export const metadata: Metadata = { title: t("payTime.absences.title") };
@@ -23,9 +30,16 @@ export default async function AbsencesPage() {
   if (!absencesShown(me.permissions)) return <SafetyForbidden title={title} />;
   const location = me.locations.find((l) => l.id === locationId) ?? me.locations[0];
   if (!location) return <SafetyForbidden title={title} />;
+  const managesHome = me.permissions.includes(ROTA_MANAGE) || me.permissions.includes(ROTA_APPROVE);
   const api = await tenantApi();
   const { data, error, response } = await api.GET("/v1/absences", {
-    params: { query: { locationId: location.id, from: addDays(ukToday(), -90) } },
+    // Managers and approvers see the home; anyone else sees only their own (their scope may not
+    // reach the whole home, so the API would refuse the home filter).
+    params: {
+      query: managesHome
+        ? { locationId: location.id, from: addDays(ukToday(), -90) }
+        : { memberId: me.tenantUserId, from: addDays(ukToday(), -90) },
+    },
   });
   if (!data) {
     if (problemCode(error) === "missing_permission") return <SafetyForbidden title={title} />;
@@ -48,7 +62,7 @@ export default async function AbsencesPage() {
       />
       <SiloStatus />
       {canAsk ? (
-        <Card headingLevel={2} title={t("payTime.absences.askTitle")}>
+        <Card as="section" headingLevel={2} title={t("payTime.absences.askTitle")}>
           <LeaveRequestForm locationId={location.id} />
         </Card>
       ) : null}
