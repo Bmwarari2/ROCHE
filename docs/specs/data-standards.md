@@ -1318,12 +1318,14 @@ Harbour's own.
 
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `pay_profile.payroll_reference` | The provider's employee reference (works number) | `^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$`, unique in the organisation | The only way an export names a member |
+| `pay_profile.payroll_reference` | The provider's employee reference (works number) | `^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$` with a digit, never an NI number's shape, unique in the organisation | The only way an export names a member |
 | `payroll_export.format` | Harbour (`PAYROLL_FORMATS`) | `xero_payroll_uk`, `staffology_csv`, `sage_csv`, `brightpay_csv` | With `format_version` |
 | `payroll_export.content_sha256` | SHA-256 (FIPS 180-4) | 64 lowercase hex | Of the file, or of the canonical Xero batch |
-| `payroll_export.outcome` | Harbour | `generated` (a file), `sent`, `failed` (an API export) | |
+| `payroll_export.outcome` | Harbour | `generated` (a file), `pending` (an API export) | |
+| `payroll_export.payroll_references` | Harbour | JSON object, member id to payroll reference | As exported; re-exports reuse it |
+| `payroll_export_result.outcome` | Harbour | `sent`, `failed`, `unknown` | One per API export; `unknown` when no answer came |
 | Exported amounts | Pounds | `-?[0-9]+\.[0-9]{2}`, no symbol or separator | From whole pence |
 | Exported hours | Hours | `[0-9]+\.[0-9]{2}` | From minutes |
 | Auto-enrolment category | Pensions Act 2008 categories | `eligible_jobholder`, `non_eligible_jobholder`, `entitled_worker`, `outside_age_range` | A flag for the employer's own pension process |
-| `payroll_connection.secret_ref` | Harbour | The name of a managed secret, `^[a-z][a-z0-9-]{2,99}$` | Never a token; internal in the export |
+| `payroll_connection.secret_ref` | Harbour | `payroll/{tenant}/{provider}/{connection}`, made by the database | Never a token, never chosen by a caller; internal in the export |
 

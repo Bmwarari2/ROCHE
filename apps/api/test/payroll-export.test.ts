@@ -56,10 +56,7 @@ type Result = {
 };
 
 beforeAll(async () => {
-  h = await createHarness({
-    PAYROLL_XERO: "mock",
-    PAYROLL_TEST_TOKENS: JSON.stringify({ "payroll-xero-demo": "invented-test-token" }),
-  });
+  h = await createHarness({ PAYROLL_XERO: "mock" });
   // Test setup only: a locked run with two lines, and a draft run, written past the pay guards
   // (slice 36's own tests cover how a run is calculated and locked).
   await withAdminClient(async (c) => {
@@ -173,6 +170,39 @@ describe("SCHED-008 exporting a locked pay run", () => {
     expect(JSON.stringify(audit)).not.toMatch(/W001|1920|192000/);
   });
 
+  it("reuses the first export's references, so a later change does not alter a re-export", async () => {
+    const before = (await (
+      await post("owner", `/v1/pay-runs/${LOCKED}/exports`, {
+        format: "sage_csv",
+        confirmReexport: true,
+      })
+    ).json()) as Result;
+    await sql("UPDATE pay_profile SET payroll_reference = 'W009' WHERE member_id = $1", [NURSE]);
+    const after = (await (
+      await post("owner", `/v1/pay-runs/${LOCKED}/exports`, {
+        format: "sage_csv",
+        confirmReexport: true,
+      })
+    ).json()) as Result;
+    expect(after.export.contentSha256).toBe(before.export.contentSha256);
+    expect(after.file?.content).toContain('"W002"');
+    expect(after.file?.content).not.toContain("W009");
+  });
+
+  it("lets only one of two exports at once go out as the first", async () => {
+    await sql("UPDATE pay_profile SET payroll_reference = 'W002' WHERE member_id = $1", [NURSE]);
+    await withAdminClient(async (c) => {
+      await c.query("SET session_replication_role = replica");
+      await c.query("UPDATE pay_run SET calculation = 2 WHERE id = $1", [LOCKED]);
+      await c.query("UPDATE pay_run_line SET calculation = 2 WHERE run_id = $1", [LOCKED]);
+    }, h.db.name);
+    const [one, two] = await Promise.all([
+      post("owner", `/v1/pay-runs/${LOCKED}/exports`, { format: "brightpay_csv" }),
+      post("owner", `/v1/pay-runs/${LOCKED}/exports`, { format: "brightpay_csv" }),
+    ]);
+    expect([one.status, two.status].sort()).toEqual([201, 409]);
+  });
+
   it("refuses Xero until the organisation connects it, then sends through the mock", async () => {
     const before = await post("owner", `/v1/pay-runs/${LOCKED}/exports`, {
       format: "xero_payroll_uk",
@@ -180,42 +210,34 @@ describe("SCHED-008 exporting a locked pay run", () => {
     });
     expect(before.status).toBe(409);
     expect(((await before.json()) as { code: string }).code).toBe("integration_not_connected");
-    // A secret's name, never a token, and only that comes back.
-    const wrong = await post("owner", "/v1/payroll-connections", {
+    // The caller cannot name a secret: the connection names its organisation's own, and it never
+    // comes back.
+    const made = await post("owner", "/v1/payroll-connections", {
       provider: "xero_payroll_uk",
       externalOrganisationId: "xero-org-demo",
-      secretRef: "payroll-xero-missing",
     });
-    expect(wrong.status).toBe(201);
-    const first = (await wrong.json()) as { id: string; version: number };
-    expect(JSON.stringify(first)).not.toContain("payroll-xero-missing");
-    // No tokens under that name in the store: refused, nothing sent.
+    expect(made.status).toBe(201);
+    const connection = (await made.json()) as { id: string };
+    expect(JSON.stringify(connection)).not.toMatch(/payroll\//);
+    // No tokens under that name in the store yet: refused, nothing sent, the attempt recorded as
+    // failed.
     const noTokens = await post("owner", `/v1/pay-runs/${LOCKED}/exports`, {
       format: "xero_payroll_uk",
       confirmReexport: true,
     });
     expect(noTokens.status).toBe(409);
     expect(h.handle.payrollMock.received).toHaveLength(0);
-    expect(
-      (
-        await post("owner", `/v1/payroll-connections/${first.id}/disconnect`, {
-          version: first.version,
-        })
-      ).status,
-    ).toBe(200);
-    expect(
-      (
-        await post("owner", "/v1/payroll-connections", {
-          provider: "xero_payroll_uk",
-          externalOrganisationId: "xero-org-demo",
-          secretRef: "payroll-xero-demo",
-        })
-      ).status,
-    ).toBe(201);
-    const sent = await post("owner", `/v1/pay-runs/${LOCKED}/exports`, {
-      format: "xero_payroll_uk",
-      confirmReexport: true,
-    });
+    // What the OAuth handshake will do: tokens under the organisation's own secret name.
+    h.handle.payrollSecrets.put(
+      `payroll/${DEMO.tenantId}/xero_payroll_uk/${connection.id}`,
+      "invented-test-token",
+    );
+    const send = () =>
+      post("owner", `/v1/pay-runs/${LOCKED}/exports`, {
+        format: "xero_payroll_uk",
+        confirmReexport: true,
+      });
+    const sent = await send();
     expect(sent.status).toBe(201);
     const result = (await sent.json()) as Result & { export: { externalRef: string | null } };
     expect(result.export).toMatchObject({ outcome: "sent", externalRef: "mock-batch-1" });
@@ -224,15 +246,30 @@ describe("SCHED-008 exporting a locked pay run", () => {
     expect(batch?.xeroTenantId).toBe("xero-org-demo");
     expect(batch?.batch.employees.map((e) => e.employeeId)).toEqual(["W001", "W002"]);
     expect(JSON.stringify(batch)).not.toContain(CARER);
-    // A provider failure is recorded as failed, with no words from the provider.
-    h.handle.payrollMock.failNext = true;
-    const failed = (await (
-      await post("owner", `/v1/pay-runs/${LOCKED}/exports`, {
-        format: "xero_payroll_uk",
-        confirmReexport: true,
-      })
-    ).json()) as Result;
-    expect(failed.export.outcome).toBe("failed");
+    // A refusal is failed; no answer is unknown, which says to check Xero first.
+    h.handle.payrollMock.failNext = "rejected";
+    expect(((await (await send()).json()) as Result).export.outcome).toBe("failed");
+    h.handle.payrollMock.failNext = "no_answer";
+    const unknown = (await (await send()).json()) as Result;
+    expect(unknown.export.outcome).toBe("unknown");
+    expect(unknown.message).toMatch(/Check in Xero/);
+    const recorded = await sql<{ action: string }>(
+      "SELECT action FROM audit_event WHERE action = 'scheduling.payroll_export.result_recorded'",
+    );
+    expect(recorded.length).toBeGreaterThanOrEqual(4);
+    // Disconnected: refused again.
+    const live = (await (await as("owner", "/v1/payroll-connections")).json()) as {
+      items: { id: string; version: number; status: string }[];
+    };
+    const current = live.items.find((i) => i.id === connection.id);
+    expect(
+      (
+        await post("owner", `/v1/payroll-connections/${connection.id}/disconnect`, {
+          version: current?.version,
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send()).status).toBe(409);
   });
 
   it("keeps another organisation's run out of reach", async () => {

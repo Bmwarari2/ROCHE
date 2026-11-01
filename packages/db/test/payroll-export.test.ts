@@ -11,9 +11,10 @@ import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./suppo
  * - cross-tenant denial;
  * - an export only of a locked run's current calculation, and a Xero export only when connected;
  * - only holders of finance.payroll.export across the organisation who also read pay;
- * - exports append-only, with the database deciding whether one is a re-export;
- * - one connected row per provider, holding a secret's name and never a token;
- * - payroll references unique in the organisation.
+ * - exports append-only, with the database deciding whether one is a re-export, one at a time;
+ * - an API export's result once, and a known failure not counting as exported;
+ * - one connected row per provider, naming the organisation's own secret, never a token;
+ * - payroll references unique in the organisation, never shaped like an NI number.
  * All the people here are invented.
  */
 
@@ -35,6 +36,7 @@ const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
 const SET = "0199f676-0000-7000-8000-0000000000a1";
 const LOCKED = "0199f676-0000-7000-8000-0000000000b1";
 const DRAFT = "0199f676-0000-7000-8000-0000000000b2";
+const RACED = "0199f676-0000-7000-8000-0000000000b3";
 const HASH = "c".repeat(64);
 
 const code = (p: Promise<unknown>) =>
@@ -42,24 +44,32 @@ const code = (p: Promise<unknown>) =>
     () => "ok",
     (e: { message?: string }) => e.message ?? "error",
   );
-const exportRow = (c: pg.PoolClient, run: string, over: Record<string, unknown> = {}) =>
-  c.query<{ id: string; reexport: boolean }>(
+const exportRow = (c: pg.PoolClient, run: string, over: Record<string, unknown> = {}) => {
+  const format = (over.format as string | undefined) ?? "brightpay_csv";
+  return c.query<{ id: string; reexport: boolean }>(
     `INSERT INTO payroll_export (run_id, calculation, format, format_version, line_count,
-       content_sha256, outcome, external_ref, exported_by)
-     VALUES ($1, $2, $3, 1, 2, $4, $5, $6, app.current_user_id()) RETURNING id, reexport`,
+       content_sha256, outcome, payroll_references, exported_by)
+     VALUES ($1, $2, $3, 1, 2, $4, $5, '{}', app.current_user_id()) RETURNING id, reexport`,
     [
       run,
       over.calculation ?? 1,
-      over.format ?? "brightpay_csv",
+      format,
       HASH,
-      over.outcome ?? "generated",
-      over.externalRef ?? null,
+      over.outcome ?? (format === "xero_payroll_uk" ? "pending" : "generated"),
     ],
   );
-const connect = (c: pg.PoolClient, secret = "xero-payroll-tenant-a") =>
-  c.query<{ id: string }>(
+};
+const result = (c: pg.PoolClient, exportId: string, outcome = "sent", ref: string | null = null) =>
+  c.query(
+    `INSERT INTO payroll_export_result (export_id, outcome, external_ref, recorded_by)
+     VALUES ($1, $2, $3, app.current_user_id())`,
+    [exportId, outcome, ref],
+  );
+const connect = (c: pg.PoolClient, secret = "payroll/someone-elses/xero_payroll_uk/x") =>
+  c.query<{ id: string; secret_ref: string; tenant_id: string }>(
     `INSERT INTO payroll_connection (provider, external_organisation_id, secret_ref, connected_by)
-     VALUES ('xero_payroll_uk', 'xero-org-1', $1, app.current_user_id()) RETURNING id`,
+     VALUES ('xero_payroll_uk', 'xero-org-1', $1, app.current_user_id())
+     RETURNING id, secret_ref, tenant_id`,
     [secret],
   );
 
@@ -94,8 +104,9 @@ beforeAll(async () => {
       `INSERT INTO pay_run (id, tenant_id, frequency, period_start, period_end, rule_set_id, nation,
          calculation, status, locked_by, locked_at)
        VALUES ($1, $3, 'monthly', '2026-10-01', '2026-10-31', $4, 'england', 1, 'locked', $5, now()),
-              ($2, $3, 'monthly', '2026-11-01', '2026-11-30', $4, 'england', 1, 'draft', NULL, NULL)`,
-      [LOCKED, DRAFT, TENANT_A, SET, a.manager],
+              ($2, $3, 'monthly', '2026-11-01', '2026-11-30', $4, 'england', 1, 'draft', NULL, NULL),
+              ($6, $3, 'weekly', '2026-10-05', '2026-10-11', $4, 'england', 1, 'locked', $5, now())`,
+      [LOCKED, DRAFT, TENANT_A, SET, a.manager, RACED],
     );
   });
 }, 120_000);
@@ -120,8 +131,8 @@ describe("SCHED-008 payroll exports", () => {
     const second = await asFinance((c) =>
       c.query<{ reexport: boolean }>(
         `INSERT INTO payroll_export (run_id, calculation, format, format_version, line_count,
-           content_sha256, outcome, reexport, exported_by)
-         VALUES ($1, 1, 'sage_csv', 1, 2, $2, 'generated', false, app.current_user_id())
+           content_sha256, outcome, payroll_references, reexport, exported_by)
+         VALUES ($1, 1, 'sage_csv', 1, 2, $2, 'generated', '{}', false, app.current_user_id())
          RETURNING reexport`,
         [LOCKED, HASH],
       ),
@@ -142,15 +153,15 @@ describe("SCHED-008 payroll exports", () => {
         asFinance((c) =>
           c.query(
             `INSERT INTO payroll_export (run_id, calculation, format, format_version, line_count,
-               content_sha256, outcome, exported_by)
-             VALUES ($1, 1, 'sage_csv', 1, 2, $2, 'generated', $3)`,
+               content_sha256, outcome, payroll_references, exported_by)
+             VALUES ($1, 1, 'sage_csv', 1, 2, $2, 'generated', '{}', $3)`,
             [LOCKED, HASH, a.northManager],
           ),
         ),
       ),
     ).toMatch(/row-level security/);
-    expect(await code(asFinance((c) => exportRow(c, LOCKED, { outcome: "sent" })))).toBe(
-      "payroll_export_file_outcome",
+    expect(await code(asFinance((c) => exportRow(c, LOCKED, { outcome: "pending" })))).toBe(
+      "payroll_export_outcome",
     );
     expect(await code(asNorth((c) => exportRow(c, LOCKED)))).toMatch(/row-level security/);
     const seen = await asNorth((c) => c.query("SELECT 1 FROM payroll_export"));
@@ -158,31 +169,23 @@ describe("SCHED-008 payroll exports", () => {
   });
 
   it("sends to Xero only while the organisation is connected, once per provider", async () => {
-    expect(
-      await code(
-        asFinance((c) => exportRow(c, LOCKED, { format: "xero_payroll_uk", outcome: "sent" })),
-      ),
-    ).toBe("payroll_export_not_connected");
+    expect(await code(asFinance((c) => exportRow(c, LOCKED, { format: "xero_payroll_uk" })))).toBe(
+      "payroll_export_not_connected",
+    );
+    // Whatever secret the caller names, the connection holds its own organisation's.
     const made = await asFinance((c) => connect(c));
-    expect(await code(asFinance((c) => connect(c, "xero-payroll-second")))).toMatch(
-      /payroll_connection_live_key/,
-    );
-    // A token's shape is not a secret's name.
-    expect(await code(asFinance((c) => connect(c, "eyJhbGciOiJIUzI1NiJ9.e30.x")))).toMatch(
-      /payroll_connection_secret_ref/,
-    );
+    const conn = made.rows[0];
+    expect(conn?.secret_ref).toBe(`payroll/${conn?.tenant_id}/xero_payroll_uk/${conn?.id}`);
+    expect(await code(asFinance((c) => connect(c)))).toMatch(/payroll_connection_live_key/);
     expect(
       await code(
-        asFinance((c) =>
-          exportRow(c, LOCKED, {
-            format: "xero_payroll_uk",
-            outcome: "sent",
-            externalRef: "batch-1",
-          }),
-        ),
+        asFinance((c) => exportRow(c, LOCKED, { format: "xero_payroll_uk", outcome: "generated" })),
       ),
-    ).toBe("ok");
-    const id = made.rows[0]?.id as string;
+    ).toBe("payroll_export_outcome");
+    expect(await code(asFinance((c) => exportRow(c, LOCKED, { format: "xero_payroll_uk" })))).toBe(
+      "ok",
+    );
+    const id = conn?.id as string;
     expect(
       await code(
         asFinance((c) =>
@@ -200,11 +203,64 @@ describe("SCHED-008 payroll exports", () => {
         ),
       ),
     ).toBe("payroll_connection_disconnected");
+    expect(await code(asFinance((c) => exportRow(c, LOCKED, { format: "xero_payroll_uk" })))).toBe(
+      "payroll_export_not_connected",
+    );
+  });
+
+  it("records an API export's result once, and only a known failure stops it counting", async () => {
+    await asFinance((c) => connect(c));
+    const first = await asFinance(
+      async (c) => (await exportRow(c, RACED, { format: "xero_payroll_uk" })).rows[0],
+    );
+    expect(first?.reexport).toBe(false);
+    const file = await asFinance(async (c) => (await exportRow(c, LOCKED)).rows[0]);
+    expect(await code(asFinance((c) => result(c, file?.id as string)))).toBe(
+      "payroll_export_result_not_pending",
+    );
     expect(
-      await code(
-        asFinance((c) => exportRow(c, LOCKED, { format: "xero_payroll_uk", outcome: "sent" })),
-      ),
-    ).toBe("payroll_export_not_connected");
+      await code(asFinance((c) => result(c, first?.id as string, "failed", "batch-1"))),
+    ).toMatch(/payroll_export_result_external_ref/);
+    await asFinance((c) => result(c, first?.id as string, "failed"));
+    expect(await code(asFinance((c) => result(c, first?.id as string, "sent")))).toMatch(
+      /payroll_export_result_export_key/,
+    );
+    expect(
+      await code(asFinance((c) => c.query("UPDATE payroll_export_result SET outcome = 'sent'"))),
+    ).toMatch(/permission denied/);
+    // The send that failed does not count: the next is not a re-export. One left pending does.
+    const second = await asFinance(
+      async (c) => (await exportRow(c, RACED, { format: "xero_payroll_uk" })).rows[0],
+    );
+    expect(second?.reexport).toBe(false);
+    const third = await asFinance(
+      async (c) => (await exportRow(c, RACED, { format: "xero_payroll_uk" })).rows[0],
+    );
+    expect(third?.reexport).toBe(true);
+    expect((await asNorth((c) => c.query("SELECT 1 FROM payroll_export_result"))).rowCount).toBe(0);
+  });
+
+  it("lets only one of two exports at once be the first", async () => {
+    await asAdmin(async (c) => {
+      await c.query("SET session_replication_role = replica");
+      await c.query("UPDATE pay_run SET calculation = 2 WHERE id = $1", [RACED]);
+    });
+    let firstInserted!: () => void;
+    const inserted = new Promise<void>((resolve) => {
+      firstInserted = resolve;
+    });
+    const one = asFinance(async (c) => {
+      const row = (await exportRow(c, RACED, { calculation: 2 })).rows[0];
+      firstInserted();
+      // Hold the transaction open while the other export tries.
+      await new Promise((r) => setTimeout(r, 300));
+      return row?.reexport;
+    });
+    await inserted;
+    const two = asFinance(
+      async (c) => (await exportRow(c, RACED, { calculation: 2 })).rows[0]?.reexport,
+    );
+    expect(await Promise.all([one, two])).toEqual([false, true]);
   });
 
   it("keeps a payroll reference unique in the organisation", async () => {
@@ -236,14 +292,28 @@ describe("SCHED-008 payroll exports", () => {
         ),
       ),
     ).toMatch(/pay_profile_payroll_reference/);
+    // Never an NI number, never a name: a works number has a digit.
+    for (const bad of ["QQ123456C", "ada.example"]) {
+      expect(
+        await code(
+          asAdmin((c) =>
+            c.query("UPDATE pay_profile SET payroll_reference = $2 WHERE member_id = $1", [
+              a.carer,
+              bad,
+            ]),
+          ),
+        ),
+      ).toMatch(/pay_profile_payroll_reference/);
+    }
   });
 
   it("keeps exports and connections inside their organisation", async () => {
     const theirs = await asOtherTenant(async (c) => ({
       exports: (await c.query("SELECT 1 FROM payroll_export")).rowCount,
       connections: (await c.query("SELECT 1 FROM payroll_connection")).rowCount,
+      results: (await c.query("SELECT 1 FROM payroll_export_result")).rowCount,
     }));
-    expect(theirs).toEqual({ exports: 0, connections: 0 });
+    expect(theirs).toEqual({ exports: 0, connections: 0, results: 0 });
     const columns = await asAdmin((c) =>
       c.query<{ column_name: string }>(
         "SELECT column_name FROM information_schema.columns WHERE table_name = 'payroll_connection'",

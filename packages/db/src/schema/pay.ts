@@ -137,7 +137,8 @@ export const payProfile = pgTable(
       .where(sql`payroll_reference IS NOT NULL`),
     check(
       "pay_profile_payroll_reference",
-      sql`payroll_reference IS NULL OR payroll_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$'`,
+      // A works number or an employee id: it has a digit, and is never shaped like an NI number.
+      sql`payroll_reference IS NULL OR (payroll_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$' AND payroll_reference ~ '[0-9]' AND payroll_reference !~* '^[a-z]{2}[0-9]{6}[a-d]?$')`,
     ),
     staffRef("pay_profile_member_fk", t, t.memberId),
     check("pay_profile_frequency", sql`frequency IN (${sqlList(PAY_FREQUENCY_CODES)})`),

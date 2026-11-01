@@ -160,6 +160,8 @@ export interface AppHandle {
   readonly signer: SyncTokenSigner;
   /** What the Xero mock was handed (development and tests; scheduling.md section 19 rule 8). */
   readonly payrollMock: MockXeroPayrollClient;
+  /** The mock's tokens by secret name (development and tests). */
+  readonly payrollSecrets: MemoryPayrollSecretStore;
   close(): Promise<void>;
 }
 
@@ -178,6 +180,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
   const ssoKeys = createSsoKeyStore(config);
   const payrollMockClient = new MockXeroPayrollClient();
+  const payrollSecrets = new MemoryPayrollSecretStore();
   const services: Services = {
     config,
     logger,
@@ -195,12 +198,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     oidcDiscovery: createOidcDiscovery(config),
     payrollXero:
       config.PAYROLL_XERO === "mock"
-        ? new XeroPayrollAdapter(
-            payrollMockClient,
-            new MemoryPayrollSecretStore(
-              JSON.parse(config.PAYROLL_TEST_TOKENS) as Record<string, string>,
-            ),
-          )
+        ? new XeroPayrollAdapter(payrollMockClient, payrollSecrets)
         : null,
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
@@ -499,6 +497,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     services,
     signer,
     payrollMock: payrollMockClient,
+    payrollSecrets,
     close: async () => {
       await Promise.all([appPool.end(), authPool.end(), operatorPool.end()]);
     },

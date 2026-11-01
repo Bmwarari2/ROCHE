@@ -46649,7 +46649,7 @@ export interface paths {
     put?: never;
     /**
      * Record a payroll provider connection
-     * @description finance.payroll.export with a fresh sign-in, for the whole organisation, after the OAuth handshake has stored the tokens in the managed secret store under secretRef (the handshake itself comes with the live client, H-1190). One connection per provider. Audited.
+     * @description finance.payroll.export with a fresh sign-in, for the whole organisation, naming the organisation's own secret in the managed store (payroll/{tenant}/{provider}/{connection}; never chosen by the caller), which the OAuth handshake fills (it comes with the live client, H-1190). One connection per provider. Audited.
      */
     post: {
       parameters: {
@@ -59377,7 +59377,7 @@ export interface components {
       contentSha256: string;
       reexport: boolean;
       /** @enum {string} */
-      outcome: "generated" | "sent" | "failed";
+      outcome: "generated" | "pending" | "sent" | "failed" | "unknown";
       externalRef: string | null;
       /** Format: uuid */
       exportedBy: string;
@@ -59425,7 +59425,6 @@ export interface components {
       /** @enum {string} */
       provider: "xero_payroll_uk";
       externalOrganisationId: string;
-      secretRef: string;
     };
     DisconnectPayroll: {
       version: number;

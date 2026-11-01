@@ -208,12 +208,15 @@ const LAYOUTS: Readonly<Record<Exclude<PayrollFormat, "xero_payroll_uk">, Layout
   brightpay_csv: brightpay,
 };
 
+/** Plain code-unit order: never a locale's, which can change with the runtime (rule 5). */
+const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 /** Lines in the order every format uses: by payroll reference, then member id (rule 5). */
 export function orderedLines(lines: readonly ExportLine[]): ExportLine[] {
   return [...lines].sort(
     (a, b) =>
-      (a.payrollReference ?? "").localeCompare(b.payrollReference ?? "", "en-GB") ||
-      a.memberId.localeCompare(b.memberId),
+      byCodeUnit(a.payrollReference ?? "", b.payrollReference ?? "") ||
+      byCodeUnit(a.memberId, b.memberId),
   );
 }
 

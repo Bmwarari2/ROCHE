@@ -46688,8 +46688,10 @@
             "type": "string",
             "enum": [
               "generated",
+              "pending",
               "sent",
-              "failed"
+              "failed",
+              "unknown"
             ]
           },
           "externalRef": {
@@ -46867,16 +46869,11 @@
           "externalOrganisationId": {
             "type": "string",
             "pattern": "^[A-Za-z0-9-]{1,64}$"
-          },
-          "secretRef": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9-]{2,99}$"
           }
         },
         "required": [
           "provider",
-          "externalOrganisationId",
-          "secretRef"
+          "externalOrganisationId"
         ]
       },
       "DisconnectPayroll": {
@@ -99769,7 +99766,7 @@
           "scheduling"
         ],
         "summary": "Record a payroll provider connection",
-        "description": "finance.payroll.export with a fresh sign-in, for the whole organisation, after the OAuth handshake has stored the tokens in the managed secret store under secretRef (the handshake itself comes with the live client, H-1190). One connection per provider. Audited.",
+        "description": "finance.payroll.export with a fresh sign-in, for the whole organisation, naming the organisation's own secret in the managed store (payroll/{tenant}/{provider}/{connection}; never chosen by the caller), which the OAuth handshake fills (it comes with the live client, H-1190). One connection per provider. Audited.",
         "security": [
           {
             "bearerAuth": []

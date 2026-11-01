@@ -29,6 +29,21 @@ H-1190 to H-1195.
 - **Docs:** records of processing (B3), sub-processors (providers are the organisation's
   processors), data standards and the feature register are updated.
 
+## Security review fixes
+
+- Two exports at once: a transaction lock on the run in the API and in the guard, so only one is
+  first; tested in the database and through the API.
+- Xero is recorded and audited as `pending` and committed before the call, which runs outside any
+  transaction. The result goes in the new append-only `payroll_export_result`: `sent`, `failed`
+  (refused, or no tokens) or `unknown` (no answer), and only `failed` stops it counting.
+- The database names a connection's secret (`payroll/{tenant}/{provider}/{connection}`): the caller
+  no longer sends one.
+- Reproducible re-exports: the first export records the references it used and later exports reuse
+  them; ordering is by code unit, not locale.
+- A payroll reference needs a digit and is never an NI number's shape.
+- Refusals are mapped by the database's message (`run_not_locked`, `integration_not_connected`).
+- `PAYROLL_XERO` defaults to `off`.
+
 ## Not built
 
 - The live Xero client and OAuth handshake (H-1190).

@@ -1,5 +1,5 @@
 {
-  "id": "268a69e2-35dc-44b2-9881-335d757a8358",
+  "id": "5173ca76-00e0-4084-8dce-d39a568e21c2",
   "prevId": "3ef3ff96-b76d-4717-80a2-e43b726d6a5a",
   "version": "7",
   "dialect": "postgresql",
@@ -20790,7 +20790,7 @@
       "checkConstraints": {
         "pay_profile_payroll_reference": {
           "name": "pay_profile_payroll_reference",
-          "value": "payroll_reference IS NULL OR payroll_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$'"
+          "value": "payroll_reference IS NULL OR (payroll_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$' AND payroll_reference ~ '[0-9]' AND payroll_reference !~* '^[a-z]{2}[0-9]{6}[a-d]?$')"
         },
         "pay_profile_frequency": {
           "name": "pay_profile_frequency",
@@ -21902,7 +21902,8 @@
           "name": "secret_ref",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "''"
         },
         "status": {
           "name": "status",
@@ -22044,7 +22045,7 @@
         },
         "payroll_connection_secret_ref": {
           "name": "payroll_connection_secret_ref",
-          "value": "secret_ref ~ '^[a-z][a-z0-9-]{2,99}$'"
+          "value": "secret_ref = 'payroll/' || tenant_id::text || '/' || provider || '/' || id::text"
         }
       },
       "isRLSEnabled": false
@@ -22116,11 +22117,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "external_ref": {
-          "name": "external_ref",
-          "type": "text",
+        "payroll_references": {
+          "name": "payroll_references",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "exported_by": {
           "name": "exported_by",
@@ -22216,7 +22217,7 @@
         },
         "payroll_export_outcome": {
           "name": "payroll_export_outcome",
-          "value": "outcome IN ('generated', 'sent', 'failed')"
+          "value": "outcome IN ('generated', 'pending')"
         },
         "payroll_export_hash": {
           "name": "payroll_export_hash",
@@ -22226,9 +22227,138 @@
           "name": "payroll_export_counts",
           "value": "line_count >= 0 AND format_version >= 1 AND calculation >= 1"
         },
-        "payroll_export_external_ref": {
-          "name": "payroll_export_external_ref",
-          "value": "external_ref IS NULL OR external_ref ~ '^[A-Za-z0-9-]{1,64}$'"
+        "payroll_export_references": {
+          "name": "payroll_export_references",
+          "value": "jsonb_typeof(payroll_references) = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payroll_export_result": {
+      "name": "payroll_export_result",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "export_id": {
+          "name": "export_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_ref": {
+          "name": "external_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_by": {
+          "name": "recorded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payroll_export_result_export_key": {
+          "name": "payroll_export_result_export_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "export_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payroll_export_result_export_fk": {
+          "name": "payroll_export_result_export_fk",
+          "tableFrom": "payroll_export_result",
+          "tableTo": "payroll_export",
+          "columnsFrom": [
+            "tenant_id",
+            "export_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payroll_export_result_recorded_by_fk": {
+          "name": "payroll_export_result_recorded_by_fk",
+          "tableFrom": "payroll_export_result",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "recorded_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payroll_export_result_tenant_id_id_key": {
+          "name": "payroll_export_result_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "payroll_export_result_outcome": {
+          "name": "payroll_export_result_outcome",
+          "value": "outcome IN ('sent', 'failed', 'unknown')"
+        },
+        "payroll_export_result_external_ref": {
+          "name": "payroll_export_result_external_ref",
+          "value": "(external_ref IS NULL OR external_ref ~ '^[A-Za-z0-9-]{1,64}$') AND (external_ref IS NULL OR outcome = 'sent')"
         }
       },
       "isRLSEnabled": false

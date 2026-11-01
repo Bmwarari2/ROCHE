@@ -94,6 +94,15 @@ describe("SCHED-008 rules 3 and 5 every line named, always in the same order", (
     const b = buildPayrollFile("sage_csv", RUN, [...lines].reverse());
     expect(a).toEqual(b);
   });
+  it("orders by code unit, never by a locale's rules", () => {
+    const lines = [
+      line({ payrollReference: "a10", memberId: "x" }),
+      line({ payrollReference: "B10", memberId: "y" }),
+      line({ payrollReference: "A10", memberId: "z" }),
+    ];
+    // A locale would put "a10" between "A10" and "B10"; code units put capitals first.
+    expect(orderedLines(lines).map((l) => l.payrollReference)).toEqual(["A10", "B10", "a10"]);
+  });
 });
 
 describe("SCHED-008 rules 4 and 7 the formats", () => {

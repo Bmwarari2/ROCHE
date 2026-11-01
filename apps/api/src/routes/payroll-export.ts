@@ -15,6 +15,7 @@ import {
   payRunLine,
   payrollConnection,
   payrollExport,
+  payrollExportResult,
   type Transaction,
 } from "@harbour/db";
 import {
@@ -26,9 +27,10 @@ import {
   isExportProblem,
   PAYROLL_FORMAT_VERSIONS,
   type Permission,
+  type XeroPayBatch,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
@@ -58,6 +60,7 @@ const EXPORT = "finance.payroll.export" as const satisfies Permission;
 const A = {
   created: "scheduling.payroll_export.created",
   refused: "scheduling.payroll_export.refused",
+  resultRecorded: "scheduling.payroll_export.result_recorded",
   connected: "scheduling.payroll_connection.connected",
   disconnected: "scheduling.payroll_connection.disconnected",
 } as const;
@@ -65,9 +68,15 @@ const A = {
 const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 
 type ExportRow = typeof payrollExport.$inferSelect;
+type ResultRow = typeof payrollExportResult.$inferSelect;
 type ConnectionRow = typeof payrollConnection.$inferSelect;
+type Outcome = z.infer<typeof PayrollExportItem>["outcome"];
 
-const exportItem = (r: ExportRow): z.infer<typeof PayrollExportItem> => ({
+/** An API export reads as its recorded result; with none yet, as pending (rule 8). */
+const exportItem = (
+  r: ExportRow,
+  result: Pick<ResultRow, "outcome" | "externalRef"> | null = null,
+): z.infer<typeof PayrollExportItem> => ({
   id: r.id,
   runId: r.runId,
   calculation: r.calculation,
@@ -76,8 +85,8 @@ const exportItem = (r: ExportRow): z.infer<typeof PayrollExportItem> => ({
   lineCount: r.lineCount,
   contentSha256: r.contentSha256,
   reexport: r.reexport,
-  outcome: r.outcome as z.infer<typeof PayrollExportItem>["outcome"],
-  externalRef: r.externalRef,
+  outcome: (result?.outcome ?? r.outcome) as Outcome,
+  externalRef: result?.externalRef ?? null,
   exportedBy: r.exportedBy,
   exportedAt: r.exportedAt.toISOString(),
 });
@@ -146,10 +155,21 @@ async function refuse(
   throw problem;
 }
 
-/** The run's current calculation's lines, as they may leave (rule 4), with payroll references. */
+/** The database's own words for a refusal (a RAISE): never a failed query's message. */
+function raisedMessage(error: unknown): string | undefined {
+  const e = error as { message?: string; cause?: { message?: string } };
+  return e.cause?.message ?? e.message;
+}
+
+/**
+ * The run's current calculation's lines, as they may leave (rule 4), with payroll references: the
+ * first export's when there was one, so a re-export gives the same content (rule 5), otherwise the
+ * pay profiles' as they stand.
+ */
 async function exportLines(
   tx: Transaction,
   run: { readonly id: string; readonly calculation: number },
+  recorded: Readonly<Record<string, string>> | null,
 ): Promise<ExportLine[]> {
   const rows = await tx
     .select({ l: payRunLine, reference: payProfile.payrollReference })
@@ -164,7 +184,7 @@ async function exportLines(
     .where(and(eq(payRunLine.runId, run.id), eq(payRunLine.calculation, run.calculation)));
   return rows.map(({ l, reference }) => ({
     memberId: l.memberId,
-    payrollReference: reference ?? null,
+    payrollReference: (recorded ? recorded[l.memberId] : reference) ?? null,
     paidMinutes: l.paidMinutes,
     basicPence: l.basicPence,
     premiumPence: l.premiumPence,
@@ -207,11 +227,18 @@ export const payrollExportRouter = createRouter()
         const [run] = await tx.select({ id: payRun.id }).from(payRun).where(eq(payRun.id, id));
         if (!run) throw problems.notFound();
         const rows = await tx
-          .select()
+          .select({ e: payrollExport, r: payrollExportResult })
           .from(payrollExport)
+          .leftJoin(
+            payrollExportResult,
+            and(
+              eq(payrollExportResult.tenantId, payrollExport.tenantId),
+              eq(payrollExportResult.exportId, payrollExport.id),
+            ),
+          )
           .where(eq(payrollExport.runId, id))
           .orderBy(desc(payrollExport.exportedAt));
-        return rows.map(exportItem);
+        return rows.map(({ e, r }) => exportItem(e, r));
       });
       return c.json({ items }, 200);
     },
@@ -241,8 +268,44 @@ export const payrollExportRouter = createRouter()
       const { id } = c.req.valid("param");
       const { format, confirmReexport } = c.req.valid("json");
       const services = c.get("services");
+      const missing = (memberIds: readonly string[]) =>
+        refuse(
+          c,
+          access,
+          id,
+          "payroll_reference_missing",
+          new HttpProblem(
+            422,
+            "payroll_reference_missing",
+            "Some members have no payroll reference. Add one to each member's pay profile.",
+            memberIds.join(", "),
+          ),
+        );
+      const notConnected = (detail: string) =>
+        refuse(
+          c,
+          access,
+          id,
+          "integration_not_connected",
+          new HttpProblem(409, "integration_not_connected", detail),
+        );
+      type Prepared =
+        | { readonly kind: "file"; readonly result: z.infer<typeof PayrollExportResult> }
+        | {
+            readonly kind: "api";
+            readonly row: ExportRow;
+            readonly connection: ConnectionRow;
+            readonly batch: XeroPayBatch;
+          };
+      let prepared: Prepared;
       try {
-        const result = await withTenant(c, async (tx) => {
+        // Rules 1 to 6, in one transaction holding the run's export lock, so two exports at once
+        // cannot both pass as the first. An API export is recorded, and audited, as pending
+        // before anything is sent (rule 8).
+        prepared = await withTenant(c, async (tx): Promise<Prepared> => {
+          await tx.execute(
+            sql`SELECT pg_advisory_xact_lock(app.payroll_export_lock_key(app.current_tenant_id(), ${id}::uuid))`,
+          );
           const [run] = await tx.select().from(payRun).where(eq(payRun.id, id));
           if (!run) throw problems.notFound();
           if (run.status !== "locked") {
@@ -254,18 +317,20 @@ export const payrollExportRouter = createRouter()
               new HttpProblem(409, "run_not_locked", "Only a locked pay run can be exported."),
             );
           }
-          const [earlier] = await tx
-            .select({ id: payrollExport.id })
+          const earlier = await tx
+            .select({ e: payrollExport, outcome: payrollExportResult.outcome })
             .from(payrollExport)
-            .where(
+            .leftJoin(
+              payrollExportResult,
               and(
-                eq(payrollExport.runId, id),
-                eq(payrollExport.calculation, run.calculation),
-                ne(payrollExport.outcome, "failed"),
+                eq(payrollExportResult.tenantId, payrollExport.tenantId),
+                eq(payrollExportResult.exportId, payrollExport.id),
               ),
             )
-            .limit(1);
-          if (earlier && !confirmReexport) {
+            .where(and(eq(payrollExport.runId, id), eq(payrollExport.calculation, run.calculation)))
+            .orderBy(asc(payrollExport.exportedAt), asc(payrollExport.id));
+          // A pending or unknown send counts: only a known failure does not (as the guard).
+          if (earlier.some((r) => r.outcome !== "failed") && !confirmReexport) {
             return refuse(
               c,
               access,
@@ -278,17 +343,50 @@ export const payrollExportRouter = createRouter()
               ),
             );
           }
-          const lines = await exportLines(tx, run);
+          const recorded = (earlier[0]?.e.payrollReferences ?? null) as Record<
+            string,
+            string
+          > | null;
+          const lines = await exportLines(tx, run, recorded);
+          const references = Object.fromEntries(
+            lines.flatMap((l) => (l.payrollReference ? [[l.memberId, l.payrollReference]] : [])),
+          );
           const shape = {
             id: run.id,
             frequency: run.frequency,
             periodStart: run.periodStart,
             periodEnd: run.periodEnd,
           };
-          let file: z.infer<typeof PayrollExportResult>["file"] = null;
-          let contentSha256: string;
-          let outcome: "generated" | "sent" | "failed" = "generated";
-          let externalRef: string | null = null;
+          const record = async (contentSha256: string, outcome: "generated" | "pending") => {
+            const [row] = await tx
+              .insert(payrollExport)
+              .values({
+                runId: run.id,
+                calculation: run.calculation,
+                format,
+                formatVersion: PAYROLL_FORMAT_VERSIONS[format],
+                lineCount: lines.length,
+                contentSha256,
+                outcome,
+                payrollReferences: references,
+                exportedBy: access.tenantUserId,
+              })
+              .returning();
+            if (!row) throw new Error("export not recorded");
+            await audit(c, tx, access, {
+              action: A.created,
+              resourceType: "payroll_export",
+              resourceId: row.id,
+              scopeExtra: {
+                runId: run.id,
+                format,
+                lineCount: row.lineCount,
+                reexport: row.reexport,
+                outcome,
+              },
+            });
+            return row;
+          };
           if (format === "xero_payroll_uk") {
             const [connection] = await tx
               .select()
@@ -301,128 +399,112 @@ export const payrollExportRouter = createRouter()
                 ),
               );
             if (!connection || !services.payrollXero) {
-              return refuse(
-                c,
-                access,
-                id,
-                "integration_not_connected",
-                new HttpProblem(
-                  409,
-                  "integration_not_connected",
-                  "Xero Payroll is not connected for your organisation. Connect it first, or export a file.",
-                ),
+              return notConnected(
+                "Xero Payroll is not connected for your organisation. Connect it first, or export a file.",
               );
             }
             const batch = buildXeroBatch(shape, lines);
-            if (isExportProblem(batch)) {
-              return refuse(
-                c,
-                access,
-                id,
-                "payroll_reference_missing",
-                new HttpProblem(
-                  422,
-                  "payroll_reference_missing",
-                  "Some members have no payroll reference. Add one to each member's pay profile.",
-                  batch.memberIds.join(", "),
-                ),
-              );
-            }
-            contentSha256 = sha256(canonicalInput(batch));
-            const sent = await services.payrollXero.send(connection, batch);
-            outcome = sent.outcome;
-            externalRef = sent.externalRef;
-          } else {
-            const built = buildPayrollFile(format, shape, lines);
-            if (isExportProblem(built)) {
-              return refuse(
-                c,
-                access,
-                id,
-                "payroll_reference_missing",
-                new HttpProblem(
-                  422,
-                  "payroll_reference_missing",
-                  "Some members have no payroll reference. Add one to each member's pay profile.",
-                  built.memberIds.join(", "),
-                ),
-              );
-            }
-            contentSha256 = sha256(built.content);
-            file = {
-              fileName: built.fileName,
-              contentType: built.contentType,
-              content: built.content,
-            };
+            if (isExportProblem(batch)) return missing(batch.memberIds);
+            const row = await record(sha256(canonicalInput(batch)), "pending");
+            return { kind: "api", row, connection, batch };
           }
-          const [row] = await tx
-            .insert(payrollExport)
-            .values({
-              runId: run.id,
-              calculation: run.calculation,
-              format,
-              formatVersion: PAYROLL_FORMAT_VERSIONS[format],
-              lineCount: lines.length,
-              contentSha256,
-              outcome,
-              externalRef,
-              exportedBy: access.tenantUserId,
-            })
-            .returning();
-          if (!row) throw new Error("export not recorded");
-          await audit(c, tx, access, {
-            action: A.created,
-            resourceType: "payroll_export",
-            resourceId: row.id,
-            scopeExtra: {
-              runId: run.id,
-              format,
-              lineCount: row.lineCount,
-              reexport: row.reexport,
-              outcome,
-            },
-          });
-          const message =
-            outcome === "failed"
-              ? "Xero Payroll did not accept the export. Nothing was paid: try again, or export a file."
-              : row.reexport
+          const built = buildPayrollFile(format, shape, lines);
+          if (isExportProblem(built)) return missing(built.memberIds);
+          const row = await record(sha256(built.content), "generated");
+          return {
+            kind: "file",
+            result: {
+              export: exportItem(row),
+              file: {
+                fileName: built.fileName,
+                contentType: built.contentType,
+                content: built.content,
+              },
+              message: row.reexport
                 ? "Exported again. This pay run had been exported before: check payroll will not pay it twice."
-                : "Exported.";
-          return { export: exportItem(row), file, message };
+                : "Exported.",
+            },
+          };
         });
-        return c.json(result, 201);
       } catch (error) {
-        if (error instanceof PayrollNotConnected) {
-          return refuse(
-            c,
-            access,
-            id,
-            "integration_not_connected",
-            new HttpProblem(
-              409,
-              "integration_not_connected",
-              "Xero Payroll's connection has no tokens. Connect it again, or export a file.",
-            ),
-          );
-        }
-        const code = dbCode(error);
-        if (code === "23514") {
+        if (dbCode(error) === "23514") {
+          const raised = raisedMessage(error);
+          if (raised === "payroll_export_not_connected") {
+            return notConnected(
+              "Xero Payroll was disconnected while exporting. Connect it again, or export a file.",
+            );
+          }
           return refuse(
             c,
             access,
             id,
             "refused_by_database",
-            new HttpProblem(
-              409,
-              "run_not_locked",
-              "Only a locked pay run's current calculation can be exported.",
-            ),
+            raised === "payroll_export_not_locked"
+              ? new HttpProblem(
+                  409,
+                  "run_not_locked",
+                  "Only a locked pay run's current calculation can be exported.",
+                )
+              : new HttpProblem(409, "export_refused", "This export cannot be recorded."),
           );
         }
-        if (code === "42501")
+        if (dbCode(error) === "42501")
           return refuse(c, access, id, "refused_by_database", problems.forbidden());
         throw error;
       }
+      if (prepared.kind === "file") return c.json(prepared.result, 201);
+
+      // Rule 8: the call to Xero, outside any transaction. A refusal is failed; no answer is
+      // unknown, which still counts as exported until someone checks Xero.
+      const { row, connection, batch } = prepared;
+      const adapter = services.payrollXero;
+      let sent: { outcome: "sent" | "failed" | "unknown"; externalRef: string | null };
+      let noTokens = false;
+      if (!adapter) {
+        sent = { outcome: "failed", externalRef: null };
+        noTokens = true;
+      } else {
+        try {
+          sent = await adapter.send(connection, batch);
+        } catch (error) {
+          if (!(error instanceof PayrollNotConnected)) throw error;
+          sent = { outcome: "failed", externalRef: null };
+          noTokens = true;
+        }
+      }
+      const result = await withTenant(c, async (tx) => {
+        const [recorded] = await tx
+          .insert(payrollExportResult)
+          .values({
+            exportId: row.id,
+            outcome: sent.outcome,
+            externalRef: sent.externalRef,
+            recordedBy: access.tenantUserId,
+          })
+          .returning();
+        if (!recorded) throw new Error("result not recorded");
+        await audit(c, tx, access, {
+          action: A.resultRecorded,
+          resourceType: "payroll_export",
+          resourceId: row.id,
+          scopeExtra: { runId: row.runId, outcome: sent.outcome },
+        });
+        return recorded;
+      });
+      if (noTokens) {
+        return notConnected(
+          "Xero Payroll's connection has no tokens. Connect it again, or export a file.",
+        );
+      }
+      const message =
+        sent.outcome === "failed"
+          ? "Xero Payroll did not accept the export. Nothing was paid: try again, or export a file."
+          : sent.outcome === "unknown"
+            ? "Xero Payroll did not answer. Check in Xero whether the pay run arrived before exporting again."
+            : row.reexport
+              ? "Exported again. This pay run had been exported before: check payroll will not pay it twice."
+              : "Exported.";
+      return c.json({ export: exportItem(row, result), file: null, message }, 201);
     },
   )
   .openapi(
@@ -452,7 +534,7 @@ export const payrollExportRouter = createRouter()
       tags: ["scheduling"],
       summary: "Record a payroll provider connection",
       description:
-        "finance.payroll.export with a fresh sign-in, for the whole organisation, after the OAuth handshake has stored the tokens in the managed secret store under secretRef (the handshake itself comes with the live client, H-1190). One connection per provider. Audited.",
+        "finance.payroll.export with a fresh sign-in, for the whole organisation, naming the organisation's own secret in the managed store (payroll/{tenant}/{provider}/{connection}; never chosen by the caller), which the OAuth handshake fills (it comes with the live client, H-1190). One connection per provider. Audited.",
       security,
       request: { body: { content: { "application/json": { schema: NewPayrollConnection } } } },
       responses: {
@@ -471,7 +553,6 @@ export const payrollExportRouter = createRouter()
             .values({
               provider: body.provider,
               externalOrganisationId: body.externalOrganisationId,
-              secretRef: body.secretRef,
               connectedBy: access.tenantUserId,
             })
             .returning();

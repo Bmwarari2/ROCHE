@@ -23,6 +23,13 @@ export interface XeroPayrollClient {
   }): Promise<{ readonly batchId: string }>;
 }
 
+/** The provider answered and refused the batch: nothing was taken in. */
+export class PayrollRejected extends Error {
+  constructor() {
+    super("payroll_rejected");
+  }
+}
+
 export class PayrollNotConnected extends Error {
   constructor() {
     super("payroll_not_connected");
@@ -30,7 +37,8 @@ export class PayrollNotConnected extends Error {
 }
 
 export interface PayrollSendResult {
-  readonly outcome: "sent" | "failed";
+  /** `unknown` when no answer came (a timeout or a dropped connection): it may have arrived. */
+  readonly outcome: "sent" | "failed" | "unknown";
   readonly externalRef: string | null;
 }
 
@@ -57,9 +65,12 @@ export class XeroPayrollAdapter {
         outcome: "sent",
         externalRef: /^[A-Za-z0-9-]{1,64}$/.test(batchId) ? batchId : null,
       };
-    } catch {
-      // The provider's words never reach the record or the log: only that it failed.
-      return { outcome: "failed", externalRef: null };
+    } catch (error) {
+      // The provider's words never reach the record or the log: only whether it refused.
+      return {
+        outcome: error instanceof PayrollRejected ? "failed" : "unknown",
+        externalRef: null,
+      };
     }
   }
 }
@@ -70,25 +81,32 @@ export class XeroPayrollAdapter {
  */
 export class MockXeroPayrollClient implements XeroPayrollClient {
   readonly received: { xeroTenantId: string; batch: XeroPayBatch }[] = [];
-  failNext = false;
+  /** The next call's misfortune: a refusal, or no answer at all. */
+  failNext: "rejected" | "no_answer" | null = null;
   async submitPayBatch(input: {
     readonly accessToken: string;
     readonly xeroTenantId: string;
     readonly batch: XeroPayBatch;
   }): Promise<{ readonly batchId: string }> {
-    if (this.failNext) {
-      this.failNext = false;
-      throw new Error("mock failure");
-    }
+    const failure = this.failNext;
+    this.failNext = null;
+    if (failure === "rejected") throw new PayrollRejected();
+    if (failure === "no_answer") throw new Error("mock timeout");
     this.received.push({ xeroTenantId: input.xeroTenantId, batch: input.batch });
     return { batchId: `mock-batch-${this.received.length}` };
   }
 }
 
-/** Tokens by secret name from a JSON map (development and tests only). */
+/**
+ * Tokens by secret name, in memory (development and tests only): what the OAuth handshake will
+ * write to the managed store under the connection's own name.
+ */
 export class MemoryPayrollSecretStore implements PayrollSecretStore {
-  constructor(private readonly tokens: Readonly<Record<string, string>>) {}
+  private readonly tokens = new Map<string, string>();
+  put(secretRef: string, accessToken: string): void {
+    this.tokens.set(secretRef, accessToken);
+  }
   async accessToken(secretRef: string): Promise<string | null> {
-    return this.tokens[secretRef] ?? null;
+    return this.tokens.get(secretRef) ?? null;
   }
 }

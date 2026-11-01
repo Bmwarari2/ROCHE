@@ -23,7 +23,13 @@ export const PayrollExportItem = z
     contentSha256: z.string(),
     /** Another export of the same calculation came before: check payroll is not paid twice. */
     reexport: z.boolean(),
-    outcome: z.enum(["generated", "sent", "failed"]),
+    /**
+     * A file is generated. An API export is pending until the provider answers, then sent,
+     * failed (refused: nothing taken in) or unknown (no answer: check the provider before
+     * exporting again). Only failed does not count as exported.
+     */
+    outcome: z.enum(["generated", "pending", "sent", "failed", "unknown"]),
+    /** The provider's batch id, when it sent one. */
     externalRef: z.string().nullable(),
     exportedBy: uuid,
     exportedAt: isoDateTime,
@@ -78,8 +84,6 @@ export const NewPayrollConnection = z
   .object({
     provider: z.enum(["xero_payroll_uk"]),
     externalOrganisationId: z.string().regex(/^[A-Za-z0-9-]{1,64}$/),
-    /** The name of the managed secret the OAuth handshake stored the tokens under. */
-    secretRef: z.string().regex(/^[a-z][a-z0-9-]{2,99}$/),
   })
   .meta({ id: "NewPayrollConnection" });
 

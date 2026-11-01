@@ -114,12 +114,11 @@ const Env = z.object({
   SSO_KEY_STORE: z.enum(["aws", "memory"]).default("memory"),
   /**
    * Payroll export to Xero Payroll UK (scheduling.md section 19 rule 8): `mock` records batches and
-   * calls nothing, with tokens from PAYROLL_TEST_TOKENS (a JSON map of secret name to token);
-   * `off` refuses every API export. The live client is not built yet (H-1190), so production
-   * accepts only `off`.
+   * calls nothing, with tokens held in memory under each connection's own secret name;
+   * `off` (the default) refuses every API export. The live client is not built yet (H-1190), so
+   * production accepts only `off`.
    */
-  PAYROLL_XERO: z.enum(["off", "mock"]).default("mock"),
-  PAYROLL_TEST_TOKENS: z.string().default("{}"),
+  PAYROLL_XERO: z.enum(["off", "mock"]).default("off"),
   SSO_TEST_KEYS: z.string().default("{}"),
   /**
    * DNS proofs and OpenID discovery: the network, or in tests SSO_MOCK_TXT (JSON map of record
