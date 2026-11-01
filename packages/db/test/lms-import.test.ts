@@ -122,6 +122,12 @@ beforeAll(async () => {
     );
   });
   FILE = (await asHr(async (c) => one(source(c, "file", "Learning Hub")))).id;
+  await asHr((c) =>
+    c.query(
+      "INSERT INTO lms_course_map (source_id, course_code, topic) VALUES ($1, 'FIRE-01', 'fire_safety')",
+      [FILE],
+    ),
+  );
 }, 120_000);
 
 afterAll(async () => {
