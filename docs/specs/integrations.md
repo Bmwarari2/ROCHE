@@ -185,6 +185,9 @@ the ratchet test checks.
 13. **Thapsus-HR as rota owner.** If a tenant makes Thapsus-HR the rota owner, Harbour checks every
     incoming shift against competence, required checks and the tenant's staffing need, and alerts
     the rota manager (HZ-123, HZ-124).
+14. **Thapsus-HR's rules stand.** For example, Thapsus-HR refuses overlapping shifts for one
+    employee. Harbour treats such a refusal as a delivery error for the rota manager to review. It
+    is never a reason to change Thapsus-HR's behaviour for its other customers (section 11.9).
 
 ### 11.6 API and events
 
@@ -246,7 +249,7 @@ Fields that cross, by flow:
 | Employee to Harbour | Thapsus-HR identifier, employee number, names, work email, work phone, date of birth (for matching only), job title, location, contracted hours, start date, leaving date |
 | Starter to Thapsus-HR | Names, work email, date of birth, job title, location, contracted hours, start date |
 | Absence to Harbour | Thapsus-HR identifier, employee, type (leave, sickness or other), start, end, status |
-| Shift to Thapsus-HR | Harbour reference, employee, location, role, start, end, break minutes, sleep-in flag |
+| Shift to Thapsus-HR | Harbour reference, employee, location, role, start, end, break minutes. Sleep-ins reach payroll as pay units, not as a shift attribute |
 | Clock event to Thapsus-HR | Harbour reference, employee, kind (in or out), time, location; no GPS position |
 | Pay units to Thapsus-HR | Employee, pay period, pay code, units |
 | Rate to Harbour | Employee, hourly rate, effective from |
@@ -261,26 +264,81 @@ Fields that cross, by flow:
 **Notice.** The provider's staff privacy notice template gains a sentence naming the HR platform as
 a recipient.
 
-### 11.9 What Thapsus-HR must add (H-1343)
+### 11.9 Changes to Thapsus-HR, without changing it for its other customers (H-1343)
 
-Thapsus-HR's `/v1` changes only by adding things, so each item below is additive:
+Thapsus-HR may change to support the link. Most of its customers are not care providers, though,
+and none of them may notice any difference. Its side is planned as its own Phase 18, "Partner
+workforce link", with an ADR of its own, built and verified in its repository. This section is
+the text for that phase.
 
-1. Webhook events, carrying identifiers only:
-   - `shift.created`, `shift.changed` and `shift.cancelled`;
-   - `leave.approved` and `leave.cancelled`;
-   - `sickness.recorded` and `sickness.ended`;
-   - `timesheet.approved`.
-2. Shifts and clock events owned by a partner:
-   - a `partner` source with a partner reference;
-   - lookup by that reference;
-   - partner-owned shifts read-only in Thapsus-HR's screens.
-3. A pay inputs route and scope that accept units by pay code for each employee and pay period,
-   idempotent by partner reference. Today `/v1/payroll` is closed to API clients.
-4. A narrow read of hourly pay rates and pay periods, giving rate and effective dates only.
-5. Thapsus-HR's outbound rules accepting Harbour's webhook receiver host.
+**Principles**
 
-Until these ship, Harbour builds and tests against the mock. Only the flows marked available in
-section 11.2 can go live.
+1. **Generic, not care-specific.** Thapsus-HR gains a "partner system" capability that any
+   workforce system could use:
+   - shifts and clock events managed by a partner;
+   - partner pay items;
+   - more webhook events.
+
+   No care-sector rule, term, screen or jurisdiction-pack value is added to Thapsus-HR. Care logic
+   (sleep-ins, competence, safe staffing) stays in Harbour, and sleep-ins reach payroll as pay
+   items.
+2. **Inert until connected.**
+   - Nothing changes for a tenant until its administrator creates a partner connection.
+   - The connection sits behind a per-tenant feature flag, `partnerLink`, off by default, in
+     Thapsus-HR's existing registry (`packages/core/src/features.ts`).
+   - A tenant without a connection has no partner rows, so none of the new code paths run.
+3. **Additive only.**
+   - The changes are new tables, nullable columns, widened lists of allowed values, new routes, new
+     scopes and new event types.
+   - No existing route, field, scope, event payload, export format or default changes meaning.
+   - This stays within Thapsus-HR's own `/v1` rule (`docs/api.md`: new endpoints, optional fields
+     and enum values only).
+   - Its migrations stay expand-and-contract.
+4. **Opt-in events.** Each Thapsus-HR webhook endpoint lists its event types
+   (`webhook_endpoints.event_types`), so an existing endpoint never receives the new events unless
+   its owner adds them.
+5. **UK only for Harbour.** Thapsus-HR refuses a Harbour connection for a tenant whose home region
+   is not `uk`. Its EU and US customers see no change.
+
+**The changes**
+
+| # | Change | Who sees a difference |
+| --- | --- | --- |
+| K1 | **Partner connections**: a `partner_connections` table holding the partner kind, the linked API client, the locations covered, and which of shifts, time and pay items the partner owns; administration screens to create, pause and remove a connection, with step-up | Only a tenant that creates one |
+| K2 | **Partner-managed records**: nullable `partner_connection_id` and `partner_ref` on `shifts` and `clock_events`, unique per connection, with lookup by partner reference; `clock_events.source` gains `partner`. Partner-managed rows are read-only in screens and to other API clients (`409 partnerManaged`), labelled "Managed in" and the partner's name | Only rows a partner wrote, which exist only in connected tenants |
+| K3 | **New events** in the catalogue and `docs/api.md`, carrying identifiers only: `shift.created`, `shift.changed` and `shift.cancelled`; `leave.approved` and `leave.cancelled`; `sickness.recorded` and `sickness.ended`, with dates only and never health data; `timesheet.approved` | Only endpoints that subscribe to them |
+| K4 | **Partner pay items**: a new table and route (`PUT /v1/pay-periods/{id}/partner-items`, scope `pay-items:write`), idempotent by partner reference. A `partnerItems` section in payroll inputs and snapshots, mapped to earnings by each payroll connector's mapping. For an employee whose pay a partner owns, the hours section takes the partner's items instead of timesheets, so nobody is paid twice | Only tenants with partner items |
+| K5 | **A narrow pay read**: scope `pay-rates:read`, giving the hourly rate and effective dates only, within the client's location scope, with every read audited. Pay periods become readable by API clients | Only clients granted the scope |
+| K6 | **A rate-limit bucket for partners**: a partner client's calls use their own bucket, so a sync never uses up the allowance of the tenant's other API clients | Only partner clients |
+| K7 | **Documentation**: Harbour listed as a customer-enabled integration in `SUBPROCESSORS.md` (UK only) before any code is written, plus `docs/api.md` and the admin guide | - |
+
+**How "no change for everyone else" is proven.** Each item below is an acceptance criterion of
+Thapsus-HR's Phase 18:
+
+- **Payroll outputs are unchanged.** For a tenant without a partner, payroll inputs, snapshots and
+  every export format (CSV, Excel and Xero) are byte-identical before and after the change.
+  - Golden tests on the demo tenant and the enterprise synthetic tenant prove it, including
+    snapshot hashes.
+  - The `partnerItems` section is left out of the canonical JSON when it is empty.
+- **The API only grows.** The OpenAPI diff between `main` and the phase branch shows additions
+  only, checked in `pnpm verify`.
+- **Everything else still passes.** The whole existing `pnpm verify` suite passes with the feature
+  deployed and no partner connected: unit, integration, contract, isolation, residency, end-to-end
+  with axe, visual regression in light and dark, and Lighthouse. The only snapshot changes are for
+  the new screens.
+- **Existing webhooks are unchanged.** A test with a recorded endpoint shows existing endpoints
+  receive exactly the events they did before.
+- **Isolation and residency.**
+  - The new tables join the isolation suite.
+  - Residency tests cover every region pair.
+  - A Harbour connection is refused for EU and US tenants.
+- **Performance holds.** Load-test results for the rota grid, clocking and payroll close stay
+  within their current budgets.
+- **Rollback is clean.** Turning the flag off or removing the connection stops all partner
+  behaviour. The migrations only add things, so the previous release runs on the new schema.
+
+Until the changes ship, Harbour builds and tests against the mock. Only the flows marked available
+in section 11.2 can go live.
 
 ### 11.10 Tests
 

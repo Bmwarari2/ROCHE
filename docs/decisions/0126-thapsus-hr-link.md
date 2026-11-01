@@ -91,6 +91,13 @@ full reconciliation. A pay owner changes only from the next pay period.
   the last good sync still applies.
 - **No double payment.** When pay goes through Thapsus-HR, Harbour's payroll export (slice 76) is
   switched off for that tenant.
+- **Thapsus-HR stays the same for its other customers.**
+  - The changes it needs are generic partner features, with nothing specific to care.
+  - They do nothing until a tenant connects a partner, and they only add to its API, schema and
+    events.
+  - Payroll outputs that stay byte-identical and an additions-only API check prove there is no
+    change for every other customer ([integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014)
+    section 11.9).
 
 ### Consequences
 
@@ -100,9 +107,11 @@ full reconciliation. A pay owner changes only from the next pay period.
   - Each product still works on its own.
 - Good: linked tenants don't need Harbour's payroll export. Thapsus-HR's existing payroll
   connectors deliver pay.
-- Bad: Thapsus-HR needs changes before the live link works. They are listed in
-  [integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014) section 11.9 and logged
-  as H-1343. Harbour builds against a contract-tested mock until then (section 20 rule 2).
+- Bad: Thapsus-HR needs changes before the live link works.
+  - They are listed in [integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014)
+    section 11.9 as Thapsus-HR's Phase 18, and logged as H-1343.
+  - Each one does nothing for a tenant that has not connected a partner.
+  - Harbour builds against a contract-tested mock until then (section 20 rule 2).
 - Bad: a provider that wants to edit rotas in Thapsus-HR must make Thapsus-HR the rota owner.
   - Edits made there then miss Harbour's checks at the time of editing.
   - Harbour checks every incoming shift afterwards and alerts the rota manager (HZ-123, HZ-124).
