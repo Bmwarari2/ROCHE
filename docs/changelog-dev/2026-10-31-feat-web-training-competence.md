@@ -85,3 +85,9 @@ Branch `feat/web-training-competence`, cut from `feat/work-training-competence` 
   - "not needed" given its own icon;
   - journeys with axe.
   Logged: the record's page title (H-1046) and custom role names (known gap).
+
+## Follow-up: notes of a deleted supervision (01/11/2026)
+
+- A supervision note is hidden from every reader, the system and so exports and subject access included, once its supervision record is soft-deleted (recorded in error, or about the wrong person).
+- The read policy in migration 0114 (edited in place; not on main) now needs `app.supervision_in_force`. That is a definer answering yes or no, executable by `harbour_app` only and listed in the definer test.
+- Test: `packages/db/test/supervision-notes.test.ts`.

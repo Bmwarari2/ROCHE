@@ -78,12 +78,29 @@ REVOKE ALL ON FUNCTION app.supervises_member(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.supervises_member(uuid) TO harbour_app;
 --> statement-breakpoint
 
+-- Whether a supervision record is in force: not soft-deleted (recorded in error, or about the wrong
+-- person). Definer rights, so a note's reader need not read the supervision row itself; it answers
+-- yes or no only.
+CREATE OR REPLACE FUNCTION app.supervision_in_force(p_supervision_id uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.supervision_record r
+    WHERE r.tenant_id = app.current_tenant_id() AND r.id = p_supervision_id
+      AND r.deleted_at IS NULL)
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.supervision_in_force(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.supervision_in_force(uuid) TO harbour_app;
+--> statement-breakpoint
+-- A note is read only while its supervision is in force: once the supervision record is
+-- soft-deleted its notes are hidden from every reader, the system (exports, subject access) included.
 CREATE POLICY supervision_note_read ON public.supervision_note AS RESTRICTIVE FOR SELECT
   TO harbour_app
-  USING (app.is_system()
+  USING (app.supervision_in_force(supervision_id) AND (app.is_system()
     OR written_by = app.current_user_id()
     OR app.reads_own_development(worker_id)
-    OR app.supervises_member(worker_id));
+    OR app.supervises_member(worker_id)));
 --> statement-breakpoint
 CREATE POLICY supervision_note_insert ON public.supervision_note AS RESTRICTIVE FOR INSERT
   TO harbour_app

@@ -32,6 +32,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.seed_discard_reasons(uuid)": [],
   // Supervision notes (slice 57, migration 0114): read rule of supervision_note.
   "app.supervises_member(uuid)": ["harbour_app"],
+  "app.supervision_in_force(uuid)": ["harbour_app"],
   // The round gate data (migration 0071): called only by its own definer trigger functions.
   "app.refresh_earlier_plan(uuid, uuid[])": [],
   "app.task_from_earlier_plan(uuid, uuid)": [],

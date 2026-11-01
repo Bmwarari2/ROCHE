@@ -202,4 +202,19 @@ describe("reading supervision notes", () => {
   it("hides it from another organisation", async () => {
     expect(await notes(asOtherTenant)).toBe(0);
   });
+
+  it("hides every note from every reader, the system included, once its supervision is soft-deleted", async () => {
+    expect(await notes(asSystem)).toBe(2);
+    // Recorded in error: the supervision record is soft-deleted.
+    await asSystem((c) =>
+      c.query("UPDATE supervision_record SET deleted_at = now() WHERE id = $1", [SUPERVISION]),
+    );
+    for (const reader of [asSystem, asSupervisor, asCarer, asTrainingLead, asExecutive]) {
+      expect(await notes(reader)).toBe(0);
+    }
+    // The rows stay (append-only), hidden: the owner role still finds them.
+    expect(
+      await asOwner(TENANT_A, (c) => count(c, "SELECT count(*) AS n FROM supervision_note")),
+    ).toBe(2);
+  });
 });
