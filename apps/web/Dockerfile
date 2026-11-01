@@ -12,6 +12,10 @@ RUN pnpm install --frozen-lockfile --filter @harbour/web... \
  && pnpm --filter @harbour/web build
 
 FROM node:22-bookworm-slim AS runtime
+# The runtime never runs npm, npx or corepack. Removing them takes their bundled dependencies, and the
+# advisories the image scan reports in them, out of the production image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
@@ -20,7 +24,7 @@ WORKDIR /app
 # The standalone server carries only the traced dependencies; static chunks are copied beside it.
 COPY --from=build --chown=root:root /repo/apps/web/.next/standalone /app
 COPY --from=build --chown=root:root /repo/apps/web/.next/static /app/apps/web/.next/static
-# The only writable paths are /tmp and the Next.js cache (mounted as volumes in ECS).
+# The only writable paths are /tmp and the Next.js cache (mounted as volumes on Cloud Run).
 RUN mkdir -p /app/apps/web/.next/cache && chown 1000:1000 /app/apps/web/.next/cache
 USER 1000:1000
 EXPOSE 3000

@@ -17,6 +17,10 @@ RUN pnpm install --frozen-lockfile --filter @harbour/api... \
 # trusts only its own CAs, so a verifying connection to Cloud SQL fails rather than trusting
 # anything else.
 FROM node:22-bookworm-slim AS runtime
+# The runtime never runs npm, npx or corepack. Removing them takes their bundled dependencies, and the
+# advisories the image scan reports in them, out of the production image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 ENV NODE_ENV=production \
     NODE_OPTIONS=--enable-source-maps
 WORKDIR /app
