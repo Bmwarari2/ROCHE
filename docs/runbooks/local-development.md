@@ -135,3 +135,11 @@ PATH="/path/to/gitleaks:/path/to/oasdiff:$PATH" \
   private code only when GitHub runs it), Trivy or Maestro. Run those on `main` once hosted
   minutes are back, and record the local results on the pull request when merging without
   hosted CI.
+
+## Postgres lock table for the test suites
+
+The database and API suites migrate a fresh database per test file, each in one transaction. With
+more than 100 migrations, running files in parallel can exhaust Postgres's default lock table
+(`53200 out of shared memory`, hint `max_locks_per_transaction`). Raise it once on your local
+server and restart it: `ALTER SYSTEM SET max_locks_per_transaction = 512;`. CI does the same in
+`.github/workflows/ci.yml`.

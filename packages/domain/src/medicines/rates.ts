@@ -1,14 +1,28 @@
 /**
- * The rate-table figures the medicines record rules read (medicines.md section 4, rates.md). None
- * of them is a literal in this module: callers resolve them once per request with
- * `resolveMedicinesRates` (tenant override, then nation, then `uk`, then `all`) and pass them in.
- * Slice 3 adds the administration figures (minimum intervals, time-critical windows, competence).
+ * The rate-table figures the medicines rules read (medicines.md section 4, rates.md). None of them
+ * is a literal in this module: callers resolve them once per request with `resolveMedicinesRates`
+ * (tenant override, then nation, then `uk`, then `all`) and pass them in. The dose windows, the PRN
+ * outcome check, the stock-check interval, the override length and the record delay are tenant
+ * defaults with no published figure, marked to verify; the paracetamol and bisphosphonate figures apply only to
+ * entries a person tagged at transcription (ADR-0082).
  */
 
 import { type RateNation, type RateRow, resolveRate } from "../platform/rates";
 
 export const MEDICINES_RATE_KEYS = {
   orderingCycleDays: "medicines.ordering_cycle_days",
+  paracetamolMinIntervalHours: "medicines.paracetamol.min_interval_hours",
+  bisphosphonateBeforeFoodMinutes: "medicines.bisphosphonate.before_food_minutes",
+  doseEarlyMinutes: "medicines.dose_window.early_minutes",
+  doseLateMinutes: "medicines.dose_window.late_minutes",
+  timeCriticalEarlyMinutes: "medicines.time_critical.early_minutes",
+  timeCriticalLateMinutes: "medicines.time_critical.late_minutes",
+  prnOutcomeCheckMinutes: "medicines.prn.outcome_check_minutes",
+  cdStockCheckIntervalDays: "medicines.cd.stock_check_interval_days",
+  competenceRefreshMonths: "competence.medicines.refresh_months",
+  competenceOverrideMaxHours: "medicines.competence_override.max_hours",
+  recordDelayToleranceMinutes: "medicines.record_delay_tolerance_minutes",
+  clockDriftMinutes: "sync.clock_drift_flag_minutes",
 } as const;
 
 export type MedicinesRateName = keyof typeof MEDICINES_RATE_KEYS;
