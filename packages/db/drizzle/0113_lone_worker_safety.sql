@@ -365,3 +365,63 @@ REVOKE UPDATE, DELETE, TRUNCATE ON public.lone_worker_event FROM harbour_app;-->
 GRANT SELECT, INSERT, UPDATE ON public.lone_worker_location TO harbour_app;--> statement-breakpoint
 REVOKE DELETE, TRUNCATE ON public.lone_worker_location FROM harbour_app;
 -- Lone-worker records stay on the server for now: the mobile slice (71) decides what devices get.
+--> statement-breakpoint
+-- BEGIN role backfill 0113
+-- Data migration: existing tenants' copies of the built-in roles gain the lone-worker permissions
+-- the built-in definitions (packages/domain/src/platform/roles.ts) added with lone-worker safety:
+-- check-in for staff who may work alone, monitor for those who watch check-ins, manage for the
+-- managers. A tenant created before this migration would otherwise never hold them. Each change is
+-- made in that tenant's context and audited in the same transaction
+-- (platform.role.permissions_migrated, naming what the copy gained), as migration 0038 does.
+-- Idempotent. packages/db/test/lone-worker.test.ts re-runs this section and checks the list
+-- against the domain.
+ALTER TABLE public.role NO FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
+DO $$
+DECLARE t uuid;
+BEGIN
+  FOR t IN SELECT DISTINCT tenant_id FROM public.role WHERE is_builtin ORDER BY tenant_id LOOP
+    PERFORM set_config('app.tenant_id', t::text, true);
+    PERFORM set_config('app.scope', 'tenant', true);
+    WITH grants(key, add) AS (VALUES
+        ('owner', ARRAY['scheduling.lone_worker.check_in', 'scheduling.lone_worker.monitor', 'scheduling.lone_worker.manage']),
+        ('registered_manager', ARRAY['scheduling.lone_worker.check_in', 'scheduling.lone_worker.monitor', 'scheduling.lone_worker.manage']),
+        ('deputy_manager', ARRAY['scheduling.lone_worker.check_in', 'scheduling.lone_worker.monitor', 'scheduling.lone_worker.manage']),
+        ('clinical_lead', ARRAY['scheduling.lone_worker.check_in']),
+        ('team_leader', ARRAY['scheduling.lone_worker.check_in', 'scheduling.lone_worker.monitor']),
+        ('care_worker', ARRAY['scheduling.lone_worker.check_in']),
+        ('care_coordinator', ARRAY['scheduling.lone_worker.monitor']),
+        ('activities', ARRAY['scheduling.lone_worker.check_in']),
+        ('catering', ARRAY['scheduling.lone_worker.check_in']),
+        ('housekeeping', ARRAY['scheduling.lone_worker.check_in']),
+        ('maintenance', ARRAY['scheduling.lone_worker.check_in']),
+        ('agency_worker', ARRAY['scheduling.lone_worker.check_in'])
+      ),
+      targets AS (
+        SELECT r.id, r.tenant_id, r.key,
+          ARRAY(SELECT p FROM unnest(g.add) WITH ORDINALITY AS a(p, n)
+                WHERE p <> ALL (r.permissions) ORDER BY n) AS missing
+        FROM public.role r JOIN grants g ON g.key = r.key
+        WHERE r.tenant_id = t AND r.is_builtin AND NOT (r.permissions @> g.add)
+      ),
+      changed AS (
+        UPDATE public.role r SET permissions = r.permissions || x.missing
+          FROM targets x WHERE r.id = x.id
+          RETURNING r.id
+      )
+    INSERT INTO public.audit_event (tenant_id, actor_auth_user_id, actor_role_keys, action,
+        outcome, resource_type, resource_id, scope, reason)
+      SELECT x.tenant_id, 'system', ARRAY['system'], 'platform.role.permissions_migrated',
+        'success', 'role', x.id::text,
+        jsonb_build_object('migration', '0113_lone_worker_safety', 'roleKey', x.key,
+          'added', to_jsonb(x.missing)),
+        'Existing tenants'' built-in role copies gained the lone-worker permissions their built-in definitions added (migration 0113)'
+      FROM targets x JOIN changed c ON c.id = x.id;
+  END LOOP;
+  PERFORM set_config('app.tenant_id', '', true);
+  PERFORM set_config('app.scope', '', true);
+END
+$$;
+--> statement-breakpoint
+ALTER TABLE public.role FORCE ROW LEVEL SECURITY;
+-- END role backfill 0113
