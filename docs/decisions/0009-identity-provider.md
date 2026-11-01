@@ -1,10 +1,14 @@
 ---
-status: accepted
+status: accepted; partly superseded by ADR-0098
 date: 2026-10-11
 decision-makers: Brian (Thapsus Cargo Ltd, Appendix default); recorded by Claude Code
 ---
 
 # Identity provider: Better Auth, with Keycloak as the documented alternative
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the location of identity data, which now sits in the same europe-west2 Cloud
+> SQL database under the same backups and audit. The text below is kept as decided.
 
 ## Context and problem statement
 

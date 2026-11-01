@@ -1098,7 +1098,7 @@ the whole organisation) reads them for the full export, never writes.
     logged the request (database check too); refusal and withdrawal need a reason.
 42. **Issuing.** Release needs approval and a fresh step-up. The pack is built from the decisions,
     in date order (the chronology for a SAR or DHR), redacted fields reading `[redacted]` and withheld
-    records counted, hashed, stored as sent in the exports bucket (SSE-KMS, opaque key) and can be
+    records counted, hashed, stored as sent in the exports bucket (CMEK, opaque key; ADR-0098) and can be
     fetched again exactly, with step-up. The disclosure log is the list of requests with their basis,
     approver and release.
 43. **Coroner tracker.** A coroner request may record a Regulation 28 prevention of future deaths

@@ -82,7 +82,7 @@ export interface Services {
   readonly authPool: pg.Pool;
   readonly operatorPool: pg.Pool;
   readonly auth: Auth;
-  /** Single sign-on private keys by store name (managed store in AWS; ADR-0091). */
+  /** Single sign-on private keys by store name (Secret Manager in Google Cloud; ADR-0091, ADR-0098). */
   readonly ssoKeys: SsoKeyStore;
   /** DNS TXT records, for domain proofs (rule 19). */
   readonly txtLookup: TxtLookup;

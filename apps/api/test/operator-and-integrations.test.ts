@@ -31,7 +31,7 @@ describe("integrations settings (section 15.3)", () => {
   it("lets the owner choose a known provider, and refuses an unknown one", async () => {
     const ok = await demo("owner", "/v1/integrations/comms.email", {
       method: "PUT",
-      body: { provider: "ses", settings: { from: "alerts@example.invalid" } },
+      body: { provider: "smtp", settings: { from: "alerts@example.invalid" } },
     });
     expect(ok.status).toBe(204);
     const bad = await demo("owner", "/v1/integrations/comms.sms", {
@@ -43,7 +43,7 @@ describe("integrations settings (section 15.3)", () => {
       await demo("owner", "/v1/integrations"),
     );
     expect(listed.items).toEqual([
-      expect.objectContaining({ port: "comms.email", provider: "ses", hasSecret: false }),
+      expect.objectContaining({ port: "comms.email", provider: "smtp", hasSecret: false }),
     ]);
   });
 

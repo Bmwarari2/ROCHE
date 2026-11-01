@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; partly superseded by ADR-0098
 date: 2026-10-11
 decision-makers: Brian (Thapsus Cargo Ltd, via the master prompt defaults); recorded by Claude Code
 consulted: master prompt section 6 and the technology sources in docs/02-SOURCES.md
@@ -7,6 +7,18 @@ informed: everyone working in this repository
 ---
 
 # Technology stack, hosting, residency and disaster recovery
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the hosting, database, files, messaging and infrastructure rows and the
+> residency and disaster-recovery text. Production runs on Google Cloud europe-west2 (London): Cloud
+> Run in place of ECS Fargate, Cloud SQL for PostgreSQL 17 with regional high availability in place
+> of RDS Multi-AZ, Cloud Storage with customer-managed Cloud KMS keys in place of S3 with SSE-KMS,
+> Secret Manager, Cloud Logging and Cloud Monitoring, the external HTTPS load balancer with Cloud
+> Armor and Cloud CDN in place of CloudFront and WAF, and one project per environment in place of
+> separate AWS accounts. Email moves from Amazon SES to an SMTP provider still to be chosen (H-08).
+> Residency is enforced by the organisation policy `gcp.resourceLocations`; Google Cloud also has
+> one UK region, so the disaster-recovery reasoning holds. The rest of the stack is unchanged. The
+> text below is kept as decided.
 
 ## Context and problem statement
 
