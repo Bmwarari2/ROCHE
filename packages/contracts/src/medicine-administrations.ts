@@ -142,6 +142,8 @@ export const MedicineRound = z
     doses: z.array(
       z.object({
         entryId: uuid,
+        /** The medicine as dm+d words it. */
+        productName: z.string(),
         dueAt: isoDateTime,
         date: ukDate,
         time: z.string(),
@@ -162,6 +164,7 @@ export const MedicineRound = z
     whenRequired: z.array(
       z.object({
         entryId: uuid,
+        productName: z.string(),
         lastGiven: z.object({ at: isoDateTime, by: uuid, synced: z.boolean() }).nullable(),
         givenInLast24Hours: z.number(),
         maxPer24Hours: z.number().nullable(),
@@ -172,6 +175,7 @@ export const MedicineRound = z
     ),
   })
   .meta({ id: "MedicineRound" });
+export type MedicineRound = z.infer<typeof MedicineRound>;
 
 export const WitnessAdministration = z
   .object({
@@ -231,3 +235,81 @@ export type DosingRecordOut = z.infer<typeof DosingRecordOut>;
 export const DosingRecordList = z
   .object({ dosingRecords: z.array(DosingRecordOut) })
   .meta({ id: "DosingRecordList" });
+
+/** A device's second record of a dose, kept for review (medicines.md 15.4; slice 48). */
+export const ConflictRaised = z
+  .object({
+    conflictId: uuid,
+    /** The record that stands on the server. */
+    standingId: uuid,
+    message: z.string(),
+  })
+  .meta({ id: "AdministrationConflictRaised" });
+
+export const AdministrationConflictOut = z
+  .object({
+    id: uuid,
+    personId: uuid,
+    entryId: uuid,
+    dueAt: isoDateTime,
+    /** The record that stands, as stored. */
+    standing: AdministrationOut,
+    /** The uploaded record as the device sent it. */
+    uploaded: z.object({
+      id: uuid,
+      outcome: AdministrationOutcome,
+      amount: z.object({ quantity: z.number(), unitCode: z.string() }).nullable(),
+      reason: z.object({ code: z.string(), note: z.string().nullable() }).nullable(),
+      givenAt: isoDateTime.nullable(),
+    }),
+    deviceAt: isoDateTime.nullable(),
+    uploadedBy: uuid,
+    receivedAt: isoDateTime,
+    resolution: z
+      .object({
+        outcome: z.enum(["first_stands", "corrected"]),
+        correctionId: uuid.nullable(),
+        note: z.string(),
+        by: uuid,
+        at: isoDateTime,
+      })
+      .nullable(),
+  })
+  .meta({ id: "AdministrationConflict" });
+
+export const AdministrationConflictList = z
+  .object({ conflicts: z.array(AdministrationConflictOut) })
+  .meta({ id: "AdministrationConflictList" });
+
+export const ConflictsQuery = z.object({
+  locationId: uuid.optional(),
+  personId: uuid.optional(),
+  /** Include resolved conflicts; open ones only by default. */
+  all: z.enum(["true", "false"]).default("false"),
+});
+
+export const ResolveConflict = z
+  .object({
+    outcome: z.enum(["first_stands", "corrected"]),
+    /** The correction made through the corrections route, when corrected. */
+    correctionId: uuid.nullable().default(null),
+    note: reason,
+  })
+  .meta({ id: "ResolveAdministrationConflict" });
+
+export const LocationRoundQuery = z.object({ from: isoDateTime, to: isoDateTime });
+
+export const LocationRound = z
+  .object({
+    from: isoDateTime,
+    to: isoDateTime,
+    people: z.array(
+      z.object({
+        personId: uuid,
+        room: z.string().nullable(),
+        doses: MedicineRound.shape.doses,
+        whenRequired: MedicineRound.shape.whenRequired,
+      }),
+    ),
+  })
+  .meta({ id: "LocationMedicineRound" });

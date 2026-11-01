@@ -37767,6 +37767,15 @@ export interface paths {
             "application/json": components["schemas"]["AdministrationRecorded"];
           };
         };
+        /** @description A device's second record of a dose already recorded: kept for the nurse in charge to review */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationConflictRaised"];
+          };
+        };
         /** @description Not signed in */
         401: {
           headers: {
@@ -38752,6 +38761,314 @@ export interface paths {
           };
           content: {
             "application/json": components["schemas"]["StockCheckRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/medicine-round": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The medicines round for a location in a time slot
+     * @description For each person living at the location whom you may see: the scheduled doses in the slot (at most 12 hours) with their state in words, time-critical first, and each when-required medicine with when it was last given. People by room, then name. Audited.
+     */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The round */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LocationMedicineRound"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicine-administration-conflicts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Conflicts for the nurse in charge to review
+     * @description A device's second record of a dose already recorded, with the record that stands. Open ones by default. Audited.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          personId?: string;
+          all?: "true" | "false";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The conflicts */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationConflictList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicine-administration-conflicts/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A conflict: both records side by side
+     * @description Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The conflict */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationConflict"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicine-administration-conflicts/{id}/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Resolve a conflict: the record that stands, or the correction made
+     * @description With medicines.record.manage. first_stands: the record on the server stands and the upload was the same dose sent twice. corrected: the record was corrected through the corrections route, naming the correction, which must correct this dose. Resolved once, with why; its task is closed. Audited, refusals included.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ResolveAdministrationConflict"];
+        };
+      };
+      responses: {
+        /** @description Resolved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationConflict"];
           };
         };
         /** @description Not signed in */
@@ -55137,6 +55454,13 @@ export interface components {
       | "self_administered"
       | "given_by_family"
       | "withheld";
+    AdministrationConflictRaised: {
+      /** Format: uuid */
+      conflictId: string;
+      /** Format: uuid */
+      standingId: string;
+      message: string;
+    };
     RecordAdministration: {
       /** Format: uuid */
       id: string;
@@ -55244,6 +55568,7 @@ export interface components {
       doses: {
         /** Format: uuid */
         entryId: string;
+        productName: string;
         /** Format: date-time */
         dueAt: string;
         /** Format: date */
@@ -55268,6 +55593,7 @@ export interface components {
       whenRequired: {
         /** Format: uuid */
         entryId: string;
+        productName: string;
         lastGiven: {
           /** Format: date-time */
           at: string;
@@ -55504,6 +55830,116 @@ export interface components {
       /** @default null */
       reason: string | null;
       witness: components["schemas"]["CdWitness"];
+    };
+    LocationMedicineRound: {
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      people: {
+        /** Format: uuid */
+        personId: string;
+        room: string | null;
+        doses: {
+          /** Format: uuid */
+          entryId: string;
+          productName: string;
+          /** Format: date-time */
+          dueAt: string;
+          /** Format: date */
+          date: string;
+          time: string;
+          doseInWords: string;
+          timeCritical: boolean;
+          /** @enum {string} */
+          state: "not_yet_due" | "due" | "late" | "recorded";
+          stateInWords: string;
+          /** Format: date-time */
+          opensAt: string;
+          /** Format: date-time */
+          lateAfter: string;
+          notices: string[];
+          entryStatus: {
+            words: string;
+            mayGive: boolean;
+            notice: string | null;
+          };
+        }[];
+        whenRequired: {
+          /** Format: uuid */
+          entryId: string;
+          productName: string;
+          lastGiven: {
+            /** Format: date-time */
+            at: string;
+            /** Format: uuid */
+            by: string;
+            synced: boolean;
+          } | null;
+          givenInLast24Hours: number;
+          maxPer24Hours: number | null;
+          remaining: number | null;
+          /** Format: date-time */
+          nextAllowedAt: string | null;
+          notices: string[];
+        }[];
+      }[];
+    };
+    AdministrationConflictList: {
+      conflicts: components["schemas"]["AdministrationConflict"][];
+    };
+    AdministrationConflict: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      entryId: string;
+      /** Format: date-time */
+      dueAt: string;
+      standing: components["schemas"]["Administration"];
+      uploaded: {
+        /** Format: uuid */
+        id: string;
+        outcome: components["schemas"]["AdministrationOutcome"];
+        amount: {
+          quantity: number;
+          unitCode: string;
+        } | null;
+        reason: {
+          code: string;
+          note: string | null;
+        } | null;
+        /** Format: date-time */
+        givenAt: string | null;
+      };
+      /** Format: date-time */
+      deviceAt: string | null;
+      /** Format: uuid */
+      uploadedBy: string;
+      /** Format: date-time */
+      receivedAt: string;
+      resolution: {
+        /** @enum {string} */
+        outcome: "first_stands" | "corrected";
+        /** Format: uuid */
+        correctionId: string | null;
+        note: string;
+        /** Format: uuid */
+        by: string;
+        /** Format: date-time */
+        at: string;
+      } | null;
+    };
+    ResolveAdministrationConflict: {
+      /** @enum {string} */
+      outcome: "first_stands" | "corrected";
+      /**
+       * Format: uuid
+       * @default null
+       */
+      correctionId: string | null;
+      note: string;
     };
     DisclosureLog: {
       items: components["schemas"]["DisclosureRequest"][];

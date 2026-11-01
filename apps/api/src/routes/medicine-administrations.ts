@@ -4,6 +4,7 @@ import {
   AdministrationRecorded,
   AdministrationsQuery,
   CheckDosingRecord,
+  ConflictRaised,
   CorrectAdministration,
   DosingRecordList,
   DosingRecordOut,
@@ -29,20 +30,12 @@ import {
   checkAdministration,
   checkCorrection,
   checkDosingRecord,
-  doseNotices,
-  doseWindow,
   driftCorrectedTime,
   entryVersionIds,
-  formatDose,
-  isTimeCritical,
   type MarEntry,
   type MedicinesCompetence,
   marEntryDoses,
-  marEntryStatus,
-  prnStatus,
   recordDosingRecord,
-  SCHEDULED_DOSE_WORDS,
-  scheduledDoseState,
   ukIsoDate,
   variableDoseFor,
 } from "@harbour/domain";
@@ -82,6 +75,7 @@ import {
   supersededBy,
   witnessesFor,
 } from "../services/medicine-administrations";
+import { conflictForClientRecord, raiseConflict, roundFor } from "../services/medicine-rounds";
 import {
   guardConcurrent,
   lockPerson,
@@ -153,7 +147,7 @@ async function competenceOf(
 }
 
 /** What the rules need about the person, read under their lock. */
-async function factsFor(tx: Transaction, personId: string, tenantId: string, now: Date) {
+export async function factsFor(tx: Transaction, personId: string, tenantId: string, now: Date) {
   const person = await loadPerson(tx, personId);
   const stored = await personEntries(tx, personId);
   const entries = stored.map((s) => s.entry);
@@ -404,6 +398,10 @@ export const medicineAdministrationsRouter = createRouter()
       responses: {
         200: jsonBody(AdministrationRecorded, "Already recorded with this id"),
         201: jsonBody(AdministrationRecorded, "Recorded"),
+        202: jsonBody(
+          ConflictRaised,
+          "A device's second record of a dose already recorded: kept for the nurse in charge to review",
+        ),
         ...errorResponses,
         ...notFoundResponse,
         ...conflictResponse,
@@ -437,6 +435,12 @@ export const medicineAdministrationsRouter = createRouter()
               );
             }
             return { status: 200 as const, administration: await outFor(tx, resent, facts.rows) };
+          }
+          // A device's upload is never dropped: a resend of a record kept as a conflict finds it.
+          const upload = body.deviceOffsetMs !== null || access.deviceId !== null;
+          if (upload) {
+            const kept = await conflictForClientRecord(tx, body.id);
+            if (kept) return { status: 202 as const, conflict: kept };
           }
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
@@ -532,7 +536,40 @@ export const medicineAdministrationsRouter = createRouter()
               : null,
           });
           const checked = checkAdministration(input, facts.rates);
-          if (!checked.ok) throw deny(checked.issues);
+          if (!checked.ok) {
+            // Two devices recorded the same dose offline: the second is kept for review, never
+            // silently dropped (medicines.md 15.4; HZ-004).
+            const standing =
+              upload && input.dueAt && checked.issues.some((x) => x.problem === "already_recorded")
+                ? effective(facts.rows).find(
+                    (r) =>
+                      versionIds.has(r.medicationId) &&
+                      r.dueAt?.getTime() === (input.dueAt as Date).getTime(),
+                  )
+                : undefined;
+            if (standing) {
+              const conflict = await raiseConflict(c, tx, access, {
+                personId,
+                locationId: facts.person.locationId,
+                clientRecordId: body.id,
+                entry,
+                dueAt: input.dueAt as Date,
+                standing,
+                uploaded: {
+                  id: body.id,
+                  outcome: body.outcome,
+                  amount: body.amount,
+                  reason: body.reason,
+                  givenAt: body.givenAt,
+                },
+                deviceAt,
+                deviceOffsetMs: body.deviceOffsetMs,
+                rates: facts.rates,
+              });
+              return { status: 202 as const, conflict };
+            }
+            throw deny(checked.issues);
+          }
           const { stored, escalations } = await store(c, tx, access, {
             id: body.id,
             personId,
@@ -581,6 +618,7 @@ export const medicineAdministrationsRouter = createRouter()
           };
         }),
       );
+      if (result.status === 202) return c.json(result.conflict, 202);
       return c.json(
         { administration: result.administration, escalations: result.escalations ?? [] },
         result.status,
@@ -955,70 +993,11 @@ export const medicineAdministrationsRouter = createRouter()
       const at = query.at ? new Date(query.at) : now;
       const out = await withTenant(c, async (tx) => {
         const facts = await factsFor(tx, personId, access.tenantId, at);
-        const eff = effective(facts.rows);
-        const history = givenDoses(facts.rows, facts.byId);
         const range = {
           from: new Date(at.getTime() - 12 * HOUR_MS),
           to: new Date(at.getTime() + 12 * HOUR_MS),
         };
-        const doses = facts.entries
-          .flatMap((entry) => {
-            const versionIds = entryVersionIds(entry, facts.entries);
-            const status = marEntryStatus(entry, at, UNCHECKED_POLICY);
-            return marEntryDoses(entry, range).map((d) => {
-              const window = doseWindow(d.dueAt, isTimeCritical(entry), facts.rates);
-              const recorded = eff.some(
-                (r) => versionIds.has(r.medicationId) && r.dueAt?.getTime() === d.dueAt.getTime(),
-              );
-              const state = scheduledDoseState(window, recorded, now);
-              return {
-                entryId: entry.id,
-                dueAt: d.dueAt.toISOString(),
-                date: d.date,
-                time: d.time,
-                doseInWords: formatDose(d.dose),
-                timeCritical: window.timeCritical,
-                state,
-                stateInWords: SCHEDULED_DOSE_WORDS[state],
-                opensAt: window.opensAt.toISOString(),
-                lateAfter: window.lateAfter.toISOString(),
-                notices: [...doseNotices(entry, facts.rates)],
-                entryStatus: status,
-              };
-            });
-          })
-          .sort((a, b) => a.dueAt.localeCompare(b.dueAt));
-        const whenRequired = facts.entries
-          .filter(
-            (e) =>
-              e.directions.kind === "when_required" &&
-              e.withdrawn === null &&
-              marEntryStatus(e, at, UNCHECKED_POLICY).mayGive,
-          )
-          .map((entry) => {
-            const s = prnStatus(
-              entry,
-              entryVersionIds(entry, facts.entries),
-              history,
-              at,
-              facts.rates,
-            );
-            return {
-              entryId: entry.id,
-              lastGiven: s.lastGiven
-                ? {
-                    at: s.lastGiven.at.toISOString(),
-                    by: s.lastGiven.by,
-                    synced: s.lastGiven.synced,
-                  }
-                : null,
-              givenInLast24Hours: s.givenInLast24Hours,
-              maxPer24Hours: s.maxPer24Hours,
-              remaining: s.remaining,
-              nextAllowedAt: s.nextAllowedAt?.toISOString() ?? null,
-              notices: [...s.notices],
-            };
-          });
+        const { doses, whenRequired } = roundFor(facts, range, at, now);
         await audit(c, tx, access, {
           action: "medicines.administration.viewed",
           resourceType: "person",

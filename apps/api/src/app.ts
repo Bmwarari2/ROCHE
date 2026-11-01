@@ -53,6 +53,7 @@ import { lettersRouter } from "./routes/letters";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { medicineAdministrationsRouter } from "./routes/medicine-administrations";
+import { medicineRoundsRouter } from "./routes/medicine-rounds";
 import { medicinesRouter } from "./routes/medicines";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
@@ -420,6 +421,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", medicinesRouter);
   app.route("/", medicineAdministrationsRouter);
   app.route("/", controlledDrugsRouter);
+  app.route("/", medicineRoundsRouter);
   app.route("/", disclosuresRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
