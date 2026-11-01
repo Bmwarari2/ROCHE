@@ -95,3 +95,14 @@ and the bank and agency recommended answers (H-921, H-924, H-927).
 - **Export catalogue:** duplicate entries for the rota tables (now on main) are removed.
 - **Policies:** the pay and time record-version policies name the organisation's own read
   (`app.is_system()`) outright, for main's DSAR collector check.
+
+## Existing tenants' roles
+
+- Migration 0116 now backfills `scheduling.pay.manage` and `scheduling.pay.approve` into every
+  existing tenant's built-in Owner and Finance copies, audited as
+  `platform.role.permissions_migrated` (as 0038 does). Without it, an organisation created before
+  pay runs would never hold them.
+- `packages/db/test/builtin-role-backfills.test.ts` fails when the built-in definitions grant a
+  permission beyond the baseline (main's definitions on 1 November 2026,
+  `test/support/builtin-roles-baseline.json`) that no migration backfills, and re-runs the 0116
+  backfill against copies that lack the permissions.
