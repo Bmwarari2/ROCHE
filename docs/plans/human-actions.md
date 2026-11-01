@@ -455,6 +455,23 @@ Logged by slice 46 (lone-worker safety, [scheduling.md](../specs/scheduling.md) 
 | H-1038 | Decide whether the shift slice (21) should start and end sessions from the rota automatically for shifts marked as lone working, instead of the worker starting them | Brian | scheduling.md section 14 | Slice 21 | Open |
 | H-1039 | Write the user guide for lone workers and on-call staff: starting a session, checking in, help and duress, what a late check-in means, and that acknowledging means having checked on the worker | Brian | HZ-125 training control | Slice 82 | Open |
 
+## Phase 2: wellbeing and lone-worker web screens (slice 61)
+
+Logged by slice 61 (the lone-working web screens, [scheduling.md](../specs/scheduling.md) section
+14.8a) on 31 October 2026, from the block H-1140 to H-1149 the lead assigned. H-1147 to H-1149 are
+kept for the wellbeing screens, which wait for the wellbeing API (`feat/sched-wellbeing`, not yet
+pushed).
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1140 | Confirm that the web never offers duress: the worker's web pages offer check-in, help and finish only, and duress is raised from the mobile app (slice 71), because a visible duress button on a shared screen gives it away. Or name a discreet web form for it (built: none) | CSO | scheduling.md 14.8a; HZ-125 | None | Open |
+| H-1141 | Confirm that asking for help is one press with no confirmation (built: sent at once, accepting some false alarms over any delay), and that finishing a session asks first (built) | CSO | scheduling.md 14.8a; HZ-125 | None | Open |
+| H-1142 | Accept the board's refresh every 30 seconds and the worker's page every 60 seconds, and the board's words for duress ("do not contact them in a way that gives this away; follow your duress procedure, and call 999 if you cannot confirm they are safe"); confirm each organisation must have a duress procedure before switching lone working on | CSO with the design partner | scheduling.md 14.8a; HZ-125 | None | Open |
+| H-1143 | Try the lone-working screens with a lone worker and an on-call coordinator (starting, checking in, the board, acknowledging), and translate them into Welsh (the strings are marked untranslated) | Brian with the design partner | scheduling.md 14.8a | None | Open |
+| H-1144 | Confirm with the DPO that the board shows the latest location point as text (coordinates and accuracy, no map and no map provider) while the alarm is open | DPO lead | scheduling.md 14.5 and 14.8a; H-527 | None | Open |
+| H-1145 | Decide, with the DPO, whether the board shows a contact number for the worker (it says "contact them now" and shows their name only); and whether a session's length entered as elapsed hours is acceptable on the nights the clocks change (built: the planned finish is the start plus the hours and minutes entered, so a night shift on the night the clocks go back needs an hour more) | CSO with the DPO lead | scheduling.md 14.8a; HZ-125 (slice 61 clinical review, findings 11 and 14) | None | Open |
+| H-1146 | Decide whether the incident reported after an acknowledgement must be linked to the alarm from the web (the API accepts `incidentId`; the web links to a new incident without passing the alarm), and whether the board's reads every 30 seconds should be audited as often as they are | CSO with the DPO lead | scheduling.md 14.8a; H-1035 | None | Open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

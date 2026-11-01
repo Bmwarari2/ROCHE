@@ -19,6 +19,7 @@ import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
+import { loneWorkerNavShown } from "@/lib/lone-worker";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { retentionShown } from "@/lib/retention";
 import { roundShown } from "@/lib/round";
@@ -79,6 +80,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         incidents: incidentsNavLabel(me.permissions, t),
         approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
+        loneWorking: loneWorkerNavShown(me.permissions) ? t("shell.nav.loneWorking") : undefined,
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
         tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
         documents: isFamilyMember(me) ? undefined : t("shell.nav.documents"),

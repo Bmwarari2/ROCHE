@@ -812,6 +812,7 @@ so the codes are Harbour's. Times are instants in UTC, shown in UK local time (2
 | `lone_worker_alarm.note` | Harbour | Plain text, 1 to 2,000 characters | Required to acknowledge. |
 | `lone_worker_location.latitude`, `longitude` | WGS 84 decimal degrees | Five decimal places (about one metre); empty once erased | Evidence only (H-527); erased at `delete_after`. |
 | `lone_worker_location.accuracy_metres` | Harbour | Whole metres, 0 to 100,000, or empty | As the device reported it. |
+| `LoneWorkerBoardItem.workerName` (API, slice 61) | Harbour | The member's display name, or null when none is held | Read from `tenant_user`, never stored on the session; shown to monitors as "Name not held" when null, never as an id. |
 ## Quality: policy library and read-and-sign (Phase 2, slice 25)
 Code lists for [quality.md](quality.md) section 18 (migration 0087). No national standard covers
 these fields; exported with these names.

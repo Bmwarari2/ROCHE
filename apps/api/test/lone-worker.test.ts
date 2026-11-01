@@ -345,6 +345,8 @@ describe("hazard HZ-125: overdue, the offline rule, and the order of escalation"
     expect(mine?.status).toBe("ok");
     expect(mine?.lastCheckInLate).toBe(true);
     expect(mine?.statusWords).toBe("Checked in");
+    // Who to contact, by name, on every row of the board (slice 61).
+    expect(mine?.workerName).toBe(DEMO.users.carer.name);
     expect(alarmId).not.toBe("");
   });
 
@@ -548,6 +550,11 @@ describe("hazard HZ-125: a worker who is on the route themself (review round 1)"
     ).toBe(false);
     const owner = await notificationsOf(ON_CALL, "scheduling.lone_worker.alarm");
     expect(owner.some((n) => n.title === "Escalated: A lone worker may be in danger")).toBe(true);
+  });
+
+  it("never shows a monitor their own session on the board, so a duress press cannot show through (slice 61)", async () => {
+    const board = await json<LoneWorkerBoard>(await as("manager", "/v1/lone-worker/board"));
+    expect(board.items.find((i) => i.sessionId === sessionId)).toBeUndefined();
   });
 
   it("a second duress press while one is open does not start another alarm", async () => {

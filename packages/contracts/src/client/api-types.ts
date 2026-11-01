@@ -29628,7 +29628,7 @@ export interface paths {
     };
     /**
      * Lone workers now
-     * @description scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.
+     * @description scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, other than one's own, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.
      */
     get: {
       parameters: {
@@ -38558,6 +38558,7 @@ export interface components {
       sessionId: string;
       /** Format: uuid */
       workerTenantUserId: string;
+      workerName: string | null;
       /** Format: uuid */
       locationId: string;
       workKind: components["schemas"]["LoneWorkerWorkKind"];

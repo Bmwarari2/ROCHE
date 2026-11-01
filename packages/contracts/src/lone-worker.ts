@@ -149,6 +149,8 @@ export const LoneWorkerBoardItem = z
   .object({
     sessionId: uuid,
     workerTenantUserId: uuid,
+    /** Who to contact: the worker's name as the organisation holds it (slice 61). */
+    workerName: z.string().nullable(),
     locationId: uuid,
     workKind: LoneWorkerWorkKind,
     startedAt: isoDateTime,

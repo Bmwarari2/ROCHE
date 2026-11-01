@@ -822,6 +822,55 @@ are not retained beyond `lone_worker.location_days`. Records of processing B3; d
 "Lone-worker safety". The DPO confirms the employee-monitoring DPIA covers it before it is switched
 on (H-1033).
 
+### 14.8a Web screens (slice 61)
+
+`/lone-working` in the navigation, for holders of any of the three permissions
+(`loneWorkerNavShown`). Every rule stays in the API; the pages order and word what it returns.
+
+- **Your session** (`/lone-working`, check-in): while the route is not named, a notice says
+  check-ins start once the organisation names it, and "If you are in danger, call 999". Otherwise
+  the start form asks where, the kind of work, how long from now (hours and minutes) and how often
+  to check in; the start is the moment the form is sent and the API checks the figures, in words.
+  An open session shows its status as an icon and words (past the planned finish: "finish or
+  check in"), when the next check-in is due (or "check in now: it was due at"), an overdue notice
+  with "call 999", then **Check in: I am safe**, **Finish session** (which asks first: nobody is
+  told afterwards) and, apart from them, **Ask for help now**: sent at once with no confirmation,
+  never disabled behind another press, and if it may not have been sent the worker is told so and
+  to call 999 (H-1141). A press keeps its id only for a retry within two minutes, so a later
+  check-in is never taken for an earlier one; the event's time is the web tier's clock when it
+  arrives, never the browser's. A session that cannot be read says "call 999", never a bare error.
+  The page reads again every 60 seconds.
+- **Duress is never offered on the web** (H-1140): the worker's pages offer check-in, help and
+  finish only, never name duress, and show a duress check-in exactly as the API returns it (a
+  check-in). Duress is raised from the mobile app (slice 71).
+- **Lone workers now** (`/lone-working/board`, monitor): open alarms first, duress first, then
+  help, an overdue check-in and a session not finished, the longest waiting first within each
+  (`alarmsInOrder`). Each shows the worker's name to contact, where, when raised and due, the last
+  check-in (and whether it arrived late from a device without signal), how often it has been
+  sent, and the latest location point while it is kept. Duress and help say to contact the
+  worker now and call 999 if their safety cannot be confirmed; duress also says not to contact them
+  in a way that gives it away. Each has the acknowledge form: an outcome and a note, and anything
+  but safe confirmed links to reporting an incident. Then every open session, those with an open
+  alarm first, by the same order, then by status and the earliest check-in due
+  (`sessionsInOrder`). The viewer's own session is not on their board (as their own alarm is
+  not), so a duress press never shows through its last check-in. After an acknowledgement the
+  board says what was acknowledged, above the alarms, and for anything but safe confirmed links to
+  reporting an incident; an acknowledgement refused only because a re-alert changed the alarm's
+  version is sent once more while the alarm is open. The board API now carries each worker's name
+  (`workerName`), as alarms do.
+- **Reading again** (both pages): every 30 seconds on the board, 60 on the worker's page, while
+  the page is visible; never while an acknowledgement is being written (the alarm and the note
+  stay); with "Check again now" and "Pause checking"; "Not updated since" with what to do after two
+  intervals; a new alarm announced (duress and help assertively) and the open count in the tab's
+  title.
+- **On-call route** (`/lone-working/route`, manage): whether lone working is on, the API's
+  problems in its words, whether location sharing is on, the escalation order in words, and the
+  steps: minutes after the alarm (step 1 is told at once, so it has none), who is told (a shipped staff role that can monitor, or an
+  active member for those who may list the team) and how (phone notification, email, text message,
+  in Harbour). The form refuses, before sending, fewer than two steps, the Registered Manager
+  first, no Registered Manager later, minutes out of order and a step reaching people only inside
+  Harbour (`readRoute`); the API checks every role and person again.
+
 ### 14.8 Test list
 
 - Domain, table-driven: session checks, event acceptance offline and late, next due, status, the
@@ -830,3 +879,7 @@ on (H-1033).
   only by the system, duress never readable by the worker, location erasure only at its date.
 - API: off until the route, the escalation order, re-alert, offline late check-in, safe then is
   not safe now, duress, help after finishing, location evidence.
+- Web (slice 61): `apps/web/src/lib/lone-worker.test.ts` (the board's order with duress first,
+  status words, duress never named on the worker's screen, the start, acknowledge and route forms'
+  refusals); `apps/web/e2e/lone-working.spec.ts` (route, start, check in, help, the board and
+  acknowledging, with axe).

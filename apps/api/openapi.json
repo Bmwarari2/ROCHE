@@ -32320,6 +32320,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "workerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "locationId": {
             "type": "string",
             "format": "uuid"
@@ -32372,6 +32378,7 @@
         "required": [
           "sessionId",
           "workerTenantUserId",
+          "workerName",
           "locationId",
           "workKind",
           "startedAt",
@@ -66613,7 +66620,7 @@
           "scheduling"
         ],
         "summary": "Lone workers now",
-        "description": "scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.",
+        "description": "scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, other than one's own, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.",
         "security": [
           {
             "bearerAuth": []

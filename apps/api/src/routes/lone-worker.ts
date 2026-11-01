@@ -876,7 +876,7 @@ export const loneWorkerRouter = createRouter()
       tags: ["scheduling"],
       summary: "Lone workers now",
       description:
-        "scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.",
+        "scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, other than one's own, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.",
       security,
       responses: { 200: jsonBody(LoneWorkerBoard, "Board"), ...errorResponses },
     }),
@@ -888,11 +888,16 @@ export const loneWorkerRouter = createRouter()
         on: (await loneWorkerRoute(tx)).on,
       }));
       const items = await withTenant(c, async (tx) => {
-        const sessions = await tx
-          .select()
-          .from(loneWorkerSession)
-          .where(and(isNull(loneWorkerSession.finishedAt), isNull(loneWorkerSession.deletedAt)))
-          .orderBy(loneWorkerSession.startedAt);
+        // A monitor's own session is not on their board (as with alarms): its last check-in, which
+        // counts ordinary check-ins only, would differ from their own screen after a duress press
+        // and give it away (slice 61 clinical review, finding 4).
+        const sessions = (
+          await tx
+            .select()
+            .from(loneWorkerSession)
+            .where(and(isNull(loneWorkerSession.finishedAt), isNull(loneWorkerSession.deletedAt)))
+            .orderBy(loneWorkerSession.startedAt)
+        ).filter((s) => s.workerTenantUserId !== access.tenantUserId);
         const alarms =
           sessions.length === 0
             ? []
@@ -908,6 +913,23 @@ export const loneWorkerRouter = createRouter()
                     ),
                   ),
                 );
+        // Who to contact, by the name the organisation holds (slice 61), as on an alarm.
+        const names =
+          sessions.length === 0
+            ? new Map<string, string>()
+            : new Map(
+                (
+                  await tx
+                    .select({ id: tenantUser.id, name: tenantUser.displayName })
+                    .from(tenantUser)
+                    .where(
+                      inArray(
+                        tenantUser.id,
+                        sessions.map((s) => s.workerTenantUserId),
+                      ),
+                    )
+                ).map((u) => [u.id, u.name]),
+              );
         const out: z.infer<typeof LoneWorkerBoard>["items"] = [];
         for (const s of sessions) {
           const events = await tx
@@ -927,6 +949,7 @@ export const loneWorkerRouter = createRouter()
           out.push({
             sessionId: s.id,
             workerTenantUserId: s.workerTenantUserId,
+            workerName: names.get(s.workerTenantUserId) ?? null,
             locationId: s.locationId,
             workKind: s.workKind as z.infer<typeof LoneWorkerBoard>["items"][number]["workKind"],
             startedAt: s.startedAt.toISOString(),
