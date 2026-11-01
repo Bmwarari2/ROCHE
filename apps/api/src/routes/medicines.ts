@@ -9,6 +9,8 @@ import {
   MedicineChanged,
   MedicineEntry,
   MedicineHistory,
+  MedicineProductSearch,
+  MedicineProducts,
   MedicinesRecord,
   PutReconciliationDecisions,
   ReconciliationOut,
@@ -494,6 +496,37 @@ function itemDecisionOf(
 }
 
 export const medicinesRouter = createRouter()
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/medicines/products",
+      tags,
+      summary: "Search dm+d for a product to transcribe",
+      description:
+        "Products whose dm+d name holds every word searched for, with the routes and dose units dm+d permits for each (at most 20). Until slice 10's reference data, the dm+d port answers: the invented fixture outside production, nothing in production (`loaded` false). Not audited: no person is read.",
+      security,
+      request: { query: MedicineProductSearch },
+      responses: { 200: jsonBody(MedicineProducts, "Products"), ...errorResponses },
+    }),
+    async (c) => {
+      await requirePermission(c, WRITER);
+      const { q } = c.req.valid("query");
+      const dmd = c.get("services").medicines.dmd;
+      const items = await dmd.search(q, 20);
+      return c.json(
+        {
+          loaded: dmd.loaded,
+          items: items.map((i) => ({
+            vmpId: i.vmpId,
+            name: i.name,
+            permittedRoutes: [...i.permittedRoutes],
+            permittedDoseUnits: [...i.permittedDoseUnits],
+          })),
+        },
+        200,
+      );
+    },
+  )
   .openapi(
     createRoute({
       method: "get",

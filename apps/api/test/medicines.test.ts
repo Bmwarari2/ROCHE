@@ -66,6 +66,27 @@ afterAll(async () => {
   await h?.close();
 });
 
+describe("searching dm+d for a product to transcribe (slice 52)", () => {
+  it("finds products by every word searched, with what dm+d permits, for transcribers only", async () => {
+    const r = await send("manager", "/v1/medicines/products?q=para%20tab");
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as {
+      loaded: boolean;
+      items: { vmpId: string; name: string; permittedRoutes: { name: string }[] }[];
+    };
+    expect(body.loaded).toBe(true);
+    expect(body.items.map((i) => i.name)).toEqual(["Paracetamol 500mg tablets"]);
+    expect(body.items[0]?.permittedRoutes.map((r) => r.name)).toEqual(["Oral"]);
+    expect((await send("manager", "/v1/medicines/products?q=p")).status).toBe(422);
+    expect((await send("carer", "/v1/medicines/products?q=para")).status).toBe(403);
+  });
+
+  it("answers nothing, saying dm+d is not loaded, from the production port", async () => {
+    expect(await unavailableDmd.search("para", 20)).toEqual([]);
+    expect(unavailableDmd.loaded).toBe(false);
+  });
+});
+
 describe("the medicines record", () => {
   let entryId = "";
 

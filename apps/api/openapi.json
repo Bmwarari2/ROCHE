@@ -28873,6 +28873,89 @@
           "expectedVersion"
         ]
       },
+      "MedicineProducts": {
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "vmpId": {
+                  "type": "string",
+                  "pattern": "^[0-9]{6,18}$"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "permittedRoutes": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DmdRoute"
+                  }
+                },
+                "permittedDoseUnits": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DoseUnit"
+                  }
+                }
+              },
+              "required": [
+                "vmpId",
+                "name",
+                "permittedRoutes",
+                "permittedDoseUnits"
+              ]
+            }
+          }
+        },
+        "required": [
+          "loaded",
+          "items"
+        ]
+      },
+      "DmdRoute": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "DoseUnit": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
       "MedicinesRecord": {
         "type": "object",
         "properties": {
@@ -29219,25 +29302,6 @@
           "name"
         ]
       },
-      "DmdRoute": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 40
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200
-          }
-        },
-        "required": [
-          "code",
-          "name"
-        ]
-      },
       "MarDirections": {
         "oneOf": [
           {
@@ -29488,25 +29552,6 @@
               "unit"
             ]
           }
-        ]
-      },
-      "DoseUnit": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 40
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200
-          }
-        },
-        "required": [
-          "code",
-          "name"
         ]
       },
       "MarSourceDocument": {
@@ -64099,6 +64144,77 @@
           },
           "410": {
             "description": "Issued, but the stored copy is no longer kept",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicines/products": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Search dm+d for a product to transcribe",
+        "description": "Products whose dm+d name holds every word searched for, with the routes and dose units dm+d permits for each (at most 20). Until slice 10's reference data, the dm+d port answers: the invented fixture outside production, nothing in production (`loaded` false). Not audited: no person is read.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicineProducts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

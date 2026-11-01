@@ -247,6 +247,26 @@ export const MarChart = z
   })
   .meta({ id: "MarChart" });
 
+export const MedicineProductSearch = z
+  .object({ q: z.string().trim().min(2).max(100) })
+  .meta({ id: "MedicineProductSearch" });
+
+export const MedicineProducts = z
+  .object({
+    /** Whether dm+d is loaded: when false nothing can be found or transcribed. */
+    loaded: z.boolean(),
+    items: z.array(
+      z.object({
+        vmpId: dmdId,
+        name: z.string(),
+        permittedRoutes: z.array(DmdRoute),
+        permittedDoseUnits: z.array(DoseUnit),
+      }),
+    ),
+  })
+  .meta({ id: "MedicineProducts" });
+export type MedicineProducts = z.infer<typeof MedicineProducts>;
+
 export const MedicineProblem = z
   .object({ problem: z.string(), message: z.string() })
   .meta({ id: "MedicineProblem" });

@@ -593,3 +593,66 @@ Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
   `medicines.entry.stopped` and `medicines.reconciliation.completed`, with ids only.
 - **Tests**: `packages/db/test/medicines-record.test.ts` (20) and `apps/api/test/medicines.test.ts`
   (28), with the `MEDICINES_FIXTURES` cases in `apps/api/test/config.test.ts`.
+
+## 13. Web screens (slice 52, MEDS-001 and MEDS-006)
+
+The person record's **Medicines** tab, for holders of `medicines.record.manage`,
+`medicines.emar.administer` or `care.plan.read` (the API's read rule); writing needs
+`medicines.record.manage`. Every page sits inside the record frame, so the point-of-care header
+(name, photo, date of birth, NHS number and allergies) is above every medicine, and the allergy chip
+is repeated beside each form that records a medicine. Harbour never matches a medicine to an
+allergy or to a person: the screens show both, and people compare them.
+
+**Rules**
+
+1. **The list** (`/people/{id}/medicines`): the entries in force or scheduled, one per medicine,
+   each with its product (dm+d's name), route, the dose and schedule in the domain's words
+   (`directionsInWords`, never rewritten), the start and any stop or review date, and its state as
+   an icon and a word. An entry not yet checked always says **Not yet checked**, with the API's
+   notice. Outstanding reconciliations (an admission, a transfer, a return from hospital) are shown
+   above the list with a way to start one; an open reconciliation is linked.
+2. **One entry** (`/people/{id}/medicines/{entryId}`): what the version says, who transcribed it and
+   from which source, the second check, any stop, and the version history, newest first. A
+   withdrawn version is shown struck through (`<del>`) with the word **Withdrawn** and its reason;
+   a replaced version says **Replaced**.
+3. **Transcription** (`/people/{id}/medicines/new`): the product is chosen from dm+d by searching
+   (`GET /v1/medicines/products?q=`; until slice 10's reference data, the API's dm+d port answers,
+   which is the invented fixture outside production and nothing in production, so nothing can be
+   transcribed there yet); the route and dose unit are chosen only from what dm+d permits for that
+   product. Directions are regular (a pattern: every day, every n days, weekly on chosen days, or
+   monthly on a day; and one to eight times, each with its dose) or when required (one dose). A
+   dose is an amount, a range or "variable", with its unit; it is sent and shown exactly as
+   entered. The prescriber, the start, and the source document (its kind and reference) are
+   required; the stop, review date, indication and special instructions are optional. The API's
+   refusals (for example a restart needing a reason) are shown at their fields with their words,
+   and a reason field appears only when the API asks for it.
+4. **Second check**: offered to a holder of `medicines.record.manage` other than the transcriber,
+   while the entry is not yet checked. The checker ticks that they compared the entry with the
+   source document itself, and says whether it matches; a difference needs words. The API reads
+   competence from the workforce port; a refusal is shown in its words.
+5. **Stopping**: when it takes effect, the reason and the source of the instruction (kind and
+   reference), with the version as read. Never inferred: only a person stops a medicine.
+6. **Reconciliation** (`/people/{id}/medicines/reconciliations/{recId}`): started from the list (for
+   an outstanding event, or as a change). Then, in order on one page: the sources (kind, reference,
+   when received, and why it is current where the API asks); the lines from each source, as written
+   (with a dm+d product where known, and what the line says: start, continue, change, stop or
+   unclear); a decision by a person for every current entry (continue, change, stop with a reason,
+   or a query) and every line not matched to one (start, not started with a reason, or a query);
+   and completion (allergies compared, the person's involvement or why not, and why there is no
+   discharge letter where the API asks). Harbour never decides: a line that says "stop" does not
+   stop anything until a person decides it. Completion's refusals are listed by entry and line.
+7. **Self-administration** (MEDS-006's self-administration records) is not in slice 16's API, so
+   there is no screen yet (H-1281).
+8. **Status as an icon and a word**: Not yet checked, Checked, Difference found, Stopped, Replaced,
+   Withdrawn; a reconciliation Open or Completed.
+
+**API added in this slice**: `GET /v1/medicines/products?q=` (`medicines.record.manage`; two or more
+characters; dm+d's name, permitted routes and dose units; `loaded` says whether dm+d is loaded),
+through a `search` on `DmdFactsPort`. With `MEDICINES_FIXTURES` on, the competence fixture holds
+the demo owner, manager and nurse as current, so the local journeys can check and complete.
+
+**Tests**: `apps/web/src/lib/medicines.test.ts` (state chips, the transcription, check, stop and
+reconciliation forms read into the contract, doses kept exactly as entered);
+`apps/api/test/medicines.test.ts` (the product search); `apps/web/e2e/medicines.spec.ts`
+(transcribe, second check by another person, stop, and a reconciliation from sources to
+completion; axe in light and dark).

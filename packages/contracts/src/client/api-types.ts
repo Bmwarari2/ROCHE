@@ -26251,6 +26251,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/medicines/products": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Search dm+d for a product to transcribe
+     * @description Products whose dm+d name holds every word searched for, with the routes and dose units dm+d permits for each (at most 20). Until slice 10's reference data, the dm+d port answers: the invented fixture outside production, nothing in production (`loaded` false). Not audited: no person is read.
+     */
+    get: {
+      parameters: {
+        query: {
+          q: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Products */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineProducts"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people/{id}/medicines": {
     parameters: {
       query?: never;
@@ -38194,6 +38262,23 @@ export interface components {
     DsarErasureInput: {
       expectedVersion: number;
     };
+    MedicineProducts: {
+      loaded: boolean;
+      items: {
+        vmpId: string;
+        name: string;
+        permittedRoutes: components["schemas"]["DmdRoute"][];
+        permittedDoseUnits: components["schemas"]["DoseUnit"][];
+      }[];
+    };
+    DmdRoute: {
+      code: string;
+      name: string;
+    };
+    DoseUnit: {
+      code: string;
+      name: string;
+    };
     MedicinesRecord: {
       entries: components["schemas"]["MedicineEntry"][];
       outstandingReconciliations: components["schemas"]["OutstandingReconciliation"][];
@@ -38289,10 +38374,6 @@ export interface components {
       ampId: string | null;
       name: string;
     };
-    DmdRoute: {
-      code: string;
-      name: string;
-    };
     MarDirections:
       | {
           /** @enum {string} */
@@ -38354,10 +38435,6 @@ export interface components {
           kind: "variable";
           unit: components["schemas"]["DoseUnit"];
         };
-    DoseUnit: {
-      code: string;
-      name: string;
-    };
     MarSourceDocument: {
       kind: components["schemas"]["MarSourceKind"];
       reference: string;
