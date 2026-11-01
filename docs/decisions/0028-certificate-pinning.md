@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: proposed; partly superseded by ADR-0098
 date: 2026-10-11
 decision-makers: open
 consulted: OWASP MASVS L2 (MASVS-NETWORK-2); docs/compliance/security-checklist.md
@@ -7,6 +7,12 @@ informed: everyone working on the mobile app
 ---
 
 # Certificate pinning in the mobile app
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the pin set. Production certificates come from Google Cloud Certificate
+> Manager, so the Amazon intermediates named below are replaced by the issuing CAs of Google-managed
+> certificates; the pinning approach itself is unchanged and still proposed. The text below is kept
+> as decided.
 
 ## Context and problem statement
 

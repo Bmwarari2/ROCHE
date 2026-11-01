@@ -10,15 +10,16 @@ COPY . .
 RUN pnpm install --frozen-lockfile --filter @harbour/api... \
  && pnpm --filter @harbour/api build
 
-FROM node:22-bookworm-slim AS certs
-ADD https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /certs/rds-global-bundle.pem
-
+# No database CA is baked in (ADR-0098). The API reaches Cloud SQL on its private IP with TLS, and
+# Cloud SQL's server CA belongs to the instance, so there is no global bundle to download at build
+# time. The Cloud Run service mounts the instance's server CA from Secret Manager as a file
+# (/secrets/cloudsql/server-ca.pem) and sets NODE_EXTRA_CA_CERTS to it. Without that variable, Node
+# trusts only its own CAs, so a verifying connection to Cloud SQL fails rather than trusting
+# anything else.
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production \
-    NODE_EXTRA_CA_CERTS=/app/certs/rds-global-bundle.pem \
     NODE_OPTIONS=--enable-source-maps
 WORKDIR /app
-COPY --from=certs --chown=root:root --chmod=0444 /certs/rds-global-bundle.pem /app/certs/rds-global-bundle.pem
 COPY --from=build --chown=root:root /repo/apps/api/dist /app/apps/api/dist
 # The bundles carry every dependency; nothing else from the build stage reaches production.
 USER 1000:1000

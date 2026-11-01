@@ -12,6 +12,10 @@
 | Standard | [DCB0129](https://adultsocialcare.standards.nhs.uk/published-standards/clinical-risk-management-its-application-in-the-manufacture-of-health-it-systems) |
 | Clinical risk management file | [Clinical risk management plan](../clinical-risk-management-plan.md), [hazard log](../hazard-log.md), [medical-device boundary](../../compliance/medical-device-boundary.md), [DCB0160 deployment template](../dcb0160-deployment-template.md) |
 
+**Note (31/10/2026)**: production hosting moved from AWS eu-west-2 to Google Cloud europe-west2
+(London) by [ADR-0098](../../decisions/0098-production-on-google-cloud.md). This version is left as
+issued; the next safety case version ([v0.2](safety-case-v0.2-phase2.md)) carries the change.
+
 ## Document control
 
 | Version | Date | Status | Change |

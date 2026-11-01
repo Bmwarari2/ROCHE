@@ -55,21 +55,23 @@ and plain British English; vertical slices with tests.
   corrections are new events with `supersedes_id`, shown struck through. Every record has a history view
   and a signed PDF export.
 
-## Stack and residency (§6, ADR-0001)
+## Stack and residency (§6, ADR-0001, ADR-0098)
 
 - pnpm, Turborepo, TypeScript 6 strict, Biome; Next.js 16; Expo SDK 57; Hono, Zod, OpenAPI 3.1;
-  Postgres 17, Drizzle, RLS; PowerSync self-hosted; pg-boss; Better Auth; S3 SSE-KMS; OpenFeature with
-  Flagsmith; Terraform. Change a default only through an ADR.
+  Postgres 17, Drizzle, RLS; PowerSync self-hosted; pg-boss; Better Auth; Cloud Storage with CMEK;
+  OpenFeature with Flagsmith; Terraform on Google Cloud (Cloud Run, Cloud SQL, Cloud KMS, Secret
+  Manager). Change a default only through an ADR.
 - The web tier never opens a database connection; web and mobile share one typed API client. The 14
   bounded contexts (`platform`, `people`, `care`, `medicines`, `safety`, `quality`, `workforce`,
   `scheduling`, `operations`, `finance`, `comms`, `insights`, `integrations`, `ai`) are the only module
   names, permission prefixes and commit scopes. Modules talk through outbox events; no cross-module joins.
 - Notes, observations, administrations and incidents are append-only with client UUIDs and idempotent
   inserts. Mutable aggregates use `expected_version`; a stale write becomes a review task.
-- Production personal data lives only in AWS eu-west-2. Supabase London is allowed for dev, staging and
-  pilots (ADR-0008). Vercel `lhr1` or Fly.io `lhr` may host the stateless web tier only. No personal data
-  on hosts without a UK region. Disaster recovery: Multi-AZ plus point-in-time recovery, RPO 15 minutes,
-  RTO 4 hours; offline mobile is the continuity path.
+- Production personal data lives only in Google Cloud europe-west2 (London) (ADR-0098), enforced by
+  the organisation policy `gcp.resourceLocations`. Supabase London is allowed for dev, staging and
+  pilots (ADR-0008). Vercel `lhr1` or Fly.io `lhr` may host the stateless web tier only. No personal
+  data on hosts without a UK region. Disaster recovery: Cloud SQL regional high availability plus
+  point-in-time recovery, RPO 15 minutes, RTO 4 hours; offline mobile is the continuity path.
 - Statutory figures live in `rate_table`, seeded from `docs/specs/rates.md`, never as literals. AI is off
   by default, advisory only and reached only through the AI gateway.
 - Budgets: web first paint under 1.5 s; mobile cold start under 2 s; point-of-care actions under 100 ms;

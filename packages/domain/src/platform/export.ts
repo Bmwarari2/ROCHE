@@ -368,8 +368,8 @@ export function documentExportPath(id: string, contentType: string): string {
 }
 
 /**
- * Where an export's files are stored: under the organisation's own prefix in the eu-west-2 export
- * bucket (SSE-KMS), so a storage policy can confine every object to its tenant.
+ * Where an export's files are stored: under the organisation's own prefix in the europe-west2 export
+ * bucket (CMEK), so a storage policy can confine every object to its tenant.
  */
 export function exportStoragePrefix(tenantId: string, exportId: string): string {
   if (!isUuidShaped(tenantId) || !isUuidShaped(exportId)) {
