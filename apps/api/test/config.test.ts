@@ -174,6 +174,7 @@ describe("Google Cloud and SMTP settings (ADR-0098)", () => {
       SMTP_HOST: "smtp.example.invalid",
       SMTP_USER: "harbour",
       SMTP_PASSWORD: "a-relay-password",
+      SMTP_ALLOWED_FROM_DOMAINS: "harbour.example.invalid",
     });
     expect(config.smtp).toEqual({
       host: "smtp.example.invalid",
@@ -181,6 +182,7 @@ describe("Google Cloud and SMTP settings (ADR-0098)", () => {
       tls: "starttls",
       user: "harbour",
       password: "a-relay-password",
+      allowedFromDomains: ["harbour.example.invalid"],
     });
   });
 
@@ -189,6 +191,41 @@ describe("Google Cloud and SMTP settings (ADR-0098)", () => {
       host: "127.0.0.1",
       port: 1025,
       tls: "none",
+      allowedFromDomains: ["example.invalid"],
     });
+  });
+});
+
+describe("SMTP sender domains (#164 security review, L2)", () => {
+  const relay = { SMTP_HOST: "smtp.example.invalid", SMTP_USER: "harbour", SMTP_PASSWORD: "p" };
+  it("refuses a production relay with no allowed sender domains", () => {
+    expect(() => loadConfig({ ...PRODUCTION, ...relay })).toThrow("SMTP_ALLOWED_FROM_DOMAINS");
+  });
+
+  it("takes the listed domains, lower-cased, in production", () => {
+    const config = loadConfig({
+      ...PRODUCTION,
+      ...relay,
+      SMTP_ALLOWED_FROM_DOMAINS: "Harbour.example.invalid, carehome.example.invalid",
+    });
+    expect(config.smtp?.allowedFromDomains).toEqual([
+      "harbour.example.invalid",
+      "carehome.example.invalid",
+    ]);
+  });
+
+  it.each(["*.example.invalid", "alerts@example.invalid", "example"])(
+    "refuses %s as a domain",
+    (domain) => {
+      expect(() =>
+        loadConfig({ NODE_ENV: "development", SMTP_ALLOWED_FROM_DOMAINS: domain }),
+      ).toThrow("SMTP_ALLOWED_FROM_DOMAINS");
+    },
+  );
+
+  it("allows only the invented example.invalid outside production by default", () => {
+    expect(loadConfig({ NODE_ENV: "development" }).smtp?.allowedFromDomains).toEqual([
+      "example.invalid",
+    ]);
   });
 });
