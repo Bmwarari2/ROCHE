@@ -132,11 +132,12 @@ export default async function ShredRequestPage({
       </Card>
       {can.decide ? (
         <>
-          <Card as="section" title={t("shred.approve.title")} headingLevel={2}>
-            <ApproveShredForm id={item.id} organisation={me.tenant.name} />
-          </Card>
+          <p className="m-0">{t("shred.decide.both")}</p>
           <Card as="section" title={t("shred.refuse.title")} headingLevel={2}>
             <RefuseShredForm id={item.id} />
+          </Card>
+          <Card as="section" title={t("shred.approve.title")} headingLevel={2}>
+            <ApproveShredForm id={item.id} organisation={me.tenant.name} />
           </Card>
         </>
       ) : null}

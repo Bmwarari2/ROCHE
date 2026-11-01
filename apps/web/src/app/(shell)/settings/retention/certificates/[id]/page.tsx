@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FocusedAlert } from "@/components/retention/FocusedAlert";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
@@ -35,9 +36,10 @@ export default async function CertificatePage({
   const title = t("shred.certificate.title");
   if (!retentionShown(me.permissions)) return <SafetyForbidden title={title} />;
   const api = await tenantApi();
-  const [one, verification] = await Promise.all([
+  const [one, verification, requests] = await Promise.all([
     api.GET("/v1/destruction-certificates/{id}", { params: { path: { id } } }),
     api.GET("/v1/destruction-certificates/{id}/verification", { params: { path: { id } } }),
+    api.GET("/v1/retention/shred-requests"),
   ]);
   if (one.response.status === 404) notFound();
   if (!one.data) failWith(one.error, one.response, certificateHref(id));
@@ -47,7 +49,15 @@ export default async function CertificatePage({
   const chip = signatureChip(valid, t);
   const when = (iso: string | null) => formatDateTime(iso) ?? t("shred.certificate.notRecorded");
   const failed = firstParam((await searchParams).pdf) === "failed";
-  const rows: { readonly term: string; readonly value: string; readonly code?: boolean }[] = [
+  // The certificate keeps opaque member references for good (ADR-0109); the screen names them
+  // from the shred request it came from, where there is one.
+  const shred = requests.data?.items.find((r) => r.certificateId === cert.id);
+  const person = (ref: string | null, name: string | null | undefined) =>
+    ref
+      ? `${name ?? t("shred.formerMember")} (${t("shred.certificate.memberRef", { ref })})`
+      : null;
+  type Row = { readonly term: string; readonly value: string | null; readonly code?: boolean };
+  const facts: Row[] = [
     { term: t("shred.certificate.carriedOut"), value: when(cert.executedAt) },
     {
       term: t("shred.certificate.what"),
@@ -64,11 +74,13 @@ export default async function CertificatePage({
     { term: t("shred.certificate.reason"), value: cert.reason },
     ...(cert.requestedBy
       ? [
-          { term: t("shred.certificate.requestedBy"), value: cert.requestedBy, code: true },
+          {
+            term: t("shred.certificate.requestedBy"),
+            value: person(cert.requestedBy, shred?.requestedByName),
+          },
           {
             term: t("shred.certificate.approvedBy"),
-            value: cert.approvedBy ?? t("shred.certificate.notRecorded"),
-            code: true,
+            value: person(cert.approvedBy, shred?.decidedByName),
           },
         ]
       : []),
@@ -82,28 +94,34 @@ export default async function CertificatePage({
               .join("\n"),
     },
     { term: t("shred.certificate.backups"), value: when(cert.backupsExpireAt) },
-    {
-      term: t("shred.certificate.signer"),
-      value: cert.signatureKey ?? t("shred.certificate.notRecorded"),
-      code: true,
-    },
-    {
-      term: t("shred.certificate.algorithm"),
-      value: cert.signatureAlgorithm ?? t("shred.certificate.notRecorded"),
-      code: true,
-    },
-    {
-      term: t("shred.certificate.sha"),
-      value: cert.bodySha256 ?? t("shred.certificate.notRecorded"),
-      code: true,
-    },
-    {
-      term: t("shred.certificate.signature"),
-      value: cert.signature ?? t("shred.certificate.notRecorded"),
-      code: true,
-    },
+  ];
+  const technical: Row[] = [
+    { term: t("shred.certificate.signer"), value: cert.signatureKey, code: true },
+    { term: t("shred.certificate.algorithm"), value: cert.signatureAlgorithm, code: true },
+    { term: t("shred.certificate.sha"), value: cert.bodySha256, code: true },
+    { term: t("shred.certificate.signature"), value: cert.signature, code: true },
     { term: t("shred.certificate.reference"), value: cert.id, code: true },
   ];
+  const list = (rows: readonly Row[]) => (
+    <dl className="m-0 flex flex-col gap-3">
+      {rows.map((row) => (
+        <div key={row.term} className="flex flex-col gap-1">
+          <dt className="text-body-dense font-semibold">{row.term}</dt>
+          <dd className="m-0 whitespace-pre-wrap break-words">
+            {row.value === null ? (
+              t("shred.certificate.notRecorded")
+            ) : row.code ? (
+              <code translate="no" className="break-all font-mono text-body-dense">
+                {row.value}
+              </code>
+            ) : (
+              row.value
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -112,6 +130,7 @@ export default async function CertificatePage({
         title={title}
         description={t("shred.certificate.description")}
       />
+      {failed ? <FocusedAlert title={t("shred.certificate.pdfFailed")} /> : null}
       <Card as="section" title={t("shred.certificate.checkTitle")} headingLevel={2}>
         <div className="flex flex-col gap-3">
           <p className="m-0">
@@ -127,7 +146,15 @@ export default async function CertificatePage({
               {t("shred.certificate.download")}
             </ButtonLink>
           </div>
-          {failed ? <p className="m-0 font-semibold">{t("shred.certificate.pdfFailed")}</p> : null}
+        </div>
+      </Card>
+      <Card as="section" title={t("shred.certificate.states")} headingLevel={2}>
+        {list(facts)}
+      </Card>
+      <Card as="section" title={t("shred.certificate.technical")} headingLevel={2}>
+        <div className="flex flex-col gap-3">
+          <p className="m-0 max-w-prose">{t("shred.certificate.technicalAbout")}</p>
+          {list(technical)}
           <p className="m-0">
             <Link
               href={`${certificateHref(cert.id)}/verification`}
@@ -142,20 +169,6 @@ export default async function CertificatePage({
             })}
           </p>
         </div>
-      </Card>
-      <Card as="section" title={t("shred.certificate.states")} headingLevel={2}>
-        <dl className="m-0 flex flex-col gap-3">
-          {rows.map((row) => (
-            <div key={row.term} className="flex flex-col gap-1">
-              <dt className="text-body-dense font-semibold">{row.term}</dt>
-              <dd
-                className={`m-0 whitespace-pre-wrap ${row.code ? "break-all font-mono text-body-dense" : "break-words"}`}
-              >
-                {row.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
       </Card>
       <p className="m-0">
         <Link href={RETENTION_PAGE} className="inline-flex min-h-target items-center underline">

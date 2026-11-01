@@ -59,6 +59,8 @@ async function ask(page: Page) {
   await form.getByLabel("I understand this cannot be undone").check();
   await form.getByRole("button", { name: "Ask for the shred" }).click();
   await expect(status(page, "Shred asked for.")).toBeVisible();
+  // Focus lands on the heading, which carries the outcome.
+  await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
   return page.url().split("?")[0] ?? "";
 }
 
@@ -71,22 +73,22 @@ test("a shred is asked for, refused by a second person, asked again, approved an
 
   // From records retention, what a shred does comes first.
   await cass.goto("/settings/retention");
-  await region(cass, "Shred the organisation's records")
-    .getByRole("link", { name: "Go to shredding" })
+  await region(cass, "Destroy the organisation's stored files")
+    .getByRole("link", { name: "Go to destroying stored files" })
     .click();
   await expect(
-    cass.getByRole("heading", { level: 1, name: "Shred the organisation's records" }),
+    cass.getByRole("heading", { level: 1, name: "Destroy the organisation's stored files" }),
   ).toBeVisible();
   const what = region(cass, "What a shred does");
-  await expect(what).toContainText("A shred cannot be undone.");
-  await expect(what).toContainText("Records in the database are not removed by a shred.");
+  await expect(what).toContainText("Destroying the stored files cannot be undone.");
+  await expect(what).toContainText("Care records in Harbour are not removed by this.");
   await bothThemes(cass, "shred page");
 
   // Nothing chosen, no reason, no acknowledgement: each said at its field.
   const form = region(cass, "Ask for a shred");
   await form.getByRole("button", { name: "Ask for the shred" }).click();
   await expect(form.getByText("Choose the full export this shred follows.").first()).toBeVisible();
-  await expect(form.getByText("Give the reason in 20 to 1000 characters.").first()).toBeVisible();
+  await expect(form.getByText("Give the reason in 20 to 1,000 characters.").first()).toBeVisible();
   await form.getByRole("heading", { name: "Ask for a shred" }).scrollIntoViewIfNeeded();
   await cass.evaluate(() => window.scrollBy(0, -80));
   await bothThemes(cass, "shred request errors");
@@ -108,6 +110,7 @@ test("a shred is asked for, refused by a second person, asked again, approved an
   await refuse.getByLabel("Why you are refusing it").fill("The board has not agreed it yet");
   await refuse.getByRole("button", { name: "Refuse the shred" }).click();
   await expect(status(remy, "Shred refused.")).toBeVisible();
+  await expect(remy.getByRole("heading", { level: 1 })).toBeFocused();
   const about = region(remy, "About this request");
   await expect(about).toContainText("Refused");
   await expect(about).toContainText("The board has not agreed it yet");
@@ -119,14 +122,15 @@ test("a shred is asked for, refused by a second person, asked again, approved an
   await remy.goto(second);
   const approve = region(remy, "Approve the shred");
   await expect(approve).toContainText("Closing Example Care stops opening now");
-  await approve.getByLabel("Type SHRED to confirm").fill("shred");
+  await approve.getByLabel("Type shred to confirm").fill("shed");
   await approve.getByRole("button", { name: "Approve the shred" }).click();
-  await expect(approve.getByText("Type SHRED exactly to confirm.").first()).toBeVisible();
+  await expect(approve.getByText("Type the word shred to confirm.").first()).toBeVisible();
   await expect(
     approve.getByText("Tick to confirm you understand this cannot be undone.").first(),
   ).toBeVisible();
   await bothThemes(remy, "approval errors");
-  await approve.getByLabel("Type SHRED to confirm").fill("SHRED");
+  // Any case will do.
+  await approve.getByLabel("Type shred to confirm").fill("Shred");
   await approve.getByLabel("I understand this cannot be undone").check();
   await approve.getByRole("button", { name: "Approve the shred" }).click();
   await expect(status(remy, /Shred approved\./)).toBeVisible();
@@ -147,17 +151,26 @@ test("a shred is asked for, refused by a second person, asked again, approved an
   await bothThemes(remy, "destruction certificate");
   const [download] = await Promise.all([
     remy.waitForEvent("download"),
-    region(remy, "Signature check").getByRole("link", { name: "Download as PDF" }).click(),
+    region(remy, "Signature check")
+      .getByRole("link", { name: "Download the certificate as a PDF" })
+      .click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/^destruction-certificate-[0-9a-f-]{36}\.pdf$/);
   const bytes = await readFile((await download.path()) ?? "");
   expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
-  const href = await region(remy, "Signature check")
-    .getByRole("link", { name: "Open the signature check as data" })
+  const href = await region(remy, "Details for checking the signature")
+    .getByRole("link", { name: /View the signature check/ })
     .getAttribute("href");
   const checked = await remy.request.get(href ?? "");
   expect(checked.ok()).toBe(true);
   expect(await checked.json()).toMatchObject({ valid: true });
+
+  // A PDF that could not be made is said in an alert that takes focus.
+  await remy.goto(`${remy.url().split("?")[0]}?pdf=failed`);
+  const alert = main(remy).getByRole("alert");
+  await expect(alert).toContainText("Sorry, the PDF could not be made. Try again.");
+  await expect(alert).toBeFocused();
+  await bothThemes(remy, "certificate PDF failed");
 
   // Listed on records retention, linked to the certificate.
   await remy.goto("/settings/retention");

@@ -84,7 +84,8 @@ export function RequestShredForm({
     if (!read.ok) return setResult(fieldErrors(read.errors));
     send(
       () => requestShred(read.body),
-      (data) => (data?.id ? arrived(shredHref(data.id), "requested") : SHRED_PAGE),
+      (data) =>
+        data?.id ? arrived(shredHref(data.id), "requested") : arrived(SHRED_PAGE, "requested"),
     );
   };
   return (
@@ -161,9 +162,9 @@ export function ApproveShredForm({
         id={ids.confirmWord}
         name="confirmWord"
         label={t("shred.approve.word", { word: SHRED_CONFIRM_WORD })}
-        hint={t("shred.approve.wordHint")}
         autoComplete="off"
         spellCheck={false}
+        required
         error={errorFor(result, "confirmWord")}
       />
       <Irreversible id={ids.irreversible} error={errorFor(result, "irreversible")} />

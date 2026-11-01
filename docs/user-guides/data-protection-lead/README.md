@@ -5,7 +5,7 @@ For the quality and compliance lead, and the person named as data protection lea
 ## Your guides
 
 - [How to prepare and sign the DPIA](prepare-and-sign-the-dpia.md)
-- [How to shred the organisation's records when it leaves Harbour](shred-the-organisations-records.md)
+- [How to destroy the organisation's stored files when it leaves Harbour](shred-the-organisations-records.md)
 
 ## Everyone
 

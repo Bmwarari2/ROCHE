@@ -3471,7 +3471,6 @@
     "shred.approve.title",
     "shred.approve.restate",
     "shred.approve.word",
-    "shred.approve.wordHint",
     "shred.approve.wordError",
     "shred.approve.submit",
     "shred.approve.ownRequest",
@@ -3515,6 +3514,11 @@
     "shred.certificate.signature",
     "shred.certificate.reference",
     "shred.certificate.notRecorded",
-    "shred.certificate.back"
+    "shred.certificate.back",
+    "shred.request.openLink",
+    "shred.decide.both",
+    "shred.certificate.memberRef",
+    "shred.certificate.technical",
+    "shred.certificate.technicalAbout"
   ]
 }

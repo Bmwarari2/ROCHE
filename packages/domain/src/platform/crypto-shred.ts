@@ -128,8 +128,9 @@ export function checkShredRefusal(input: {
   if (input.status !== "pending") return no("not_pending");
   if (input.requestedBy === input.refuserId) return no("same_person");
   if (shredRequestExpired(input.requestedAt, input.now)) return no("expired");
-  const reason = input.reason.trim();
-  if (reason.length < SHRED_REFUSAL_REASON_MIN || reason.length > SHRED_REFUSAL_REASON_MAX) {
+  // Counted in characters (code points), as the database's char_length counts them.
+  const length = [...input.reason.trim()].length;
+  if (length < SHRED_REFUSAL_REASON_MIN || length > SHRED_REFUSAL_REASON_MAX) {
     return no("reason_too_short");
   }
   return { ok: true };

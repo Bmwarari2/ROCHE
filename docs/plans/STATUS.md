@@ -70,7 +70,7 @@ and merges after it.
 approve or refuse, cancel or withdraw, each state as an icon and a word), a refusal (migration 0130),
 the usable exports and both people's names in the API, and destruction certificates as a page and as
 a PDF built on request with its signature check (platform.md, Crypto-shredding screens rules 7 to
-12; human actions H-1220 to H-1224). The e2e seed adds Closing Example Care, so the journey's
+12; human actions H-1220 to H-1225). The e2e seed adds Closing Example Care, so the journey's
 approval never touches the demo organisation.
 
 **Paused at 15:10 on 31/10/2026** for the account's usage limit; every builder was asked to push

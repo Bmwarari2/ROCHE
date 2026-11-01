@@ -2,7 +2,7 @@
 
 import { CircleCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { t } from "@/lib/i18n";
 
 /**
@@ -24,6 +24,9 @@ export function RecordedArrival({
   // Each save adds `at`, so a second save with the same words is a new arrival (focus and status).
   const at = useSearchParams().get("at");
   const arrived = useRef(false);
+  // The focused heading names the message too: a status region that arrives already holding its
+  // words is often not announced, so the heading carries them (shred screens accessibility review).
+  const messageId = useId();
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the words and each arrival.
   useEffect(() => {
     // Taking the parameters off the address below changes `at` to null: not a new arrival.
@@ -32,6 +35,7 @@ export function RecordedArrival({
     const heading = document.querySelector("h1");
     if (heading) {
       heading.setAttribute("tabindex", "-1");
+      heading.setAttribute("aria-describedby", messageId);
       heading.focus();
     }
     if (param) {
@@ -42,10 +46,14 @@ export function RecordedArrival({
         window.history.replaceState(window.history.state, "", url);
       }
     }
-  }, [words, param, at]);
+  }, [words, param, at, messageId]);
   return (
     <div role="status">
-      <p key={at ?? "first"} className="m-0 inline-flex items-center gap-2 font-semibold">
+      <p
+        key={at ?? "first"}
+        id={messageId}
+        className="m-0 inline-flex items-center gap-2 font-semibold"
+      >
         <CircleCheck size={18} strokeWidth={1.5} aria-hidden="true" />
         {words}
       </p>

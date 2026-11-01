@@ -1,6 +1,11 @@
 "use server";
 
-import type { ShredApproved, ShredRequestItem } from "@harbour/contracts";
+import {
+  CreateShredRequest,
+  RefuseShredRequest,
+  type ShredApproved,
+  type ShredRequestItem,
+} from "@harbour/contracts";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { tenantApi } from "@/lib/api";
@@ -67,12 +72,9 @@ export async function requestShred(body: {
   readonly reason: string;
   readonly exportId: string;
 }): Promise<ActionResult<ShredRequestItem | null>> {
-  if (!isUuid(body.exportId)) return notFound();
-  return send((api) =>
-    api.POST("/v1/retention/shred-requests", {
-      body: { reason: body.reason, exportId: body.exportId },
-    }),
-  );
+  const parsed = CreateShredRequest.safeParse(body);
+  if (!parsed.success || !isUuid(body.exportId)) return notFound();
+  return send((api) => api.POST("/v1/retention/shred-requests", { body: parsed.data }));
 }
 
 export async function approveShred(id: string): Promise<ActionResult<ShredApproved | null>> {
@@ -87,12 +89,13 @@ export async function refuseShred(
   id: string,
   reason: string,
 ): Promise<ActionResult<ShredRequestItem | null>> {
-  if (!isUuid(id)) return notFound();
+  const parsed = RefuseShredRequest.safeParse({ reason });
+  if (!isUuid(id) || !parsed.success) return notFound();
   return send(
     (api) =>
       api.POST("/v1/retention/shred-requests/{id}/refuse", {
         params: { path: { id } },
-        body: { reason },
+        body: parsed.data,
       }),
     id,
   );

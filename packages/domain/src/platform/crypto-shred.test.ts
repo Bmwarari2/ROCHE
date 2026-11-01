@@ -117,6 +117,8 @@ describe("checkShredRefusal (PLAT-012 part 2)", () => {
       "reason_too_short",
     ],
     ["a long reason", { reason: "x".repeat(SHRED_REFUSAL_REASON_MAX + 1) }, "reason_too_short"],
+    // Five characters outside the Basic Multilingual Plane are ten UTF-16 units but five characters.
+    ["five astral characters", { reason: "\u{1D49C}".repeat(5) }, "reason_too_short"],
   ] as const)("refuses %s", (_name, change, problem) => {
     const verdict = checkShredRefusal({ ...ok, ...change });
     expect(verdict).toMatchObject({ ok: false, problem });

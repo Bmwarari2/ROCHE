@@ -130,11 +130,14 @@ describe("reading the forms", () => {
     });
   });
 
-  it("approves only with the word typed exactly and the acknowledgement", () => {
+  it("approves only with the word typed, in any case, and the acknowledgement", () => {
     expect(
       readShredApproval(form({ confirmWord: SHRED_CONFIRM_WORD, irreversible: "yes" }), t),
     ).toEqual({ ok: true });
-    for (const word of ["shred", "SHRED IT", ""]) {
+    expect(readShredApproval(form({ confirmWord: "SHRED", irreversible: "yes" }), t)).toEqual({
+      ok: true,
+    });
+    for (const word of ["shed", "shred it", ""]) {
       expect(readShredApproval(form({ confirmWord: word, irreversible: "yes" }), t)).toMatchObject({
         ok: false,
         errors: { confirmWord: expect.any(String) },

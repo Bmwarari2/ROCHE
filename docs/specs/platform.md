@@ -930,7 +930,8 @@ needs a fresh step-up, as the API asks.
 
 **Rules**
 
-7. **Request** (`/settings/retention/shred`). The page says in plain words what a shred does before
+7. **Request** (`/settings/retention/shred`, titled "Destroy the organisation's stored files", since
+   care records are not removed by it). The page says in plain words what a shred does before
    the form: every stored document, export and data request bundle stops opening at once, the keys
    are destroyed for good after 30 days, nobody (Thapsus included) can recover them after that,
    database records are not removed by it (they follow the retention schedule) and backups hold
@@ -943,8 +944,9 @@ needs a fresh step-up, as the API asks.
    undone") is required. One open request at a time: while one is open the form is not offered.
 8. **Approve or refuse** (`/settings/retention/shred/{id}`). Shown only to a holder other than the
    requester, while the request is pending and within 7 days. The page restates the consequences,
-   then asks for a typed confirmation (the word `SHRED`) and the acknowledgement before **Approve
-   the shred**; **Refuse** needs a reason (10 to 500 characters). The requester sees **Cancel this
+   then asks for a typed confirmation (the word `shred`, any case) and the acknowledgement before
+   **Approve the shred**; **Refuse the shred** needs a reason (10 to 500 characters) and comes
+   first, so the destructive form is not the first reached by keyboard. The requester sees **Cancel this
    request** instead; anyone sees **Withdraw this request** once it has lapsed.
 9. **Refusal** (new). `POST /v1/retention/shred-requests/{id}/refuse`: a different member from the
    requester, step-up, tenant-wide, while pending and within 7 days, with a reason of 10 to 500
@@ -983,7 +985,7 @@ and `platform.destruction_certificate.download`.
 | Action | Permission |
 | --- | --- |
 | Refuse a shred (not the requester) | `platform.retention.manage`, step-up, tenant-wide |
-| Open a certificate or download its PDF | `platform.retention.manage` |
+| Open a certificate or download its PDF | `platform.retention.manage`, tenant-wide; no step-up (opaque ids and the reason only) |
 
 **Tests (written first)**: `packages/db/test/crypto-shred.test.ts` (a refusal by the requester, a
 late one and a change after it refused); `apps/api/test/crypto-shred.test.ts` (refusal rules and

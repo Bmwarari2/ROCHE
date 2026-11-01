@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/care/Notice";
 import { RequestShredForm } from "@/components/retention/ShredForms";
+import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -20,7 +21,11 @@ export const metadata: Metadata = { title: t("shred.title") };
  * exports downloaded within 30 days; and every request is listed with its state as an icon and a
  * word. The API decides every rule again.
  */
-export default async function ShredPage() {
+export default async function ShredPage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { me } = await getShellContext();
   const title = t("shred.title");
   if (!retentionShown(me.permissions)) return <SafetyForbidden title={title} />;
@@ -41,6 +46,9 @@ export default async function ShredPage() {
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader eyebrow={me.tenant.name} title={title} description={t("shred.description")} />
+      {(await searchParams).done === "requested" ? (
+        <RecordedArrival message={t("shred.done", { done: "requested", state: "" })} param="done" />
+      ) : null}
       <Card as="section" title={t("shred.what.title")} headingLevel={2}>
         <div className="flex flex-col gap-3">
           <p className="m-0 flex items-center gap-2 font-semibold">
@@ -83,14 +91,17 @@ export default async function ShredPage() {
       ) : null}
       <Card as="section" title={t("shred.request.title")} headingLevel={2}>
         {open ? (
-          <p className="m-0">
-            <Link
-              href={shredHref(open.id)}
-              className="inline-flex min-h-target items-center underline"
-            >
-              {t("shred.request.open")}
-            </Link>
-          </p>
+          <div className="flex flex-col gap-2">
+            <p className="m-0">{t("shred.request.open")}</p>
+            <p className="m-0">
+              <Link
+                href={shredHref(open.id)}
+                className="inline-flex min-h-target items-center underline"
+              >
+                {t("shred.request.openLink")}
+              </Link>
+            </p>
+          </div>
         ) : inForce.length > 0 ? (
           <p className="m-0">{t("shred.request.heldBack")}</p>
         ) : usable.length === 0 ? (
@@ -124,7 +135,10 @@ export default async function ShredPage() {
               return (
                 <li key={item.id} className="flex flex-col gap-1 border-b border-border pb-3">
                   <h3 className="m-0 text-body font-semibold">
-                    <Link href={shredHref(item.id)} className="underline">
+                    <Link
+                      href={shredHref(item.id)}
+                      className="inline-flex min-h-target items-center underline"
+                    >
                       {t("shred.list.heading", { when: when(item.requestedAt) })}
                     </Link>
                   </h3>

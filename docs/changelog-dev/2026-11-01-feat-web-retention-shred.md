@@ -20,4 +20,4 @@ after it. Finishes PLAT-012.
   (retention-and-deletion.md section 5 updated).
 - E2E seed: Closing Example Care, an invented organisation with two records leads, so the journey's
   approval never shreds the demo organisation.
-- Docs: platform.md rules 7 to 12, a data protection lead guide, human actions H-1220 to H-1224.
+- Docs: platform.md rules 7 to 12, a data protection lead guide, human actions H-1220 to H-1225.

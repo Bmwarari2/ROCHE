@@ -6,7 +6,7 @@ import {
   CircleCheck,
   CircleSlash,
   Hourglass,
-  LoaderCircle,
+  KeyRound,
   type LucideIcon,
   TimerOff,
 } from "lucide-react";
@@ -27,8 +27,8 @@ export const SHRED_REASON_MIN = 20;
 export const SHRED_REASON_MAX = 1000;
 export const REFUSAL_REASON_MIN = 10;
 export const REFUSAL_REASON_MAX = 500;
-/** Typed before an approval, so it is never one slip of a click. */
-export const SHRED_CONFIRM_WORD = "SHRED";
+/** Typed before an approval (any case), so it is never one slip of a click. */
+export const SHRED_CONFIRM_WORD = "shred";
 
 export type ShredState = "pending" | "lapsed" | "shredding" | "approved" | "refused" | "cancelled";
 
@@ -49,7 +49,7 @@ export function shredChip(
     case "lapsed":
       return { status: "notApplicable", icon: TimerOff, label };
     case "shredding":
-      return { status: "info", icon: LoaderCircle, label };
+      return { status: "info", icon: KeyRound, label };
     case "approved":
       return { status: "done", icon: CircleCheck, label };
     case "refused":
@@ -122,7 +122,7 @@ export function readShredApproval(
   t: Translator,
 ): { readonly ok: true } | { readonly ok: false; readonly errors: Errors } {
   const errors: Record<string, string> = {};
-  if (text(form, "confirmWord") !== SHRED_CONFIRM_WORD) {
+  if (text(form, "confirmWord").toLowerCase() !== SHRED_CONFIRM_WORD) {
     errors.confirmWord = t("shred.approve.wordError", { word: SHRED_CONFIRM_WORD });
   }
   if (text(form, "irreversible") !== "yes") errors.irreversible = t("shred.irreversibleError");

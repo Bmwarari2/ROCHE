@@ -163,7 +163,10 @@ export default async function RetentionPage({
             {certificates.data.items.map((cert) => (
               <li key={cert.id} className="flex flex-col gap-1 border-b border-border pb-3">
                 <h3 className="m-0 text-body font-semibold">
-                  <Link href={certificateHref(cert.id)} className="underline">
+                  <Link
+                    href={certificateHref(cert.id)}
+                    className="inline-flex min-h-target items-center underline"
+                  >
                     {cert.subjectType === "tenant"
                       ? t("shred.certificate.listHeading", { dateTime: when(cert.executedAt) })
                       : t("retention.certificate.heading", {

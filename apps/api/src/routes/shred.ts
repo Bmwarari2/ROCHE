@@ -415,7 +415,14 @@ export const shredRouter = createRouter()
               decisionReason: reason.trim(),
             })
             .where(eq(tenantShredRequest.id, id))
-            .returning();
+            .returning()
+            .catch((error: unknown) => {
+              // A reason the database counts differently is still a reason problem, never a 500.
+              if ((error as { code?: string } | null)?.code === "23514") {
+                refused(action, "reason_too_short", "Give the reason in 10 to 500 characters.", id);
+              }
+              throw error;
+            });
           if (!done) throw problems.conflict();
           // The reason stays on the request; the audit carries the decision only.
           await auditInTx(tx, access, {
@@ -497,7 +504,7 @@ export const shredRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireTenantWide(c);
       const { id } = c.req.valid("param");
       const row = await loadCertificate(c, access, id, "platform.destruction_certificate.view");
       return c.json(certificateItem(row), 200);
@@ -523,7 +530,9 @@ export const shredRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      // No step-up: the certificate holds opaque ids and the reason only, no personal data
+      // (platform.md rule 12; security review of PLAT-012 part 2, L3).
+      const access = await requireTenantWide(c);
       const { id } = c.req.valid("param");
       const { tenantKeys } = c.get("services");
       const row = await loadCertificate(c, access, id, "platform.destruction_certificate.download");
