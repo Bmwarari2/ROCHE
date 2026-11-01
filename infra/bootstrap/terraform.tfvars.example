@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars (git-ignored), one per environment, and apply as an administrator.
+environment                = "dev"
+project_id                 = "harbour-dev-000000"
+folder_id                  = null
+github_repository_id       = "000000000"
+github_repository_owner_id = "000000000"
+state_bucket_name          = "harbour-tfstate-harbour-state-000000"

@@ -14,3 +14,5 @@ infra/**/.terraform
 !.env.example
 **/*.pem
 **/*.key
+# Credentials written by google-github-actions/auth; never in an image or a commit.
+gha-creds-*.json

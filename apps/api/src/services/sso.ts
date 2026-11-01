@@ -3,17 +3,13 @@ import { lookup, resolveTxt } from "node:dns/promises";
 import { readFile } from "node:fs/promises";
 import { get as httpsGet } from "node:https";
 import { BlockList, isIP } from "node:net";
-import {
-  DescribeSecretCommand,
-  GetSecretValueCommand,
-  SecretsManagerClient,
-} from "@aws-sdk/client-secrets-manager";
 import { normalizeUrl, validateDiscoveryDocument } from "@better-auth/sso";
 import { type Database, type Transaction, withRequestContext } from "@harbour/db";
 import { ssoSignInDecision, tenantOfSsoProvider } from "@harbour/domain";
 import { sql } from "drizzle-orm";
+import { GoogleAuth } from "google-auth-library";
 import type pg from "pg";
-import type { Config } from "../config";
+import { type Config, GCP_REGIONS } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { Logger } from "../logger";
 import { tenantFlags } from "./dpia";
@@ -31,24 +27,87 @@ export interface SsoKeyStore {
   get(ref: string): Promise<string | null>;
 }
 
-class AwsKeyStore implements SsoKeyStore {
-  private readonly client = new SecretsManagerClient({});
+/** Regional secrets only: Secret Manager's endpoint and location in europe-west2 (ADR-0098). */
+const SSO_SECRET_LOCATION = GCP_REGIONS[0];
+
+/**
+ * A key's store name as a Secret Manager secret id. Secret ids take no slashes, so
+ * `harbour/sso/<tenant id>/<name>` becomes `harbour_sso_<tenant id>_<name>`: neither the tenant id
+ * nor the name can hold `_`, so two names never share an id, and IAM can confine the API to the
+ * `harbour_sso_` prefix. Anything else has no secret id and is never looked up.
+ */
+export function ssoSecretId(ref: string): string | null {
+  const match =
+    /^harbour\/sso\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/([a-z0-9][a-z0-9-]{0,62})$/.exec(
+      ref,
+    );
+  return match ? `harbour_sso_${match[1]}_${match[2]}` : null;
+}
+
+/** What the store uses of an authorised client: a GET answering JSON (GoogleAuth, or a double in tests). */
+export type GcpGetJson = (url: string) => Promise<unknown>;
+
+function httpStatus(error: unknown): number | undefined {
+  const failure = error as { status?: unknown; response?: { status?: unknown } } | null;
+  const status = failure?.status ?? failure?.response?.status;
+  return typeof status === "number" ? status : undefined;
+}
+
+/**
+ * Secret Manager in europe-west2 (ADR-0091, ADR-0098): each key is a regional secret in the
+ * environment's project, read through the regional endpoint with the runtime's own identity.
+ * Only the latest version is used; a missing secret reads as no key, and a refused read fails.
+ */
+export class SecretManagerKeyStore implements SsoKeyStore {
+  constructor(
+    private readonly projectId: string,
+    private readonly getJson: GcpGetJson,
+  ) {}
+
+  /** The store for a project; credentials come from the runtime's service account. */
+  static forProject(projectId: string): SecretManagerKeyStore {
+    const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+    return new SecretManagerKeyStore(
+      projectId,
+      async (url) => (await auth.request<unknown>({ url, method: "GET" })).data,
+    );
+  }
+
+  private latest(secretId: string): string {
+    const location = SSO_SECRET_LOCATION;
+    return `https://secretmanager.${location}.rep.googleapis.com/v1/projects/${this.projectId}/locations/${location}/secrets/${secretId}/versions/latest`;
+  }
+
   async get(ref: string): Promise<string | null> {
+    const secretId = ssoSecretId(ref);
+    if (!secretId) return null;
     try {
-      const out = await this.client.send(new GetSecretValueCommand({ SecretId: ref }));
-      return out.SecretString ?? null;
+      const out = (await this.getJson(`${this.latest(secretId)}:access`)) as {
+        payload?: { data?: unknown };
+      } | null;
+      const data = out?.payload?.data;
+      return typeof data === "string" ? Buffer.from(data, "base64").toString("utf8") : null;
     } catch (error) {
-      if ((error as { name?: string }).name === "ResourceNotFoundException") return null;
+      if (httpStatus(error) === 404) return null;
       throw error;
     }
   }
-  /** Whether the key exists, without reading it (#33 review M3). */
+
+  /**
+   * Whether an enabled version exists, from its metadata, without reading the key (#33 review M3).
+   * The API may read only the keys granted to it, one secret at a time, and Google Cloud answers
+   * 403 for a secret that does not exist as well as for one not granted, so either counts as
+   * missing: Thapsus adds the key and its grant together (H-751).
+   */
   async has(ref: string): Promise<boolean> {
+    const secretId = ssoSecretId(ref);
+    if (!secretId) return false;
     try {
-      await this.client.send(new DescribeSecretCommand({ SecretId: ref }));
-      return true;
+      const out = (await this.getJson(this.latest(secretId))) as { state?: unknown } | null;
+      return out?.state === "ENABLED";
     } catch (error) {
-      if ((error as { name?: string }).name === "ResourceNotFoundException") return false;
+      const status = httpStatus(error);
+      if (status === 404 || status === 403) return false;
       throw error;
     }
   }
@@ -65,7 +124,11 @@ class MemoryKeyStore implements SsoKeyStore {
 }
 
 export function createSsoKeyStore(config: Config): SsoKeyStore {
-  if (config.SSO_KEY_STORE === "aws") return new AwsKeyStore();
+  if (config.SSO_KEY_STORE === "gcp") {
+    if (!config.GCP_PROJECT_ID)
+      throw new Error("GCP_PROJECT_ID must be set when SSO_KEY_STORE is gcp");
+    return SecretManagerKeyStore.forProject(config.GCP_PROJECT_ID);
+  }
   return new MemoryKeyStore(JSON.parse(config.SSO_TEST_KEYS) as Record<string, string>);
 }
 

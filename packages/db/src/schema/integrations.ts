@@ -16,7 +16,7 @@ import { notification, tenant } from "./platform";
 /**
  * Integrations (`integrations` bounded context, master prompt section 15.3). Every integration is an
  * adapter behind a domain port, with a mock, so tenants without the partner still get a working
- * product. Credentials never live here: `secret_ref` names a Secrets Manager entry.
+ * product. Credentials never live here: `secret_ref` names a Secret Manager secret.
  */
 
 export const integrationConnection = pgTable(
@@ -26,7 +26,7 @@ export const integrationConnection = pgTable(
     tenantId: tenantId().references(() => tenant.id),
     /** The port, e.g. `comms.email`, `comms.sms`, `comms.push`, `nhs.pds`, `finance.payroll`. */
     port: text("port").notNull(),
-    /** The adapter, e.g. `mock`, `ses`, `expo`, `xero`. */
+    /** The adapter, e.g. `mock`, `smtp`, `expo`, `xero`. */
     provider: text("provider").notNull(),
     status: text("status").notNull().default("configured"),
     /** Non-secret settings only (endpoints, sender ids, feature switches). */

@@ -72,7 +72,7 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
     const list = await overview();
     expect(list.noticeDays).toBe(30);
     expect(list.mayRespond).toBe(false);
-    expect(list.inUse.map((s) => s.key)).toContain("aws_hosting");
+    expect(list.inUse.map((s) => s.key)).toContain("gcp_hosting");
     expect(list.inUse.every((s) => !s.acknowledged)).toBe(true);
     expect((await h.request("/v1/sub-processors", as("manager"))).status).toBe(200);
     expect((await h.request("/v1/sub-processors", as("carer"))).status).toBe(403);
@@ -81,7 +81,7 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
 
   it("lets only the named data protection lead acknowledge one", async () => {
     // Before anyone is named, no one may answer.
-    const unnamed = await send("POST", "/v1/sub-processors/aws_hosting/acknowledge", "owner", {});
+    const unnamed = await send("POST", "/v1/sub-processors/gcp_hosting/acknowledge", "owner", {});
     expect(unnamed.status).toBe(422);
     expect((await codeOf(unnamed)).detail).toContain("named as the organisation's data protection");
     await ownerIn("UPDATE tenant SET data_protection_lead_id = $1 WHERE id = $2", [
@@ -90,14 +90,14 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
     ]);
     expect((await overview()).mayRespond).toBe(true);
     expect(
-      (await send("POST", "/v1/sub-processors/aws_hosting/acknowledge", "manager", {})).status,
+      (await send("POST", "/v1/sub-processors/gcp_hosting/acknowledge", "manager", {})).status,
     ).toBe(403);
     expect(
       (await send("POST", "/v1/sub-processors/not_a_sub_processor/acknowledge", "owner", {}))
         .status,
     ).toBe(404);
     // The quality lead holds platform.dpia.sign but is not the named lead.
-    const notLead = await send("POST", "/v1/sub-processors/aws_hosting/acknowledge", "quality", {});
+    const notLead = await send("POST", "/v1/sub-processors/gcp_hosting/acknowledge", "quality", {});
     expect(notLead.status).toBe(422);
     expect((await codeOf(notLead)).detail).toContain("named as the organisation's data protection");
     // Answering needs a fresh step-up.
@@ -105,7 +105,7 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
     const session = h.tokens.owner?.split(".")[0] ?? "";
     await ageSession(auth, session, 3_600);
     try {
-      const stale = await send("POST", "/v1/sub-processors/aws_hosting/acknowledge", "owner", {});
+      const stale = await send("POST", "/v1/sub-processors/gcp_hosting/acknowledge", "owner", {});
       expect(stale.status).toBe(403);
       expect(((await stale.json()) as { code: string }).code).toBe("step_up_required");
     } finally {
@@ -113,23 +113,23 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
     }
     const acknowledged = await send(
       "POST",
-      "/v1/sub-processors/aws_hosting/acknowledge",
+      "/v1/sub-processors/gcp_hosting/acknowledge",
       "owner",
       {},
     );
     expect(acknowledged.status).toBe(201);
-    expect((await overview()).inUse.find((s) => s.key === "aws_hosting")?.acknowledged).toBe(true);
+    expect((await overview()).inUse.find((s) => s.key === "gcp_hosting")?.acknowledged).toBe(true);
     const checklist = (await (await h.request("/v1/onboarding", as("owner"))).json()) as {
       items: { key: string; outstanding: string[] }[];
     };
     expect(
       checklist.items.find((i) => i.key === "sub_processors_acknowledged")?.outstanding,
-    ).not.toContain("aws_hosting");
+    ).not.toContain("gcp_hosting");
   });
 
   it("reopens an acknowledgement when a later notice changes the entry", async () => {
-    await announce("aws_hosting", 0);
-    expect((await overview()).inUse.find((s) => s.key === "aws_hosting")?.acknowledged).toBe(false);
+    await announce("gcp_hosting", 0);
+    expect((await overview()).inUse.find((s) => s.key === "gcp_hosting")?.acknowledged).toBe(false);
   });
 
   it("takes an objection within the window, with its grounds, once", async () => {

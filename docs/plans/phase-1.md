@@ -20,8 +20,9 @@ when the slice that needs them starts:
 
 - PDF rendering for the downtime pack, hospital transfer pack, inspector pack and history export
   (candidates: Typst, Apache-2.0, or pdf-lib, MIT), rendered on the server, watermarked.
-- Document storage port (local filesystem in development and tests, S3 with SSE-KMS in AWS), with
-  presigned uploads and an antivirus hook.
+- Document storage port (local filesystem in development and tests; in production Cloud Storage
+  with CMEK by [ADR-0098](../decisions/0098-production-on-google-cloud.md), built first as S3 with SSE-KMS), with signed uploads and an
+  antivirus hook.
 - Offline write model for append-only care events (client-generated UUIDv7, device and server
   times, idempotent upload, supersedes for corrections) and the conflict review for mutable rows.
 
@@ -43,7 +44,7 @@ integrations, documentation) and lands as its own pull request stacked on the pr
 | 9 | Web UI | the rows above | Person record tabs (overview, care plan, assessments, notes, charts, body map, MCA, incidents, history), round and handover views, incident and notification screens, role dashboards (INSI-001), branding (PLAT-002) |
 | 10 | Offline Care mode | MOB-002, MOB-005, MOB-006, MOB-010 | Sync streams for the new tables scoped to assignments; local writes for notes, charts, body-map marks, tasks and incidents; upload with idempotency; conflict review; kiosk mode; remote wipe, root and jailbreak warning, screenshot blocking |
 | 11 | Packs and governance | OPS-028, QUAL-003, QUAL-009, COMMS-007 | Nightly downtime pack per location with back-entry workflow; inspector evidence pack (watermarked PDF bundle, time-limited link); statement of purpose with change tracking; letter and email templates with approval |
-| 12 | Family feed and comms | COMMS-001, INTG-011 | Family app mode and web feed of updates and consented care plan sections, closed until a sharing decision exists; email through SES, SMS port, Expo push registration |
+| 12 | Family feed and comms | COMMS-001, INTG-011 | Family app mode and web feed of updates and consented care plan sections, closed until a sharing decision exists; email through the email port (built on SES; an SMTP adapter under ADR-0098), SMS port, Expo push registration |
 | 13 | Platform completions | PLAT-013, PLAT-015, PLAT-018, PLAT-023 | Permission-aware search; free full tenant export; in-app help and onboarding checklist; DPIA prefill and sign-off |
 | 14 | Store readiness and gate | MOB-011, MOB-012 | Privacy manifest and data safety, account deletion flow, listing copy; Maestro offline journey; safety case v0.1; user guides per role; gate record |
 

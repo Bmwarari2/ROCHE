@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import {
   type EmailMessage,
   type EmailPort,
@@ -15,6 +14,8 @@ import {
   type SmsMessage,
   type SmsPort,
 } from "@harbour/domain";
+import { createTransport, type Transporter } from "nodemailer";
+import type { SmtpConfig } from "../config";
 
 /**
  * Adapters for the communication ports (section 15.3). Each port has a mock, used in development,
@@ -56,7 +57,7 @@ class Unconfigured<M extends OutboundMessage> {
 }
 
 /**
- * The plain-text body SES sends: the message's own body when it has one, otherwise the title and
+ * The plain-text body an email carries: the message's own body when it has one, otherwise the title and
  * the link into Harbour (H-225).
  */
 export function emailTextBody(message: EmailMessage): string {
@@ -65,47 +66,76 @@ export function emailTextBody(message: EmailMessage): string {
   return `${message.title}\n\n${message.link ? `Open Harbour to see the details: ${message.link}` : "Open Harbour to see the details."}\n`;
 }
 
-/** Amazon SES in eu-west-2 (London). Plain text only: a title, and a body or a link. */
-export class SesEmail implements EmailPort {
-  readonly provider = "ses";
-  private readonly client: SESv2Client;
+/** What the SMTP adapter uses of a nodemailer transport (a double in tests). */
+export type SmtpTransport = Pick<Transporter, "sendMail" | "verify">;
+
+/** A nodemailer transport for the relay: TLS 1.2 or later, certificates verified, never pooled. */
+export function smtpTransport(smtp: SmtpConfig): SmtpTransport {
+  return createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.tls === "implicit",
+    requireTLS: smtp.tls === "starttls",
+    ignoreTLS: smtp.tls === "none",
+    tls: { minVersion: "TLSv1.2", rejectUnauthorized: true },
+    ...(smtp.user && smtp.password ? { auth: { user: smtp.user, pass: smtp.password } } : {}),
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
+  });
+}
+
+/** SMTP errors that will not succeed on a retry: a permanent (5xx) reply, or a refused address. */
+function permanentSmtpFailure(error: { responseCode?: unknown; code?: unknown }): boolean {
+  const reply = typeof error.responseCode === "number" ? error.responseCode : 0;
+  return (reply >= 500 && reply < 600) || error.code === "EENVELOPE" || error.code === "EAUTH";
+}
+
+/**
+ * Email through an SMTP relay (ADR-0098). Plain text only: a title, and a body or a link. The
+ * result carries the relay's reply code or nodemailer's error code, never the reply text, which
+ * can quote the address.
+ */
+export class SmtpEmail implements EmailPort {
+  readonly provider = "smtp";
   constructor(
     private readonly from: string,
-    region = "eu-west-2",
-  ) {
-    this.client = new SESv2Client({ region });
-  }
+    private readonly transport: SmtpTransport,
+  ) {}
   async send(message: EmailMessage): Promise<SendResult> {
     try {
-      const result = await this.client.send(
-        new SendEmailCommand({
-          FromEmailAddress: this.from,
-          Destination: { ToAddresses: [message.to] },
-          Content: {
-            Simple: {
-              Subject: { Data: message.title, Charset: "UTF-8" },
-              Body: {
-                Text: {
-                  Data: emailTextBody(message),
-                  Charset: "UTF-8",
-                },
-              },
-            },
-          },
-        }),
-      );
-      return { ok: true, providerMessageId: result.MessageId ?? "unknown" };
+      const result = await this.transport.sendMail({
+        from: this.from,
+        to: message.to,
+        subject: message.title,
+        text: emailTextBody(message),
+        textEncoding: "quoted-printable",
+        disableFileAccess: true,
+        disableUrlAccess: true,
+      });
+      return { ok: true, providerMessageId: String(result.messageId ?? "unknown") };
     } catch (error) {
-      const name = error instanceof Error ? error.name : "Error";
-      return {
-        ok: false,
-        retryable: !/MessageRejected|AccountSuspended|MailFromDomainNotVerified/.test(name),
-        error: name,
-      };
+      const failure = (error ?? {}) as { responseCode?: unknown; code?: unknown };
+      const code =
+        typeof failure.responseCode === "number"
+          ? `SMTP ${failure.responseCode}`
+          : typeof failure.code === "string"
+            ? failure.code
+            : "SmtpError";
+      return { ok: false, retryable: !permanentSmtpFailure(failure), error: code };
     }
   }
   async health(): Promise<HealthResult> {
-    return { ok: true, detail: "SES client configured for eu-west-2." };
+    try {
+      await this.transport.verify();
+      return { ok: true, detail: "SMTP relay reachable." };
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      return {
+        ok: false,
+        detail: `SMTP relay unreachable (${typeof code === "string" ? code : "error"}).`,
+      };
+    }
   }
 }
 
@@ -180,6 +210,10 @@ export interface AdapterFactoryOptions {
   readonly production: boolean;
   /** Shared mocks so tests can inspect what was sent. */
   readonly mocks?: { email: MockEmail; sms: MockSms; push: MockPush };
+  /** The SMTP relay (config `smtp`); without one the `smtp` provider is not configured. */
+  readonly smtp?: SmtpConfig | null;
+  /** Builds the transport for the relay; tests pass a double. */
+  readonly smtpTransport?: (smtp: SmtpConfig) => SmtpTransport;
 }
 
 /** Chooses the adapter for a tenant's port: its configured provider, otherwise the mock (or, in production, a clear "not configured"). */
@@ -201,8 +235,11 @@ export function createAdapter<K extends PortName>(
     adapter = new Unconfigured(port);
   } else if (provider === "mock") {
     adapter = port === "comms.email" ? mocks.email : port === "comms.sms" ? mocks.sms : mocks.push;
-  } else if (port === "comms.email" && provider === "ses") {
-    adapter = new SesEmail(String(connection?.settings.from ?? ""));
+  } else if (port === "comms.email" && provider === "smtp" && options.smtp) {
+    adapter = new SmtpEmail(
+      String(connection?.settings.from ?? ""),
+      (options.smtpTransport ?? smtpTransport)(options.smtp),
+    );
   } else if (port === "comms.push" && provider === "expo") {
     adapter = new ExpoPush();
   } else {
@@ -213,7 +250,7 @@ export function createAdapter<K extends PortName>(
 
 /** Providers each port accepts in `integration_connection`. */
 export const KNOWN_PROVIDERS: Record<PortName, readonly string[]> = {
-  "comms.email": ["mock", "ses"],
+  "comms.email": ["mock", "smtp"],
   "comms.sms": ["mock"],
   "comms.push": ["mock", "expo"],
 };

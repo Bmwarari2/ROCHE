@@ -1,31 +1,40 @@
-# Monthly cost budget with alerts on actual spend and on the end-of-month forecast.
+# A monthly budget in pounds for the environment's project, alerting at 50%, 80% and 100% of the
+# actual spend and at 100% of the forecast.
 
-resource "aws_budgets_budget" "monthly" {
-  name         = var.name
-  budget_type  = "COST"
-  limit_amount = format("%.2f", var.monthly_limit)
-  limit_unit   = var.currency
-  time_unit    = "MONTHLY"
+resource "google_billing_budget" "this" {
+  count = var.billing_account_id == null ? 0 : 1
 
-  dynamic "notification" {
-    for_each = toset(var.thresholds_percent)
+  billing_account = var.billing_account_id
+  display_name    = var.name
 
-    content {
-      comparison_operator        = "GREATER_THAN"
-      notification_type          = "ACTUAL"
-      threshold                  = notification.value
-      threshold_type             = "PERCENTAGE"
-      subscriber_sns_topic_arns  = [var.sns_topic_arn]
-      subscriber_email_addresses = var.email_addresses
+  budget_filter {
+    projects               = ["projects/${var.project_number}"]
+    credit_types_treatment = "INCLUDE_ALL_CREDITS"
+  }
+
+  amount {
+    specified_amount {
+      currency_code = "GBP"
+      units         = tostring(var.monthly_limit)
     }
   }
 
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    notification_type          = "FORECASTED"
-    threshold                  = 100
-    threshold_type             = "PERCENTAGE"
-    subscriber_sns_topic_arns  = [var.sns_topic_arn]
-    subscriber_email_addresses = var.email_addresses
+  dynamic "threshold_rules" {
+    for_each = [0.5, 0.8, 1.0]
+
+    content {
+      threshold_percent = threshold_rules.value
+      spend_basis       = "CURRENT_SPEND"
+    }
+  }
+
+  threshold_rules {
+    threshold_percent = 1.0
+    spend_basis       = "FORECASTED_SPEND"
+  }
+
+  all_updates_rule {
+    monitoring_notification_channels = var.notification_channel_ids
+    disable_default_iam_recipients   = false
   }
 }

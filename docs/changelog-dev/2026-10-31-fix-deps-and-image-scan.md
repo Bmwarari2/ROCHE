@@ -45,9 +45,14 @@ one with Trivy 0.67.2, pinned by digest.
 - It runs on `main`, on demand, and on any pull request that changes what goes into an image: a
   Dockerfile, the dependencies, `.trivyignore` or the workflow.
 
-**For the integration branch:** enable `containerscanning.googleapis.com` in
-`infra/modules/project_baseline` on `feat/infra-google-cloud`, so Artifact Registry also scans
-every image it receives.
+**Artifact Registry scanning:** with the Google Cloud integration (#164) merged into this branch,
+`containerscanning.googleapis.com` is now enabled in `infra/modules/project_baseline`, so Artifact
+Registry also scans every image it receives. The module gains a `services` output, and the
+`harbour_stack` plan test gains the run `images_scanned`. All 17 `terraform test` runs pass.
+
+**Merged with `main` after #164.** `vulnerability-exceptions.md` keeps both sides: these rows, and
+`main`'s new configuration exceptions. The lockfile is regenerated from `main`'s with `pnpm
+install`, not edited by hand. After the merge, `pnpm audit` shows no advisory that is not excepted.
 
 **Not run here:** both images build locally (through the sandbox proxy, with its CA added to a
 scratch copy of the build stage only). Running the Trivy container against the local Docker

@@ -133,9 +133,9 @@ function ready(): OnboardingState {
     ],
     staffFileOption: "staff_file.to_75th_birthday",
     dpia: { state: "signed", triggers: [] },
-    subProcessorsInUse: ["aws_hosting", "sentry"],
+    subProcessorsInUse: ["gcp_hosting", "sentry"],
     subProcessorAcknowledgements: [
-      { key: "aws_hosting", acknowledgedAt: LATER },
+      { key: "gcp_hosting", acknowledgedAt: LATER },
       { key: "sentry", acknowledgedAt: LATER },
     ],
     subProcessorChangedAt: { sentry: SET_UP },

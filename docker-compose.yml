@@ -6,7 +6,7 @@
 # Values come from .env (copy .env.example); every variable has a local-only default so the
 # stack also starts without one. Ports are bound to 127.0.0.1 so local databases are never
 # exposed to the network. These defaults are for disposable local data only and never used
-# in AWS, where secrets live in Secrets Manager.
+# in Google Cloud, where secrets live in Secret Manager (ADR-0098).
 #
 # Order of first start: `docker compose up -d postgres`, then `pnpm db:bootstrap` (as
 # harbour_admin it creates the login roles and the harbour database) and `pnpm db:migrate`
