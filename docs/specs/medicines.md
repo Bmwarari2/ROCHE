@@ -384,8 +384,13 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     where a rule passes at one time and fails at the other it is refused
     (`differs_at_recording_time`, naming what fails when it is recorded) and goes by the flagged
     route, so neither allowance on the entered time can clear a limit; lateness is judged at the
-    later of the two, so a dose recorded late shows as late, with why. A record by the route is
-    judged at the time given, flagged and escalated (#162 third review's re-checks; H-1067).
+    later of the two, so a dose recorded late shows as late, with why; and a flag that needs a
+    reason (early, late, close to another dose, inside an interval, under an override) at either
+    time stays on the record. A record by the route is judged at the time given, flagged and
+    escalated, and is checked again at `recordedAt`: where the rules give a different answer at
+    the two times it is flagged `differs_when_recorded` and the review is urgent, naming what
+    differs, so a dose dated back through a stop, a lapse or its lateness is never only a warning
+    (#162 third review's re-checks and final check; H-1067).
     Outcomes: given, refused, not given (asleep, away from the home, in hospital,
     nil by mouth, unable to swallow, vomiting, other), not available (out of stock, not delivered,
     other), taken by the person themselves, given by family as agreed, withheld (the prescriber said

@@ -140,7 +140,8 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   escalated; breaches a correction creates or hides are flagged; the gap check looks both ways;
   a dose cannot be dated forward, or back on the round beyond the 30-minute record delay
   (`medicines.record_delay_tolerance_minutes`, to verify); an ordinary round record judged at the
-  time given and the time recorded, refused onto the flagged route where they differ.
+  time given and the time recorded, refused onto the flagged route where they differ; reason flags
+  at either time kept; the flagged route checked when recorded too, urgent where the times differ.
   Next in lane A: slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):

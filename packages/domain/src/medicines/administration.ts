@@ -261,7 +261,9 @@ export type ReviewFlag =
   /** The corrected record breaks the maximum, an interval or the scheduled gap; the original did not. */
   | "breach_created"
   /** The original record broke the maximum, an interval or the scheduled gap; the corrected one does not. */
-  | "breach_hidden";
+  | "breach_hidden"
+  /** Recorded after the event, and the rules give a different answer at the time it was recorded. */
+  | "differs_when_recorded";
 
 /** The words for each review flag, in the review escalation and wherever the record shows it. */
 export const REVIEW_FLAG_WORDS: Readonly<Record<ReviewFlag, string>> = {
@@ -276,6 +278,37 @@ export const REVIEW_FLAG_WORDS: Readonly<Record<ReviewFlag, string>> = {
   inside_minimum_interval: "it was taken inside the minimum interval",
   breach_created: "the correction brings it over a limit the original record kept within",
   breach_hidden: "the correction takes away a breach of a limit the original record showed",
+  differs_when_recorded:
+    "the rules give a different answer at the time it was recorded from the time it was given",
+};
+
+/** Flags that need a reason: kept on a round record when they apply at either time it is judged. */
+const REASONED_FLAGS: ReadonlySet<AdministrationFlag> = new Set([
+  "early",
+  "late",
+  "close_to_last_dose",
+  "close_to_next_dose",
+  "interval_override",
+  "competence_override",
+]);
+
+/** The time-dependent rules, in words, for saying where two times disagree. */
+const RULE_WORDS: Readonly<Record<string, string>> = {
+  early: "early for a time-critical medicine",
+  late: "late",
+  close_to_last_dose: "closer to the last dose than the schedule allows",
+  close_to_next_dose: "closer to the next dose than the schedule allows",
+  interval_override: "inside the minimum interval",
+  interval_override_required: "inside the minimum interval",
+  competence_override: "under a competence override",
+  over_maximum: "over the 24-hour maximum",
+  prn_maximum_reached: "over the 24-hour maximum",
+  timing_reason_required: "early, late or too close to another dose",
+  dose_not_due_yet: "before its window opened",
+  entry_not_usable: "from an entry that may not be given from",
+  competence_expired: "by a member whose competence had expired",
+  competence_not_held: "by a member never signed off",
+  override_not_in_force: "outside the competence override",
 };
 
 const REVIEW_FLAG_SET: ReadonlySet<string> = new Set(Object.keys(REVIEW_FLAG_WORDS));
@@ -532,30 +565,46 @@ export function checkAdministration(
   input: AdministrationInput,
   rates: AdministrationRates,
 ): AdministrationCheck {
+  // The same record judged at the server's time of recording, with the competence at that time.
+  const recordingTime = (record: AdministrationInput): AdministrationInput => ({
+    ...record,
+    at: record.recordedAt,
+    administrator: { ...record.administrator, competence: record.competenceAtRecording },
+    givenBeforeRecorded: null,
+  });
   const route = input.givenBeforeRecorded;
-  if (route !== null) return checkRecord(input, rates, true, route, null, input.at);
+  if (route !== null) {
+    // A record made after the event is judged at the time given, and also at the time it was
+    // recorded: where the rules give a different answer it is flagged and escalated urgently, so a
+    // dose dated back through a stop, a lapse or its lateness is never only a warning (#162 final
+    // check).
+    const atGiven = checkRecord(input, rates, true, route, null, input.at, []);
+    if (!atGiven.ok) return atGiven;
+    const atRecording = checkRecord(
+      recordingTime(input),
+      rates,
+      true,
+      null,
+      null,
+      input.recordedAt,
+      [],
+    );
+    const differences = disagreements(atGiven, atRecording);
+    if (differences.length === 0) return atGiven;
+    return checkRecord(input, rates, true, route, null, input.at, differences);
+  }
   // An ordinary round record must pass every rule at both the time given and the server's time of
   // recording (the maximum, intervals and gap, the window, the entry in force, competence and any
   // override), so the allowances on the entered time (the record delay back, the clock tolerance
   // forward) can never be used to step past a limit; lateness is judged at the later of the two,
   // so a dose recorded late shows as late. Where a rule passes at one time and fails at the
-  // other, the record is refused on the round and goes by the flagged route, which is escalated
-  // (#162 third review's third re-check).
+  // other, the record is refused on the round and goes by the flagged route, which is escalated;
+  // a flag that needs a reason at either time stays on the record (#162 third review's third
+  // re-check and final check).
   const lateAt = new Date(Math.max(input.at.getTime(), input.recordedAt.getTime()));
-  const atGiven = checkRecord(input, rates, false, null, null, lateAt);
+  const atGiven = checkRecord(input, rates, false, null, null, lateAt, []);
   if (!atGiven.ok || input.at.getTime() === input.recordedAt.getTime()) return atGiven;
-  const atRecording = checkRecord(
-    {
-      ...input,
-      at: input.recordedAt,
-      administrator: { ...input.administrator, competence: input.competenceAtRecording },
-    },
-    rates,
-    false,
-    null,
-    null,
-    lateAt,
-  );
+  const atRecording = checkRecord(recordingTime(input), rates, false, null, null, lateAt, []);
   const breaking = (flags: readonly AdministrationFlag[]) =>
     flags.filter(
       (f) => f === "over_maximum" || (REVIEW_FLAG_SET.has(f) && !ROUTE_FLAGS.has(f as ReviewFlag)),
@@ -569,16 +618,54 @@ export function checkAdministration(
             : REVIEW_FLAG_WORDS[f as ReviewFlag],
         )
     : atRecording.issues.map((i) => i.message);
-  if (differences.length === 0) return atGiven;
-  return {
-    ok: false,
-    issues: [
-      {
-        problem: "differs_at_recording_time",
-        message: `At ${formatUkTime(input.recordedAt)}, when it is recorded, this would not pass: ${differences.join(" ")} Record it as made after the event, and say why, so the nurse in charge reviews it.`,
-      },
-    ],
-  };
+  if (differences.length > 0) {
+    return {
+      ok: false,
+      issues: [
+        {
+          problem: "differs_at_recording_time",
+          message: `At ${formatUkTime(input.recordedAt)}, when it is recorded, this would not pass: ${differences.join(" ")} Record it as made after the event, and say why, so the nurse in charge reviews it.`,
+        },
+      ],
+    };
+  }
+  const reasoned = atRecording.ok
+    ? atRecording.flags.filter((f) => REASONED_FLAGS.has(f) && !atGiven.flags.includes(f))
+    : [];
+  return reasoned.length > 0 ? { ...atGiven, flags: [...atGiven.flags, ...reasoned] } : atGiven;
+}
+
+/**
+ * Where the time-dependent rules give a different answer for the same record at two times: each
+ * rule that fails, or needs a reason, at one time and not the other, in words.
+ */
+function disagreements(a: AdministrationCheck, b: AdministrationCheck): readonly string[] {
+  const outcomes = (check: AdministrationCheck): ReadonlyMap<string, string> =>
+    new Map(
+      check.ok
+        ? check.flags
+            .filter(
+              (f) =>
+                REASONED_FLAGS.has(f) ||
+                f === "over_maximum" ||
+                (REVIEW_FLAG_SET.has(f) && !ROUTE_FLAGS.has(f as ReviewFlag)),
+            )
+            .map((f) => [
+              RULE_WORDS[f] ?? f,
+              RULE_WORDS[f] ?? REVIEW_FLAG_WORDS[f as ReviewFlag] ?? f,
+            ])
+        : check.issues.map((i) => [
+            RULE_WORDS[i.problem] ?? i.problem,
+            RULE_WORDS[i.problem] ?? i.message,
+          ]),
+    );
+  const atA = outcomes(a);
+  const atB = outcomes(b);
+  const words = [
+    ...[...atA].filter(([key]) => !atB.has(key)).map(([, w]) => w),
+    ...[...atB].filter(([key]) => !atA.has(key)).map(([, w]) => w),
+  ];
+  return [...new Set(words)];
 }
 
 /** A record of a dose made after it was given: why, and who records it now. */
@@ -603,6 +690,8 @@ function checkRecord(
   original: RecordedAdministration | null,
   /** The time lateness is judged at: the later of the times given and recorded on the round. */
   lateAt: Date,
+  /** For a record made after the event: where the rules disagree at the time it was recorded. */
+  differsWhenRecorded: readonly string[],
 ): AdministrationCheck {
   const issues: AdministrationIssue[] = [];
   const add = (problem: AdministrationProblem, message: string) =>
@@ -1046,13 +1135,20 @@ function checkRecord(
     }
   }
 
+  if (differsWhenRecorded.length > 0) {
+    flags.push("differs_when_recorded");
+    review.push("differs_when_recorded");
+  }
+
   if (review.length > 0) {
     const words = review.map((f) =>
       f === "breach_created"
         ? `the correction brings it over ${listWords(breaches.created.map((l) => LIMIT_WORDS[l]))}, which the original record kept within`
         : f === "breach_hidden"
           ? `the correction takes away a breach of ${listWords(breaches.hidden.map((l) => LIMIT_WORDS[l]))} that the original record showed`
-          : REVIEW_FLAG_WORDS[f],
+          : f === "differs_when_recorded"
+            ? `at ${formatUkTime(input.recordedAt)}, when it was recorded, the rules give a different answer (${listWords(differsWhenRecorded)})`
+            : REVIEW_FLAG_WORDS[f],
     );
     // A dose that has happened and broke a rule (any review flag beyond how it was recorded, or an
     // urgent escalation already) is urgent, never only a warning (#162 third clinical review).
@@ -1240,6 +1336,7 @@ export function checkCorrection(
     dose ? { reason: correction.reason, recordedBy: by } : null,
     original,
     record.at,
+    [],
   );
   if (!content.ok) issues.push(...content.issues);
   if (issues.length > 0 || !content.ok) return { ok: false, issues };

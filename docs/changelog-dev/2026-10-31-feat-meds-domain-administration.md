@@ -213,6 +213,19 @@ Every correction path was closed; the allowances on the entered time could still
 - Table tests built from the reviewer's Y probes; H-1067 says what this means for doses the person
   takes themselves.
 
+## #162 final check (01/11/2026)
+
+No High or Medium findings at 53de07ee; two Lows, fixed:
+
+- Dating a round record up to 5 minutes later, with a reason typed, dropped the
+  `interval_override` or `early` flag (Z1a, Z2a). A flag that needs a reason at either time the
+  record is judged now stays on it.
+- The flagged route was judged only at the time given, so a dose given after a stop and dated back
+  through it raised only a warning (Z4, Z4b). The route is now also checked at `recordedAt`;
+  where the rules give a different answer it is flagged `differs_when_recorded` and the review is
+  urgent, naming what differs. H-1067 says most route records of a late scheduled dose will now
+  escalate urgently, for the CSO to confirm.
+
 ## What is next
 
 - Slice 10 (dm+d reference data), then slice 16 (the medication tables and API) and slice 22
@@ -251,6 +264,8 @@ Every correction path was closed; the allowances on the entered time could still
   time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).
 - After the second re-check: 718 medicines tests; the whole domain package 6,224 tests under the
   three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
+- After the final check: 751 medicines tests; the whole domain package 6,257 tests under the three
+  time zones, 99.69% line coverage (medicines 99.52%, `administration.ts` 100%).
 - With the third re-check: 743 medicines tests; the whole domain package 6,249 tests under the
   three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
 - With the record delay: 725 medicines tests; the whole domain package 6,231 tests under the

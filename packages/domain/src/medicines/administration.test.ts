@@ -1889,7 +1889,7 @@ describe("hazard HZ-004 a dose given now cannot be dated back on the round past 
           recordedBy: { id: CARER, competence: "current", override: null },
         },
       },
-      ["given_before_recorded"],
+      ["given_before_recorded", "differs_when_recorded"],
     ],
   ])("hazard HZ-004 a when-required dose %s", (_name, overrides, expected) => {
     const result = checkAdministration(prnInput(overrides), rates);
@@ -2044,7 +2044,7 @@ describe("hazard HZ-004 a dose entered later than others is checked against the 
     [
       "with a reason: late, and close to the next dose",
       { history: next, timingReason: "Given late after a hospital visit" },
-      ["given_before_recorded", "late", "close_to_next_dose"],
+      ["given_before_recorded", "late", "close_to_next_dose", "differs_when_recorded"],
     ],
     [
       "with two later doses: the nearest decides",
@@ -2052,7 +2052,7 @@ describe("hazard HZ-004 a dose entered later than others is checked against the 
         history: [given("m", at(2, 16), { entryId: "entry-q" }), ...next],
         timingReason: "Given late after a hospital visit",
       },
-      ["given_before_recorded", "late", "close_to_next_dose"],
+      ["given_before_recorded", "late", "close_to_next_dose", "differs_when_recorded"],
     ],
     [
       "with the next dose given on time at 16:00 instead",
@@ -2114,9 +2114,9 @@ describe("hazard HZ-004 hazard HZ-119 an ordinary round record passes every rule
       ["differs_at_recording_time"],
     ],
     [
-      "Y1b, recorded instead after the event: judged at 09:55, flagged and escalated",
+      "Y1b, recorded instead after the event: judged at 09:55 and at 10:21, they disagree (Z4)",
       prnInput({ ...onStopped, ...route, at: at(2, 9, 55), recordedAt: at(2, 10, 21) }),
-      ["given_before_recorded"],
+      ["given_before_recorded", "differs_when_recorded"],
     ],
     [
       "Y2: the 08:00 dose given 09:25, dated 08:58, recorded 09:26: late, as recorded",
@@ -2224,6 +2224,124 @@ describe("hazard HZ-004 hazard HZ-119 an ordinary round record passes every rule
     );
     expect(result.ok ? "" : result.issues[0]?.message).toBe(
       "At 11:56, when it is recorded, this would not pass: A dose was taken within the prescribed minimum interval. Do not give it unless the prescriber agrees; if you must, say why. Record it as made after the event, and say why, so the nurse in charge reviews it.",
+    );
+  });
+});
+
+describe("hazard HZ-004 the entered time cannot drop a flag or hide a stop: reason flags at either time are kept, and the flagged route is checked when recorded", () => {
+  const critical = checkedEntry(entry({ tags: ["time_critical"] }, "entry-tc"));
+  const onCritical = { entry: critical, versionIds: new Set(["entry-tc"]) };
+  const stopped = checkedEntry(
+    entry(
+      {
+        directions: {
+          kind: "when_required",
+          dose: { kind: "range", from: 1, to: 2, unit: UNIT.tablet },
+          maxQuantityPer24Hours: 8,
+        },
+        minimumIntervalMinutes: 240,
+        stopsAt: at(2, 10),
+      },
+      "entry-st",
+    ),
+  );
+  const route = {
+    givenBeforeRecorded: {
+      reason: "Given during a fall, recorded afterwards",
+      recordedBy: { id: CARER, competence: "current" as const, override: null },
+    },
+  };
+  const morning = [given("l", at(2, 8))];
+  it.each<[string, AdministrationInput, AdministrationFlag[], string[]]>([
+    [
+      "Z1a: inside the interval at 11:56, dated forward to 12:00 with a reason typed",
+      prnInput({
+        at: at(2, 12),
+        recordedAt: at(2, 11, 56),
+        intervalOverrideReason: "Pain not controlled",
+        history: morning,
+      }),
+      ["interval_override"],
+      [],
+    ],
+    [
+      "Z1b: the same, recorded at 11:56",
+      prnInput({
+        at: at(2, 11, 56),
+        recordedAt: at(2, 11, 56),
+        intervalOverrideReason: "Pain not controlled",
+        history: morning,
+      }),
+      ["interval_override"],
+      [],
+    ],
+    [
+      "Z2a: a time-critical dose early at 07:57, dated forward to 08:00 with a reason typed",
+      input({
+        ...onCritical,
+        at: at(2, 8),
+        recordedAt: at(2, 7, 57),
+        timingReason: "Going to hospital",
+      }),
+      ["early"],
+      [],
+    ],
+    [
+      "Z2b: the same, recorded at 07:57",
+      input({
+        ...onCritical,
+        at: at(2, 7, 57),
+        recordedAt: at(2, 7, 57),
+        timingReason: "Going to hospital",
+      }),
+      ["early"],
+      [],
+    ],
+    [
+      "Z4: given after the 10:00 stop, dated back to 09:55 through the flagged route",
+      prnInput({
+        ...route,
+        entry: stopped,
+        versionIds: new Set(["entry-st"]),
+        at: at(2, 9, 55),
+        recordedAt: at(2, 10, 21),
+      }),
+      ["given_before_recorded", "differs_when_recorded"],
+      ["urgent:review"],
+    ],
+    [
+      "Z4b: the 08:00 dose given at 09:30, dated back to 08:55 through the flagged route",
+      input({ ...route, at: at(2, 8, 55), recordedAt: at(2, 9, 31) }),
+      ["given_before_recorded", "differs_when_recorded"],
+      ["urgent:review"],
+    ],
+    [
+      "the flagged route where both times agree: a warning only",
+      input({ ...route, at: at(2, 8, 5), recordedAt: at(2, 8, 50) }),
+      ["given_before_recorded"],
+      ["warning:review"],
+    ],
+  ])("%s", (_name, record, flags, escalated) => {
+    const result = checkAdministration(record, rates);
+    expect(result).toMatchObject({ ok: true, flags });
+    expect(result.ok ? result.escalations.map((e) => `${e.severity}:${e.reason}`) : null).toEqual(
+      escalated,
+    );
+  });
+
+  it("says where the two times disagree", () => {
+    const result = checkAdministration(
+      prnInput({
+        ...route,
+        entry: stopped,
+        versionIds: new Set(["entry-st"]),
+        at: at(2, 9, 55),
+        recordedAt: at(2, 10, 21),
+      }),
+      rates,
+    );
+    expect(result.ok ? result.escalations[0]?.message : "").toBe(
+      "Recorded for the nurse in charge to review under your organisation's policy: it was recorded only after it happened and at 10:21, when it was recorded, the rules give a different answer (from an entry that may not be given from).",
     );
   });
 });
