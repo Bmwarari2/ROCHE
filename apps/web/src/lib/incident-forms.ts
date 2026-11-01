@@ -311,6 +311,33 @@ export function readContactsAnswers(
   return { ok: true, answers: { emergencyServicesCalled, gpContacted } };
 }
 
+/**
+ * A death's learning disability and autism answers recorded later on the incident's page (H-482):
+ * yes, no or "Not known yet" (null), each chosen, never assumed.
+ */
+export function readDeathFacts(
+  form: FormValues,
+  t: Translator,
+):
+  | {
+      readonly ok: true;
+      readonly answers: {
+        readonly learningDisability: boolean | null;
+        readonly autistic: boolean | null;
+      };
+    }
+  | { readonly ok: false; readonly errors: FieldErrors } {
+  const learningDisability = yesNoNotKnown(form, "learningDisability");
+  const autistic = yesNoNotKnown(form, "autistic");
+  const errors: Record<string, string> = {};
+  if (learningDisability === undefined) {
+    errors.learningDisability = t("safety.record.error", { field: "learningDisability" });
+  }
+  if (autistic === undefined) errors.autistic = t("safety.record.error", { field: "autistic" });
+  if (learningDisability === undefined || autistic === undefined) return { ok: false, errors };
+  return { ok: true, answers: { learningDisability, autistic } };
+}
+
 /** Incident types that ask when the person was found (H-262, HZ-027). */
 export const FOUND_AT_TYPES: readonly IncidentType[] = ["fall", "missing_person"];
 

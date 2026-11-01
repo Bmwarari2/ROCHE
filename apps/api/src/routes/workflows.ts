@@ -130,6 +130,8 @@ async function visibleSubjects(
             status: incident.status,
             openQuestions: incident.openQuestions,
             classifierResult: incident.classifierResult,
+            emergencyServicesCalled: incident.emergencyServicesCalled,
+            gpContacted: incident.gpContacted,
           })
           .from(incident)
           .where(and(inArray(incident.id, incidentIds), isNull(incident.deletedAt)))
@@ -147,7 +149,8 @@ async function visibleSubjects(
   // Closing is offered only where the close route would take it: the same reading
   // (`incidentCloseViews`, tenant-wide, so notifications and people the reader cannot see count)
   // and the same rules (`incidentCloseProblems`: notifications, questions and the duty of candour,
-  // one record covering only the person it names; HZ-013, #120 review round 2).
+  // one record covering only the person it names, and answers still not known; HZ-013, HZ-091,
+  // #120 review round 2, H-264, H-482).
   const closeViews = await incidentCloseViews(tx, incidents);
   const byIncident = new Map<string, SubjectFacts>();
   for (const row of incidents) {

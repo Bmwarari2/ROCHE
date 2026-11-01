@@ -127,6 +127,11 @@ export interface IncidentCloseView {
    * the incident. Absent is read as answered.
    */
   readonly contactsNotKnown?: boolean;
+  /**
+   * Someone we support who died has no learning disability or autism answer yet (H-482, HZ-013):
+   * closing waits for it. Absent is read as answered.
+   */
+  readonly deathFactsNotKnown?: boolean;
 }
 
 /** The stages at which a candour record is finished (`CANDOUR_WORKFLOW`'s terminal states). */
@@ -173,7 +178,8 @@ export function candourCloseBlock(
 /**
  * HZ-013: an incident cannot close while a notification is still a draft or ready, while the
  * classifier is waiting for answers, while whether the emergency services were called or the GP
- * contacted is not known yet (HZ-090, H-264), while the duty of candour may apply and no candour record
+ * contacted is not known yet (HZ-090, H-264), while someone who died has no learning disability or
+ * autism answer (H-482), while the duty of candour may apply and no candour record
  * has finished, while the candour record is still open, or while someone affected has not been
  * told under the duty of candour.
  */
@@ -191,6 +197,11 @@ export function incidentCloseProblems(view: IncidentCloseView): string[] {
   if (view.contactsNotKnown === true) {
     problems.push(
       "Record whether the emergency services were called and whether the GP was contacted before closing: one is still not known.",
+    );
+  }
+  if (view.deathFactsNotKnown === true) {
+    problems.push(
+      "Record whether the person who died had a learning disability and whether they were autistic before closing, from their record: one is still not known.",
     );
   }
   const candour = candourCloseBlock(view.candourState, view.candour);

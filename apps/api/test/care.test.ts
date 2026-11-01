@@ -636,7 +636,7 @@ describe("hazard HZ-016 IDDSI levels", () => {
     expect((await json<ObservationItem>(overridden)).flags).toMatchObject({ iddsiAlert: true });
   });
 
-  it("hazard HZ-016 judges a drink against the level in force when it was given, and says the level has changed since (H-166)", async () => {
+  it("hazard HZ-016 hazard HZ-010 judges a drink against the level in force when it was given, and says the level has changed since (H-166), unless the device clock drifted", async () => {
     const profile = (body: Record<string, unknown>) =>
       as("manager", `/v1/people/${resident(4)}/care-profile`, { method: "PUT", body });
     const first = await json<PersonCareProfile>(
@@ -681,6 +681,19 @@ describe("hazard HZ-016 IDDSI levels", () => {
       iddsiAlert: false,
       iddsiChangedSince: { prescribedThen: "4", prescribedNow: "0" },
     });
+    // A device clock that disagrees with the server cannot place the entry in the history: the
+    // level now (0) is used, so the same drink needs a reason (HZ-010).
+    const drifted = await h.request(`/v1/people/${resident(4)}/observations`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: { occurredAt: given.toISOString(), values: drink },
+      headers: { "x-harbour-sent-at": new Date(Date.now() - 3 * 60 * MIN).toISOString() },
+    });
+    expect(drifted.status).toBe(422);
+    expect(JSON.stringify(await drifted.json())).toMatch(
+      /not the prescribed drink level \(Level 0/,
+    );
     // The same drink given now is judged against level 0 and needs a reason on the web.
     const now = await observe(4, drink, { occurredAt: new Date().toISOString() }, "manager");
     expect(now.status).toBe(422);

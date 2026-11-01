@@ -884,7 +884,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Close an incident (someone other than the person who raised it)",
       description:
-        "Refused while a notification is a draft or ready, a classifier question is open, whether the emergency services were called or the GP contacted is not known yet (H-264), the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
+        "Refused while a notification is a draft or ready, a classifier question is open, whether the emergency services were called or the GP contacted is not known yet (H-264), someone who died has no learning disability or autism answer (H-482), the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
       security,
       request: {
         params: IncidentParam,
@@ -909,12 +909,7 @@ export const incidentsRouter = createRouter()
         // Every notification, the candour record and everyone affected count, including people
         // and notifications the closer cannot see.
         const view = await incidentCloseView(tx, row);
-        const blockers = incidentCloseProblems({
-          ...view,
-          openQuestions: row.openQuestions,
-          // "Not known yet" stays open until answered (H-264, HZ-090).
-          contactsNotKnown: row.emergencyServicesCalled === null || row.gpContacted === null,
-        });
+        const blockers = incidentCloseProblems({ ...view, openQuestions: row.openQuestions });
         if (blockers.length > 0) throw problems.invalid(blockers.join(" "));
         await moveOrRefuse(
           c,
@@ -937,23 +932,6 @@ export const incidentsRouter = createRouter()
           .returning();
         if (!updated) throw problems.conflict();
         await finishCandourBlockedTasks(tx, id, now, "closed", access.tenantUserId);
-        // A death closed with a learning disability or autism still not known: its task ends,
-        // and the after-death section says it was not answered (H-482, HZ-013).
-        await tx
-          .update(task)
-          .set({
-            status: "cancelled",
-            statusReason: "The incident was closed without the answer",
-          })
-          .where(
-            and(
-              eq(task.sourceType, "incident"),
-              eq(task.sourceId, id),
-              eq(task.kind, "safety.record_learning_disability_autism"),
-              inArray(task.status, ["open", "in_progress"]),
-              isNull(task.deletedAt),
-            ),
-          );
         await audit(c, tx, access, {
           action: "safety.incident.close",
           resourceType: "incident",

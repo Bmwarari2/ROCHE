@@ -1302,6 +1302,39 @@ describe("part 6: hand-over of held entries", () => {
     expect(await handedOver(own)).toEqual([]);
   });
 
+  it("hazard HZ-006 while Care mode is off, refuses a phone's entries and refused-entry copies but takes a hand-over (H-381)", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0699";
+    await holdFor(device, 1);
+    await asTenant(
+      "UPDATE feature_flag SET enabled = false WHERE flag_key = 'care.mobile_care_mode' AND location_id IS NULL",
+    );
+    try {
+      // A phone's own entry, and its copy of a refused one: refused in a code the phone reads as
+      // access withdrawn, so it keeps them under the hold rules.
+      const own = await noteFrom("carer", device, {}, newId());
+      expect(own.status).toBe(403);
+      expect((await json<{ code: string }>(own)).code).toBe("feature_disabled");
+      const copy = await sendCopy("carer", refusal(newId()), device);
+      expect(copy.status).toBe(403);
+      expect((await json<{ code: string }>(copy)).code).toBe("feature_disabled");
+      // The web, with no device, is not a phone: its entries are taken.
+      expect((await noteFrom("carer", undefined, {}, newId())).status).toBe(201);
+      // A manager's hand-over is how held entries leave the phone: never refused for Care mode.
+      const manager = await managerOn(device, 1);
+      const handedOver = await noteFrom(
+        manager,
+        device,
+        handoverHeaders(DEMO.users.carer.id),
+        newId(),
+      );
+      expect(handedOver.status).toBe(201);
+    } finally {
+      await asTenant(
+        "UPDATE feature_flag SET enabled = true WHERE flag_key = 'care.mobile_care_mode' AND location_id IS NULL",
+      );
+    }
+  });
+
   it("hazard HZ-040 needs the hand-over permission and a fresh sign-in for someone else's entries", async () => {
     const device = "0199d000-0000-4000-8000-0000000b0602";
     await syncToken("carer", device);

@@ -128,6 +128,60 @@ export async function recordIncidentContacts(
 }
 
 /**
+ * Record whether a person we support who died had a learning disability and whether they were
+ * autistic (H-482, HZ-013): yes, no or "Not known yet" (left open, with its task). The person's
+ * row on the incident is read here and sent whole, as the API replaces it, with only these two
+ * answers changed; the version is the one the page showed, so a change meanwhile is refused.
+ */
+export async function recordIncidentDeathFacts(
+  incidentId: string,
+  input: {
+    readonly personRowId: string;
+    readonly learningDisability: boolean | null;
+    readonly autistic: boolean | null;
+    readonly version: number;
+  },
+): Promise<ActionResult<IncidentDetail>> {
+  if (!isUuid(incidentId) || !isUuid(input.personRowId)) {
+    return refused(t("errors.notFound"), "not_found");
+  }
+  return sendAndRevalidate(["/incidents", "/notifications/statutory"], async (api) => {
+    const read = await api.GET("/v1/incidents/{id}", { params: { path: { id: incidentId } } });
+    if (!read.data) return { error: read.error };
+    const row = read.data.people.find((p) => p.id === input.personRowId);
+    if (!row || row.kind !== "service_user" || !row.died || !row.personId) {
+      return { error: { code: "not_found" } };
+    }
+    return api.PUT("/v1/incidents/{id}", {
+      params: { path: { id: incidentId } },
+      body: {
+        people: [
+          {
+            id: row.id,
+            kind: row.kind,
+            role: row.role,
+            personId: row.personId,
+            ...(row.otherName ? { otherName: row.otherName } : {}),
+            ...(row.injuryDetails ? { injuryDetails: row.injuryDetails } : {}),
+            died: true,
+            ...(input.learningDisability === null
+              ? {}
+              : { learningDisability: input.learningDisability }),
+            ...(input.autistic === null ? {} : { autistic: input.autistic }),
+            ...(row.subjectToMentalHealthAct === null
+              ? {}
+              : { subjectToMentalHealthAct: row.subjectToMentalHealthAct }),
+            bodyMapMarkIds: [...row.bodyMapMarkIds],
+            ...(row.infection ? { infection: row.infection } : {}),
+          },
+        ],
+        version: input.version,
+      },
+    });
+  });
+}
+
+/**
  * Close an incident with a reason (`safety.incident.manage`, never the person who raised it). The
  * API refuses while a notification is a draft or ready, a question is open or the candour record
  * is open, and says which.

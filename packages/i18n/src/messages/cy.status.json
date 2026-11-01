@@ -4321,6 +4321,9 @@
     "safety.incident.contactsStillOpen",
     "safety.incident.contactsSave",
     "safety.incident.contactsSaved",
-    "safety.manage.close.contacts"
+    "safety.manage.close.contacts",
+    "safety.manage.close.deathFacts",
+    "safety.incident.deathFactsTitle",
+    "safety.incident.deathFactsIntro"
   ]
 }

@@ -660,6 +660,33 @@ describe("PLAT-011 open workflows and approvals", () => {
     );
   });
 
+  it("hazard HZ-091 marks closing blocked while an answer is still not known yet, as the close route does (H-264)", async () => {
+    const response = await as("manager", "/v1/incidents", {
+      method: "POST",
+      body: {
+        locationId: DEMO.locationId,
+        type: "near_miss",
+        occurredAt: ago(2 * 60 * MIN),
+        description: "A hoist sling nearly gave way during a transfer.",
+        emergencyServicesCalled: null,
+        gpContacted: false,
+      },
+    });
+    expect(response.status, await response.clone().text()).toBe(201);
+    const incident = await json<IncidentDetail>(response);
+    await answerEverything(incident.id);
+    const blocked = async () =>
+      forIncident((await list("owner", "all")).items, incident.id)?.incident?.closeBlocked;
+    expect(await blocked()).toBe(true);
+    const current = await json<IncidentDetail>(await as("owner", `/v1/incidents/${incident.id}`));
+    const answered = await as("owner", `/v1/incidents/${incident.id}`, {
+      method: "PUT",
+      body: { emergencyServicesCalled: false, version: current.version },
+    });
+    expect(answered.status, await answered.clone().text()).toBe(200);
+    expect(await blocked()).toBe(false);
+  });
+
   it("records the view in the audit trail without content", async () => {
     const events = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ scope: Record<string, unknown> }>(

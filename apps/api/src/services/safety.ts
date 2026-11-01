@@ -1413,14 +1413,24 @@ export interface IncidentCloseRead {
   readonly notifications: readonly { kind: string; status: NotificationStatus }[];
   readonly candourState: string | null;
   readonly candour: CandourCloseFacts;
+  /** The emergency services or GP answer is still "Not known yet" (H-264, HZ-090). */
+  readonly contactsNotKnown: boolean;
+  /**
+   * Someone we support who died has no learning disability or autism answer yet (H-482, HZ-013):
+   * closing waits for it, so the question never ends unanswered with the incident.
+   */
+  readonly deathFactsNotKnown: boolean;
 }
 
-type CloseSource = Pick<typeof incident.$inferSelect, "id" | "classifierResult">;
+type CloseSource = Pick<
+  typeof incident.$inferSelect,
+  "id" | "classifierResult" | "emergencyServicesCalled" | "gpContacted"
+>;
 
 /**
  * Everything closing each incident checks (`incidentCloseProblems`), read with tenant-wide scope so
  * notifications and people the closer cannot see still count: the notifications, the candour
- * record's stage, and the duty of candour facts. Three reads however many incidents, for the
+ * record's stage, the duty of candour facts, and answers still "Not known yet" (H-264, H-482). Three reads however many incidents, for the
  * approvals list and the stuck-candour job as for the close route.
  */
 export async function incidentCloseViews(
@@ -1465,11 +1475,27 @@ export async function incidentCloseViews(
           isNull(incidentPerson.deletedAt),
         ),
       );
+    // People we support who died without both learning disability and autism answers (H-482).
+    const deaths = await tx
+      .select({ incidentId: incidentPerson.incidentId })
+      .from(incidentPerson)
+      .where(
+        and(
+          inArray(incidentPerson.incidentId, ids),
+          eq(incidentPerson.kind, "service_user"),
+          eq(incidentPerson.died, true),
+          isNotNull(incidentPerson.personId),
+          or(isNull(incidentPerson.learningDisability), isNull(incidentPerson.autistic)),
+          isNull(incidentPerson.deletedAt),
+        ),
+      );
     for (const row of rows) {
       const mine = notifications.filter((n) => n.incidentId === row.id);
       const record = records.find((r) => r.incidentId === row.id);
       const stored = row.classifierResult as { outputs?: { kind: string }[] } | null;
       views.set(row.id, {
+        contactsNotKnown: row.emergencyServicesCalled === null || row.gpContacted === null,
+        deathFactsNotKnown: deaths.some((d) => d.incidentId === row.id),
         notifications: mine.map((n) => ({
           kind: n.kind,
           status: n.status as NotificationStatus,

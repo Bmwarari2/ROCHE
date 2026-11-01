@@ -43,6 +43,8 @@ export type CloseOffer =
       readonly candour: CandourBlock;
       /** The emergency services or GP answer is still "Not known yet" (H-264, HZ-090). */
       readonly contactsNotKnown?: true;
+      /** Someone who died has no learning disability or autism answer yet (H-482, HZ-013). */
+      readonly deathFactsNotKnown?: true;
     };
 
 /** What the duty of candour still needs before closing (`candourCloseBlock`, HZ-013). */
@@ -110,6 +112,7 @@ export function incidentManageView(
   // "Not known yet" stays open until answered, as the API's close check says (H-264).
   const contactsNotKnown =
     incident.emergencyServicesCalled === null || incident.gpContacted === null;
+  const deathFactsNotKnown = deathFactsToRecord(incident).length > 0;
   if (
     notifications.length > 0 ||
     questions > 0 ||
@@ -117,7 +120,8 @@ export function incidentManageView(
     candour.open ||
     candour.stillToTell.length > 0 ||
     unknown ||
-    contactsNotKnown
+    contactsNotKnown ||
+    deathFactsNotKnown
   ) {
     return {
       review,
@@ -127,10 +131,28 @@ export function incidentManageView(
         questions,
         candour,
         ...(contactsNotKnown ? { contactsNotKnown: true as const } : {}),
+        ...(deathFactsNotKnown ? { deathFactsNotKnown: true as const } : {}),
       },
     };
   }
   return { review, close: { kind: "form" } };
+}
+
+/**
+ * The people we support who died on the incident and have no learning disability or autism answer
+ * yet (H-482, HZ-013): the incident page asks for them, the Registered Manager's task is done once
+ * both are recorded, and closing waits for them, as the API's close check says.
+ */
+export function deathFactsToRecord(
+  incident: Pick<IncidentDetail, "people">,
+): IncidentDetail["people"] {
+  return incident.people.filter(
+    (p) =>
+      p.kind === "service_user" &&
+      p.died &&
+      p.personId !== null &&
+      (p.learningDisability === null || p.autistic === null),
+  );
 }
 
 /** The forms one viewer is offered on a statutory notification. */
