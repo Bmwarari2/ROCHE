@@ -125,7 +125,7 @@ describe("reading the forms", () => {
     expect(readCdQuantity(raw)).toBeNull();
   });
 
-  it("hazard HZ-115 lets a witness sign only for someone else, offered by the API", () => {
+  it("hazard HZ-116 lets a witness sign only for someone else, offered by the API", () => {
     const recorders = new Set([A]);
     expect(
       readWitness(form({ movement: "receipt", quantity: "28", recorderId: A }), t, recorders),
@@ -138,7 +138,7 @@ describe("reading the forms", () => {
     ).toMatchObject({ ok: false, errors: { recorderId: expect.any(String) } });
   });
 
-  it("hazard HZ-115 records with a waiting signature, or a reason only where allowed and never for a destruction", () => {
+  it("hazard HZ-116 records with a waiting signature, or a reason only where allowed and never for a destruction", () => {
     const waiting = new Set([SIG]);
     const base = { movement: "receipt", quantity: "28", counterparty: "Example Pharmacy" };
     expect(
