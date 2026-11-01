@@ -80,9 +80,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `incident` with `retention_class` `care_record` (no notification applies), and its `incident_person`, `classifier_answer` and `investigation` rows | care_record |
 | `incident` with `retention_class` `serious_incident` (set once any notification applies), its people, answers, `candour_record` and `investigation`, and `statutory_notification` | serious_incident |
 | `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
+| `medication`, `medication_schedule`, `medication_administration`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
 | `outbreak` ([safety.md](safety.md) section 11) | serious_incident, as its UKHSA report |
 | `outbreak_case` | care_record for residents; staff cases follow it for now, to be confirmed by the DPO (H-767) |
-| `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item` | staff_file (tenant's chosen row) |
 | `induction_plan`, `staff_checklist_item`, `shadow_shift`, `probation_review`, `care_certificate_progress`, `leaver_record`, `reference_request` (induction and leavers, slice 29; [workforce.md](workforce.md) section 2d) | staff_file (tenant's chosen row), from the leaving date; `leaver_record.staff_file_retain_until` holds the date worked out when the leaving is recorded (rule 23; the birthday age is `retention.staff_file.birthday_age`, H-874, H-875) |

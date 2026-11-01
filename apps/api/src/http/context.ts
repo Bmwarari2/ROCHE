@@ -43,6 +43,7 @@ import { endSsoSession, sessionFactorState, sessionSsoTenant } from "../auth/ses
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
+import type { MedicinesPorts } from "../integrations/medicines-ports";
 import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
@@ -94,6 +95,8 @@ export interface Services {
   /** The full export's archives (the exports bucket). */
   readonly exportStorage: DocumentStoragePort;
   readonly scanner: MalwareScanPort;
+  /** The medicines rules' outside inputs: competence (workforce) and dm+d facts (slice 10). */
+  readonly medicines: MedicinesPorts;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */

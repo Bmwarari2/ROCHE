@@ -58,6 +58,7 @@ export type ExportRetention =
   | "staff_file"
   | "applicant.unsuccessful"
   | "data_rights_case"
+  | "mar_chart"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -115,6 +116,12 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.missing_event",
   "public.herbert_profile",
   "public.safeguarding_concern",
+  "public.medication",
+  "public.medication_schedule",
+  "public.medication_reconciliation",
+  "public.medication_reconciliation_source",
+  "public.medication_reconciliation_item",
+  "public.medication_reconciliation_decision",
   "public.pre_admission_assessment",
   "public.admission_decision",
   "public.admission_condition",
@@ -1327,6 +1334,309 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "Letters and other correspondence about the duty of candour (document.id).",
       },
       outcome: { description: "How the duty of candour ended, as recorded when it closed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medication": {
+    context: "medicines",
+    description:
+      "The medicines record (MEDS-001; medicines.md rule 6): one row per version of a MAR entry, with its dm+d product, route, directions, source document, second check, stop, replacement and withdrawal.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      medicine_id: {
+        description:
+          "The medicine this version belongs to: the first version's id (medication.id); every version shares it.",
+      },
+      version: {
+        description: "The version of the medicine, 1 for the first; a change is the next version.",
+        unit: "count",
+      },
+      replaces_id: {
+        description: "The version this one replaces (medication.id); null for the first.",
+      },
+      state: {
+        description:
+          "not_yet_checked, checked, difference_found, stopped, replaced or withdrawn (medicines.md rule 6).",
+      },
+      origin: { description: "How the entry was made: transcribed, reconciliation or import." },
+      vmp_id: { description: "The dm+d Virtual Medicinal Product identifier (VPID, SNOMED CT)." },
+      amp_id: {
+        description:
+          "The dm+d Actual Medicinal Product identifier (APID, SNOMED CT) when a brand or supplier's product is meant.",
+      },
+      product_name: { description: "The dm+d description of the product at transcription." },
+      route_code: { description: "The dm+d route of administration code." },
+      route_name: { description: "The dm+d route of administration, as dm+d words it." },
+      directions: { description: "regular (prescribed times) or when_required." },
+      pattern_kind: {
+        description: "A regular entry's days: every_day, every_n_days, weekly or monthly.",
+      },
+      interval_days: {
+        description: "every_n_days: the interval (2 is every other day).",
+        unit: "days",
+      },
+      weekdays: { description: "weekly: the weekdays (monday to sunday) the medicine is due." },
+      interval_weeks: { description: "weekly: every n weeks (2 is fortnightly).", unit: "weeks" },
+      anchor_on: {
+        description:
+          "The day the count runs from for every_n_days and weekly (a day a dose falls due).",
+      },
+      day_of_month: {
+        description: "monthly: the day of the month (the last day in a shorter month).",
+        unit: "day of month",
+      },
+      prn_dose: {
+        description:
+          "The when-required dose as JSON: kind amount (quantity), range (from, to) or variable, with the dm+d unit code and name.",
+      },
+      indication: {
+        description:
+          "What the medicine is for, as the prescriber wrote it; required when required.",
+      },
+      special_instructions: { description: "Special instructions as written on the source." },
+      prescriber: { description: "The prescriber as named on the source." },
+      starts_at: { description: "When this version takes effect (instant, UTC)." },
+      stops_at: {
+        description: "The course end from the prescription (instant, UTC); null when open-ended.",
+      },
+      review_on: {
+        description: "When the prescriber asked for the medicine to be reviewed (UK date).",
+      },
+      source_kind: {
+        description:
+          "The source document's kind: prescription, pharmacy_label, pharmacy_mar, discharge_letter, transfer_letter, gp_record, clinic_letter, prescriber_instruction or previous_mar.",
+      },
+      source_reference: {
+        description: "What identifies the source document to the second checker.",
+      },
+      source_document_id: {
+        description: "The stored source document, when uploaded (document.id).",
+      },
+      transcribed_by: { description: "Who recorded the version (tenant_user.id)." },
+      transcribed_at: {
+        description: "When the version was recorded, as the rules were tried (instant, UTC).",
+      },
+      check_by: {
+        description: "Who made the second check (tenant_user.id); never the transcriber.",
+      },
+      check_at: { description: "When the second check was made (instant, UTC)." },
+      check_outcome: { description: "matches_source or differs_from_source." },
+      check_difference: {
+        description: "What differs from the source, when the check found a difference.",
+      },
+      stop_by: { description: "Who recorded the stop (tenant_user.id)." },
+      stop_at: { description: "When the stop was recorded (instant, UTC)." },
+      stop_effective_at: {
+        description: "When the stop takes effect (instant, UTC); doses before it stay.",
+      },
+      stop_reason: { description: "Why the medicine is stopped." },
+      stop_source_kind: {
+        description:
+          "The kind of document that says it stops: prescription, pharmacy_label, pharmacy_mar, discharge_letter, transfer_letter, gp_record, clinic_letter, prescriber_instruction or previous_mar.",
+      },
+      stop_source_reference: { description: "What identifies the document that says it stops." },
+      stop_source_document_id: {
+        description: "The stored document that says it stops (document.id).",
+      },
+      replaced_by_id: { description: "The newer version that replaces this one (medication.id)." },
+      replaced_from: {
+        description:
+          "When the newer version takes over; this version's doses end there (instant, UTC).",
+      },
+      reanchor_by: {
+        description:
+          "Who recorded that this version deliberately moved the day count (tenant_user.id).",
+      },
+      reanchor_at: { description: "When the re-anchor was recorded (instant, UTC)." },
+      reanchor_reason: {
+        description: "Why the prescriber's new pattern starts a new day count (rule 6a).",
+      },
+      withdrawn_by: {
+        description: "Who withdrew this version before it started (tenant_user.id).",
+      },
+      withdrawn_at: { description: "When it was withdrawn (instant, UTC)." },
+      withdrawn_reason: { description: "Why the later version was withdrawn (rule 6b)." },
+      corrected_part_way_through: {
+        description:
+          "The UK date this version corrected one whose check found a difference, part-way through a day with doses.",
+      },
+      earlier_doses_due_on: {
+        description:
+          "The UK date on which the doses earlier that day were kept due (the same-day route).",
+      },
+      earlier_doses_due_reason: {
+        description: "Why that day's earlier doses may still be needed.",
+      },
+      cd_schedule: {
+        description:
+          "The controlled drug schedule from dm+d (1, 2, 3, 4, 4.1, 4.2 or 5); null until the reference data lands.",
+      },
+      reconciliation_id: {
+        description: "The reconciliation that made this version (medication_reconciliation.id).",
+      },
+      import_batch_id: { description: "The import batch that made this version (slice 51)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medication_schedule": {
+    context: "medicines",
+    description:
+      "The prescribed times of a regular MAR entry version, each with its dose and dm+d unit.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      medication_id: { description: "The entry version (medication.id)." },
+      position: { description: "The order of the time within the entry, from 0.", unit: "count" },
+      time: { description: "The prescribed time, HH:MM, 24-hour, UK time." },
+      dose_kind: { description: "amount, range or variable." },
+      quantity: { description: "amount: the dose.", unit: "the unit in unit_name" },
+      from_quantity: { description: "range: the smallest dose.", unit: "the unit in unit_name" },
+      to_quantity: { description: "range: the largest dose.", unit: "the unit in unit_name" },
+      unit_code: { description: "The dm+d unit of measure code." },
+      unit_name: { description: "The dm+d unit of measure, as dm+d words it." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.medication_reconciliation": {
+    context: "medicines",
+    description:
+      "Medicines reconciliations on admission, transfer, return from hospital or a change (medicines.md rules 7 to 12).",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      trigger: { description: "admission, transfer, return_from_hospital or change." },
+      placement_id: { description: "The admission it answers (placement.id)." },
+      hospital_transfer_id: {
+        description: "The return from hospital it answers (hospital_transfer.id).",
+      },
+      triggered_at: {
+        description:
+          "When the admission, transfer or return happened, or the change was known (instant, UTC).",
+      },
+      started_by: { description: "Who began it (tenant_user.id)." },
+      started_at: { description: "When it began (instant, UTC)." },
+      entries_at_start: {
+        description: "The MAR entries and versions to decide on when it began, as JSON.",
+      },
+      status: { description: "open or completed." },
+      completed_by: { description: "Who completed it (tenant_user.id)." },
+      completed_at: { description: "When it was completed (instant, UTC)." },
+      allergies_compared: {
+        description:
+          "yes when the completer compared the allergies in the sources with the recorded allergies.",
+      },
+      person_involved: {
+        description: "yes or no: whether the person, or someone who speaks for them, was involved.",
+      },
+      not_involved_reason: { description: "Why the person was not involved." },
+      no_discharge_letter_reason: {
+        description:
+          "On a return from hospital with no discharge letter: why, and how the medicines were confirmed.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medication_reconciliation_source": {
+    context: "medicines",
+    description: "The documents a reconciliation compares against (rule 9).",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      reconciliation_id: { description: "The reconciliation (medication_reconciliation.id)." },
+      kind: {
+        description:
+          "prescription, pharmacy_label, pharmacy_mar, discharge_letter, transfer_letter, gp_record, clinic_letter, prescriber_instruction or previous_mar, or person_or_family.",
+      },
+      reference: { description: "What identifies the source." },
+      document_id: { description: "The stored source, when uploaded (document.id)." },
+      received_at: { description: "When the source was received (instant, UTC)." },
+      current_because: {
+        description: "Why a source received before the event still shows what is prescribed now.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.medication_reconciliation_item": {
+    context: "medicines",
+    description: "The medicines each source lists, as written, with what each line says.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      reconciliation_id: { description: "The reconciliation (medication_reconciliation.id)." },
+      source_id: {
+        description: "The source the line is on (medication_reconciliation_source.id).",
+      },
+      as_written: { description: "The line as written on the source." },
+      vmp_id: { description: "The dm+d VMP the line names, when coded." },
+      amp_id: { description: "The dm+d AMP the line names, when coded." },
+      product_name: { description: "The dm+d description of the product the line names." },
+      says: { description: "What the line says: start, continue, change, stop or unclear." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.medication_reconciliation_decision": {
+    context: "medicines",
+    description:
+      "The decision a person made on each entry and each source line of a reconciliation.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      reconciliation_id: { description: "The reconciliation (medication_reconciliation.id)." },
+      entry_id: { description: "The entry version decided on (medication.id)." },
+      item_id: { description: "The source line decided on (medication_reconciliation_item.id)." },
+      kind: {
+        description:
+          "continue, change, stop or query for an entry; start, not_started or query for a line.",
+      },
+      decision: {
+        description:
+          "The decision as JSON: the lines it links, the note, who confirmed it, the reason or question, and the draft entry for a change or start.",
+      },
+      made_entry_id: { description: "The entry the completed plan made from it (medication.id)." },
+      decided_by: { description: "Who made the decision (tenant_user.id)." },
+      decided_at: { description: "When it was made (instant, UTC)." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

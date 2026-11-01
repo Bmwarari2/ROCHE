@@ -524,6 +524,7 @@ export * from "./induction";
 export * from "./invitations";
 export * from "./letters";
 export * from "./mca";
+export * from "./medicines";
 export * from "./members";
 export * from "./onboarding";
 export * from "./operations";

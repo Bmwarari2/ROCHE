@@ -65,6 +65,11 @@ describe("loadConfig", () => {
     ],
     ["the browser idle timeout (HZ-111)", { SESSION_IDLE_TIMEOUT: "on" }, "SESSION_IDLE_TIMEOUT"],
     [
+      "invented dm+d and competence (HZ-001, HZ-121)",
+      { MEDICINES_FIXTURES: "on" },
+      "MEDICINES_FIXTURES",
+    ],
+    [
       "more than 10 sign-ins a minute",
       { AUTH_SIGN_IN_PER_MINUTE: "11" },
       "AUTH_SIGN_IN_PER_MINUTE",
@@ -83,6 +88,14 @@ describe("loadConfig", () => {
     ],
   ])("refuses %s in production", (_label, change, message) => {
     expect(() => loadConfig({ ...PRODUCTION, ...change })).toThrow(message);
+  });
+
+  it("uses the medicines fixtures only where allowed: never in production, on elsewhere unless off", () => {
+    expect(loadConfig(PRODUCTION).medicinesFixtures).toBe(false);
+    expect(loadConfig({ NODE_ENV: "test" }).medicinesFixtures).toBe(true);
+    expect(loadConfig({ NODE_ENV: "test", MEDICINES_FIXTURES: "off" }).medicinesFixtures).toBe(
+      false,
+    );
   });
 
   // #39 review L2: Flagsmith only over TLS at the environment's own flags host.

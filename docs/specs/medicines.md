@@ -510,3 +510,86 @@ schema, API, web or mobile changes in this slice.
 | `mar-entry.ts` | `MarEntryDraft`, `MarEntry`, `checkMarEntryDraft`, `transcribeMarEntry`, `recordSecondCheck`, `changeMarEntry` and `stopMarEntry` (on every version), `versionInForceAt`, `lastDueDose`, `marEntryEnd`, `marEntryDosesFrom`, `marEntryDoses`, `marEntryTimesBeforeRecorded`, `marEntryStatus`, `MAR_ENTRY_NOTICES`, `MAR_SOURCE_KINDS` | Rules 6, 6a to 6c |
 | `reconciliation.ts` | `completeReconciliation`, `entriesToReconcile`, `linkDifference`, `outstandingReconciliations`, `RECONCILIATION_TRIGGER_WORDS`, `LINE_SAYS_WORDS` | Rules 7 to 12 |
 | `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | `medicines.ordering_cycle_days` |
+
+## 12. As built (slice 16, schema and API)
+
+Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
+`packages/contracts/src/medicines.ts`, routes `apps/api/src/routes/medicines.ts`, mapping
+`apps/api/src/services/medicines.ts`, ports `apps/api/src/integrations/medicines-ports.ts`.
+
+- **Tables** as section 2, with these choices:
+  - `medication.medicine_id` groups the versions of one entry (the first version's id; a restart is
+    a new entry). The rules still receive every version of the person's product
+    (`earlierEntries`) and every version of the entry (`versions`, `entryVersions`).
+  - The when-required dose is JSON (`prn_dose`); regular times are `medication_schedule` rows,
+    written in the same transaction as their entry (a trigger refuses later additions).
+  - Decisions are JSON (`EntryDecision` or `ItemDecision`), validated by the API, with the entry or
+    line and the kind as columns. A new set marks the earlier rows deleted while the
+    reconciliation is open.
+- **Database rules**:
+  - Forced RLS by tenant and `person_child_scope` on all six tables; no DELETE for `harbour_app`.
+  - On `medication`, a trigger keeps what a version says fixed and sets the check, stop,
+    replacement and withdrawal once each; a stop may be replaced only by an earlier one (rule
+    6b). The state needs the column that defines it.
+  - A new version must replace an earlier version of the same medicine and the same VMP, take
+    the next number after the latest, and be not yet checked. The unique (medicine, version) key
+    refuses a second change from the same version, so `expectedVersion` holds under concurrency.
+  - A replacement moves to a later version only when the version it named has been withdrawn,
+    to a live version of the same medicine that replaces this row, and never to a later time (v1 replaced by v2; v2 withdrawn as transcribed in error; v3 then
+    replaces v1). The API writes a withdrawal before the version that follows it.
+  - Every child row is tied to one person by composite keys: a version's source and stop
+    documents (`document (tenant, person, id)`), its reconciliation, a line's source, a decision's
+    line and the entry a decision made. A document, line or entry from another person's record is
+    refused by the database.
+  - A completed reconciliation, its sources, lines and decisions never change. Only a non-app
+    role (retention) may mark a completed one deleted, once, never undone; the app may never change
+    `deleted_at`.
+  - `capture_version` keeps each earlier state of a row in `record_version`.
+- **Concurrency**: every write for a person (including a reconciliation's sources and lines, so
+  nothing arrives while one completes) takes a transaction-scoped advisory lock on that
+  person (`medicines:<person id>`) before reading the record, so two requests for the same
+  person are tried one after the other against the latest record. Reads (history, the MAR) take
+  no lock. A unique-key clash is a 409;
+  a check or key refusal by the database is a 422 `medicine_refused_by_record`.
+- **Names**: the product, route and unit names stored and shown are dm+d's own, looked up by
+  code from `DmdFactsPort`, never the request's. A line's product name also comes from dm+d.
+- **Documents**: a source or stop document must be this person's, available and not deleted,
+  when it is named and again, for every source, when the reconciliation completes.
+- **dm+d** (slice 10 not yet merged): `vmp_id` and `amp_id` are validated identifiers
+  (`isDmdId` in the API, the SNOMED CT shape in the database) with no foreign key. A test in
+  `packages/db/test/medicines-record.test.ts` fails once a VMP table exists until an expand step
+  adds the foreign key. The dm+d facts (routes and units) come from `DmdFactsPort`. Production
+  uses `unavailableDmd`, which knows no product, so nothing is transcribed until slice 10. The
+  fixture of four invented products (no AMPs: an AMP is unknown) and `fixedCompetence` are used
+  only when `MEDICINES_FIXTURES` is on; it defaults on outside production, and production
+  refuses to start with it on. A pilot or staging stack holding real people's records sets it
+  to `off` (H-1022). A product dm+d does not hold is refused as "dm+d does not hold
+  this product" or "The dm+d reference data is not loaded yet", also at completion.
+- **Competence** (slice 17 not yet built): `MedicinesCompetencePort`, read on the server for the
+  signed-in member at the time of the action. Production uses `unavailableCompetence`, which
+  answers `not_held`, so no second check or completion is accepted until the workforce port
+  exists. Tests use `fixedCompetence`.
+- **Permissions**: reading needs `medicines.record.manage`, `medicines.emar.administer` or
+  `care.plan.read`; no separate `medicines.record.read` is added (section 3's question,
+  ADR-0071's per-permission scope applies). Writing needs `medicines.record.manage`.
+- **Times**: the rules are tried at the time of recording on the server (the member's action);
+  a reconciliation's plan is applied with its `completedAt` (HZ-010).
+- **Unchecked policy**: `give_with_notice`, the default in force (H-550), until a tenant setting
+  exists.
+- **Reconciliation events**: an admission is the placement, from 00:00 UK time on its start date;
+  a return is the hospital transfer's `returned_at`. A transfer between homes has no event record
+  yet, so it is started as a `transfer` with no event. Completing a return's reconciliation marks
+  its `medicines_reconciled` check and task done, with the transfer row locked; that check cannot
+  be ticked by hand on the transfer, and its task is evidence-only on the tasks route. A return recorded without a transfer record raises its tasks
+  against the person and has no event to answer, so it is reconciled as a `change` until H-1023
+  is decided.
+- **MAR**: each dose carries its entry's status now (`entryStatus`: words, whether it may be
+  given, any notice), so a chart cell never shows a dose without its notice. The status is the
+  entry's now, not at each dose's time (H-1025).
+- **Audit and outbox**: `medicines.entry.viewed`, `.transcribed`, `.changed`, `.checked`,
+  `.check_found_difference`, `.stopped`, and `medicines.reconciliation.started`, `.viewed`,
+  `.source_added`, `.item_added`, `.decided`, `.completed`. A refused check or completion is
+  audited as `denied` (with the problem codes) outside the refused transaction, so it is kept. All carry ids and counts, never content. Outbox: `medicines.entry.changed`,
+  `medicines.entry.stopped` and `medicines.reconciliation.completed`, with ids only.
+- **Tests**: `packages/db/test/medicines-record.test.ts` (20) and `apps/api/test/medicines.test.ts`
+  (28), with the `MEDICINES_FIXTURES` cases in `apps/api/test/config.test.ts`.

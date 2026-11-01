@@ -797,6 +797,13 @@ export const peopleTransfersRouter = createRouter()
               reason: refused,
             });
           }
+          // The medicines check is done by completing the reconciliation, never ticked by hand,
+          // so a return cannot read as reconciled while the chart is unreconciled (HZ-005).
+          if (checkKey === "medicines_reconciled") {
+            throw problems.invalid(
+              "This check is done by completing the medicines reconciliation for this return.",
+            );
+          }
           checks[checkKey] = { ...check, doneBy: access.tenantUserId, doneAt: now.toISOString() };
           const [updated] = await tx
             .update(hospitalTransfer)

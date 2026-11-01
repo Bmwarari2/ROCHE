@@ -666,6 +666,8 @@ export const document = pgTable(
   },
   (t) => [
     unique("document_tenant_id_id_key").on(t.tenantId, t.id),
+    // Records about a person refer to their own documents by (tenant, person, id) (migration 0111).
+    unique("document_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     index("document_person_idx").on(t.tenantId, t.personId),
     index("document_subject_idx").on(t.tenantId, t.subjectType, t.subjectId),
   ],
