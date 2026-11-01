@@ -554,14 +554,17 @@ Recommended answers applied 31/10/2026 (reviewed at the testing phase):
   charge first. It records no answer (`null`; `CreateIncident` and `UpdateIncident` take it, and
   migration 0118 drops the columns' NOT NULL, expand only, with the default false kept for earlier
   clients) and the API raises an urgent `safety.record_contacts` task for holders of
-  `safety.incident.manage` at the location, done once both are answered. The incident page and the
-  evidence pack say "Not known yet".
+  `safety.incident.manage` at the location, done once both are answered; the incident cannot close
+  while either is not known (`incidentCloseProblems`). The incident page and the evidence pack say
+  "Not known yet". The contract still defaults an omitted answer to false for earlier clients
+  (expand); the contract phase makes both answers required.
 - **Learning disability and autism (H-482, HZ-013).** For a person we support who died, the form
   asks "Did they have a learning disability?" and "Were they autistic?" (yes, no or not known yet,
   answered from their record) and sends the answers the API already takes, so LeDeR is drafted from
   an answer. A not-known answer leaves the question open with a `safety.record_learning_disability_autism`
   task for holders of `safety.incident.manage` (the Registered Manager), done once both are recorded
-  on the incident.
+  on the incident; closing the incident without them cancels the task, and the after-death section
+  then says they were not answered (whether closing should wait for them is for the CSO, H-482).
 
 Web review and notification forms, slice 9 part 4b (`apps/web/src/lib/incident-review.ts`,
 `apps/web/src/components/safety/IncidentManage.tsx` and `NotificationManage.tsx`; HZ-091): the

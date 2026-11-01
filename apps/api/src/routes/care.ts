@@ -495,9 +495,12 @@ export const careRouter = createRouter()
             });
             const profile = await careProfile(tx, personId);
             // Food and drink are judged against the levels prescribed when they were given, not
-            // when the entry reached the server (H-166, HZ-016).
+            // when the entry reached the server (H-166, HZ-016). A device clock that disagrees
+            // with the server cannot place the entry in the history, so the level now is used
+            // (HZ-010).
             const iddsiThen =
-              body.values.chart === "food" || body.values.chart === "fluid_intake"
+              (body.values.chart === "food" || body.values.chart === "fluid_intake") &&
+              !times.clockDrift
                 ? await iddsiLevelsAt(tx, profile, times.occurredAt)
                 : null;
             const { flags, triggers } = chartRules(

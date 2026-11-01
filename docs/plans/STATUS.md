@@ -39,6 +39,11 @@ H-482, H-543, H-551 and H-595. Left open, each with a note in
 - H-306: judging a task move's permission at the time of care waits for the phone to send that
   time (H-309, whose default keeps the check at upload).
 - HZ-127's rating (H-543) waits for its hazard-log entry with slice 37.
+- **Release blocker (H-595)**: HZ-126 is now rated Catastrophic, residual 4 until H-599 is settled;
+  under the clinical risk management plan a residual of 4 blocks a production release that relies
+  on the safeguarding log (on `main` since slice 13), so it is not used by a live tenant until then.
+- The ratings applied here (H-543, H-595, H-267) are recommended ratings, not the CSO's; the CSO
+  rates them, and signs safety case v0.1 (H-381), at the testing phase.
 
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or

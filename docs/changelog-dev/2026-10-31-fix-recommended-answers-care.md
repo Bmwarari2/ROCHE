@@ -58,7 +58,12 @@ that change what is built for care, safety, mobile and medicines items whose cod
 - H-306: the time-of-care permission check, after H-309.
 - HZ-127's rating when slice 37 adds its entry.
 - Set `MOBILE_SAFETY_CASE_COVERS_APP` and each organisation's `care.mobile_care_mode` only once a
-  signed safety case covers the app.
+  signed safety case covers the app. Check whether any pilot tenant already uses Care mode: its
+  phones stop syncing (holding unsent entries) once this is deployed until the flag is on.
+- The contract phase of migration 0118: make the emergency services and GP answers required in
+  `CreateIncident` (an omitted answer still defaults to false for earlier clients).
+- HZ-126 at residual 4 until H-599 is settled blocks a production release that relies on the
+  safeguarding log.
 
 ## Human actions logged
 
@@ -78,3 +83,12 @@ that change what is built for care, safety, mobile and medicines items whose cod
 - Infrastructure: `plan.tftest.hcl` gains the downtime pack alarm (not run here: no Terraform).
 
 ## Review rounds
+
+Clinical safety review (clinical-safety-reviewer agent, round 1): changes needed, 8 findings, all
+addressed. Ratings are now worded as recommended ratings, not the CSO's (HZ-092, HZ-123, HZ-124,
+HZ-126, HZ-128, HZ-130 and safety case v0.2); H-381, H-543, H-551, H-595 and H-27 say which
+sign-off stays with the CSO, Brian or the pharmacist; HZ-126's residual 4 is a release blocker in
+STATUS.md; an incident cannot close while the emergency services or GP answer is not known yet
+(a closed death cancels its LeDeR facts task); an IDDSI entry from before the care profile existed
+or with a drifting device clock is compared with the level now; the handover lead is tested across
+both clock changes; the contract phase for the not known yet default is logged above.

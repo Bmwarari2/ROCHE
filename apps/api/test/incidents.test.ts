@@ -520,9 +520,18 @@ describe("answers left as not known yet (H-264, H-482)", () => {
       (t) => t.kind === "safety.record_contacts",
     );
     expect(open).toMatchObject([{ status: "open", priority: "urgent", person_id: null }]);
+    // It stays open: the incident cannot close while either is not known.
+    await answerEverything(incident.id);
+    const current = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`));
+    const closing = await as("manager", `/v1/incidents/${incident.id}/close`, {
+      method: "POST",
+      body: { reason: "Reviewed and closed.", version: current.version },
+    });
+    expect(closing.status).toBe(422);
+    expect(JSON.stringify(await closing.json())).toMatch(/still not known/);
     const answered = await as("manager", `/v1/incidents/${incident.id}`, {
       method: "PUT",
-      body: { emergencyServicesCalled: false, gpContacted: true, version: incident.version },
+      body: { emergencyServicesCalled: false, gpContacted: true, version: current.version },
     });
     expect(answered.status).toBe(200);
     expect(await json<IncidentDetail>(answered)).toMatchObject({

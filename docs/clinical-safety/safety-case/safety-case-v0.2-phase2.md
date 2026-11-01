@@ -66,7 +66,7 @@ When Phase 2 is complete and deployed as described, with the deployer controls i
 and in section 9 below, it will be acceptably safe for its intended use. **This claim cannot yet be
 made**: the slices are not all built, no Phase 2 screen exists, two hazards (HZ-113, HZ-127) have no
 entry yet, HZ-124 and HZ-128 carry the recommended ratings (H-543, applied 31/10/2026 for review at
-the testing phase), and the CSO has reviewed none of them. The
+the testing phase, not ratings by the CSO), and the CSO has reviewed none of them. The
 argument below is the evidence so far.
 
 ## 4. Hazards: ratings at a glance
@@ -81,10 +81,10 @@ Ratings are severity, likelihood and risk level, as the hazard log gives them. S
 | HZ-119 | Major / Medium / 3 | Major / Low / 3 until the override report (slice 45), then Very low / 2 | H-513 |
 | HZ-121 | Major / Medium / 3 | Major / Low / 3 | H-513 |
 | HZ-123 | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Very low / 2 | H-710, H-543 |
-| HZ-124 | Major / Medium / 3 | Major / Low / 3 until rota eligibility gating lands, then Very low / 2 | H-543 (recommended answer applied 31/10/2026) |
-| HZ-126 | Catastrophic / Medium / 4 | Catastrophic / Low / 4 until H-599 is settled, then Very low / 3 | H-595 (recommended answer applied 31/10/2026), H-599 |
+| HZ-124 | Major / Medium / 3 | Major / Low / 3 until rota eligibility gating lands, then Very low / 2 | H-543 (recommended rating applied 31/10/2026; not yet rated by the CSO) |
+| HZ-126 | Catastrophic / Medium / 4 | Catastrophic / Low / 4 until H-599 is settled, then Very low / 3 | H-595 (recommended rating applied 31/10/2026; not yet rated by the CSO), H-599 |
 | HZ-127 | Not rated (no entry; recommended Major / Medium / 3, H-543) | Not rated (recommended Major / Low / 3) | Entry needed with slice 37 |
-| HZ-128 | Considerable / Medium / 3 | Considerable / Low / 2 | H-543 (recommended answer applied 31/10/2026), H-740 |
+| HZ-128 | Considerable / Medium / 3 | Considerable / Low / 2 | H-543 (recommended rating applied 31/10/2026; not yet rated by the CSO), H-740 |
 | HZ-130 | Major / Medium / 3 | Major / Low / 3 | H-543, H-680 |
 
 Six hazards are proposed at a residual level of 3 (HZ-116, HZ-119, HZ-121, HZ-123, HZ-124, HZ-130), and HZ-126 at 4 until H-599 is settled, then 3.
