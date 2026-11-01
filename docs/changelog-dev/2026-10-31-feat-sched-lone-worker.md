@@ -39,3 +39,11 @@ Branch `feat/sched-lone-worker`, Phase 2 slice 46, migration 0113.
 - The route may name only staff who can acknowledge alarms, needs the version read and is
   protected in the database; monitors need MFA; the database checks where a worker may start, and
   only the system removes a session or touches its reminders.
+
+## Existing tenants' roles
+
+- Migration 0113 now backfills the lone-worker permissions (check-in, monitor, manage) into every
+  existing tenant's built-in role copies that the built-in definitions grant them to, audited as
+  `platform.role.permissions_migrated` (as 0038 does). Without it, an organisation created before
+  lone-worker safety would never hold them. `packages/db/test/lone-worker.test.ts` checks the list
+  against the domain and re-runs the backfill.

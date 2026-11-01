@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
+  BUILTIN_ROLES,
   LONE_WORKER_ALARM_REASONS,
   LONE_WORKER_ALARM_STATES,
   LONE_WORKER_EVENT_KINDS,
@@ -481,5 +484,85 @@ describe("location evidence (H-527)", () => {
     await expect(
       asSweep((c) => c.query("DELETE FROM lone_worker_location WHERE id = $1", [POINT])),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe("existing tenants' role copies gain the lone-worker permissions (migration 0113)", () => {
+  const FILE = fileURLToPath(new URL("../drizzle/0113_lone_worker_safety.sql", import.meta.url));
+  const SECTION = { begin: "-- BEGIN role backfill 0113", end: "-- END role backfill 0113" };
+  const PERMISSIONS = [
+    "scheduling.lone_worker.check_in",
+    "scheduling.lone_worker.monitor",
+    "scheduling.lone_worker.manage",
+  ];
+  const section = () => {
+    const sql = readFileSync(FILE, "utf8");
+    return sql.slice(sql.indexOf(SECTION.begin), sql.indexOf(SECTION.end));
+  };
+  const grants = () =>
+    new Map(
+      [...section().matchAll(/\('([a-z_]+)', ARRAY\[([^\]]*)\]\)/g)].map((m) => [
+        m[1] ?? "",
+        [...(m[2] ?? "").matchAll(/'([^']+)'/g)].map((p) => p[1] ?? ""),
+      ]),
+    );
+
+  async function rerun() {
+    const client = await db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      for (const statement of section().split("--> statement-breakpoint")) {
+        if (statement.replace(/--.*$/gm, "").trim()) await client.query(statement);
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  it("lists the same roles and permissions as the built-in definitions", () => {
+    const listed = grants();
+    for (const permission of PERMISSIONS) {
+      const holders = BUILTIN_ROLES.filter((r) =>
+        (r.permissions as readonly string[]).includes(permission),
+      ).map((r) => r.key);
+      const named = [...listed].filter(([, add]) => add.includes(permission)).map(([k]) => k);
+      expect(named.sort(), permission).toEqual([...holders].sort());
+    }
+  });
+
+  it("adds them once to each copy that lacks them, audited as the system", async () => {
+    await asOwner(TENANT_B, (c) =>
+      c.query(
+        `INSERT INTO role (key, name, scope_kind, permissions, is_builtin) VALUES
+           ('team_leader', 'Team leader', 'location', '{people.person.read}', true),
+           ('finance', 'Finance', 'none', '{finance.billing.manage}', true)`,
+      ),
+    );
+    await rerun();
+    await rerun();
+    const roles = await asOwner(TENANT_B, (c) =>
+      c.query<{ key: string; permissions: string[] }>(
+        "SELECT key, permissions FROM role WHERE key IN ('team_leader', 'finance') ORDER BY key",
+      ),
+    );
+    expect(roles.rows.map((r) => [r.key, r.permissions])).toEqual([
+      ["finance", ["finance.billing.manage"]],
+      [
+        "team_leader",
+        ["people.person.read", "scheduling.lone_worker.check_in", "scheduling.lone_worker.monitor"],
+      ],
+    ]);
+    const audit = await asOwner(TENANT_B, (c) =>
+      c.query<{ actor: string; key: string }>(
+        `SELECT actor_auth_user_id AS actor, scope ->> 'roleKey' AS key FROM audit_event
+         WHERE action = 'platform.role.permissions_migrated'
+           AND scope ->> 'migration' = '0113_lone_worker_safety' ORDER BY 2`,
+      ),
+    );
+    expect(audit.rows.map((r) => [r.actor, r.key])).toEqual([["system", "team_leader"]]);
   });
 });
