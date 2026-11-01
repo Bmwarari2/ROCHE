@@ -30,6 +30,7 @@ export type RecordTab =
   | "admission"
   | "property"
   | "letters"
+  | "medicines"
   | "family-updates"
   | "leaving"
   | "sharing"
@@ -37,16 +38,20 @@ export type RecordTab =
 
 interface TabDefinition {
   readonly tab: RecordTab;
-  /** The permission needed to read what the tab shows. */
-  readonly needs:
-    | "care.plan.read"
-    | "care.note.read"
-    | "people.person.read"
-    | "people.movement.record"
-    | "comms.letter.manage"
-    | "comms.feed.publish"
-    | "people.sharing.manage";
+  /** The permission needed to read what the tab shows (any one of a list). */
+  readonly needs: TabPermission | readonly TabPermission[];
 }
+
+type TabPermission =
+  | "care.plan.read"
+  | "medicines.record.manage"
+  | "medicines.emar.administer"
+  | "care.note.read"
+  | "people.person.read"
+  | "people.movement.record"
+  | "comms.letter.manage"
+  | "comms.feed.publish"
+  | "people.sharing.manage";
 
 /**
  * In the order the tabs appear: who the person is (personal details and About me), the plan and
@@ -61,6 +66,11 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "risk-assessments", needs: "care.plan.read" },
   { tab: "notes", needs: "care.note.read" },
   { tab: "charts", needs: "care.note.read" },
+  // The medicines record (MEDS-001; medicines.md section 13): the API's three readers.
+  {
+    tab: "medicines",
+    needs: ["medicines.record.manage", "medicines.emar.administer", "care.plan.read"],
+  },
   { tab: "body-map", needs: "care.note.read" },
   { tab: "advance-care", needs: "care.plan.read" },
   { tab: "capacity", needs: "care.plan.read" },
@@ -171,7 +181,9 @@ export function visibleTabs(
   personId: string,
   permissions: readonly string[],
 ): { readonly tab: RecordTab; readonly href: string }[] {
-  return RECORD_TABS.filter((definition) => can(permissions, definition.needs)).map(({ tab }) => ({
+  const reads = (needs: TabDefinition["needs"]) =>
+    typeof needs === "string" ? can(permissions, needs) : needs.some((p) => can(permissions, p));
+  return RECORD_TABS.filter((definition) => reads(definition.needs)).map(({ tab }) => ({
     tab,
     href: tabHref(personId, tab),
   }));

@@ -37,7 +37,7 @@ const t = createTranslator("en-GB");
 const PERSON = "0194d000-0000-7000-8600-000000000001";
 
 describe("record tabs", () => {
-  it("lists the nineteen sections in order, the overview first and history last", () => {
+  it("lists the sections in order, the overview first and history last", () => {
     expect(RECORD_TABS.map((d) => d.tab)).toEqual([
       "overview",
       "details",
@@ -47,6 +47,7 @@ describe("record tabs", () => {
       "risk-assessments",
       "notes",
       "charts",
+      "medicines",
       "body-map",
       "advance-care",
       "capacity",
@@ -89,6 +90,10 @@ describe("record tabs", () => {
       "history",
     ]);
     expect(visibleTabs(PERSON, []).length).toBe(0);
+    // The medicines record opens to any of its three readers (medicines.md section 13).
+    expect(visibleTabs(PERSON, ["medicines.emar.administer"]).map((v) => v.tab)).toEqual([
+      "medicines",
+    ]);
     // Letters only for those who make them (comms.letter.manage), never from reading the record.
     expect(
       visibleTabs(PERSON, ["people.person.read", "comms.letter.manage"]).map((v) => v.tab),
