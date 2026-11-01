@@ -122,7 +122,12 @@ the newest one applied. Never edit a migration that is on `main`.
 
 Phases 3 to 7 are not started.
 
-**Next free numbers**: migration 0139, human actions block H-1340, hazard HZ-133.
+**Added to the plan on 01/11/2026**: the Thapsus-HR link (INTG-014, ADR-0126), so a provider using
+both products shares rota, time, pay and staff records without exports. It is Phase 2 slices 86 to 90
+on `docs/plan-thapsus-hr-link`, and takes migration 0139 (0140 if needed), H-1340 to H-1345, HZ-133
+and DPIA risk R30.
+
+**Next free numbers**: migration 0141, human actions block H-1350, hazard HZ-134, ADR-0127.
 
 **Human questions**: every open question takes its recommended answer until the testing-phase
 review ([recommended-answers.md](recommended-answers.md)). Ten Brian decisions still have no default:
