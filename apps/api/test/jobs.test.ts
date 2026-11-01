@@ -34,6 +34,12 @@ async function asTenant<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>):
   }
 }
 
+/** The member has signed in: set as the invitation's acceptance would, never by the app role. */
+const signedIn = (member: string) =>
+  asTenant(db.pool("harbour_owner"), (c) =>
+    c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [member]),
+  );
+
 beforeAll(async () => {
   db = await createTestDatabase();
   await seedDemoTenant(db.pool("harbour_owner"));
@@ -102,10 +108,9 @@ describe("escalation chains", () => {
         "UPDATE role_assignment SET valid_from = '2026-01-01T00:00:00Z' WHERE tenant_user_id = $1",
         [DEMO.users.manager.id],
       );
-      // Only someone active is told: the manager has signed in (review round 3, C3-M3).
-      await c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [
-        DEMO.users.manager.id,
-      ]);
+      // Only someone active is told: the manager has signed in (review round 3, C3-M3). Signing
+      // in is the invitation's own path, never the application role (migration 0129).
+      await signedIn(DEMO.users.manager.id);
       const chain = await c.query<{ id: string }>(
         `INSERT INTO escalation_chain (key, name, steps) VALUES ('missed_visit', 'Missed visit',
            '[{"afterMinutes":10,"targetRoleKey":"registered_manager","channels":["push"]},
@@ -146,9 +151,7 @@ describe("escalation chains", () => {
     // Harbour Field, an invented home no one works at.
     const field = "0194d000-0000-7000-8000-0000000001f1";
     const ids = await asTenant(appPool, async (c) => {
-      await c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [
-        DEMO.users.manager.id,
-      ]);
+      await signedIn(DEMO.users.manager.id);
       await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Field')", [field]);
       const chain = await c.query<{ id: string }>(
         `INSERT INTO escalation_chain (key, name, steps) VALUES ('fall_unwitnessed', 'Unwitnessed fall',

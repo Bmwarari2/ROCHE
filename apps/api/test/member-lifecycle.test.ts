@@ -205,6 +205,16 @@ describe("H-566 suspend, end, then erase the sign-in", () => {
       [randomUUID(), gil.authUserId],
     );
 
+    // A passkey challenge waiting with Gil's user id inside its JSON (they expire in minutes).
+    await auth().query(
+      `INSERT INTO auth.verification (id, identifier, value, expires_at)
+       VALUES ($1, $2, $3, now() + interval '5 minutes')`,
+      [
+        randomUUID(),
+        randomUUID(),
+        JSON.stringify({ expectedChallenge: "x", userData: { id: gil.authUserId } }),
+      ],
+    );
     // Ending before suspending, or erasing before ending, is refused.
     const early = await end("manager", gil.id);
     expect(early.status).toBe(409);
@@ -255,7 +265,7 @@ describe("H-566 suspend, end, then erase the sign-in", () => {
       deletionRequestClosed: true,
     });
     const factors = await auth().query(
-      "SELECT 1 FROM auth.verification WHERE value = $1 OR identifier LIKE '%' || $1 || '%'",
+      "SELECT 1 FROM auth.verification WHERE strpos(value, $1) > 0 OR strpos(identifier, $1) > 0",
       [gil.authUserId],
     );
     expect(factors.rowCount).toBe(0);
@@ -291,7 +301,14 @@ describe("H-566 suspend, end, then erase the sign-in", () => {
         scope: { tenantUserId: gil.id, outcome: "sign_in_erased" },
       },
     ]);
-    // Audited by opaque id only: never the address or the name.
+    // Audited by opaque id only, saying exactly what went and that the member row stayed.
+    const erasure = (await audits("platform.member.sign_in_erased", gil.id)).find(
+      (a) => a.outcome === "success",
+    );
+    expect(erasure?.scope).toMatchObject({
+      removed: expect.arrayContaining(["sign_in_address", "password_hash", "passkeys"]),
+      kept: ["member_row"],
+    });
     const trail = JSON.stringify(await audits("platform.member.sign_in_erased", gil.id));
     expect(trail).not.toContain("example.invalid");
     expect(trail).not.toContain("Gil");
@@ -376,5 +393,40 @@ describe("H-566 suspend, end, then erase the sign-in", () => {
     expect(kept.status).toBe(409);
     expect(await codeOf(kept)).toBe("sign_in_in_use");
     expect((await stateOf(nurse))?.auth_user_id).toBe(h.authIds.nurse);
+  });
+});
+
+describe("H-566 the organisation keeps a member who manages users (migration 0129)", () => {
+  it("refuses an acting-up grant holder suspending the last member who manages users through a role", async () => {
+    // Everyone else who manages users through a role steps away, leaving the owner.
+    const others = await sql<{ id: string }>(
+      `SELECT DISTINCT u.id FROM tenant_user u
+         JOIN role_assignment ra ON ra.tenant_user_id = u.id AND ra.deleted_at IS NULL
+         JOIN role r ON r.id = ra.role_id
+        WHERE u.status = 'active' AND u.id <> $1 AND 'platform.user.manage' = ANY (r.permissions)
+          AND (ra.valid_to IS NULL OR ra.valid_to > now())`,
+      [DEMO.users.owner.id],
+    );
+    const ids = others.map((o) => o.id);
+    await sql("UPDATE tenant_user SET status = 'suspended' WHERE id = ANY($1::uuid[])", [ids]);
+    const [grant] = await sql<{ id: string }>(
+      `INSERT INTO access_grant (tenant_user_id, permissions, location_id, organisation_wide,
+         valid_to, reason, granted_by)
+       VALUES ($1, '{platform.user.manage}', NULL, true, now() + interval '1 day', 'Acting up', $2)
+       RETURNING id`,
+      [DEMO.users.carer.id, DEMO.users.owner.id],
+    );
+    try {
+      const refused = await suspend("carer", DEMO.users.owner.id);
+      expect(refused.status).toBe(409);
+      expect(await codeOf(refused)).toBe("last_user_manager");
+      expect((await stateOf(DEMO.users.owner.id))?.status).toBe("active");
+      expect(
+        (await audits("platform.member.suspended", DEMO.users.owner.id)).map((a) => a.reason),
+      ).toContain("last_user_manager");
+    } finally {
+      await sql("UPDATE access_grant SET revoked_at = now() WHERE id = $1", [grant?.id]);
+      await sql("UPDATE tenant_user SET status = 'active' WHERE id = ANY($1::uuid[])", [ids]);
+    }
   });
 });

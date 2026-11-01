@@ -33,8 +33,9 @@ sleep-in allowance no longer counts as minimum wage pay (H-585); an identifiable
 the organisation suggests at least medium (H-611); B1 keeps the care record under Regulation
 17(2)(c) (H-612) and complaints have purpose B14 (H-700); the free-text dependency category is no
 longer written (H-716; the column drop is a later contract migration). H-566 has its domain rules
-and API routes (suspend, end, erase the sign-in); its web screens are still to build, and a
-restrictive row-level policy on `tenant_user` updates is a hardening follow-up.
+and API routes (suspend, end, erase the sign-in), held in the database by migration 0129
+(`app.change_membership`, a restrictive policy and a guard trigger on `tenant_user`, the last user
+manager kept); its web screens and a reinstate route are still to build.
 
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or

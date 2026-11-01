@@ -652,6 +652,13 @@
       "when": 1793467208141,
       "tag": "0103_disclosure_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1793467209141,
+      "tag": "0129_member_lifecycle_security",
+      "breakpoints": true
     }
   ]
 }

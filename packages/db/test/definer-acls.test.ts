@@ -43,6 +43,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.staff_profile_worker(uuid)": ["harbour_app"],
   "app.induction_policy_signing(uuid)": ["harbour_app"],
   "app.end_leaver_access(uuid)": ["harbour_app"],
+  // Membership changes held by the database (migration 0129, H-566).
+  "app.change_membership(uuid, text)": ["harbour_app"],
+  "app.sign_in_memberships_elsewhere(uuid)": ["harbour_app"],
   "app.sweep_expired_invitations()": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins()": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).

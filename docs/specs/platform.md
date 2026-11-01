@@ -293,17 +293,34 @@ shows it; upload and remove a logo; axe in light and dark).
   makes the membership `suspended`: the tenant middleware admits active memberships only, so access
   ends at once and open invitations end; with entries waiting on the member's devices it needs
   `confirmEntriesWaiting`, and the holds fall due at once so the entries are handed over; every
-  session of the sign-in ends unless the person has an active membership elsewhere (audited
-  `platform.member.suspended` before the sessions end). `POST .../end` ends only a suspended
+  session of the sign-in ends unless the person has a membership elsewhere that has not ended
+  (suspended included) or the sign-in is a Harbour operator's (audited `platform.member.suspended`
+  before the sessions end). `POST .../end` ends only a suspended
   membership (409 `suspend_first`), keeping the member row, display name and job title so care
   records stay attributable (Regulation 17). `POST .../sign-in/erase` erases the sign-in identity
-  of an ended membership (409 `membership_not_ended`) once it has no active membership in any other
-  organisation and is not a Harbour operator's (409 `sign_in_in_use`): the auth user with its
-  email, password hash, passkeys, TOTP secret and backup codes, sessions and verification tokens,
-  in one transaction of the auth role, audited (`platform.member.sign_in_erased`) before it goes;
-  the member row is then unlinked and an open account deletion request task closes as done
-  (`platform.account_deletion.completed`, with the outcome). Retries change nothing. The web
-  screens for these routes are a follow-up.
+  of an ended membership (409 `membership_not_ended`) once it has no membership in any other
+  organisation that has not ended (invited, active or suspended: erasing would orphan it) and is
+  not a Harbour operator's (409 `sign_in_in_use`): the auth user with its address, password hash,
+  passkeys, TOTP secret and backup codes, sessions, and every verification token naming it
+  (password resets, passkey challenges, session second-factor records), in one transaction of the
+  auth role, audited (`platform.member.sign_in_erased`, listing exactly what was removed and that
+  the member row, with the organisation's own copy of the address, stays under `staff_file`)
+  before it goes; the member row is then unlinked and an open account deletion request task closes
+  as done (`platform.account_deletion.completed`, with the outcome). Retries change nothing.
+  The database holds the line (migration 0129, ADR-0002): the application role cannot change a
+  member's status or sign-in link itself (a restrictive policy and the `tenant_user_membership_guard`
+  trigger refuse it); `app.change_membership`, a definer function owned by the NOLOGIN role
+  `harbour_member_owner`, suspends, reinstates, ends and unlinks, for an active holder of
+  `platform.user.manage` acting on someone else, one change at a time in an organisation (an
+  advisory lock, then both rows locked in id order, so two managers cannot suspend each other at
+  once), and never suspends the organisation's last active member who manages users through a role
+  (409 `last_user_manager`; an acting-up grant never counts, as in `app.end_leaver_access`). The
+  trigger allows only the transitions a membership can make (linking an invited member once;
+  suspending; reinstating; ending; removing the link of an ended membership) and never relinks a
+  sign-in; harbour_owner (migrations and `app.end_leaver_access`, which the leavers sweep runs with
+  no member) is not held by it. `app.sign_in_memberships_elsewhere` gives the count of memberships
+  elsewhere that have not ended, to a holder of `platform.user.manage` only. Reinstating has no
+  route yet; the web screens for these routes are a follow-up.
 - Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
 ## Invitations and MFA enrolment (PLAT-004)

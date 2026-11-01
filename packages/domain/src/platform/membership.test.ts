@@ -20,7 +20,7 @@ const facts = (o: Partial<MembershipFacts> = {}): MembershipFacts => ({
   state: "active",
   self: false,
   signInLinked: true,
-  otherActiveMemberships: 0,
+  otherMemberships: 0,
   operator: false,
   ...o,
 });
@@ -69,15 +69,15 @@ describe("H-566 the sign-in is erased only when nobody else relies on it", () =>
   it.each<[string, Partial<MembershipFacts>, MembershipCheck]>([
     ["no other membership and not an operator", {}, { ok: true, outcome: "apply" }],
     [
-      "an active membership in another organisation",
-      { otherActiveMemberships: 1 },
+      "a membership in another organisation that has not ended (suspended included)",
+      { otherMemberships: 1 },
       { ok: false, problem: "sign_in_in_use" },
     ],
     ["a Harbour operator's sign-in", { operator: true }, { ok: false, problem: "sign_in_in_use" }],
     ["a sign-in already erased", { signInLinked: false }, { ok: true, outcome: "replay" }],
     [
       "a sign-in already erased, even if the old one were in use elsewhere",
-      { signInLinked: false, otherActiveMemberships: 2 },
+      { signInLinked: false, otherMemberships: 2 },
       { ok: true, outcome: "replay" },
     ],
   ])("%s", (_label, over, expected) => {
@@ -86,7 +86,8 @@ describe("H-566 the sign-in is erased only when nobody else relies on it", () =>
     ).toEqual(expected);
   });
 
-  it("has a message in words for every refusal", () => {
+  it("has a message in words for every refusal, the database's included", () => {
+    expect(MEMBERSHIP_MESSAGES.last_user_manager).toContain("last active member");
     for (const message of Object.values(MEMBERSHIP_MESSAGES)) {
       expect(message).toMatch(/^[A-Z].*\.$/);
     }

@@ -95,3 +95,29 @@ H-700 and H-716.
   step-up), as for the admin sign-out, with a restrictive row-level policy as a follow-up (a job
   with no member updates `tenant_user` today, so the policy needs its own design). No new table,
   synced table, secret or dependency.
+- Security review round 2 (the coordinator's review of `ace5a20b`), all fixed:
+  1. Membership changes are held by the database (migration 0129): `app.change_membership`, a
+     definer function owned by the NOLOGIN role `harbour_member_owner` (search path pinned with
+     `pg_temp` last, its ACL set before the owner change), suspends, reinstates, ends and unlinks;
+     a restrictive UPDATE policy and the `tenant_user_membership_guard` trigger refuse the
+     application role changing a member's status or sign-in link, and the trigger allows only
+     valid transitions and never relinks a sign-in. The background job that changes `tenant_user`
+     with no member set is the leavers sweep (`app.end_leaver_access`, migration 0091), which runs
+     as harbour_owner and is unaffected; the database invitation test that changed a status from
+     the application role with no member now does it as that system path does, and the jobs
+     test sets the manager active as the invitation's acceptance would, not as the app role.
+  2. The function keeps the organisation's last active member who manages users through a role
+     (the check of `app.end_leaver_access`; an acting-up grant never counts), and takes an
+     advisory lock and then the manager's and the member's rows in id order, so two managers
+     cannot suspend each other at once; the API takes the same lock first, so the two never
+     deadlock. An actor who is no longer active changes no one.
+  3. Erasure and sign-out now count every membership elsewhere that has not ended, suspended
+     included (`app.sign_in_memberships_elsewhere`), so erasing never orphans another
+     organisation's member row.
+  4. The erasure audit lists exactly what was removed and that the member row (with the
+     organisation's own copy of the address) stays; passkey challenges and any other verification
+     token naming the user are deleted with it.
+  Tests: `packages/db/test/member-lifecycle.test.ts` (direct updates from the application role
+  refused, from a manager and from a job; each transition once; refusals; last user manager with
+  a grant holder; two managers at once; the trigger for another role; the count elsewhere),
+  `definer-acls.test.ts`, and the API last-user-manager refusal.

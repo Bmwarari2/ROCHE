@@ -114,9 +114,9 @@ docs/specs/retention.md). So:
    sessions end unless the person works for another organisation, and their devices' holds fall
    due so unsent entries are handed over), then end it (`.../end`). The member row, display name
    and job title stay so care records stay attributable (Regulation 17); the staff file follows
-   `staff_file` retention. Once the person has no active membership anywhere and is not a Harbour
-   operator, the manager erases the sign-in identity (`.../sign-in/erase`: email, password hash,
-   passkeys, TOTP secret, sessions) within `account_deletion.confirmation_days`, and the request's
+   `staff_file` retention. Once the person has no membership anywhere that has not ended and is
+   not a Harbour operator, the manager erases the sign-in identity (`.../sign-in/erase`: its email
+   address, password hash, passkeys, TOTP secret, sessions and verification tokens) within `account_deletion.confirmation_days`, and the request's
    task closes with the outcome audited by opaque id. **Nothing is deleted by the request itself,
    and care records are never deleted this way.** The web screens for these routes are still to
    come.

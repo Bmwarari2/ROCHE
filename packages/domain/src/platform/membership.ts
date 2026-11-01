@@ -4,9 +4,11 @@
  * the membership (its access ends at once), then ends it. The member row, display name and job
  * title stay, so care records stay attributable to who made them (Regulation 17 of the 2014
  * Regulations); the staff file follows its own retention. Once the membership has ended and the
- * person's sign-in has no active membership anywhere else (and is not a Harbour operator's), the
- * sign-in identity (email, password hash, passkeys, TOTP secret, sessions) is erased and the
- * member row keeps no link to it. Pure rules: the API reads the facts and applies the change.
+ * person's sign-in has no membership anywhere else that has not ended (suspended included) and is
+ * not a Harbour operator's, the sign-in identity (its email address, password hash, passkeys, TOTP
+ * secret, sessions) is erased and the member row keeps no link to it. Pure rules: the API reads
+ * the facts; the database applies the change (`app.change_membership`, migration 0129), which
+ * also keeps the organisation's last member who manages users through a role.
  */
 
 /** A member's state in one organisation (`tenant_user.status`). */
@@ -33,8 +35,11 @@ export interface MembershipFacts {
   readonly self: boolean;
   /** The member row still links to a sign-in (`tenant_user.auth_user_id`). */
   readonly signInLinked: boolean;
-  /** Active memberships of the same sign-in in other organisations (erasure only). */
-  readonly otherActiveMemberships: number;
+  /**
+   * Memberships of the same sign-in in other organisations that have not ended (invited, active
+   * or suspended; erasure only).
+   */
+  readonly otherMemberships: number;
   /** The same sign-in is a Harbour operator's (erasure only). */
   readonly operator: boolean;
 }
@@ -44,7 +49,9 @@ export type MembershipProblem =
   | "membership_ended"
   | "suspend_first"
   | "membership_not_ended"
-  | "sign_in_in_use";
+  | "sign_in_in_use"
+  /** Refused by the database only (`app.change_membership`): it counts the role holders. */
+  | "last_user_manager";
 
 /**
  * `apply` changes the membership; `replay` means it is already in the state asked for (a retry
@@ -77,7 +84,7 @@ export function checkMembershipChange(f: MembershipFacts): MembershipCheck {
       if (!f.signInLinked) return ok("replay");
       // The sign-in belongs to the person, not to one organisation: while they work elsewhere in
       // Harbour, or run Harbour as an operator, it stays (#40 review M1; H-354).
-      if (f.otherActiveMemberships > 0 || f.operator) return refuse("sign_in_in_use");
+      if (f.otherMemberships > 0 || f.operator) return refuse("sign_in_in_use");
       return ok("apply");
   }
 }
@@ -89,5 +96,7 @@ export const MEMBERSHIP_MESSAGES: Readonly<Record<MembershipProblem, string>> = 
     "Suspend the membership first: that ends their access and their devices' sessions.",
   membership_not_ended: "End the membership before erasing the sign-in.",
   sign_in_in_use:
-    "This person still uses their sign-in for another organisation in Harbour, or for Harbour itself, so it has been kept. Their membership here has ended.",
+    "This person still has a membership with another organisation in Harbour, or uses their sign-in for Harbour itself, so it has been kept. Their membership here has ended.",
+  last_user_manager:
+    "This is the organisation's last active member who manages users through a role, so they stay. Give the role to someone else first.",
 };
