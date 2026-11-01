@@ -63,8 +63,15 @@ field reaches the address before hydration (`apps/web/src/forms.test.ts`); #136 
 Every stored object is now envelope-encrypted under one Cloud KMS key per organisation, a
 whole-organisation shred needs two people, and destruction certificates are signed (ADR-0109,
 migration 0117, human actions H-1110 to H-1118). It is cut from `feat/api-google-cloud-adapters`
-and merges after it. Still to do on PLAT-012: the shred screens in `apps/web`, and certificates as
-signed PDFs (retention-and-deletion.md section 5).
+and merges after it.
+
+**Pushed on 01/11/2026, not merged:** `feat/web-retention-shred`, cut from
+`feat/platform-crypto-shred` and merging after it, finishes PLAT-012: the shred screens (ask,
+approve or refuse, cancel or withdraw, each state as an icon and a word), a refusal (migration 0130),
+the usable exports and both people's names in the API, and destruction certificates as a page and as
+a PDF built on request with its signature check (platform.md, Crypto-shredding screens rules 7 to
+12; human actions H-1220 to H-1224). The e2e seed adds Closing Example Care, so the journey's
+approval never touches the demo organisation.
 
 **Paused at 15:10 on 31/10/2026** for the account's usage limit; every builder was asked to push
 its work in progress (`wip(...)` commits) and stop. Resume by reading this section.

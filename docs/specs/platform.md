@@ -935,9 +935,10 @@ needs a fresh step-up, as the API asks.
    are destroyed for good after 30 days, nobody (Thapsus included) can recover them after that,
    database records are not removed by it (they follow the retention schedule) and backups hold
    deleted rows until the date the certificate gives. Active legal holds are listed as blockers,
-   each linked to the retention page, and the form is not offered while any is in force. The form
-   offers only the organisation's full exports downloaded within 30 days (newest first, none
-   chosen by default); with none, it says to download one and links to the export page. The reason
+   each with the retention page linked, and the form is not offered while any is in force. The form
+   offers only the organisation's full exports downloaded within 30 days, newest first, none chosen
+   by default (`GET /v1/retention/shred-exports`, so a holder without the export permission can
+   still choose one); with none, it says to download one and links to the export page. The reason
    is 20 to 1,000 characters with no names. An acknowledgement ("I understand this cannot be
    undone") is required. One open request at a time: while one is open the form is not offered.
 8. **Approve or refuse** (`/settings/retention/shred/{id}`). Shown only to a holder other than the
@@ -953,8 +954,9 @@ needs a fresh step-up, as the API asks.
 10. **Status**, as an icon and a word: **Waiting for approval** (pending), **Lapsed** (pending and
     more than 7 days old: `lapsed`, computed by the API), **Shredding** (approved, keys being
     destroyed), **Shredded** (approved, with its certificate), **Refused**, **Cancelled**. Each
-    request shows who asked and who decided by name (from the member list; a former member as
-    "A former member"), when, the reason, and when it lapses.
+    request shows who asked and who decided by name (the API returns their display names; one it
+    cannot name shows as "A former member"), when, the reason, and when it lapses. Names are for
+    the screens only: certificates keep opaque ids (ADR-0109).
 11. **Certificates** (`/settings/retention/certificates/{id}`). The retention page's list links to
     each. The page shows every field the certificate states, its signature check (**Signature
     checked**, **Signature does not match** or **Not signed**, as the verification route answers),
@@ -970,8 +972,9 @@ needs a fresh step-up, as the API asks.
     (`platform.destruction_certificate.download`), `Cache-Control: no-store`.
 
 **API** (additive): `POST /v1/retention/shred-requests/{id}/refuse`;
-`GET /v1/destruction-certificates/{id}`; `GET /v1/destruction-certificates/{id}/pdf`;
-`ShredRequestItem` gains `refused` in its status, `decisionReason`, `expiresAt` and `lapsed`.
+`GET /v1/retention/shred-exports`; `GET /v1/destruction-certificates/{id}`;
+`GET /v1/destruction-certificates/{id}/pdf`; `ShredRequestItem` gains `refused` in its status,
+`decisionReason`, `expiresAt`, `lapsed`, `requestedByName` and `decidedByName`.
 Audited as `platform.retention.shred_refused` (refusals too), `platform.destruction_certificate.view`
 and `platform.destruction_certificate.download`.
 
@@ -985,9 +988,16 @@ and `platform.destruction_certificate.download`.
 **Tests (written first)**: `packages/db/test/crypto-shred.test.ts` (a refusal by the requester, a
 late one and a change after it refused); `apps/api/test/crypto-shred.test.ts` (refusal rules and
 audit; `lapsed`; the certificate read and PDF, with its signature check and no names);
-`apps/web/src/lib/shred.test.ts` (status words, the request, approval and refusal forms read);
-`apps/web/e2e/retention-shred.spec.ts` (request, refuse, request again, approve as a second person,
-the certificate page and its PDF; axe in light and dark).
+`apps/api/src/services/certificate-pdf.test.ts` (the signature check, signer, hash, signed body,
+backup expiry, no names); `apps/web/src/lib/shred.test.ts` (status words, what each person may
+do, the request, approval and refusal forms read); `apps/web/e2e/retention-shred.spec.ts`
+(request, refuse, request again, approve as a second person, the certificate page, its PDF and its
+check as data; axe in light and dark), run in Closing Example Care, an invented organisation the
+e2e seed adds, so approving never touches the demo organisation's documents.
+
+**Not covered end to end**: legal holds shown as blockers (a hold cannot be placed once a shred has
+started, so the closing organisation cannot show one); the API tests cover the refusal and the
+page lists the holds the API returns.
 
 ## Statutory figures (PLAT-021)
 

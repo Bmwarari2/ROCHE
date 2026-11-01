@@ -66,7 +66,7 @@ Recorded in [ADR-0109](../decisions/0109-per-organisation-crypto-shredding.md): 
 
 ## 5. Destruction certificate
 
-Each shredded batch produces a certificate, stored as a signed PDF in the tenant's document store and kept permanently (it contains no personal data).
+Each shredded batch produces a certificate, kept permanently as a signed record in the database (it contains no personal data: members by opaque id). The PDF is built from that record when someone downloads it, never stored: after a whole-organisation shred the tenant's document store no longer opens, so a stored copy would be unreadable ([platform.md](../specs/platform.md#crypto-shredding-screens-and-certificates-plat-012-part-2) rule 12; H-1220).
 
 | Field | Content |
 | --- | --- |
@@ -75,7 +75,7 @@ Each shredded batch produces a certificate, stored as a signed PDF in the tenant
 | Batch | Retention class, record count, opaque record IDs (hashed list attached) |
 | Rule applied | Schedule entry and version from [../specs/retention.md](../specs/retention.md), trigger date, period |
 | Holds check | Confirmation that no legal hold applied at destruction time |
-| Approval | Reviewer name, role, step-up authentication time |
+| Approval | The requester and approver as opaque member references (names on the screens only; ADR-0109); both confirmed it was them by step-up (H-1221) |
 | Method | Key destruction (key IDs), row purge, object version deletion; backup expiry date after which no ciphertext remains |
 | Integrity | SHA-256 of the certificate, signed by the Harbour signing key |
 
