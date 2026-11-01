@@ -313,7 +313,24 @@ export const controlledDrugsRouter = createRouter()
           resourceId: page.id,
           scope: { personId: page.personId, entries: entries.length },
         });
+        // Everyone who signed the page, by name, for the screens and the print (slice 54).
+        const signers = [
+          ...new Set(
+            [
+              ...entries.flatMap((r) => [r.recordedBy, r.witnessId]),
+              ...checks.flatMap((s) => [s.checkedBy, s.witnessId]),
+            ].filter((v): v is string => !!v),
+          ),
+        ];
+        const people =
+          signers.length === 0
+            ? []
+            : await tx
+                .select({ id: tenantUser.id, name: tenantUser.displayName })
+                .from(tenantUser)
+                .where(inArray(tenantUser.id, signers));
         return {
+          people,
           ...(await summary(
             tx,
             page,

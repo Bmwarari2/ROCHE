@@ -126,6 +126,8 @@ export const CdPageList = z.object({ pages: z.array(CdPageSummary) }).meta({ id:
 export const CdPageDetail = CdPageSummary.extend({
   entries: z.array(CdEntryOut),
   stockChecks: z.array(StockCheckOut),
+  /** Everyone who recorded, witnessed or counted on the page, by name (slice 54). */
+  people: z.array(z.object({ id: uuid, name: z.string() })),
 }).meta({ id: "CdPageDetail" });
 
 export const StockCheckRecorded = z

@@ -40351,6 +40351,11 @@ export interface components {
       witnessPolicy: "required" | "where_available";
       entries: components["schemas"]["CdEntry"][];
       stockChecks: components["schemas"]["StockCheck"][];
+      people: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+      }[];
     };
     CdEntry: {
       /** Format: uuid */

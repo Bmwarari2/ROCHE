@@ -209,6 +209,18 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
     });
   });
 
+  it("names everyone who signed the page, for the screens and the print (slice 54)", async () => {
+    const page = await json<{ people: { id: string; name: string }[] }>(
+      await send("manager", `/v1/controlled-drugs/pages/${pageId}`),
+    );
+    expect(page.people).toEqual(
+      expect.arrayContaining([
+        { id: DEMO.users.manager.id, name: DEMO.users.manager.name },
+        { id: DEMO.users.carer.id, name: DEMO.users.carer.name },
+      ]),
+    );
+  });
+
   it("hazard HZ-119 refuses a witness whose medicines competence is not current", async () => {
     const key = `${DEMO.tenantId}:${DEMO.users.carer.id}`;
     competence.held.set(key, "expired");

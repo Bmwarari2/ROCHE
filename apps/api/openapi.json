@@ -32102,6 +32102,25 @@
             "items": {
               "$ref": "#/components/schemas/StockCheck"
             }
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
           }
         },
         "required": [
@@ -32115,7 +32134,8 @@
           "nextStockCheckDueAt",
           "witnessPolicy",
           "entries",
-          "stockChecks"
+          "stockChecks",
+          "people"
         ]
       },
       "CdEntry": {

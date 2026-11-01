@@ -1094,3 +1094,60 @@ Audit actions carry ids, movements and problem codes, never the drug or the coun
 - refusals are audited as `denied`.
 
 Outbox events, with ids only: `medicines.cd.entry_recorded` and `medicines.cd.stock_discrepancy`.
+
+## 15. Controlled drugs register screens (slice 54, MEDS-005 and MEDS-014)
+
+The person record's **Controlled drugs** tab and a page per drug, for the API's readers; recording
+needs `medicines.cd.administer` (or `medicines.stock.manage` for a count) and signing as witness
+needs `medicines.cd.witness`, each with a fresh step-up, as the API asks. Every page sits inside the
+record frame, so the point-of-care header (name, photo, date of birth, NHS number, allergies) is
+above the register.
+
+**Rules**
+
+1. **The tab** (`/people/{id}/controlled-drugs`): one row per register page (drug, form and strength,
+   as dm+d names it), with the balance **as the API reports it** (never added up in the browser),
+   the unit, the last stock check's result in words and when the next count is due (with an
+   "overdue" word and icon when it has passed). A holder of `medicines.cd.administer` opens a page
+   for a medicine on the MAR; the API refuses one that is not a controlled drug, in its words.
+2. **A register page** (`/people/{id}/controlled-drugs/{pageId}`): every entry in order (its number
+   on the page, date and time, movement, quantity, who it came from or went to and the reference,
+   the balance after it as the API recorded it, who recorded it and who witnessed it, or why no
+   witness was available). A correction is shown directly under the entry it corrects, and the
+   entry it corrects says it was corrected (never struck through or hidden: the register is never
+   changed). Flags (for example "no witness, for manager review") are words with an icon. The stock
+   checks follow, each with its result in words.
+3. **Witness first** (ADR-0084 on the web): the witness, in their own session, opens the page and
+   signs for what they saw: the movement, the quantity and the member they watched record it
+   (`GET .../recorders` lists those who may record at the person's home, never the witness). The
+   page says the signature lasts `medicines.cd.witness_assertion_minutes` and is used once.
+4. **Recording** a receipt (from the pharmacy), a return to the pharmacy (`transfer_out`), a
+   disposal or a destruction: the movement, the quantity in the page's unit, when it happened
+   (now if left empty), who it came from or went to, and the reference. The witness is chosen from
+   the signatures waiting for the signed-in recorder on this page (`GET .../witness-assertions`,
+   with the witness's name, movement and quantity); none waiting says so and how to get one. Where
+   the policy is `where_available` and the movement is not a destruction, a lone worker may instead
+   say why no witness was available, which flags the entry for review. The API checks the
+   signature matches what is recorded.
+5. **Corrections**: chosen from the page's entries, correcting the quantity (a signed change) or a
+   detail (no change of stock), with a reason, witnessed the same way. Never an edit.
+6. **Stock checks**: the count, witnessed the same way. A count that does not match the balance
+   needs a reason; the result says how many over or short, in the API's words, and that a
+   medication incident has been raised. A count never changes the balance: a correction does.
+7. **Printing** (`/people/{id}/controlled-drugs/{pageId}/print`): slice 50's printable register
+   format does not exist yet, so a plain print view lists the page heading (the person, the drug,
+   form, strength and unit), every entry with its signatures (recorder and witness by name, or why
+   none) and corrections under the entry they correct, and the stock checks, with the date and time
+   printed and "Page n of m" from the browser. Printing is audited by the page read (H-1331).
+8. **Separation of duties** on screen: the witness form never offers the witness as recorder; the
+   recorder only sees signatures naming them; the API refuses the same person twice.
+
+**API added in this slice**: `GET /v1/controlled-drugs/pages/{pageId}/recorders` (`medicines.cd.witness`)
+and `GET /v1/controlled-drugs/pages/{pageId}/witness-assertions` (`medicines.cd.administer` or
+`medicines.stock.manage`; unused, unexpired, naming the caller).
+
+**Tests**: `apps/api/test/controlled-drugs.test.ts` (the two routes); `apps/web/src/lib/controlled-drugs.test.ts`
+(the forms read into the contract, movements and results in words, corrections placed under their
+entry); `apps/web/e2e/controlled-drugs.spec.ts` (a witness signs, the manager records a receipt with
+that signature, a correction, a stock check that does not balance, and the print view; axe in light
+and dark).
