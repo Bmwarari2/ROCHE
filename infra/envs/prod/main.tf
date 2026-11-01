@@ -1,71 +1,58 @@
-# Harbour production (AWS prod account, eu-west-2). Applied on signed tags after Brian's
-# manual approval. Disaster recovery is Multi-AZ plus 35 days of point-in-time recovery
-# (RPO 15 minutes, RTO 4 hours); AWS has no second UK region (ADR-0001).
+# Harbour production (its own Google Cloud project, europe-west2). Applied on signed tags after
+# Brian's manual approval. Disaster recovery is regional high availability plus point-in-time
+# recovery (RPO 15 minutes, RTO 4 hours; ADR-0098). The audit archive and security logs are
+# locked: a lock can never be shortened or removed, so confirm the periods before the first apply.
 
 module "stack" {
   source = "../../modules/harbour_stack"
 
-  providers = {
-    aws           = aws
-    aws.us_east_1 = aws.us_east_1
-  }
-
+  project_id      = var.project_id
   environment     = var.environment
   domain_name     = var.domain_name
-  route53_zone_id = var.route53_zone_id
+  dns_zone_name   = var.dns_zone_name
+  create_dns_zone = var.create_dns_zone
 
   # The e-learning content origin's own registrable domain (ADR-0093, security review H1).
-  elearning_domain_name     = var.elearning_domain_name
-  elearning_route53_zone_id = var.elearning_route53_zone_id
+  elearning_domain_name   = var.elearning_domain_name
+  elearning_dns_zone_name = var.elearning_dns_zone_name
 
   safety_case_version = var.safety_case_version
 
-  github_repository           = var.github_repository
-  create_github_oidc_provider = var.create_github_oidc_provider
-  state_bucket_name           = var.state_bucket_name
-  state_kms_key_arn           = var.state_kms_key_arn
-  state_lock_table_name       = var.state_lock_table_name
+  release_service_account = var.release_service_account
 
-  vpc_cidr_block              = "10.42.0.0/16"
-  nat_gateway_per_az          = true
-  interface_endpoint_az_count = 3
+  subnet_cidr = "10.42.0.0/20"
 
-  main_db_instance_class            = "db.r7g.large"
-  main_db_allocated_storage         = 200
-  main_db_max_allocated_storage     = 1000
-  main_db_multi_az                  = true
-  sync_storage_db_instance_class    = "db.r7g.large"
-  sync_storage_db_allocated_storage = 100
-  sync_storage_db_multi_az          = true
-  db_deletion_protection            = true
-  db_skip_final_snapshot            = false
+  main_db_tier            = "db-custom-4-16384"
+  sync_storage_db_tier    = "db-custom-2-8192"
+  main_db_disk_gb         = 200
+  sync_storage_db_disk_gb = 100
+  db_edition              = "ENTERPRISE_PLUS"
+  db_pitr_days            = 35
+  db_high_availability    = true
+  db_deletion_protection  = true
 
-  image_tags       = var.image_tags
-  enable_flagsmith = var.enable_flagsmith
-  use_fargate_spot = false
+  deletion_protection   = true
+  force_destroy_buckets = false
 
-  # Pinned AWS managed rule group versions; required in prod (human action H-140).
-  waf_managed_rule_group_versions     = var.waf_managed_rule_group_versions
-  waf_managed_rule_groups_unversioned = var.waf_managed_rule_groups_unversioned
+  audit_archive_retention_days = 365
+  lock_audit_archive           = true
+  security_log_retention_days  = 400
+  lock_security_logs           = true
+
+  # Pinned Cloud Armor preconfigured rule versions; required in prod (human action H-140).
+  armor_rule_versions = var.armor_rule_versions
 
   service_sizes = {
-    api       = { cpu = 1024, memory = 2048, min = 2, max = 10 }
-    worker    = { cpu = 1024, memory = 2048, min = 2, max = 6 }
-    web       = { cpu = 1024, memory = 2048, min = 2, max = 10 }
-    powersync = { cpu = 2048, memory = 4096, min = 1, max = 1 }
+    api       = { cpu = "2", memory = "2Gi", min = 2, max = 10 }
+    worker    = { cpu = "2", memory = "2Gi", min = 2, max = 6 }
+    web       = { cpu = "2", memory = "2Gi", min = 2, max = 10 }
+    powersync = { cpu = "2", memory = "4Gi", min = 1, max = 1 }
   }
 
-  alb_deletion_protection = true
-  force_destroy_buckets   = false
-  log_retention_days      = 400
-  protect_log_groups      = true
+  enable_flagsmith = var.enable_flagsmith
+  smtp             = var.smtp
 
-  # COMPLIANCE mode cannot be shortened or removed by anyone, including the root user, for
-  # the retention period. Confirm the period in an ADR before the first prod apply.
-  audit_archive_lock_mode = "COMPLIANCE"
-  audit_archive_lock_days = 365
-
-  alert_email_addresses  = var.alert_email_addresses
-  budget_monthly_limit   = var.budget_monthly_limit
-  budget_email_addresses = var.budget_email_addresses
+  alert_email_addresses = var.alert_email_addresses
+  billing_account_id    = var.billing_account_id
+  budget_monthly_limit  = var.budget_monthly_limit
 }

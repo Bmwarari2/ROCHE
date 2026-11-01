@@ -52,7 +52,7 @@ How data is collected, stored, used, shared and deleted: staff record care at th
 | Approximate number of people receiving care | `{{stats.activePeople}}` |
 | Approximate number of staff users | `{{stats.activeStaff}}` |
 | Data categories | From the tenant's records of processing ([records-of-processing.md](records-of-processing.md), Part B) |
-| Geography | UK hosting (AWS London). Exceptions: `{{subProcessors.outsideUk[]}}` |
+| Geography | UK hosting (Google Cloud London, europe-west2; [ADR-0098](../decisions/0098-production-on-google-cloud.md)). Exceptions: `{{subProcessors.outsideUk[]}}` |
 
 ### 3.3 Context
 

@@ -1,35 +1,36 @@
 # Copy to terraform.tfvars (git-ignored) and fill in. CI passes the same values as TF_VAR_*
 # environment variables from GitHub repository variables instead.
 
-aws_account_id    = "000000000000"
+project_id        = "harbour-prod-000000"
 domain_name       = "prod.harbour.example.invalid"
-route53_zone_id   = null
+dns_zone_name     = null
+release_service_account = null # infra/bootstrap output service_accounts.release
 
 # The signed safety case report this release runs under (docs/clinical-safety/safety-case/).
 safety_case_version = "v0.0"
-state_bucket_name = "harbour-tfstate-000000000000"
-state_kms_key_arn = "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000"
 
-alert_email_addresses  = ["platform-alerts@example.invalid"]
-budget_email_addresses = ["finance-alerts@example.invalid"]
+alert_email_addresses = ["platform-alerts@example.invalid"]
+billing_account_id    = null
 
 enable_flagsmith = false
 
-# Every AWS managed rule group that blocks must be pinned before a prod plan (human action H-140).
-# Read the versions in the prod account with aws wafv2 list-available-managed-rule-group-versions.
-# waf_managed_rule_group_versions = {
-#   AWSManagedRulesAmazonIpReputationList = "Version_x.y"
-#   AWSManagedRulesCommonRuleSet          = "Version_x.y"
-#   AWSManagedRulesKnownBadInputsRuleSet  = "Version_x.y"
-#   AWSManagedRulesSQLiRuleSet            = "Version_x.y"
-# }
+# Outgoing email through a UK SMTP provider on the sub-processor register (null: email off).
+# smtp = { host = "smtp.example.invalid", port = 587, tls = true }
 
-# Only for a group the account lists no versions for (check AWSManagedRulesAmazonIpReputationList
-# first; human action H-140): leave it out of the pins above and give the reason here.
-# waf_managed_rule_groups_unversioned = {
-#   AWSManagedRulesAmazonIpReputationList = "AWS lists no static versions for this group (checked dd/mm/yyyy)."
+# Every Cloud Armor preconfigured rule must be pinned before a prod plan (human action H-140).
+# List the versions with: gcloud compute security-policies list-preconfigured-expression-sets
+# armor_rule_versions = {
+#   sqli              = "v33-stable"
+#   xss               = "v33-stable"
+#   lfi               = "v33-stable"
+#   rfi               = "v33-stable"
+#   rce               = "v33-stable"
+#   methodenforcement = "v33-stable"
+#   scannerdetection  = "v33-stable"
+#   protocolattack    = "v33-stable"
+#   sessionfixation   = "v33-stable"
 # }
 
 # The e-learning content origin's own registrable domain (ADR-0093): never under domain_name.
-# elearning_domain_name     = "harbour-learning.example"
-# elearning_route53_zone_id = null
+# elearning_domain_name   = "harbour-learning.example"
+# elearning_dns_zone_name = null

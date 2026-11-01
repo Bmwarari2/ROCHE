@@ -73,7 +73,7 @@ export const dsarCase = pgTable(
     /** SHA-256 of the bundle as issued. */
     bundleSha256: text("bundle_sha256"),
     bundleIssuedAt: timestamp("bundle_issued_at", { withTimezone: true }),
-    /** Where the issued bundle is kept (the exports bucket, SSE-KMS): an opaque key, never a name. */
+    /** Where the issued bundle is kept (the exports bucket, CMEK): an opaque key, never a name. */
     bundleStorageKey: text("bundle_storage_key"),
     ...mutableColumns(),
   },

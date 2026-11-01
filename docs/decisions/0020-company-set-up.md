@@ -1,10 +1,15 @@
 ---
-status: accepted
+status: accepted; partly superseded by ADR-0098
 date: 2026-10-11
 decision-makers: Brian (Thapsus Cargo Ltd, Appendix default); recorded by Claude Code
 ---
 
 # Company set-up items: start in Phase 0 as human actions
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the AWS dev account with an OIDC deployment role, which becomes the Google
+> Cloud organisation, Harbour folder and per-environment projects with Workload Identity Federation
+> for GitHub Actions (H-04), self-hosted in europe-west2. The text below is kept as decided.
 
 ## Context and problem statement
 

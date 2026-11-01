@@ -1,28 +1,30 @@
 #!/usr/bin/env bash
-# Generates values for the Secrets Manager secrets the Harbour stack creates, inside AWS, so no
-# password ever passes through Terraform state, plan output, the terminal or shell history.
+# Generates values for the Secret Manager secrets the Harbour stack creates, inside Google Cloud,
+# so no password ever passes through Terraform state, plan output, the terminal, shell history or
+# a command line (values travel in files under a private temporary directory).
 #
 #   infra/scripts/seed-secrets.sh <dev|staging|prod>                  fill every empty secret
 #   infra/scripts/seed-secrets.sh <dev|staging|prod> --rotate <name>  new value for one secret
-#   infra/scripts/seed-secrets.sh <dev|staging|prod> --refresh-urls   rewrite db/* url keys
+#   infra/scripts/seed-secrets.sh <dev|staging|prod> --refresh-urls   rewrite db-*-url secrets
 #
-# <name> is the part after "harbour-<env>/", for example db/harbour_app or api.
-# Idempotent: without --rotate, secrets that already have a value are left alone.
-# db/* secrets hold {username, password, url}; url points at the current RDS endpoint with
-# sslmode=verify-full. Run --refresh-urls if a database is ever restored to a new instance.
-# After rotating a db/* secret, run the migrate task (db:bootstrap re-applies role passwords)
-# and then force a new deployment of the services that use it. Rotating api replaces the
-# PowerSync signing key: keep the old key in the JWKS until issued tokens have expired.
+# <name> is the part after "harbour-<env>-", for example db-harbour_app-password or
+# api-auth-secret. Idempotent: without --rotate, secrets that already have a value are left alone.
+# A database role has two secrets, its password and a ready-made URL (sslmode=verify-ca against
+# the mounted Cloud SQL server CA); rotating either writes both. The postgres user's password on
+# each instance (db-admin-password, db-sync-admin-password) is set through the Cloud SQL Admin API.
+# After rotating a db-* secret, execute the migrate job (db:bootstrap re-applies role passwords)
+# and then deploy a new revision of the services that use it. Rotating api-sync-signing-key-pem
+# replaces the PowerSync signing key: keep the old key in the JWKS until issued tokens expire.
 #
-# Needs: AWS CLI v2 with credentials for the environment's account (an administrator; the CI
-# roles cannot read secret values), openssl and jq.
+# Needs: gcloud (signed in as an administrator of the environment's project; the CI accounts
+# cannot read secret values), curl, openssl and jq. Set GCP_PROJECT_ID.
 
 set -euo pipefail
 
-readonly REGION="eu-west-2"
+readonly REGION="europe-west2"
 
 usage() {
-  echo "Usage: $0 <dev|staging|prod> [--rotate <secret-name> | --refresh-urls]" >&2
+  echo "Usage: GCP_PROJECT_ID=<project> $0 <dev|staging|prod> [--rotate <secret-name> | --refresh-urls]" >&2
   exit 2
 }
 
@@ -30,6 +32,7 @@ usage() {
 ENVIRONMENT="$1"
 shift
 case "${ENVIRONMENT}" in dev | staging | prod) ;; *) usage ;; esac
+PROJECT="${GCP_PROJECT_ID:?Set GCP_PROJECT_ID to the ${ENVIRONMENT} project}"
 
 ROTATE=""
 REFRESH_URLS=false
@@ -47,7 +50,7 @@ if [[ $# -gt 0 ]]; then
   esac
 fi
 
-for tool in aws openssl jq; do
+for tool in gcloud curl openssl jq; do
   command -v "${tool}" >/dev/null || { echo "Missing required tool: ${tool}" >&2; exit 1; }
 done
 
@@ -57,24 +60,30 @@ chmod 700 "${WORKDIR}"
 trap 'rm -rf "${WORKDIR}"' EXIT
 umask 077
 
-db_endpoint() {
-  aws rds describe-db-instances --region "${REGION}" --db-instance-identifier "$1" \
-    --query 'DBInstances[0].Endpoint.Address' --output text
+readonly CA_FILE="/secrets/cloudsql/server-ca.pem"
+readonly ROLES=(harbour_owner harbour_app harbour_auth harbour_sync harbour_operator harbour_worker powersync_storage)
+
+secret_id() { echo "${PREFIX}-$1"; }
+
+has_value() {
+  [[ -n "$(gcloud secrets versions list "$(secret_id "$1")" --location="${REGION}" --project="${PROJECT}" \
+    --filter='state=ENABLED' --limit=1 --format='value(name)' 2>/dev/null)" ]]
 }
 
-# Role secrets on the bucket-storage instance; every other db/* role is on the main database.
-db_target() {
-  case "$1" in
-    powersync_storage) echo "${PREFIX}-sync-storage powersync_storage" ;;
-    *) echo "${PREFIX}-main harbour" ;;
-  esac
+exists() {
+  gcloud secrets describe "$(secret_id "$1")" --location="${REGION}" --project="${PROJECT}" >/dev/null 2>&1
 }
 
-db_url() {
-  local role="$1" password="$2" instance database host
-  read -r instance database <<<"$(db_target "${role}")"
-  host="$(db_endpoint "${instance}")"
-  printf 'postgres://%s:%s@%s:5432/%s?sslmode=verify-full' "${role}" "${password}" "${host}" "${database}"
+# Adds the file's contents as the secret's new version.
+put_file() {
+  gcloud secrets versions add "$(secret_id "$1")" --location="${REGION}" --project="${PROJECT}" \
+    --data-file="$2" --format='value(name)' >/dev/null
+  rm -f "$2"
+}
+
+read_value() {
+  gcloud secrets versions access latest --secret="$(secret_id "$1")" --location="${REGION}" \
+    --project="${PROJECT}" --out-file="$2"
 }
 
 random_password() {
@@ -82,36 +91,95 @@ random_password() {
   openssl rand -base64 96 | tr -dc 'A-Za-z0-9' | head -c 40
 }
 
-# Secret values reach jq through the environment, never through command-line arguments,
-# which other users on the machine could read from the process list.
-secret_json() {
+instance_of() {
+  case "$1" in
+    powersync_storage) echo "${PREFIX}-sync-storage powersync_storage" ;;
+    *) echo "${PREFIX}-main harbour" ;;
+  esac
+}
+
+private_ip() {
+  gcloud sql instances describe "$1" --project="${PROJECT}" \
+    --format='value(ipAddresses[0].ipAddress)'
+}
+
+# Writes db-<role>-url from the password in the given file.
+write_url() {
+  local role="$1" password_file="$2" instance database host
+  read -r instance database <<<"$(instance_of "${role}")"
+  host="$(private_ip "${instance}")"
+  ROLE="${role}" HOST="${host}" DB="${database}" CA="${CA_FILE}" \
+    jq -rn --rawfile p "${password_file}" \
+    '"postgres://\(env.ROLE):\($p)@\(env.HOST):5432/\(env.DB)?sslmode=verify-ca&sslrootcert=\(env.CA)"' \
+    | tr -d '\n' >"${WORKDIR}/url"
+  put_file "db-${role}-url" "${WORKDIR}/url"
+}
+
+seed_role() {
+  local role="$1"
+  random_password >"${WORKDIR}/password"
+  cp "${WORKDIR}/password" "${WORKDIR}/password.url"
+  put_file "db-${role}-password" "${WORKDIR}/password"
+  write_url "${role}" "${WORKDIR}/password.url"
+  rm -f "${WORKDIR}/password.url"
+}
+
+# The postgres user's password, through the Cloud SQL Admin API: the token and the password
+# travel in files (curl -H @file and --data @file), never on a command line.
+set_admin_password() {
+  local name="$1" instance="$2"
+  random_password >"${WORKDIR}/admin"
+  jq -n --rawfile p "${WORKDIR}/admin" '{name: "postgres", password: $p}' >"${WORKDIR}/body.json"
+  printf 'Authorization: Bearer %s\n' "$(gcloud auth print-access-token)" >"${WORKDIR}/auth"
+  curl -sSf -X PUT -H @"${WORKDIR}/auth" -H 'Content-Type: application/json' \
+    --data @"${WORKDIR}/body.json" \
+    "https://sqladmin.googleapis.com/v1/projects/${PROJECT}/instances/${instance}/users?name=postgres" >/dev/null
+  rm -f "${WORKDIR}/auth" "${WORKDIR}/body.json"
+  put_file "${name}" "${WORKDIR}/admin"
+}
+
+seed_server_ca() {
+  : >"${WORKDIR}/ca.pem"
+  for instance in "${PREFIX}-main" "${PREFIX}-sync-storage"; do
+    gcloud sql instances describe "${instance}" --project="${PROJECT}" \
+      --format='value(serverCaCert.cert)' >>"${WORKDIR}/ca.pem"
+  done
+  put_file db-server-ca "${WORKDIR}/ca.pem"
+}
+
+seed() {
   local name="$1"
   case "${name}" in
-    db/*)
-      local role="${name#db/}" password
-      password="$(random_password)"
-      ROLE="${role}" PASSWORD="${password}" URL="$(db_url "${role}" "${password}")" \
-        jq -n '{username: env.ROLE, password: env.PASSWORD, url: env.URL}'
+    db-server-ca) seed_server_ca ;;
+    db-admin-password) set_admin_password "${name}" "${PREFIX}-main" ;;
+    db-sync-admin-password) set_admin_password "${name}" "${PREFIX}-sync-storage" ;;
+    db-*-password | db-*-url)
+      local role="${name#db-}"
+      seed_role "${role%-*}"
       ;;
-    api)
-      # RS256 key the API signs PowerSync JWTs with; the API publishes the public half at
-      # /v1/sync/jwks under the key ID below.
+    api-auth-secret | api-evidence-link-secret | api-elearning-launch-secret | api-speak-up-throttle-secret)
+      openssl rand -base64 48 | tr -d '\n' >"${WORKDIR}/value"
+      put_file "${name}" "${WORKDIR}/value"
+      ;;
+    api-sync-signing-key-pem | api-sync-signing-key-id)
+      # RS256 key the API signs PowerSync tokens with; the API publishes the public half at
+      # /v1/sync/jwks under the key ID.
       openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${WORKDIR}/sync-key.pem" 2>/dev/null
-      # evidence_link_secret: the HMAC key for evidence pack codes and link sessions (ADR-0050).
-      # elearning_launch_secret: the HMAC key for e-learning launch tokens (ADR-0093).
-      AUTH_SECRET="$(openssl rand -base64 48)" EVIDENCE_SECRET="$(openssl rand -base64 48)" \
-        ELEARNING_SECRET="$(openssl rand -base64 48)" \
-        KID="harbour-${ENVIRONMENT}-$(date -u +%Y%m%d%H%M%S)" \
-        jq -n --rawfile k "${WORKDIR}/sync-key.pem" \
-        '{auth_secret: env.AUTH_SECRET, evidence_link_secret: env.EVIDENCE_SECRET, elearning_launch_secret: env.ELEARNING_SECRET, sync_signing_key_pem: $k, sync_signing_key_id: env.KID}'
-      rm -f "${WORKDIR}/sync-key.pem"
+      printf 'harbour-%s-%s' "${ENVIRONMENT}" "$(date -u +%Y%m%d%H%M%S)" >"${WORKDIR}/kid"
+      put_file api-sync-signing-key-pem "${WORKDIR}/sync-key.pem"
+      put_file api-sync-signing-key-id "${WORKDIR}/kid"
       ;;
-    powersync/api-token)
-      TOKEN="$(random_password)" jq -n '{token: env.TOKEN}'
+    powersync-api-token | flagsmith-database-password)
+      random_password >"${WORKDIR}/value"
+      put_file "${name}" "${WORKDIR}/value"
       ;;
-    flagsmith)
-      DJANGO_KEY="$(random_password)$(random_password)" PASSWORD="$(random_password)" \
-        jq -n '{django_secret_key: env.DJANGO_KEY, database_password: env.PASSWORD}'
+    flagsmith-django-secret-key)
+      { random_password; random_password; } | tr -d '\n' >"${WORKDIR}/value"
+      put_file "${name}" "${WORKDIR}/value"
+      ;;
+    smtp-user | smtp-password)
+      echo "${name} comes from the SMTP provider, once one is chosen: add it with" >&2
+      echo "  gcloud secrets versions add $(secret_id "${name}") --location=${REGION} --project=${PROJECT} --data-file=<file>" >&2
       ;;
     *)
       echo "No generator for secret ${name}" >&2
@@ -120,55 +188,39 @@ secret_json() {
   esac
 }
 
-has_value() {
-  local stages
-  stages="$(aws secretsmanager describe-secret --region "${REGION}" --secret-id "$1" \
-    --query 'VersionIdsToStages' --output json)"
-  [[ "${stages}" != "null" && "${stages}" != "{}" ]]
-}
+mapfile -t NAMES < <(gcloud secrets list --location="${REGION}" --project="${PROJECT}" \
+  --filter="name~/secrets/${PREFIX}-" --format='value(name.basename())' | sed "s/^${PREFIX}-//" | sort)
 
-put_value() {
-  local id="$1" name="$2"
-  secret_json "${name}" >"${WORKDIR}/value.json"
-  aws secretsmanager put-secret-value --region "${REGION}" --secret-id "${id}" \
-    --secret-string "file://${WORKDIR}/value.json" --output text --query 'VersionId' >/dev/null
-  rm -f "${WORKDIR}/value.json"
-}
-
-mapfile -t SECRET_IDS < <(aws secretsmanager list-secrets --region "${REGION}" \
-  --filters "Key=name,Values=${PREFIX}/" --query 'SecretList[].Name' --output text | tr '\t' '\n' | sed '/^$/d')
-
-if [[ ${#SECRET_IDS[@]} -eq 0 ]]; then
-  echo "No secrets named ${PREFIX}/... found. Apply infra/envs/${ENVIRONMENT} first." >&2
+if [[ ${#NAMES[@]} -eq 0 ]]; then
+  echo "No secrets named ${PREFIX}-... found. Apply infra/envs/${ENVIRONMENT} first." >&2
   exit 1
 fi
 
-refresh_url() {
-  local id="$1" name="$2" password
-  aws secretsmanager get-secret-value --region "${REGION}" --secret-id "${id}" \
-    --query 'SecretString' --output text >"${WORKDIR}/current.json"
-  password="$(jq -r '.password' "${WORKDIR}/current.json")"
-  URL="$(db_url "${name#db/}" "${password}")" jq '.url = env.URL' "${WORKDIR}/current.json" >"${WORKDIR}/value.json"
-  aws secretsmanager put-secret-value --region "${REGION}" --secret-id "${id}" \
-    --secret-string "file://${WORKDIR}/value.json" --output text --query 'VersionId' >/dev/null
-  rm -f "${WORKDIR}/current.json" "${WORKDIR}/value.json"
-}
-
-for id in "${SECRET_IDS[@]}"; do
-  name="${id#"${PREFIX}/"}"
-  if [[ "${REFRESH_URLS}" == true ]]; then
-    if [[ "${name}" == db/* ]] && has_value "${id}"; then
-      refresh_url "${id}" "${name}"
-      echo "Refreshed url in ${id}"
+if [[ "${REFRESH_URLS}" == true ]]; then
+  for role in "${ROLES[@]}"; do
+    if has_value "db-${role}-password"; then
+      read_value "db-${role}-password" "${WORKDIR}/password"
+      write_url "${role}" "${WORKDIR}/password"
+      rm -f "${WORKDIR}/password"
+      echo "Refreshed $(secret_id "db-${role}-url")"
     fi
-  elif [[ -n "${ROTATE}" ]]; then
-    [[ "${name}" == "${ROTATE}" ]] || continue
-    put_value "${id}" "${name}"
-    echo "Rotated ${id}"
-  elif has_value "${id}"; then
-    echo "Kept ${id} (already has a value)"
+  done
+  exit 0
+fi
+
+if [[ -n "${ROTATE}" ]]; then
+  exists "${ROTATE}" || { echo "No secret $(secret_id "${ROTATE}")" >&2; exit 1; }
+  seed "${ROTATE}"
+  echo "Rotated $(secret_id "${ROTATE}")"
+  exit 0
+fi
+
+# The server CA first: every URL names it.
+for name in db-server-ca "${NAMES[@]}"; do
+  if has_value "${name}"; then
+    echo "Kept $(secret_id "${name}") (already has a value)"
   else
-    put_value "${id}" "${name}"
-    echo "Seeded ${id}"
+    seed "${name}"
+    echo "Filled $(secret_id "${name}")"
   fi
 done

@@ -1,217 +1,115 @@
 # ---------------------------------------------------------------------------------------------
-# Certificates
+# Load balancer, Cloud Armor and Cloud CDN
 # ---------------------------------------------------------------------------------------------
 
-module "cert_regional" {
-  source = "../acm_certificate"
-
-  domain_name               = var.domain_name
-  subject_alternative_names = ["*.${var.domain_name}"]
-  route53_zone_id           = var.route53_zone_id
-}
-
-# CloudFront reads certificates from us-east-1 only.
-module "cert_cloudfront" {
-  source = "../acm_certificate"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  domain_name               = local.hosts.web
-  subject_alternative_names = []
-  route53_zone_id           = var.route53_zone_id
-}
-
-# The e-learning content host is on its own registrable domain (security review H1), so its own
-# certificate, validated in its own zone.
-module "cert_learn" {
-  source = "../acm_certificate"
-  count  = local.learn_enabled ? 1 : 0
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  domain_name               = local.hosts.learn
-  subject_alternative_names = []
-  route53_zone_id           = var.elearning_route53_zone_id
-}
-
-# ---------------------------------------------------------------------------------------------
-# WAF
-# ---------------------------------------------------------------------------------------------
-
-module "waf_regional" {
-  source = "../waf"
-
-  name                        = "${local.name_prefix}-alb"
-  scope                       = "REGIONAL"
-  rate_limit_per_5_minutes    = var.waf_rate_limit_per_5_minutes
-  managed_rule_group_versions = var.waf_managed_rule_group_versions
-  enable_logging              = true
-  log_kms_key_arn             = module.kms.key_arns["logs"]
-  log_retention_days          = var.log_retention_days
-}
-
-# CLOUDFRONT scope must be created in us-east-1. Sampling and logging stay off so that no
-# request data (client IPs, headers) is held outside London.
-module "waf_cloudfront" {
-  source = "../waf"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  name                        = "${local.name_prefix}-cloudfront"
-  scope                       = "CLOUDFRONT"
-  rate_limit_per_5_minutes    = var.waf_rate_limit_per_5_minutes
-  managed_rule_group_versions = var.waf_managed_rule_group_versions
-  sampled_requests_enabled    = false
-  enable_logging              = false
-}
-
-# Prod pins every managed rule group whose rules block with the edge_blocked body (security
-# review round 5, S-L5): a plan without the pins fails here. A group AWS publishes no static
-# versions for is exempted only by name, with its reason (security review round 6; H-140).
 locals {
-  waf_groups_needing_pins = setunion(
-    module.waf_regional.managed_rule_groups_with_blocks,
-    module.waf_cloudfront.managed_rule_groups_with_blocks,
+  lb_backends = merge(
+    {
+      app  = module.svc_web.service_name
+      api  = module.svc_api.service_name
+      sync = module.svc_powersync.service_name
+    },
+    var.enable_flagsmith ? { flags = module.svc_flagsmith[0].service_name } : {},
   )
-  waf_unpinned_groups = sort([
-    for group in local.waf_groups_needing_pins : group
-    if !contains(keys(var.waf_managed_rule_group_versions), group)
-    && !contains(keys(var.waf_managed_rule_groups_unversioned), group)
-  ])
 }
 
-resource "terraform_data" "waf_version_pins" {
-  input = {
-    versions    = var.waf_managed_rule_group_versions
-    unversioned = var.waf_managed_rule_groups_unversioned
-  }
+module "load_balancer" {
+  source = "../load_balancer"
+
+  project_id            = var.project_id
+  region                = var.region
+  name_prefix           = local.name_prefix
+  domain_name           = var.domain_name
+  backends              = local.lb_backends
+  default_host          = "app"
+  cdn_host              = "app"
+  armor_rule_versions   = var.armor_rule_versions
+  rate_limit_per_minute = var.armor_rate_limit_per_minute
+
+  # Server-rendered pages reach the API from the NAT addresses: not one rate-limited client.
+  trusted_source_ranges = [for ip in module.network.nat_addresses : "${ip}/32"]
+  restricted_paths      = { sync = ["/api/admin"] }
+  allowlisted_hosts = var.enable_flagsmith ? {
+    flags = concat([for ip in module.network.nat_addresses : "${ip}/32"], var.flags_admin_ranges)
+  } : {}
+
+  # The e-learning content origin (ADR-0093): its own host and certificate on another registrable
+  # domain, to the web tier, `/learn/*` only; every other path on it is a fixed 404 (M4).
+  learn = local.learn_enabled ? {
+    hostname    = local.hosts.learn
+    domain      = var.elearning_domain_name
+    backend     = "app"
+    path_prefix = "/learn/"
+  } : null
+}
+
+# Prod pins every Cloud Armor preconfigured rule (OWASP CRS) to a version, so a rule set never
+# changes under a release: a prod plan without the pins fails here (human action H-140).
+locals {
+  armor_unpinned_rules = module.load_balancer.unpinned_rules
+}
+
+resource "terraform_data" "armor_version_pins" {
+  input = var.armor_rule_versions
 
   lifecycle {
     precondition {
-      condition     = var.environment != "prod" || length(local.waf_unpinned_groups) == 0
-      error_message = "Pin these AWS managed rule groups in waf_managed_rule_group_versions before a prod plan (or, only for a group with no versions, name it with a reason in waf_managed_rule_groups_unversioned): ${join(", ", local.waf_unpinned_groups)}."
+      condition     = !local.is_prod || length(local.armor_unpinned_rules) == 0
+      error_message = "Pin these Cloud Armor preconfigured rules in armor_rule_versions before a prod plan (read them with gcloud compute security-policies list-preconfigured-expression-sets): ${join(", ", local.armor_unpinned_rules)}."
     }
   }
 }
 
 # ---------------------------------------------------------------------------------------------
-# Load balancer and CDN
+# DNS (Cloud DNS when the zone is in this project; otherwise the records are listed)
+# ---------------------------------------------------------------------------------------------
+
+module "dns" {
+  source = "../dns"
+
+  project_id               = var.project_id
+  manage_zone              = var.dns_zone_name != null
+  create_zone              = var.create_dns_zone
+  zone_name                = var.dns_zone_name
+  domain_name              = var.domain_name
+  hosts                    = module.load_balancer.hosts
+  ip_address               = module.load_balancer.ip_address
+  dns_authorization_record = module.load_balancer.dns_authorization_record
+}
+
+# ---------------------------------------------------------------------------------------------
+# DNS for the e-learning content domain (its own zone, ADR-0093)
 # ---------------------------------------------------------------------------------------------
 
 locals {
-  ports = {
-    api       = 4000
-    web       = 3000
-    powersync = 8080
-    flagsmith = 8000
-  }
+  manage_learn_dns = local.learn_enabled && var.elearning_dns_zone_name != null
 }
 
-module "alb" {
-  source = "../alb"
+data "google_dns_managed_zone" "learn" {
+  count = local.manage_learn_dns ? 1 : 0
 
-  name                = local.name_prefix
-  vpc_id              = module.network.vpc_id
-  vpc_cidr_block      = module.network.vpc_cidr_block
-  public_subnet_ids   = module.network.public_subnet_ids
-  certificate_arn     = module.cert_regional.certificate_arn
-  target_ports        = toset([for k, v in local.ports : v if k != "flagsmith" || var.enable_flagsmith])
-  access_log_bucket   = module.bucket_logs.bucket_id
-  deletion_protection = var.alb_deletion_protection
-  web_acl_arn         = module.waf_regional.arn
-  enable_waf          = true
+  project = var.project_id
+  name    = var.elearning_dns_zone_name
 }
 
-# Shared secret CloudFront sends to the origin; the ALB rule for the web host requires it, so
-# the web tier cannot be reached around CloudFront and its WAF.
-resource "random_password" "origin_verify" {
-  length  = 48
-  special = false
+resource "google_dns_record_set" "learn" {
+  count = local.manage_learn_dns ? 1 : 0
+
+  project      = var.project_id
+  managed_zone = data.google_dns_managed_zone.learn[0].name
+  name         = "${local.hosts.learn}."
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [module.load_balancer.ip_address]
 }
 
-module "cdn" {
-  source = "../cloudfront"
+resource "google_dns_record_set" "learn_dns_authorization" {
+  count = local.manage_learn_dns ? 1 : 0
 
-  name                       = "${local.name_prefix}-web"
-  aliases                    = [local.hosts.web]
-  certificate_arn            = module.cert_cloudfront.certificate_arn
-  origin_domain_name         = module.alb.dns_name
-  origin_verify_header_value = random_password.origin_verify.result
-  web_acl_arn                = module.waf_cloudfront.arn
-}
-
-# The e-learning content origin (ADR-0093): its own distribution, so the app's runtime page can be
-# framed (no X-Frame-Options; the page's frame-ancestors names the app) and nothing is referred.
-# The web tier answers only `/learn` on this host, and the load balancer forwards nothing else
-# (services.tf); caching stays off as for the app.
-module "cdn_learn" {
-  source = "../cloudfront"
-  count  = local.learn_enabled ? 1 : 0
-
-  name                       = "${local.name_prefix}-learn"
-  aliases                    = [local.hosts.learn]
-  certificate_arn            = module.cert_learn[0].certificate_arn
-  origin_domain_name         = module.alb.dns_name
-  origin_verify_header_value = random_password.origin_verify.result
-  web_acl_arn                = module.waf_cloudfront.arn
-  frame_options_deny         = false
-  referrer_policy            = "no-referrer"
-  permissions_policy         = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-}
-
-# ---------------------------------------------------------------------------------------------
-# DNS (only when the hosted zone is managed in this account)
-# ---------------------------------------------------------------------------------------------
-
-locals {
-  manage_dns = var.route53_zone_id != null
-  alb_hosts  = var.enable_flagsmith ? ["api", "sync", "flags"] : ["api", "sync"]
-}
-
-resource "aws_route53_record" "web" {
-  for_each = local.manage_dns ? toset(["A", "AAAA"]) : toset([])
-
-  zone_id = var.route53_zone_id
-  name    = local.hosts.web
-  type    = each.key
-
-  alias {
-    name                   = module.cdn.domain_name
-    zone_id                = module.cdn.hosted_zone_id
-    evaluate_target_health = false
-  }
-}
-
-resource "aws_route53_record" "learn" {
-  for_each = local.learn_enabled && var.elearning_route53_zone_id != null ? toset(["A", "AAAA"]) : toset([])
-
-  zone_id = var.elearning_route53_zone_id
-  name    = local.hosts.learn
-  type    = each.key
-
-  alias {
-    name                   = module.cdn_learn[0].domain_name
-    zone_id                = module.cdn_learn[0].hosted_zone_id
-    evaluate_target_health = false
-  }
-}
-
-resource "aws_route53_record" "alb" {
-  for_each = local.manage_dns ? toset(local.alb_hosts) : toset([])
-
-  zone_id = var.route53_zone_id
-  name    = local.hosts[each.key]
-  type    = "A"
-
-  alias {
-    name                   = module.alb.dns_name
-    zone_id                = module.alb.zone_id
-    evaluate_target_health = true
-  }
+  project      = var.project_id
+  managed_zone = data.google_dns_managed_zone.learn[0].name
+  name         = module.load_balancer.learn_dns_authorization_record[0].name
+  type         = module.load_balancer.learn_dns_authorization_record[0].type
+  ttl          = 300
+  rrdatas      = [module.load_balancer.learn_dns_authorization_record[0].data]
 }

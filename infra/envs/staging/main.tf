@@ -1,59 +1,42 @@
-# Harbour staging environment (AWS staging account, eu-west-2). Deployed on tagged release
-# candidates with an anonymised production-like dataset, so it mirrors prod's resilience
-# settings where they affect behaviour (Multi-AZ main database, deletion protection) and
-# saves cost where they do not (single NAT gateway, smaller instances).
+# Harbour staging (its own Google Cloud project, europe-west2): a faithful rehearsal of prod at a
+# smaller size. Regional main database, deletion protection on, retention not locked.
 
 module "stack" {
   source = "../../modules/harbour_stack"
 
-  providers = {
-    aws           = aws
-    aws.us_east_1 = aws.us_east_1
-  }
-
+  project_id      = var.project_id
   environment     = var.environment
   domain_name     = var.domain_name
-  route53_zone_id = var.route53_zone_id
+  dns_zone_name   = var.dns_zone_name
+  create_dns_zone = var.create_dns_zone
 
   # The e-learning content origin's own registrable domain (ADR-0093, security review H1).
-  elearning_domain_name     = var.elearning_domain_name
-  elearning_route53_zone_id = var.elearning_route53_zone_id
+  elearning_domain_name   = var.elearning_domain_name
+  elearning_dns_zone_name = var.elearning_dns_zone_name
 
   safety_case_version = var.safety_case_version
 
-  github_repository           = var.github_repository
-  create_github_oidc_provider = var.create_github_oidc_provider
-  state_bucket_name           = var.state_bucket_name
-  state_kms_key_arn           = var.state_kms_key_arn
-  state_lock_table_name       = var.state_lock_table_name
+  release_service_account = var.release_service_account
 
-  vpc_cidr_block              = "10.41.0.0/16"
-  nat_gateway_per_az          = false
-  interface_endpoint_az_count = 2
+  subnet_cidr = "10.41.0.0/20"
 
-  main_db_instance_class         = "db.t4g.large"
-  main_db_multi_az               = true
-  sync_storage_db_instance_class = "db.t4g.medium"
-  sync_storage_db_multi_az       = false
-  db_deletion_protection         = true
-  db_skip_final_snapshot         = false
+  main_db_tier           = "db-custom-2-7680"
+  sync_storage_db_tier   = "db-custom-1-3840"
+  db_high_availability   = true
+  db_deletion_protection = true
 
-  image_tags       = var.image_tags
+  deletion_protection   = true
+  force_destroy_buckets = false
+
+  audit_archive_retention_days = 30
+  security_log_retention_days  = 400
+
+  armor_rule_versions = var.armor_rule_versions
+
   enable_flagsmith = var.enable_flagsmith
-  use_fargate_spot = false
+  smtp             = var.smtp
 
-  # Pinned AWS managed rule group versions; required in prod (human action H-140).
-  waf_managed_rule_group_versions     = var.waf_managed_rule_group_versions
-  waf_managed_rule_groups_unversioned = var.waf_managed_rule_groups_unversioned
-
-  alb_deletion_protection = true
-  force_destroy_buckets   = false
-  log_retention_days      = 365
-  protect_log_groups      = true
-  audit_archive_lock_mode = "GOVERNANCE"
-  audit_archive_lock_days = 30
-
-  alert_email_addresses  = var.alert_email_addresses
-  budget_monthly_limit   = var.budget_monthly_limit
-  budget_email_addresses = var.budget_email_addresses
+  alert_email_addresses = var.alert_email_addresses
+  billing_account_id    = var.billing_account_id
+  budget_monthly_limit  = var.budget_monthly_limit
 }

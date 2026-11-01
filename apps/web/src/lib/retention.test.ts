@@ -137,8 +137,8 @@ describe("records retention (PLAT-012)", () => {
   });
 
   it("says the destruction method in words", () => {
-    expect(methodWords("storage_delete_all_versions:s3", t)).toBe(
-      "Every stored version deleted (s3)",
+    expect(methodWords("storage_delete_all_versions:gcs", t)).toBe(
+      "Every stored version deleted (gcs)",
     );
     expect(methodWords("something_else", t)).toBe("something_else");
   });
