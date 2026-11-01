@@ -16,7 +16,7 @@ import { type ActionResult, refused } from "@/lib/outcome";
 import { sendQuality } from "@/lib/quality-actions";
 
 /**
- * Writes for the framework, evidence library and audit programme screens (quality.md section 20;
+ * Writes for the framework, evidence library and audit programme screens (quality.md section 21;
  * QUAL-001, QUAL-002, QUAL-004). Server actions are public endpoints: every input is checked
  * against the API's own contract here and anything malformed is refused, never passed on. The
  * API checks every permission and rule again, and audits.

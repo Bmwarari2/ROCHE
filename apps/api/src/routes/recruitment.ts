@@ -69,7 +69,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * Applicant tracking (workforce.md section 2b, rules 11 to 13 and section 5; WORK-001; plan
+ * Applicant tracking (workforce.md section 2c, rules 11 to 13 and section 5; WORK-001; plan
  * slice 23). Everything needs workforce.recruitment.manage (MFA); accepting an offer also needs
  * workforce.staff_file.manage, as it creates the staff profile. The database enforces the same
  * (migration 0085). Audit events carry opaque ids and codes only: never names, contact details,

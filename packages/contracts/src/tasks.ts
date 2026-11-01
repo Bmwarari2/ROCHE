@@ -85,7 +85,7 @@ export const TaskDetails = z
     complianceItemKind: z.string().optional(),
     reminderDueOn: isoDate.optional(),
     reminderDays: z.number().int().optional(),
-    /** A policy read-and-sign or review task (quality.md section 18): the policy, the review state. */
+    /** A policy read-and-sign or review task (quality.md section 19): the policy, the review state. */
     policyId: uuid.optional(),
     reviewStatus: z.string().optional(),
     remindedOn: isoDate.optional(),

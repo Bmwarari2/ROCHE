@@ -756,15 +756,15 @@ question id (as the screens send) or a statement id; an unknown id is refused wi
   evidence pack taking statement and key question ids and refusing others.
 - The evidence pack's API tests use statement ids from version 1.
 
-## 18. Policy library and read-and-sign (slice 25: QUAL-008; migration 0087)
+## 19. Policy library and read-and-sign (slice 25: QUAL-008; migration 0087)
 
 Stores and serves the slice 8 policy rules (section 17.3, rules 25 to 28) in lane E. Screens are
 slice 65. Vendor PDF and structured import, the change log as its own screen, and the starter
 templates (CCTV with the camera and signage register, social media, photography and image consent,
-AI use) are left for slice 65 (section 18.7); a version's content may already be a PDF the
+AI use) are left for slice 65 (section 19.7); a version's content may already be a PDF the
 organisation uploaded.
 
-### 18.1 Schema
+### 19.1 Schema
 
 Forced row-level security on every table (ADR-0002); all three in the organisation's own data.
 
@@ -779,7 +779,7 @@ the organisation's policy, with each version); `policy_signature` is a staff tra
 compliance record, `training_record` (10 years from signing). Reminder tasks follow the record they
 concern.
 
-### 18.2 Permissions
+### 19.2 Permissions
 
 No new permission. `quality.policy.manage` writes, publishes, retires and reads drafts and everyone's
 read-and-sign status (section 17.2). Every member of the organisation reads published, superseded
@@ -787,7 +787,7 @@ and retired versions (staff must be able to open the policies they follow, as or
 documents) and signs the version in force; a member sees their own signatures, holders of
 `quality.policy.manage` see all. The database enforces the same (`app.holds_permission_anywhere`).
 
-### 18.3 Rules (as built)
+### 19.3 Rules (as built)
 
 - Required signers (`readAndSignStatus`, rule 26): every member on staff holding, now, a role whose
   key (or the built-in key it is based on) is in the version's `roles`, from the later of the
@@ -818,7 +818,7 @@ documents) and signs the version in force; a member sees their own signatures, h
 - A policy whose only version is a draft, and the history of drafts, are read only by holders of
   `quality.policy.manage`.
 
-### 18.4 API
+### 19.4 API
 
 Every change takes `expectedVersion` where it changes a row (409 when stale) and is audited with
 opaque ids only.
@@ -840,12 +840,12 @@ opaque ids only.
 Audit actions: `quality.policy.created`, `.drafted`, `.edited`, `.published`, `.retired`,
 `.signed`, `.status_viewed`; outbox `quality.policy.published` (policy, version, change).
 
-### 18.5 Clinical safety
+### 19.5 Clinical safety
 
 HZ-128 (staff follow a superseded policy or procedure) is added to the hazard log by this slice,
 with the controls above and a `hazard HZ-128 ...` test for each.
 
-### 18.6 Tests
+### 19.6 Tests
 
 - `packages/db/test/policies.test.ts`: another organisation's rows never seen; drafts only for
   holders of manage; one draft and one published version per policy; publishing supersedes, in the
@@ -855,18 +855,18 @@ with the controls above and a `hazard HZ-128 ...` test for each.
   major changes against signatures; superseded versions served as such; reminders and review tasks
   once each, completed by signing and cancelled by a new version.
 
-### 18.7 Left for later
+### 19.7 Left for later
 
 Vendor PDF and structured import (a PDF can already be a version's document), the starter
 templates as drafts, and the change log screen (slice 65); acknowledgement of a policy by people
 outside the staff (not planned).
 
-## 19. Audit programme and mock inspections (slice 19: QUAL-004; migration 0081)
+## 20. Audit programme and mock inspections (slice 19: QUAL-004; migration 0081)
 
 Schema and API for rules 8 to 15 (section 17). Spec, schema, permission matrix and test list
 before the code; the screens are slice 64. Builds on the framework library (section 18).
 
-### 19.1 Schema (migration 0081)
+### 20.1 Schema (migration 0081)
 
 | Table | Kind | Key columns | Security | Retention class |
 | --- | --- | --- | --- | --- |
@@ -880,7 +880,7 @@ Seven starter templates are seeded (medication, care plans, IPC, environment, di
 mock inspection; 36 questions in all), mapped to statements of framework version 1; the IPC one is
 the template slice 31 uses. They are Harbour's drafting, to be reviewed (H-760).
 
-### 19.2 Permissions
+### 20.2 Permissions
 
 | Permission | Allows | Held by |
 | --- | --- | --- |
@@ -893,7 +893,7 @@ an owner must be an active member who holds it at the audit's location (`mayBeAs
 task engine requires of any assignee). Whether owners without it should complete their own actions
 is H-762.
 
-### 19.3 API
+### 20.3 API
 
 | Route | Does |
 | --- | --- |
@@ -913,7 +913,7 @@ is H-762.
 Refusals decided in the API and those the database raises are audited as denied. No route works
 out a rating from a score (rule 15).
 
-### 19.4 Tests
+### 20.4 Tests
 
 - `packages/db/test/quality-audits.test.ts`: the seven starters, read-only to the application and
   in step with the domain's kinds; an audit copies its template's questions and framework version
@@ -931,12 +931,12 @@ out a rating from a score (rule 15).
   evidence; mock inspections refused once a later framework version is in force while past audits
   keep theirs; every change and refusal audited.
 
-## 20. Web screens: framework, evidence library and audits (slice 64; QUAL-001, QUAL-002, QUAL-004)
+## 21. Web screens: framework, evidence library and audits (slice 64; QUAL-001, QUAL-002, QUAL-004)
 
 Screens for sections 18 and 19, on the API as it stands (no API change; the contracts export a
 few more inferred types). Branch `feat/web-quality-framework-audits`.
 
-### 20.1 Screens
+### 21.1 Screens
 
 | Path | Who | Shows and does |
 | --- | --- | --- |
@@ -955,7 +955,7 @@ The side bar gains "Framework and evidence" and "Audits". Every browser-handled 
 (`method="post"`); every problem is said at its field and in a summary linked to it; arrivals
 focus the page heading and say what was done.
 
-### 20.2 Tests
+### 21.2 Tests
 
 - `apps/web/src/lib/quality-programme.test.ts`: who sees what; version and coverage statuses;
   reading the mapping, tag, answers and completion forms; actions only where a required
@@ -965,13 +965,13 @@ focus the page heading and say what was done.
   through scheduling, answers, refused and then accepted completion, and tagging; a mock
   inspection.
 
-## 18. Data security evidence (slice 32: QUAL-012)
+## 22. Data security evidence (slice 32: QUAL-012)
 
 Schema, API and renewal tasks for rules 29 to 31 (section 17.3); the screens are slice 65.
 Migration 0094 (lane E; renumbered at merge). Stacked on slice 20 (the breach register and data
 protection complaints, platform.md rules 18 to 27), which it links to.
 
-### 18.1 Tables
+### 22.1 Tables
 
 All have `tenant_id`, forced RLS, the tenant policy and restrictive policies binding `harbour_app`
 and `harbour_owner`; the application never deletes.
@@ -983,7 +983,7 @@ and `harbour_owner`; the application never deletes.
 | `dspt_submission` | mutable aggregate | The organisation's DSPT submission for a financial year (one per year): the day submitted, the outcome (`standards_met`, `approaching_standards`, `standards_not_met`) and the toolkit's reference |
 | `security_certificate` | mutable aggregate | A Cyber Essentials, Cyber Essentials Plus or ICO registration record: reference (certificate number or ICO registration number), issued on, the expiry the certificate states (if any), the issuing body and a copy (an organisation document) |
 
-### 18.2 Rules
+### 22.2 Rules
 
 32. Everything needs `quality.dsar.manage` held across the whole organisation, as the breach
     register (platform.md rule 18): a manager who holds it for one home only is refused by the API
@@ -1017,7 +1017,7 @@ and `harbour_owner`; the application never deletes.
 37. Audit: every read and change writes `audit_event` with ids and codes only (never notes, titles
     or references).
 
-### 18.3 Permission matrix
+### 22.3 Permission matrix
 
 | Action | Permission | Notes |
 | --- | --- | --- |
@@ -1026,7 +1026,7 @@ and `harbour_owner`; the application never deletes.
 
 Retention: interim `audit_event` (8 years from creation) until the DPO sets periods (H-810).
 
-### 18.4 Tests
+### 22.4 Tests
 
 - `packages/db/test/data-security-evidence.test.ts`: isolation across organisations, a manager for
   one home sees nothing, append-only evidence, check constraints, one submission per year.

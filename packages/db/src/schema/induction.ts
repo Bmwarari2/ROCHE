@@ -18,7 +18,7 @@ import { location, tenantUser } from "./platform";
 import { staffProfile } from "./workforce";
 
 /**
- * Induction, the Care Certificate and leavers (workforce.md section 2d; WORK-004, WORK-013; plan
+ * Induction, the Care Certificate and leavers (workforce.md section 2e; WORK-004, WORK-013; plan
  * slice 29, migration 0091). Each row belongs to a staff profile and follows the staff file's
  * rules: read by holders of `workforce.staff_file.read` or `.manage` (and the worker, with
  * `workforce.self.read`), written by holders of `workforce.staff_file.manage`, never on their own

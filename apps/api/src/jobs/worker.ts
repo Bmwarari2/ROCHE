@@ -238,7 +238,7 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
 // Staff check expiry reminders (workforce.md section 5), hourly at 17 past.
 await boss.schedule(QUEUES.staffFileExpiry, "17 * * * *");
-// Policy read-and-sign reminders and review tasks (quality.md section 18.3), hourly at 27 past.
+// Policy read-and-sign reminders and review tasks (quality.md section 19.3), hourly at 27 past.
 await boss.schedule(QUEUES.policyReminders, "27 * * * *");
 // Training and competence expiry reminders (workforce.md section 5), hourly at 21 past.
 await boss.schedule(QUEUES.developmentExpiry, "21 * * * *");

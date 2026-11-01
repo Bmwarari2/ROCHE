@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Data security evidence (QUAL-012; quality.md section 18): the DSPT assertion tracker with its
+ * Data security evidence (QUAL-012; quality.md section 22): the DSPT assertion tracker with its
  * evidence, DSPT submissions, and Cyber Essentials and ICO registration records. Statuses are worked
  * out by the API from the stored dates and the rate table on every read, never stored; a kind with
  * no record is `missing`, never assumed current.

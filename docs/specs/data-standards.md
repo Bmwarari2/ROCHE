@@ -699,6 +699,9 @@ to a national standard; the rights are those of UK GDPR Articles 15 to 20. Every
 Code lists for [platform.md](platform.md) rules 18 to 26 (migration 0082). None maps to a national
 standard; dates are UK calendar dates (`YYYY-MM-DD`, shown dd/mm/yyyy) and instants UTC. Clocks are
 never stored: they are worked out from these fields and the rate table.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
 | `dp_breach.source` | Harbour | `tenant`, `processor_notice` | Only Thapsus's definer function writes `processor_notice`. |
 | `dp_breach.aware_at`, `occurred_at` | UK GDPR Art 33(1) | Instants (UTC) | The ICO clock runs `ico.breach.report_hours` from `aware_at`; it may change only until `reported_at` is set. |
 | `dp_breach.factors` | breach-response.md section 4 | JSON `BreachFactors`: `peopleAffected` (whole number), `identifiable`, `specialCategory`, `safeguardingOrLocationAtRisk`, `disclosedOutsideOrganisation`, `careRecordsUnavailable`, `contained` (booleans) | Set with the suggestion; reassessing after a decision is refused. |
@@ -721,7 +724,9 @@ by the field key or its label, ignoring case, spaces, hyphens and underscores; a
 the upload, naming the column by its position. At most 5,000 rows, 60 columns and 2,000 characters a
 cell (`IMPORT_LIMITS`, product limits). Every value is checked before anything is created; a batch
 commits whole or not at all.
+
 | Field key (label) | Maps to | Format on import | Rules |
+| --- | --- | --- | --- |
 | `given_name` (Given name) | `person.given_name` | Text, up to 100 characters | Required |
 | `family_name` (Family name) | `person.family_name` | Text, up to 100 characters | Required |
 | `preferred_name` (Preferred name) | `person.preferred_name` | Text, up to 100 characters | |
@@ -743,6 +748,9 @@ its key. A pair of rows is warned of once, on the later row, naming the earliest
 row names at most three existing records (`recordMatchesCapped`); a file with more than 50 rows on
 one date of birth, or more than 500 possible duplicates, is refused (`IMPORT_WARNING_LIMITS`,
 product limits), so every warning found is listed and can be acknowledged.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
 | `import_batch.record_type` | Harbour | `people` | Contacts, allergies and staff follow (slice 51). |
 | `import_batch.status` | Harbour | `staged`, `committed`, `undone`, `discarded`, `expired` | Forward only (a guard in migration 0088). `expires_at` is `uploaded_at` plus `import.staging_expiry_days`; `dry_run_errors` and `dry_run_warnings` are counts; `closed_by` is empty when the system expired it. No file name, heading or value is kept. |
 | `import_row.cells` | Harbour | JSON object: field key to the cell's text exactly as uploaded; `row_number` from 1, the first row under the header | Quarantine: personal data, deleted when the batch commits, is discarded or expires; not exported (the organisation holds its file). |
@@ -760,7 +768,7 @@ medicines.
 
 ## Data security evidence (Phase 2, slice 32)
 
-Code lists for [quality.md](quality.md) section 18 (migration 0094). Statuses are never stored.
+Code lists for [quality.md](quality.md) section 22 (migration 0094). Statuses are never stored.
 
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
@@ -792,7 +800,7 @@ for PKCE. Retention: tenant configuration, kept while current.
 
 ## Disclosure requests (Phase 2, slice 41)
 
-Code lists for disclosure requests ([safety.md](safety.md) section 11, SAFE-016; migration 0103).
+Code lists for disclosure requests ([safety.md](safety.md) section 12, SAFE-016; migration 0103).
 None maps to a national standard. Every column of `disclosure_request` and `disclosure_item` is
 exported except `disclosure_request.pack_storage_key` (internal). Retention class
 `serious_incident` (H-820).
@@ -805,7 +813,7 @@ exported except `disclosure_request.pack_storage_key` (internal). Retention clas
 | `disclosure_request.received_at`, `due_at` | ISO 8601 date-time, UTC | `due_at` only for an Access to Health Records Act request (`ahraDueAt`, rates `ahra.*`) | Shown dd/mm/yyyy, 24-hour. |
 | `disclosure_request.state`, `reason` | Harbour (`DISCLOSURE_WORKFLOW`) | `requested`, `prepared`, `approved`, `released`, `refused`, `withdrawn`; a reason for refused and withdrawn | Released, refused and withdrawn requests never change except the Regulation 28 dates (trigger `disclosure_request_guard`). |
 | `disclosure_request.prepared_by`, `decided_by`, `released_by` and their times | Harbour | `tenant_user` ids; UTC | The decider is never `created_by` (check `disclosure_request_approver`). |
-| `disclosure_request.pack_sha256`, `pack_storage_key` | SHA-256; storage key | 64 lower-case hex characters of the canonical JSON of the records, redacted count and withheld count; `tenants/<tenant>/disclosures/<request>/<pack>.json` (`disclosurePackStorageKey`, ids only) | Set together on release (check `disclosure_request_pack`). The key is internal. |
+| `disclosure_request.pack_sha256`, `pack_storage_key` | SHA-256; storage key | 64 lower-case hex characters of the canonical JSON of the records, redacted count and withheld count; `tenants/<tenant>/documents/<document>`, the pack's `document` row (category `disclosure_pack`, ids only); packs issued before 01/11/2026 carry the legacy `tenants/<tenant>/disclosures/<request>/<pack>.json` | Set together on release (check `disclosure_request_pack`). The key is internal. |
 | `disclosure_request.not_searched`, `collected_at` | Harbour (`EXPORT_TABLES`) | Table names; UTC | As `dsar_case`. |
 | `disclosure_request.prevention_report_on`, `prevention_responded_on` | Coroners (Investigations) Regulations 2013, regulation 28 and 29 | `YYYY-MM-DD`; coroner requests only; the response on or after the report | The response is due `coroner.prevention_report_response_days` (rate table) after the report; never stored. |
 | `disclosure_item.*` | As `dsar_item` | `pending`, `disclose`, `redact`, `withhold`; redacted fields from the table's exported columns; `content_sha256` of the record as reviewed | Redacted fields read `[redacted]` in the pack; withheld records are counted. Records are in date order (the chronology). |
@@ -880,7 +888,7 @@ category so a receiving system can read it.
 
 ## Quality: policy library and read-and-sign (Phase 2, slice 25)
 
-Code lists for [quality.md](quality.md) section 18 (migration 0087). No national standard covers
+Code lists for [quality.md](quality.md) section 19 (migration 0087). No national standard covers
 these fields; exported with these names.
 
 | Harbour field | Standard mapping | Code list or format | Notes |
@@ -938,7 +946,7 @@ home rota; the fields below are Harbour's.
 
 ## Workforce: applicant tracking (Phase 2, slice 23)
 
-Code lists for [workforce.md](workforce.md) section 2b (migration 0085). Harbour's own fields; the
+Code lists for [workforce.md](workforce.md) section 2c (migration 0085). Harbour's own fields; the
 Care Workforce Pathway categories follow Skills for Care's Pathway (H-730) and the equality
 monitoring questions follow the Equality Act 2010 protected characteristics, with the categories
 of the census for England and Wales (H-733).
@@ -964,7 +972,7 @@ of the census for England and Wales (H-733).
 
 ## Workforce: employee relations casework (Phase 2, slice 39)
 
-Code lists for [workforce.md](workforce.md) section 2c (migration 0101). Harbour's own fields,
+Code lists for [workforce.md](workforce.md) section 2d (migration 0101). Harbour's own fields,
 following the Acas Code of Practice on disciplinary and grievance procedures (H-801); referral
 decisions follow the Safeguarding Vulnerable Groups Act 2006 section 35 and the regulators'
 referral guidance (H-802). A restricted silo (ADR-0089): read only by the members named on a case
@@ -993,7 +1001,7 @@ and left out of the organisation-wide export (H-805).
 
 ## Workforce: induction, the Care Certificate and leavers (Phase 2, slice 29)
 
-Code lists for [workforce.md](workforce.md) section 2d (migration 0091). Harbour's own fields; the
+Code lists for [workforce.md](workforce.md) section 2e (migration 0091). Harbour's own fields; the
 Care Certificate standards are Skills for Care's, stored by id with a short title only (H-531,
 H-871).
 

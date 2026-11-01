@@ -3,7 +3,7 @@ import { expectAccessible, signIn } from "./support";
 
 /**
  * The compliance framework, evidence library and audit programme (QUAL-001, QUAL-002, QUAL-004;
- * quality.md section 20) against the demo tenant. The manager maps a quality statement and reads
+ * quality.md section 21) against the demo tenant. The manager maps a quality statement and reads
  * coverage with its gaps and a statement's evidence; adds a medication audit template from the
  * starters, schedules it at Harbour House, starts an audit, answers it, completes it with an
  * action and a self-rating, and tags it as evidence; then starts a mock inspection. Every state

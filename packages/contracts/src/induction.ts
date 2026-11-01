@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Induction, the Care Certificate and leavers (workforce.md section 2d, rules 19 to 23 and
+ * Induction, the Care Certificate and leavers (workforce.md section 2e, rules 19 to 23 and
  * section 5; WORK-004, WORK-013; plan slice 29). Dates are UK dates (yyyy-mm-dd). Codes mirror
  * packages/domain (`workforce/induction.ts`).
  */

@@ -112,7 +112,10 @@ export function ahraDueAt(
 
 const UUID_SHAPED = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Where an issued pack is kept (exports bucket): built from UUIDs only, never a name (rule 42). */
+/**
+ * Where a pack issued before 01/11/2026 was kept (exports bucket): built from UUIDs only, never a
+ * name. New packs are documents (`disclosure_pack`, rule 42); this shape is still read.
+ */
 export function disclosurePackStorageKey(
   tenantId: string,
   requestId: string,

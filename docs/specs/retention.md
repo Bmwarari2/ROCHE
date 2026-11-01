@@ -85,8 +85,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item` | staff_file (tenant's chosen row) |
-| `induction_plan`, `staff_checklist_item`, `shadow_shift`, `probation_review`, `care_certificate_progress`, `leaver_record`, `reference_request` (induction and leavers, slice 29; [workforce.md](workforce.md) section 2d) | staff_file (tenant's chosen row), from the leaving date; `leaver_record.staff_file_retain_until` holds the date worked out when the leaving is recorded (rule 23; the birthday age is `retention.staff_file.birthday_age`, H-874, H-875) |
-| `employee_case`, `employee_case_member`, `employee_case_hearing`, `employee_case_event` (employee relations casework, slice 39; [workforce.md](workforce.md) section 2c) | staff_file (tenant's chosen row), from the end of the employment of the member of staff the case is about; a warning that has stopped counting (`warning_expires_on`) is kept as the record of the decision, never used again; a shorter period for some cases is open (H-806). A restricted silo: the retention engine's destruction batches reach it as the system, and its certificates carry ids only |
+| `induction_plan`, `staff_checklist_item`, `shadow_shift`, `probation_review`, `care_certificate_progress`, `leaver_record`, `reference_request` (induction and leavers, slice 29; [workforce.md](workforce.md) section 2e) | staff_file (tenant's chosen row), from the leaving date; `leaver_record.staff_file_retain_until` holds the date worked out when the leaving is recorded (rule 23; the birthday age is `retention.staff_file.birthday_age`, H-874, H-875) |
+| `employee_case`, `employee_case_member`, `employee_case_hearing`, `employee_case_event` (employee relations casework, slice 39; [workforce.md](workforce.md) section 2d) | staff_file (tenant's chosen row), from the end of the employment of the member of staff the case is about; a warning that has stopped counting (`warning_expires_on`) is kept as the record of the decision, never used again; a shorter period for some cases is open (H-806). A restricted silo: the retention engine's destruction batches reach it as the system, and its certificates carry ids only |
 | `applicant`, `application`, `application_event`, `interview`, `job_offer` (slice 23) | applicant.unsuccessful, or applicant.talent_pool when later; a hired applicant's records follow the staff file |
 | `equality_monitoring` (slice 23) | applicant.unsuccessful, from the vacancy's closing date |
 | `job_template`, `vacancy` (slice 23) | organisation_document |
@@ -118,7 +118,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `dependency_assessment` (a person's dependency category) | care_record |
 | `letter` | `retention_class` per row: serious_incident for an incident or candour letter about an incident graded serious, otherwise care_record (`letterRetentionClass`; migration 0059) |
 | `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
-| `policy`, `policy_version` ([quality.md](quality.md) section 18) | organisation_document |
+| `policy`, `policy_version` ([quality.md](quality.md) section 19) | organisation_document |
 | `policy_signature` (read-and-sign records) | training_record (from signing; H-742) |
 | `task` of kind `quality.policy_read_and_sign` or `quality.policy_review` | as the policy version it concerns |
 | `letter` | care_record; serious_incident only for an incident follow-up or duty of candour letter about an incident graded serious (`letterRetentionClass`) |

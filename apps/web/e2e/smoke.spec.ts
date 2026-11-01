@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { waitForTitle } from "./support";
 
 /**
  * Phase 0 smoke journeys (Brian's acceptance: sign in and see the empty demo home), each page
@@ -27,6 +28,7 @@ async function settleAnimations(page: Page) {
 }
 
 async function expectAccessible(page: Page, name: string) {
+  await waitForTitle(page);
   await settleAnimations(page);
   const results = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
   const blocking = results.violations

@@ -26,7 +26,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Employee relations casework in the database (workforce.md section 2c, rules 15 to 18;
+ * Employee relations casework in the database (workforce.md section 2d, rules 15 to 18;
  * WORK-010; migration 0101; ADR-0089): a case and everything on it is read only by the members
  * named on it. The owner, the Registered Manager, the member of staff it is about, a caseworker
  * not named on it and another organisation read nothing. Only a holder of the silo permission

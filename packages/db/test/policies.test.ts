@@ -6,7 +6,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * The policy library and read-and-sign in the database (quality.md section 18; QUAL-008; hazard
+ * The policy library and read-and-sign in the database (quality.md section 19; QUAL-008; hazard
  * HZ-128; migration 0087): cross-tenant denial; drafts only for holders of quality.policy.manage;
  * one draft and at most one published version per policy; publishing in the publisher's own name,
  * never by the author where a second reviewer is needed, superseding the last; a published version
@@ -126,7 +126,7 @@ describe("hazard HZ-011 policies stay in their organisation", () => {
   });
 });
 
-describe("hazard HZ-128 policy versions (quality.md section 18)", () => {
+describe("hazard HZ-128 policy versions (quality.md section 19)", () => {
   it("hazard HZ-128 shows drafts only to holders of quality.policy.manage", async () => {
     expect(await asCarer((c) => count(c, "SELECT count(*) AS n FROM policy_version"))).toBe(0);
     expect(await asLead((c) => count(c, "SELECT count(*) AS n FROM policy_version"))).toBe(2);
@@ -244,7 +244,7 @@ describe("hazard HZ-128 policy versions (quality.md section 18)", () => {
   });
 });
 
-describe("hazard HZ-128 read-and-sign (quality.md section 18)", () => {
+describe("hazard HZ-128 read-and-sign (quality.md section 19)", () => {
   const sign = (c: pg.PoolClient, version: string, signer?: string) =>
     c.query(
       "INSERT INTO policy_signature (policy_version_id, signer_id) VALUES ($1, COALESCE($2, app.current_user_id()))",

@@ -69,7 +69,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * Employee relations casework (workforce.md section 2c, rules 15 to 18 and section 5; WORK-010;
+ * Employee relations casework (workforce.md section 2d, rules 15 to 18 and section 5; WORK-010;
  * plan slice 39). A restricted silo (ADR-0089): only the members named on a case read it or act
  * on it, whatever else they hold; the database enforces the same (migration 0101), so a case the
  * caller is not named on is simply not found. Opening one needs the silo permission

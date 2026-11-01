@@ -31,7 +31,7 @@ import { ON_STAFF } from "./role-holders";
 import { withSystemRights } from "./system-rights";
 
 /**
- * The policy library and read-and-sign (quality.md section 18; QUAL-008; HZ-128): the stored rows
+ * The policy library and read-and-sign (quality.md section 19; QUAL-008; HZ-128): the stored rows
  * as the slice 8 rules read them, who must sign, and the reminder and review tasks raised through
  * the task engine.
  */
@@ -203,7 +203,7 @@ export function endSignTasks(
 }
 
 /**
- * Read-and-sign reminders and review tasks (quality.md section 18.3; rules 27 and 28; HZ-128). For
+ * Read-and-sign reminders and review tasks (quality.md section 19.3; rules 27 and 28; HZ-128). For
  * each version in force: a task assigned to each outstanding member when the reminder interval has
  * passed since they became due or their last reminder (the previous one cancelled); and one review
  * task per review state (`due_soon`, `overdue`), assigned to the author, or the publisher when the

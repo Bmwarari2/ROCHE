@@ -951,7 +951,7 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
 ## 11. Outbreaks and IPC audits (slice 31: SAFE-013; migration 0093)
 
 Completes SAFE-013 on the Phase 1 UKHSA draft (section 4 rule 7) and slice 19's audit programme
-([quality.md](quality.md) section 19). Spec, schema, permission matrix and test list before the
+([quality.md](quality.md) section 20). Spec, schema, permission matrix and test list before the
 code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-management.ts`.
 
 ### 11.1 Rules
@@ -1018,7 +1018,7 @@ organisations' built-in owner, Registered Manager, deputy and clinical lead role
 | --- | --- | --- |
 | `safety.outbreak.manage` (care record, so MFA) at a location | Declare, read, update and close outbreaks there; keep the line list | Owner, Registered Manager, deputy, clinical lead |
 | `safety.outbreak.manage` or `quality.audit.manage` | Read the Code of Practice criteria | As above, and audit runners |
-| `quality.audit.manage` at the audit's location | Read an IPC audit against the criteria | As in quality.md section 19 |
+| `quality.audit.manage` at the audit's location | Read an IPC audit against the criteria | As in quality.md section 20 |
 
 ### 11.4 API
 
@@ -1058,14 +1058,14 @@ Refusals decided in the API and those the database raises are audited as denied,
   moved; residents' rows hidden from a manager who cannot see them; one outbreak per report; no
   closure without a report; no delete grant.
 
-## 11. Disclosure requests (slice 41: SAFE-016)
+## 12. Disclosure requests (slice 41: SAFE-016)
 
 Schema, API and audit for Phase 2 rule 6 (`disclosure.ts`); the screens follow later. Migration
 0103 (lane D; renumbered at merge). Collection reuses the DSAR collector of slice 15 (ADR-0090):
 the same subject map over the export catalogue, the same item review by a person, the same stored
 pack. Procedure owner: the Registered Manager with the data protection lead.
 
-### 11.1 Tables
+### 12.1 Tables
 
 All have `tenant_id`, forced RLS, the tenant policy and restrictive policies binding `harbour_app`
 and `harbour_owner`; the application never deletes. The organisation's system context (no member,
@@ -1076,7 +1076,7 @@ the whole organisation) reads them for the full export, never writes.
 | `disclosure_request` | mutable aggregate (`version`) | One request about one person: the type and the legal basis as stated when it was logged, who asked (name, organisation, their reference), what it says the information is for (police and solicitors), when it arrived and when the answer is due, the state (`DISCLOSURE_WORKFLOW`), who prepared, approved, refused, released or withdrew it with reasons, the issued pack's SHA-256 and storage key, and for a coroner the Regulation 28 report and response dates |
 | `disclosure_item` | mutable aggregate | One record found for the request and the decision a person made about it: disclose, redact named fields or withhold with a reason, bound to the record's content hash as reviewed (as `dsar_item`) |
 
-### 11.2 Rules
+### 12.2 Rules
 
 38. **Scope.** A request concerns one person. It is logged, collected, reviewed and released by a
     holder of `safety.incident.manage`, and approved or refused by a holder of
@@ -1098,8 +1098,11 @@ the whole organisation) reads them for the full export, never writes.
     logged the request (database check too); refusal and withdrawal need a reason.
 42. **Issuing.** Release needs approval and a fresh step-up. The pack is built from the decisions,
     in date order (the chronology for a SAR or DHR), redacted fields reading `[redacted]` and withheld
-    records counted, hashed, stored as sent in the exports bucket (CMEK, opaque key; ADR-0098) and can be
-    fetched again exactly, with step-up. The disclosure log is the list of requests with their basis,
+    records counted, hashed and stored as sent: a document of the `disclosure_pack` category in the
+    documents bucket (CMEK, opaque key; ADR-0098), under the `serious_incident` retention class, not
+    the exports bucket, whose objects expire after 30 days. The document names no person (the request
+    does), so the general document routes never list or serve it. It can be fetched again exactly,
+    with step-up. Packs issued before this change are read from the exports bucket. The disclosure log is the list of requests with their basis,
     approver and release.
 43. **Coroner tracker.** A coroner request may record a Regulation 28 prevention of future deaths
     report received on a day; the response is due `coroner.prevention_report_response_days` later
@@ -1108,7 +1111,7 @@ the whole organisation) reads them for the full export, never writes.
     requester's name, purpose, reasons or record content; viewing records and the pack are audited
     as care-record views.
 
-### 11.3 Permission matrix
+### 12.3 Permission matrix
 
 | Action | Permission | Scope | Notes |
 | --- | --- | --- | --- |
@@ -1116,7 +1119,7 @@ the whole organisation) reads them for the full export, never writes.
 | Approve or refuse | `safety.disclosure.approve` | organisation or the person's location | never the person who logged it |
 | Release (issue the pack), fetch the issued pack, view a record | `safety.incident.manage` | as above | fresh step-up |
 
-### 11.4 Tests
+### 12.4 Tests
 
 - `packages/db/test/disclosure-requests.test.ts`: isolation, location scope (a manager at another
   home sees nothing), approver not the requester, checks, system read.

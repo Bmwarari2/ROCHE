@@ -258,6 +258,10 @@ export const documentsRouter = createRouter()
       if (q.category === "staff_hr_document") {
         throw problems.invalid("Add HR-only staff documents from the worker's staff file.");
       }
+      // A disclosure pack is written only by the disclosure release (safety.md section 12).
+      if (q.category === "disclosure_pack") {
+        throw problems.invalid("Disclosure packs are issued from the disclosure request.");
+      }
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
       // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
       if (q.category === "organisation_logo") {

@@ -19,7 +19,7 @@ import { tenantUser } from "./platform";
 import { incident } from "./safety";
 
 /**
- * Employee relations casework (workforce.md section 2c; WORK-010; plan slice 39, migration 0101):
+ * Employee relations casework (workforce.md section 2d; WORK-010; plan slice 39, migration 0101):
  * grievance, disciplinary, capability, sickness absence and probation cases, their members,
  * hearings and timeline. A restricted silo (ADR-0089): only the members named on a case read it;
  * no role, grant or break-glass reaches it, the owner and the Registered Manager included. A

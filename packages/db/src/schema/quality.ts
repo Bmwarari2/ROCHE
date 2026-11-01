@@ -429,7 +429,7 @@ export const statementOfPurposeVersion = pgTable(
 );
 
 /**
- * The policy library and read-and-sign (quality.md section 18; QUAL-008; HZ-128; plan slice 25,
+ * The policy library and read-and-sign (quality.md section 19; QUAL-008; HZ-128; plan slice 25,
  * migration 0087): policies, their versions (one draft and at most one published at a time,
  * publishing supersedes the last) and signatures on the version in force. The database's guards
  * enforce publication in the publisher's own name and the second reviewer.

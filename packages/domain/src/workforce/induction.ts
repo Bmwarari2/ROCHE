@@ -1,7 +1,7 @@
 import { addPeriod } from "../platform/retention";
 
 /**
- * Onboarding, the Care Certificate and leavers (workforce.md section 2d and rules 19 to 23;
+ * Onboarding, the Care Certificate and leavers (workforce.md section 2e and rules 19 to 23;
  * WORK-004, WORK-013; plan slice 29). From the accepted offer to the first day and probation:
  * a checklist, policy read-and-sign at induction, shadow shifts and probation reviews; the Care
  * Certificate's 16 standards, each assessed and then observed by someone other than the worker;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Employee relations casework (workforce.md section 2c, rules 15 to 18 and section 5; WORK-010;
+ * Employee relations casework (workforce.md section 2d, rules 15 to 18 and section 5; WORK-010;
  * plan slice 39). Read only by the members named on a case (ADR-0089). Dates are UK dates
  * (yyyy-mm-dd). Codes mirror packages/domain (`workforce/casework.ts`).
  */

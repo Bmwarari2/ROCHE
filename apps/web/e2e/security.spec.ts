@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type Browser, expect, type Page, test } from "@playwright/test";
+import { waitForTitle } from "./support";
 
 /**
  * Sign-in and security journeys for the demo nurse: register a passkey with Chromium's virtual
@@ -13,6 +14,7 @@ const PASSKEY_NAME = "Playwright virtual authenticator";
 const WCAG_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 async function expectAccessible(page: Page, name: string) {
+  await waitForTitle(page);
   const results = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
   const blocking = results.violations
     .filter((v) => v.impact === "serious" || v.impact === "critical")

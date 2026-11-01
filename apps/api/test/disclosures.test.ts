@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ageSession, createHarness, type Harness, OTHER } from "./support/harness";
 
 /**
- * Disclosure requests through the API (SAFE-016; safety.md section 11, rules 38 to 44; migration
+ * Disclosure requests through the API (SAFE-016; safety.md section 12, rules 38 to 44; migration
  * 0103; hazard HZ-011): a legal basis on every request; the DSAR collector; a person decides each
  * record; the approver is never the requester; release needs a fresh step-up and stores the pack
  * as issued; a coroner's Regulation 28 report and its response date from the rate table.
@@ -281,6 +281,30 @@ describe("SAFE-016 rules 42 and 43: release with step-up, the pack as issued", (
     expect(pack.sha256).toBe(released.packSha256);
     expect(pack.records.length).toBe(released.items.total);
     expect(pack.legalBasis).toBe(req.legalBasis);
+    // Kept as a document under the disclosure's retention class, in the documents bucket, never
+    // the exports bucket's 30-day prefix, and about no person, so no general route serves it.
+    const [doc] = await owner<{
+      id: string;
+      category: string;
+      retention_class: string;
+      person_id: string | null;
+      storage_key: string;
+      subject_type: string;
+      subject_id: string;
+    }>(
+      "SELECT id, category, retention_class, person_id, storage_key, subject_type, subject_id FROM document WHERE subject_id = $1",
+      [req.id],
+    );
+    expect(doc).toMatchObject({
+      category: "disclosure_pack",
+      retention_class: "serious_incident",
+      person_id: null,
+      subject_type: "disclosure_request",
+      subject_id: req.id,
+    });
+    expect(doc?.storage_key).toBe(`tenants/${DEMO.tenantId}/documents/${doc?.id}`);
+    expect((await get(`/v1/documents/${doc?.id}`)).status).toBe(404);
+    expect((await get(`/v1/documents/${doc?.id}/content`)).status).toBe(404);
     const w = await post(`/v1/disclosures/${req.id}/withdraw`, {
       expectedVersion: released.version,
       reason: "Changed our mind.",
@@ -292,6 +316,21 @@ describe("SAFE-016 rules 42 and 43: release with step-up, the pack as issued", (
     );
     expect(audit).toHaveLength(1);
     expect(JSON.stringify(audit[0]?.scope)).not.toMatch(/Coroner|Example/);
+  });
+});
+
+describe("SAFE-016 rule 42: a disclosure pack is never uploaded", () => {
+  it("refuses the category on the general upload route", async () => {
+    const r = await h.request(
+      `/v1/documents?${new URLSearchParams({ category: "disclosure_pack", title: "Pack" })}`,
+      {
+        token: h.tokens.owner,
+        tenant: DEMO.tenantId,
+        method: "POST",
+        raw: { bytes: new TextEncoder().encode("{}"), contentType: "application/json" },
+      },
+    );
+    expect(r.status).toBe(422);
   });
 });
 

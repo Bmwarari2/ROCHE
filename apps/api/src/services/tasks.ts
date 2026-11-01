@@ -504,7 +504,7 @@ export const OWNER_TASK_KINDS: readonly string[] = ["safety.investigation_action
 
 /**
  * Task kinds only their evidence completes, never a transition: a read-and-sign reminder is done
- * when its member signs the version in force (quality.md section 18.3; HZ-128), so nobody marks it
+ * when its member signs the version in force (quality.md section 19.3; HZ-128), so nobody marks it
  * done or skipped without the signature.
  */
 export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = ["quality.policy_read_and_sign"];

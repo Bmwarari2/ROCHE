@@ -7,7 +7,7 @@ import { createLogger } from "../src/logger";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
- * Induction, the Care Certificate and leavers through the API (workforce.md section 2d, rules 19
+ * Induction, the Care Certificate and leavers through the API (workforce.md section 2e, rules 19
  * to 23 and section 5; WORK-004, WORK-013; plan slice 29): the staff file's permissions on every
  * route with refusals audited; the checklist from offer to probation with read-and-sign counted;
  * Care Certificate standards assessed and observed by an assessor, never the worker; leaving

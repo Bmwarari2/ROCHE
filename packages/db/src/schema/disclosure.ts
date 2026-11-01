@@ -15,7 +15,7 @@ import { person } from "./people";
 import { location, tenant, tenantUser } from "./platform";
 
 /**
- * Disclosure requests (SAFE-016; safety.md section 11, rules 38 to 44): coroner, Safeguarding Adults
+ * Disclosure requests (SAFE-016; safety.md section 12, rules 38 to 44): coroner, Safeguarding Adults
  * Review, Domestic Homicide Review, police, solicitor and Access to Health Records Act requests about
  * one person, each with its legal basis, reviewed record by record by a person, approved by someone
  * other than the requester, and released as a stored pack. Items hold a record's table and id only,

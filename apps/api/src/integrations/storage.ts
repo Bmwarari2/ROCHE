@@ -24,8 +24,8 @@ export const ALLOWED_GCS_LOCATIONS: readonly string[] = ["EUROPE-WEST2"];
 
 /**
  * A document's bytes, an export's archive (`exportStoragePrefix` plus `export.zip`), or an issued
- * DSAR bundle (`dsarBundleStorageKey`, #149 M3), or an issued disclosure pack
- * (`disclosurePackStorageKey`, SAFE-016).
+ * DSAR bundle (`dsarBundleStorageKey`, #149 M3), or a disclosure pack issued
+ * before packs became documents (`disclosurePackStorageKey`, SAFE-016; read only).
  */
 const KEY_PATTERN =
   /^(tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip|disclosures\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)|dsar\/tenants\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)$/;

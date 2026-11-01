@@ -2,7 +2,7 @@ import { addDays, addMonths } from "./dates";
 import type { WorkforceRates } from "./rates";
 
 /**
- * The competence port's rule (ADR-0085; workforce.md sections 2b and 5; HZ-119, HZ-124). Medicines
+ * The competence port's rule (ADR-0085; workforce.md sections 2c and 5; HZ-119, HZ-124). Medicines
  * and scheduling ask, on the server, whether a member may do an action that needs a competence on
  * a UK date; the answer comes from the member's stored sign-offs, never from the client. A stored
  * sign-off is already acceptable (observed by someone else who held

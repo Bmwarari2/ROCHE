@@ -20,7 +20,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Induction, the Care Certificate and leavers in the database (workforce.md section 2d, rules 19
+ * Induction, the Care Certificate and leavers in the database (workforce.md section 2e, rules 19
  * to 23; WORK-004, WORK-013; migration 0091): another organisation reads and writes nothing;
  * rows follow the staff file (HR reads and writes, the worker reads their own and writes
  * nothing); an assessor with workforce.competence.observe reads and signs the Care Certificate,

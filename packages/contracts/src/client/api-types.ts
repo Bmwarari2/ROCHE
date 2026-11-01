@@ -42202,7 +42202,8 @@ export interface components {
       | "person_document"
       | "organisation_document"
       | "organisation_logo"
-      | "staff_hr_document";
+      | "staff_hr_document"
+      | "disclosure_pack";
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {

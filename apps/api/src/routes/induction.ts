@@ -79,7 +79,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * Induction, the Care Certificate and leavers (workforce.md section 2d, rules 19 to 23 and
+ * Induction, the Care Certificate and leavers (workforce.md section 2e, rules 19 to 23 and
  * section 5; WORK-004, WORK-013; plan slice 29). Read with workforce.staff_file.read (or the
  * worker's own with workforce.self.read); written with .manage, never on one's own file; Care
  * Certificate observations by holders of workforce.competence.observe. The database enforces the

@@ -21,7 +21,7 @@ import {
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 /**
- * Data security evidence for the API and the worker (QUAL-012; quality.md section 18): the
+ * Data security evidence for the API and the worker (QUAL-012; quality.md section 22): the
  * figures from the rate table, the statuses worked out from the records (rules 29 to 31), and the
  * renewal tasks (rule 36). Nothing is stored about status; nothing is assumed current.
  */

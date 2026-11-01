@@ -84,9 +84,9 @@ its own scope) and [0072](../decisions/0072-mfa-counts-only-for-the-session-that
 for controlled drugs).
 
 **New ADRs.** Each open item below takes the default shown, recorded as an ADR by the slice that
-first needs it (the `adr` skill), and the build continues. ADR numbers 0080 to 0099 are reserved for
-Phase 2 so that parallel lanes and the Phase 1 follow-ups (0074 is taken by the open mobile pull
-request; 0075 to 0079 stay free for Phase 1) never collide; 0098 and 0099 are spare.
+first needs it (the `adr` skill), and the build continues. The numbers in the table below were
+the first allocation; since 01/11/2026 ADR numbers are given out at assignment, by the lead, and
+the ones in use are listed under "Numbers in use" below.
 
 | ADR | Decision | Default to take | Written by slice | Reviewed by |
 | --- | --- | --- | --- | --- |
@@ -213,17 +213,61 @@ section or key namespace (`medicines.*`, `workforce.*`, `scheduling.*` and so on
 on a conflict; regenerate `openapi.json`, the typed client, `permissions.md` and the migration
 journal after merging `main`, never hand-merge them.
 
-**Migrations** merge in number order (STATUS, ways of working). 0071 is reserved for the open mobile
-pull request; Phase 2 owns 0072 to 0110 as assigned below, one migration per schema slice with its
-security SQL in the same file (the pattern since 0054). If a slice is ready and a lower number is
-held by a slice that is not, the ready slice may swap numbers with it by editing this table in its
-own pull request and saying so in its changelog file; two slices never share a number.
+**Migrations** merge in number order (STATUS, ways of working), one migration per schema slice with
+its security SQL in the same file (the pattern since 0054). The first allocation (0072 to 0110)
+no longer holds: slices that merged late moved to higher numbers, and the numbers they left
+(0072, 0078, 0084, 0089, 0090, 0092, 0096, 0098, 0100 and 0102) are never reused; the migration
+journal allows the gaps. **Numbers are now given out at assignment**, by the lead, with the
+branch; two slices never share a number. The "Migration" column below shows the number each slice
+uses on `main` or on its branch.
+
+**Numbers in use** (read from every branch on 01/11/2026; anything not listed is assigned to work
+not yet pushed):
+
+| Migration | What | Branch |
+| --- | --- | --- |
+| 0104 | Bank and agency workers (slice 27) | `feat/sched-bank-agency` |
+| 0107 | Absence and leave (slice 40) | `feat/sched-absence-leave` |
+| 0108 | Quality indicators (slice 47) | `feat/quality-dashboard-pir` |
+| 0109 | Time and attendance (slice 30) | `feat/sched-time-attendance` |
+| 0110 | dm+d reference data (slice 10) | `feat/meds-dmd-reference` |
+| 0111 | Medicines record (slice 16) | `feat/meds-record-schema` |
+| 0112 | E-learning runtime (slice 43) | `feat/work-elearning` |
+| 0113 | Lone-worker safety (slice 46) | `feat/sched-lone-worker` |
+| 0114 | Supervision notes (slice 17 follow-up) | `feat/web-training-competence` |
+| 0115 | Staff wellbeing (slice 44) | `feat/sched-wellbeing` |
+| 0116 | Pay calculation runs (slice 36) | `feat/sched-pay-runs` |
+| 0117 | Per-organisation crypto-shredding (PLAT-012) | `feat/platform-crypto-shred` |
+| 0118 | Incident contacts not known (recommended answers) | `fix/recommended-answers-care` |
+| 0120 | Vetting adapters (slice 77) | `feat/work-vetting-adapters` |
+| 0121 | Recommended answers | `feat/work-vetting-adapters`, `feat/web-workforce-people` |
+| 0122 | Recommended answers (safety) | `fix/recommended-answers-safety` |
+| 0123 | Medicine administrations (slice 22) | `feat/meds-administration-schema` |
+| 0124 | Disclosure hand-over (slice 41 follow-up) | `feat/web-safety-events` |
+| 0125 | Staff privacy notice document (slice 35 follow-up) | `feat/web-staff-file` |
+| 0127 | Payroll and pension exports (slice 76) | `feat/sched-payroll-export` |
+| 0128 | Controlled drugs register (slice 34) | `feat/meds-cd-register` |
+| 0129 | Member lifecycle security | `fix/recommended-answers-platform` |
+| 0130 | Crypto-shred refusals | `feat/web-retention-shred` |
+| 0131 | The dm+d job's own role (slice 75) | `feat/integrations-dmd-download` |
+| 0137 | Built-in role backfill (workforce grants, speak-up and employee relations roles) | `chore/phase-2-cleanups` |
+| 0105, 0106, 0119, 0126, 0132 to 0136 | Assigned; not on any branch yet | - |
+
+| ADR | What | Where |
+| --- | --- | --- |
+| 0098 | Production on Google Cloud | `main` |
+| 0099 | Never-overridable DBS and registration checks | `feat/sched-absence-leave` |
+| 0108 | Quality indicator counts | `feat/quality-dashboard-pir` |
+| 0109 | Per-organisation crypto-shredding | `feat/platform-crypto-shred` |
+| 0114 | Supervision notes kept in Harbour | `feat/web-training-competence` |
+| 0125 | Speak-up: anonymised view not yet granted | `fix/safety-gaps-from-guides` |
+| 0100 to 0107, 0110 to 0113, 0115 to 0124 | Assigned; not on any branch yet | - |
 
 **Reserved numbers.** Hazards HZ-113 to HZ-130 are assigned below and HZ-131 to HZ-139 are spare for
-Phase 2; DPIA risks R20 to R29 are assigned and R30 onwards spare; ADRs 0080 to 0099 as above. Human
-actions beyond H-510 to H-549 take blocks by lane: A H-550 to H-569, B H-570 to H-579, C H-580 to
-H-589, D H-590 to H-599, E H-600 to H-609, F H-610 to H-619, G H-620 to H-629, H H-630 to H-639,
-gate H-640 to H-649.
+Phase 2; DPIA risks R20 to R29 are assigned and R30 onwards spare. Human actions are given out in
+blocks at assignment, like migrations and ADRs (the first blocks by lane were A H-550 to H-569, B
+H-570 to H-579, C H-580 to H-589, D H-590 to H-599, E H-600 to H-609, F H-610 to H-619, G H-620 to
+H-629, H H-630 to H-639 and the gate H-640 to H-649).
 
 ### Slices
 
@@ -245,44 +289,44 @@ the slices it depends on.
 | 7 | Safety Phase 2 rules | D | SAFE-006, SAFE-011, SAFE-012, SAFE-014, SAFE-015, SAFE-016, MEDS-012 | `safety.md` Phase 2 sections. Safeguarding states (concern, s.42 referral, enquiry, Making Safeguarding Personal outcome, DBS referral decision); complaints with tenant SLA clocks, appeal and LGSCO signposting; whistleblowing states; expected and unexpected deaths and mortality review; missing-person timeline and return check; disclosure types with legal basis and an approver who is not the requester; classifier questions for medication errors, so lane A never edits the classifier | - | 1 |
 | 8 | Quality Phase 2 rules | E | QUAL-001, QUAL-002, QUAL-004, QUAL-005, QUAL-006, QUAL-008, QUAL-012 | `quality.md` Phase 2 sections. Framework versions, with historical audits kept on the version they were scored against; scored audits and self-rating 1 to 4; indicator definitions with the method shown and RAG against tenant targets, missing data never shown as good; PIR data points; policy versions and read-and-sign by role; the DSPT deadline (`dspt.submission_deadline.*`) | - | 1 |
 | 9 | Platform Phase 2 rules | F | PLAT-005, PLAT-014, PLAT-022 | `platform.md` Phase 2 sections. DSAR clock with extension and pauses (`dsar.*`); breach 72-hour clock (`ico.breach.report_hours`) and severity; data-protection complaint acknowledgement (`dp_complaint.acknowledge_days`); import validation against `data-standards.md` (NHS number check digit, coded fields, dd/mm/yyyy dates); SSO linking only to invited members | - | 1 |
-| 10 | dm+d reference data | A | MEDS-001, INTG-006 | Global reference tables without `tenant_id` (VTM, VMP, AMP, VMPP, AMPP, GTIN, and lookups for units, forms, routes and CD schedules); release loader for the NHSBSA XML from a small fixture; release history; search and GTIN lookup API; tables added to the PowerSync publication (ADR-0080) | 0072 | 2 |
+| 10 | dm+d reference data | A | MEDS-001, INTG-006 | Global reference tables without `tenant_id` (VTM, VMP, AMP, VMPP, AMPP, GTIN, and lookups for units, forms, routes and CD schedules); release loader for the NHSBSA XML from a small fixture; release history; search and GTIN lookup API; tables added to the PowerSync publication (ADR-0080) | 0110 | 2 |
 | 11 | Staff profile and pre-employment file | B | WORK-002, WORK-011 | `staff_profile` and `compliance_item` (photo ID; right to work with re-check; DBS level, number, barred-list result, Update Service status and risk assessment; employment history and gaps; references and conduct; health declaration; registration and PIN); HR-only documents with audited views; expiry tasks through the task engine | 0073 | 4 |
 | 12 | Dependency tool | C | CARE-004, SCHED-001 | Tenant-editable dependency scale (categories with care hours per category, labelled as the tenant's own tool); the person's category and 1:1 hours; required care hours per shift | 0074 | 5 |
 | 13 | Safeguarding log | D | SAFE-006 | Concerns, s.42 referrals (from the Phase 1 drafts), LA enquiry outcomes, Making Safeguarding Personal outcomes, DBS referral decisions, the pressure-ulcer decision guide link; clocks feed the notification centre (HZ-013); scope as incidents | 0075 | 7 |
 | 14 | Compliance framework and evidence library | E | QUAL-001, QUAL-002 | Framework versions with key questions, quality statements and evidence categories, seeded as version 1 (ADR-0096); tenant mappings versioned; evidence links from any record type, so compliments and audits can be tagged; the evidence pack reads statement ids from here | 0076 | 8 |
 | 15 | DSAR workbench | F | PLAT-022, WORK-011 | Cases for people, contacts and staff; identity check; clock with pauses and extension; collection across modules from the export catalogue; third-party redaction by a person; bundle; rectification, erasure where retention allows, portability (ADR-0090) | 0077 | 9 |
-| 16 | Medicines record and reconciliation | A | MEDS-001 | `medication` and `medication_schedule` (dm+d code, strength, form, dose, frequency, route, times, start, stop, review, prescriber, indication, special instructions, schedule type, CD schedule); second check; source document; reconciliation on admission, transfer, change and return from hospital (with the PEOP-010 return checks); an `import` origin for slice 51; history and audit | 0078 | 3, 10 |
-| 17 | Training, competence and supervision | B | WORK-005, WORK-008, WORK-009, WORK-012 | Training requirements per role, training records, observed competence sign-offs, supervisions, appraisals and spot checks, qualifications and the revalidation planner; competence events on the outbox and the competence port (ADR-0085) | 0079 | 11 |
+| 16 | Medicines record and reconciliation | A | MEDS-001 | `medication` and `medication_schedule` (dm+d code, strength, form, dose, frequency, route, times, start, stop, review, prescriber, indication, special instructions, schedule type, CD schedule); second check; source document; reconciliation on admission, transfer, change and return from hospital (with the PEOP-010 return checks); an `import` origin for slice 51; history and audit | 0111 | 3, 10 |
+| 17 | Training, competence and supervision | B | WORK-005, WORK-008, WORK-009, WORK-012 | Training requirements per role, training records, observed competence sign-offs, supervisions, appraisals and spot checks, qualifications and the revalidation planner; competence events on the outbox and the competence port (ADR-0085) | 0079, 0114 | 11 |
 | 18 | Complaints and compliments | D | SAFE-011 | Reg 16 workflow: acknowledgement, investigation, response within the tenant SLA, outcome, appeal, LGSCO signposting; compliments as evidence through slice 14's links | 0080 | 7 |
 | 19 | Audit programme and mock inspections | E | QUAL-004 | Scored audit templates mapped to the framework (medication, care plans, IPC, environment, dignity, night visit, mock inspection), schedules, findings, self-rating, actions into the task engine; seeds the IPC template slice 31 uses | 0081 | 14 |
 | 20 | Breach register and data-protection complaints | F | PLAT-022 | Breaches with the 72-hour clock, severity, notice to data subjects from a template, ICO reference; Thapsus-to-tenant notice in-app; data-protection complaints with the acknowledgement clock and outcome | 0082 | 9 |
 | 21 | Shifts, rota builder and staffing comparison | C | SCHED-002, SCHED-001 | Shift templates and patterns, open shifts, assignments, swaps with approval, publishing with notice tracking; eligibility (DBS, right to work, competence) with a logged manager override; rota hours and skill mix against the dependency requirement, with the method shown. Split point: the staffing comparison | 0083 | 5, 11, 12, 17 |
-| 22 | Administrations | A | MEDS-002 | Append-only `medication_administration` (client UUID, due time, outcome, reason, dose, by, witness, scan evidence, covert flag, patch site, stock after, device and server time, `supersedes_id`); every 10.3 rule enforced in the API; MAR row lock and referenced corrections; the competence gate through slice 17's port (a contract-tested mock until it merges); barcode match (ADR-0081) | 0084 | 16, 17 |
+| 22 | Administrations | A | MEDS-002 | Append-only `medication_administration` (client UUID, due time, outcome, reason, dose, by, witness, scan evidence, covert flag, patch site, stock after, device and server time, `supersedes_id`); every 10.3 rule enforced in the API; MAR row lock and referenced corrections; the competence gate through slice 17's port (a contract-tested mock until it merges); barcode match (ADR-0081) | 0123 | 16, 17 |
 | 23 | Applicant tracking | B | WORK-001 | Job templates by Care Workforce Pathway role, vacancies, applications, shortlisting, interviews with values-based questions, offers, talent pool; an accepted offer creates the staff profile | 0085 | 11 |
 | 24 | Whistleblowing and speak-up | D | SAFE-012 | Named or anonymous concerns to the Freedom to Speak Up lead in a separate RLS silo, reply without identity, outcome tracking (ADR-0089) | 0086 | 7 |
 | 25 | Policy library and read-and-sign | E | QUAL-008 | Policies and versions with review dates, read-and-sign by role with reminders, change log, vendor PDF and structured import, starter templates (CCTV with camera and signage register, social media, photography and image consent, AI use) as drafts for the tenant | 0087 | 8 |
 | 26 | Import wizard | F | PLAT-014 | Batches and staged rows, CSV and JSON mappings, dry run and validation report, commit with idempotency, undo of a batch; people, contacts, allergies (with allergy status) and staff; round trip with the full export (HZ-071) (ADR-0092) | 0088 | 9 |
-| 27 | Bank and agency workers | C | SCHED-009 | Agencies and workers, bookings, AWR clock, cost, induction-at-location checks, feedback; agency access ends at shift end plus `access.agency.post_shift_hours` (ADR-0088) | 0089 | 21 |
-| 28 | PRN protocols and the psychotropic report | A | MEDS-003 | Versioned PRN protocols (indication, dose, maximum daily, minimum interval, triggers, non-drug alternatives, order of use, review date); outcome follow-up; the tenant's psychotropic list and the PRN frequency report | 0090 | 22 |
+| 27 | Bank and agency workers | C | SCHED-009 | Agencies and workers, bookings, AWR clock, cost, induction-at-location checks, feedback; agency access ends at shift end plus `access.agency.post_shift_hours` (ADR-0088) | 0104 | 21 |
+| 28 | PRN protocols and the psychotropic report | A | MEDS-003 | Versioned PRN protocols (indication, dose, maximum daily, minimum interval, triggers, non-drug alternatives, order of use, review date); outcome follow-up; the tenant's psychotropic list and the PRN frequency report | at assignment | 22 |
 | 29 | Onboarding, Care Certificate and leavers | B | WORK-004, WORK-013 | Care Certificate (16 standards) progress with assessor sign-off, shadow shifts, probation reviews, policy read-and-sign; leaver checklist, references, staff file retention | 0091 | 23, 25 |
-| 30 | Time and attendance and working-time records | C | SCHED-004, SCHED-003 | Append-only clock events (device and server time; geofence or NFC evidence at clock-in only), exceptions, timesheet approval by someone other than the worker, mileage, sleep-in awake periods; working-time results stored; opt-outs on file | 0092 | 5, 21 |
+| 30 | Time and attendance and working-time records | C | SCHED-004, SCHED-003 | Append-only clock events (device and server time; geofence or NFC evidence at clock-in only), exceptions, timesheet approval by someone other than the worker, mileage, sleep-in awake periods; working-time results stored; opt-outs on file | 0109 | 5, 21 |
 | 31 | Outbreaks and IPC audits | D | SAFE-013 | Case line list, declaration, UKHSA report fields (completing the Phase 1 draft), closure; IPC audits against the Code of Practice criteria on slice 19's template | 0093 | 7, 19 |
 | 32 | Data security evidence | E | QUAL-012 | DSPT assertion tracker with evidence uploads and the 30 June deadline, Cyber Essentials and ICO registration records, links to the breach and DSAR registers | 0094 | 8, 20 |
 | 33 | Single sign-on | F | PLAT-005 | SAML and OIDC per tenant, domain verification, linking to invited members only, Harbour's second factor for care records (ADR-0091) | 0095 | 9 |
-| 34 | Controlled drugs register | A | MEDS-005 | Pages per person, drug, form and strength; append-only entries (receipt, administration, disposal, transfer, destruction with witness); running balance; margin corrections as linked entries; two signatures with step-up; patch site rotation; stock checks; a discrepancy raises an incident (ADR-0083, ADR-0084) | 0096 | 22 |
-| 35 | Sponsor licence, staff data protection and LDSS | B | WORK-003, WORK-011, WORK-007 | Sponsored-worker record (CoS, visa expiry, Appendix D documents, absence monitoring, change reports, English language and switching evidence), HR-only; staff privacy notice; staff photo and image consent; staff DSARs through slice 15; LDSS claim tracking | 0097 | 11, 15 |
-| 36 | Pay calculation runs | C | SCHED-005, SCHED-006, SCHED-007 | Versioned pay rule sets per tenant; calculation runs that store inputs and working and reproduce exactly; NMW results per pay reference period; holiday accrual ledger; SSP periods; guaranteed-hours and cancellation records for readiness | 0098 | 30, 6 |
+| 34 | Controlled drugs register | A | MEDS-005 | Pages per person, drug, form and strength; append-only entries (receipt, administration, disposal, transfer, destruction with witness); running balance; margin corrections as linked entries; two signatures with step-up; patch site rotation; stock checks; a discrepancy raises an incident (ADR-0083, ADR-0084) | 0128 | 22 |
+| 35 | Sponsor licence, staff data protection and LDSS | B | WORK-003, WORK-011, WORK-007 | Sponsored-worker record (CoS, visa expiry, Appendix D documents, absence monitoring, change reports, English language and switching evidence), HR-only; staff privacy notice; staff photo and image consent; staff DSARs through slice 15; LDSS claim tracking | 0097, 0125 | 11, 15 |
+| 36 | Pay calculation runs | C | SCHED-005, SCHED-006, SCHED-007 | Versioned pay rule sets per tenant; calculation runs that store inputs and working and reproduce exactly; NMW results per pay reference period; holiday accrual ledger; SSP periods; guaranteed-hours and cancellation records for readiness | 0116 | 30, 6 |
 | 37 | Deaths and missing persons | D | SAFE-014, SAFE-015 | Expected and unexpected death workflow, mortality review, notifications (with the Phase 1 medical examiner pack and LeDeR prompt); Herbert Protocol profile prefilled from the record, police reference and timeline, search log, return welfare check, debrief | 0099 | 7 |
-| 38 | Covert, self-administration and homely remedies | A | MEDS-004, MEDS-006, MEDS-007 | Per-medicine covert record linked to the capacity and best-interests records (attendees including pharmacist and prescriber, method, review), covert doses marked on the MAR; self-administration assessment (choice, capacity, dexterity, storage) and review; homely remedy protocols (product, indication, dose, maximum daily, duration before GP referral, authorised staff) | 0100 | 22 |
+| 38 | Covert, self-administration and homely remedies | A | MEDS-004, MEDS-006, MEDS-007 | Per-medicine covert record linked to the capacity and best-interests records (attendees including pharmacist and prescriber, method, review), covert doses marked on the MAR; self-administration assessment (choice, capacity, dexterity, storage) and review; homely remedy protocols (product, indication, dose, maximum daily, duration before GP referral, authorised staff) | at assignment | 22 |
 | 39 | Employee relations casework | B | WORK-010 | Disciplinary, grievance, capability, sickness absence, suspension and probation cases with investigation, hearing, outcome, appeal and timelines following the ACAS Code; restricted silo (ADR-0089); DBS barring and regulator referral decisions linked to the safeguarding log | 0101 | 11, 13 |
-| 40 | Absence and leave | C | SCHED-010 | Requests and approvals, Bradford factor, return to work, fit notes, SSP eligibility, statutory family leave (maternity, paternity, parental, bereavement, carer's leave) | 0102 | 6, 21 |
-| 41 | Disclosure requests | D | SAFE-016 | Coroner disclosure and inquest packs with the Regulation 28 response tracker, SAR and DHR chronologies, police and solicitor disclosure under DPA 2018 Schedule 2, Access to Health Records Act 1990 requests, disclosure log with legal basis and approver; collection through slice 15 | 0103 | 7, 15 |
-| 42 | Stock, ordering, disposal and temperatures | A | MEDS-008 | Stock per medicine with receipts and returns; 28-day cycle ordering; disposal records; fridge and room temperature logs (`medicines.fridge_*`, `medicines.room_max_celsius`); medicines for leave; creams and patches charted against the body map; "not available" creates a stock task | 0104 | 16, 22 |
-| 43 | E-learning runtime | B | WORK-006 | Package upload to the document store, SCORM 1.2 and 2004 and xAPI runtime on a sandboxed origin, statement store, completion into training records (ADR-0093) | 0105 | 17 |
-| 44 | Staff wellbeing and voice | C | SCHED-011 | Pulse surveys with a minimum group size before results show, recognition, speak-up link to slice 24, exit interviews, turnover by team | 0106 | 11, 24 |
-| 45 | Medication errors and reviews | A | MEDS-012, MEDS-013 | Errors and near misses on the incident with medicines details (severity, harm, immediate actions, prescriber informed, root cause), CQC and safeguarding decisions through slice 7's classifier questions, trend report; annual medication review tracker (`medicines.review_interval_months`); competence override log and report | 0107 | 22, 17, 7 |
-| 46 | Lone-worker safety | C | SCHED-012 | Scheduled check-ins, overdue alarm to on-call through escalation chains, panic button, incident link | 0108 | 21 |
-| 47 | Quality dashboard and PIR prefill | E | QUAL-005, QUAL-006 | Indicators by location (falls per 1,000 bed-days, pressure ulcers, medication errors, overdue reviews, training compliance, agency hours, complaints, turnover, incident response times) with the method shown and RAG against tenant targets, from events the source slices publish; PIR data points in the CQC question set for the manager to copy | 0109 | 14, 17, 18, 27, 45 |
+| 40 | Absence and leave | C | SCHED-010 | Requests and approvals, Bradford factor, return to work, fit notes, SSP eligibility, statutory family leave (maternity, paternity, parental, bereavement, carer's leave) | 0107 | 6, 21 |
+| 41 | Disclosure requests | D | SAFE-016 | Coroner disclosure and inquest packs with the Regulation 28 response tracker, SAR and DHR chronologies, police and solicitor disclosure under DPA 2018 Schedule 2, Access to Health Records Act 1990 requests, disclosure log with legal basis and approver; collection through slice 15 | 0103, 0124 | 7, 15 |
+| 42 | Stock, ordering, disposal and temperatures | A | MEDS-008 | Stock per medicine with receipts and returns; 28-day cycle ordering; disposal records; fridge and room temperature logs (`medicines.fridge_*`, `medicines.room_max_celsius`); medicines for leave; creams and patches charted against the body map; "not available" creates a stock task | at assignment | 16, 22 |
+| 43 | E-learning runtime | B | WORK-006 | Package upload to the document store, SCORM 1.2 and 2004 and xAPI runtime on a sandboxed origin, statement store, completion into training records (ADR-0093) | 0112 | 17 |
+| 44 | Staff wellbeing and voice | C | SCHED-011 | Pulse surveys with a minimum group size before results show, recognition, speak-up link to slice 24, exit interviews, turnover by team | 0115 | 11, 24 |
+| 45 | Medication errors and reviews | A | MEDS-012, MEDS-013 | Errors and near misses on the incident with medicines details (severity, harm, immediate actions, prescriber informed, root cause), CQC and safeguarding decisions through slice 7's classifier questions, trend report; annual medication review tracker (`medicines.review_interval_months`); competence override log and report | at assignment | 22, 17, 7 |
+| 46 | Lone-worker safety | C | SCHED-012 | Scheduled check-ins, overdue alarm to on-call through escalation chains, panic button, incident link | 0113 | 21 |
+| 47 | Quality dashboard and PIR prefill | E | QUAL-005, QUAL-006 | Indicators by location (falls per 1,000 bed-days, pressure ulcers, medication errors, overdue reviews, training compliance, agency hours, complaints, turnover, incident response times) with the method shown and RAG against tenant targets, from events the source slices publish; PIR data points in the CQC question set for the manager to copy | 0108 | 14, 17, 18, 27, 45 |
 | 48 | Rounds, escalation and conflict review | A | MEDS-002 | Round view by time slot; late and early warnings; time-critical escalation that a tenant cannot switch off (HZ-008); closing a round; a conflict review task when two devices record one dose (HZ-004); alert volume and override metrics | - | 22 |
 | 49 | Medicines in the Phase 1 outputs | A | MEDS-001, MEDS-002 | Outstanding doses in the handover; doses due in the downtime pack (HZ-021, H-102); transfer pack medicines from the eMAR (HZ-023, H-82); how care plan medicines actions relate to rounds (H-151). Touches care, people and operations files: merge after the Phase 1 web items on them | - | 48, 16 |
 | 50 | Printable MAR and CD register | A | MEDS-014 | MAR chart per person per month (allergy section, codes key, covert marks, printed time, "not the live record") and CD register page exports as PDFs | - | 48, 34, 38 |
@@ -311,7 +355,7 @@ the slices it depends on.
 | 73 | Tablet split views | G | MOB-013 | iPad and Android tablet split views for the MAR and the handover, with the point-of-care header in each pane (HZ-001) | - | 69 |
 | 74 | Responsive web down to 360 px | G | MOB-013 | Playwright at 360 px for every Phase 1 and Phase 2 screen, with the fixes; runs after the web slices merge | - | 52 to 67 |
 | 75 | dm+d release download | H | INTG-006 | Worker job fetching the release from TRUD with credentials from the secret store; checksum; load through slice 10; release history; failure alert (HZ-113); monthly schedule; contract test with a mock TRUD | - | 10 |
-| 76 | Payroll and pension exports | H | SCHED-008 | Port `payroll.export`; Xero Payroll UK adapter with per-tenant OAuth; file exports for Staffology, Sage and BrightPay; approved timesheets only; auto-enrolment flags; export records for reproducibility (ADR-0013, ADR-0097) | 0110 | 36 |
+| 76 | Payroll and pension exports | H | SCHED-008 | Port `payroll.export`; Xero Payroll UK adapter with per-tenant OAuth; file exports for Staffology, Sage and BrightPay; approved timesheets only; auto-enrolment flags; export records for reproducibility (ADR-0013, ADR-0097) | 0127 | 36 |
 | 77 | Identity and vetting adapters | H | INTG-007 | Ports for IDSP right-to-work checks, DBS e-bulk and Update Service status, the NMC register; mocks and contract tests; results stored as compliance items with evidence (ADR-0094) | - | 11 |
 | 78 | LMS imports | H | WORK-006 | External training records and xAPI statements imported from an LMS behind a port with a mock | - | 43 |
 | 79 | E-signature and OCR adapters | H | INTG-013 | Optional DocuSign adapter behind the existing signature port, off by default; camera scan of paper MARs with server-side OCR producing draft medicines that arrive "not yet checked" through slice 51 (ADR-0095) | - | 51, 16 |

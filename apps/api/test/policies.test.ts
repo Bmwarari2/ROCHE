@@ -7,7 +7,7 @@ import { createLogger } from "../src/logger";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
- * The policy library and read-and-sign through the API (quality.md section 18; QUAL-008; hazard
+ * The policy library and read-and-sign through the API (quality.md section 19; QUAL-008; hazard
  * HZ-128; plan slice 25): who creates and publishes, the second reviewer, the version in force
  * only in the list, superseded versions naming their replacement, minor and major changes against
  * signatures, signing only the version in force, reminders once per interval completed by signing
@@ -321,7 +321,7 @@ describe("retiring a policy", () => {
   });
 });
 
-describe("hazard HZ-128 policy PDFs (quality.md section 18.3)", () => {
+describe("hazard HZ-128 policy PDFs (quality.md section 19.3)", () => {
   const PDF = (n: number) =>
     new TextEncoder().encode(`%PDF-1.7\n% ${n}\n1 0 obj\n<<>>\nendobj\n%%EOF\n`);
   const upload = async (n: number) => {

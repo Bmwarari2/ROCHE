@@ -75,7 +75,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * The audit programme and mock inspections (quality.md section 19; QUAL-004; HZ-011; migration
+ * The audit programme and mock inspections (quality.md section 20; QUAL-004; HZ-011; migration
  * 0081). Everything is `quality.audit.manage`: templates for whoever holds it anywhere, schedules
  * and audits only at the locations where they hold it (the database's row-level security holds the
  * same line). An audit keeps the questions and framework version it started with; a mock

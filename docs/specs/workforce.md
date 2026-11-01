@@ -111,7 +111,7 @@ Retention classes ([retention.md](retention.md)): `staff_file.after_leaving` or
 `right_to_work_copy`; `training_record` for training and competence. The gaps (unsuccessful
 applicants, DBS certificate information) are listed there.
 
-### 2b. Applicant tracking (slice 23, migration 0085)
+### 2c. Applicant tracking (slice 23, migration 0085)
 
 WORK-001: job templates, vacancies, applicants and their applications, shortlisting, values-based
 interviews, conditional offers and the talent pool; an accepted offer creates the staff profile
@@ -131,7 +131,7 @@ kept for a short period after an unsuccessful application (retention class
 | `job_offer` | `application_id` (one each), `made_on`, `proposed_start_on`, `conditions` (the Schedule 3 items the role needs, `requiredItems`), `status` (`made`, `accepted`, `declined`, `withdrawn`), `responded_on`, `staff_profile_id` | Mutable; accepted only with the member of staff the profile is for |
 | `equality_monitoring` | `vacancy_id`, `answers` (age band, sex, gender identity matches sex registered at birth, ethnic group, disability, religion, sexual orientation; each with `prefer_not_to_say`); a random id and no date | Insert only, once the vacancy has closed and before its counts are released (`vacancy.equality_summarised_at`); never linked to an applicant or application; nobody reads a row, only the counts (rule 12) |
 
-### 2c. Employee relations casework (slice 39, migration 0101)
+### 2d. Employee relations casework (slice 39, migration 0101)
 
 WORK-010: grievance, disciplinary, capability, sickness absence and probation cases, run as the
 Acas Code of Practice on disciplinary and grievance procedures sets out, with investigation,
@@ -147,7 +147,7 @@ tables with forced row-level security, read only by the members named on a case.
 | `employee_case_hearing` | `case_id`, `kind` (`investigation_meeting`, `hearing`, `appeal_hearing`), `led_by`, `invited_on`, `scheduled_at`, `issue_set_out`, `evidence_shared`, `companion_right_given`, `state`, `held_on`, `accompanied`, `postponed_reason` | Mutable. Led by the member in the matching role; a held, unattended or cancelled one is final |
 | `employee_case_event` | `case_id`, `kind`, `from_stage`, `to_stage`, `occurred_on`, `body` (a note or the appeal grounds only), `recorded_by` | Append-only: the timeline. Written in one's own name, never after the case closes |
 
-### 2d. Induction, the Care Certificate and leavers (slice 29, migration 0091)
+### 2e. Induction, the Care Certificate and leavers (slice 29, migration 0091)
 
 WORK-004 and WORK-013: from the accepted offer to the end of probation (a checklist, policy
 read-and-sign at induction, shadow shifts, probation reviews and the decision), the Care

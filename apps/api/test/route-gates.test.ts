@@ -37,7 +37,7 @@ const UNGATED: Readonly<Record<string, string>> = {
   "GET /v1/forms/templates": "the organisation's form templates; no personal data; scope 'none'",
   "GET /v1/rates/{key}": "a rate-table figure; no personal data; scope 'none'",
   "GET /v1/policies":
-    "the organisation's policies, read by every member (quality.md section 18.2); scope 'none'",
+    "the organisation's policies, read by every member (quality.md section 19.2); scope 'none'",
   "GET /v1/policies/{id}":
     "one policy and its published versions, read by every member; drafts only for holders of quality.policy.manage (migration 0087)",
   "POST /v1/policies/{id}/versions/{versionId}/signatures":

@@ -58,7 +58,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * The policy library and read-and-sign (quality.md section 18; QUAL-008; HZ-128; plan slice 25).
+ * The policy library and read-and-sign (quality.md section 19; QUAL-008; HZ-128; plan slice 25).
  * Every member reads policies and the versions published and signs the version in force; holders
  * of quality.policy.manage write, publish and retire them and see everyone's status. The database
  * enforces the same (migration 0087). Audit events carry opaque ids and codes only.

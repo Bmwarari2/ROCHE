@@ -17,6 +17,7 @@ import {
   careNote,
   disclosureItem,
   disclosureRequest,
+  document,
   person,
   rateTable,
   type Transaction,
@@ -28,9 +29,10 @@ import {
   bundleReadiness,
   checkItemDecision,
   type DisclosureType,
+  DOCUMENT_CATEGORIES,
   type DsarItemDecision,
-  disclosurePackStorageKey,
   disclosurePrepareProblems,
+  documentStorageKey,
   dsarNotSearched,
   dsarNotSearchedOf,
   findThirdPartyNames,
@@ -77,7 +79,7 @@ import {
 import { dbCode } from "./people-shared";
 
 /**
- * Disclosure requests (SAFE-016; safety.md section 11, rules 38 to 44): one person's records for a
+ * Disclosure requests (SAFE-016; safety.md section 12, rules 38 to 44): one person's records for a
  * coroner, a Safeguarding Adults Review, a Domestic Homicide Review, the police, a solicitor or an
  * Access to Health Records Act request, each with its legal basis. Collection reuses the DSAR
  * collector in the organisation's context after the route has authorised the member (ADR-0090);
@@ -917,14 +919,30 @@ export const disclosuresRouter = createRouter()
         notSearched: row.notSearched.map((t) => dsarNotSearchedOf(t)),
         sha256,
       };
-      const storage = c.get("services").exportStorage;
-      const storageKey = disclosurePackStorageKey(access.tenantId, id, randomUUID());
-      await storage.put(
-        storageKey,
-        new TextEncoder().encode(JSON.stringify(pack)),
-        "application/json",
-      );
+      // Kept as a document under the disclosure's retention class, in the documents bucket, not
+      // the exports bucket, whose objects expire after 30 days (safety.md section 12 rule 42).
+      const storage = c.get("services").storage;
+      const documentId = randomUUID();
+      const storageKey = documentStorageKey(access.tenantId, documentId);
+      const bytes = new TextEncoder().encode(JSON.stringify(pack));
+      await storage.put(storageKey, bytes, "application/json");
       const out = await inTx(c, async (tx) => {
+        await tx.insert(document).values({
+          id: documentId,
+          category: "disclosure_pack",
+          title: "Disclosure pack as issued",
+          retentionClass: DOCUMENT_CATEGORIES.disclosure_pack.retentionClass,
+          storageKey,
+          contentType: "application/json",
+          sizeBytes: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          // About no person on the row, so no general document route lists or serves it.
+          personId: null,
+          subjectType: "disclosure_request",
+          subjectId: id,
+          status: "available",
+          scanStatus: "not_scanned",
+        });
         const saved = await change(tx, await loadRequest(tx, id), expectedVersion, ["approved"], {
           state: "released",
           releasedBy: access.tenantUserId,
@@ -974,7 +992,12 @@ export const disclosuresRouter = createRouter()
         await audit(c, tx, access, "pack_fetched", id, { sha256: r.packSha256 });
         return r;
       });
-      const bytes = await c.get("services").exportStorage.get(row.packStorageKey as string);
+      const key = row.packStorageKey as string;
+      // Packs issued before they were kept as documents are still read from the exports bucket.
+      const bytes = await (key.startsWith(`tenants/${access.tenantId}/documents/`)
+        ? c.get("services").storage
+        : c.get("services").exportStorage
+      ).get(key);
       if (!bytes) throw problems.notFound();
       c.header("cache-control", "private, no-store");
       return c.json(

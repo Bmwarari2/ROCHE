@@ -2,7 +2,7 @@ import { addPeriod } from "../platform/retention";
 import { type RoleRegistration, requiredItems, type Schedule3ItemKind } from "./schedule3";
 
 /**
- * Applicant tracking (workforce.md section 2b and rules 11 to 13; WORK-001; plan slice 23). Job
+ * Applicant tracking (workforce.md section 2c and rules 11 to 13; WORK-001; plan slice 23). Job
  * templates by Care Workforce Pathway role, vacancies, applications through shortlisting and
  * values-based interviews to a conditional offer, the talent pool, equality monitoring reported
  * only as suppressed counts, and how long an applicant's data is kept. Every decision is a

@@ -19,7 +19,7 @@ import { location } from "./platform";
 import { REGISTRATION_BODIES, staffProfile } from "./workforce";
 
 /**
- * Applicant tracking (workforce.md section 2b; WORK-001; plan slice 23, migration 0085): job
+ * Applicant tracking (workforce.md section 2c; WORK-001; plan slice 23, migration 0085): job
  * templates by Care Workforce Pathway role, vacancies, applicants and their applications, the
  * stage history, values-based interviews, conditional offers and equality monitoring. Read and
  * written only by holders of `workforce.recruitment.manage` (organisation-wide, as the staff file

@@ -4,7 +4,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Data security evidence in the database (QUAL-012; quality.md section 18; migration 0094; hazard
+ * Data security evidence in the database (QUAL-012; quality.md section 22; migration 0094; hazard
  * HZ-011): read and written only with quality.dsar.manage held across the organisation, never by a
  * manager for one home or across organisations; read by the system for renewal tasks; evidence
  * links append-only; checks on years, references, statuses and dates; one submission per year.

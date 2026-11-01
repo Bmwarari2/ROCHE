@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
- * Employee relations casework through the API (workforce.md section 2c, rules 15 to 18 and
+ * Employee relations casework through the API (workforce.md section 2d, rules 15 to 18 and
  * section 5; WORK-010; plan slice 39; ADR-0089): only a holder of the silo permission opens a
  * case; only the members named on it read or act on it, the owner and the Registered Manager
  * included; a disciplinary case from opening to an appeal decided, with a hearing that needs the
