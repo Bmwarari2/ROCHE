@@ -809,6 +809,8 @@ export const MAR_ENTRY_NOTICES = {
   beforeRecorded: "Before this entry was recorded: not due",
   earlierDosesToday:
     "Recorded part-way through today with today's earlier doses kept due: check with the nurse in charge whether each was given before giving it.",
+  importedHold:
+    "Imported or scanned, not yet checked: do not give until a second person competent in medicines has checked it against the source document, whatever the home's usual rule. Tell the nurse in charge.",
   variableDose:
     "Do not give from this entry: its dose comes from the dosing record, which is not built yet. Ask the prescriber for today's dose and record it as a new MAR entry, stopping this one first.",
 } as const;
@@ -876,7 +878,16 @@ export function marEntryStatus(
   const join = (notice: string | null) =>
     [notice, dayNotice, ending].filter(Boolean).join(" ") || null;
   let status: MarEntryStatus;
-  if (entry.secondCheck === null) {
+  if (entry.secondCheck === null && entry.origin === "import") {
+    // An imported or scanned entry (slice 51, slice 79 OCR) is held until its second check under
+    // either policy: no person transcribed it from the source, so the check is the first person to
+    // compare it (H-548; ADR-0095; HZ-005).
+    status = {
+      words: "Not yet checked",
+      mayGive: false,
+      notice: join(MAR_ENTRY_NOTICES.importedHold),
+    };
+  } else if (entry.secondCheck === null) {
     status =
       policy === "give_with_notice"
         ? { words: "Not yet checked", mayGive: true, notice: join(MAR_ENTRY_NOTICES.notYetChecked) }

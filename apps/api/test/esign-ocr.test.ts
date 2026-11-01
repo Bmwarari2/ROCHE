@@ -83,6 +83,8 @@ interface RequestItem {
 beforeAll(async () => {
   h = await createHarness({ MALWARE_SCANNER: "mock", OCR_ENGINE: "mock", DOCUSIGN: "mock" });
   await verified(h);
+  // OCR is per organisation: the demo organisation chose the mock engine (ADR-0095).
+  await sql("INSERT INTO integration_connection (port, provider) VALUES ('documents.ocr', 'mock')");
 });
 
 /** Medicines records need MFA: the demo members have a factor and used it on these sessions. */
@@ -207,6 +209,25 @@ describe("signing in Harbour (ADR-0095)", () => {
   });
 });
 
+describe("signing never reaches beyond organisation documents (security H1)", () => {
+  it("refuses a staff HR document and a logo", async () => {
+    const rows = await sql<{ id: string; sha256: string }>(
+      `INSERT INTO document (category, title, retention_class, storage_key, content_type, size_bytes, sha256)
+       VALUES ('staff_hr_document', 'Right to work', 'staff_file', 'hr1', 'application/pdf', 10, $1),
+              ('organisation_logo', 'Logo', 'organisation_document', 'logo1', 'image/png', 10, $1)
+       RETURNING id, sha256`,
+      ["a".repeat(64)],
+    );
+    for (const row of rows) {
+      const res = await as("manager", `/v1/documents/${row.id}/signature-requests`, {
+        method: "POST",
+        body: { signerId: DEMO.users.carer.id, documentSha256: row.sha256 },
+      });
+      expect(res.status).toBe(404);
+    }
+  });
+});
+
 describe("signing through DocuSign (the mock; H-540)", () => {
   const docusign = () => h.handle.services.docusign as MockDocuSign;
 
@@ -298,6 +319,16 @@ describe("signing through DocuSign (the mock; H-540)", () => {
     expect(await docusign().status(cancelled.envelope)).toEqual({ state: "voided" });
   });
 
+  it("voids nothing on a stale cancel, and sends the provider a fixed reason only", async () => {
+    const { item, envelope } = await sent("first aid");
+    const stale = await as("manager", `/v1/signature-requests/${item.id}/cancel`, {
+      method: "POST",
+      body: { version: item.version + 1, reason: "Wrong member, Cat Carer instead" },
+    });
+    expect(stale.status).toBe(409);
+    expect(await docusign().status(envelope)).toEqual({ state: "sent" });
+  });
+
   it("cannot be signed in Harbour", async () => {
     const { item, doc } = await sent("duty of candour");
     const res = await as("nurse", `/v1/signature-requests/${item.id}/sign`, {
@@ -323,6 +354,8 @@ interface Extraction {
     readText: string;
     state: string;
     value: string | null;
+    lowConfidence: boolean;
+    truncated: boolean;
   }[];
 }
 
@@ -332,10 +365,40 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     { group: 0, label: "dose", text: "1 tablet", confidence: 0.97 },
     { group: 0, label: "route", text: "Oral", confidence: 0.4 },
   ];
+  const releaseBody = (version: number, over: Record<string, unknown> = {}) => ({
+    version,
+    linesCounted: 1,
+    lines: [{ line: 0, status: "active" }],
+    personConfirmed: true,
+    chartFrom: "2026-10-05",
+    chartTo: "2026-11-01",
+    currentChart: true,
+    ...over,
+  });
 
-  async function scan(bytes: Uint8Array, who = "nurse") {
-    const res = await upload(who, `/v1/people/${RESIDENT}/mar-scans`, bytes, "image/jpeg");
-    return res;
+  const scan = (bytes: Uint8Array, who = "nurse", key?: string) =>
+    h.request(`/v1/people/${RESIDENT}/mar-scans`, {
+      method: "POST",
+      token: h.tokens[who],
+      tenant: DEMO.tenantId,
+      raw: { bytes, contentType: "image/jpeg" },
+      ...(key ? { headers: { "idempotency-key": key } } : {}),
+    });
+
+  async function ready(fields: unknown[] = read): Promise<Extraction> {
+    const res = await scan(chart(fields));
+    expect(res.status).toBe(201);
+    return (await res.json()) as Extraction;
+  }
+
+  async function decide(x: Extraction, index: number, body: Record<string, unknown>) {
+    const f = x.fields[index];
+    const r = await as("nurse", `/v1/ocr-extractions/${x.id}/fields/${f?.id}/decision`, {
+      method: "POST",
+      body: { version: f?.version, ...body },
+    });
+    expect(r.status).toBe(200);
+    return (await r.json()) as Extraction;
   }
 
   it("is for medicines record holders where it reaches the person", async () => {
@@ -350,33 +413,41 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     expect((h.handle.services.ocr as MockOcr).requests.length).toBe(before);
   });
 
-  it("keeps every value unconfirmed, however confident the engine, and releases only when all are decided", async () => {
-    const res = await scan(chart(read));
-    expect(res.status).toBe(201);
-    let x = (await res.json()) as Extraction;
+  it("returns the first scan for a retried upload with the same key (security L4)", async () => {
+    const key = "0194d000-0000-7000-8000-00000000c0de";
+    const first = (await (await scan(chart(read), "nurse", key)).json()) as Extraction;
+    const again = (await (await scan(chart(read), "nurse", key)).json()) as Extraction;
+    expect(again.id).toBe(first.id);
+  });
+
+  it("refuses an engine's read with a line or part Harbour does not know, never coercing it", async () => {
+    const res = await scan(chart([{ group: -1, label: "frequency", text: "BD", confidence: 0.9 }]));
+    expect((await res.json()) as Extraction).toMatchObject({
+      state: "failed",
+      failure: "unreadable",
+    });
+  });
+
+  it("flags a weak reading in words, never sending the engine's number", async () => {
+    const x = await ready();
+    expect(x.fields.map((f) => f.lowConfidence)).toEqual([false, false, true]);
+    expect(JSON.stringify(x)).not.toMatch(/"confidence"/);
+  });
+
+  it("keeps every value unconfirmed, and releases only a fully accounted-for chart", async () => {
+    let x = await ready();
     expect(x).toMatchObject({ state: "ready", engine: "mock", location: "local", undecided: 3 });
     expect(x.fields.map((f) => f.state)).toEqual(["unconfirmed", "unconfirmed", "unconfirmed"]);
-
     const early = await as("nurse", `/v1/ocr-extractions/${x.id}/release`, {
       method: "POST",
-      body: { version: x.version },
+      body: releaseBody(x.version),
     });
     expect(early.status).toBe(409);
-    const notYet = await as("nurse", `/v1/ocr-extractions/${x.id}/medicine-lines`);
-    expect(notYet.status).toBe(404);
+    expect((await as("nurse", `/v1/ocr-extractions/${x.id}/medicine-lines`)).status).toBe(404);
 
-    const decide = async (index: number, body: Record<string, unknown>) => {
-      const f = x.fields[index];
-      const r = await as("nurse", `/v1/ocr-extractions/${x.id}/fields/${f?.id}/decision`, {
-        method: "POST",
-        body: { version: f?.version, ...body },
-      });
-      expect(r.status).toBe(200);
-      x = (await r.json()) as Extraction;
-    };
-    await decide(0, { action: "confirm" });
-    await decide(1, { action: "correct", value: "2 tablets" });
-    await decide(2, { action: "reject" });
+    x = await decide(x, 0, { action: "confirm" });
+    x = await decide(x, 1, { action: "correct", value: "2 tablets" });
+    x = await decide(x, 2, { action: "reject" });
     const twice = await as(
       "nurse",
       `/v1/ocr-extractions/${x.id}/fields/${x.fields[0]?.id}/decision`,
@@ -387,9 +458,23 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     );
     expect(twice.status).toBe(409);
 
+    for (const [over, words] of [
+      [{ linesCounted: 2 }, /do not match/],
+      [{ lines: [] }, /in force or stopped/],
+      [{ lines: [{ line: 0, status: "cannot_tell" }] }, /unclear/],
+      [{ currentChart: false }, /in use now/],
+    ] as const) {
+      const refused = await as("nurse", `/v1/ocr-extractions/${x.id}/release`, {
+        method: "POST",
+        body: releaseBody(x.version, over),
+      });
+      expect(refused.status).toBe(409);
+      expect(((await refused.json()) as { detail: string }).detail).toMatch(words);
+    }
+
     const released = await as("nurse", `/v1/ocr-extractions/${x.id}/release`, {
       method: "POST",
-      body: { version: x.version },
+      body: releaseBody(x.version),
     });
     expect(released.status).toBe(200);
     const events = await sql<{ payload: Record<string, unknown> }>(
@@ -401,11 +486,16 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
       { extractionId: x.id, personId: RESIDENT, lines: 1 },
     ]);
     const lines = await as("nurse", `/v1/ocr-extractions/${x.id}/medicine-lines`);
-    expect(await lines.json()).toMatchObject({
+    const body = (await lines.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      chartFrom: "2026-10-05",
+      chartTo: "2026-11-01",
+      decidedBy: [DEMO.users.nurse.id],
+      releasedBy: DEMO.users.nurse.id,
       lines: [
         {
-          medicine: "Paracetamol 500 mg tablets",
-          dose: "2 tablets",
+          medicine: { value: "Paracetamol 500 mg tablets", state: "confirmed" },
+          dose: { value: "2 tablets", state: "corrected" },
           route: null,
           origin: "import",
           state: "not_yet_checked",
@@ -416,16 +506,91 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     const audits = await sql<{ scope: unknown; reason: string | null }>(
       "SELECT scope, reason FROM audit_event WHERE action LIKE 'integrations.ocr.%'",
     );
+    // No value read or typed is written to the audit trail.
     expect(JSON.stringify(audits)).not.toMatch(/tablet|Paracetamol/);
   });
 
-  it("records a failed read and a discarded scan, and never releases either", async () => {
+  it("hazard HZ-130 releases a scanned chart only after its person is confirmed", async () => {
+    let x = await ready(read.slice(0, 1));
+    x = await decide(x, 0, { action: "confirm" });
+    const refused = await as("nurse", `/v1/ocr-extractions/${x.id}/release`, {
+      method: "POST",
+      body: releaseBody(x.version, { personConfirmed: false }),
+    });
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { detail: string }).detail).toMatch(/name and date of birth/);
+  });
+
+  it("never joins two values for one part, and lets a person move one and add what the scan missed", async () => {
+    let x = await ready([
+      { group: 0, label: "medicine", text: "Amlodipine 5 mg tablets", confidence: 0.9 },
+      { group: 0, label: "dose", text: "1 tablet", confidence: 0.9 },
+      { group: 0, label: "dose", text: "2 tablets", confidence: 0.9 },
+    ]);
+    x = await decide(x, 0, { action: "confirm" });
+    x = await decide(x, 1, { action: "confirm" });
+    x = await decide(x, 2, { action: "confirm" });
+    const joined = await as("nurse", `/v1/ocr-extractions/${x.id}/release`, {
+      method: "POST",
+      body: releaseBody(x.version),
+    });
+    expect(((await joined.json()) as { detail: string }).detail).toMatch(
+      /two values for the same part/,
+    );
+
+    let y = await ready([
+      { group: 0, label: "medicine", text: "Amlodipine 5 mg tablets", confidence: 0.9 },
+      { group: 0, label: "dose", text: "2 tablets", confidence: 0.9 },
+    ]);
+    y = await decide(y, 0, { action: "confirm" });
+    // The engine put the dose on line 0; the person moves it to the medicine they add on line 1.
+    y = await decide(y, 1, { action: "confirm", line: 1 });
+    const added = await as("nurse", `/v1/ocr-extractions/${y.id}/fields`, {
+      method: "POST",
+      body: { version: y.version, line: 1, label: "medicine", value: "Senna 7.5 mg tablets" },
+    });
+    expect(added.status).toBe(201);
+    y = (await added.json()) as Extraction;
+    const released = await as("nurse", `/v1/ocr-extractions/${y.id}/release`, {
+      method: "POST",
+      body: releaseBody(y.version, {
+        linesCounted: 2,
+        lines: [
+          { line: 0, status: "active" },
+          { line: 1, status: "active" },
+        ],
+      }),
+    });
+    expect(released.status).toBe(200);
+    const lines = (await (
+      await as("nurse", `/v1/ocr-extractions/${y.id}/medicine-lines`)
+    ).json()) as {
+      lines: {
+        medicine: { value: string; addedByPerson: boolean };
+        dose: { value: string } | null;
+      }[];
+    };
+    expect(
+      lines.lines.map((l) => [l.medicine.value, l.medicine.addedByPerson, l.dose?.value ?? null]),
+    ).toEqual([
+      ["Amlodipine 5 mg tablets", false, null],
+      ["Senna 7.5 mg tablets", true, "2 tablets"],
+    ]);
+  });
+
+  it("records a failed read, a chart that read as nothing, and a discarded scan, and never releases them", async () => {
     const failed = await scan(chart(null, "HARBOUR-OCR-FAIL"));
-    expect(failed.status).toBe(201);
-    const f = (await failed.json()) as Extraction;
-    expect(f).toMatchObject({ state: "failed", failure: "engine_error", fields: [] });
-    const res = await scan(chart(read));
-    const x = (await res.json()) as Extraction;
+    expect((await failed.json()) as Extraction).toMatchObject({
+      state: "failed",
+      failure: "engine_error",
+      fields: [],
+    });
+    const nothing = await scan(chart(null, "a chart the engine could not read"));
+    expect((await nothing.json()) as Extraction).toMatchObject({
+      state: "failed",
+      failure: "nothing_read",
+    });
+    const x = await ready();
     const discarded = await as("nurse", `/v1/ocr-extractions/${x.id}/discard`, {
       method: "POST",
       body: { version: x.version },
@@ -433,13 +598,26 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     expect(((await discarded.json()) as Extraction).state).toBe("discarded");
     const release = await as("nurse", `/v1/ocr-extractions/${x.id}/release`, {
       method: "POST",
-      body: { version: x.version + 1 },
+      body: releaseBody(x.version + 1),
     });
     expect(release.status).toBe(409);
   });
 
+  it("is switched off for an organisation that has not chosen it", async () => {
+    await sql("DELETE FROM integration_connection WHERE port = 'documents.ocr'");
+    try {
+      const res = await scan(chart(read));
+      expect(res.status).toBe(403);
+      expect(((await res.json()) as { code: string }).code).toBe("feature_disabled");
+    } finally {
+      await sql(
+        "INSERT INTO integration_connection (port, provider) VALUES ('documents.ocr', 'mock')",
+      );
+    }
+  });
+
   it("is unavailable when no engine is configured", async () => {
-    const off = await createHarness({ OCR_ENGINE: "none" });
+    const off = await createHarness();
     try {
       await verified(off);
       const res = await off.request(`/v1/people/${RESIDENT}/mar-scans`, {

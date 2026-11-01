@@ -154,10 +154,10 @@ const Env = z.object({
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   /**
    * OCR of scanned MAR charts (ADR-0095): the mock (development and tests) or none (OCR is
-   * unavailable). Unset, it is the mock outside production and none in production. The Document
-   * AI adapter, in europe-west2, waits for H-1262.
+   * unavailable, the default everywhere: the mock is set explicitly, so a pilot holding real people
+   * never reads a chart with it). The Document AI adapter, in europe-west2, waits for H-1262.
    */
-  OCR_ENGINE: z.enum(["mock", "none"]).optional(),
+  OCR_ENGINE: z.enum(["mock", "none"]).default("none"),
   /** DocuSign (ADR-0095, H-540): the no-network mock (tests) or off (signing in Harbour only). */
   DOCUSIGN: z.enum(["mock", "off"]).default("off"),
   CLAMD_HOST: z.string().default("127.0.0.1"),

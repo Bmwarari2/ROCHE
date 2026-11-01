@@ -1,10 +1,13 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -61,7 +64,7 @@ export const signatureRequest = pgTable(
     envelopeId: text("envelope_id"),
     requestedBy: uuid("requested_by").notNull(),
     /** In-app: the signature row written when the member signed. */
-    signatureId: uuid("signature_id").references(() => documentSignature.id),
+    signatureId: uuid("signature_id"),
     /** DocuSign: the signed document the provider returned, stored as a new version. */
     signedDocumentId: uuid("signed_document_id"),
     /** How the signer proved it was them (in-app): the second factor's method, never a secret. */
@@ -73,6 +76,16 @@ export const signatureRequest = pgTable(
   (t) => [
     unique("signature_request_tenant_id_id_key").on(t.tenantId, t.id),
     documentRef("signature_request_document_fk", t, t.documentId),
+    // The signature is this tenant's, on this request's document (security M2; ADR-0002).
+    foreignKey({
+      name: "signature_request_signature_fk",
+      columns: [t.tenantId, t.documentId, t.signatureId],
+      foreignColumns: [
+        documentSignature.tenantId,
+        documentSignature.documentId,
+        documentSignature.id,
+      ],
+    }),
     documentRef("signature_request_signed_document_fk", t, t.signedDocumentId),
     staffRef("signature_request_signer_fk", t, t.signerTenantUserId),
     staffRef("signature_request_requested_by_fk", t, t.requestedBy),
@@ -127,6 +140,17 @@ export const ocrExtraction = pgTable(
     /** A short code for a failed read (`engine_error`, `not_clean`); never the engine's message. */
     failure: text("failure"),
     requestedBy: uuid("requested_by").notNull(),
+    /** The client's id for the scan, so a retried upload returns the first scan (security L4). */
+    clientRef: uuid("client_ref"),
+    /** At release: the medicine lines the person counted on the paper chart, typed. */
+    linesCounted: integer("lines_counted"),
+    /** At release: each medicine line in force or stopped on the chart, `[{ line, status }]`. */
+    lineStatuses: jsonb("line_statuses"),
+    /** At release: the period the chart covers, and that it is the current chart. */
+    chartFrom: date("chart_from"),
+    chartTo: date("chart_to"),
+    /** At release: who confirmed the name and date of birth on the chart are this person's (HZ-130). */
+    personConfirmedBy: uuid("person_confirmed_by"),
     releasedBy: uuid("released_by"),
     releasedAt: timestamp("released_at", { withTimezone: true }),
     discardedBy: uuid("discarded_by"),
@@ -144,6 +168,8 @@ export const ocrExtraction = pgTable(
     documentRef("ocr_extraction_document_fk", t, t.documentId),
     staffRef("ocr_extraction_requested_by_fk", t, t.requestedBy),
     staffRef("ocr_extraction_released_by_fk", t, t.releasedBy),
+    staffRef("ocr_extraction_person_confirmed_by_fk", t, t.personConfirmedBy),
+    unique("ocr_extraction_client_ref_key").on(t.tenantId, t.clientRef),
     staffRef("ocr_extraction_discarded_by_fk", t, t.discardedBy),
     index("ocr_extraction_person_idx").on(t.tenantId, t.personId),
     check("ocr_extraction_kind", sql`kind IN ('mar')`),
@@ -157,7 +183,9 @@ export const ocrExtraction = pgTable(
     ),
     check(
       "ocr_extraction_closed",
-      sql`(state = 'released') = (released_at IS NOT NULL AND released_by IS NOT NULL)
+      sql`(state = 'released') = (released_at IS NOT NULL AND released_by IS NOT NULL
+          AND lines_counted IS NOT NULL AND line_statuses IS NOT NULL AND chart_from IS NOT NULL
+          AND chart_to IS NOT NULL AND person_confirmed_by IS NOT NULL)
         AND (state = 'discarded') = (discarded_at IS NOT NULL AND discarded_by IS NOT NULL)
         AND (state IN ('blocked', 'failed')) = (failure IS NOT NULL)`,
     ),
@@ -182,6 +210,13 @@ export const ocrField = pgTable(
     state: text("state").notNull().default("unconfirmed"),
     /** What a person decided: the text as read, or their correction. Null until then. */
     value: text("value"),
+    /** The chart line and part a person decided the value belongs to (the engine's are a proposal). */
+    decidedLineGroup: integer("decided_line_group"),
+    decidedLabel: text("decided_label"),
+    /** The text read was longer than a field holds and was cut: corrected or rejected, never confirmed. */
+    truncated: boolean("truncated").notNull().default(false),
+    /** Typed by a person for something the scan missed, never read by the engine. */
+    addedByPerson: boolean("added_by_person").notNull().default(false),
     decidedBy: uuid("decided_by"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     ...mutableColumns(),
@@ -207,7 +242,18 @@ export const ocrField = pgTable(
       "ocr_field_decided",
       sql`(state = 'unconfirmed') = (decided_by IS NULL AND decided_at IS NULL)
         AND (state IN ('confirmed', 'corrected')) = (value IS NOT NULL)
-        AND (value IS NULL OR length(value) BETWEEN 1 AND 500)`,
+        AND (state IN ('confirmed', 'corrected')) = (decided_line_group IS NOT NULL AND decided_label IS NOT NULL)
+        AND (value IS NULL OR length(value) BETWEEN 1 AND 500)
+        AND NOT (state = 'confirmed' AND truncated)
+        AND (NOT added_by_person OR state = 'corrected')`,
+    ),
+    check(
+      "ocr_field_lines",
+      sql`line_group BETWEEN 0 AND 199 AND (decided_line_group IS NULL OR decided_line_group BETWEEN 0 AND 199)`,
+    ),
+    check(
+      "ocr_field_decided_label",
+      sql`decided_label IS NULL OR decided_label IN ('medicine', 'strength', 'dose', 'route', 'directions', 'prescriber', 'text')`,
     ),
   ],
 );

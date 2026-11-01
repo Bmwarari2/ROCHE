@@ -1,5 +1,5 @@
 {
-  "id": "0a6c6aea-3345-4442-a238-0fcb64de4a7e",
+  "id": "e957d029-090a-4a39-a2f4-fe140dc5d590",
   "prevId": "34af3497-983d-4d10-9875-eeac0345a989",
   "version": "7",
   "dialect": "postgresql",
@@ -13082,6 +13082,896 @@
         "dpia_signer_not_preparer": {
           "name": "dpia_signer_not_preparer",
           "value": "signed_by IS NULL OR NOT (signed_by = ANY (prepared_by))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.ocr_extraction": {
+      "name": "ocr_extraction",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'mar'"
+        },
+        "engine": {
+          "name": "engine",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "failure": {
+          "name": "failure",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_by": {
+          "name": "requested_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_ref": {
+          "name": "client_ref",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lines_counted": {
+          "name": "lines_counted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "line_statuses": {
+          "name": "line_statuses",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "chart_from": {
+          "name": "chart_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "chart_to": {
+          "name": "chart_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "person_confirmed_by": {
+          "name": "person_confirmed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "released_by": {
+          "name": "released_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "released_at": {
+          "name": "released_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discarded_by": {
+          "name": "discarded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discarded_at": {
+          "name": "discarded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "ocr_extraction_person_idx": {
+          "name": "ocr_extraction_person_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ocr_extraction_person_fk": {
+          "name": "ocr_extraction_person_fk",
+          "tableFrom": "ocr_extraction",
+          "tableTo": "person",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocr_extraction_document_fk": {
+          "name": "ocr_extraction_document_fk",
+          "tableFrom": "ocr_extraction",
+          "tableTo": "document",
+          "columnsFrom": [
+            "tenant_id",
+            "document_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocr_extraction_requested_by_fk": {
+          "name": "ocr_extraction_requested_by_fk",
+          "tableFrom": "ocr_extraction",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "requested_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocr_extraction_released_by_fk": {
+          "name": "ocr_extraction_released_by_fk",
+          "tableFrom": "ocr_extraction",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "released_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocr_extraction_person_confirmed_by_fk": {
+          "name": "ocr_extraction_person_confirmed_by_fk",
+          "tableFrom": "ocr_extraction",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "person_confirmed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocr_extraction_discarded_by_fk": {
+          "name": "ocr_extraction_discarded_by_fk",
+          "tableFrom": "ocr_extraction",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "discarded_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ocr_extraction_tenant_id_id_key": {
+          "name": "ocr_extraction_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "ocr_extraction_tenant_person_id_key": {
+          "name": "ocr_extraction_tenant_person_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ]
+        },
+        "ocr_extraction_client_ref_key": {
+          "name": "ocr_extraction_client_ref_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "client_ref"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "ocr_extraction_kind": {
+          "name": "ocr_extraction_kind",
+          "value": "kind IN ('mar')"
+        },
+        "ocr_extraction_engine": {
+          "name": "ocr_extraction_engine",
+          "value": "(engine, location) IN (('google_document_ai', 'europe-west2'), ('mock', 'local'))"
+        },
+        "ocr_extraction_state": {
+          "name": "ocr_extraction_state",
+          "value": "state IN ('blocked', 'failed', 'ready', 'released', 'discarded')"
+        },
+        "ocr_extraction_closed": {
+          "name": "ocr_extraction_closed",
+          "value": "(state = 'released') = (released_at IS NOT NULL AND released_by IS NOT NULL\n          AND lines_counted IS NOT NULL AND line_statuses IS NOT NULL AND chart_from IS NOT NULL\n          AND chart_to IS NOT NULL AND person_confirmed_by IS NOT NULL)\n        AND (state = 'discarded') = (discarded_at IS NOT NULL AND discarded_by IS NOT NULL)\n        AND (state IN ('blocked', 'failed')) = (failure IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.ocr_field": {
+      "name": "ocr_field",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "extraction_id": {
+          "name": "extraction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_group": {
+          "name": "line_group",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_text": {
+          "name": "read_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "numeric(4, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unconfirmed'"
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_line_group": {
+          "name": "decided_line_group",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_label": {
+          "name": "decided_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "truncated": {
+          "name": "truncated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "added_by_person": {
+          "name": "added_by_person",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "ocr_field_extraction_idx": {
+          "name": "ocr_field_extraction_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "extraction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ocr_field_extraction_fk": {
+          "name": "ocr_field_extraction_fk",
+          "tableFrom": "ocr_field",
+          "tableTo": "ocr_extraction",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "extraction_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocr_field_decided_by_fk": {
+          "name": "ocr_field_decided_by_fk",
+          "tableFrom": "ocr_field",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "decided_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ocr_field_tenant_id_id_key": {
+          "name": "ocr_field_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "ocr_field_position_key": {
+          "name": "ocr_field_position_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "extraction_id",
+            "position"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "ocr_field_label": {
+          "name": "ocr_field_label",
+          "value": "label IN ('medicine', 'strength', 'dose', 'route', 'directions', 'prescriber', 'text')"
+        },
+        "ocr_field_state": {
+          "name": "ocr_field_state",
+          "value": "state IN ('unconfirmed', 'confirmed', 'corrected', 'rejected')"
+        },
+        "ocr_field_confidence": {
+          "name": "ocr_field_confidence",
+          "value": "confidence >= 0 AND confidence <= 1"
+        },
+        "ocr_field_text": {
+          "name": "ocr_field_text",
+          "value": "length(read_text) BETWEEN 1 AND 500"
+        },
+        "ocr_field_decided": {
+          "name": "ocr_field_decided",
+          "value": "(state = 'unconfirmed') = (decided_by IS NULL AND decided_at IS NULL)\n        AND (state IN ('confirmed', 'corrected')) = (value IS NOT NULL)\n        AND (state IN ('confirmed', 'corrected')) = (decided_line_group IS NOT NULL AND decided_label IS NOT NULL)\n        AND (value IS NULL OR length(value) BETWEEN 1 AND 500)\n        AND NOT (state = 'confirmed' AND truncated)\n        AND (NOT added_by_person OR state = 'corrected')"
+        },
+        "ocr_field_lines": {
+          "name": "ocr_field_lines",
+          "value": "line_group BETWEEN 0 AND 199 AND (decided_line_group IS NULL OR decided_line_group BETWEEN 0 AND 199)"
+        },
+        "ocr_field_decided_label": {
+          "name": "ocr_field_decided_label",
+          "value": "decided_label IS NULL OR decided_label IN ('medicine', 'strength', 'dose', 'route', 'directions', 'prescriber', 'text')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.signature_request": {
+      "name": "signature_request",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_sha256": {
+          "name": "document_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signer_tenant_user_id": {
+          "name": "signer_tenant_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'requested'"
+        },
+        "envelope_id": {
+          "name": "envelope_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_by": {
+          "name": "requested_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signature_id": {
+          "name": "signature_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signed_document_id": {
+          "name": "signed_document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "step_up_method": {
+          "name": "step_up_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signed_at": {
+          "name": "signed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_reason": {
+          "name": "closed_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "signature_request_document_idx": {
+          "name": "signature_request_document_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "signature_request_signer_idx": {
+          "name": "signature_request_signer_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "signer_tenant_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "signature_request_document_fk": {
+          "name": "signature_request_document_fk",
+          "tableFrom": "signature_request",
+          "tableTo": "document",
+          "columnsFrom": [
+            "tenant_id",
+            "document_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "signature_request_signature_fk": {
+          "name": "signature_request_signature_fk",
+          "tableFrom": "signature_request",
+          "tableTo": "document_signature",
+          "columnsFrom": [
+            "tenant_id",
+            "document_id",
+            "signature_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "document_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "signature_request_signed_document_fk": {
+          "name": "signature_request_signed_document_fk",
+          "tableFrom": "signature_request",
+          "tableTo": "document",
+          "columnsFrom": [
+            "tenant_id",
+            "signed_document_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "signature_request_signer_fk": {
+          "name": "signature_request_signer_fk",
+          "tableFrom": "signature_request",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "signer_tenant_user_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "signature_request_requested_by_fk": {
+          "name": "signature_request_requested_by_fk",
+          "tableFrom": "signature_request",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "requested_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "signature_request_tenant_id_id_key": {
+          "name": "signature_request_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "signature_request_state": {
+          "name": "signature_request_state",
+          "value": "state IN ('requested', 'sent', 'signed', 'declined', 'cancelled', 'failed')"
+        },
+        "signature_request_provider": {
+          "name": "signature_request_provider",
+          "value": "provider IN ('in_app', 'docusign')"
+        },
+        "signature_request_sha256": {
+          "name": "signature_request_sha256",
+          "value": "document_sha256 ~ '^[0-9a-f]{64}$'"
+        },
+        "signature_request_signed": {
+          "name": "signature_request_signed",
+          "value": "(state = 'signed') = (signed_at IS NOT NULL)\n        AND (state <> 'signed' OR provider <> 'in_app' OR (signature_id IS NOT NULL AND step_up_method IS NOT NULL))\n        AND (state <> 'signed' OR provider <> 'docusign' OR signed_document_id IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -31454,799 +32344,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.ocr_extraction": {
-      "name": "ocr_extraction",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "person_id": {
-          "name": "person_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document_id": {
-          "name": "document_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'mar'"
-        },
-        "engine": {
-          "name": "engine",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "location": {
-          "name": "location",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "failure": {
-          "name": "failure",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requested_by": {
-          "name": "requested_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "released_by": {
-          "name": "released_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "released_at": {
-          "name": "released_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "discarded_by": {
-          "name": "discarded_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "discarded_at": {
-          "name": "discarded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "ocr_extraction_person_idx": {
-          "name": "ocr_extraction_person_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "person_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "ocr_extraction_person_fk": {
-          "name": "ocr_extraction_person_fk",
-          "tableFrom": "ocr_extraction",
-          "tableTo": "person",
-          "columnsFrom": [
-            "tenant_id",
-            "person_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ocr_extraction_document_fk": {
-          "name": "ocr_extraction_document_fk",
-          "tableFrom": "ocr_extraction",
-          "tableTo": "document",
-          "columnsFrom": [
-            "tenant_id",
-            "document_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ocr_extraction_requested_by_fk": {
-          "name": "ocr_extraction_requested_by_fk",
-          "tableFrom": "ocr_extraction",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "requested_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ocr_extraction_released_by_fk": {
-          "name": "ocr_extraction_released_by_fk",
-          "tableFrom": "ocr_extraction",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "released_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ocr_extraction_discarded_by_fk": {
-          "name": "ocr_extraction_discarded_by_fk",
-          "tableFrom": "ocr_extraction",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "discarded_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "ocr_extraction_tenant_id_id_key": {
-          "name": "ocr_extraction_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        },
-        "ocr_extraction_tenant_person_id_key": {
-          "name": "ocr_extraction_tenant_person_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "person_id",
-            "id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "ocr_extraction_kind": {
-          "name": "ocr_extraction_kind",
-          "value": "kind IN ('mar')"
-        },
-        "ocr_extraction_engine": {
-          "name": "ocr_extraction_engine",
-          "value": "(engine, location) IN (('google_document_ai', 'europe-west2'), ('mock', 'local'))"
-        },
-        "ocr_extraction_state": {
-          "name": "ocr_extraction_state",
-          "value": "state IN ('blocked', 'failed', 'ready', 'released', 'discarded')"
-        },
-        "ocr_extraction_closed": {
-          "name": "ocr_extraction_closed",
-          "value": "(state = 'released') = (released_at IS NOT NULL AND released_by IS NOT NULL)\n        AND (state = 'discarded') = (discarded_at IS NOT NULL AND discarded_by IS NOT NULL)\n        AND (state IN ('blocked', 'failed')) = (failure IS NOT NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.ocr_field": {
-      "name": "ocr_field",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "extraction_id": {
-          "name": "extraction_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "person_id": {
-          "name": "person_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "line_group": {
-          "name": "line_group",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "read_text": {
-          "name": "read_text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "confidence": {
-          "name": "confidence",
-          "type": "numeric(4, 3)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unconfirmed'"
-        },
-        "value": {
-          "name": "value",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_by": {
-          "name": "decided_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_at": {
-          "name": "decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "ocr_field_extraction_idx": {
-          "name": "ocr_field_extraction_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "extraction_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "ocr_field_extraction_fk": {
-          "name": "ocr_field_extraction_fk",
-          "tableFrom": "ocr_field",
-          "tableTo": "ocr_extraction",
-          "columnsFrom": [
-            "tenant_id",
-            "person_id",
-            "extraction_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "person_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ocr_field_decided_by_fk": {
-          "name": "ocr_field_decided_by_fk",
-          "tableFrom": "ocr_field",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "decided_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "ocr_field_tenant_id_id_key": {
-          "name": "ocr_field_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        },
-        "ocr_field_position_key": {
-          "name": "ocr_field_position_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "extraction_id",
-            "position"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "ocr_field_label": {
-          "name": "ocr_field_label",
-          "value": "label IN ('medicine', 'strength', 'dose', 'route', 'directions', 'prescriber', 'text')"
-        },
-        "ocr_field_state": {
-          "name": "ocr_field_state",
-          "value": "state IN ('unconfirmed', 'confirmed', 'corrected', 'rejected')"
-        },
-        "ocr_field_confidence": {
-          "name": "ocr_field_confidence",
-          "value": "confidence >= 0 AND confidence <= 1"
-        },
-        "ocr_field_text": {
-          "name": "ocr_field_text",
-          "value": "length(read_text) BETWEEN 1 AND 500"
-        },
-        "ocr_field_decided": {
-          "name": "ocr_field_decided",
-          "value": "(state = 'unconfirmed') = (decided_by IS NULL AND decided_at IS NULL)\n        AND (state IN ('confirmed', 'corrected')) = (value IS NOT NULL)\n        AND (value IS NULL OR length(value) BETWEEN 1 AND 500)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.signature_request": {
-      "name": "signature_request",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "document_id": {
-          "name": "document_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document_sha256": {
-          "name": "document_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "signer_tenant_user_id": {
-          "name": "signer_tenant_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'requested'"
-        },
-        "envelope_id": {
-          "name": "envelope_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requested_by": {
-          "name": "requested_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "signature_id": {
-          "name": "signature_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "signed_document_id": {
-          "name": "signed_document_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "step_up_method": {
-          "name": "step_up_method",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "signed_at": {
-          "name": "signed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "closed_reason": {
-          "name": "closed_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "signature_request_document_idx": {
-          "name": "signature_request_document_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "document_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "signature_request_signer_idx": {
-          "name": "signature_request_signer_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "signer_tenant_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "state",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "signature_request_signature_id_document_signature_id_fk": {
-          "name": "signature_request_signature_id_document_signature_id_fk",
-          "tableFrom": "signature_request",
-          "tableTo": "document_signature",
-          "columnsFrom": [
-            "signature_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "signature_request_document_fk": {
-          "name": "signature_request_document_fk",
-          "tableFrom": "signature_request",
-          "tableTo": "document",
-          "columnsFrom": [
-            "tenant_id",
-            "document_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "signature_request_signed_document_fk": {
-          "name": "signature_request_signed_document_fk",
-          "tableFrom": "signature_request",
-          "tableTo": "document",
-          "columnsFrom": [
-            "tenant_id",
-            "signed_document_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "signature_request_signer_fk": {
-          "name": "signature_request_signer_fk",
-          "tableFrom": "signature_request",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "signer_tenant_user_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "signature_request_requested_by_fk": {
-          "name": "signature_request_requested_by_fk",
-          "tableFrom": "signature_request",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "requested_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "signature_request_tenant_id_id_key": {
-          "name": "signature_request_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "signature_request_state": {
-          "name": "signature_request_state",
-          "value": "state IN ('requested', 'sent', 'signed', 'declined', 'cancelled', 'failed')"
-        },
-        "signature_request_provider": {
-          "name": "signature_request_provider",
-          "value": "provider IN ('in_app', 'docusign')"
-        },
-        "signature_request_sha256": {
-          "name": "signature_request_sha256",
-          "value": "document_sha256 ~ '^[0-9a-f]{64}$'"
-        },
-        "signature_request_signed": {
-          "name": "signature_request_signed",
-          "value": "(state = 'signed') = (signed_at IS NOT NULL)\n        AND (state <> 'signed' OR provider <> 'in_app' OR (signature_id IS NOT NULL AND step_up_method IS NOT NULL))\n        AND (state <> 'signed' OR provider <> 'docusign' OR signed_document_id IS NOT NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.destruction_certificate": {
       "name": "destruction_certificate",
       "schema": "",
@@ -32512,7 +32609,17 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "document_signature_tenant_document_id_key": {
+          "name": "document_signature_tenant_document_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "document_id",
+            "id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

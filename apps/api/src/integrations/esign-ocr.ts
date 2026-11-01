@@ -10,7 +10,7 @@ import type {
   OcrResult,
   SignatureEnvelope,
 } from "@harbour/domain";
-import { OCR_FIELD_LABELS, ocrEngineAllowed } from "@harbour/domain";
+import { ocrEngineAllowed } from "@harbour/domain";
 import type { Config } from "../config";
 
 /**
@@ -24,19 +24,11 @@ import type { Config } from "../config";
 const MOCK_MARKER = "HARBOUR-OCR-MOCK:";
 const FAIL_MARKER = "HARBOUR-OCR-FAIL";
 
-/** An invented chart, read when an image carries no test instructions. */
-const DEFAULT_READ: readonly OcrReadField[] = [
-  { group: 0, label: "medicine", text: "Paracetamol 500 mg tablets", confidence: 0.94 },
-  { group: 0, label: "dose", text: "1 to 2 tablets", confidence: 0.81 },
-  { group: 0, label: "directions", text: "Up to four times a day when required", confidence: 0.77 },
-  { group: 1, label: "medicine", text: "Amlodipine 5 mg tablets", confidence: 0.9 },
-  { group: 1, label: "dose", text: "1 tablet", confidence: 0.88 },
-  { group: 1, label: "directions", text: "Once a day in the morning", confidence: 0.86 },
-];
-
 /**
  * Reads nothing: returns the fields an image's test instructions give (the marker followed by a
- * JSON array), or an invented chart. An image carrying the failure marker fails, retryably.
+ * JSON array), as given, so the API's own checks see whatever an engine might send; an image
+ * without instructions reads as nothing, never an invented chart (clinical review finding 12). An
+ * image carrying the failure marker fails, retryably.
  */
 export class MockOcr implements OcrPort {
   readonly engine: OcrEngine = "mock";
@@ -48,7 +40,7 @@ export class MockOcr implements OcrPort {
     const text = new TextDecoder().decode(request.image.bytes);
     if (text.includes(FAIL_MARKER)) return { ok: false, retryable: true, error: "engine_error" };
     const at = text.indexOf(MOCK_MARKER);
-    if (at < 0) return { ok: true, fields: DEFAULT_READ };
+    if (at < 0) return { ok: true, fields: [] };
     const end = text.indexOf("\n", at);
     const json = text.slice(at + MOCK_MARKER.length, end < 0 ? undefined : end);
     try {
@@ -56,10 +48,9 @@ export class MockOcr implements OcrPort {
       if (!Array.isArray(parsed)) throw new Error("not a list");
       const fields = parsed.map((f) => {
         const r = f as Partial<OcrReadField>;
-        const label = OCR_FIELD_LABELS.find((l) => l === r.label) ?? "text";
         return {
-          group: Number.isInteger(r.group) ? (r.group as number) : 0,
-          label,
+          group: r.group as number,
+          label: r.label as OcrReadField["label"],
           text: String(r.text ?? ""),
           confidence: typeof r.confidence === "number" ? r.confidence : 0.5,
         };
@@ -153,8 +144,7 @@ export interface EsignOcrServices {
 }
 
 export function createEsignOcrServices(config: Config): EsignOcrServices {
-  const engine = config.OCR_ENGINE ?? (config.NODE_ENV === "production" ? "none" : "mock");
-  const ocr = engine === "mock" ? new MockOcr() : null;
+  const ocr = config.OCR_ENGINE === "mock" ? new MockOcr() : null;
   if (ocr && !ocrEngineAllowed(ocr.engine, ocr.location)) {
     throw new Error("OCR engine is not on the allowlist (ADR-0095)");
   }

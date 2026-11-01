@@ -9,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
@@ -60,6 +61,8 @@ export const documentSignature = pgTable(
       foreignColumns: [tenantUser.tenantId, tenantUser.id],
     }),
     index("document_signature_document_idx").on(t.tenantId, t.documentId),
+    // For a composite reference from a signature request (migration 0133; ADR-0002).
+    unique("document_signature_tenant_document_id_key").on(t.tenantId, t.documentId, t.id),
   ],
 );
 

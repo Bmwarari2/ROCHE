@@ -1048,10 +1048,15 @@ own fields, exported in the full tenant export with these names.
 | `signature_request.step_up_method` | Harbour | `second_factor` | In Harbour: a second factor was used within the step-up window (ADR-0072); which one is not kept |
 | `ocr_extraction.engine`, `location` | Harbour (ADR-0095 allowlist) | `google_document_ai` with `europe-west2`; `mock` with `local` | Any other pair is refused |
 | `ocr_extraction.state` | Harbour | `blocked`, `failed`, `ready`, `released`, `discarded` | `blocked`: the image did not scan clean and was never read |
-| `ocr_extraction.failure` | Harbour | `not_clean`, `engine_error`, `nothing_read` | Never the engine's own message |
+| `ocr_extraction.failure` | Harbour | `not_clean`, `engine_error`, `unreadable`, `nothing_read` | Never the engine's own message |
 | `ocr_field.label` | Harbour | `medicine`, `strength`, `dose`, `route`, `directions`, `prescriber`, `text` | Free text as read: never a dm+d code, a dose unit or a schedule (HZ-005) |
 | `ocr_field.confidence` | The engine's | Decimal from 0 to 1, three places | For information only; never decides anything |
 | `ocr_field.state` | Harbour | `unconfirmed`, `confirmed`, `corrected`, `rejected` | `value` holds the text as read (confirmed) or the correction |
+| `ocr_field.decided_line_group`, `decided_label` | Harbour | 0 to 199; the labels above | The line and part a person decided; the engine's `line_group` and `label` are a proposal |
+| `ocr_field.truncated`, `added_by_person` | Harbour | Boolean | A truncated text is never confirmed; an added value was typed by a person |
+| `ocr_extraction.line_statuses` | Harbour | JSON `[{ "line": 0, "status": "active" }]`, status `active` or `stopped` | Set at release; stopped lines are never released |
+| `ocr_extraction.lines_counted`, `chart_from`, `chart_to` | Harbour | Whole number; `YYYY-MM-DD` | The person's own count of medicine lines on the paper chart, and the chart's period |
+| `ocr_extraction.client_ref` | RFC 9562 UUID | Lower-case | The upload's idempotency key |
 
 ## Platform operational tables (not part of the MODS export)
 

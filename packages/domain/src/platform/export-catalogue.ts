@@ -5137,8 +5137,27 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "blocked (the image did not scan clean and was never read), failed, ready (waiting for a person to decide each value), released or discarded.",
       },
-      failure: { description: "Why it was not read: not_clean or engine_error." },
+      failure: {
+        description: "Why it was not read: not_clean, engine_error, unreadable or nothing_read.",
+      },
       requested_by: { description: "The member who scanned it (tenant_user.id)." },
+      client_ref: {
+        description: "The scanning device's id for the upload, so a retry returns the same scan.",
+      },
+      lines_counted: {
+        description: "The medicine lines the person counted on the paper chart at release.",
+        unit: "lines",
+      },
+      line_statuses: {
+        description:
+          "At release: each medicine line in force or stopped on the chart, as the person decided.",
+      },
+      chart_from: { description: "The first day the chart covers." },
+      chart_to: { description: "The last day the chart covers." },
+      person_confirmed_by: {
+        description:
+          "The member who confirmed the name and date of birth on the chart are this person's (tenant_user.id).",
+      },
       released_by: { description: "The member who released the decided values (tenant_user.id)." },
       released_at: {
         description: "When the decided values were released to the medicines module.",
@@ -5181,6 +5200,18 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       state: { description: "unconfirmed, confirmed (as read), corrected or rejected." },
       value: { description: "The value a person decided: the text as read or their correction." },
+      decided_line_group: {
+        description: "The chart line a person decided the value belongs to.",
+        unit: "position (from 0)",
+      },
+      decided_label: { description: "The part of the line a person decided the value is." },
+      truncated: {
+        description:
+          "Whether the text read was longer than a value holds and was cut (it could only be corrected or rejected).",
+      },
+      added_by_person: {
+        description: "Whether a person typed the value for something the scan missed.",
+      },
       decided_by: { description: "The member who decided it (tenant_user.id)." },
       decided_at: { description: "When it was decided." },
       created_at: "exported",

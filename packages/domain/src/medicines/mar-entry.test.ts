@@ -207,6 +207,23 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
     },
   );
 
+  it.each(["give_with_notice", "hold_until_checked"] as const)(
+    "hazard HZ-005 an imported or scanned entry is never givable before its second check (%s)",
+    (policy) => {
+      const result = transcribeMarEntry(draft(), TABLET_FACTS, {
+        ...newMeta,
+        id: "entry-import",
+        origin: "import",
+      });
+      if (!result.ok) throw new Error("not transcribed");
+      expect(marEntryStatus(result.entry, inForce, policy)).toEqual({
+        words: "Not yet checked",
+        mayGive: false,
+        notice: MAR_ENTRY_NOTICES.importedHold,
+      });
+    },
+  );
+
   it("a second person with current competence who compared it with the source checks it", () => {
     const e = checked();
     expect(e.state).toBe("checked");

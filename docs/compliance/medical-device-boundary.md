@@ -142,8 +142,9 @@ or treatment ([safety.md](../specs/safety.md) section 11).
 **OCR of scanned MAR charts and e-signature (Phase 2, slice 79; ADR-0095)**: these stay inside the
 boundary. OCR transcribes the text on a photographed chart and nothing more: it never interprets a
 value, chooses a dm+d product, a dose unit or a schedule, or compares what it read with anything.
-The engine's confidence is shown for information and never decides anything; every value is
-unconfirmed until a person confirms, corrects or rejects it, and released lines arrive "not yet
+The engine's confidence is never shown to the person deciding (only a "check carefully" flag)
+and never decides anything; the engine's grouping of values into lines and parts is a proposal a
+person decides; every value is unconfirmed until a person confirms, corrects or rejects it, and released lines arrive "not yet
 checked" for the transcriber and a second competent member (HZ-005;
 [integrations.md](../specs/integrations.md) section 11). An e-signature records who agreed to which
 version of a document; it is a records control, not a clinical one.

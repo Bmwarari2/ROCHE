@@ -9,6 +9,12 @@ CREATE TABLE "ocr_extraction" (
 	"state" text NOT NULL,
 	"failure" text,
 	"requested_by" uuid NOT NULL,
+	"client_ref" uuid,
+	"lines_counted" integer,
+	"line_statuses" jsonb,
+	"chart_from" date,
+	"chart_to" date,
+	"person_confirmed_by" uuid,
 	"released_by" uuid,
 	"released_at" timestamp with time zone,
 	"discarded_by" uuid,
@@ -21,10 +27,13 @@ CREATE TABLE "ocr_extraction" (
 	"deleted_at" timestamp with time zone,
 	CONSTRAINT "ocr_extraction_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "ocr_extraction_tenant_person_id_key" UNIQUE("tenant_id","person_id","id"),
+	CONSTRAINT "ocr_extraction_client_ref_key" UNIQUE("tenant_id","client_ref"),
 	CONSTRAINT "ocr_extraction_kind" CHECK (kind IN ('mar')),
 	CONSTRAINT "ocr_extraction_engine" CHECK ((engine, location) IN (('google_document_ai', 'europe-west2'), ('mock', 'local'))),
 	CONSTRAINT "ocr_extraction_state" CHECK (state IN ('blocked', 'failed', 'ready', 'released', 'discarded')),
-	CONSTRAINT "ocr_extraction_closed" CHECK ((state = 'released') = (released_at IS NOT NULL AND released_by IS NOT NULL)
+	CONSTRAINT "ocr_extraction_closed" CHECK ((state = 'released') = (released_at IS NOT NULL AND released_by IS NOT NULL
+          AND lines_counted IS NOT NULL AND line_statuses IS NOT NULL AND chart_from IS NOT NULL
+          AND chart_to IS NOT NULL AND person_confirmed_by IS NOT NULL)
         AND (state = 'discarded') = (discarded_at IS NOT NULL AND discarded_by IS NOT NULL)
         AND (state IN ('blocked', 'failed')) = (failure IS NOT NULL))
 );
@@ -41,6 +50,10 @@ CREATE TABLE "ocr_field" (
 	"confidence" numeric(4, 3) NOT NULL,
 	"state" text DEFAULT 'unconfirmed' NOT NULL,
 	"value" text,
+	"decided_line_group" integer,
+	"decided_label" text,
+	"truncated" boolean DEFAULT false NOT NULL,
+	"added_by_person" boolean DEFAULT false NOT NULL,
 	"decided_by" uuid,
 	"decided_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -57,7 +70,12 @@ CREATE TABLE "ocr_field" (
 	CONSTRAINT "ocr_field_text" CHECK (length(read_text) BETWEEN 1 AND 500),
 	CONSTRAINT "ocr_field_decided" CHECK ((state = 'unconfirmed') = (decided_by IS NULL AND decided_at IS NULL)
         AND (state IN ('confirmed', 'corrected')) = (value IS NOT NULL)
-        AND (value IS NULL OR length(value) BETWEEN 1 AND 500))
+        AND (state IN ('confirmed', 'corrected')) = (decided_line_group IS NOT NULL AND decided_label IS NOT NULL)
+        AND (value IS NULL OR length(value) BETWEEN 1 AND 500)
+        AND NOT (state = 'confirmed' AND truncated)
+        AND (NOT added_by_person OR state = 'corrected')),
+	CONSTRAINT "ocr_field_lines" CHECK (line_group BETWEEN 0 AND 199 AND (decided_line_group IS NULL OR decided_line_group BETWEEN 0 AND 199)),
+	CONSTRAINT "ocr_field_decided_label" CHECK (decided_label IS NULL OR decided_label IN ('medicine', 'strength', 'dose', 'route', 'directions', 'prescriber', 'text'))
 );
 --> statement-breakpoint
 CREATE TABLE "signature_request" (
@@ -90,15 +108,17 @@ CREATE TABLE "signature_request" (
         AND (state <> 'signed' OR provider <> 'docusign' OR signed_document_id IS NOT NULL))
 );
 --> statement-breakpoint
+ALTER TABLE "document_signature" ADD CONSTRAINT "document_signature_tenant_document_id_key" UNIQUE("tenant_id","document_id","id");
 ALTER TABLE "ocr_extraction" ADD CONSTRAINT "ocr_extraction_person_fk" FOREIGN KEY ("tenant_id","person_id") REFERENCES "public"."person"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocr_extraction" ADD CONSTRAINT "ocr_extraction_document_fk" FOREIGN KEY ("tenant_id","document_id") REFERENCES "public"."document"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocr_extraction" ADD CONSTRAINT "ocr_extraction_requested_by_fk" FOREIGN KEY ("tenant_id","requested_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocr_extraction" ADD CONSTRAINT "ocr_extraction_released_by_fk" FOREIGN KEY ("tenant_id","released_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ocr_extraction" ADD CONSTRAINT "ocr_extraction_person_confirmed_by_fk" FOREIGN KEY ("tenant_id","person_confirmed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocr_extraction" ADD CONSTRAINT "ocr_extraction_discarded_by_fk" FOREIGN KEY ("tenant_id","discarded_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocr_field" ADD CONSTRAINT "ocr_field_extraction_fk" FOREIGN KEY ("tenant_id","person_id","extraction_id") REFERENCES "public"."ocr_extraction"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocr_field" ADD CONSTRAINT "ocr_field_decided_by_fk" FOREIGN KEY ("tenant_id","decided_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "signature_request" ADD CONSTRAINT "signature_request_signature_id_document_signature_id_fk" FOREIGN KEY ("signature_id") REFERENCES "public"."document_signature"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "signature_request" ADD CONSTRAINT "signature_request_document_fk" FOREIGN KEY ("tenant_id","document_id") REFERENCES "public"."document"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "signature_request" ADD CONSTRAINT "signature_request_signature_fk" FOREIGN KEY ("tenant_id","document_id","signature_id") REFERENCES "public"."document_signature"("tenant_id","document_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "signature_request" ADD CONSTRAINT "signature_request_signed_document_fk" FOREIGN KEY ("tenant_id","signed_document_id") REFERENCES "public"."document"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "signature_request" ADD CONSTRAINT "signature_request_signer_fk" FOREIGN KEY ("tenant_id","signer_tenant_user_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "signature_request" ADD CONSTRAINT "signature_request_requested_by_fk" FOREIGN KEY ("tenant_id","requested_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -106,6 +126,7 @@ CREATE INDEX "ocr_extraction_person_idx" ON "ocr_extraction" USING btree ("tenan
 CREATE INDEX "ocr_field_extraction_idx" ON "ocr_field" USING btree ("tenant_id","extraction_id");--> statement-breakpoint
 CREATE INDEX "signature_request_document_idx" ON "signature_request" USING btree ("tenant_id","document_id");--> statement-breakpoint
 CREATE INDEX "signature_request_signer_idx" ON "signature_request" USING btree ("tenant_id","signer_tenant_user_id","state");--> statement-breakpoint
+--> statement-breakpoint
 -- Slice 79 (INTG-013; ADR-0095; integrations.md section 11). What Drizzle cannot express: forced
 -- row-level security; the person scope on OCR extractions and their fields (scanned MAR charts are
 -- health data); record history for all three, with OCR history kept to the person's scope too;
@@ -154,7 +175,9 @@ BEGIN
     OR NEW.line_group IS DISTINCT FROM OLD.line_group
     OR NEW.label IS DISTINCT FROM OLD.label
     OR NEW.read_text IS DISTINCT FROM OLD.read_text
-    OR NEW.confidence IS DISTINCT FROM OLD.confidence THEN
+    OR NEW.confidence IS DISTINCT FROM OLD.confidence
+    OR NEW.truncated IS DISTINCT FROM OLD.truncated
+    OR NEW.added_by_person IS DISTINCT FROM OLD.added_by_person THEN
     RAISE EXCEPTION 'The text as read cannot change' USING ERRCODE = 'check_violation';
   END IF;
   IF OLD.state <> 'unconfirmed' THEN

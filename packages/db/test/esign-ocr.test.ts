@@ -128,6 +128,41 @@ describe("signature requests (migration 0133)", () => {
     ).rejects.toThrow(/finished/);
   });
 
+  it("binds a signature to this tenant's signature on the same document (ADR-0002)", async () => {
+    const other = await asOwner(TENANT_B, (c) =>
+      c
+        .query<{ id: string; doc: string }>(
+          `WITH d AS (
+             INSERT INTO document (category, title, retention_class, storage_key, content_type, size_bytes, sha256)
+             VALUES ('organisation_document', 'Other policy', 'organisation_document', 'eob', 'application/pdf', 10, $1)
+             RETURNING id)
+           INSERT INTO document_signature (document_id, signer_name, signer_capacity, statement, document_sha256)
+           SELECT id, 'Bo Other', 'staff', 'I have read this document and I agree to it.', $1 FROM d
+           RETURNING id, document_id AS doc`,
+          [HASH],
+        )
+        .then((r) => r.rows[0] as { id: string; doc: string }),
+    );
+    const fresh = await asManager((c) =>
+      c
+        .query<{ id: string }>(
+          `INSERT INTO signature_request (document_id, document_sha256, signer_tenant_user_id, provider, requested_by)
+           VALUES ($1, $2, $3, 'in_app', $4) RETURNING id`,
+          [orgDocument, HASH, a.carer, a.manager],
+        )
+        .then((r) => r.rows[0]?.id as string),
+    );
+    await expect(
+      asManager((c) =>
+        c.query(
+          `UPDATE signature_request SET state = 'signed', signed_at = now(), signature_id = $2,
+             step_up_method = 'second_factor' WHERE id = $1`,
+          [fresh, other.id],
+        ),
+      ),
+    ).rejects.toThrow(/signature_request_signature_fk/);
+  });
+
   it("refuses an unknown provider and a hash that is not SHA-256", async () => {
     for (const [provider, hash] of [
       ["adobe_sign", HASH],
@@ -213,7 +248,8 @@ describe("hazard HZ-005 OCR extractions and fields (migration 0133)", () => {
     ).rejects.toThrow(/ocr_field_decided/);
     await asManager((c) =>
       c.query(
-        `UPDATE ocr_field SET state = 'corrected', value = '2 tablets', decided_by = $2, decided_at = now()
+        `UPDATE ocr_field SET state = 'corrected', value = '2 tablets', decided_line_group = 0,
+           decided_label = 'dose', decided_by = $2, decided_at = now()
          WHERE id = $1`,
         [adaField, a.manager],
       ),
@@ -258,7 +294,10 @@ describe("hazard HZ-005 OCR extractions and fields (migration 0133)", () => {
     ).rejects.toThrow(/ocr_extraction_closed/);
     await asManager((c) =>
       c.query(
-        "UPDATE ocr_extraction SET state = 'released', released_by = $2, released_at = now() WHERE id = $1",
+        `UPDATE ocr_extraction SET state = 'released', released_by = $2, released_at = now(),
+           lines_counted = 1, line_statuses = '[{"line": 0, "status": "active"}]', chart_from = '2026-10-05',
+           chart_to = '2026-11-01', person_confirmed_by = $2
+         WHERE id = $1`,
         [ada, a.manager],
       ),
     );

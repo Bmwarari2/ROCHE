@@ -91,10 +91,25 @@ function signatureContract(name: string, make: () => ExternalSignaturePort) {
   });
 }
 
-ocrContract("mock", () => new MockOcr(), encode("a photographed chart"));
+ocrContract(
+  "mock",
+  () => new MockOcr(),
+  encode(
+    `HARBOUR-OCR-MOCK:${JSON.stringify([{ group: 0, label: "medicine", text: "Amlodipine 5 mg tablets", confidence: 0.9 }])}\n`,
+  ),
+);
 signatureContract("DocuSign mock", () => new MockDocuSign());
 
 describe("the mocks' own test controls", () => {
+  it("reads nothing from an image without test instructions: never an invented chart", async () => {
+    const out = await new MockOcr().read({
+      idempotencyKey: "k0",
+      kind: "mar",
+      image: { bytes: encode("a real chart"), contentType: "image/jpeg" },
+    });
+    expect(out).toEqual({ ok: true, fields: [] });
+  });
+
   it("reads the fields an image's test instructions give, and fails on the failure marker", async () => {
     const ocr = new MockOcr();
     const fields = [{ group: 2, label: "dose", text: "5 ml", confidence: 0.4 }];
@@ -130,17 +145,17 @@ describe("the mocks' own test controls", () => {
 
 describe("configuration (ADR-0095)", () => {
   const base = { NODE_ENV: "test", LOG_LEVEL: "silent" };
-  it("has DocuSign off and the OCR mock in development and tests unless set", () => {
+  it("has DocuSign and OCR off unless set, everywhere", () => {
     const services = createEsignOcrServices(loadConfig(base));
     expect(services.docusign).toBeNull();
-    expect(services.ocr?.engine).toBe("mock");
+    expect(services.ocr).toBeNull();
   });
 
-  it("turns OCR off and DocuSign on when asked", () => {
+  it("turns the mocks on only when asked", () => {
     const services = createEsignOcrServices(
-      loadConfig({ ...base, OCR_ENGINE: "none", DOCUSIGN: "mock" }),
+      loadConfig({ ...base, OCR_ENGINE: "mock", DOCUSIGN: "mock" }),
     );
-    expect(services.ocr).toBeNull();
+    expect(services.ocr?.engine).toBe("mock");
     expect(services.docusign?.provider).toBe("docusign");
   });
 });

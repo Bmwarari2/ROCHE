@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import {
+  AddOcrField,
   CloseSignatureRequest,
   DecideOcrField,
   NewSignatureRequest,
   OcrExtractionItem,
   OcrExtractionList,
   OcrExtractionVersion,
+  ReleaseOcrExtraction,
   ScannedMedicineLines,
   SignatureRequestItem,
   SignatureRequestList,
@@ -24,18 +26,27 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
+  addedField,
   checkSignature,
   DEFAULT_SIGNATURE_PROVIDER,
   decideField,
   envelopeTransition,
   inAppSignRefusal,
+  OCR_LOW_CONFIDENCE,
+  OCR_PORT,
+  type OcrDecisionProblem,
   type OcrField,
+  type OcrLineStatus,
+  type OcrReleaseInput,
+  ocrEngineAllowed,
   type Permission,
+  type ReleaseRefusal,
+  readFieldsProblem,
   releaseRefusal,
   SIGNATURE_PORT,
   type SignatureProvider,
   type SignatureRequestState,
-  scannedMedicineLines,
+  scannedChart,
   unconfirmedFields,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -146,8 +157,16 @@ async function organisationDocument(tx: Tx, id: string) {
     .select()
     .from(document)
     .where(and(eq(document.id, id), isNull(document.deletedAt)));
-  // Only an organisation's own document is asked for: a person's signs through the typed flow.
-  if (!row || row.personId !== null || row.status !== "available") throw problems.notFound();
+  // Only an organisation document is asked for (security H1): never a staff HR document, a logo or
+  // a person's document, which signs through the typed flow.
+  if (
+    !row ||
+    row.category !== "organisation_document" ||
+    row.personId !== null ||
+    row.status !== "available"
+  ) {
+    throw problems.notFound();
+  }
   return row;
 }
 
@@ -199,13 +218,16 @@ async function sendEnvelope(c: Context<AppEnv>, access: TenantAccess, row: Reque
       .where(eq(tenantUser.id, row.signerTenantUserId));
     return { doc, bytes, signer };
   });
-  const result = await docusign.send({
-    idempotencyKey: row.id,
-    subject: ENVELOPE_SUBJECT,
-    document: { bytes: prepared.bytes, contentType: prepared.doc.contentType },
-    documentSha256: row.documentSha256,
-    signer: { name: prepared.signer?.name ?? "", email: prepared.signer?.email ?? "" },
-  });
+  // A send that throws is a failed request, never one stuck as requested (security L6).
+  const result = await docusign
+    .send({
+      idempotencyKey: row.id,
+      subject: ENVELOPE_SUBJECT,
+      document: { bytes: prepared.bytes, contentType: prepared.doc.contentType },
+      documentSha256: row.documentSha256,
+      signer: { name: prepared.signer?.name ?? "", email: prepared.signer?.email ?? "" },
+    })
+    .catch(() => ({ ok: false as const, retryable: true, error: "send_error" }));
   return withTenant(c, async (tx) => {
     const current = await findRequest(tx, row.id);
     const saved = await moveRequest(
@@ -464,8 +486,13 @@ export const esignOcrRouter = createRouter()
       if (!OPEN.includes(row.state as SignatureRequestState)) {
         throw problems.conflict("This request is already closed.");
       }
+      // A stale cancel voids nothing (security L2).
+      if (row.version !== body.version) {
+        throw problems.conflict("Someone else changed this request. Reload it and try again.");
+      }
       if (row.provider === "docusign" && row.envelopeId) {
-        await c.get("services").docusign?.void(row.envelopeId, body.reason);
+        // A fixed reason: the member's own words stay in Harbour (security L2).
+        await c.get("services").docusign?.void(row.envelopeId, "Cancelled by the organisation");
       }
       const item = await withTenant(c, async (tx) => {
         const current = await findRequest(tx, id);
@@ -523,32 +550,49 @@ export const esignOcrRouter = createRouter()
             throw problems.conflict("Someone else changed this request. Reload it and try again.");
           }
           let scan: "clean" | "infected" | "unavailable" | null = null;
-          let signedDocumentId: string | null = null;
+          let signedDocumentId: string | null = current.signedDocumentId;
           if (status.state === "completed" && current.state === "sent") {
-            const [original] = await tx
-              .select()
-              .from(document)
-              .where(eq(document.id, current.documentId));
-            if (!original) throw problems.notFound();
-            try {
-              const stored = await storeDocument(
-                tx,
-                { storage: writing, scanner },
-                access.tenantId,
-                {
-                  bytes: status.signed.bytes,
-                  declaredType: status.signed.contentType,
-                  category: "organisation_document",
-                  title: original.title,
-                  fileName: original.fileName,
-                  previous: original,
-                },
-              );
-              scan = stored.scanStatus as "clean" | "unavailable";
-              signedDocumentId = stored.id;
-            } catch {
-              // An infected or refused copy is never stored; the request stays sent.
-              scan = "infected";
+            if (signedDocumentId !== null) {
+              // A copy came back before and is stored (quarantined until it scans clean): never
+              // stored again (security L3).
+              const [stored] = await tx
+                .select({ status: document.status })
+                .from(document)
+                .where(eq(document.id, signedDocumentId));
+              scan = stored?.status === "available" ? "clean" : "unavailable";
+            } else {
+              const [original] = await tx
+                .select()
+                .from(document)
+                .where(and(eq(document.id, current.documentId), isNull(document.deletedAt)));
+              if (
+                original?.category !== "organisation_document" ||
+                original.status !== "available"
+              ) {
+                throw problems.conflict("The document asked to be signed is no longer available.");
+              }
+              // An infected copy is never stored; any other failure rolls back and removes what
+              // was written (security M1).
+              if ((await scanner.scan(status.signed.bytes)) === "infected") {
+                scan = "infected";
+              } else {
+                const stored = await storeDocument(
+                  tx,
+                  { storage: writing, scanner },
+                  access.tenantId,
+                  {
+                    bytes: status.signed.bytes,
+                    declaredType: status.signed.contentType,
+                    category: "organisation_document",
+                    title: original.title,
+                    fileName: original.fileName,
+                    previous: original,
+                    retentionClass: original.retentionClass,
+                  },
+                );
+                scan = stored.scanStatus === "clean" ? "clean" : "unavailable";
+                signedDocumentId = stored.id;
+              }
             }
           }
           const next = envelopeTransition(
@@ -558,7 +602,9 @@ export const esignOcrRouter = createRouter()
           );
           const saved =
             next === null
-              ? current
+              ? signedDocumentId !== current.signedDocumentId
+                ? await moveRequest(tx, current, body.version, { signedDocumentId })
+                : current
               : await moveRequest(tx, current, body.version, {
                   state: next,
                   ...(next === "signed"
@@ -602,6 +648,23 @@ export const esignOcrRouter = createRouter()
       const { id: personId } = c.req.valid("param");
       const ocr = c.get("services").ocr;
       if (!ocr) throw problems.featureDisabled("Scanning paper MAR charts is not available.");
+      // A retried upload (same key) returns the first scan, never a second (security L4).
+      const key = c.req.header("idempotency-key") ?? null;
+      if (key !== null && !UUID.test(key))
+        throw problems.invalid("The idempotency key must be a UUID.");
+      const earlier = await withTenant(c, async (tx) => {
+        await ocrSwitchedOn(tx, ocr.engine);
+        await personReached(tx, access, personId);
+        if (key === null) return null;
+        const [row] = await tx
+          .select()
+          .from(ocrExtraction)
+          .where(eq(ocrExtraction.clientRef, key.toLowerCase()));
+        if (row && row.personId !== personId)
+          throw problems.conflict("That key was used for another scan.");
+        return row ? extractionItem(tx, row) : null;
+      });
+      if (earlier) return c.json(earlier, 201);
       const bytes = new Uint8Array(await c.req.arrayBuffer());
       const imagePrintable = imagePrintableOf(bytes);
       const { storage, scanner } = c.get("services");
@@ -630,6 +693,7 @@ export const esignOcrRouter = createRouter()
               state: "blocked",
               failure: "not_clean",
               requestedBy: access.tenantUserId,
+              clientRef: key?.toLowerCase() ?? null,
             })
             .returning();
           await audit(c, tx, access, {
@@ -647,16 +711,31 @@ export const esignOcrRouter = createRouter()
         );
         return c.json(item, 201);
       }
+      // The allowlist again, at the call (ADR-0095; security L5).
+      if (!ocrEngineAllowed(ocr.engine, ocr.location)) {
+        throw problems.featureDisabled("Scanning paper MAR charts is not available.");
+      }
       const extractionId = randomUUID();
-      const read = await ocr.read({
-        idempotencyKey: extractionId,
-        kind: "mar",
-        image: { bytes, contentType: stored.doc.contentType },
-      });
+      const read = await ocr
+        .read({
+          idempotencyKey: extractionId,
+          kind: "mar",
+          image: { bytes, contentType: stored.doc.contentType },
+        })
+        .catch(() => ({ ok: false as const, retryable: true, error: "engine_error" }));
       const item = await withTenant(c, async (tx) => {
         await personReached(tx, access, personId);
-        const fields = read.ok ? unconfirmedFields(read.fields, () => randomUUID()) : [];
-        const failure = !read.ok ? "engine_error" : fields.length === 0 ? "nothing_read" : null;
+        // A read with a line or part Harbour does not know is refused whole, never coerced.
+        const unreadable = read.ok ? readFieldsProblem(read.fields) : null;
+        const fields =
+          read.ok && unreadable === null ? unconfirmedFields(read.fields, () => randomUUID()) : [];
+        const failure = !read.ok
+          ? "engine_error"
+          : unreadable !== null
+            ? "unreadable"
+            : fields.length === 0
+              ? "nothing_read"
+              : null;
         const [row] = await tx
           .insert(ocrExtraction)
           .values({
@@ -668,6 +747,7 @@ export const esignOcrRouter = createRouter()
             state: failure ? "failed" : "ready",
             failure,
             requestedBy: access.tenantUserId,
+            clientRef: key?.toLowerCase() ?? null,
           })
           .returning();
         if (!row) throw new Error("extraction was not created");
@@ -678,10 +758,11 @@ export const esignOcrRouter = createRouter()
               extractionId,
               personId,
               position,
-              lineGroup: Math.max(0, Math.min(999, Math.trunc(f.group))),
+              lineGroup: f.group,
               label: f.label,
               readText: f.text,
               confidence: f.confidence.toFixed(3),
+              truncated: f.truncated,
             })),
           );
         }
@@ -799,28 +880,28 @@ export const esignOcrRouter = createRouter()
           throw problems.conflict("Someone else changed this value. Reload the scan.");
         }
         const now = new Date();
+        const place = {
+          ...(body.action !== "reject" && body.line !== undefined ? { line: body.line } : {}),
+          ...(body.action !== "reject" && body.label !== undefined ? { label: body.label } : {}),
+        };
         const decided = decideField(
           fieldOf(row),
           body.action === "correct"
-            ? { action: "correct", value: body.value }
-            : { action: body.action },
+            ? { action: "correct", value: body.value, ...place }
+            : body.action === "confirm"
+              ? { action: "confirm", ...place }
+              : { action: "reject" },
           access.tenantUserId,
           now,
         );
-        if (!decided.ok) {
-          throw decided.problem === "already_decided"
-            ? problems.conflict("This value has already been decided.")
-            : problems.invalid(
-                decided.problem === "unchanged"
-                  ? "The correction is the same as the text read: confirm it instead."
-                  : "Type the value as it should read.",
-              );
-        }
+        if (!decided.ok) throw decisionProblem(decided.problem);
         const [saved] = await tx
           .update(ocrField)
           .set({
             state: decided.field.state,
             value: decided.field.value,
+            decidedLineGroup: decided.field.decidedLine,
+            decidedLabel: decided.field.decidedLabel,
             decidedBy: access.tenantUserId,
             decidedAt: now,
             version: row.version + 1,
@@ -843,15 +924,81 @@ export const esignOcrRouter = createRouter()
   .openapi(
     createRoute({
       method: "post",
+      path: "/v1/ocr-extractions/{id}/fields",
+      tags: ocrTags,
+      summary: "Add a value the scan missed, typed from the chart",
+      description:
+        "medicines.record.manage where it reaches the person. The value is the person's, marked as typed by them, never read by the engine.",
+      security,
+      request: {
+        params: IdParam,
+        body: { content: { "application/json": { schema: AddOcrField } } },
+      },
+      responses: {
+        201: jsonBody(OcrExtractionItem, "Added"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, MEDICINES);
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const item = await withTenant(c, async (tx) => {
+        const extraction = await findExtraction(tx, access, id);
+        if (extraction.state !== "ready")
+          throw problems.conflict("This scan is not being checked.");
+        const fieldId = randomUUID();
+        const added = addedField(
+          { line: body.line, label: body.label, value: body.value },
+          fieldId,
+          access.tenantUserId,
+          new Date(),
+        );
+        if (!added.ok) throw decisionProblem(added.problem);
+        // The extraction's version moves on, so two people adding at once are told.
+        const moved = await moveExtraction(tx, extraction, body.version, {});
+        const position = (await fieldsOf(tx, id)).length;
+        await tx.insert(ocrField).values({
+          id: fieldId,
+          extractionId: id,
+          personId: extraction.personId,
+          position,
+          lineGroup: added.field.group,
+          label: added.field.label,
+          readText: added.field.text,
+          confidence: "0.000",
+          state: "corrected",
+          value: added.field.value,
+          decidedLineGroup: added.field.decidedLine,
+          decidedLabel: added.field.decidedLabel,
+          addedByPerson: true,
+          decidedBy: access.tenantUserId,
+          decidedAt: added.field.decidedAt,
+        });
+        await audit(c, tx, access, {
+          action: "integrations.ocr.added",
+          resourceType: "ocr_field",
+          resourceId: fieldId,
+          after: { extractionId: id, line: body.line, label: body.label },
+        });
+        return extractionItem(tx, moved);
+      });
+      return c.json(item, 201);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
       path: "/v1/ocr-extractions/{id}/release",
       tags: ocrTags,
       summary: "Release a fully decided scan to the medicines module",
       description:
-        "medicines.record.manage where it reaches the person. Only when every value is decided and at least one stands. Emits integrations.ocr_mar_released (ids only); the medicines module reads the lines, which arrive not yet checked and need a second check (HZ-005, H-548).",
+        "medicines.record.manage where it reaches the person. Only when every value is decided, no part stands twice on a line or without its medicine, the person's own count of medicine lines on the paper matches, every line is marked in force or stopped, the person on the chart is confirmed (HZ-130) and the chart's period is given and current. Emits integrations.ocr_mar_released (ids only); the medicines module reads the lines, which arrive not yet checked and are held until a second check (HZ-005, H-548).",
       security,
       request: {
         params: IdParam,
-        body: { content: { "application/json": { schema: OcrExtractionVersion } } },
+        body: { content: { "application/json": { schema: ReleaseOcrExtraction } } },
       },
       responses: {
         200: jsonBody(OcrExtractionItem, "Released"),
@@ -867,19 +1014,20 @@ export const esignOcrRouter = createRouter()
         const row = await findExtraction(tx, access, id);
         if (row.state !== "ready") throw problems.conflict("This scan is not being checked.");
         const fields = (await fieldsOf(tx, id)).map(fieldOf);
-        const refusal = releaseRefusal(fields);
-        if (refusal === "undecided_fields") {
-          throw problems.conflict("Decide every value before releasing the scan.");
-        }
-        if (refusal === "nothing_confirmed") {
-          throw problems.conflict("Every value was rejected: discard the scan instead.");
-        }
+        const input = releaseInputOf(body);
+        const refusal = releaseRefusal(fields, input);
+        if (refusal !== null) throw problems.conflict(RELEASE_REFUSALS[refusal]);
         const saved = await moveExtraction(tx, row, body.version, {
           state: "released",
           releasedBy: access.tenantUserId,
           releasedAt: new Date(),
+          linesCounted: body.linesCounted,
+          lineStatuses: body.lines,
+          chartFrom: body.chartFrom,
+          chartTo: body.chartTo,
+          personConfirmedBy: access.tenantUserId,
         });
-        const lines = scannedMedicineLines(fields);
+        const { lines } = scannedChart(fields, input);
         await publish(tx, {
           context: "integrations",
           aggregateType: "ocr_extraction",
@@ -964,18 +1112,25 @@ export const esignOcrRouter = createRouter()
       const out = await withTenant(c, async (tx) => {
         const row = await findExtraction(tx, access, id);
         if (row.state !== "released") throw problems.notFound();
-        const lines = scannedMedicineLines((await fieldsOf(tx, id)).map(fieldOf));
+        const chart = scannedChart((await fieldsOf(tx, id)).map(fieldOf), storedReleaseOf(row));
         await audit(c, tx, access, {
           action: "integrations.ocr.lines_read",
           resourceType: "ocr_extraction",
           resourceId: id,
-          after: { lines: lines.length },
+          after: { lines: chart.lines.length },
         });
         return {
           extractionId: id,
           personId: row.personId,
           sourceDocumentId: row.documentId,
-          lines,
+          chartFrom: row.chartFrom as string,
+          chartTo: row.chartTo as string,
+          lines: chart.lines.map((l) => ({ ...l, notes: [...l.notes] })),
+          stoppedLines: [...chart.stoppedLines],
+          chartNotes: [...chart.chartNotes],
+          decidedBy: [...chart.decidedBy],
+          releasedBy: row.releasedBy as string,
+          personConfirmedBy: row.personConfirmedBy as string,
         };
       });
       return c.json(out, 200);
@@ -983,6 +1138,91 @@ export const esignOcrRouter = createRouter()
   );
 
 // ---- OCR helpers ------------------------------------------------------------------------------
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * OCR is per organisation (ADR-0095; H-548, H-1261): on only when the organisation chose the
+ * configured engine in `integration_connection` (port documents.ocr), after its DPIA covers it.
+ */
+async function ocrSwitchedOn(tx: Tx, engine: string) {
+  const [connection] = await tx
+    .select({ provider: integrationConnection.provider })
+    .from(integrationConnection)
+    .where(eq(integrationConnection.port, OCR_PORT));
+  if (connection?.provider !== engine) {
+    throw problems.featureDisabled(
+      "Scanning paper MAR charts is not switched on for your organisation.",
+    );
+  }
+}
+
+function decisionProblem(problem: OcrDecisionProblem) {
+  switch (problem) {
+    case "already_decided":
+      return problems.conflict("This value has already been decided.");
+    case "unchanged":
+      return problems.invalid("The correction is the same as the text read: confirm it instead.");
+    case "truncated":
+      return problems.invalid(
+        "The text read was cut short: type the whole value from the chart, or reject it.",
+      );
+    case "bad_line":
+      return problems.invalid("Choose a line on the chart from 0 to 199.");
+    default:
+      return problems.invalid("Type the value as it should read.");
+  }
+}
+
+const RELEASE_REFUSALS: Record<ReleaseRefusal, string> = {
+  undecided_fields: "Decide every value before releasing the scan.",
+  duplicate_part:
+    "A line has two values for the same part. Reject one, or move it to the line it belongs to.",
+  orphan_parts:
+    "A line has values but no medicine name. Correct the name from the chart, or reject the line's values.",
+  no_medicine_lines: "No medicine line stands. Discard the scan instead.",
+  line_count_differs:
+    "The medicine lines you counted on the paper chart do not match the lines here. Add any line the scan missed, or check your count.",
+  line_status_missing:
+    "Say for every medicine line whether it is in force or stopped on the chart.",
+  line_status_unclear:
+    "A line's status is unclear. Ask the prescriber or pharmacy, then say whether it is in force or stopped.",
+  person_not_confirmed:
+    "Confirm the name and date of birth on the chart are this person's before releasing it.",
+  chart_period: "Give the dates the chart covers.",
+  not_current_chart: "Only the chart in use now is released. Discard an old chart's scan.",
+};
+
+function releaseInputOf(body: {
+  linesCounted: number;
+  lines: readonly { line: number; status: OcrLineStatus }[];
+  personConfirmed: boolean;
+  chartFrom: string;
+  chartTo: string;
+  currentChart: boolean;
+}): OcrReleaseInput {
+  return {
+    linesCounted: body.linesCounted,
+    lineStatuses: new Map(body.lines.map((l) => [l.line, l.status])),
+    personConfirmed: body.personConfirmed,
+    chartFrom: body.chartFrom,
+    chartTo: body.chartTo,
+    currentChart: body.currentChart,
+  };
+}
+
+/** What was confirmed at release, read back from the extraction. */
+function storedReleaseOf(row: ExtractionRow): OcrReleaseInput {
+  const lines = (row.lineStatuses ?? []) as { line: number; status: OcrLineStatus }[];
+  return {
+    linesCounted: row.linesCounted ?? -1,
+    lineStatuses: new Map(lines.map((l) => [l.line, l.status])),
+    personConfirmed: row.personConfirmedBy !== null,
+    chartFrom: row.chartFrom ?? "",
+    chartTo: row.chartTo ?? "",
+    currentChart: row.state === "released",
+  };
+}
 
 /** The person must exist in the caller's scope and their medicines permission must reach them. */
 async function personReached(tx: Tx, access: TenantAccess, personId: string) {
@@ -1034,6 +1274,10 @@ function fieldOf(r: FieldRow): OcrField {
     confidence: Number(r.confidence),
     state: r.state as OcrField["state"],
     value: r.value,
+    decidedLine: r.decidedLineGroup,
+    decidedLabel: r.decidedLabel as OcrField["decidedLabel"],
+    truncated: r.truncated,
+    addedByPerson: r.addedByPerson,
     decidedBy: r.decidedBy,
     decidedAt: r.decidedAt,
   };
@@ -1056,6 +1300,9 @@ async function extractionItem(
     failure: r.failure,
     requestedBy: r.requestedBy,
     requestedAt: r.createdAt.toISOString(),
+    linesCounted: r.linesCounted,
+    chartFrom: r.chartFrom,
+    chartTo: r.chartTo,
     releasedAt: r.releasedAt?.toISOString() ?? null,
     discardedAt: r.discardedAt?.toISOString() ?? null,
     fields: fields.map((f) => ({
@@ -1065,9 +1312,16 @@ async function extractionItem(
       line: f.lineGroup,
       label: f.label as z.infer<typeof OcrExtractionItem>["fields"][number]["label"],
       readText: f.readText,
-      confidence: Number(f.confidence),
+      // Only a flag, never the engine's number (automation bias; clinical review finding 9).
+      lowConfidence: !f.addedByPerson && Number(f.confidence) < OCR_LOW_CONFIDENCE,
+      truncated: f.truncated,
+      addedByPerson: f.addedByPerson,
       state: f.state as z.infer<typeof OcrExtractionItem>["fields"][number]["state"],
       value: f.value,
+      decidedLine: f.decidedLineGroup,
+      decidedLabel: f.decidedLabel as z.infer<
+        typeof OcrExtractionItem
+      >["fields"][number]["decidedLabel"],
       decidedBy: f.decidedBy,
       decidedAt: f.decidedAt?.toISOString() ?? null,
     })),
