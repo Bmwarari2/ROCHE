@@ -70,10 +70,16 @@ export async function signIn(page: Page, email: string) {
  * derivation as the seed). Step-up counts only from a second factor used in the last few minutes
  * (ADR-0072 amendment), so journeys that step up confirm with this, as a person would.
  */
-export async function addDemoPasskey(
-  page: Page,
-  who: "manager" | "owner" | "family" | "starter" = "manager",
-) {
+/** Who has the end-to-end passkey (seed-users.ts). */
+export type DemoPasskeyHolder =
+  | "manager"
+  | "owner"
+  | "family"
+  | "starter"
+  | "closing"
+  | "closingRecords";
+
+export async function addDemoPasskey(page: Page, who: DemoPasskeyHolder = "manager") {
   // The manager's labels are the original ones; the others are prefixed (seed-users.ts).
   const digest = (label: string) =>
     createHash("sha256")
@@ -114,10 +120,7 @@ export async function addDemoPasskey(
  * Signs a demo user (the manager, the owner or the family member) in with their passkey: a session
  * whose step-up is fresh.
  */
-export async function signInWithDemoPasskey(
-  page: Page,
-  who: "manager" | "owner" | "family" | "starter" = "manager",
-) {
+export async function signInWithDemoPasskey(page: Page, who: DemoPasskeyHolder = "manager") {
   await addDemoPasskey(page, who);
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();

@@ -8474,6 +8474,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "requestedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "requestedAt": {
             "type": "string",
             "format": "date-time"
@@ -8491,6 +8497,12 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "decidedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "decidedAt": {
             "type": [
@@ -8519,15 +8531,45 @@
           "reason",
           "exportId",
           "requestedBy",
+          "requestedByName",
           "requestedAt",
           "expiresAt",
           "lapsed",
           "decidedBy",
+          "decidedByName",
           "decidedAt",
           "decisionReason",
           "certificateId"
         ],
         "description": "A whole-organisation shred request (PLAT-012)"
+      },
+      "ShredExportList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "downloadedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "downloadedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
       },
       "CreateShredRequest": {
         "type": "object",
@@ -41854,6 +41896,65 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/retention/shred-exports": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The full exports a shred may follow",
+        "description": "Full exports downloaded within 30 days, newest download first: ids and times only, for choosing one when asking for a shred. Tenant-wide holders of platform.retention.manage.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShredExportList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

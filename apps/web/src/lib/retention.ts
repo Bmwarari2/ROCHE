@@ -160,5 +160,8 @@ export function methodWords(method: string, t: Translator): string {
   if (how === "storage_delete_all_versions") {
     return t("retention.certificate.method.deleteAll", { where: where ?? "" });
   }
+  if (how === "kms_key_destroy") {
+    return t("retention.certificate.method.keyDestroy", { where: where ?? "" });
+  }
   return method;
 }

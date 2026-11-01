@@ -4,10 +4,16 @@ import {
   DestructionCertificateItem,
   RefuseShredRequest,
   ShredApproved,
+  ShredExportList,
   ShredRequestItem,
   ShredRequestList,
 } from "@harbour/contracts";
-import { destructionCertificate, type Transaction, tenantShredRequest } from "@harbour/db";
+import {
+  destructionCertificate,
+  type Transaction,
+  tenantShredRequest,
+  tenantUser,
+} from "@harbour/db";
 import {
   checkShredApproval,
   checkShredRefusal,
@@ -19,7 +25,7 @@ import {
   shredRequestExpiresAt,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, auditInTx, withAuditedRefusal } from "../http/audit";
 import {
@@ -45,6 +51,7 @@ import {
   openRequests,
   requesterEligible,
   SHRED_APPROVED_EVENT,
+  usableShredExports,
 } from "../services/shred";
 import { lockRetention } from "./documents";
 import {
@@ -73,17 +80,34 @@ const PDF_NAME = (id: string) => `destruction-certificate-${id}.pdf`;
 
 type Row = typeof tenantShredRequest.$inferSelect;
 
-function item(row: Row, now = new Date()): ShredRequestItem {
+type Names = ReadonlyMap<string, string>;
+
+/** The display names of the members a set of requests names (screens only; ADR-0109 keeps them off certificates). */
+async function namesOf(tx: Transaction, rows: readonly Row[]): Promise<Names> {
+  const ids = [
+    ...new Set(rows.flatMap((r) => [r.requestedBy, r.decidedBy]).filter((v): v is string => !!v)),
+  ];
+  if (ids.length === 0) return new Map();
+  const found = await tx
+    .select({ id: tenantUser.id, name: tenantUser.displayName })
+    .from(tenantUser)
+    .where(inArray(tenantUser.id, ids));
+  return new Map(found.map((f) => [f.id, f.name]));
+}
+
+function item(row: Row, names: Names = new Map(), now = new Date()): ShredRequestItem {
   return {
     id: row.id,
     status: row.status as ShredRequestItem["status"],
     reason: row.reason,
     exportId: row.exportId,
     requestedBy: row.requestedBy,
+    requestedByName: names.get(row.requestedBy) ?? null,
     requestedAt: row.requestedAt.toISOString(),
     expiresAt: shredRequestExpiresAt(row.requestedAt).toISOString(),
     lapsed: row.status === "pending" && shredRequestExpired(row.requestedAt, now),
     decidedBy: row.decidedBy,
+    decidedByName: row.decidedBy ? (names.get(row.decidedBy) ?? null) : null,
     decidedAt: row.decidedAt?.toISOString() ?? null,
     decisionReason: row.decisionReason,
     certificateId: row.certificateId,
@@ -172,9 +196,30 @@ export const shredRouter = createRouter()
           scope: { count: rows.length },
           requestId: c.get("requestId"),
         });
-        return rows.map((r) => item(r));
+        const names = await namesOf(tx, rows);
+        return rows.map((r) => item(r, names));
       });
       return c.json({ items }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/retention/shred-exports",
+      tags: ["platform"],
+      summary: "The full exports a shred may follow",
+      description:
+        "Full exports downloaded within 30 days, newest download first: ids and times only, for choosing one when asking for a shred. Tenant-wide holders of platform.retention.manage.",
+      security,
+      responses: { 200: jsonBody(ShredExportList, "Exports"), ...errorResponses },
+    }),
+    async (c) => {
+      await requireTenantWide(c);
+      const items = await withTenant(c, (tx) => usableShredExports(tx, new Date()));
+      return c.json(
+        { items: items.map((e) => ({ id: e.id, downloadedAt: e.downloadedAt.toISOString() })) },
+        200,
+      );
     },
   )
   .openapi(
@@ -224,10 +269,10 @@ export const shredRouter = createRouter()
             scope: { exportId: req.exportId },
             requestId: c.get("requestId"),
           });
-          return inserted;
+          return item(inserted, await namesOf(tx, [inserted]));
         }),
       );
-      return c.json(item(row), 201);
+      return c.json(row, 201);
     },
   )
   .openapi(
@@ -312,13 +357,15 @@ export const shredRouter = createRouter()
         );
         return null;
       });
+      const request = done?.request ?? approved;
+      const names = await withTenant(c, (tx) => namesOf(tx, [request]));
       if (done?.certificate) {
         return c.json(
-          { request: item(done.request), certificate: certificateItem(done.certificate) },
+          { request: item(request, names), certificate: certificateItem(done.certificate) },
           200,
         );
       }
-      return c.json({ request: item(done?.request ?? approved), certificate: null }, 202);
+      return c.json({ request: item(request, names), certificate: null }, 202);
     },
   )
   .openapi(
@@ -377,10 +424,10 @@ export const shredRouter = createRouter()
             resourceId: id,
             requestId: c.get("requestId"),
           });
-          return done;
+          return item(done, await namesOf(tx, [done]));
         }),
       );
-      return c.json(item(row), 200);
+      return c.json(row, 200);
     },
   )
   .openapi(
@@ -429,10 +476,10 @@ export const shredRouter = createRouter()
             ...(own ? {} : { reason: "expired" }),
             requestId: c.get("requestId"),
           });
-          return cancelled;
+          return item(cancelled, await namesOf(tx, [cancelled]));
         }),
       );
-      return c.json(item(row), 200);
+      return c.json(row, 200);
     },
   )
   .openapi(

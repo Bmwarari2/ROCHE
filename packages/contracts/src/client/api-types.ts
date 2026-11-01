@@ -8343,6 +8343,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/retention/shred-exports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The full exports a shred may follow
+     * @description Full exports downloaded within 30 days, newest download first: ids and times only, for choosing one when asking for a shred. Tenant-wide holders of platform.retention.manage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Exports */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredExportList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/retention/shred-requests/{id}/approve": {
     parameters: {
       query?: never;
@@ -32196,6 +32262,7 @@ export interface components {
       exportId: string;
       /** Format: uuid */
       requestedBy: string;
+      requestedByName: string | null;
       /** Format: date-time */
       requestedAt: string;
       /** Format: date-time */
@@ -32203,11 +32270,20 @@ export interface components {
       lapsed: boolean;
       /** Format: uuid */
       decidedBy: string | null;
+      decidedByName: string | null;
       /** Format: date-time */
       decidedAt: string | null;
       decisionReason: string | null;
       /** Format: uuid */
       certificateId: string | null;
+    };
+    ShredExportList: {
+      items: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        downloadedAt: string;
+      }[];
     };
     CreateShredRequest: {
       reason: string;

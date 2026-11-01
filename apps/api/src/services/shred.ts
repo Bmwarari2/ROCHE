@@ -90,6 +90,31 @@ export async function exportDownloaded(
   return row !== undefined && shredExportUsable(row, now);
 }
 
+/**
+ * The full exports a shred may follow, downloaded within the limit, newest download first (ids and
+ * times only): read as `exportDownloaded` reads them, so a holder of platform.retention.manage
+ * without the export permission can still choose one (PLAT-012 part 2).
+ */
+export async function usableShredExports(
+  tx: Transaction,
+  now: Date,
+): Promise<{ readonly id: string; readonly downloadedAt: Date }[]> {
+  const rows = await readingAs(tx, null, () =>
+    tx
+      .select({
+        id: tenantExport.id,
+        kind: tenantExport.kind,
+        downloadedAt: tenantExport.downloadedAt,
+      })
+      .from(tenantExport)
+      .where(eq(tenantExport.kind, "full")),
+  );
+  return rows
+    .filter((r) => shredExportUsable(r, now))
+    .map((r) => ({ id: r.id, downloadedAt: r.downloadedAt as Date }))
+    .sort((a, b) => b.downloadedAt.getTime() - a.downloadedAt.getTime());
+}
+
 /** Requests pending or shredding (at most one, by the unique index). */
 export async function openRequests(tx: Transaction): Promise<number> {
   const rows = await tx

@@ -1,6 +1,7 @@
 import { Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
 import { FileCheck2, Lock, LockOpen, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { DestroyForm, PlaceHoldForm, ReleaseHoldForm } from "@/components/retention/RetentionForms";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
@@ -11,6 +12,7 @@ import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { firstParam } from "@/lib/record-metadata";
 import { methodWords, RETENTION_PAGE, retentionShown, splitHolds } from "@/lib/retention";
+import { certificateHref, SHRED_PAGE } from "@/lib/shred";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -139,6 +141,16 @@ export default async function RetentionPage({
           )}
         </div>
       </Card>
+      <Card as="section" title={t("shred.entry.title")} headingLevel={2}>
+        <div className="flex flex-col gap-3">
+          <p className="m-0 max-w-prose">{t("shred.entry.about")}</p>
+          <p className="m-0">
+            <Link href={SHRED_PAGE} className="inline-flex min-h-target items-center underline">
+              {t("shred.entry.link")}
+            </Link>
+          </p>
+        </div>
+      </Card>
       <Card as="section" title={t("retention.certificates.title")} headingLevel={2}>
         {certificates.data.items.length === 0 ? (
           <EmptyState
@@ -151,11 +163,15 @@ export default async function RetentionPage({
             {certificates.data.items.map((cert) => (
               <li key={cert.id} className="flex flex-col gap-1 border-b border-border pb-3">
                 <h3 className="m-0 text-body font-semibold">
-                  {t("retention.certificate.heading", {
-                    count: cert.recordCount,
-                    recordClass: cert.recordClass,
-                    dateTime: when(cert.executedAt),
-                  })}
+                  <Link href={certificateHref(cert.id)} className="underline">
+                    {cert.subjectType === "tenant"
+                      ? t("shred.certificate.listHeading", { dateTime: when(cert.executedAt) })
+                      : t("retention.certificate.heading", {
+                          count: cert.recordCount,
+                          recordClass: cert.recordClass,
+                          dateTime: when(cert.executedAt),
+                        })}
+                  </Link>
                 </h3>
                 <p className="m-0">{t("retention.holds.reason", { reason: cert.reason })}</p>
                 <p className="m-0 text-body-dense">{methodWords(cert.method, t)}</p>

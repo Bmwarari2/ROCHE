@@ -265,6 +265,18 @@ describe("crypto-shredding an organisation", () => {
     expect(cancelled.status).toBe(200);
   });
 
+  it("lists the full exports a shred may follow, to the quality lead too, and to nobody else", async () => {
+    const notOffered = [await exportDownloaded(null), await exportDownloaded(31)];
+    const listed = await as("quality", "/v1/retention/shred-exports");
+    expect(listed.status).toBe(200);
+    const { items } = await json<{ items: { id: string; downloadedAt: string }[] }>(listed);
+    expect(items.map((i) => i.id)).toContain(exportId);
+    for (const id of notOffered) expect(items.map((i) => i.id)).not.toContain(id);
+    const times = items.map((i) => Date.parse(i.downloadedAt));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+    expect((await as("manager", "/v1/retention/shred-exports")).status).toBe(403);
+  });
+
   it("lets a second person refuse a request with a reason, finally, and never the requester (PLAT-012 part 2)", async () => {
     const request = await json<ShredRequestItem>(await ask("owner", exportId));
     expect(request).toMatchObject({ status: "pending", lapsed: false, decisionReason: null });
@@ -294,6 +306,8 @@ describe("crypto-shredding an organisation", () => {
     expect(refused.status).toBe(200);
     expect(await json<ShredRequestItem>(refused)).toMatchObject({
       status: "refused",
+      requestedByName: DEMO.users.owner.name,
+      decidedByName: expect.any(String),
       decidedBy: LODGE.qualityLeadId,
       decisionReason: "Not agreed by the board yet",
       lapsed: false,
