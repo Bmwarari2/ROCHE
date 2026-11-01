@@ -32,5 +32,5 @@ Before you add your first real person you can load a few invented people to prac
 
 ## Good to know
 
-- Some items show a code (for example a setting's name) rather than plain words, and reasons are
-  in English only for now.
+- Each setting is named in plain words made from Harbour's own name for it, for example "Care plan
+  review interval (months)". The reasons are in English only for now.

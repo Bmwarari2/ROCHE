@@ -10,7 +10,7 @@ Approve: the owner, Registered Manager, deputy and quality lead.
 
 ## Write a draft
 
-1. Go to **Letters** in the menu. The page is called **Letter and email templates**.
+1. Go to **Letter templates** in the menu. The page is called **Letter and email templates**.
 2. Choose **New template**.
 3. Choose **What the template is for** and **How it is sent** (letter or email; this cannot be
    changed later).
@@ -32,5 +32,6 @@ Approve: the owner, Registered Manager, deputy and quality lead.
 
 ## Good to know
 
-- Email templates can be written, but sending email is not available yet. Send letters.
+- Email templates can be written, but sending email is not available yet, so they are not
+  offered when you make a letter. Send letters.
 - Duty of candour letters cannot be made from the record on the web yet.

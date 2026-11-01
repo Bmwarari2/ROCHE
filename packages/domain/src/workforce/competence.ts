@@ -47,6 +47,11 @@ function signOffProblem(signOff: CompetenceSignOff): CompetenceBlock | null {
  * sign-off counts; an unacceptable one (self-signed, observer without the permission) never does,
  * and is reported only when there is nothing better.
  */
+/**
+ * @deprecated for gating: it ignores withdrawals and stored valid-until dates. Medicines and the
+ * rota decide through the competence port (`competenceDecision`, ADR-0085; clinical safety review
+ * round 1 of slice 17, finding 3). Kept for the slice 4 sign-off acceptability checks.
+ */
 export function competenceGate(
   workerId: string,
   competence: string,

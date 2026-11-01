@@ -52,7 +52,9 @@ test("the reviews tab shows when each review is due, as an icon and a word, and 
   for (const chip of await due.locator("[data-status]").all()) {
     await expect(chip).toHaveText(/Overdue|Due|Upcoming|Paused while in hospital/);
   }
-  await expect(due.getByText(/^Rate table: /).first()).toBeVisible();
+  await expect(
+    due.getByText(/^Worked out from your organisation's settings: /).first(),
+  ).toBeVisible();
   await bothThemes(page, "reviews tab");
 });
 

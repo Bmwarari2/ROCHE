@@ -1,4 +1,5 @@
 import type { LetterTemplateItem, LetterTemplateVersionItem } from "@harbour/contracts";
+import { MERGE_FIELDS } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import type { SafetyChip } from "./incidents";
 import type { FieldErrors } from "./outcome";
@@ -173,6 +174,26 @@ export function templatesForLetters(
     (template) =>
       template.current !== null &&
       template.kind !== "duty_of_candour" &&
+      // Sending email is not built yet (the API refuses it), so email templates are not offered.
+      template.channel !== "email" &&
       (canUseIncidents || template.kind !== "incident_follow_up"),
   );
+}
+
+/** Whether an email template in use was left out, so the page can say why it is not offered. */
+export function emailTemplatesLeftOut(templates: readonly LetterTemplateItem[]): boolean {
+  return templates.some((template) => template.current !== null && template.channel === "email");
+}
+
+/**
+ * The personal details a template or letter uses, by the merge field's name ("Person's full
+ * name"), never its key (`person.full_name`). An unknown key is kept as it is, so nothing is
+ * hidden from the person checking the letter.
+ */
+export function mergeFieldNames(keys: readonly string[]): string {
+  return keys
+    .map(
+      (key) => (MERGE_FIELDS as Record<string, { label: string } | undefined>)[key]?.label ?? key,
+    )
+    .join(", ");
 }

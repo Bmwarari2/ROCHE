@@ -2,8 +2,8 @@
  * The rate-table figures the medicines rules read (medicines.md section 4, rates.md). None of them
  * is a literal in this module: callers resolve them once per request with `resolveMedicinesRates`
  * (tenant override, then nation, then `uk`, then `all`) and pass them in. The dose windows, the PRN
- * outcome check, the stock-check interval and the override length are tenant defaults with no
- * published figure, marked to verify; the paracetamol and bisphosphonate figures apply only to
+ * outcome check, the stock-check interval, the override length and the record delay are tenant
+ * defaults with no published figure, marked to verify; the paracetamol and bisphosphonate figures apply only to
  * entries a person tagged at transcription (ADR-0082).
  */
 
@@ -21,6 +21,7 @@ export const MEDICINES_RATE_KEYS = {
   cdStockCheckIntervalDays: "medicines.cd.stock_check_interval_days",
   competenceRefreshMonths: "competence.medicines.refresh_months",
   competenceOverrideMaxHours: "medicines.competence_override.max_hours",
+  recordDelayToleranceMinutes: "medicines.record_delay_tolerance_minutes",
   clockDriftMinutes: "sync.clock_drift_flag_minutes",
 } as const;
 

@@ -20,6 +20,7 @@ import {
   notificationsView,
   notificationWarnings,
   overdueCount,
+  showsPostFallCard,
 } from "./incidents";
 
 const t = createTranslator("en-GB");
@@ -494,17 +495,20 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
         (n) => n.body,
       );
     expect(hint(null, { canSubmit: false, canManage: true })).toEqual([
-      "Harbour has not yet checked which notifications this incident needs. Ask a nurse or the Registered Manager to check it.",
+      "Harbour has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself, and tell the Registered Manager, who submits notifications.",
+    ]);
+    expect(hint(null, { canSubmit: false, canManage: false })).toEqual([
+      "Harbour has not yet checked which notifications this incident needs. Tell the nurse in charge or the Registered Manager.",
     ]);
     expect(hint(null, { canSubmit: true, canManage: true })).toEqual([
       "Harbour has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself.",
     ]);
     const open = view({ openQuestions: [question] });
     expect(hint(open, { canSubmit: true, canManage: false })).toEqual([
-      "The questions are not on this page yet. Tell the nurse in charge or the Registered Manager that this incident has questions to answer.",
+      "The questions are not shown to you here. Tell the nurse in charge or the Registered Manager that this incident has questions to answer.",
     ]);
     expect(hint(open, { canSubmit: false, canManage: true })).toEqual([
-      "The questions are not on this page yet. Until they are, check what the law needs for this incident yourself.",
+      "The questions are not shown to you here. Until they are answered, check what the law needs for this incident yourself.",
     ]);
   });
 
@@ -545,6 +549,47 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     expect(overdueCount(null)).toBe(0);
     expect(t("safety.incident.overdueLink", { count: 2 })).toBe(
       "2 statutory notifications overdue: go to them",
+    );
+  });
+});
+
+describe("hazard HZ-027 the checks after a fall on the incident page", () => {
+  it.each([
+    // The classifier's task list is empty outside England, but the API raises the post-fall
+    // tasks in every nation, so the card never depends on it.
+    { type: "fall", restricted: false, shown: true },
+    // Closing neither waits for nor cancels the post-fall tasks, so the card stays.
+    { type: "fall", restricted: false, shown: true, status: "closed" },
+    // A restricted view already says it was a fall; the guidance holds no personal data.
+    { type: "fall", restricted: true, shown: true },
+    { type: "medication_error", restricted: false, shown: false },
+  ])(
+    "hazard HZ-027 shows the card for $type (restricted $restricted, status $status): $shown",
+    (c) => {
+      expect(showsPostFallCard(c)).toBe(c.shown);
+    },
+  );
+
+  it("hazard HZ-027 points to the task list and never predicts the tasks", () => {
+    expect(t("safety.incident.postFall.intro")).toContain(
+      "The tasks stay open after this incident is closed until they are done.",
+    );
+    expect(t("safety.incident.postFall.link")).toBe("Open checks on the task list");
+    expect(t("safety.incident.postFall.finishedLink")).toBe("Finished checks");
+  });
+
+  it("hazard HZ-027 urgent advice matches the post-fall rule: aspirin alone excepted, the procedure followed", () => {
+    // The domain's wording (packages/domain/src/safety/post-fall.ts, NICE NG232 1.2.4).
+    expect(t("safety.incident.postFall.urgentAdvice")).toBe(
+      "Get urgent medical advice now, following your falls procedure, if a head injury cannot be ruled out, or the person takes anticoagulant or antiplatelet medicine (except aspirin on its own).",
+    );
+  });
+});
+
+describe("hazard HZ-019 the body map's saved message", () => {
+  it("hazard HZ-019 never says follow-up tasks were raised", () => {
+    expect(t("care.bodyMap.savedFollowUp")).toBe(
+      "Mark saved. Any follow-up tasks will appear on the task list.",
     );
   });
 });

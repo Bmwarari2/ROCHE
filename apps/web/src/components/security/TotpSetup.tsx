@@ -72,7 +72,7 @@ export function TotpSetup() {
     event.preventDefault();
     const code = String(new FormData(event.currentTarget).get("code") ?? "").replace(/\s+/g, "");
     if (!/^\d{6}$/.test(code)) {
-      setError(t("auth.totp.codeRequired"));
+      setError(t("auth.totp.setupCodeRequired"));
       return;
     }
     setError(null);

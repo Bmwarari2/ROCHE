@@ -172,6 +172,8 @@ function inputFor(args: {
   readonly body: z.infer<typeof RecordAdministration> | z.infer<typeof CorrectAdministration>;
   readonly at: Date;
   readonly administrator: { id: string } & Competence;
+  /** The administrator's competence at the time of recording (#162: judged at both times). */
+  readonly competenceAtRecording: MedicinesCompetence;
   readonly rows: readonly AdministrationRow[];
   readonly byId: ReadonlyMap<string, MarEntry>;
   readonly dosingRecords: Awaited<ReturnType<typeof personDosingRecords>>;
@@ -202,6 +204,7 @@ function inputFor(args: {
       timingReason: args.body.timingReason,
       intervalOverrideReason: args.body.intervalOverrideReason,
       administrator: { id: args.administrator.id, competence: args.administrator.competence },
+      competenceAtRecording: args.competenceAtRecording,
       competenceOverride: args.administrator.override,
       policy: UNCHECKED_POLICY,
       alreadyRecorded:
@@ -461,12 +464,16 @@ export const medicineAdministrationsRouter = createRouter()
           // recorded after it was given carries its own time, which slice 3's rules require to be
           // before the server's (#162); devices send theirs from slice 68 (security review M1).
           const gbr = body.givenBeforeRecorded;
-          if (!gbr && (body.givenAt || body.givenBy)) {
+          // Only a dose recorded after the event names another giver. A round record may carry the
+          // time it happened, up to `medicines.record_delay_tolerance_minutes` earlier (#162's
+          // rules refuse older ones and judge every record at the time given and when recorded,
+          // so a typed time cannot hide a flag); never a time to come.
+          if (!gbr && body.givenBy) {
             throw deny([
               {
-                problem: "given_at_only_after_giving",
+                problem: "given_by_only_after_giving",
                 message:
-                  "On the round a dose is recorded at the time it is given. If it was given earlier, record it as given before it was recorded, with why.",
+                  "Name who gave it only when recording a dose after it was given, with why.",
               },
             ]);
           }
@@ -476,18 +483,25 @@ export const medicineAdministrationsRouter = createRouter()
           let at = now;
           let deviceAt: Date | null = null;
           let drifted = false;
-          if (gbr && body.givenAt) {
+          if (body.givenAt) {
             deviceAt = new Date(body.givenAt);
             const corrected = driftCorrectedTime(deviceAt, body.deviceOffsetMs, facts.rates);
             at = corrected.at;
             drifted = corrected.drifted;
+          }
+          if (at.getTime() > now.getTime() + facts.rates.clockDriftMinutes * 60_000) {
+            throw deny([
+              { problem: "given_at_in_future", message: "Record what has happened, at its time." },
+            ]);
           }
           // Who gave it: the recorder, or (recorded after giving) the member named, whose
           // competence then the rules check; the recorder's competence now is checked too.
           const giverId = gbr ? (body.givenBy ?? access.tenantUserId) : access.tenantUserId;
           const giver = {
             id: giverId,
-            ...(gbr ? await competenceOf(c, access.tenantId, giverId, at) : me),
+            ...(at.getTime() !== now.getTime()
+              ? await competenceOf(c, access.tenantId, giverId, at)
+              : me),
           };
           const { input, versionIds } = inputFor({
             personId,
@@ -497,6 +511,12 @@ export const medicineAdministrationsRouter = createRouter()
             at,
             recordedAt: now,
             administrator: giver,
+            competenceAtRecording:
+              giverId === access.tenantUserId
+                ? me.competence
+                : await c
+                    .get("services")
+                    .medicines.competence.forMember(access.tenantId, giverId, now),
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,
@@ -660,6 +680,9 @@ export const medicineAdministrationsRouter = createRouter()
             at,
             recordedAt: now,
             administrator: giver,
+            competenceAtRecording: await c
+              .get("services")
+              .medicines.competence.forMember(access.tenantId, giverId, now),
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,

@@ -188,8 +188,43 @@ To close every correction and back-entry path in one round:
   interval is flagged for review (`inside_minimum_interval`).
 - Every reviewer probe in scratchpad/probe-gbr/ was run against this commit (the two written for
   the input before `recordedAt` through their adapted copies).
+- Then, on the coordinator's decision: 5 minutes was too strict for recording after a round. The
+  back-dating limit is now its own rate row, `medicines.record_delay_tolerance_minutes` (30,
+  marked to verify, CSO to confirm in H-1067); the forward limit stays at the clock tolerance;
+  and tests show every time-dependent rule judged at the dose's own time within the delay.
 - Docs: medicines.md rules 14, 17 and 23 and the slice 22 notes; hazard log HZ-004 and HZ-119;
   H-1067 (a routine amount correction raises a warning, for the CSO to accept or refuse).
+
+## #162 third review, third re-check (31/10/2026)
+
+Every correction path was closed; the allowances on the entered time could still be exploited:
+
+- Medium (HZ-004, HZ-119): an ordinary round record was judged only at the time entered, so
+  dating it forward within the clock tolerance cleared the maximum, an interval or the window,
+  and dating it back within the record delay recorded a dose from a stopped entry or after an
+  override had ended, or hid a late dose. An ordinary record is now judged at both the time
+  given and the server's `recordedAt` (with the administrator's competence at each,
+  `competenceAtRecording` being new); where a rule passes at one and fails at the other it is
+  refused (`differs_at_recording_time`) and goes by the flagged route. Lateness is judged at the
+  later of the two, so a dose recorded late shows as late.
+- Low: outcomes other than "given" had no delay limit (a refusal three hours back was accepted).
+  The delay and the flagged route now apply to every outcome (`recorded_after_delay`, renamed from
+  `given_earlier_than_recorded`; `givenBeforeRecorded` covers any outcome).
+- Table tests built from the reviewer's Y probes; H-1067 says what this means for doses the person
+  takes themselves.
+
+## #162 final check (01/11/2026)
+
+No High or Medium findings at 53de07ee; two Lows, fixed:
+
+- Dating a round record up to 5 minutes later, with a reason typed, dropped the
+  `interval_override` or `early` flag (Z1a, Z2a). A flag that needs a reason at either time the
+  record is judged now stays on it.
+- The flagged route was judged only at the time given, so a dose given after a stop and dated back
+  through it raised only a warning (Z4, Z4b). The route is now also checked at `recordedAt`;
+  where the rules give a different answer it is flagged `differs_when_recorded` and the review is
+  urgent, naming what differs. H-1067 says most route records of a late scheduled dose will now
+  escalate urgently, for the CSO to confirm.
 
 ## What is next
 
@@ -228,4 +263,10 @@ To close every correction and back-entry path in one round:
 - After the re-check: 692 medicines tests; the whole domain package 6,198 tests under the three
   time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).
 - After the second re-check: 718 medicines tests; the whole domain package 6,224 tests under the
+  three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
+- After the final check: 751 medicines tests; the whole domain package 6,257 tests under the three
+  time zones, 99.69% line coverage (medicines 99.52%, `administration.ts` 100%).
+- With the third re-check: 743 medicines tests; the whole domain package 6,249 tests under the
+  three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
+- With the record delay: 725 medicines tests; the whole domain package 6,231 tests under the
   three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
