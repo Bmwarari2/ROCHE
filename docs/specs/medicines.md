@@ -640,7 +640,9 @@ allergy or to a person: the screens show both, and people compare them.
    or a query) and every line not matched to one (start, not started with a reason, or a query);
    and completion (allergies compared, the person's involvement or why not, and why there is no
    discharge letter where the API asks). Harbour never decides: a line that says "stop" does not
-   stop anything until a person decides it. Completion's refusals are listed by entry and line.
+   stop anything until a person decides it. A refused completion shows every problem in the API's
+   words (listing them by entry and line needs an API change: H-1283). Continuing or changing a
+   medicine with a version that starts later asks why that version still stands.
 7. **Self-administration** (MEDS-006's self-administration records) is not in slice 16's API, so
    there is no screen yet (H-1281).
 8. **Status as an icon and a word**: Not yet checked, Checked, Difference found, Stopped, Replaced,
