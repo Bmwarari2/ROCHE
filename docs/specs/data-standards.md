@@ -853,6 +853,21 @@ is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/
 | `medication.tags` | Harbour (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |
 | `medication.minimum_interval_minutes`, `prn_max_per_24h` | Harbour | Minutes; numeric in the dose's unit | As the prescription states. |
 
+## Controlled drugs register (Phase 2, slice 34)
+
+Migration 0128 ([medicines.md](medicines.md) section 14). Retention class
+`controlled_drugs_register`; every column is exported. Quantities are in the page's dm+d unit.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `controlled_drug_page.vmp_id`, `product_name`, `unit_code`, `unit_name` | dm+d VMP and unit of measure | SNOMED CT concept id; dm+d description and unit | One page per person and VMP (drug, form and strength). |
+| `controlled_drug_entry.movement` | Harbour; Misuse of Drugs Regulations 2001 register entries | `receipt`, `administration`, `disposal`, `transfer_out`, `destruction`, `correction` | |
+| `controlled_drug_entry.quantity`, `balance_after` | Harbour | Numeric, 3 decimal places | A quantity correction is signed; a detail correction is 0. |
+| `controlled_drug_entry.seq` | Harbour | Integer from 1 | Its place on the page. |
+| `controlled_drug_entry.corrects` | Harbour | `quantity`, `detail` | Margin corrections. |
+| `controlled_drug_witness_assertion.movement` | Harbour | The movements above, or `stock_check` | Used once, before `expires_at`. |
+| `controlled_drug_stock_check.counted`, `expected`, `difference` | Harbour | Numeric, 3 decimal places | A difference raises a medication incident. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

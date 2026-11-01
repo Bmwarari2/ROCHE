@@ -170,6 +170,14 @@ Retention class `mar_chart`. Escalations become tasks for the nurse in charge, t
 that name no medicine. No new recipient or sub-processor; administrations are not yet sent to
 devices (the round stream is a contract until slice 68).
 
+Controlled drugs register (Phase 2 slice 34, migration 0128): B1 now also covers each person's
+register pages (drug, form and strength) and entries (receipts, administrations, returns,
+destruction and margin corrections, with the balance, who recorded and who witnessed each, and
+any reason), witnesses' signed assertions and stock counts. A count that does not balance raises
+a medication incident (B1's incident record), whose words name no drug or count. Retention class
+`controlled_drugs_register` (2 years from the page's last entry; entries recording an
+administration keep the longer `mar_chart` period). No new recipient or sub-processor.
+
 Notes:
 
 - The photo in the point-of-care header (B1) is a safety control against wrong-person selection (hazard HZ-001), not an optional feature, so it is not consent-based. Photos shared with families (B8) are.

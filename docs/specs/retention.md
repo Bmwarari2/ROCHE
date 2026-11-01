@@ -80,6 +80,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
 | `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
+| `controlled_drug_page`, `controlled_drug_witness_assertion`, `controlled_drug_stock_check` | controlled_drugs_register |
 | `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
 | `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
 | `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |

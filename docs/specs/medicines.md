@@ -902,8 +902,9 @@ why.
   an override of an expired one), and the giver (`givenBy`, the recorder by default) checked at the
   time given. The rules always flag it `given_before_recorded` (and `given_by_someone_else` when
   another member gave it) and escalate it, urgently when it broke a rule.
-- **Controlled drugs**: an entry whose dm+d controlled drug schedule is set is refused here until
-  the register (slice 34) records it with two signatures and step-up (security review M4).
+- **Controlled drugs** (from slice 34, section 14.4): a dose of an entry whose dm+d controlled drug
+  schedule is set, given, writes its register entry with the record, with a fresh step-up and the
+  witness's signature; other outcomes move no stock.
 - **Refused** records are audited as `denied` with the problem codes, outside the refused
   transaction.
 
