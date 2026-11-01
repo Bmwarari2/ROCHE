@@ -38,6 +38,7 @@ export * from "./comms/notify-rates";
 export * from "./comms/template-style";
 export * from "./comms/templates";
 export * from "./comms/visit-booking";
+export * from "./integrations/esign-ocr";
 export * from "./integrations/ports";
 export * from "./medicines/dmd";
 export * from "./medicines/dose";

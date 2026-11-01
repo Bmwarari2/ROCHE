@@ -10,6 +10,7 @@ export * from "./dependency";
 export * from "./disclosure";
 export * from "./dpia";
 export * from "./enums";
+export * from "./esign-ocr";
 export * from "./exports";
 export * from "./imports";
 export * from "./induction";
