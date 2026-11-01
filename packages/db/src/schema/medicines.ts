@@ -733,7 +733,7 @@ export const medicationAdministration = pgTable(
         'amount_in_other_unit', 'competence_not_current', 'given_before_recorded',
         'given_by_someone_else', 'close_to_last_dose', 'clock_drift', 'corrected',
         'dose_removed', 'dose_moved', 'breach_created', 'breach_hidden', 'close_to_next_dose',
-        'inside_minimum_interval']::text[]`,
+        'inside_minimum_interval', 'differs_when_recorded']::text[]`,
     ),
   ],
 );
@@ -1025,6 +1025,82 @@ export const controlledDrugStockCheck = pgTable(
            AND witness_id <> checked_by)
        OR (witness_id IS NULL AND witness_assertion_id IS NULL
            AND length(btrim(coalesce(no_witness_reason, ''))) > 0)`,
+    ),
+  ],
+);
+
+/**
+ * A second record of a scheduled dose uploaded from a device after the server already holds one
+ * (slice 48; medicines.md 15.4): kept as sent, never dropped, for the nurse in charge to review.
+ * What it holds never changes; its resolution is set once.
+ */
+export const medicationAdministrationConflict = pgTable(
+  "medication_administration_conflict",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    /** The uploaded record's own client id: a resend finds this conflict. */
+    clientRecordId: uuid("client_record_id").notNull(),
+    medicationId: uuid("medication_id").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    /** The record that stands on the server. */
+    standingId: uuid("standing_id").notNull(),
+    /** The uploaded record as the device sent it. */
+    uploaded: jsonb("uploaded").notNull(),
+    deviceAt: timestamp("device_at", { withTimezone: true }),
+    deviceOffsetMs: integer("device_offset_ms"),
+    uploadedBy: uuid("uploaded_by").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedBy: uuid("resolved_by"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolution: text("resolution"),
+    correctionId: uuid("correction_id"),
+    resolutionNote: text("resolution_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").default(sql`app.current_user_id()`),
+  },
+  (t) => [
+    unique("medication_administration_conflict_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("medication_administration_conflict_client_key").on(t.tenantId, t.clientRecordId),
+    personRef("medication_administration_conflict_person_fk", t),
+    foreignKey({
+      name: "medication_administration_conflict_medication_fk",
+      columns: [t.tenantId, t.personId, t.medicationId],
+      foreignColumns: [medication.tenantId, medication.personId, medication.id],
+    }),
+    foreignKey({
+      name: "medication_administration_conflict_standing_fk",
+      columns: [t.tenantId, t.personId, t.standingId],
+      foreignColumns: [
+        medicationAdministration.tenantId,
+        medicationAdministration.personId,
+        medicationAdministration.id,
+      ],
+    }),
+    foreignKey({
+      name: "medication_administration_conflict_correction_fk",
+      columns: [t.tenantId, t.personId, t.correctionId],
+      foreignColumns: [
+        medicationAdministration.tenantId,
+        medicationAdministration.personId,
+        medicationAdministration.id,
+      ],
+    }),
+    memberRef("medication_administration_conflict_uploaded_by_fk", t.tenantId, t.uploadedBy),
+    memberRef("medication_administration_conflict_resolved_by_fk", t.tenantId, t.resolvedBy),
+    index("medication_administration_conflict_open_idx")
+      .on(t.tenantId, t.personId)
+      .where(sql`resolved_at IS NULL`),
+    check(
+      "medication_administration_conflict_resolution",
+      sql`(resolved_by IS NULL AND resolved_at IS NULL AND resolution IS NULL AND correction_id IS NULL
+           AND resolution_note IS NULL)
+       OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL
+           AND length(btrim(coalesce(resolution_note, ''))) > 0
+           AND ((resolution = 'first_stands' AND correction_id IS NULL)
+             OR (resolution = 'corrected' AND correction_id IS NOT NULL)))`,
     ),
   ],
 );

@@ -1113,3 +1113,67 @@ Audit actions carry ids, movements and problem codes, never the drug or the coun
 - refusals are audited as `denied`.
 
 Outbox events, with ids only: `medicines.cd.entry_recorded` and `medicines.cd.stock_discrepancy`.
+
+## 15. Rounds, escalation and conflict review (slice 48, API)
+
+Migration 0134, routes `apps/api/src/routes/medicine-rounds.ts`. MEDS-002, with HZ-001, HZ-003,
+HZ-004, HZ-006, HZ-008 and HZ-010. The screens are slice 53.
+
+### 15.1 The round for a location
+
+`GET /v1/locations/{id}/medicine-round?from=&to=` needs `medicines.emar.administer` and covers at
+most 12 hours. For each person living at the location whom the caller may see (status `active`;
+RLS and person scope), it gives:
+- the scheduled doses in the slot, each with its window, its state in words (`Not due yet`, `Due
+  now`, `Late: no outcome recorded`, `Outcome recorded`) and the notices its tags switch on.
+  Time-critical doses come first within each person, then by due time.
+- each when-required medicine that may be given now, with when it was last given, by whom, the
+  24-hour total, what remains and when the interval allows the next (`prnStatus`).
+
+People are ordered by room and then name, so the round follows the building. The person view
+(`GET /v1/people/{id}/medicine-round`) and the location view use the same function.
+
+### 15.2 Escalation of outstanding doses
+
+The worker job `medicines-outstanding-doses` (section 13.6) raises one task per dose whose window
+has ended with no outcome. Time-critical doses are urgent. The task is closed when an outcome is
+recorded. These tasks are ordinary task-engine tasks, so the task engine's escalation (unanswered
+tasks escalate up the location's chain) and the handover pick them up with no medicines-specific
+path.
+
+### 15.3 Handover of outstanding doses
+
+The shift handover reads every open task at the location due by the end of the shift (care.md
+rule 8). An outstanding dose's task therefore appears on the handover as an overdue or unfinished
+task, in its own words, and stays there until an outcome is recorded. Nothing makes the dose due
+again.
+
+### 15.4 Conflict review (two devices, one dose)
+
+A record uploaded from a device (one sending its time and offset) for a scheduled dose that
+already has a record on the server is never dropped:
+- It is stored as a conflict (`medication_administration_conflict`): the uploaded record as sent,
+  the record that stands, the device's time and who sent it.
+- A review task for the nurse in charge is raised, urgent for a time-critical dose. The task names
+  no medicine.
+- The upload gets `202 Accepted` with the conflict's id, so the device stops resending it.
+  Resending the same client id returns the same conflict.
+
+`GET /v1/medicine-administration-conflicts?locationId=` lists open conflicts. `GET
+/v1/medicine-administration-conflicts/{id}` shows both records side by side. `POST .../resolve`,
+with `medicines.record.manage`, records the decision and why. Its outcome is either:
+- `first_stands`: the record on the server stands and the upload was a duplicate; or
+- `corrected`: the nurse in charge corrected the record that stands through the corrections
+  route, and the correction's id is named.
+
+A conflict is resolved once, never edited, and its task is closed. The upload itself never
+becomes an administration record without a person's decision.
+
+The table is append-only, apart from the resolution, which is set once. It has forced RLS and
+person scope, and its retention class is `mar_chart`.
+
+### 15.5 Audit and outbox
+
+- Audit actions, carrying ids only: `medicines.round.viewed`, `medicines.administration.conflict_raised`,
+  `.conflict_viewed`, `.conflict_resolved`.
+- Outbox event: `medicines.administration.conflict_raised`.
