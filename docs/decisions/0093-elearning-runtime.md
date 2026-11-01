@@ -40,12 +40,14 @@ option that keeps untrusted script off the app's site while letting packages fin
 as the standards require, with no new sub-processor.
 
 - **Origins.** `ELEARNING_ORIGIN` (production `https://learn.<elearning_domain_name>`, a
-  registrable domain of its own with its own certificate and CloudFront distribution; development
+  registrable domain of its own with its own Certificate Manager certificate and its own backend on
+  the Google Cloud load balancer, ADR-0098; development
   `http://127.0.0.1:3000`, the same server under another host name) is another site from the app:
   `contentOrigin` refuses an origin on the app's own registrable domain, because a subdomain of
   it would be the same site, able to set cookies the app receives and to count as same-site
-  (security review H1). The load balancer forwards only `/learn/*` on the content host and
-  answers anything else with a fixed 404; the web proxy also refuses every other path there,
+  (security review H1). The load balancer forwards only `/learn/*` on the content host (a path
+  matcher on that host, to the web tier) and Cloud Armor answers anything else there with a fixed
+  404 before any backend; the web proxy also refuses every other path there,
   route handlers and prefetches included (M4); the app origin never serves `/learn`. No cookie of
   the app is ever sent to the content host.
 - **Framing.** The app's course player alone may frame the content origin (`frame-src` on that

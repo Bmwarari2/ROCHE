@@ -36,7 +36,8 @@ review H1 and M4).
   package) merged into the Cloud Storage adapter still using S3 calls. It now reads an inclusive
   range from Cloud Storage. The port contract test covers it for local disk and Cloud Storage.
 - **Docs**: `infra/README.md` gains a row for the content host, and `ELEARNING_LAUNCH_SECRET` in the
-  secrets list.
+  secrets list. ADR-0093, `docs/specs/workforce.md` section 14.4 and human actions H-1010 and
+  H-1011 now describe the Google Cloud layout instead of CloudFront and Route 53.
 
 ## Note for the lead
 
@@ -45,8 +46,9 @@ review H1 and M4).
 
 ## Human actions logged
 
-- None new. H-1011 (seeding the launch secret in environments seeded before slice 43) still applies,
-  now as the `api-elearning-launch-secret` secret.
+- None new. H-1010 (the content domain, its DNS and certificate) and H-1011 (seeding
+  `api-elearning-launch-secret` in environments seeded before slice 43) are reworded for Google
+  Cloud.
 
 ## Tests
 

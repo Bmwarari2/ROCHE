@@ -988,8 +988,9 @@ in [ADR-0093](../decisions/0093-elearning-runtime.md).
   after `ELEARNING_LAUNCH_MINUTES` (120 by default), is replaced by the next launch, and stops
   working when the course is retired (M6).
 - The content origin is another registrable domain from the app's (`contentOrigin` refuses one on
-  the app's own site; Terraform's `elearning_domain_name`), and the load balancer forwards only
-  `/learn/*` on it; the web proxy refuses every other path there, prefetches and route handlers
+  the app's own site; Terraform's `elearning_domain_name`), and the Google Cloud load balancer
+  forwards only `/learn/*` on it to the web tier, Cloud Armor answering any other path there with a
+  fixed 404; the web proxy refuses every other path there, prefetches and route handlers
   included (H1, M4). The package is told the member's first name only (M8).
 - Web: `/training/elearning` (courses; add and retire for training leads), the player at
   `/training/elearning/{id}`, the upload route `/api/elearning/upload` (titles in headers), and the
