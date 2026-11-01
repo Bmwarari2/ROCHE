@@ -52,8 +52,10 @@ To be written by each slice.
 
 ## 6. Offline behaviour
 
-The device holds the dm+d subset for its assigned people's medicines (section 17.1); scanning with
-OCR happens on the phone camera (section 15.3, documents).
+The device holds the dm+d subset for its assigned people's medicines (section 17.1). Scanning a
+paper MAR chart needs a connection: the phone takes the photograph and the server reads it with an
+allowlisted engine in europe-west2 (ADR-0095 changes the earlier "OCR on the phone camera"); the
+phone keeps nothing it read.
 
 ## 7. Clinical safety
 
@@ -75,3 +77,96 @@ To be written by each slice: the port's contract tests pass against the mock and
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0013, ADR-0080, ADR-0094,
 ADR-0095, ADR-0097) and the human actions in [human-actions.md](../plans/human-actions.md) (H-510,
 H-511, H-518 to H-523, H-532, H-540).
+
+## 11. E-signature and OCR adapters (slice 79, INTG-013, ADR-0095)
+
+Two ports, each with a mock and a contract test (`apps/api/src/integrations/esign-ocr.test.ts`).
+Domain rules: `packages/domain/src/integrations/esign-ocr.ts`. Schema: migration 0133
+(`packages/db/src/schema/esign-ocr.ts`). API: `apps/api/src/routes/esign-ocr.ts`.
+
+### 11.1 E-signature (`documents.signature`)
+
+1. A member with `platform.document.manage` asks a named, active member to sign the **current
+   version** of an **organisation document** (its SHA-256 must match). A person's document is
+   refused: a person receiving care, or their representative, signs with the existing typed-name
+   flow and a recorded capacity.
+2. **In Harbour** (provider `in_app`, every organisation's default): only the member named signs,
+   only while the request is open, only the exact bytes asked for (the hash they read must match
+   the request and the current version), and only with a second factor used within the step-up
+   window (ADR-0072). The typed-name `document_signature` row and the request's evidence (the
+   signature, the time, that step-up was met) are written in one transaction. Someone else's
+   request answers "not found".
+3. **DocuSign** (provider `docusign`) only when the organisation chose it in
+   `integration_connection` (port `documents.signature`) and the adapter is on (`DOCUSIGN`; today a
+   no-network mock, refused in production until H-540). The envelope carries the document, its
+   hash, a generic subject ("A document to sign") and the signer's name and work email, nothing
+   else. Refreshing a request asks the provider where it stands: declined and voided close it; a
+   completed envelope's signed copy is stored as a **new version** of the document through the
+   storage port (malware scan, the category's retention class), and only a copy that scanned clean
+   marks the request signed (`envelopeTransition`). Cancelling voids the envelope.
+4. A finished request (signed, declined, cancelled, failed) never changes, and its document, hash,
+   signer and provider never change (database trigger).
+
+### 11.2 OCR of scanned MAR charts (`documents.ocr`)
+
+5. **Engines**: `OCR_ENGINES` lists those allowed and the only location each may run in:
+   `google_document_ai` in `europe-west2` (Document AI, under the Google Cloud sub-processor entry,
+   ADR-0098; the adapter waits for H-1262) and `mock` locally. Configuration refuses any other, the
+   database refuses an extraction naming any other (`ocr_extraction_engine`), and production
+   refuses the mock. With none configured, scanning answers "switched off".
+6. A member with `medicines.record.manage` that reaches the person uploads the photograph; it is
+   stored first as the person's document (`person_document`: malware scan, care record
+   retention). An image that does not scan clean is never read.
+7. Every value read is **unconfirmed**, whatever the engine's confidence (shown for information,
+   never used to decide). A person confirms it as read, corrects it (the correction is kept beside
+   the text as read) or rejects it; a decided value and the text as read never change.
+8. **Release** needs every value decided and at least one standing. It emits
+   `integrations.ocr_mar_released` with ids and a line count only. The medicines module (slice 51)
+   reads the lines (`GET /v1/ocr-extractions/{id}/medicine-lines`): confirmed and corrected values
+   only, each line origin `import`, **not yet checked**, second check required (HZ-005, H-548). OCR
+   never writes a MAR entry and never chooses a dm+d product, a dose unit or a schedule.
+9. A scan can be discarded instead; nothing it read is then used. The image stays the person's
+   document.
+
+### 11.3 Permissions
+
+No new permissions (so no role backfill): `platform.document.manage` asks for, cancels and
+refreshes signature requests; any member signs requests naming them (step-up);
+`integrations.connection.manage` chooses the provider; `medicines.record.manage`, where it reaches
+the person, scans, decides, releases and reads lines.
+
+### 11.4 API
+
+| Route | Purpose |
+| --- | --- |
+| `POST /v1/documents/{id}/signature-requests` | Ask a member to sign (sends the envelope through DocuSign when chosen) |
+| `GET /v1/documents/{id}/signature-requests` | A document's requests |
+| `GET /v1/me/signature-requests` | What I am asked to sign |
+| `POST /v1/signature-requests/{id}/sign` | Sign in Harbour (step-up) |
+| `POST /v1/signature-requests/{id}/cancel` | Cancel with a reason |
+| `POST /v1/signature-requests/{id}/refresh` | Ask DocuSign where it stands; store a clean signed copy |
+| `POST /v1/people/{id}/mar-scans` | Scan a paper MAR chart (the body is the photograph) |
+| `GET /v1/people/{id}/ocr-extractions` | A person's scans |
+| `GET /v1/ocr-extractions/{id}` | A scan with each value (view audited) |
+| `POST /v1/ocr-extractions/{id}/fields/{fieldId}/decision` | Confirm, correct or reject a value |
+| `POST /v1/ocr-extractions/{id}/release` | Release a fully decided scan |
+| `POST /v1/ocr-extractions/{id}/discard` | Discard a scan |
+| `GET /v1/ocr-extractions/{id}/medicine-lines` | A released scan's lines, for slice 51 |
+
+Audit events: `platform.signature.requested`, `.sent`, `.failed`, `.signed`, `.cancelled`,
+`.refreshed`; `integrations.ocr.blocked`, `.read`, `.viewed`, `.decided`, `.released`,
+`.discarded`, `.lines_read`. None carries a value read or typed.
+
+### 11.5 Data protection and retention
+
+Signature requests: who is asked to sign which organisation document, and how it was signed;
+retained with the document (`as_subject`). OCR extractions and fields: health data about the
+person, in the person's scope (history included), retained as the care record. Records of
+processing, data standards, retention, the sub-processor register and the DPIA (R25) are updated
+with this slice.
+
+### 11.6 Tests
+
+Domain (`esign-ocr.test.ts`), adapter contracts (`apps/api/src/integrations/esign-ocr.test.ts`),
+database (`packages/db/test/esign-ocr.test.ts`) and API (`apps/api/test/esign-ocr.test.ts`).
+Web and mobile screens for scanning and signing are later slices (H-1266).

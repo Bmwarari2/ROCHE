@@ -152,6 +152,14 @@ const Env = z.object({
   SSO_TEST_IDP_ORIGINS: z.string().default(""),
   /** Malware scanning of uploads: ClamAV, the EICAR-aware mock (tests), or none (quarantine all). */
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
+  /**
+   * OCR of scanned MAR charts (ADR-0095): the mock (development and tests) or none (OCR is
+   * unavailable). Unset, it is the mock outside production and none in production. The Document
+   * AI adapter, in europe-west2, waits for H-1262.
+   */
+  OCR_ENGINE: z.enum(["mock", "none"]).optional(),
+  /** DocuSign (ADR-0095, H-540): the no-network mock (tests) or off (signing in Harbour only). */
+  DOCUSIGN: z.enum(["mock", "off"]).default("off"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
   CLAMD_PORT: z.coerce.number().int().default(3310),
   /**
@@ -276,6 +284,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
+    }
+    if (parsed.OCR_ENGINE === "mock") {
+      throw new Error("OCR_ENGINE cannot be mock in production");
+    }
+    if (parsed.DOCUSIGN === "mock") {
+      throw new Error("DOCUSIGN cannot be mock in production");
     }
     // Signing a browser out mid-entry loses the form (HZ-111): off until its controls exist.
     if (parsed.SESSION_IDLE_TIMEOUT === "on") {

@@ -16,6 +16,7 @@ import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import { createEsignOcrServices } from "./integrations/esign-ocr";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
@@ -36,6 +37,7 @@ import { disclosuresRouter } from "./routes/disclosures";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
 import { dsarRouter } from "./routes/dsar";
+import { esignOcrRouter } from "./routes/esign-ocr";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
@@ -182,6 +184,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     oidcDiscovery: createOidcDiscovery(config),
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
+    ...createEsignOcrServices(config),
     transferPackLimiter: new RateLimiter(
       "transfer_pack",
       config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
@@ -370,6 +373,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", speakUpRouter);
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
+  app.route("/", esignOcrRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);

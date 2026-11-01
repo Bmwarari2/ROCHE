@@ -35,6 +35,13 @@ needs the DPA check, the DPIA update and tenant notice before it processes famil
 | Expo (650 Industries) | Expo push notification service | The same notice in the family app mode (MOB-004, Phase 4), and push receipts | Family member's device push token (an online identifier); the approved generic line, no name and no update content | United States | `[UK Extension to the EU-US Data Privacy Framework, or IDTA - DPO to confirm for family members, human action H-112]` | Pending: extends the Expo entry above to family members; not switched on until the safeguard is confirmed and the DPIA covers family members (H-106, H-112) |
 | Apple (APNs) and Google (Firebase Cloud Messaging) | Platform push delivery, reached through Expo | Final delivery of the family notice to the device | Family member's device push token; content as above | United States and global | As above `[DPO to confirm, human action H-112]` | Pending, as above |
 
+### Pending: e-signature and OCR (Phase 2, slice 79; ADR-0095)
+
+| Sub-processor | Service | Purpose | Personal data | Where processed | Transfer safeguard | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Google Cloud EMEA Limited (already listed above) | Document AI, processor location europe-west2 | Reading the text of photographed paper MAR charts so a person can check each value | The photograph of a person's MAR chart (health data) and the text read from it | United Kingdom (europe-west2; the OCR allowlist refuses any other location) | None needed (UK) | Covered by the Google Cloud entry once H-1262 confirms Document AI's data terms for europe-west2 (no retention of documents, no use for training); the adapter is not built yet, so no data is sent today |
+| Docusign, Inc. or its UK entity `[to confirm - H-540]` | DocuSign eSignature | Collecting a member's signature on an organisation document, only for an organisation that asks for it | The document, its hash, the signer's name and work email; the provider's audit trail of the signing | `[to confirm: DocuSign's UK or EU data residency - H-540]` | `[UK, or adequacy, or the IDTA - H-540]` | Off by default; the adapter is a no-network mock and production refuses it until H-540 (account, DPA, this register, the DPIA) |
+
 ## 2. Self-hosted components (not separate sub-processors)
 
 | Component | Why it is not a sub-processor |

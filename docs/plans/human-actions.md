@@ -625,6 +625,23 @@ Logged by slice 67 (PLAT-014 web wizard) on 31 October 2026.
 | H-898 | Agree the import file limits shown to people (5,000 rows, the 12 MiB upload) with the design partner, and whether a larger home needs more | Brian with the design partner | `IMPORT_LIMITS`; `IMPORT_UPLOAD_MAX_BYTES` | None (default applied) | open |
 | H-899 | Confirm that the SSO settings screens (the other half of slice 67) wait for the SSO API, and schedule them | Brian | phase-2.md slice 67 | SSO settings screens | open |
 
+## Phase 2: e-signature and OCR adapters (slice 79)
+
+Logged by slice 79 (INTG-013; ADR-0095) on 1 November 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1260 | Accept or change ADR-0095 for clinical safety: OCR is server-side, every value is unconfirmed until a person decides it, released lines arrive not yet checked with a second check; and confirm that a signature on the wrong document or by the wrong member is a records control (hash binding, step-up, evidence row), not a new clinical hazard | CSO | ADR-0095; HZ-005 | Clinical safety case delta | open |
+| H-1261 | Accept or change ADR-0095 for data protection: the records of processing row, the R25 measures built, and the sub-processor entries (Document AI under Google Cloud; DocuSign pending) | DPO | ADR-0095; records-of-processing.md; sub-processors.md; dpia-template.md R25 | OCR or DocuSign for any organisation | open |
+| H-1262 | Build the Document AI adapter (processor location europe-west2, the project's CMEK, no document retention by the processor) after confirming Google's Document AI data terms for europe-west2, and run it through the OCR contract tests | Brian | ADR-0095; `apps/api/src/integrations/esign-ocr.ts` | OCR in production | open |
+| H-1263 | Choose the Document AI processor for MAR charts (form parser or a custom extractor) and test it on invented charts that look like the design partner's (no real charts) | Brian with the design partner | ADR-0095 | H-1262 | open |
+| H-1264 | Decide how long a scan may wait undecided before the manager is told (today it waits until released or discarded) | CSO | integrations.md section 11 rules 7 to 9 | None (default applied) | open |
+| H-1265 | Agree the wording a member sees before signing in Harbour (the statement and that a second sign-in step is asked for) with the design partner | Brian with the design partner | `POST /v1/signature-requests/{id}/sign` | Signing screens | open |
+| H-1266 | Schedule the web and mobile screens: what I am asked to sign, asking for a signature, scanning a MAR chart with the photograph beside each value to decide | Brian | integrations.md section 11.4 | Using the ports from the apps | open |
+| H-1267 | Confirm with the medicines lead that slice 51 consumes `integrations.ocr_mar_released` and reads `/v1/ocr-extractions/{id}/medicine-lines`, and that each line becomes a MAR entry draft the transcriber completes from dm+d | Brian | integrations.md rule 8; slice 51 | Scanned MARs reaching the MAR | open |
+| H-1268 | Write the user guide sections: asking for and giving a signature, scanning a paper MAR during a migration, deciding each value, and why nothing read counts until checked | Brian | ADR-0095; HZ-005 training control | Pilot training | open |
+| H-1269 | Before any organisation turns DocuSign on (H-540): confirm DocuSign's UK or EU data residency and the transfer safeguard, and review the real client against the e-signature contract tests | Brian, DPO | ADR-0095; sub-processors.md | DocuSign signing | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

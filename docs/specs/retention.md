@@ -105,6 +105,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `audit_event` | audit_event, extended by audit_event.care_record |
 | `document` | by category: photos, care attachments and documents about a person follow `care_record`; organisation documents `organisation_document` |
 | `document_signature` | the class of the signed document |
+| `signature_request` ([integrations.md](integrations.md) section 11, slice 79) | the class of the document asked to be signed (organisation documents: `organisation_document`) |
+| `ocr_extraction`, `ocr_field` ([integrations.md](integrations.md) section 11, slice 79) | care_record: the scanned MAR chart and the values a person decided from it are part of the person's medicines record, kept with the image document |
 | `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
 | `handover`, `handover_item`, `handover_note`, `handover_acknowledgement` ([care.md](care.md) rule 8) | care_record: a handover is a record of the care handed over at a location, kept as long as the care records it lists |

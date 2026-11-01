@@ -1035,6 +1035,24 @@ sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, t
 | `ldss_claim.course_title`, `completed_on`, `claimed_amount` | Skills for Care LDSS (England) | Plain text, 2 to 200; `YYYY-MM-DD`; pounds as claimed | Harbour holds no funding figure (H-903) |
 | `ldss_claim.status`, `reference`, `submitted_on`, `paid_on`, `reason` | Harbour | `planned`, `submitted`, `paid`, `rejected`, `withdrawn`; plain text | Submitted needs a reference and date; paid a date; rejected or withdrawn a reason |
 
+## Integrations: e-signature and OCR (Phase 2, slice 79)
+
+Code lists for [integrations.md](integrations.md) section 11 (migration 0133; ADR-0095). Harbour's
+own fields, exported in the full tenant export with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `signature_request.provider` | Harbour | `in_app`, `docusign` | DocuSign only when the organisation chose it (H-540) |
+| `signature_request.state` | Harbour | `requested`, `sent`, `signed`, `declined`, `cancelled`, `failed` | A finished request never changes |
+| `signature_request.document_sha256` | FIPS 180-4 SHA-256 | 64 lower-case hex characters | The version the member is asked to sign |
+| `signature_request.step_up_method` | Harbour | `second_factor` | In Harbour: a second factor was used within the step-up window (ADR-0072); which one is not kept |
+| `ocr_extraction.engine`, `location` | Harbour (ADR-0095 allowlist) | `google_document_ai` with `europe-west2`; `mock` with `local` | Any other pair is refused |
+| `ocr_extraction.state` | Harbour | `blocked`, `failed`, `ready`, `released`, `discarded` | `blocked`: the image did not scan clean and was never read |
+| `ocr_extraction.failure` | Harbour | `not_clean`, `engine_error`, `nothing_read` | Never the engine's own message |
+| `ocr_field.label` | Harbour | `medicine`, `strength`, `dose`, `route`, `directions`, `prescriber`, `text` | Free text as read: never a dm+d code, a dose unit or a schedule (HZ-005) |
+| `ocr_field.confidence` | The engine's | Decimal from 0 to 1, three places | For information only; never decides anything |
+| `ocr_field.state` | Harbour | `unconfirmed`, `confirmed`, `corrected`, `rejected` | `value` holds the text as read (confirmed) or the correction |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

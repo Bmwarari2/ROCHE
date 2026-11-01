@@ -139,6 +139,15 @@ audit's own arithmetic over the organisation's answers, which measures the servi
 Nothing labels a person as infected or likely infected, predicts spread or recommends isolation
 or treatment ([safety.md](../specs/safety.md) section 11).
 
+**OCR of scanned MAR charts and e-signature (Phase 2, slice 79; ADR-0095)**: these stay inside the
+boundary. OCR transcribes the text on a photographed chart and nothing more: it never interprets a
+value, chooses a dm+d product, a dose unit or a schedule, or compares what it read with anything.
+The engine's confidence is shown for information and never decides anything; every value is
+unconfirmed until a person confirms, corrects or rejects it, and released lines arrive "not yet
+checked" for the transcriber and a second competent member (HZ-005;
+[integrations.md](../specs/integrations.md) section 11). An e-signature records who agreed to which
+version of a document; it is a records control, not a clinical one.
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built

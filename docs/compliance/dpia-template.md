@@ -325,9 +325,10 @@ measures; "expected residual" is with Harbour's measures built and the tenant's 
 
 | Field | Value |
 | --- | --- |
-| Slices | 76, 77, 78 and 79 (not built) |
+| Slices | 76, 77 and 78 (not built); 79 built (e-signature and OCR, ADR-0095) |
 | Initial | Possible, significant, **medium** |
 | Measures planned | No adapter on by default; each provider joins the sub-processor register and this DPIA before it receives data (H-520 to H-522, H-540); only the fields each provider needs; transfers only to the UK or with an adequacy decision or the IDTA. Assessed again when the adapters are built |
+| Measures built (slice 79) | Signing is in Harbour by default, so nothing leaves; DocuSign is off by default and refused in production until H-540, and its envelope carries only the document, its hash, a generic subject and the signer's name and work email. OCR runs only with an engine on the allowlist in europe-west2 (Document AI under the Google Cloud entry, H-1262), only on a photograph that scanned clean, and every value stays unconfirmed until a person decides it (HZ-005); no value read or typed reaches the audit trail, logs or events |
 | Expected residual | To be assessed |
 | DPO decides | Each provider before it is switched on (H-793) |
 
