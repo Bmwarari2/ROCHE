@@ -149,3 +149,25 @@ boundary](../compliance/medical-device-boundary.md) (dm+d reference data);
 [human actions](../plans/human-actions.md) H-510, H-511 and H-650 to H-659. Revisit when slice 75
 loads a real release (size, time, memory), when slice 68 measures a device's subset, and if the
 NHSBSA changes the XML data model.
+
+## Amendment (Phase 2 slice 75, 01/11/2026): the TRUD download
+
+- **Where the load runs.** It moves out of the shared worker into a process of its own: a Cloud Run
+  job (`dist/dmd-job.js`) started monthly by Cloud Scheduler. The worker unschedules its old
+  `dmd-release-load` queue and keeps only a daily freshness check, so a long load never shares a
+  process with the outbox and escalations.
+- **What the download trusts.**
+  - TRUD's answer, only when it names a dated archive on TRUD's own host, with its size and SHA-256.
+  - The archive, only when it matches both.
+  - Inside it, only plain XML names (and a zip nested one level), within the release's limits.
+- **The key** comes from Secret Manager, into the job's environment only. It travels in the request
+  path, as TRUD's API requires, and so is never put in a log line or an error.
+- **Alerts** are structured log lines with log-based alert policies: `dmd.release.refused`,
+  `dmd.release.failed`, `dmd.download.failed` and `dmd.release.late`. Late means older than the
+  same rate-table figure the screens use. For that, `harbour_worker` reads the national rate rows
+  (migration 0131).
+- **No new history table.** `dmd_release` remains the history of every load; each download's
+  outcome is in the job's log lines.
+- **Still to do.** The Terraform for the job, its schedule and the alerts follows the Google Cloud
+  integration (H-1241). TRUD's answer must be confirmed against the real service before the key
+  is set (H-1242).

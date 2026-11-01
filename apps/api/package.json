@@ -22,7 +22,8 @@
     "outbox:run": "tsx --env-file-if-exists=../../.env scripts/run-outbox.ts",
     "e2e:evidence-code": "tsx --env-file-if-exists=../../.env scripts/e2e-evidence-code.ts",
     "break-glass-report:run": "tsx --env-file-if-exists=../../.env scripts/run-break-glass-report.ts",
-    "workflow-deadlines:backfill": "tsx --env-file-if-exists=../../.env scripts/backfill-workflow-deadlines.ts"
+    "workflow-deadlines:backfill": "tsx --env-file-if-exists=../../.env scripts/backfill-workflow-deadlines.ts",
+    "dmd:run": "tsx --env-file-if-exists=../../.env src/jobs/dmd-job.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1149.0",
@@ -45,12 +46,14 @@
     "pg": "^8.23.1",
     "pg-boss": "^12.37.1",
     "pino": "^10.4.0",
+    "yauzl": "3.4.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",
     "@types/node": "^22.15.0",
     "@types/pg": "^8.15.0",
+    "@types/yauzl": "2.10.3",
     "esbuild": "^0.28.2",
     "tsx": "^4.20.0",
     "typescript": "~6.0.3",

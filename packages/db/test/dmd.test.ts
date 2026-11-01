@@ -598,3 +598,40 @@ describe("hazard HZ-113 a file that cannot be read refuses the release (security
     expect(await fingerprint()).toEqual(before);
   });
 });
+
+describe("the worker reads only the national rate rows (slice 75, migration 0131)", () => {
+  it("sees the national dm+d staleness figure and never an organisation's override", async () => {
+    const owner = db.pool("harbour_owner");
+    await owner.query(
+      `INSERT INTO rate_table (key, value, unit, nation, valid_from, source, verification_status)
+       VALUES ('test.slice75.figure', 35, 'days', 'all', '2000-01-01', 'test', 'verified')`,
+    );
+    await inContext(owner, ctx(TENANT_A, null, "tenant"), (c) =>
+      c.query(
+        `INSERT INTO rate_table (tenant_id, key, value, unit, nation, valid_from, source, verification_status)
+         VALUES ($1, 'test.slice75.figure', 90, 'days', 'all', '2000-01-01', 'test', 'verified')`,
+        [TENANT_A],
+      ),
+    );
+    const client = await worker().connect();
+    try {
+      const plain = await client.query<{ value: string }>(
+        "SELECT value FROM rate_table WHERE key = 'test.slice75.figure'",
+      );
+      expect(plain.rows.map((r) => Number(r.value))).toEqual([35]);
+      // Setting an organisation does not show its rows to the worker.
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.tenant_id', $1, true)", [TENANT_A]);
+      const asTenant = await client.query<{ value: string }>(
+        "SELECT value FROM rate_table WHERE key = 'test.slice75.figure'",
+      );
+      expect(asTenant.rows.map((r) => Number(r.value))).toEqual([35]);
+      await client.query("ROLLBACK");
+      await expect(
+        client.query("UPDATE rate_table SET value = 1 WHERE key = 'test.slice75.figure'"),
+      ).rejects.toThrow(/permission denied/);
+    } finally {
+      client.release();
+    }
+  });
+});

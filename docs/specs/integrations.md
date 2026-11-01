@@ -146,7 +146,7 @@ organisation rows), and `rls-coverage.test.ts` lists them as national reference 
    to the event loop between them, never read whole; and the whole load, reading and writing, stops
    after `DMD_LOAD_TIMEOUT_MINUTES` (60; each statement may run only for the time left), failing as
    `timed_out` with the release in use unchanged. The job has its own queue holding one job, queued
-   or running, worked one at a time; a process of its own for the load is slice 75's.
+   or running, worked one at a time; since slice 75 the load runs as its own job ("Release download" rule 6).
    **The invented fixture** (security review): a release named `fixture_...` or loaded as `fixture`
    is refused (`fixture_not_allowed`), by the loader and by `app.dmd_begin_release`, unless the
    database is marked `dev` or `test` in `app.database_environment`, whatever the operator's shell
@@ -221,9 +221,81 @@ the latest release's name, date, source and files, or null; `health()`. Each fil
 developer's machine, CI or the shared dev environment; with `NODE_ENV=production`, or `HARBOUR_ENV`
 naming staging, pilot or production, there is no source (`unconfigured`) until slice 75 builds the
 TRUD adapter, which must pass the same contract (`apps/api/test/dmd-release-source.test.ts`)
-against a mock TRUD. The worker's `dmd-release-load` queue runs monthly (early on the 3rd) and logs
-`dmd.release.loaded`, `already_loaded`, `refused`, `failed` or `none` with the release's name, date,
-counts and problem codes; slice 75 alerts on them.
+against a mock TRUD. Slice 75 moves the monthly load out of the shared worker into its own job
+("Release download" below), which logs `dmd.release.loaded`, `already_loaded`, `refused`, `failed`
+or `none` with the release's name, date, counts and problem codes, and alerts on them.
+
+### Release download (slice 75)
+
+The TRUD adapter (`TrudDmdReleaseSource`, `apps/api/src/integrations/trud.ts`) implements the
+release source port; the rules it follows are pure functions in
+`packages/domain/src/integrations/trud.ts`. **Status: built against a mock TRUD; not yet run against
+the real service (H-1240 to H-1243).**
+
+1. **Discovery.** `GET {TRUD_BASE_URL}/keys/{key}/items/{TRUD_DMD_ITEM}/releases?latest` (item 24,
+   the NHSBSA dm+d release). The answer is accepted only when it names one release with an archive
+   file name of the form `<release name>.zip` whose release name carries its date
+   (`nhsbsa_dmd_10.1.0_20261026000001.zip`), an `https` archive address on an allowed host
+   (`TRUD_ALLOWED_HOSTS`, `isd.digital.nhs.uk` by default), a size above zero and within
+   `DMD_ARCHIVE_MAX_BYTES`, and a SHA-256 of 64 hexadecimal characters; anything else is refused as
+   `trud_response_invalid`, and nothing is downloaded (`checkTrudRelease`).
+2. **Not twice.** A release already loaded under that name is not downloaded again
+   (`already_loaded`). A refused release is downloaded and checked again at the next run, so a
+   corrected parser can load it.
+3. **Download.** Over HTTPS only. The archive address and every redirect (at most three) must be
+   on an allowed host (`trudUrlAllowed`), so a changed answer cannot point the job elsewhere. The
+   archive streams into a private directory (mode 0700) and stops as soon as it passes the size it
+   declared or the limit. Its SHA-256 is worked out as it streams and must equal the one declared
+   (`checksum_mismatch` otherwise). On any failure the files are deleted and nothing is loaded.
+4. **Unpacking.** At most `DMD_RELEASE_MAX_FILES` entries are read, and each entry's name must be
+   a plain file name (`dmdArchiveEntryName`). An absolute path, `..`, a backslash, a nested folder
+   other than the release's own, or a duplicate name is refused (`archive_unsafe`). Only `.xml`
+   files are kept, plus `.zip` files nested one level deep and unpacked under the same rules (the
+   GTIN file may come nested; H-654). Bytes are counted as they inflate, and the whole release is
+   held to `DMD_RELEASE_MAX_BYTES` (`archive_too_large`), so a small archive cannot fill the disk.
+   The directory is then read as a manual run reads one (`readDmdReleaseDirectory`: no symbolic
+   links, regular files only, the same limits) and loaded through the release loader (rules 1 to 4).
+5. **Credentials.** The TRUD API key (`TRUD_API_KEY`) comes from Secret Manager, as the job's
+   environment (H-510, H-1240). It appears only in the request path. It is never in a log line, an
+   error message, the release history or an audit event: errors carry a code and an HTTP status
+   only (`TrudError`).
+6. **Its own process.** The download and load run as a Cloud Run job, `node dist/dmd-job.js`
+   (`apps/api/src/jobs/dmd-job.ts`), not in the shared worker. Cloud Scheduler starts it monthly,
+   early on the 3rd, with one execution at a time, and it exits non-zero when a release is refused,
+   fails or cannot be downloaded. The job's Terraform waits for the Google Cloud integration (H-1241).
+   `pnpm --filter @harbour/api dmd:run` runs it once on a developer's machine, against the mock.
+   The shared worker no longer loads dm+d; it keeps the daily freshness check (rule 7).
+7. **Alerts** (HZ-113). Each line carries the release's name and date and the problem codes, never
+   the key. Each event has a log-based alert to the operator (H-1241):
+   - `dmd.release.refused` and `dmd.release.failed`, from the loader;
+   - `dmd.download.failed`, with the code: `trud_unreachable`, `trud_refused` (an HTTP status such
+     as 401 for a lapsed key), `trud_response_invalid`, `checksum_mismatch`, `archive_unsafe`,
+     `archive_too_large` or `download_too_large`;
+   - `dmd.release.late`, from the worker's daily check, once the release in use is older than
+     `medicines.dmd.stale_after_days` (35 days, the same figure every screen uses), or when no
+     release is loaded where real people work.
+8. **Where it runs.** Staging, pilot and production use the TRUD adapter when `TRUD_API_KEY` is set,
+   and otherwise have no source (`unconfigured`). Development and CI keep the mock and never call
+   TRUD. The invented fixture stays refused outside dev and test databases (rule 1).
+
+**Schema** (migration 0131): `harbour_worker` may read the national rows of `rate_table` (a
+restrictive policy keeps it to `tenant_id IS NULL`), so the daily check reads the same figure as
+the screens. No new table: each download's outcome is in the job's log lines, and each load is in
+`dmd_release`.
+
+**Test list (slice 75)**:
+- Domain (`packages/domain/src/integrations/trud.test.ts`), table-driven: the TRUD answer accepted
+  or refused field by field; allowed and refused addresses; entry names accepted and refused.
+- API (`apps/api/test/dmd-trud.test.ts`), against a mock TRUD on 127.0.0.1:
+  - the port's contract, and a release loaded end to end;
+  - already loaded, so not downloaded again;
+  - a checksum mismatch, an oversized download and a redirect off the allowed hosts refused;
+  - path traversal, too many entries, a zip bomb and a nested zip;
+  - a 401 reported without the key;
+  - the job's exit status and log events;
+  - the late check at, before and after 35 days.
+- Database (`packages/db/test/dmd.test.ts`): the worker reads the national rate rows and no
+  organisation's.
 
 ### API (`apps/api/src/routes/medicines-dmd.ts`)
 

@@ -1,3 +1,4 @@
+import { trudUrlAllowed } from "@harbour/domain";
 import { z } from "zod";
 
 /**
@@ -64,6 +65,37 @@ const Env = z.object({
     .max(16 * 1024 ** 3)
     .default(2 * 1024 ** 3),
   DMD_LOAD_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(240).default(60),
+  /**
+   * The TRUD download of each dm+d release (integrations.md section 11, "Release download"; slice
+   * 75). The API key is a secret: in deployed environments it reaches the dm+d job's environment
+   * from Secret Manager (H-510, H-1240), and it is never logged. Without it, staging, pilot and
+   * production have no release source and say so.
+   */
+  TRUD_API_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9-]{16,128}$/)
+    .optional(),
+  TRUD_BASE_URL: z.url().default("https://isd.digital.nhs.uk/trud/api/v1"),
+  TRUD_DMD_ITEM: z.coerce.number().int().positive().default(24),
+  /** Hosts the download may reach, the archive's address and every redirect (comma separated). */
+  TRUD_ALLOWED_HOSTS: z
+    .string()
+    .default("isd.digital.nhs.uk")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((h) => h.trim().toLowerCase())
+        .filter((h) => h !== ""),
+    ),
+  /** The largest archive the job downloads (technical bound, H-654; not a statutory figure). */
+  DMD_ARCHIVE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024 * 1024)
+    .max(8 * 1024 ** 3)
+    .default(1024 ** 3),
+  /** Where the job unpacks a release (a private directory under it, deleted after); the OS temp. */
+  DMD_WORK_DIR: z.string().optional(),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
@@ -165,6 +197,10 @@ export function flagsmithHost(betterAuthUrl: string): string | null {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.parse(env);
+  // The dm+d download reaches TRUD over HTTPS only, on an allowed host (slice 75, rule 3).
+  if (!trudUrlAllowed(parsed.TRUD_BASE_URL, parsed.TRUD_ALLOWED_HOSTS)) {
+    throw new Error("TRUD_BASE_URL must be https on one of TRUD_ALLOWED_HOSTS");
+  }
   if (parsed.NODE_ENV === "production") {
     if (parsed.BETTER_AUTH_SECRET.startsWith("local-development")) {
       throw new Error("BETTER_AUTH_SECRET must be set in production");

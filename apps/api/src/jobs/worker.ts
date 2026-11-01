@@ -1,12 +1,11 @@
 import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
-import { createDmdReleaseSource } from "../integrations/dmd";
 import { createDocumentServices, createExportStorage } from "../integrations/documents";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { sweepInvitations } from "../services/invitations";
-import { DMD_WORK_OPTIONS, dmdLoadLimits, dmdQueueOptions, loadLatestDmdRelease } from "./dmd";
+import { checkDmdFreshness, RETIRED_DMD_QUEUE } from "./dmd";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
 import {
@@ -94,18 +93,15 @@ const QUEUES = {
   exportExpiry: "export-expiry",
   statementOverdue: "statement-of-purpose-overdue",
   importExpiry: "import-expiry",
-  dmdRelease: "dmd-release-load",
+  dmdFreshness: "dmd-freshness",
 } as const;
 
-// The dm+d load (ADR-0080) is long and rare: its own queue holds one job, queued or running, and
-// a running load expires only after its own time limit.
-const dmdLimits = dmdLoadLimits(config);
 for (const name of Object.values(QUEUES)) {
-  await boss.createQueue(
-    name,
-    name === QUEUES.dmdRelease ? dmdQueueOptions(config.DMD_LOAD_TIMEOUT_MINUTES) : undefined,
-  );
+  await boss.createQueue(name);
 }
+// The dm+d load runs as its own job now (`dist/dmd-job.js`, slice 75), never in this worker: the
+// monthly schedule an earlier release stored is removed (idempotent), so no load queues up here.
+await boss.unschedule(RETIRED_DMD_QUEUE);
 
 /** Every job logs one structured line when it fails (`worker.job.failed`), then pg-boss retries it. */
 const work = (queue: string, job: () => Promise<unknown>) =>
@@ -202,18 +198,20 @@ await work(QUEUES.statementOverdue, async () => {
 await work(QUEUES.importExpiry, async () => {
   await expireImportsJob(deps);
 });
-// dm+d reference data (ADR-0080): the mock serves the invented fixture only off the shared
-// environments; staging, pilot and production have no source until the TRUD download (slice 75).
-const dmdSource = createDmdReleaseSource({
-  production: config.NODE_ENV === "production",
-  environment: process.env.HARBOUR_ENV,
-  limits: dmdLimits,
+// dm+d (HZ-113, slice 75): every day, whether the release in use is late (older than
+// medicines.dmd.stale_after_days, or none at all where real people work); the alert is on the
+// dmd.release.late line (H-1241).
+await work(QUEUES.dmdFreshness, async () => {
+  await checkDmdFreshness({
+    workerPool,
+    logger,
+    expected:
+      config.NODE_ENV === "production" ||
+      ["staging", "pilot", "production", "prod"].includes(
+        process.env.HARBOUR_ENV?.trim().toLowerCase() ?? "",
+      ),
+  });
 });
-await boss.work(QUEUES.dmdRelease, DMD_WORK_OPTIONS, () =>
-  runJob(logger, QUEUES.dmdRelease, () =>
-    loadLatestDmdRelease({ workerPool, logger, source: dmdSource, limits: dmdLimits }),
-  ),
-);
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -265,9 +263,8 @@ await boss.schedule(QUEUES.fullExports, "* * * * *");
 await boss.schedule(QUEUES.exportExpiry, "*/15 * * * *");
 // Hourly: a staged import's rows (personal data in quarantine) go within the hour of expiry.
 await boss.schedule(QUEUES.importExpiry, "31 * * * *");
-// Monthly, as section 15.3 sets the dm+d refresh, early on the 3rd; a release already loaded is
-// not loaded again, and a manual run is `pnpm --filter @harbour/db dmd:load` (ADR-0080).
-await boss.schedule(QUEUES.dmdRelease, "41 4 3 * *");
+// Daily: the dm+d release in use checked for lateness (the load itself is the dm+d job's).
+await boss.schedule(QUEUES.dmdFreshness, "23 6 * * *");
 
 logger.info("Harbour worker started");
 

@@ -39,7 +39,14 @@ export interface DmdReleaseFiles {
 
 export interface DmdReleaseSourcePort {
   readonly provider: string;
+  /**
+   * The latest release's name and date without fetching its files, when the source can tell
+   * (TRUD): the job skips a release already loaded rather than downloading it again (slice 75).
+   */
+  peek?(): Promise<{ readonly name: string; readonly releasedOn: string } | null>;
   /** The latest release the source publishes, or null when it has none. */
   latest(): Promise<DmdReleaseFiles | null>;
+  /** Deletes whatever `latest` downloaded or unpacked; the job calls it when the load is over. */
+  close?(): Promise<void>;
   health(): Promise<HealthResult>;
 }

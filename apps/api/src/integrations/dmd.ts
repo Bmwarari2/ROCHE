@@ -6,11 +6,13 @@ import {
   readDmdReleaseDirectory,
 } from "@harbour/db/dmd";
 import type { DmdReleaseFiles, DmdReleaseSourcePort, HealthResult } from "@harbour/domain";
+import { TrudDmdReleaseSource, type TrudOptions } from "./trud";
 
 /**
- * Adapters for the dm+d release source port (integrations.md section 11; ADR-0080). The TRUD
- * adapter is slice 75; until it lands, development and tests use the mock (the invented fixture
- * releases) and production has no source, which the job says rather than loading nothing silently.
+ * Adapters for the dm+d release source port (integrations.md section 11; ADR-0080). Development
+ * and tests use the mock (the invented fixture releases); where real people work, the TRUD adapter
+ * (`./trud.ts`, slice 75) when its key is set, and otherwise no source, which the job says rather
+ * than loading nothing silently.
  * The database itself refuses the fixture unless it is marked dev or test (migration 0110).
  */
 
@@ -43,7 +45,7 @@ export class MockDmdReleaseSource implements DmdReleaseSourcePort {
   }
 }
 
-/** Production until slice 75 builds the TRUD download. */
+/** Where real people work and no TRUD API key is set: no release, said rather than silent. */
 export class UnconfiguredDmdReleaseSource implements DmdReleaseSourcePort {
   readonly provider = "unconfigured";
   async latest(): Promise<DmdReleaseFiles | null> {
@@ -52,8 +54,7 @@ export class UnconfiguredDmdReleaseSource implements DmdReleaseSourcePort {
   async health(): Promise<HealthResult> {
     return {
       ok: false,
-      detail:
-        "No dm+d release source is configured: the TRUD download is not built yet (slice 75).",
+      detail: "No dm+d release source is configured: TRUD_API_KEY is not set (H-1240).",
     };
   }
 }
@@ -62,17 +63,55 @@ export class UnconfiguredDmdReleaseSource implements DmdReleaseSourcePort {
 const NO_FIXTURE_ENVIRONMENTS = new Set(["staging", "pilot", "production", "prod"]);
 
 /**
- * The source for this process: the mock only on a developer's machine, CI or the shared dev
- * environment; with `NODE_ENV=production`, or `HARBOUR_ENV` naming staging, pilot or production
- * whatever `NODE_ENV` says, no source until the TRUD adapter (slice 75).
+ * The source for this process (integrations.md section 11, "Release download" rule 8): the mock
+ * only on a developer's machine, CI or the shared dev environment; with `NODE_ENV=production`, or
+ * `HARBOUR_ENV` naming staging, pilot or production whatever `NODE_ENV` says, the TRUD adapter
+ * when its API key is set, and otherwise no source.
  */
 export function createDmdReleaseSource(options: {
   production: boolean;
   environment?: string | undefined;
   limits?: Pick<DmdLoadLimits, "maxFiles" | "maxBytes">;
+  trud?: Omit<TrudOptions, "apiKey" | "limits"> & {
+    readonly apiKey?: string | undefined;
+    readonly maxArchiveBytes: number;
+  };
 }): DmdReleaseSourcePort {
   const shared = NO_FIXTURE_ENVIRONMENTS.has(options.environment?.trim().toLowerCase() ?? "");
-  return options.production || shared
-    ? new UnconfiguredDmdReleaseSource()
-    : new MockDmdReleaseSource(undefined, options.limits);
+  if (!options.production && !shared) return new MockDmdReleaseSource(undefined, options.limits);
+  const { trud } = options;
+  if (!trud?.apiKey) return new UnconfiguredDmdReleaseSource();
+  const limits = options.limits ?? DMD_LOAD_LIMITS;
+  return new TrudDmdReleaseSource({
+    ...trud,
+    apiKey: trud.apiKey,
+    // Never plain HTTP where real people work, whatever the caller passed.
+    allowHttp: false,
+    limits: {
+      maxFiles: limits.maxFiles,
+      maxBytes: limits.maxBytes,
+      maxArchiveBytes: trud.maxArchiveBytes,
+    },
+  });
+}
+
+/** The TRUD settings from the configuration (slice 75). */
+export function trudSettings(config: {
+  readonly TRUD_API_KEY?: string | undefined;
+  readonly TRUD_BASE_URL: string;
+  readonly TRUD_DMD_ITEM: number;
+  readonly TRUD_ALLOWED_HOSTS: readonly string[];
+  readonly DMD_ARCHIVE_MAX_BYTES: number;
+  readonly DMD_WORK_DIR?: string | undefined;
+  readonly DMD_LOAD_TIMEOUT_MINUTES: number;
+}) {
+  return {
+    apiKey: config.TRUD_API_KEY,
+    baseUrl: config.TRUD_BASE_URL,
+    item: config.TRUD_DMD_ITEM,
+    allowedHosts: config.TRUD_ALLOWED_HOSTS,
+    maxArchiveBytes: config.DMD_ARCHIVE_MAX_BYTES,
+    ...(config.DMD_WORK_DIR ? { workDir: config.DMD_WORK_DIR } : {}),
+    timeoutMs: config.DMD_LOAD_TIMEOUT_MINUTES * 60_000,
+  };
 }

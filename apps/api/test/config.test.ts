@@ -121,3 +121,22 @@ describe("SAFETY_CASE_VERSION", () => {
     expect(readdirSync(dir).some((f) => f.startsWith(`safety-case-${version}-`))).toBe(true);
   });
 });
+
+describe("the TRUD settings (slice 75)", () => {
+  it("defaults to TRUD's own host and item 24, with no key", () => {
+    const config = loadConfig({ NODE_ENV: "test" });
+    expect(config.TRUD_BASE_URL).toBe("https://isd.digital.nhs.uk/trud/api/v1");
+    expect(config.TRUD_ALLOWED_HOSTS).toEqual(["isd.digital.nhs.uk"]);
+    expect(config.TRUD_DMD_ITEM).toBe(24);
+    expect(config.TRUD_API_KEY).toBeUndefined();
+  });
+
+  it.each([
+    ["a plain-http address", { TRUD_BASE_URL: "http://isd.digital.nhs.uk/trud/api/v1" }],
+    ["an address off the allowed hosts", { TRUD_BASE_URL: "https://example.invalid/trud/api/v1" }],
+    ["a key with a path in it", { TRUD_API_KEY: "abc/def/0123456789abcdef" }],
+    ["a key too short to be one", { TRUD_API_KEY: "short" }],
+  ])("refuses %s", (_case, env) => {
+    expect(() => loadConfig({ NODE_ENV: "test", ...env })).toThrow();
+  });
+});

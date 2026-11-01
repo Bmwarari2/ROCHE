@@ -4,6 +4,12 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
+**Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
+`partial`). It adds the TRUD download, which checks TRUD's answer, the archive's SHA-256 and its
+names before loading, and runs as its own Cloud Run job with alerts on refused, failed and late
+releases. Migration 0131; human actions H-1240 to H-1245. The job's Terraform waits for #164
+(H-1241).
+
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
@@ -125,7 +131,7 @@ section 11. Security review round 2 fixed: the fixture refused by the database u
 dev or test (`app.database_environment`); file, byte and time limits with streamed reads and no
 symbolic links; releases dated ahead of today refused; finish deriving the release from the rows
 written; `pg_temp` last in the loader functions' search path. Follow-ups: run the dm+d load in a
-process of its own (slice 75; it now runs chunked on its own one-job queue in the shared worker),
+process of its own (slice 75 moves it into its own Cloud Run job on `feat/integrations-dmd-download`),
 and add `pg_temp` to the other definer functions' search path (a separate chore). Next in lane A:
 slice 3 (stacked on #135), then slice 16 (the medicines record).
 
