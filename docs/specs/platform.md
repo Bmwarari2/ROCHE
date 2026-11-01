@@ -319,8 +319,15 @@ shows it; upload and remove a logo; axe in light and dark).
   suspending; reinstating; ending; removing the link of an ended membership) and never relinks a
   sign-in; harbour_owner (migrations and `app.end_leaver_access`, which the leavers sweep runs with
   no member) is not held by it. `app.sign_in_memberships_elsewhere` gives the count of memberships
-  elsewhere that have not ended, to a holder of `platform.user.manage` only. Reinstating has no
-  route yet; the web screens for these routes are a follow-up.
+  elsewhere that have not ended, to a holder of `platform.user.manage` only. The database checks
+  that permission anywhere in the organisation, which is broader than the API's per-home reach
+  (`memberReached`); the API checks the reach first, so the database backs the permission, not the
+  reach. A NULL member or action is refused. Every function that changes a member's status or
+  sign-in link (`app.change_membership`, `app.accept_invitation`, `app.link_sso_member`,
+  `app.end_leaver_access`) takes the same per-organisation lock first and then its row locks in id
+  order, so a suspension never deadlocks with an invitation being accepted and a leaver's access is
+  never ended while they suspend the last other user manager. Reinstating has no route yet; the
+  web screens for these routes are a follow-up.
 - Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
 ## Invitations and MFA enrolment (PLAT-004)

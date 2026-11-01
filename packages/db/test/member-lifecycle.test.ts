@@ -140,6 +140,13 @@ describe("H-566 app.change_membership", () => {
     await expect(as(a.manager)(change(a.manager, "suspend"))).rejects.toThrow(/own_membership/);
     await expect(as(null)(change(PIA, "suspend"))).rejects.toThrow(/not_permitted/);
     await expect(as(a.manager)(change(PIA, "promote"))).rejects.toThrow(/unknown_action/);
+    // A NULL action or member is refused, never taken as unlinking (security re-check, Low 1).
+    await expect(
+      as(a.manager)((c) => c.query("SELECT app.change_membership($1, NULL)", [PIA])),
+    ).rejects.toThrow(/unknown_action/);
+    await expect(
+      as(a.manager)((c) => c.query("SELECT app.change_membership(NULL, 'unlink_sign_in')")),
+    ).rejects.toThrow(/member_not_found/);
     // Another organisation's member is not found from here, and its manager holds nothing here.
     await expect(as(a.manager)(change(ids.b.manager, "suspend"))).rejects.toThrow(
       /member_not_found/,
@@ -251,5 +258,44 @@ describe("H-566 a sign-in's memberships elsewhere that have not ended", () => {
   it("answers only a holder of platform.user.manage", async () => {
     await expect(as(a.northManager)(count(a.carer))).rejects.toThrow(/not_permitted/);
     await expect(as(null)(count(a.carer))).rejects.toThrow(/not_permitted/);
+  });
+});
+
+describe("H-566 a leaver's access and a suspension never race past the last user manager", () => {
+  it("ends a manager's access or lets them suspend the last other manager, never both", async () => {
+    const PROFILE = "0199f000-0000-7000-8000-000000000741";
+    // Only Pia and Quin manage users through a role; Pia is leaving, and suspends Quin as the
+    // leavers sweep (no member) ends Pia's access.
+    await setState(a.manager, "suspended");
+    await owner(async (c) => {
+      await c.query(
+        `INSERT INTO staff_profile (id, tenant_user_id, job_title) VALUES ($1, $2, 'Deputy manager')`,
+        [PROFILE, PIA],
+      );
+      await c.query(
+        `INSERT INTO leaver_record (staff_profile_id, leaving_on, reason)
+         VALUES ($1, current_date - 1, 'resignation')`,
+        [PROFILE],
+      );
+    });
+    const results = await Promise.allSettled([
+      as(PIA)(change(QUIN, "suspend")),
+      as(null)((c) => c.query("SELECT app.end_leaver_access($1) AS ended", [PROFILE])),
+    ]);
+    // One of the two goes through; the organisation keeps an active user manager either way.
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const managers = await owner((c) =>
+      c
+        .query<{ id: string }>(
+          `SELECT DISTINCT u.id FROM tenant_user u
+             JOIN role_assignment ra ON ra.tenant_user_id = u.id AND ra.deleted_at IS NULL
+              AND (ra.valid_to IS NULL OR ra.valid_to > now())
+             JOIN role r ON r.id = ra.role_id
+            WHERE u.status = 'active' AND 'platform.user.manage' = ANY (r.permissions)`,
+        )
+        .then((r) => r.rows.map((m) => m.id)),
+    );
+    expect(managers).toHaveLength(1);
+    expect([PIA, QUIN]).toContain(managers[0]);
   });
 });

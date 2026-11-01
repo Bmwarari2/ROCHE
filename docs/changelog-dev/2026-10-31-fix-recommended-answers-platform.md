@@ -121,3 +121,12 @@ H-700 and H-716.
   refused, from a manager and from a job; each transition once; refusals; last user manager with
   a grant holder; two managers at once; the trigger for another role; the count elsewhere),
   `definer-acls.test.ts`, and the API last-user-manager refusal.
+- Security re-check of `6528e3af` (approved with two Lows), fixed in migration 0129:
+  `app.change_membership` refuses a NULL action or member (a NULL action once fell through to
+  unlinking); `app.accept_invitation`, `app.link_sso_member` and `app.end_leaver_access` are
+  redefined (their earlier migrations are untouched) to take the per-organisation
+  membership-change lock first and then their row locks in id order, so suspending an invited
+  member never deadlocks with their acceptance and a manager's access is never ended while they
+  suspend the last other user manager (`member-lifecycle.test.ts` races the two). The database
+  checks `platform.user.manage` anywhere in the organisation, broader than the API's per-home
+  reach, which the API checks first (a comment and a line in platform.md).
