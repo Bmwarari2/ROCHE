@@ -484,7 +484,11 @@ whatever the clock change.
     information then blocks, rule 3); an NMC registration moves the renewal date. Not verified,
     withdrawn, details not matched, not registered and registered with conditions are never
     applied, and a result is not applied once the file's certificate number or PIN has changed
-    (`vettingCheckStillMatches`).
+    (`vettingCheckStillMatches`). Once the worker withdraws their consent, a pending DBS check is
+    neither asked about nor applied, and an answer arriving after it fails the check
+    (`consent_withdrawn`); it can be cancelled. The database names a check as an item's source only
+    when the same transaction applied it, and refuses any change under that label: recorded by hand,
+    the item goes back to `manual`.
 
 Rate keys in use: `retention.staff_file.birthday_age`, `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
 `competence.medicines.refresh_months`, `supervision.per_year`, `appraisal.per_year`,
@@ -515,13 +519,15 @@ audit event with opaque ids only; refusals are audited too. Dates are UK dates (
 | `POST /v1/workforce/staff-files/{id}/vetting/consents` | `workforce.staff_file.manage` | Record the worker's consent to a DBS application or to Update Service status checks, with the date given (never one's own); 409 while one is in force |
 | `POST /v1/workforce/staff-files/{id}/vetting/consents/{consentId}/withdraw` | `workforce.staff_file.manage` | Record its withdrawal, once |
 | `POST /v1/workforce/staff-files/{id}/vetting/checks` | `workforce.staff_file.manage` | Start a check through the port's adapter (rule 24); 409 `adapter_off` when the port is off |
-| `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/refresh` | `workforce.staff_file.manage` | Ask the adapter again about a pending check |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/refresh` | `workforce.staff_file.manage` | Ask the adapter again about a pending check; 409 `not_sent` for one that never reached the provider, `consent_withdrawn` for a DBS check whose consent is no longer in force |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/cancel` | `workforce.staff_file.manage` | Mark a pending check failed (`cancelled`), so a new one can start |
 | `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/apply` | `workforce.staff_file.manage` | Apply a completed check to its item, verified in the caller's name on the check's date with the check as its source; the item's `expectedVersion` when it exists |
 | `PUT /v1/integrations/{port}` (a vetting port) | `integrations.connection.manage`, fresh step-up | Switch a vetting port on with a known provider (`mock` outside production only) |
 
-Audit events (slice 77): `workforce.vetting_consent.recorded`, `.withdrawn`,
-`workforce.vetting_check.started`, `.refreshed`, `.applied`, each with opaque ids and codes only,
-and refusals with their reason.
+Audit events (slice 77): `workforce.vetting.viewed` (every read of a file's consents and checks:
+DBS results are criminal offence data), `workforce.vetting_consent.recorded`, `.withdrawn`,
+`workforce.vetting_check.started`, `.refreshed`, `.answered` (the state and error code stored),
+`.applied`, `.cancelled`, each with opaque ids and codes only, and refusals with their reason.
 | `GET /v1/me/staff-file` | `workforce.self.read` | The member's own profile and where each of their checks stands |
 
 Audit actions: `workforce.staff_file.created`, `.updated`, `workforce.compliance_item.recorded`,
@@ -956,7 +962,7 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | The vetting adapters have no screens (slice 77) | HR uses the API; the routes and the evidence source on each item exist | The staff file screens (slice 56, H-1129) |
 | No vendor adapter exists (slice 77) | Every vetting port stays off in production; manual entry is the only route | One adapter per contracted provider, passing the shared contract suite (H-1120 to H-1123) |
 | The worker cannot record or withdraw their own DBS consent (slice 77) | HR records both, with the date the worker gave or withdrew it | Self-service, if decided (H-1128) |
-| Pending checks are refreshed by hand (slice 77) | A DBS application stays pending until HR asks again | A worker job polling pending checks, or the provider's webhook through the inbound quarantine, once a provider is chosen |
+| Pending checks are refreshed or cancelled by hand (slice 77) | A DBS application stays pending until HR asks again; one that never reached the provider is cancelled and started again | A worker job polling pending checks, or the provider's webhook through the inbound quarantine, once a provider is chosen |
 | An IDSP's own report is not kept (slice 77) | The item records the check's method, date and the checker | Keep it as an HR-only document if the adviser says so (H-1127) |
 
 ## 12. Sponsor licence, staff data protection and LDSS (slice 35, migration 0097)

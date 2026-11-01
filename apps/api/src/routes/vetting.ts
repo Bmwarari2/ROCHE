@@ -36,7 +36,7 @@ import {
   vettingRequestProblem,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import {
@@ -88,6 +88,9 @@ const A = {
   started: "workforce.vetting_check.started",
   refreshed: "workforce.vetting_check.refreshed",
   applied: "workforce.vetting_check.applied",
+  answered: "workforce.vetting_check.answered",
+  cancelled: "workforce.vetting_check.cancelled",
+  viewed: "workforce.vetting.viewed",
 } as const;
 const CHECK_SOURCE = "vetting_check";
 const CONSENT_SOURCE = "vetting_consent";
@@ -139,6 +142,11 @@ const MESSAGES: Record<string, [409 | 422 | 403, string]> = {
   not_completed: [409, "This check has no answer to apply."],
   already_applied: [409, "This check has already been applied."],
   not_pending: [409, "This check is not waiting for an answer."],
+  not_sent: [409, "This check never reached the provider. Cancel it and start a new one."],
+  consent_withdrawn: [
+    409,
+    "The worker has withdrawn their consent to this DBS check. Cancel it, or record a new consent and start again.",
+  ],
   given_in_future: [422, "Consent is recorded on or before today."],
   withdrawn_before_given: [422, "A withdrawal is on or after the day the consent was given."],
   consent_in_force: [409, "The worker's consent for this is already recorded."],
@@ -320,13 +328,53 @@ function consentItem(r: ConsentRow, names: (id: string | null) => unknown, on: s
   };
 }
 
-/** Stores the adapter's answer on a pending check (the vendor was called outside the transaction). */
+/**
+ * A DBS check's consent is still in force today; other checks need none. Withdrawing consent stops
+ * the check being asked about or applied (review of slice 77, L2); the database refuses the same.
+ */
+async function consentInForce(tx: Transaction, row: CheckRow, on: string): Promise<boolean> {
+  if (row.consentId === null) return true;
+  const [consent] = await tx
+    .select()
+    .from(vettingConsent)
+    .where(eq(vettingConsent.id, row.consentId));
+  return (
+    consent !== undefined &&
+    consentActive(
+      {
+        purpose: consent.purpose as VettingConsentPurpose,
+        givenOn: consent.givenOn,
+        withdrawnOn: consent.withdrawnOn,
+      },
+      on,
+    )
+  );
+}
+
+/**
+ * Stores the adapter's answer on a pending check (the vendor was called outside the transaction),
+ * audited with its state and error code only (security review of slice 77, L3). A DBS answer that
+ * arrives after the worker withdrew their consent is not kept: the check fails as
+ * `consent_withdrawn` (the database refuses to store it, L2). A check no longer pending, or no
+ * longer writable by the caller, is a conflict.
+ */
 async function storeAnswer(
+  c: Context<AppEnv>,
   tx: Transaction,
+  access: TenantAccess,
+  staffProfileId: string,
   checkId: string,
   answer: VettingAnswer<unknown>,
 ): Promise<void> {
-  const values =
+  interface Answer {
+    state?: string;
+    externalReference?: string;
+    result?: object;
+    error?: string | null;
+    completedAt?: Date;
+  }
+  const failed = (error: string): Answer => ({ state: "failed", error, completedAt: new Date() });
+  let values: Answer =
     answer.state === "completed"
       ? {
           state: "completed",
@@ -336,12 +384,36 @@ async function storeAnswer(
           completedAt: new Date(),
         }
       : answer.state === "failed"
-        ? { state: "failed", error: answer.error, completedAt: new Date() }
+        ? failed(answer.error)
         : { externalReference: answer.externalReference };
-  await tx
-    .update(vettingCheck)
-    .set(values)
-    .where(and(eq(vettingCheck.id, checkId), eq(vettingCheck.state, "pending")));
+  const write = (v: Answer) =>
+    tx
+      .update(vettingCheck)
+      .set(v)
+      .where(and(eq(vettingCheck.id, checkId), eq(vettingCheck.state, "pending")))
+      .returning({ id: vettingCheck.id });
+  let rows: { id: string }[];
+  // A savepoint, so a refusal by the database leaves the transaction usable.
+  await tx.execute(sql`SAVEPOINT vetting_answer`);
+  try {
+    rows = await write(values);
+  } catch (error) {
+    if (dbCode(error) !== "23514") throw error;
+    await tx.execute(sql`ROLLBACK TO SAVEPOINT vetting_answer`);
+    values = failed("consent_withdrawn");
+    rows = await write(values);
+  }
+  if (rows.length === 0) throw problems.conflict();
+  await audit(c, tx, access, {
+    action: A.answered,
+    resourceType: CHECK_SOURCE,
+    resourceId: checkId,
+    scopeExtra: {
+      staffProfileId,
+      state: values.state ?? "pending",
+      ...(values.error ? { error: values.error } : {}),
+    },
+  });
 }
 
 /** Database refusals said plainly; the policy and guard refusals are audited by the caller. */
@@ -418,17 +490,16 @@ export const vettingRouter = createRouter()
     async (c) => {
       const access = await requireAnyPermission(c, [READ, MANAGE]);
       const { id } = c.req.valid("param");
-      const body = await run(
-        c,
-        access,
-        "workforce.staff_file.viewed",
-        STAFF_FILE_SOURCE,
-        id,
-        async (tx) => {
-          const { items } = await fileFor(tx, "workforce.staff_file.viewed", id, null);
-          return vettingBody(c, tx, id, items);
-        },
-      );
+      const body = await run(c, access, A.viewed, STAFF_FILE_SOURCE, id, async (tx) => {
+        const { items } = await fileFor(tx, A.viewed, id, null);
+        // DBS results are criminal offence data: every view is audited (review of slice 77, M1).
+        await audit(c, tx, access, {
+          action: A.viewed,
+          resourceType: STAFF_FILE_SOURCE,
+          resourceId: id,
+        });
+        return vettingBody(c, tx, id, items);
+      });
       return c.json(body, 200);
     },
   )
@@ -709,7 +780,7 @@ export const vettingRouter = createRouter()
       const answer = await prepared.adapter.start(prepared.request as never);
       // 3. Store its answer.
       const result = await withTenant(c, async (tx) => {
-        await storeAnswer(tx, prepared.checkId, answer);
+        await storeAnswer(c, tx, access, id, prepared.checkId, answer);
         const found = await loadStaffFile(tx, id);
         return vettingBody(c, tx, id, found?.items ?? []);
       });
@@ -748,8 +819,14 @@ export const vettingRouter = createRouter()
           .where(and(eq(vettingCheck.id, checkId), eq(vettingCheck.staffProfileId, id)));
         if (!row) throw notFound(A.refreshed, CHECK_SOURCE, checkId);
         if (row.version !== body.expectedVersion) throw stale(A.refreshed, CHECK_SOURCE, checkId);
-        if (row.state !== "pending" || !row.externalReference) {
+        if (row.state !== "pending") {
           throw refused(A.refreshed, CHECK_SOURCE, checkId, "not_pending");
+        }
+        // Stored but never answered (the process stopped, or the provider never replied): there
+        // is nothing to ask about, so it is cancelled (review of slice 77, M2).
+        if (!row.externalReference) throw refused(A.refreshed, CHECK_SOURCE, checkId, "not_sent");
+        if (!(await consentInForce(tx, row, today()))) {
+          throw refused(A.refreshed, CHECK_SOURCE, checkId, "consent_withdrawn");
         }
         const kind = row.kind as VettingCheckKind;
         const connection = await connectionFor(tx, PORT_OF_CHECK[kind]);
@@ -768,7 +845,7 @@ export const vettingRouter = createRouter()
       });
       const answer = await prepared.adapter.status(prepared.externalReference);
       const result = await withTenant(c, async (tx) => {
-        await storeAnswer(tx, checkId, answer);
+        await storeAnswer(c, tx, access, id, checkId, answer);
         const found = await loadStaffFile(tx, id);
         return vettingBody(c, tx, id, found?.items ?? []);
       });
@@ -815,6 +892,9 @@ export const vettingRouter = createRouter()
         }
         const { applicable, reason } = applicability(row, items, on);
         if (!applicable) throw refused(A.applied, CHECK_SOURCE, checkId, reason ?? "not_completed");
+        if (!(await consentInForce(tx, row, on))) {
+          throw refused(A.applied, CHECK_SOURCE, checkId, "consent_withdrawn");
+        }
         if (kind === "idsp_right_to_work" && !body.identityConfirmed) {
           throw refused(A.applied, CHECK_SOURCE, checkId, "identity_not_confirmed");
         }
@@ -829,7 +909,8 @@ export const vettingRouter = createRouter()
         // The check is applied first, so the item's source guard finds it applied by the caller.
         const [applied] = await tx
           .update(vettingCheck)
-          .set({ appliedAt: new Date(), appliedBy: access.tenantUserId })
+          // The database's clock: the item's source guard checks it was applied in this transaction.
+          .set({ appliedAt: sql`now()`, appliedBy: access.tenantUserId })
           .where(and(eq(vettingCheck.id, checkId), eq(vettingCheck.version, row.version)))
           .returning();
         if (!applied) throw stale(A.applied, CHECK_SOURCE, checkId);
@@ -889,6 +970,63 @@ export const vettingRouter = createRouter()
         });
         const all = items.filter((i) => i.id !== saved.id).concat(saved);
         return vettingBody(c, tx, id, all);
+      });
+      return c.json(result, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/workforce/staff-files/{id}/vetting/checks/{checkId}/cancel",
+      tags: ["workforce"],
+      summary: "Cancel a pending vetting check",
+      description: `${MANAGE}, never on one's own file. Marks a check still waiting for an answer as failed (cancelled): one that never reached the provider, whose port was switched off or whose consent was withdrawn. A new check of that kind can then start. Whatever the provider holds is withdrawn with the provider directly. Audited.`,
+      security,
+      request: {
+        params: CheckParam,
+        body: { content: { "application/json": { schema: RefreshVettingCheck } } },
+      },
+      responses: {
+        200: jsonBody(StaffFileVetting, "Cancelled"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, MANAGE);
+      const { id, checkId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const result = await run(c, access, A.cancelled, CHECK_SOURCE, checkId, async (tx) => {
+        const { items } = await fileFor(tx, A.cancelled, id, access.tenantUserId);
+        const [row] = await tx
+          .select()
+          .from(vettingCheck)
+          .where(and(eq(vettingCheck.id, checkId), eq(vettingCheck.staffProfileId, id)));
+        if (!row) throw notFound(A.cancelled, CHECK_SOURCE, checkId);
+        if (row.version !== body.expectedVersion) throw stale(A.cancelled, CHECK_SOURCE, checkId);
+        if (row.state !== "pending") {
+          throw refused(A.cancelled, CHECK_SOURCE, checkId, "not_pending");
+        }
+        const [saved] = await tx
+          .update(vettingCheck)
+          .set({ state: "failed", error: "cancelled", completedAt: new Date() })
+          .where(
+            and(
+              eq(vettingCheck.id, checkId),
+              eq(vettingCheck.version, body.expectedVersion),
+              eq(vettingCheck.state, "pending"),
+            ),
+          )
+          .returning({ id: vettingCheck.id });
+        if (!saved) throw stale(A.cancelled, CHECK_SOURCE, checkId);
+        await audit(c, tx, access, {
+          action: A.cancelled,
+          resourceType: CHECK_SOURCE,
+          resourceId: checkId,
+          scopeExtra: { staffProfileId: id, kind: row.kind },
+        });
+        return vettingBody(c, tx, id, items);
       });
       return c.json(result, 200);
     },

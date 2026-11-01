@@ -654,17 +654,17 @@
       "breakpoints": true
     },
     {
+      "idx": 120,
+      "version": "7",
+      "when": 1793505000000,
+      "tag": "0120_vetting_adapters",
+      "breakpoints": true
+    },
+    {
       "idx": 121,
       "version": "7",
       "when": 1793510000000,
       "tag": "0121_recommended_answers",
-      "breakpoints": true
-    },
-    {
-      "idx": 120,
-      "version": "7",
-      "when": 1793520000000,
-      "tag": "0120_vetting_adapters",
       "breakpoints": true
     }
   ]

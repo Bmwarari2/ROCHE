@@ -77,6 +77,9 @@ call behind the organisation's own configuration.
   suite, with no schema or screen change.
 - Good, because the DBS result kept is the same minimum the manual route keeps (H-575).
 - Bad, because until vendors are contracted the electronic routes are exercised only by mocks.
+- Bad, because the mock's refusal depends on `NODE_ENV=production`: every deployment holding real
+  staff data (AWS, and any Supabase pilot under ADR-0008) must run with it, or a mock "clear"
+  certificate could be applied to a real worker's file (H-1125).
 - Neutral, because each vendor joins the sub-processor register or is recorded as the
   organisation's own processor (H-520) before it is added.
 

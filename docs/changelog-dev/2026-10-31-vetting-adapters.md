@@ -39,6 +39,17 @@ is chosen (H-521 to H-523), so no vendor is called.
   - The sub-processor register's pending vetting entries.
   - Data standards, retention, the export catalogue, the feature register (WORK-002), and human actions H-1120 to H-1129.
 
+## Security review
+
+No high findings; all medium and low findings fixed:
+
+- **M1:** every read of a file's vetting record is audited (`workforce.vetting.viewed`).
+- **M2:** a pending check that never reached the provider is refused on refresh as `not_sent`, and any pending check can be cancelled (`POST .../checks/{checkId}/cancel`).
+- **L1:** the database names a check as an item's source only when the same transaction applied it, and refuses any change under that label.
+- **L2:** withdrawn consent stops a pending DBS check being asked about, stored or applied, in the API and the database. An answer arriving afterwards fails the check as `consent_withdrawn`.
+- **L3:** storing the provider's answer is audited (`workforce.vetting_check.answered`, state and error code only). A write that changes no row is a conflict.
+- The ADR and H-1125 note that the mock's refusal relies on `NODE_ENV=production` in every deployment holding real data.
+
 ## Tests
 
 - `packages/domain/src/workforce/vetting.test.ts` (46, table-driven): ports and sources line up, consent on the day, every start problem, every outcome of every port, and changed certificates and PINs.

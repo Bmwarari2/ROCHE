@@ -354,6 +354,71 @@ describe("DBS e-bulk applications (with the worker's consent)", () => {
   });
 });
 
+describe("withdrawn consent, cancelling and the audit trail (security review of slice 77)", () => {
+  it("a pending application is neither asked about nor applied once consent is withdrawn, and can be cancelled", async () => {
+    const started = await start({ kind: "dbs_application" });
+    expect(started.status).toBe(201);
+    const pending = latest((await started.json()) as Vetting, "dbs_application");
+    expect(pending.state).toBe("pending");
+    const consent = (await vetting()).consents.find(
+      (c) => c.purpose === "dbs_application" && c.inForce,
+    );
+    if (!consent) throw new Error("no consent");
+    expect(
+      (
+        await as("manager", `${FILES}/${fileId}/vetting/consents/${consent.id}/withdraw`, {
+          method: "POST",
+          body: { expectedVersion: consent.version, withdrawnOn: today() },
+        })
+      ).status,
+    ).toBe(200);
+    const refresh = await as("manager", `${FILES}/${fileId}/vetting/checks/${pending.id}/refresh`, {
+      method: "POST",
+      body: { expectedVersion: pending.version },
+    });
+    expect(refresh.status).toBe(409);
+    expect(await code(refresh)).toBe("consent_withdrawn");
+    expect(
+      (
+        await as("carer", `${FILES}/${fileId}/vetting/checks/${pending.id}/cancel`, {
+          method: "POST",
+          body: { expectedVersion: pending.version },
+        })
+      ).status,
+    ).toBe(403);
+    const cancelled = await as(
+      "manager",
+      `${FILES}/${fileId}/vetting/checks/${pending.id}/cancel`,
+      {
+        method: "POST",
+        body: { expectedVersion: pending.version },
+      },
+    );
+    expect(cancelled.status).toBe(200);
+    const after = ((await cancelled.json()) as Vetting).checks.find((c) => c.id === pending.id);
+    expect(after).toMatchObject({ state: "failed", error: "cancelled" });
+    const again = await as("manager", `${FILES}/${fileId}/vetting/checks/${pending.id}/cancel`, {
+      method: "POST",
+      body: { expectedVersion: after?.version ?? 0 },
+    });
+    expect(await code(again)).toBe("not_pending");
+    expect(await audited("workforce.vetting_check.cancelled", "success")).toBe(1);
+  });
+
+  it("audits every view of the vetting record and every answer stored, by ids and codes", async () => {
+    const before = await audited("workforce.vetting.viewed", "success");
+    expect((await as("manager", `${FILES}/${fileId}/vetting`)).status).toBe(200);
+    expect(await audited("workforce.vetting.viewed", "success")).toBe(before + 1);
+    const answered = await sql<{ scope: Record<string, unknown> }>(
+      "SELECT scope FROM audit_event WHERE action = 'workforce.vetting_check.answered'",
+    );
+    expect(answered.length).toBeGreaterThan(0);
+    const text = JSON.stringify(answered);
+    expect(text).not.toContain("certificateNumber");
+    expect(text).not.toContain("99A9999E");
+  });
+});
+
 describe("DBS Update Service status checks (with the worker's consent)", () => {
   it("needs consent to status checks, a subscribed certificate and the surname", async () => {
     expect((await switchOn("workforce.dbs_update_service")).status).toBe(204);
@@ -440,7 +505,7 @@ describe("DBS Update Service status checks (with the worker's consent)", () => {
     expect(await code(again)).toBe("already_withdrawn");
     const refused = await start({ kind: "dbs_status_check", familyName: "Example" });
     expect(await code(refused)).toBe("consent_missing");
-    expect(await audited("workforce.vetting_consent.withdrawn", "success")).toBe(1);
+    expect(await audited("workforce.vetting_consent.withdrawn", "success")).toBe(2);
   });
 });
 

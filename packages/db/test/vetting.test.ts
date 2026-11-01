@@ -254,6 +254,49 @@ describe("checks", () => {
     ).toBe("ok");
   });
 
+  it("a withdrawn consent stops a pending DBS check being answered, but not cancelled", async () => {
+    const pending = await asHr(
+      async (c) =>
+        (
+          await c.query<{ id: string; consent_id: string }>(
+            "SELECT id, consent_id FROM vetting_check WHERE kind = 'dbs_application' AND state = 'pending'",
+          )
+        ).rows[0],
+    );
+    if (!pending) throw new Error("no pending application");
+    await asHr((c) =>
+      c.query(
+        `UPDATE vetting_consent SET withdrawn_on = (now() AT TIME ZONE 'Europe/London')::date,
+           withdrawn_by = $2 WHERE id = $1`,
+        [pending.consent_id, a.manager],
+      ),
+    );
+    expect(
+      await code(() =>
+        asHr((c) =>
+          complete(c, pending.id, {
+            outcome: "certificate_issued",
+            checkedOn: "2026-10-31",
+            issuedOn: "2026-10-31",
+            certificateNumber: "009999999999",
+            level: "enhanced_adults_barred",
+            result: "clear",
+          }),
+        ),
+      ),
+    ).toBe("23514");
+    expect(
+      await code(() =>
+        asHr((c) =>
+          c.query(
+            "UPDATE vetting_check SET state = 'failed', error = 'cancelled', completed_at = now() WHERE id = $1",
+            [pending.id],
+          ),
+        ),
+      ),
+    ).toBe("ok");
+  });
+
   it("are requested in the requester's own name, never by the worker or another organisation", async () => {
     expect(await code(() => asHr((c) => startCheck(c, "nmc_register_check", HR2)))).toBe("42501");
     expect(await code(() => asCarer((c) => startCheck(c, "nmc_register_check", a.carer)))).toBe(
@@ -372,13 +415,8 @@ describe("checks", () => {
           );
           await c.query("ROLLBACK TO SAVEPOINT wrong_kind");
           if (wrong !== "42501") throw new Error(`wrong kind: ${wrong}`);
-        }),
-      ),
-    ).toBe("ok");
-    expect(
-      await code(() =>
-        asHr((c) =>
-          c.query(
+          // Applied in this transaction, by the writer: the item names it.
+          await c.query(
             `INSERT INTO compliance_item (staff_profile_id, kind, detail, verified_on, verified_by,
                evidence_source, vetting_check_id)
              VALUES ($1, 'right_to_work', $2::jsonb, '2026-10-30', $3, 'idsp_right_to_work', $4)`,
@@ -398,8 +436,8 @@ describe("checks", () => {
               a.manager,
               id,
             ],
-          ),
-        ),
+          );
+        }),
       ),
     ).toBe("ok");
     // Applied once.
@@ -413,6 +451,41 @@ describe("checks", () => {
         ),
       ),
     ).toBe("23000");
+    // Nothing the check set changes under its label, and it is never relabelled.
+    for (const change of [
+      "detail = jsonb_set(detail, '{checks}', '[]'::jsonb)",
+      "verified_on = '2026-10-29'",
+      "evidence_source = 'dbs_application'",
+    ]) {
+      expect(
+        await code(() =>
+          asHr((c) =>
+            c.query(`UPDATE compliance_item SET ${change} WHERE vetting_check_id = $1`, [id]),
+          ),
+        ),
+      ).toBe("42501");
+    }
+    // Recorded by hand it goes back to manual, and the old check is never named again.
+    expect(
+      await code(() =>
+        asHr((c) =>
+          c.query(
+            "UPDATE compliance_item SET evidence_source = 'manual', vetting_check_id = NULL, verified_on = '2026-10-29' WHERE vetting_check_id = $1",
+            [id],
+          ),
+        ),
+      ),
+    ).toBe("ok");
+    expect(
+      await code(() =>
+        asHr((c) =>
+          c.query(
+            "UPDATE compliance_item SET evidence_source = 'idsp_right_to_work', vetting_check_id = $1 WHERE kind = 'right_to_work' AND staff_profile_id = $2",
+            [id, CARER_FILE],
+          ),
+        ),
+      ),
+    ).toBe("42501");
     // A source and its check go together.
     expect(
       await code(() =>

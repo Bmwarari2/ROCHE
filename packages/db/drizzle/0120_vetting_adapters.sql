@@ -183,6 +183,18 @@ BEGIN
     RAISE EXCEPTION 'A completed or failed check keeps its answer'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
+  -- Withdrawn consent stops a DBS check: its answer is neither stored nor applied (it may still
+  -- be cancelled) (security review of slice 77, L2).
+  IF NEW.consent_id IS NOT NULL
+     AND ((OLD.state = 'pending' AND NEW.state = 'completed')
+          OR (OLD.applied_at IS NULL AND NEW.applied_at IS NOT NULL))
+     AND NOT EXISTS (
+       SELECT 1 FROM public.vetting_consent c
+       WHERE c.id = NEW.consent_id AND c.given_on <= v_today
+         AND (c.withdrawn_on IS NULL OR c.withdrawn_on > v_today)) THEN
+    RAISE EXCEPTION 'The worker''s consent to this DBS check is no longer in force'
+      USING ERRCODE = 'check_violation';
+  END IF;
   IF (NEW.applied_at, NEW.applied_by) IS DISTINCT FROM (OLD.applied_at, OLD.applied_by) THEN
     IF OLD.applied_at IS NOT NULL THEN
       RAISE EXCEPTION 'A check is applied once'
@@ -202,8 +214,10 @@ CREATE TRIGGER vetting_check_guard BEFORE INSERT OR UPDATE ON public.vetting_che
 --> statement-breakpoint
 
 -- A compliance item names a check as its source only when that check, of the item's file and of a
--- kind that is evidence for the item, was applied by the member writing the item. Recorded by hand
--- it goes back to manual (the CHECK keeps the source and the check together).
+-- kind that is evidence for the item, was applied in this same transaction by the member writing the
+-- item (so an old check is never pointed at again). While an item names a check, nothing the check
+-- set changes under its label: recorded by hand, the item goes back to manual (security review of
+-- slice 77, L1). The CHECK keeps the source and the check together.
 CREATE OR REPLACE FUNCTION app.compliance_item_source_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -211,17 +225,22 @@ BEGIN
     RETURN NEW;
   END IF;
   IF TG_OP = 'UPDATE' AND NEW.vetting_check_id IS NOT DISTINCT FROM OLD.vetting_check_id THEN
+    IF (NEW.evidence_source, NEW.detail, NEW.verified_on, NEW.verified_by)
+       IS DISTINCT FROM (OLD.evidence_source, OLD.detail, OLD.verified_on, OLD.verified_by) THEN
+      RAISE EXCEPTION 'Changed by hand, an item''s evidence is manual'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
     RETURN NEW;
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM public.vetting_check v
     WHERE v.id = NEW.vetting_check_id AND v.staff_profile_id = NEW.staff_profile_id
       AND v.kind = NEW.evidence_source AND v.state = 'completed'
-      AND v.applied_by = app.current_user_id()
+      AND v.applied_by = app.current_user_id() AND v.applied_at = now()
       AND NEW.kind = CASE v.kind WHEN 'idsp_right_to_work' THEN 'right_to_work'
                                  WHEN 'nmc_register_check' THEN 'professional_registration'
                                  ELSE 'dbs_certificate' END) THEN
-    RAISE EXCEPTION 'An item''s source is a check of its file and kind, applied by its writer'
+    RAISE EXCEPTION 'An item''s source is a check of its file and kind, applied by its writer now'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
   RETURN NEW;
