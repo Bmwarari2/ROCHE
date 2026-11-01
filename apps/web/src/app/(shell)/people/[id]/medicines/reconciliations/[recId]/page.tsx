@@ -169,6 +169,11 @@ async function ReconciliationTab({ params }: { readonly params: Params }) {
                       entryId={e.id}
                       lines={lines}
                       allergies={allergies}
+                      scheduled={
+                        Date.parse(e.startsAt) > Date.now()
+                          ? t("medicines.rec.startsLater", { when: when(e.startsAt) })
+                          : null
+                      }
                     />
                   ) : null}
                 </li>

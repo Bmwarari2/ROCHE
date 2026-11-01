@@ -3625,6 +3625,9 @@
     "medicines.rec.noDischargeLetterHint",
     "medicines.rec.complete",
     "medicines.rec.completed",
-    "medicines.rec.completedOn"
+    "medicines.rec.completedOn",
+    "medicines.rec.scheduledStillStands",
+    "medicines.rec.scheduledStillStandsHint",
+    "medicines.rec.startsLater"
   ]
 }

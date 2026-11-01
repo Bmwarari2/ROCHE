@@ -231,12 +231,15 @@ export function EntryDecisionForm({
   entryId,
   lines,
   allergies,
+  scheduled,
 }: {
   readonly personId: string;
   readonly recId: string;
   readonly entryId: string;
   readonly lines: readonly { readonly id: string; readonly label: string }[];
   readonly allergies: ReactNode;
+  /** A version of this medicine starts later than now: continuing or changing it asks why it stands. */
+  readonly scheduled: string | null;
 }) {
   const ids = useFieldIds([
     ...DRAFT_FIELDS,
@@ -245,6 +248,7 @@ export function EntryDecisionForm({
     "question",
     "note",
     "confirmedWith",
+    "scheduledStillStands",
   ]);
   const [kind, setKind] = useState("");
   const [product, setProduct] = useState<ProductHit | null>(null);
@@ -312,6 +316,17 @@ export function EntryDecisionForm({
           rows={2}
           maxLength={2000}
           error={errorFor(result, "question")}
+        />
+      ) : null}
+      {scheduled && (kind === "continue" || kind === "change") ? (
+        <TextArea
+          id={ids.scheduledStillStands}
+          name="scheduledStillStands"
+          label={t("medicines.rec.scheduledStillStands")}
+          hint={t("medicines.rec.scheduledStillStandsHint", { scheduled })}
+          rows={2}
+          maxLength={2000}
+          error={errorFor(result, "scheduledStillStands")}
         />
       ) : null}
       {kind && kind !== "query" ? <LinesSupporting lines={lines} /> : null}

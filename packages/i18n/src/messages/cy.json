@@ -3624,5 +3624,8 @@
   "medicines.rec.noDischargeLetterHint": "Only if no discharge letter is among the sources.",
   "medicines.rec.complete": "Complete the reconciliation",
   "medicines.rec.completed": "Reconciliation completed. The MAR is updated.",
-  "medicines.rec.completedOn": "Completed {when}."
+  "medicines.rec.completedOn": "Completed {when}.",
+  "medicines.rec.scheduledStillStands": "Why the version starting later still stands",
+  "medicines.rec.scheduledStillStandsHint": "{scheduled}, recorded before this reconciliation. Say why it still stands against the sources, or change or stop it instead.",
+  "medicines.rec.startsLater": "It starts {when}"
 }
