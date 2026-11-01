@@ -1,6 +1,6 @@
 import createClient, { type Client, type ClientOptions } from "openapi-fetch";
 import { DEVICE_HEADER, TENANT_HEADER } from "../index";
-import type { paths } from "./api-types";
+import type { components, paths } from "./api-types";
 
 /**
  * The one typed API client (section 6), generated from the API's OpenAPI 3.1 document
@@ -8,7 +8,7 @@ import type { paths } from "./api-types";
  * Used by the web app's server components and actions, and by the mobile app.
  */
 export type ApiClient = Client<paths>;
-export type { paths };
+export type { components, paths };
 
 export interface ApiClientOptions extends ClientOptions {
   /** The active organisation (x-harbour-tenant). */
