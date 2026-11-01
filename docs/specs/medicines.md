@@ -1094,3 +1094,166 @@ Audit actions carry ids, movements and problem codes, never the drug or the coun
 - refusals are audited as `denied`.
 
 Outbox events, with ids only: `medicines.cd.entry_recorded` and `medicines.cd.stock_discrepancy`.
+
+## 15. Stock, ordering, disposal and temperatures (slice 42, schema and API)
+
+Plan slice 42 (MEDS-008; migration 0138; ADR-0103). Medicines in a care home are dispensed for
+each person, so stock is kept per person and per product. Controlled drugs keep their own register
+(section 14): this section never moves their stock, and shows their balance from the register. The
+pharmacy is reached only through a contract-tested mock port (H-517). Nothing here says whether a
+medicine is still fit to use: after a temperature out of range, that is the pharmacist's call, and
+Harbour says so in those words (medical-device boundary).
+
+### 15.1 Tables
+
+- `medicine_stock_item`: one per person and dm+d product (`vmp_id`), opened from a MAR entry
+  (`medication_id`) in that entry's dose unit, by whom and when. Append-only. The database refuses
+  an item for a controlled drug (the entry's `cd_schedule` set).
+- `medicine_stock_movement`: append-only, in sequence per item, each with its signed `change` and
+  `balance_after` (the database checks it follows from the last). The movements are:
+  - `receipt` (with the order line it fills, when there is one) and `carried_forward` (stock
+    brought into a new cycle), both positive;
+  - `administration` (slice 22's hook, naming the administration) and `returned` (to the
+    pharmacy), both negative;
+  - `disposal` (naming the disposal record), negative;
+  - `administration_correction` (a correction of a dose's amount or outcome), either sign;
+  - `count_adjustment` (a count that differs from the balance), either sign, with a reason.
+  A balance may go below zero: a dose is never blocked by stock, and the count is asked for
+  instead (rule 3).
+- `medicine_disposal`: a quantity of a person's item disposed of, with a reason code and note,
+  who recorded it, and its witness: a second member who confirms it themselves, or, where the
+  organisation's policy allows, why no one witnessed it. The witness is set once.
+- `medicine_order_cycle`: a location's 28-day cycle, by the first day of a cycle (`anchor_on`).
+  Its length is `medicines.ordering_cycle_days` from the rate table.
+- `medicine_order` and `medicine_order_line`: a location's order for a cycle. The order has a
+  status (`draft`, `submitted`, `part_received`, `received`, `cancelled`), how it was sent
+  (`manual` or `pharmacy_port`) and the port's reference. Each line has a person, a MAR entry,
+  the product, the quantity and the unit. Lines are fixed once the order is submitted.
+- `medicine_storage`: a location's fridge or medicines room or cupboard, with a name.
+- `medicine_temperature_reading`: append-only. A reading in tenths of a degree, with the minimum
+  and maximum since the last reading when the thermometer gives them. It stores the range that
+  applied, from the rate table (`medicines.fridge_min_celsius` and `medicines.fridge_max_celsius`
+  for a fridge; `medicines.room_max_celsius` for a room), and whether it was out of range. The
+  database works both out from the rate table itself.
+
+### 15.2 Rules (`packages/domain/src/medicines/stock.ts`, table-driven tests)
+
+1. **Per person, per product.** An item is opened from one of the person's MAR entries, in its dose
+   unit, once per product. A controlled drug has no item: its stock is the register's, shown
+   beside the others with the register's balance and a link to the page, never counted twice.
+2. **Receipts and returns.** A receipt adds a positive quantity, naming its order line when it
+   fills one. A return to the pharmacy takes a positive quantity off.
+3. **Administrations decrement stock** (slice 22's hook). A dose recorded as given, from an entry
+   whose product has an item and is not a controlled drug, writes an `administration` movement
+   for the amount given in the same transaction, when the amount's unit is the item's.
+   - With no item, or a different unit, no movement is written; the dose is never refused.
+   - A balance that goes below zero raises one routine task, "Medicines stock count needed", for
+     the person in charge.
+   - A correction writes the difference between what the chain now says left stock and what has
+     already left, as an `administration_correction`.
+4. **Counts.** A count that matches writes nothing but the audit. One that differs writes a
+   `count_adjustment` to the count, with a reason.
+5. **Disposal, witnessed per the organisation's policy.** `medicines.disposal.witness_required` is
+   1 by default; an organisation may set 0 in the rate table.
+   - The recorder names a witness, who confirms the disposal themselves, from their own session.
+     The witness is never the recorder.
+   - Until it is confirmed, the disposal is `awaiting_witness`, and a routine task asks the
+     witness, as the location's task, to confirm it.
+   - Where the policy allows, the recorder may instead give why no one could witness it.
+   - The stock leaves when the disposal is recorded.
+   - The destruction of a controlled drug is the register's (section 14), never here.
+6. **The 28-day cycle and reorder prompts.** A location's cycle starts on its anchor date and every
+   `medicines.ordering_cycle_days` after it.
+   - The daily job `medicines-reorder-prompts` raises one routine task, "Medicines order due",
+     `medicines.order.prompt_days_before` days before a cycle starts, unless the location already
+     has an order for it.
+   - Figures come only from the rate table.
+7. **Order status.** The steps are `draft`, then `submitted` (by hand, or through the pharmacy
+   port, which gives a reference), then `part_received` and `received` as receipts fill its lines;
+   or `cancelled` while not yet received.
+   - Lines change only while the order is a draft.
+   - A receipt never fills more than a line asked for without saying so (an over-receipt is
+     allowed, flagged).
+8. **Temperatures.** A reading is out of range below the minimum or above the maximum for its kind
+   of storage (a room has no minimum here), and the database decides it, from the rate table.
+   - An out-of-range reading raises an urgent task for the person in charge (`clinical_lead`),
+     due `medicines.temperature.acknowledge_minutes` after the reading.
+   - The task engine escalates it when overdue (`task.overdue_escalation_minutes`), as any task.
+   - Its words never say whether the medicines can be used: "Medicines storage out of range.
+     Check the storage, and ask the pharmacist whether the medicines in it can still be used."
+   - The task ends when someone completes it; readings are never edited.
+
+### 15.3 Permissions
+
+| Action | Permission |
+| --- | --- |
+| Open an item; record a receipt, return, count or disposal; set a cycle; make, submit, cancel and receive orders; add storage | `medicines.stock.manage` |
+| Witness a disposal | `medicines.stock.manage` or `medicines.emar.administer`, never the recorder |
+| Record a temperature reading | `medicines.stock.manage` or `medicines.emar.administer` |
+| Read stock and movements | `medicines.record.manage`, `medicines.emar.administer` or `medicines.stock.manage`, for people in scope |
+| Read orders, storage and readings | The same permissions, at locations in scope |
+
+Person tables follow the person's scope (`app.person_visible`). Location tables follow the
+location's (`app.handover_location_visible`).
+
+### 15.4 API
+
+- `GET /v1/people/{id}/medicine-stock`: each item with its balance and last movements, and each
+  controlled drug's register page with its balance (the register's, marked as such).
+- `POST /v1/people/{id}/medicine-stock`: open an item from a MAR entry.
+- `POST /v1/medicine-stock/{itemId}/receipts`, `/returns`, `/counts` and `/disposals`.
+- `POST /v1/medicine-disposals/{id}/witness`.
+- `GET` and `PUT /v1/locations/{id}/medicine-cycle`.
+- `GET` and `POST /v1/locations/{id}/medicine-orders`.
+- `GET /v1/medicine-orders/{id}`, and `POST` to its `submit` and `cancel`.
+- `GET` and `POST /v1/locations/{id}/medicine-storage`.
+- `GET` and `POST /v1/medicine-storage/{id}/readings`.
+
+### 15.5 Audit and outbox
+
+Audit events carry ids, movements, counts of lines and whether a reading was out of range; never a
+product or a figure:
+- `medicines.stock.item_opened`, `.received`, `.returned`, `.counted`, `.disposed`,
+  `.disposal_witnessed`;
+- `medicines.order.created`, `.submitted`, `.cancelled`;
+- `medicines.cycle.set`;
+- `medicines.storage.added`;
+- `medicines.temperature.recorded`.
+
+Outbox events, with ids only: `medicines.temperature.out_of_range` and
+`medicines.stock.below_zero`.
+
+### 15.6 Tests
+
+- Domain (`stock.ts`):
+  - the sign of each movement and the balance after;
+  - the correction difference;
+  - when the hook moves stock;
+  - count adjustments;
+  - the disposal witness rules;
+  - cycle starts and reorder prompts across clock changes;
+  - order steps;
+  - temperature ranges at the edges.
+- Database:
+  - append-only movements with a following balance, and no item for a controlled drug;
+  - the witness set once and never the recorder;
+  - the temperature range from the rate table;
+  - person and location scope, and cross-tenant denial.
+- API:
+  - receipts, returns, counts and disposals;
+  - the administration hook on a given dose and its correction, a controlled drug untouched and
+    shown from its register;
+  - a reorder prompt once;
+  - an order submitted through the mock;
+  - an out-of-range reading raising an urgent task that escalates when overdue, with words that
+    give no advice on use.
+
+### 15.7 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| Household remedies and stock not dispensed for one person | H-1320 |
+| No live pharmacy client; only the mock | H-517, H-1321 |
+| No reminder when a temperature reading is missed for the day | H-1322 |
+| The printable stock and temperature records | Slice 50 |
+| A dose's amount in a unit other than the item's moves no stock | H-1323 |

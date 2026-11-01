@@ -11,6 +11,7 @@ export * from "./imports";
 export * from "./integrations";
 export * from "./invitations";
 export * from "./mca";
+export * from "./medicine-stock";
 export * from "./medicines";
 export * from "./onboarding";
 export * from "./operations";
