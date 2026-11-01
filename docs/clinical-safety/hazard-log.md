@@ -3038,7 +3038,8 @@ person receiving care.
 - A release too large or too slow to read stalls the worker, so the release in use ages and other jobs wait.
 - A release carries a date ahead of today and blocks every real release dated before it.
 - A downloaded release is corrupted, altered on the way, or fetched from somewhere other than TRUD, or its archive writes outside its directory or fills the disk when unpacked.
-- The monthly download fails (a lapsed TRUD key, TRUD unreachable) and nobody is told.
+- The monthly download fails (a lapsed TRUD key, TRUD unreachable, the key never reaching the job) and nobody is told.
+- TRUD's answer itself is wrong or compromised: its SHA-256 then matches a wrong archive (no independent signature is published; residual, the loader's checks still refuse a release that shrinks, goes backwards or breaks a reference).
 
 **Effects**: the wrong medicine, strength or form transcribed or given; a dose recorded in the wrong unit (HZ-005); a barcode check that passes for the wrong pack; a withdrawn product continued; harm up to death.
 

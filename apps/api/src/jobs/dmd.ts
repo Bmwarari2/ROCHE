@@ -44,7 +44,7 @@ export const DMD_EVENTS = {
 
 /**
  * The dm+d release job (integrations.md section 11; ADR-0080): asks the source for its latest
- * release and loads it as the worker, through the loader's functions. Loading a release already in
+ * release and loads it as the dm+d job's own role, through the loader's functions. Loading a release already in
  * use changes nothing, so the job may run as often as it likes. It runs within its limits (files,
  * bytes, time), reading each file in chunks and yielding between them, on its own queue that holds
  * one job at a time, so it never holds up the outbox or escalations for long. A process of its own
@@ -52,7 +52,8 @@ export const DMD_EVENTS = {
  * codes: dm+d holds no personal data.
  */
 export async function loadLatestDmdRelease(deps: {
-  readonly workerPool: pg.Pool;
+  /** The dm+d job's own role (harbour_dmd_job, migration 0131): the loader runs as it. */
+  readonly pool: pg.Pool;
   readonly logger: Logger;
   readonly source: DmdReleaseSourcePort;
   readonly limits?: DmdLoadLimits;
@@ -66,7 +67,7 @@ export async function loadLatestDmdRelease(deps: {
     return null;
   }
   const outcome = await loadDmdRelease(
-    deps.workerPool,
+    deps.pool,
     release,
     deps.limits ? { limits: deps.limits } : {},
   );
@@ -103,14 +104,28 @@ async function releaseLoaded(pool: pg.Pool, name: string): Promise<boolean> {
  * when the release is refused or fails, or cannot be downloaded, so the job's execution fails too.
  */
 export async function runDmdReleaseJob(deps: {
-  readonly workerPool: pg.Pool;
+  /** The dm+d job's own role (harbour_dmd_job, migration 0131). */
+  readonly pool: pg.Pool;
   readonly logger: Logger;
   readonly source: DmdReleaseSourcePort;
   readonly limits?: DmdLoadLimits;
+  /** True where real people work: no source, or no release, is then a failure (review M1). */
+  readonly expected?: boolean;
 }): Promise<{ readonly exitCode: 0 | 1; readonly outcome: DmdLoadOutcome | null }> {
+  if (deps.expected && deps.source.provider === "unconfigured") {
+    deps.logger.error(
+      {
+        event: DMD_EVENTS.download_failed,
+        provider: deps.source.provider,
+        code: "trud_unconfigured",
+      },
+      "dm+d release not downloaded: no TRUD API key is set (H-1240)",
+    );
+    return { exitCode: 1, outcome: null };
+  }
   try {
     const peeked = deps.source.peek ? await deps.source.peek() : null;
-    if (peeked && (await releaseLoaded(deps.workerPool, peeked.name))) {
+    if (peeked && (await releaseLoaded(deps.pool, peeked.name))) {
       deps.logger.info(
         {
           event: DMD_EVENTS.already_loaded,
@@ -124,7 +139,10 @@ export async function runDmdReleaseJob(deps: {
       return { exitCode: 0, outcome: null };
     }
     const outcome = await loadLatestDmdRelease(deps);
-    const bad = outcome?.status === "refused" || outcome?.status === "failed";
+    const bad =
+      outcome?.status === "refused" ||
+      outcome?.status === "failed" ||
+      (outcome === null && deps.expected === true);
     return { exitCode: bad ? 1 : 0, outcome };
   } catch (error) {
     // A code and an HTTP status only: an address or a message may carry the API key.

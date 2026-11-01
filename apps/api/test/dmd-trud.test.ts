@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -8,7 +8,11 @@ import { Writable } from "node:stream";
 import { dmdFixtureReleaseDirectories, parseDmdRelease } from "@harbour/db/dmd";
 import { checkDmdRelease, type DmdReleaseFiles } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDmdReleaseSource } from "../src/integrations/dmd";
+import {
+  createDmdReleaseSource,
+  realPeopleEnvironment,
+  UnconfiguredDmdReleaseSource,
+} from "../src/integrations/dmd";
 import { TrudDmdReleaseSource, TrudError } from "../src/integrations/trud";
 import { checkDmdFreshness, DMD_EVENTS, runDmdReleaseJob } from "../src/jobs/dmd";
 import { createLogger } from "../src/logger";
@@ -276,6 +280,52 @@ describe("hazard HZ-113 what stops a download, with a code and never the key", (
     expect((await refusal(() => source({ maxFiles: 8 }))).code).toBe("archive_too_large");
   });
 
+  /** Changes every central directory record of a zip (review L5). */
+  const patchCentral = (zip: Buffer, patch: (zip: Buffer, record: number) => void) => {
+    for (let i = 0; i + 4 <= zip.length; i++) if (zip.readUInt32LE(i) === 0x02014b50) patch(zip, i);
+    return zip;
+  };
+
+  it("refuses an encrypted entry", async () => {
+    const zip = patchCentral(await zipOf([["f_vmp2_1.xml", "<x/>"]]), (z, at) =>
+      z.writeUInt16LE(z.readUInt16LE(at + 8) | 1, at + 8),
+    );
+    await serve(zip, releaseName(SECOND));
+    expect((await refusal(source)).code).toBe("archive_unsafe");
+  });
+
+  it("refuses a symbolic link entry, even named as XML", async () => {
+    const zip = patchCentral(await zipOf([["f_vmp2_1.xml", "/etc/passwd"]]), (z, at) => {
+      z.writeUInt16LE((3 << 8) | 20, at + 4); // made on Unix
+      z.writeUInt32LE((0o120777 << 16) >>> 0, at + 38); // a symbolic link
+    });
+    await serve(zip, releaseName(SECOND));
+    expect((await refusal(source)).code).toBe("archive_unsafe");
+  });
+
+  it("refuses an archive of more entries than the bound, skipped ones included", async () => {
+    const many = Array.from({ length: 33 }, (_, i) => [`readme${i}.txt`, "x"] as const);
+    await serve(await zipOf(many), releaseName(SECOND));
+    expect((await refusal(() => source({ maxFiles: 8 }))).code).toBe("archive_too_large");
+  });
+
+  it("stops after three redirects", async () => {
+    await serve(await zipOf(releaseEntries(SECOND)), releaseName(SECOND));
+    trud.redirectTo = `${base}/download/${KEY}/${trud.archiveName}`;
+    const error = await refusal(source);
+    expect(error).toMatchObject({ code: "trud_refused", status: 302 });
+  });
+
+  it("unpacks into a private directory", async () => {
+    await serve(await zipOf(releaseEntries(SECOND)), releaseName(SECOND));
+    const trudSource = source();
+    await trudSource.latest();
+    const [dir] = leftovers();
+    expect(statSync(join(work, dir ?? "")).mode & 0o777).toBe(0o700);
+    await trudSource.close();
+    expect(leftovers()).toEqual([]);
+  });
+
   it("reports a refused key by its HTTP status, and the job's log line never holds the key", async () => {
     const wrong = new TrudDmdReleaseSource({
       apiKey: "wrong-trud-key-0123456789",
@@ -289,7 +339,7 @@ describe("hazard HZ-113 what stops a download, with a code and never the key", (
     });
     const { logger, lines, raw } = captured();
     const run = await runDmdReleaseJob({
-      workerPool: h.db.pool("harbour_worker"),
+      pool: h.db.pool("harbour_dmd_job"),
       logger,
       source: wrong,
     });
@@ -344,7 +394,7 @@ describe("hazard HZ-113 the dm+d job (its own process) and the worker's daily ch
   const job = (trudSource = source()) => {
     const log = captured();
     return runDmdReleaseJob({
-      workerPool: h.db.pool("harbour_worker"),
+      pool: h.db.pool("harbour_dmd_job"),
       logger: log.logger,
       source: trudSource,
     }).then((run) => ({ ...run, ...log }));
@@ -391,6 +441,36 @@ describe("hazard HZ-113 the dm+d job (its own process) and the worker's daily ch
     expect(refused.exitCode).toBe(1);
     expect(refused.outcome?.status).toBe("refused");
     expect(refused.lines.at(-1)).toMatchObject({ event: DMD_EVENTS.refused });
+  });
+
+  it("fails the job, with an alert, when there is no source where real people work (review M1)", async () => {
+    const { logger, lines } = captured();
+    const run = await runDmdReleaseJob({
+      pool: h.db.pool("harbour_dmd_job"),
+      logger,
+      source: new UnconfiguredDmdReleaseSource(),
+      expected: true,
+    });
+    expect(run.exitCode).toBe(1);
+    expect(lines.at(-1)).toMatchObject({
+      event: DMD_EVENTS.download_failed,
+      code: "trud_unconfigured",
+    });
+  });
+
+  it("treats any environment it does not know as one where real people work (review L4)", () => {
+    for (const environment of ["uat", "preprod", "staging", "production", " Pilot "]) {
+      expect(realPeopleEnvironment({ production: false, environment }), environment).toBe(true);
+      expect(createDmdReleaseSource({ production: false, environment }).provider).toBe(
+        "unconfigured",
+      );
+    }
+    for (const environment of [undefined, "", "dev", "local", "ci", "test"]) {
+      expect(realPeopleEnvironment({ production: false, environment }), String(environment)).toBe(
+        false,
+      );
+    }
+    expect(realPeopleEnvironment({ production: true, environment: "dev" })).toBe(true);
   });
 
   it("says the release in use is late after 35 days, and current up to them", async () => {

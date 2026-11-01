@@ -7,8 +7,10 @@ leaves the release in use unchanged until a whole new one has loaded.
 
 ## How it runs
 
-- **Where:** a Cloud Run job, `harbour-<env>-dmd`, running `node dist/dmd-job.js` as the worker's
-  database role. It is never run in the shared worker. Cloud Scheduler starts it monthly, early on
+- **Where:** a Cloud Run job, `harbour-<env>-dmd`, running `node dist/dmd-job.js` as its own
+  database role, `harbour_dmd_job` (`DATABASE_DMD_URL`). That role may only call the dm+d loader and
+  read the dm+d tables. The job is never run in the shared worker, and the worker may no longer
+  call the loader. Cloud Scheduler starts it monthly, early on
   the 3rd (H-1241).
 - **What one run does:**
   1. asks TRUD for the latest release of item 24;
@@ -32,6 +34,8 @@ leaves the release in use unchanged until a whole new one has loaded.
 | Log event | Most likely cause | What to do |
 | --- | --- | --- |
 | `dmd.download.failed`, `code: trud_refused`, `status: 401` or `403` | The TRUD key lapsed or was revoked, or the subscription to item 24 ended | Renew or reissue the key in TRUD, put the new one in the secret (H-1240), and run the job again |
+| `dmd.download.failed`, `code: trud_unconfigured` | `TRUD_API_KEY` is not reaching the job (the secret binding was dropped, or never set) | Bind the secret to the job (H-1240) and run it again; the job fails until then rather than passing quietly |
+| `dmd.download.failed`, `code: database_unconfigured` | `DATABASE_DMD_URL` is not set for the job | Set it from the `harbour_dmd_job` password secret (H-1241) |
 | `dmd.download.failed`, `code: trud_unreachable` | TRUD is down, or egress to `isd.digital.nhs.uk` is blocked (H-1245) | Check TRUD's service status and the egress rule, then run the job again; the release in use stays in use |
 | `dmd.download.failed`, `code: trud_response_invalid` | TRUD changed its answer, or the archive's address or a redirect points off TRUD's host | Look at TRUD's answer by hand (from a machine, never by pasting the key into a ticket). If TRUD changed its fields, update `checkTrudRelease` and its tests (H-1242). An address off TRUD's host is never followed |
 | `dmd.download.failed`, `code: checksum_mismatch` or `download_too_large` | A corrupted or altered download, or a proxy changing it | Run the job again. If it repeats, treat it as a security event ([incident-response.md](incident-response.md)) and tell NHSBSA |

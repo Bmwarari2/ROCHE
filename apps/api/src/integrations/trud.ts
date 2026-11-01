@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { closeSync, constants, createWriteStream, openSync, readSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,13 +59,25 @@ export interface TrudOptions {
 
 const MAX_REDIRECTS = 3;
 const MAX_ANSWER_BYTES = 1024 * 1024;
+/** TRUD's JSON answer is small: it has this long, within the run's own deadline (review L6). */
+const ANSWER_TIMEOUT_MS = 30_000;
 
 export class TrudDmdReleaseSource implements DmdReleaseSourcePort {
   readonly provider = "trud";
   private described: TrudRelease | null = null;
   private directory: string | null = null;
+  /** One deadline for the whole run, set by its first request (review L6). */
+  private deadline: number | null = null;
 
   constructor(private readonly options: TrudOptions) {}
+
+  /** What is left of the run's deadline, at most `cap`. */
+  private signal(cap = Number.POSITIVE_INFINITY): AbortSignal {
+    this.deadline ??= Date.now() + this.options.timeoutMs;
+    const left = this.deadline - Date.now();
+    if (left <= 0) throw new TrudError("trud_unreachable");
+    return AbortSignal.timeout(Math.min(left, cap));
+  }
 
   private allowed(url: string): boolean {
     return trudUrlAllowed(url, this.options.allowedHosts, {
@@ -114,9 +126,10 @@ export class TrudDmdReleaseSource implements DmdReleaseSourcePort {
     if (this.described) return this.described;
     const base = this.options.baseUrl.replace(/\/+$/, "");
     const url = `${base}/keys/${encodeURIComponent(this.options.apiKey)}/items/${this.options.item}/releases?latest`;
-    const signal = AbortSignal.timeout(this.options.timeoutMs);
-    const response = await this.get(url, signal);
-    const text = await readLimited(response, MAX_ANSWER_BYTES);
+    const response = await this.get(url, this.signal(ANSWER_TIMEOUT_MS));
+    const text = await readLimited(response, MAX_ANSWER_BYTES).catch((error: unknown) => {
+      throw error instanceof TrudError ? error : new TrudError("trud_unreachable");
+    });
     let body: unknown;
     try {
       body = JSON.parse(text);
@@ -147,7 +160,18 @@ export class TrudDmdReleaseSource implements DmdReleaseSourcePort {
       await this.download(release, archive);
       const releaseDirectory = join(root, release.name);
       await mkdir(releaseDirectory, { mode: 0o700 });
-      await unpack(archive, release.name, releaseDirectory, this.options.limits, 0);
+      // Checked and unpacked through one open file, so nothing can swap it in between (L1). Once
+      // the zip reader has the descriptor it owns it and closes it; until then it is ours.
+      const fd = openSync(archive, constants.O_RDONLY | constants.O_NOFOLLOW);
+      let zip: yauzl.ZipFile;
+      try {
+        if (sha256OfFd(fd) !== release.sha256) throw new TrudError("checksum_mismatch");
+        zip = await zipFromFd(fd);
+      } catch (error) {
+        closeSync(fd);
+        throw error;
+      }
+      await unpack(zip, release.name, releaseDirectory, this.options.limits, 0);
       await rm(archive, { force: true });
       return await readDmdReleaseDirectory(releaseDirectory, "nhsbsa_trud", this.options.limits);
     } catch (error) {
@@ -156,10 +180,9 @@ export class TrudDmdReleaseSource implements DmdReleaseSourcePort {
     }
   }
 
-  /** Streams the archive to disk, checking its size and SHA-256 as it comes (rule 3). */
+  /** Streams the archive to disk, stopping past its declared size, and checks its SHA-256 (rule 3). */
   private async download(release: TrudRelease, path: string): Promise<void> {
-    const signal = AbortSignal.timeout(this.options.timeoutMs);
-    const response = await this.get(release.archiveUrl, signal);
+    const response = await this.get(release.archiveUrl, this.signal());
     if (!response.body) throw new TrudError("trud_response_invalid");
     const hash = createHash("sha256");
     let bytes = 0;
@@ -227,20 +250,56 @@ async function readLimited(response: Response, limit: number): Promise<string> {
 
 interface Budget {
   files: number;
+  entries: number;
   bytes: number;
 }
 
+const ZIP_OPTIONS = {
+  lazyEntries: true,
+  validateEntrySizes: true,
+  strictFileNames: true,
+} as const;
+
 function openZip(path: string): Promise<yauzl.ZipFile> {
   return new Promise((resolve, reject) => {
-    yauzl.open(
-      path,
-      { lazyEntries: true, validateEntrySizes: true, strictFileNames: true, autoClose: true },
-      (error, zip) => {
-        if (error || !zip) reject(new TrudError("archive_unsafe"));
-        else resolve(zip);
-      },
-    );
+    yauzl.open(path, { ...ZIP_OPTIONS, autoClose: true }, (error, zip) => {
+      if (error || !zip) reject(new TrudError("archive_unsafe"));
+      else resolve(zip);
+    });
   });
+}
+
+/** The archive read from a file already open (closed by its caller). */
+function zipFromFd(fd: number): Promise<yauzl.ZipFile> {
+  return new Promise((resolve, reject) => {
+    yauzl.fromFd(fd, { ...ZIP_OPTIONS, autoClose: false }, (error, zip) => {
+      if (error || !zip) reject(new TrudError("archive_unsafe"));
+      else resolve(zip);
+    });
+  });
+}
+
+function sha256OfFd(fd: number): string {
+  const hash = createHash("sha256");
+  const buffer = Buffer.alloc(1024 * 1024);
+  for (let position = 0; ; ) {
+    const bytesRead = readSync(fd, buffer, 0, buffer.length, position);
+    if (bytesRead === 0) break;
+    hash.update(buffer.subarray(0, bytesRead));
+    position += bytesRead;
+  }
+  return hash.digest("hex");
+}
+
+/** Unix file types in a zip entry's external attributes: only regular files and folders (L3). */
+const S_IFMT = 0o170000;
+const S_IFREG = 0o100000;
+const S_IFDIR = 0o040000;
+function entryTypeAllowed(entry: yauzl.Entry): boolean {
+  const madeOnUnix = entry.versionMadeBy >> 8 === 3;
+  if (!madeOnUnix) return true;
+  const type = (entry.externalFileAttributes >>> 16) & S_IFMT;
+  return type === 0 || type === S_IFREG || type === S_IFDIR;
 }
 
 /**
@@ -249,15 +308,22 @@ function openZip(path: string): Promise<yauzl.ZipFile> {
  * Every byte inflated counts against the release's limit, so a small archive cannot fill the disk.
  */
 async function unpack(
-  archive: string,
+  archive: string | yauzl.ZipFile,
   releaseName: string,
   into: string,
   limits: Pick<DmdLoadLimits, "maxFiles" | "maxBytes">,
   depth: number,
-  budget: Budget = { files: 0, bytes: 0 },
+  budget: Budget = { files: 0, entries: 0, bytes: 0 },
 ): Promise<void> {
-  const zip = await openZip(archive);
+  const zip = typeof archive === "string" ? await openZip(archive) : archive;
   const nested: { path: string; name: string }[] = [];
+  // Every entry counts, skipped or kept, so a directory of millions of tiny records is refused
+  // before it is walked (review M2).
+  const maxEntries = limits.maxFiles * 4;
+  if (zip.entryCount + budget.entries > maxEntries) {
+    zip.close();
+    throw new TrudError("archive_too_large");
+  }
   try {
     await new Promise<void>((resolve, reject) => {
       const fail = (error: unknown) =>
@@ -265,8 +331,9 @@ async function unpack(
       zip.on("error", fail);
       zip.on("end", () => resolve());
       zip.on("entry", (entry: yauzl.Entry) => {
+        budget.entries += 1;
         const decided = dmdArchiveEntryName(entry.fileName, releaseName);
-        if (decided.kind === "unsafe" || entry.isEncrypted()) {
+        if (decided.kind === "unsafe" || entry.isEncrypted() || !entryTypeAllowed(entry)) {
           fail(new TrudError("archive_unsafe"));
           return;
         }

@@ -24,6 +24,13 @@ const Env = z.object({
   DATABASE_WORKER_URL: z
     .string()
     .default("postgres://harbour_worker:harbour_worker_local@localhost:5432/harbour"),
+  /**
+   * harbour_dmd_job: the dm+d release job only (slice 75, migration 0131), which may call the
+   * loader and read the dm+d tables and nothing else. Never given to the API or the worker.
+   */
+  DATABASE_DMD_URL: z
+    .string()
+    .default("postgres://harbour_dmd_job:harbour_dmd_job_local@localhost:5432/harbour"),
   BETTER_AUTH_SECRET: z.string().min(32).default("local-development-secret-change-me-0123456789"),
   BETTER_AUTH_URL: z.url().default("http://localhost:4000"),
   /** Comma-separated origins allowed to call the API with credentials (the web app). */
@@ -87,13 +94,16 @@ const Env = z.object({
         .map((h) => h.trim().toLowerCase())
         .filter((h) => h !== ""),
     ),
-  /** The largest archive the job downloads (technical bound, H-654; not a statutory figure). */
+  /**
+   * The largest archive the job downloads: a real release is tens of megabytes; this bounds the
+   * job's disk and memory (Cloud Run's /tmp is memory) with headroom (H-1243; not statutory).
+   */
   DMD_ARCHIVE_MAX_BYTES: z.coerce
     .number()
     .int()
     .min(1024 * 1024)
     .max(8 * 1024 ** 3)
-    .default(1024 ** 3),
+    .default(256 * 1024 ** 2),
   /** Where the job unpacks a release (a private directory under it, deleted after); the OS temp. */
   DMD_WORK_DIR: z.string().optional(),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */

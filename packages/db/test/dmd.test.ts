@@ -29,6 +29,8 @@ import { ctx, inContext, seedTwoTenants, TENANT_A } from "./support/fixtures";
 
 let db: TestDatabase;
 const owner = () => db.pool("harbour_owner");
+/** The dm+d job's own role (migration 0131); the worker no longer loads (slice 75). */
+const job = () => db.pool("harbour_dmd_job");
 const worker = () => db.pool("harbour_worker");
 const [FIRST_DIR, SECOND_DIR] = dmdFixtureReleaseDirectories() as [string, string];
 const first = () => readDmdReleaseDirectory(FIRST_DIR, "fixture");
@@ -127,7 +129,7 @@ afterAll(async () => {
 
 describe("hazard HZ-113 the dm+d release loader loads whole, once (rules 1 to 4)", () => {
   it("loads the fixture release as the worker and reads it back", async () => {
-    const outcome = await loadDmdRelease(worker(), await first(), { batchSize: 3 });
+    const outcome = await loadDmdRelease(job(), await first(), { batchSize: 3 });
     expect(outcome).toMatchObject({ status: "loaded", problemCount: 0 });
     expect(outcome.fileCounts).toMatchObject({ vtm: 4, vmp: 6, amp: 8, vmpp: 6, ampp: 8, gtin: 9 });
     expect(outcome.changes).toMatchObject({ vmp_added: 6, amp_added: 8, gtin_added: 9 });
@@ -146,12 +148,12 @@ describe("hazard HZ-113 the dm+d release loader loads whole, once (rules 1 to 4)
       udfs: "1.000",
     });
     const [release] = await history();
-    expect(release).toMatchObject({ status: "loaded", loaded_by: "harbour_worker" });
+    expect(release).toMatchObject({ status: "loaded", loaded_by: "harbour_dmd_job" });
   });
 
   it("changes nothing when the same release is loaded again", async () => {
     const before = await fingerprint();
-    const again = await loadDmdRelease(worker(), await first());
+    const again = await loadDmdRelease(job(), await first());
     expect(again).toMatchObject({ status: "already_loaded", releaseId: null });
     expect(await fingerprint()).toEqual(before);
     expect(await history()).toHaveLength(1);
@@ -239,7 +241,7 @@ describe("hazard HZ-113 a release that is broken, older or shrunken is refused w
     const before = await fingerprint();
     const count = (await history()).length;
     const release = await make();
-    const outcome = await loadDmdRelease(worker(), release);
+    const outcome = await loadDmdRelease(job(), release);
     expect(outcome.status).toBe("refused");
     expect(outcome.problems.map((p) => p.code)).toContain(code);
     expect(await fingerprint()).toEqual(before);
@@ -261,7 +263,7 @@ describe("hazard HZ-113 a release that is broken, older or shrunken is refused w
 
 describe("hazard HZ-113 a newer release keeps everything in use (rules 3 and 4)", () => {
   it("adds, changes, invalidates, supersedes, discontinues and withdraws", async () => {
-    const outcome = await loadDmdRelease(worker(), await second());
+    const outcome = await loadDmdRelease(job(), await second());
     expect(outcome.status).toBe("loaded");
     expect(outcome.changes).toMatchObject({
       vmp_added: 2,
@@ -294,7 +296,7 @@ describe("hazard HZ-113 a newer release keeps everything in use (rules 3 and 4)"
 
   it("refuses a release that lacks a concept the newer release added", async () => {
     const outcome = await loadDmdRelease(
-      worker(),
+      job(),
       await variant(first(), "fixture_dmd_1.0.1_20261101000001", (_f, c) => c),
     );
     expect(outcome.status).toBe("refused");
@@ -326,7 +328,7 @@ describe("hazard HZ-113 only the loader writes dm+d data", () => {
 
   it("gives the worker and the owner no direct write, and lets no one delete", async () => {
     await expect(
-      inContext(worker(), null, (c) => c.query("UPDATE dmd_vmp SET name = 'Changed'")),
+      inContext(job(), null, (c) => c.query("UPDATE dmd_vmp SET name = 'Changed'")),
     ).rejects.toThrow(/permission denied/);
     await expect(
       inContext(owner(), null, (c) =>
@@ -361,7 +363,7 @@ describe("hazard HZ-113 only the loader writes dm+d data", () => {
       "SELECT id FROM dmd_release WHERE status = 'loaded' LIMIT 1",
     );
     await expect(
-      inContext(worker(), null, (c) =>
+      inContext(job(), null, (c) =>
         c.query("SELECT app.dmd_load_rows($1, 'vtm', '[]')", [rows[0]?.id]),
       ),
     ).rejects.toMatchObject({ hint: "dmd:not_loading" });
@@ -414,7 +416,7 @@ describe("hazard HZ-113 a load stays within its limits (security review)", () =>
   ])("refuses a release with %s before reading it", async (_, limits) => {
     const before = await fingerprint();
     const release = await variant(second(), later("1"), (_f, c) => c);
-    const outcome = await loadDmdRelease(worker(), release, { limits });
+    const outcome = await loadDmdRelease(job(), release, { limits });
     expect(outcome).toMatchObject({ status: "refused", problems: [{ code: "too_large" }] });
     expect(await fingerprint()).toEqual(before);
   });
@@ -422,7 +424,7 @@ describe("hazard HZ-113 a load stays within its limits (security review)", () =>
   it("stops a load that runs past its time limit and leaves the release in use", async () => {
     const before = await fingerprint();
     const release = await variant(second(), later("2"), (_f, c) => c);
-    const outcome = await loadDmdRelease(worker(), release, {
+    const outcome = await loadDmdRelease(job(), release, {
       limits: { ...DMD_LOAD_LIMITS, timeoutMs: 0 },
     });
     expect(outcome).toMatchObject({ status: "failed", problems: [{ code: "timed_out" }] });
@@ -472,10 +474,10 @@ describe("hazard HZ-113 a release dated ahead of today is refused (security revi
   it("in the loader and in the database", async () => {
     const ahead = daysFromToday(10);
     const release = await variant(second(), `fixture_dmd_9.6.1_${ahead.stamp}`, (_f, c) => c);
-    const outcome = await loadDmdRelease(worker(), release);
+    const outcome = await loadDmdRelease(job(), release);
     expect(outcome).toMatchObject({ status: "refused", problems: [{ code: "dated_in_future" }] });
     await expect(
-      inContext(worker(), null, (c) =>
+      inContext(job(), null, (c) =>
         c.query("SELECT app.dmd_begin_release('ahead', $1::date, 'manual', NULL, '{}')", [
           ahead.date,
         ]),
@@ -486,7 +488,7 @@ describe("hazard HZ-113 a release dated ahead of today is refused (security revi
 
 describe("hazard HZ-113 finish works out what a release holds from the rows written (security review)", () => {
   it("never takes the caller's word, and the caller cannot write the loader's notes", async () => {
-    const client = await worker().connect();
+    const client = await job().connect();
     try {
       await client.query("BEGIN");
       const { rows } = await client.query<{ id: string }>(
@@ -561,16 +563,16 @@ describe("hazard HZ-113 the invented fixture loads only into a database marked d
 
   it("refuses it in a database marked for real use, which is never marked dev or test again", async () => {
     await markDatabaseEnvironment(owner(), "production");
-    const outcome = await loadDmdRelease(worker(), await fixture());
+    const outcome = await loadDmdRelease(job(), await fixture());
     expect(outcome.problems[0]?.code).toBe("fixture_not_allowed");
     await expect(markDatabaseEnvironment(owner(), "test")).rejects.toThrow(/never marked/);
     await expect(owner().query("DELETE FROM app.database_environment")).rejects.toThrow(
       /never marked/,
     );
     await expect(
-      worker().query("UPDATE app.database_environment SET environment = 'dev'"),
+      job().query("UPDATE app.database_environment SET environment = 'dev'"),
     ).rejects.toThrow(/permission denied/);
-    expect(await dmdDatabaseEnvironment(worker())).toBe("production");
+    expect(await dmdDatabaseEnvironment(job())).toBe("production");
   });
 });
 
@@ -587,7 +589,7 @@ describe("hazard HZ-113 a file that cannot be read refuses the release (security
       },
     };
     // Not the fixture by name or source: this database is marked production by now.
-    const outcome = await loadDmdRelease(worker(), {
+    const outcome = await loadDmdRelease(job(), {
       ...release,
       name: "unread_dmd_9.4.1_20261014000001",
       source: "manual",
@@ -633,5 +635,20 @@ describe("the worker reads only the national rate rows (slice 75, migration 0131
     } finally {
       client.release();
     }
+  });
+});
+
+describe("hazard HZ-113 only the dm+d job's own role loads (security review of slice 75, H1)", () => {
+  it("lets the worker call no loader function, and gives the job no organisation's rows", async () => {
+    await expect(
+      worker().query("SELECT app.dmd_finish_release('00000000-0000-7000-8000-000000000000')"),
+    ).rejects.toThrow(/permission denied/);
+    for (const table of ["outbox_event", "notification", "person", "rate_table", "audit_event"]) {
+      await expect(job().query(`SELECT 1 FROM ${table} LIMIT 1`), table).rejects.toThrow(
+        /permission denied/,
+      );
+    }
+    const { rows } = await job().query<{ n: string }>("SELECT count(*) AS n FROM dmd_release");
+    expect(Number(rows[0]?.n)).toBeGreaterThan(0);
   });
 });

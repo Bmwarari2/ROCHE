@@ -33,8 +33,12 @@ with an amendment to ADR-0080.
     (24), `TRUD_ALLOWED_HOSTS`, `DMD_ARCHIVE_MAX_BYTES` and `DMD_WORK_DIR`.
   - Staging, pilot and production use TRUD only when the key is set, never over plain HTTP, and
     otherwise have no source.
-- **Migration 0131:** `harbour_worker` may read the national rows of `rate_table`, with a
-  restrictive policy, so the daily check uses the same figure as the screens.
+- **Migration 0131:**
+  - a login role of its own, `harbour_dmd_job` (`DATABASE_DMD_URL`), for the job: it may call
+    the loader and read the dm+d tables, and nothing else;
+  - `harbour_worker` loses EXECUTE on the loader;
+  - `harbour_worker` may read the national rows of `rate_table`, with a restrictive policy, so the
+    daily check uses the same figure as the screens.
 - **Dependency:** `yauzl` 3.4.0 (MIT) for reading zip archives, and `@types/yauzl`.
 - **Documents:**
   - the [dm+d release runbook](../runbooks/dmd-release.md), with what to do for each alert;
@@ -43,6 +47,33 @@ with an amendment to ADR-0080.
   - the feature register and STATUS;
   - human actions H-1240 to H-1245: the key, the Terraform job and alerts, confirming TRUD's
     answer, sizing, who receives the alerts, and egress.
+
+## Security review
+
+The security reviewer found 2 high, 3 medium and 6 low findings. All are fixed or answered.
+
+- **H1, fixed: the job's database role.** The job parsed an archive from the internet as
+  `harbour_worker`, which reads and updates every organisation's outbox and notifications. It now
+  has its own role, as above.
+- **H2, answered: where the job runs.** The reviewer read this branch's base, from before the move
+  to Google Cloud. Cloud Run in europe-west2, with the database on private IP, is ADR-0098, which
+  arrives with #164. ADR-0080's amendment now cites it.
+- **M1, fixed.** Where real people work, a missing key or no release now fails the job and logs
+  `dmd.download.failed` with `trud_unconfigured`. It no longer passes quietly for 35 days.
+- **M2, fixed.** Every entry counts against the bound (four times the file limit), skipped ones
+  included.
+- **M3, fixed.** `DMD_ARCHIVE_MAX_BYTES` defaults to 256 MiB, and SIGTERM deletes the work
+  directory. H-1241 now sizes the job's memory, since Cloud Run's `/tmp` is memory.
+- **Lows, fixed:**
+  - L1: the archive is checked and unpacked through one open file descriptor.
+  - L3: encrypted entries, symbolic links and devices are refused.
+  - L4: one list of fixture environments, so anything else counts as an environment where real
+    people work.
+  - L5: tests added for encrypted entries, symbolic links, the entry bound, a redirect loop and the
+    private directory.
+  - L6: one deadline for the whole run, and 30 seconds for TRUD's answer.
+- **L2, recorded.** The SHA-256 comes from the same answer as the address, and TRUD publishes no
+  signature. This is a residual risk in HZ-113 and ADR-0080.
 
 ## Not done here
 

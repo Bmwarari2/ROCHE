@@ -245,10 +245,17 @@ the real service (H-1240 to H-1243).**
 3. **Download.** Over HTTPS only. The archive address and every redirect (at most three) must be
    on an allowed host (`trudUrlAllowed`), so a changed answer cannot point the job elsewhere. The
    archive streams into a private directory (mode 0700) and stops as soon as it passes the size it
-   declared or the limit. Its SHA-256 is worked out as it streams and must equal the one declared
-   (`checksum_mismatch` otherwise). On any failure the files are deleted and nothing is loaded.
-4. **Unpacking.** At most `DMD_RELEASE_MAX_FILES` entries are read, and each entry's name must be
-   a plain file name (`dmdArchiveEntryName`). An absolute path, `..`, a backslash, a nested folder
+   declared or the limit (`DMD_ARCHIVE_MAX_BYTES`, 256 MiB). Its SHA-256 must equal the one
+   declared (`checksum_mismatch` otherwise). It is checked as it streams, then again through the
+   same open file the archive is unpacked from, so nothing can swap it in between. On any failure,
+   or when the job is stopped (SIGTERM), the files are deleted and nothing is loaded. The whole run
+   has one deadline (`DMD_LOAD_TIMEOUT_MINUTES`), and TRUD's answer has 30 seconds within it. The
+   SHA-256 comes from the same answer as the address: it proves the archive arrived whole, not that
+   TRUD's answer is genuine, because TRUD publishes no independent signature (HZ-113 residual risk).
+4. **Unpacking.** At most `DMD_RELEASE_MAX_FILES` files are kept, and at most four times as many
+   entries are read, skipped ones included (`archive_too_large`). Each entry's name must be a plain
+   file name (`dmdArchiveEntryName`), and its type a regular file: an encrypted entry, a symbolic
+   link or a device is refused (`archive_unsafe`). An absolute path, `..`, a backslash, a nested folder
    other than the release's own, or a duplicate name is refused (`archive_unsafe`). Only `.xml`
    files are kept, plus `.zip` files nested one level deep and unpacked under the same rules (the
    GTIN file may come nested; H-654). Bytes are counted as they inflate, and the whole release is
@@ -259,8 +266,13 @@ the real service (H-1240 to H-1243).**
    environment (H-510, H-1240). It appears only in the request path. It is never in a log line, an
    error message, the release history or an audit event: errors carry a code and an HTTP status
    only (`TrudError`).
-6. **Its own process.** The download and load run as a Cloud Run job, `node dist/dmd-job.js`
-   (`apps/api/src/jobs/dmd-job.ts`), not in the shared worker. Cloud Scheduler starts it monthly,
+6. **Its own process and role.** The download and load run as a Cloud Run job, `node
+   dist/dmd-job.js` (`apps/api/src/jobs/dmd-job.ts`), not in the shared worker. It connects as its
+   own database role, `harbour_dmd_job` (`DATABASE_DMD_URL`, migration 0131). That role may call
+   the loader's functions and read the dm+d tables, and nothing else: no organisation's rows, no
+   outbox, no notifications, so a flaw in parsing an archive from the internet reaches nothing else.
+   The worker may no longer call the loader. Where real people work the job refuses to start on the
+   local default address. Cloud Scheduler starts it monthly,
    early on the 3rd, with one execution at a time, and it exits non-zero when a release is refused,
    fails or cannot be downloaded. The job's Terraform waits for the Google Cloud integration (H-1241).
    `pnpm --filter @harbour/api dmd:run` runs it once on a developer's machine, against the mock.
@@ -270,17 +282,25 @@ the real service (H-1240 to H-1243).**
    - `dmd.release.refused` and `dmd.release.failed`, from the loader;
    - `dmd.download.failed`, with the code: `trud_unreachable`, `trud_refused` (an HTTP status such
      as 401 for a lapsed key), `trud_response_invalid`, `checksum_mismatch`, `archive_unsafe`,
-     `archive_too_large` or `download_too_large`;
+     `archive_too_large`, `download_too_large`, or `trud_unconfigured` (no key where real people
+     work, which also fails the job rather than passing quietly);
    - `dmd.release.late`, from the worker's daily check, once the release in use is older than
      `medicines.dmd.stale_after_days` (35 days, the same figure every screen uses), or when no
      release is loaded where real people work.
-8. **Where it runs.** Staging, pilot and production use the TRUD adapter when `TRUD_API_KEY` is set,
-   and otherwise have no source (`unconfigured`). Development and CI keep the mock and never call
-   TRUD. The invented fixture stays refused outside dev and test databases (rule 1).
+8. **Where it runs.** The fixture environments are listed, never the real ones
+   (`realPeopleEnvironment`): a developer's machine (`HARBOUR_ENV` unset), `local`, `ci`, `dev` and
+   `test` keep the mock and never call TRUD. Any other name, or `NODE_ENV=production`, counts as an
+   environment where real people work. There the TRUD adapter is used when `TRUD_API_KEY` is set, and
+   otherwise there is no source and the job fails (`trud_unconfigured`). A new environment's name
+   therefore fails safe. The invented fixture stays refused outside dev and test databases (rule 1).
 
-**Schema** (migration 0131): `harbour_worker` may read the national rows of `rate_table` (a
-restrictive policy keeps it to `tenant_id IS NULL`), so the daily check reads the same figure as
-the screens. No new table: each download's outcome is in the job's log lines, and each load is in
+**Schema** (migration 0131):
+- the login role `harbour_dmd_job` (created by `db:bootstrap`) receives EXECUTE on the four loader
+  functions, granted by their owner `harbour_dmd_loader`, and SELECT on the dm+d tables and
+  `app.database_environment`;
+- `harbour_worker` loses EXECUTE on the loader;
+- `harbour_worker` may read the national rows of `rate_table` (a restrictive policy keeps it to
+  `tenant_id IS NULL`), so the daily check reads the same figure as the screens. No new table: each download's outcome is in the job's log lines, and each load is in
 `dmd_release`.
 
 **Test list (slice 75)**:

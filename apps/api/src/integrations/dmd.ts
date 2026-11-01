@@ -59,8 +59,23 @@ export class UnconfiguredDmdReleaseSource implements DmdReleaseSourcePort {
   }
 }
 
-/** Shared environments where real people may work: never the invented fixture (HZ-113). */
-const NO_FIXTURE_ENVIRONMENTS = new Set(["staging", "pilot", "production", "prod"]);
+/**
+ * The only environments where the invented fixture may be served: a developer's machine, CI and
+ * the shared dev environment (`HARBOUR_ENV` unset means a developer's machine). Anything else is
+ * where real people may work, so a new environment's name fails safe (security review of slice
+ * 75, L4; HZ-113).
+ */
+const FIXTURE_ENVIRONMENTS = new Set(["", "local", "ci", "dev", "development", "test"]);
+
+/** Whether real people may work here: then never the fixture, and a missing release is late. */
+export function realPeopleEnvironment(options: {
+  readonly production: boolean;
+  readonly environment?: string | undefined;
+}): boolean {
+  return (
+    options.production || !FIXTURE_ENVIRONMENTS.has(options.environment?.trim().toLowerCase() ?? "")
+  );
+}
 
 /**
  * The source for this process (integrations.md section 11, "Release download" rule 8): the mock
@@ -77,8 +92,7 @@ export function createDmdReleaseSource(options: {
     readonly maxArchiveBytes: number;
   };
 }): DmdReleaseSourcePort {
-  const shared = NO_FIXTURE_ENVIRONMENTS.has(options.environment?.trim().toLowerCase() ?? "");
-  if (!options.production && !shared) return new MockDmdReleaseSource(undefined, options.limits);
+  if (!realPeopleEnvironment(options)) return new MockDmdReleaseSource(undefined, options.limits);
   const { trud } = options;
   if (!trud?.apiKey) return new UnconfiguredDmdReleaseSource();
   const limits = options.limits ?? DMD_LOAD_LIMITS;

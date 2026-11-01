@@ -1,6 +1,7 @@
 import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
+import { realPeopleEnvironment } from "../integrations/dmd";
 import { createDocumentServices, createExportStorage } from "../integrations/documents";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
@@ -205,11 +206,10 @@ await work(QUEUES.dmdFreshness, async () => {
   await checkDmdFreshness({
     workerPool,
     logger,
-    expected:
-      config.NODE_ENV === "production" ||
-      ["staging", "pilot", "production", "prod"].includes(
-        process.env.HARBOUR_ENV?.trim().toLowerCase() ?? "",
-      ),
+    expected: realPeopleEnvironment({
+      production: config.NODE_ENV === "production",
+      environment: process.env.HARBOUR_ENV,
+    }),
   });
 });
 

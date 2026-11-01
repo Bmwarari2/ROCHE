@@ -13,6 +13,9 @@ export const LOGIN_ROLES = [
   "harbour_sync",
   "harbour_operator",
   "harbour_worker",
+  // The dm+d release job (slice 75): calls the loader's functions and reads the dm+d tables, and
+  // nothing else, since it parses an archive fetched from the internet (migration 0131).
+  "harbour_dmd_job",
 ] as const;
 
 export type LoginRole = (typeof LOGIN_ROLES)[number];
@@ -51,6 +54,7 @@ export const LOCAL_ROLE_PASSWORDS: RolePasswords = {
   harbour_sync: "harbour_sync_local",
   harbour_operator: "harbour_operator_local",
   harbour_worker: "harbour_worker_local",
+  harbour_dmd_job: "harbour_dmd_job_local",
 };
 
 const quoteLiteral = (value: string): string => `'${value.replaceAll("'", "''")}'`;

@@ -153,13 +153,22 @@ NHSBSA changes the XML data model.
 ## Amendment (Phase 2 slice 75, 01/11/2026): the TRUD download
 
 - **Where the load runs.** It moves out of the shared worker into a process of its own: a Cloud Run
-  job (`dist/dmd-job.js`) started monthly by Cloud Scheduler. The worker unschedules its old
+  job (`dist/dmd-job.js`) started monthly by Cloud Scheduler. Production runs on Google Cloud in
+  europe-west2 with the database on private IP only (ADR-0098, merging with the Google Cloud
+  integration, #164). The worker unschedules its old
   `dmd-release-load` queue and keeps only a daily freshness check, so a long load never shares a
   process with the outbox and escalations.
+- **Its own database role.** The job connects as `harbour_dmd_job`, which may only call the
+  loader and read the dm+d tables. The worker, whose role reads every organisation's outbox and
+  notifications, no longer calls the loader (security review of slice 75, H1).
 - **What the download trusts.**
   - TRUD's answer, only when it names a dated archive on TRUD's own host, with its size and SHA-256.
   - The archive, only when it matches both.
   - Inside it, only plain XML names (and a zip nested one level), within the release's limits.
+  - The SHA-256 proves the archive is the one TRUD described, not that TRUD's answer is genuine:
+    TRUD publishes no independent signature, so a compromised TRUD answer is a residual risk (HZ-113).
+    The loader's checks (rules 2 to 4) still refuse a release that shrinks, goes backwards or breaks
+    a reference.
 - **The key** comes from Secret Manager, into the job's environment only. It travels in the request
   path, as TRUD's API requires, and so is never put in a log line or an error.
 - **Alerts** are structured log lines with log-based alert policies: `dmd.release.refused`,
