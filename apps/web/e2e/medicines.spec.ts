@@ -56,7 +56,7 @@ async function fillWhen(
   legend: string,
   at: Date,
 ) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  const formatted = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     day: "2-digit",
     month: "2-digit",
@@ -64,9 +64,8 @@ async function fillWhen(
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  })
-    .formatToParts(at)
-    .reduce<Record<string, string>>((acc, p) => ({ ...acc, [p.type]: p.value }), {});
+  }).formatToParts(at);
+  const parts: Record<string, string> = Object.fromEntries(formatted.map((p) => [p.type, p.value]));
   const group = scope.getByRole("group", { name: legend });
   await group.getByLabel("Day").fill(parts.day ?? "");
   await group.getByLabel("Month").fill(parts.month ?? "");
