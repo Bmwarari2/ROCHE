@@ -1,3 +1,4 @@
+import { DEMO } from "@harbour/db/seed";
 import type {
   CompetenceOverride,
   DmdProductFacts,
@@ -147,6 +148,20 @@ export const fixtureDmd: DmdFactsPort = {
  */
 export function createMedicinesPorts(fixtures: boolean): MedicinesPorts {
   return fixtures
-    ? { competence: fixedCompetence(), dmd: fixtureDmd }
+    ? { competence: fixedCompetence(demoCompetence()), dmd: fixtureDmd }
     : { competence: unavailableCompetence, dmd: unavailableDmd };
+}
+
+/**
+ * With the fixtures on (never in production), the invented demo owner, manager and nurse hold
+ * current medicines competence, so the local journeys can witness and check (slices 52 and 54).
+ * Every other member holds none until the workforce port exists.
+ */
+function demoCompetence(): ReadonlyMap<string, MedicinesCompetence> {
+  return new Map(
+    (["owner", "manager", "nurse"] as const).map((key) => [
+      `${DEMO.tenantId}:${DEMO.users[key].id}`,
+      "current" as const,
+    ]),
+  );
 }

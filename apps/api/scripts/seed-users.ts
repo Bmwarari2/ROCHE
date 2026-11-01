@@ -463,6 +463,30 @@ try {
           [MEWS_LEFT, MEWS_LOCATION],
         );
       }
+      // A morphine entry on Frank Dummy's MAR with dm+d's controlled drug schedule (slice 10
+      // sets it from dm+d; the API does not yet), for the controlled drugs register journey
+      // (medicines.md section 15). End-to-end only; invented, rerunnable.
+      if (process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
+        const morphine = "0194d000-0000-7000-8900-000000000001";
+        const frank = "0194d000-0000-7000-8600-000000000006";
+        await client.query(
+          `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+             route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+             source_reference, transcribed_by, transcribed_at, cd_schedule)
+           VALUES ($1, $2, $1, 1, 'transcribed', '90000081000001109', 'Morphine sulfate 10mg tablets',
+             '26643006', 'Oral', 'regular', 'every_day', 'Dr A Example', now(), 'prescription',
+             'Prescription (demo)', $3, now(), '2')
+           ON CONFLICT (id) DO NOTHING`,
+          [morphine, frank, DEMO.users.manager.id],
+        );
+        await client.query(
+          `INSERT INTO medication_schedule (medication_id, person_id, position, time, dose_kind,
+             quantity, unit_code, unit_name)
+           SELECT $1, $2, 0, '22:00', 'amount', 1, '428673006', 'tablet'
+            WHERE NOT EXISTS (SELECT 1 FROM medication_schedule WHERE medication_id = $1)`,
+          [morphine, frank],
+        );
+      }
       await client.query("COMMIT");
       console.log(
         process.env.HARBOUR_DEMO_E2E_PASSKEY === "1"
