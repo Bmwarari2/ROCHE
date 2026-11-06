@@ -637,9 +637,35 @@ word for word (a question or option the catalogue does not know is shown in the 
 marked): every question to a holder of `safety.incident.manage`, the falls questions to the person
 who raised it, none on a closed or partly hidden incident. Gaps logged, no API change: the web
 cannot tell where each permission reaches (no per-permission locations in `/v1/me`, no `access` on
-`IncidentDetail`), so the API's refusal is the last word; answers have no client id; "when found",
-other people, body-map marks, infection details, the family told and LeDeR facts are not on the
-form yet (STATUS item 19, H-262).
+`IncidentDetail`), so the API's refusal is the last word; answers have no client id; other
+people, body-map marks, infection details and the family told are not on the form yet (STATUS
+item 19).
+
+Recommended answers applied 31/10/2026 (reviewed at the testing phase):
+
+- **When they were found (H-262, HZ-027).** A fall asks "Did anyone see the fall happen?"; when
+  nobody did, "When were they found?" (just now, taken by the server, or earlier with the date and
+  time, never before the time it happened) is required and sent as `foundAt`, so post-fall
+  observations count from when the person was found; the time it happened stays the reporter's best
+  estimate. A missing person asks when they were found, left blank while they are still missing.
+- **Not known yet (H-264, HZ-090).** Whether the emergency services were called and whether the GP
+  was contacted take "Not known yet" beside yes and no, after the instruction to ask the person in
+  charge first. It records no answer (`null`; `CreateIncident` and `UpdateIncident` take it, and
+  migration 0118 drops the columns' NOT NULL, expand only, with the default false kept for earlier
+  clients) and the API raises an urgent `safety.record_contacts` task for holders of
+  `safety.incident.manage` at the location, done once both are answered; the incident cannot close
+  while either is not known (`incidentCloseProblems`; the web's close offer says so). The incident
+  page says "Not known yet" and, for the person who raised it or a holder of
+  `safety.incident.manage`, offers a form to record the answers once known
+  (`IncidentContactsForm`, `PUT /v1/incidents/{id}`); the evidence pack says "Not known yet". The contract still defaults an omitted answer to false for earlier clients
+  (expand); the contract phase makes both answers required.
+- **Learning disability and autism (H-482, HZ-013).** For a person we support who died, the form
+  asks "Did they have a learning disability?" and "Were they autistic?" (yes, no or not known yet,
+  answered from their record) and sends the answers the API already takes, so LeDeR is drafted from
+  an answer. A not-known answer leaves the question open with a `safety.record_learning_disability_autism`
+  task for holders of `safety.incident.manage` (the Registered Manager), done once both are recorded
+  on the incident; closing the incident without them cancels the task, and the after-death section
+  then says they were not answered (whether closing should wait for them is for the CSO, H-482).
 
 Web review and notification forms, slice 9 part 4b (`apps/web/src/lib/incident-review.ts`,
 `apps/web/src/components/safety/IncidentManage.tsx` and `NotificationManage.tsx`; HZ-091): the
@@ -854,8 +880,9 @@ Gaps logged, no API change: the API does not assemble the medical examiner pack 
 sections were sent (`missingPackSections` is unused), and the web has no medicines or diagnoses
 pages to link; duty of candour letters are refused by the letters API until it reads the candour
 record, so the written notification's copy is a document chosen from the person's record, and the
-web cannot upload one (PLAT-009); one candour record per incident (above); the incident form does
-not ask about learning disability or autism (H-482), hence the LeDeR check; no candour forms on a
+web cannot upload one (PLAT-009); one candour record per incident (above); an incident recorded
+before the form asked about learning disability and autism (H-482) keeps the LeDeR check; no
+candour forms on a
 closed incident (a decision found after closing has no route); bulletins are a date only (no
 distribution, read receipts or list of lessons across incidents: no API lists investigations); the
 lead is not checked against any permission; communication needs show only for people in the
@@ -863,7 +890,11 @@ reader's own list, never for a representative; trends count only what the reader
 500 a month, by type only (no harm or severity breakdown yet). For the CSO: H-480 (candour wording,
 the evidence model, one record per person, a decision after closing, separation of duties, dated
 actions), H-481 (the pack listed, not assembled; its clock; the LeDeR check) and H-482 (the
-learning disability and autism question on the form).
+learning disability and autism question on the form). As recommended for H-481 (31/10/2026), the
+after-death section also shows each person's CQC death notification (regulation 16) with its
+clock, linked to its page for a holder of `safety.incident.manage`, so it is seen with the pack
+and LeDeR; the medical examiner information stays labelled not statutory, with Harbour's
+"without delay" target.
 
 ### Web screens (Phase 2 slice 62)
 
@@ -1124,3 +1155,46 @@ the whole organisation) reads them for the full export, never writes.
   prepare, approve by someone else, release with step-up, fetch as issued), refusals (same person
   approving, police without purpose, AHRA for a living person, release without step-up), the
   Regulation 28 clock from the rate table, audit without text.
+
+## 12. Fixes from the slice 83 guides (HZ-126, HZ-131)
+
+Writing the user guides (slice 83) found gaps on the screens; these close them. The clinical-safety
+and accessibility reviews of the fixes refined rules 1 to 4.
+
+1. **A raised safeguarding concern is told at once** (`alertSafeguardingRaised`): the holders of
+   `safety.safeguarding.manage` at the person's home other than the raiser get an urgent
+   notification ("A safeguarding concern has been raised", in the app; push has no destination
+   yet) through the escalation chain `safety.safeguarding.overdue` (H-598: unacknowledged after
+   `statutory_notification.escalation_minutes`, the chain's next step, by default the owner role,
+   or the tenant's own chain). When the raiser is the only holder at the home, the holders at other
+   homes are told; when there are none, the raiser is told and it is audited as
+   `safety.safeguarding.unrouted` coded `raiser_only`. Nobody active at all is audited coded
+   `no_active_manager`. A task `safety.safeguarding_referral` ("Decide on a safeguarding referral",
+   urgent, due at the referral target) is opened. A holder other than the raiser opening the
+   concern stops the chain for every copy (`stopRaisedEscalation`); the alerts stay unread.
+   Referring, or recording why not, acknowledges the alerts and completes the task as the deciding
+   manager with the concern as its evidence; no task transition closes it, and the general
+   overdue-task engine leaves it to the safeguarding sweep (`SELF_ESCALATED_TASK_KINDS`).
+2. **A speak-up concern tells the leads** (`tellSpeakUpLeads`; HZ-131): every holder of
+   `safety.speak_up.manage` gets "A speak-up concern has arrived" in the app, at the real time,
+   linking to their cases, with no reporter, person, location or words of the concern. A concern
+   about care quality or safety is urgent and its title says so; others are warnings. Nobody else
+   is told, because anyone outside the leads may be the person the concern is about (escalation,
+   an acknowledgement clock and what happens with no lead: H-1152). Still no outbox event. No lead
+   to tell is audited as `safety.speak_up.unrouted` and counted in the operator's daily unrouted
+   signal.
+3. **Raising a concern is one step away for care workers**: **Safeguarding** in the menu, going
+   straight to the raise form, for those who hold `safety.incident.report` but not
+   `safety.safeguarding.manage` (who reach it from the log), and "Raise a safeguarding concern
+   about" the person on their Safeguarding measures tab. The form chooses nobody by default, lists
+   each person with their date of birth, loads a person chosen from a record at another home, and
+   says in words when that person cannot be found. A raiser who cannot open the log stays on the
+   page, told the concern was raised, with a link back to the person's measures.
+4. **The protective measures' outcome is on the update form** ("What will happen to the
+   protective measures when the concern ends?": carried into the care plan or risk assessment, or
+   no longer needed), so a concern with measures can be closed or not referred on the web. The
+   answer is sent only when it changes or with changed measures. Changing the measures clears the
+   answer unless the same update gives it, so an answer about old measures never ends a concern
+   with new ones. The concern shows the answer.
+5. **`safety.whistleblowing.read` is held by no built-in role** until the anonymised view it
+   names exists ([ADR-0125](../decisions/0125-speak-up-anonymised-view-not-yet-granted.md)).

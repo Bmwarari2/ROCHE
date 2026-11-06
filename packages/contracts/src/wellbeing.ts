@@ -1,0 +1,207 @@
+import { z } from "zod";
+
+/**
+ * Staff wellbeing and voice (scheduling.md section 20; SCHED-011). Covers pulse surveys whose
+ * results show only once closed and above the minimum group size, anonymous responses, recognition
+ * and wellbeing check-ins a manager sees only while shared. Nothing here scores or judges anyone.
+ */
+
+const uuid = z.uuid();
+const isoDate = z.iso.date();
+const isoDateTime = z.iso.datetime({ offset: true });
+const version = z.number().int().min(1);
+
+export const SurveyQuestion = z
+  .object({
+    id: z.string().trim().min(1).max(40),
+    kind: z.enum(["scale", "free_text"]),
+    text: z.string().trim().min(1).max(300),
+  })
+  .meta({ id: "SurveyQuestion", description: "A scale (1 to 5) or a free-text question" });
+
+export const PulseSurveyState = z
+  .enum(["draft", "open", "closed"])
+  .meta({ id: "PulseSurveyState" });
+
+export const PulseSurveyItem = z
+  .object({
+    id: uuid,
+    locationId: uuid.nullable(),
+    title: z.string(),
+    questions: z.array(SurveyQuestion),
+    opensOn: isoDate,
+    closesOn: isoDate,
+    state: PulseSurveyState,
+    openedAt: isoDateTime.nullable(),
+    closedAt: isoDateTime.nullable(),
+    /** For a member who may answer it: whether they already have. Null for a manager's list. */
+    answered: z.boolean().nullable(),
+    version,
+  })
+  .meta({ id: "PulseSurveyItem" });
+
+export const PulseSurveyList = z
+  .object({ items: z.array(PulseSurveyItem) })
+  .meta({ id: "PulseSurveyList" });
+
+export const PulseSurveyListQuery = z.object({
+  /** `manage`: the surveys at homes the reader manages; `answer` (default): those they may answer. */
+  view: z.enum(["answer", "manage"]).default("answer"),
+});
+
+export const NewPulseSurvey = z
+  .object({
+    locationId: uuid.nullable(),
+    title: z.string().trim().min(1).max(120),
+    questions: z.array(SurveyQuestion).min(1).max(20),
+    opensOn: isoDate,
+    closesOn: isoDate,
+  })
+  .meta({ id: "NewPulseSurvey" });
+
+export const EditPulseSurvey = NewPulseSurvey.omit({ locationId: true })
+  .extend({ version })
+  .meta({ id: "EditPulseSurvey" });
+
+export const MovePulseSurvey = z.object({ version }).meta({ id: "MovePulseSurvey" });
+
+export const PulseResponse = z
+  .object({
+    /** By question id: a whole number from 1 to 5 for a scale, text for free text. */
+    answers: z.record(
+      z.string().max(40),
+      z.union([z.number().int().min(1).max(5), z.string().trim().min(1).max(2000)]),
+    ),
+  })
+  .meta({ id: "PulseResponse" });
+
+export const PulseQuestionResult = z
+  .object({
+    id: z.string(),
+    kind: z.enum(["scale", "free_text"]),
+    text: z.string(),
+    /** False when fewer than the minimum group size answered this question. */
+    visible: z.boolean(),
+    answered: z.number().int().optional(),
+    /**
+     * For a scale: how many chose each point, 1 to 5. A count below the minimum group size is
+     * null, and so is the next smallest when only one would be hidden.
+     */
+    counts: z.array(z.number().int().nullable()).optional(),
+    /** For free text: the answers in alphabetical order, never the order they came in. */
+    texts: z.array(z.string()).optional(),
+  })
+  .meta({ id: "PulseQuestionResult" });
+
+export const PulseSurveyResults = z
+  .object({
+    visible: z.boolean(),
+    /** Why the results are hidden: still open, too few answered, or no size in force. */
+    reason: z.enum(["still_open", "too_few", "no_size"]).optional(),
+    minGroupSize: z.number().int().nullable(),
+    respondents: z.number().int().optional(),
+    questions: z.array(PulseQuestionResult).optional(),
+    /** Plain words to show above the results, or instead of them. */
+    message: z.string(),
+  })
+  .meta({ id: "PulseSurveyResults" });
+
+export const RecognitionItem = z
+  .object({
+    id: uuid,
+    fromMemberId: uuid,
+    toMemberId: uuid,
+    /** The sender's and recipient's names as the organisation holds them (slice 61). */
+    fromName: z.string().nullable(),
+    toName: z.string().nullable(),
+    locationId: uuid,
+    message: z.string(),
+    createdAt: isoDateTime,
+  })
+  .meta({ id: "RecognitionItem" });
+
+export const RecognitionList = z
+  .object({ items: z.array(RecognitionItem) })
+  .meta({ id: "RecognitionList" });
+
+export const RecognitionListQuery = z.object({
+  mine: z.enum(["received", "sent"]).optional(),
+  locationId: uuid.optional(),
+});
+
+/** The colleagues a member may thank at a home where they work, by name (slice 61). */
+export const RecognitionColleagues = z
+  .object({ items: z.array(z.object({ id: uuid, name: z.string() })) })
+  .meta({ id: "RecognitionColleagues" });
+
+export const RecognitionColleaguesQuery = z.object({ locationId: uuid });
+
+export const NewRecognition = z
+  .object({
+    toMemberId: uuid,
+    /** The home where the colleague works. */
+    locationId: uuid,
+    message: z.string().trim().min(1).max(500),
+  })
+  .meta({ id: "NewRecognition" });
+
+export const CheckInItem = z
+  .object({
+    id: uuid,
+    memberId: uuid,
+    /** For a manager's view of shared check-ins: the member's name; null on one's own. */
+    memberName: z.string().nullable(),
+    locationId: uuid,
+    mood: z.number().int().min(1).max(5),
+    note: z.string().nullable(),
+    sharedAt: isoDateTime.nullable(),
+    createdAt: isoDateTime,
+  })
+  .meta({ id: "CheckInItem" });
+
+export const CheckInList = z
+  .object({
+    items: z.array(CheckInItem),
+    /** Where to find support: the organisation's own wording, shown with every check-in. */
+    support: z.string(),
+  })
+  .meta({ id: "CheckInList" });
+
+export const CheckInListQuery = z.object({
+  /** For a manager: the shared check-ins at a home. Without it, the member's own. */
+  locationId: uuid.optional(),
+});
+
+export const NewCheckIn = z
+  .object({
+    locationId: uuid,
+    mood: z.number().int().min(1).max(5),
+    note: z.string().trim().max(1000).nullable(),
+    share: z.boolean().default(false),
+  })
+  .meta({ id: "NewCheckIn" });
+
+export const ShareCheckIn = z.object({ shared: z.boolean() }).meta({ id: "ShareCheckIn" });
+
+export type SurveyQuestion = z.infer<typeof SurveyQuestion>;
+export type PulseSurveyState = z.infer<typeof PulseSurveyState>;
+export type PulseSurveyItem = z.infer<typeof PulseSurveyItem>;
+export type PulseSurveyList = z.infer<typeof PulseSurveyList>;
+export type PulseSurveyListQuery = z.infer<typeof PulseSurveyListQuery>;
+export type NewPulseSurvey = z.infer<typeof NewPulseSurvey>;
+export type EditPulseSurvey = z.infer<typeof EditPulseSurvey>;
+export type MovePulseSurvey = z.infer<typeof MovePulseSurvey>;
+export type PulseResponse = z.infer<typeof PulseResponse>;
+export type PulseQuestionResult = z.infer<typeof PulseQuestionResult>;
+export type PulseSurveyResults = z.infer<typeof PulseSurveyResults>;
+export type RecognitionItem = z.infer<typeof RecognitionItem>;
+export type RecognitionList = z.infer<typeof RecognitionList>;
+export type RecognitionListQuery = z.infer<typeof RecognitionListQuery>;
+export type RecognitionColleagues = z.infer<typeof RecognitionColleagues>;
+export type RecognitionColleaguesQuery = z.infer<typeof RecognitionColleaguesQuery>;
+export type NewRecognition = z.infer<typeof NewRecognition>;
+export type CheckInItem = z.infer<typeof CheckInItem>;
+export type CheckInList = z.infer<typeof CheckInList>;
+export type CheckInListQuery = z.infer<typeof CheckInListQuery>;
+export type NewCheckIn = z.infer<typeof NewCheckIn>;
+export type ShareCheckIn = z.infer<typeof ShareCheckIn>;

@@ -35,6 +35,7 @@ import { mfaRefusal, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
+import { agencyUploadCheck, agencyWindowEnd } from "../services/agency-window";
 import {
   closeDeviceHoldOnDeletion,
   DISCARD_ACTIONS,
@@ -42,7 +43,12 @@ import {
   flagEntriesAlreadyUploaded,
   recordDeviceHold,
 } from "../services/device-holds";
-import { bindDevice, inSystemView, refuseRevokedDevice } from "../services/devices";
+import {
+  bindDevice,
+  inSystemView,
+  refuseCareModeOff,
+  refuseRevokedDevice,
+} from "../services/devices";
 import { rateNumber } from "../services/rates";
 import { withTenantWideScope } from "../services/safety";
 import type { SyncTokenSigner } from "../sync/token";
@@ -65,10 +71,10 @@ async function shiftPatternsByNation(
   tenantId: string,
   nations: readonly string[],
 ): Promise<{
-  readonly patterns: Record<string, { day: number; night: number }>;
+  readonly patterns: Record<string, { day: number; night: number; lead?: number }>;
   readonly missing: readonly string[];
 }> {
-  const out: Record<string, { day: number; night: number }> = {};
+  const out: Record<string, { day: number; night: number; lead?: number }> = {};
   const missing: string[] = [];
   const known = new Set<string>(["england", "wales", "scotland", "northern_ireland"]);
   const ours = [...new Set(nations)]
@@ -87,10 +93,19 @@ async function shiftPatternsByNation(
       HANDOVER_RATE_KEYS.nightShiftStartMinute,
       nation,
     ).catch(() => null);
+    // How long before a shift ends the phone shows its own handover first (H-420); without a
+    // readable figure the phone shows the handover the shift received first.
+    const lead = await rateNumber(
+      tx,
+      tenantId,
+      HANDOVER_RATE_KEYS.previewLeadMinutes,
+      nation,
+    ).catch(() => null);
     const minute = (m: number | null): m is number =>
       m !== null && Number.isInteger(m) && m >= 0 && m < 24 * 60;
-    if (minute(day) && minute(night) && day < night) out[nation] = { day, night };
-    else missing.push(nation);
+    if (minute(day) && minute(night) && day < night) {
+      out[nation] = { day, night, ...(minute(lead) ? { lead } : {}) };
+    } else missing.push(nation);
   }
   return { patterns: out, missing };
 }
@@ -207,7 +222,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -216,6 +231,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         const { config } = c.get("services");
         // A revoked device never gets another token (care.md section 6, Device integrity part 2).
         await refuseRevokedDevice(c.get("services"), access, "sync.token", c.get("requestId"));
+        // No token while Care mode is off for the organisation (H-381).
+        await refuseCareModeOff(c.get("services"), access);
         const claims = await withTenant(c, async (tx) => {
           const locations = await tx
             .select({ id: location.id, nation: location.nation })
@@ -345,7 +362,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             bindDevice(tx, deviceId, access.tenantUserId, new Date(), access.session.sessionId),
           );
         }
-        const { token, expiresAt } = await signer.sign(claims);
+        // A bank or agency member's token ends with their access window (ADR-0088).
+        const notAfter = await withTenant(c, (tx) =>
+          agencyWindowEnd(tx, access.tenantId, access.tenantUserId),
+        );
+        const { token, expiresAt } = await signer.sign(claims, new Date(), notAfter);
         return c.json(
           { token, endpoint: config.POWERSYNC_URL, expiresAt: expiresAt.toISOString() },
           200,
@@ -368,27 +389,61 @@ export function createSyncRouter(signer: SyncTokenSigner) {
       async (c) => {
         const access = c.get("access");
         await refuseRevokedDevice(c.get("services"), access, "sync.upload", c.get("requestId"));
+        await refuseCareModeOff(c.get("services"), access);
         const { operations } = c.req.valid("json");
         const receivedAt = new Date();
         const drift = operations.some(
           (op) =>
             op.deviceSentAt !== undefined && hasClockDrift(new Date(op.deviceSentAt), receivedAt),
         );
-        const rejected = operations
-          .filter((op) => !WRITABLE_TABLES.has(op.table))
-          .map((op) => ({
-            id: op.id,
-            code: "table_not_writable",
-            message: "This kind of record cannot be changed from a device yet.",
-          }));
-        await withTenant(c, (tx) =>
-          auditInTx(tx, access, {
+        const rejected: { id: string; code: string; message: string }[] = [];
+        let lateAfterAccess = 0;
+        await withTenant(c, async (tx) => {
+          // H-921: a bank or agency worker's entries only from inside a booked window; after it
+          // closes, still accepted, flagged late, for the upload grace period (HZ-006).
+          const check = await agencyUploadCheck(
+            tx,
+            access.tenantId,
+            access.tenantUserId,
+            receivedAt,
+          );
+          for (const op of operations) {
+            if (check) {
+              const at = op.recordedAt ?? op.deviceSentAt;
+              const decision = check(at ? new Date(at) : null);
+              if (!decision.accept) {
+                rejected.push({
+                  id: op.id,
+                  code: decision.reason,
+                  message:
+                    decision.reason === "outside_booking"
+                      ? "This was recorded outside any shift you were booked for."
+                      : "This was recorded on a booked shift, but the time to upload it has passed. Tell the person in charge.",
+                });
+                continue;
+              }
+              if (decision.late) lateAfterAccess++;
+            }
+            if (!WRITABLE_TABLES.has(op.table)) {
+              rejected.push({
+                id: op.id,
+                code: "table_not_writable",
+                message: "This kind of record cannot be changed from a device yet.",
+              });
+            }
+          }
+          await auditInTx(tx, access, {
             action: "sync.upload",
             outcome: rejected.length > 0 ? "denied" : "success",
-            scope: { operations: operations.length, rejected: rejected.length, clockDrift: drift },
+            scope: {
+              operations: operations.length,
+              rejected: rejected.length,
+              clockDrift: drift,
+              lateAfterAccess,
+            },
             requestId: c.get("requestId"),
-          }),
-        );
+          });
+        });
         return c.json({ applied: operations.length - rejected.length, rejected }, 200);
       },
     )

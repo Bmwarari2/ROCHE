@@ -652,6 +652,97 @@
       "when": 1793467208141,
       "tag": "0103_disclosure_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1793467209141,
+      "tag": "0104_bank_agency",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1793467210141,
+      "tag": "0107_absence_leave",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1793467211141,
+      "tag": "0108_quality_indicators",
+      "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1793467212141,
+      "tag": "0109_time_attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1793467213141,
+      "tag": "0110_dmd_reference_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1793467214141,
+      "tag": "0111_medicines_record",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1793467215141,
+      "tag": "0112_elearning_runtime",
+      "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1793467216141,
+      "tag": "0113_lone_worker_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1793467217141,
+      "tag": "0114_supervision_note",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1793467218141,
+      "tag": "0115_staff_wellbeing",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1793467219141,
+      "tag": "0116_pay_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1793467220141,
+      "tag": "0117_crypto_shred",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1793467221141,
+      "tag": "0118_incident_contacts_not_known",
+      "breakpoints": true
     }
   ]
 }

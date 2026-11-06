@@ -1,4 +1,4 @@
-import { ALL_PERMISSIONS, isSiloPermission, type Permission } from "./permissions";
+import { ALL_PERMISSIONS, isSiloPermission, NOT_YET_GRANTED, type Permission } from "./permissions";
 
 /**
  * Built-in roles (master prompt section 4). Tenants may rename or clone them; clones are stored
@@ -29,6 +29,8 @@ const pointOfCare: Permission[] = [
   "safety.incident.read",
   "scheduling.rota.read",
   "scheduling.timesheet.self",
+  "scheduling.lone_worker.check_in",
+  "scheduling.wellbeing.self",
   "workforce.self.read",
   "comms.message.send",
   "insights.dashboard.read",
@@ -47,9 +49,12 @@ export const PORTAL_ONLY_PERMISSIONS: readonly Permission[] = [
   "comms.visit_booking.request",
 ];
 
-/** A staff permission any wide role may hold: not portal-only, and not a silo (ADR-0089). */
+/**
+ * A staff permission any wide role may hold: not portal-only, not a silo (ADR-0089), and not one
+ * kept back until its screen exists (ADR-0125).
+ */
 const staffPermission = (p: Permission) =>
-  !PORTAL_ONLY_PERMISSIONS.includes(p) && !isSiloPermission(p);
+  !PORTAL_ONLY_PERMISSIONS.includes(p) && !isSiloPermission(p) && !NOT_YET_GRANTED.includes(p);
 
 const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   (p) =>
@@ -58,6 +63,8 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
     p !== "insights.group.read" &&
     staffPermission(p) &&
     p !== "finance.ledger.record" &&
+    // Pay is organisation-wide (scheduling.md section 18 rule 13): Owner and Finance hold it.
+    !p.startsWith("scheduling.pay.") &&
     p !== "quality.evidence.read" &&
     // HR-only staff documents stay with HR (workforce.md section 3); a manager is granted them.
     p !== "workforce.hr_document.read" &&
@@ -182,6 +189,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "medicines.cd.administer",
       "workforce.competence.observe",
       "people.assignment.manage",
+      "scheduling.lone_worker.monitor",
       "platform.task.manage",
       "people.movement.record",
       "people.property.manage",
@@ -209,6 +217,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "scheduling.rota.read",
       "scheduling.rota.manage",
       "scheduling.visit.manage",
+      "scheduling.lone_worker.monitor",
       "people.assignment.manage",
       "safety.incident.report",
       "safety.incident.read",
@@ -228,6 +237,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "scheduling.rota.read",
       "scheduling.timesheet.self",
+      "scheduling.lone_worker.check_in",
+      "scheduling.wellbeing.self",
       "workforce.self.read",
     ],
   },
@@ -242,6 +253,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "scheduling.rota.read",
       "scheduling.timesheet.self",
+      "scheduling.lone_worker.check_in",
+      "scheduling.wellbeing.self",
       "workforce.self.read",
     ],
   },
@@ -255,6 +268,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "scheduling.rota.read",
       "scheduling.timesheet.self",
+      "scheduling.lone_worker.check_in",
+      "scheduling.wellbeing.self",
       "workforce.self.read",
     ],
   },
@@ -268,6 +283,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "scheduling.rota.read",
       "scheduling.timesheet.self",
+      "scheduling.lone_worker.check_in",
+      "scheduling.wellbeing.self",
       "workforce.self.read",
     ],
   },
@@ -304,6 +321,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "finance.ledger.approve",
       "finance.reporting.read",
       "finance.payroll.export",
+      "scheduling.pay.manage",
+      "scheduling.pay.approve",
       "insights.dashboard.read",
     ],
   },
@@ -355,7 +374,6 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "comms.template.write",
       "comms.template.approve",
       "quality.dsar.manage",
-      "safety.whistleblowing.read",
       "safety.complaint.manage",
       "safety.incident.read",
       "platform.audit.read",

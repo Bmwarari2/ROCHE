@@ -20,6 +20,15 @@ export const SCHEDULE3_ITEMS = [
 
 export type Schedule3ItemKind = (typeof SCHEDULE3_ITEMS)[number];
 
+/**
+ * Checks a role may need beyond Schedule 3, never part of a complete file: driving for work (a
+ * DVLA licence check and business-use insurance; H-835).
+ */
+export const OTHER_COMPLIANCE_ITEMS = ["driving_for_work"] as const;
+/** Every kind of compliance item the staff file keeps. */
+export const COMPLIANCE_ITEMS = [...SCHEDULE3_ITEMS, ...OTHER_COMPLIANCE_ITEMS] as const;
+export type ComplianceItemKindCode = (typeof COMPLIANCE_ITEMS)[number];
+
 /** Registered roles add their professional registration (an NMC PIN for nurses). */
 export type RoleRegistration = "nmc" | "hcpc" | "swe" | "gmc" | null;
 

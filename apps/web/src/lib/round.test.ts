@@ -8,6 +8,7 @@ import {
   roundCounts,
   roundShown,
   roundTaskActions,
+  taskForLine,
   timeStateChip,
 } from "./round";
 
@@ -39,38 +40,80 @@ describe("the round view (care.md rule 8; CARE-013)", () => {
     },
   );
 
+  const CARER = ["care.plan.read", "care.note.write"];
+  const NOTE = "care.note.write";
   it.each([
     [
-      { status: "open", evidenceRequired: false },
-      true,
+      { status: "open", evidenceRequired: false, requiredPermission: NOTE },
+      CARER,
       { start: true, done: true, recordFirst: false, skip: true },
     ],
     [
-      { status: "in_progress", evidenceRequired: false },
-      true,
+      { status: "in_progress", evidenceRequired: false, requiredPermission: NOTE },
+      CARER,
       { start: false, done: true, recordFirst: false, skip: true },
     ],
     [
-      { status: "open", evidenceRequired: true },
-      true,
+      { status: "open", evidenceRequired: true, requiredPermission: NOTE },
+      CARER,
       { start: true, done: false, recordFirst: true, skip: true },
     ],
     [
-      { status: "done", evidenceRequired: false },
-      true,
+      { status: "done", evidenceRequired: false, requiredPermission: NOTE },
+      CARER,
       { start: false, done: false, recordFirst: false, skip: false },
     ],
     [
-      { status: "open", evidenceRequired: false },
-      false,
+      { status: "open", evidenceRequired: false, requiredPermission: NOTE },
+      ["care.plan.read"],
       { start: false, done: false, recordFirst: false, skip: false },
     ],
+    // A task for holders of another permission is not offered to a care worker (H-270).
+    [
+      { status: "open", evidenceRequired: false, requiredPermission: "care.sync.discard_others" },
+      CARER,
+      { start: false, done: false, recordFirst: false, skip: false },
+    ],
+    [
+      { status: "open", evidenceRequired: false, requiredPermission: "care.sync.discard_others" },
+      [...CARER, "care.sync.discard_others"],
+      { start: true, done: true, recordFirst: false, skip: true },
+    ],
+    // Recording the chart it asks for needs care.note.write too.
+    [
+      { status: "open", evidenceRequired: true, requiredPermission: "people.review.manage" },
+      ["people.review.manage"],
+      { start: true, done: false, recordFirst: false, skip: true },
+    ],
   ] as const)(
-    "offers on %o (writes care: %s) only what the API would accept",
-    (taskState, canWrite, out) => {
-      expect(roundTaskActions(taskState, canWrite)).toEqual(out);
+    "hazard HZ-003 offers on %o (with %o) only what the API would accept (H-270)",
+    (taskState, permissions, out) => {
+      expect(roundTaskActions(taskState, permissions)).toEqual(out);
     },
   );
+
+  it.each([
+    [
+      "a named member",
+      {
+        assigneeStaff: { id: "s", displayName: "Ada Example", jobTitle: "Nurse" },
+        assigneeRoleKey: null,
+      },
+      "For: Ada Example, Nurse",
+    ],
+    [
+      "a role",
+      { assigneeStaff: null, assigneeRoleKey: "registered_manager" },
+      "For: Registered Manager",
+    ],
+    [
+      "no one in particular",
+      { assigneeStaff: null, assigneeRoleKey: null },
+      "For: anyone on the shift who may do it",
+    ],
+  ] as const)("hazard HZ-003 names who a task is for: %s (H-270)", (_label, task, words) => {
+    expect(taskForLine(task, t)).toBe(words);
+  });
 
   it("hazard HZ-001 shows one person's stops when asked, dropping empty areas", () => {
     const areas = [

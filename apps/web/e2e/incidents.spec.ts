@@ -6,7 +6,14 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { demoPerson, expectAccessible, settleAnimations, signIn } from "./support";
+import {
+  closeModules,
+  demoPerson,
+  expectAccessible,
+  openModules,
+  settleAnimations,
+  signIn,
+} from "./support";
 
 /**
  * Phase 1 slice 9: the incident screens, read only (register rows SAFE-001 and SAFE-002; hazard
@@ -149,14 +156,15 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   });
 
   await page.goto("/");
-  const modules = page.getByRole("navigation", { name: "Modules" });
-  await modules.getByRole("link", { name: "Incidents" }).click();
+  await (await openModules(page)).getByRole("link", { name: "Incidents" }).click();
   await page.waitForURL((url) => url.pathname === "/incidents");
   await expect(page.getByRole("heading", { level: 1, name: "Incidents" })).toBeVisible();
+  const modules = await openModules(page);
   await expect(modules.getByRole("link", { name: "Incidents" })).toHaveAttribute(
     "aria-current",
     "page",
   );
+  await closeModules(page);
   const link = page.locator(`a[href="/incidents/${incident.id}"]`);
   const card = cardFor(page, incident.id);
   await expect(link).toHaveText(/^Behaviour, \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
@@ -356,8 +364,8 @@ test("the incident screens reflow at 320 px", async ({ page, context }) => {
   await as(context, "nurse");
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto("/incidents");
-  // On a phone the shell's sidebar folds to its icons; measure once it has finished folding.
-  await page.locator('[data-collapsed="true"]').waitFor();
+  // On a phone the shell's sidebar gives way to the app bar's Menu; wait for it before measuring.
+  await page.getByRole("button", { name: "Menu", exact: true }).waitFor();
   await settleAnimations(page);
   const overflow = () =>
     page.evaluate(
@@ -369,7 +377,7 @@ test("the incident screens reflow at 320 px", async ({ page, context }) => {
     .first()
     .click();
   await page.waitForURL(/\/incidents\/[0-9a-f-]{36}$/);
-  await page.locator('[data-collapsed="true"]').waitFor();
+  await page.getByRole("button", { name: "Menu", exact: true }).waitFor();
   await settleAnimations(page);
   expect(await overflow(), "the incident scrolls sideways").toBeLessThanOrEqual(0);
   await expectAccessible(page, "incident at 320 px");

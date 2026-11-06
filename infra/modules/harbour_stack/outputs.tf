@@ -7,6 +7,14 @@ output "hosts" {
   value = local.hosts
 }
 
+output "manual_elearning_dns_records" {
+  description = "Records to create in the e-learning content domain's own DNS when elearning_dns_zone_name is null (ADR-0093)."
+  value = !local.learn_enabled || var.elearning_dns_zone_name != null ? null : {
+    certificate_authorization = module.load_balancer.learn_dns_authorization_record
+    hosts                     = [{ name = local.hosts.learn, type = "A", value = module.load_balancer.ip_address }]
+  }
+}
+
 output "manual_dns_records" {
   description = "Records to create in the domain's own DNS when the zone is not in this project."
   value       = module.dns.manual_records

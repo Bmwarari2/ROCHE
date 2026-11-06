@@ -31,7 +31,12 @@ import {
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { destroyingOnFailure, storeDocument } from "../services/documents";
-import { letterValues, type PersonRow, SENDER_TYPED_FIELDS } from "../services/letters";
+import {
+  letterBlocks,
+  letterValues,
+  type PersonRow,
+  SENDER_TYPED_FIELDS,
+} from "../services/letters";
 import { renderPdf } from "../services/pdf";
 import { domainVersion } from "./letter-templates";
 import {
@@ -97,6 +102,8 @@ const textHash = (rendered: RenderedTemplate) =>
 interface Made {
   readonly rendered: RenderedTemplate;
   readonly versionId: string;
+  /** A letter's letterhead and window-envelope address (H-228); null for an email. */
+  readonly blocks: { readonly letterhead: string[]; readonly address: string[] } | null;
   readonly person: PersonRow;
   readonly recipientName: string;
   readonly contactId: string | null;
@@ -245,6 +252,15 @@ async function make(
   return {
     rendered,
     versionId: version.id,
+    // The letterhead and the window-envelope address for a posted letter (H-228).
+    blocks:
+      rendered.channel === "email"
+        ? null
+        : await letterBlocks(tx, {
+            tenantId: access.tenantId,
+            person: subject,
+            contact: recipient,
+          }),
     person: subject,
     recipientName: recipient
       ? `${recipient.givenName} ${recipient.familyName}`
@@ -390,6 +406,7 @@ export const lettersRouter = createRouter()
               title: "Letter",
               lines: [...sampleLines, ...made.rendered.text.split("\n").map((text) => ({ text }))],
               footer: (n, total) => `Page ${n} of ${total}.`,
+              ...(made.blocks ? { letter: made.blocks } : {}),
             });
             const doc = await storeDocument(
               tx,

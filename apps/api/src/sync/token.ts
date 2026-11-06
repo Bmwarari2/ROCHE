@@ -34,12 +34,22 @@ export class SyncTokenSigner {
     }
   }
 
+  /**
+   * `notAfter` caps the expiry: a bank or agency member's token ends with their access window
+   * (ADR-0088; security review of slice 27, M6), never later.
+   */
   async sign(
     claims: SyncTokenClaims,
     now = new Date(),
+    notAfter: Date | null = null,
   ): Promise<{ token: string; expiresAt: Date }> {
     const issuedAt = Math.floor(now.getTime() / 1000);
-    const expiresAt = new Date((issuedAt + SYNC_TOKEN_TTL_SECONDS) * 1000);
+    const capped = notAfter ? Math.floor(notAfter.getTime() / 1000) : Number.POSITIVE_INFINITY;
+    const expiresAtSeconds = Math.max(
+      issuedAt + 1,
+      Math.min(issuedAt + SYNC_TOKEN_TTL_SECONDS, capped),
+    );
+    const expiresAt = new Date(expiresAtSeconds * 1000);
     const token = await new SignJWT({
       tenant_id: claims.tenant_id,
       location_ids: [...claims.location_ids],
@@ -64,7 +74,7 @@ export class SyncTokenSigner {
       .setIssuer(SYNC_TOKEN_ISSUER)
       .setAudience(SYNC_TOKEN_AUDIENCE)
       .setIssuedAt(issuedAt)
-      .setExpirationTime(issuedAt + SYNC_TOKEN_TTL_SECONDS)
+      .setExpirationTime(expiresAtSeconds)
       .sign(this.privateKey);
     return { token, expiresAt };
   }

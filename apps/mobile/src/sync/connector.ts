@@ -63,6 +63,13 @@ import {
 } from "./session-signals";
 import { type WriteScope, writeScopeFromToken } from "./write-scope";
 
+/** Why a session ended, when the device should say more than "sign in again". */
+export type SessionEndReason = "care_mode_off";
+
+/** The code the API sends when the organisation has Care mode switched off for phones (H-381). */
+export const CARE_MODE_OFF_CODE = "care_mode_off";
+const CARE_MODE_OFF_CODES: ReadonlySet<string> = new Set([CARE_MODE_OFF_CODE]);
+
 export type UploadOp = "PUT" | "PATCH" | "DELETE";
 
 export interface UploadOperation {
@@ -282,7 +289,12 @@ export interface HarbourConnectorOptions {
   /** The session's organisation, sent on every request (staff may belong to more than one). */
   readonly getTenantId?: () => string | null;
   /** Called once when the API says the session is no longer valid. */
-  readonly onSessionRevoked: () => void;
+  /**
+   * The session, or the access behind it, has ended. `care_mode_off` when the API refused with
+   * `care_mode_off`: the organisation switched Care mode off for phones (H-381), so the device
+   * says that, not "sign in again".
+   */
+  readonly onSessionRevoked: (reason?: SessionEndReason) => void;
   /**
    * Called instead when the API says a manager revoked this device (403 `device_revoked`): the
    * device wipes, keeping unsent entries under the hold rules. Without it, an ended session.
@@ -360,9 +372,9 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     });
   }
 
-  private ended(): never {
+  private ended(reason?: SessionEndReason): never {
     this.checkFailures.clear();
-    this.options.onSessionRevoked();
+    this.options.onSessionRevoked(reason);
     throw new SessionRevokedError();
   }
 
@@ -383,7 +395,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
    */
   private async forbidden(
     response: Response,
-    accessWithdrawn: boolean,
+    /** True, or the codes that alone mean the access Care mode needs has been withdrawn. */
+    accessWithdrawn: boolean | ReadonlySet<string>,
   ): Promise<{
     readonly kind: "api" | "unexplained";
     readonly session: "ok" | "unknown";
@@ -395,7 +408,14 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     if (kind === "session") this.ended();
     if (kind === "revoked") this.revoked();
     if (kind === "api") {
-      if (accessWithdrawn) this.ended();
+      const withdrawn =
+        accessWithdrawn === true ||
+        (accessWithdrawn instanceof Set &&
+          problem.code !== null &&
+          accessWithdrawn.has(problem.code));
+      if (withdrawn) {
+        this.ended(problem.code === CARE_MODE_OFF_CODE ? "care_mode_off" : undefined);
+      }
       return { kind, session: "ok", code: problem.code, reason: problem.reason };
     }
     const session = await this.sessionState();
@@ -713,10 +733,12 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         );
       }
       if (response.status === 403) {
-        // A session code, or `GET /v1/me` after an unexplained 403, ends the session (H1). Any
-        // other code from the API refuses this change, which moves to "needs attention"; when an
-        // unexplained 403 cannot be checked the change stays queued and is tried again later.
-        const refusal = await this.forbidden(response, false);
+        // A session code, or `GET /v1/me` after an unexplained 403, ends the session (H1). Care
+        // mode switched off (`care_mode_off`, H-381) withdraws the access, so the change is held
+        // with the rest of the unsent work, never parked (HZ-006). Any other code from the API
+        // refuses this change, which moves to "needs attention"; when an unexplained 403 cannot
+        // be checked the change stays queued and is tried again later.
+        const refusal = await this.forbidden(response, CARE_MODE_OFF_CODES);
         if (refusal.session === "unknown") {
           throw new HttpError(403, "Upload refused; the session could not be checked");
         }

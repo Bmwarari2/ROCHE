@@ -642,9 +642,14 @@ describe("offline sync", () => {
     const night = await json<RateValue>(
       await demo("manager", "/v1/rates/handover.night_shift_start_minute"),
     );
+    const lead = await json<RateValue>(
+      await demo("manager", "/v1/rates/handover.preview_lead_minutes"),
+    );
+    // With how long before a shift ends the phone shows its own handover first (H-420).
     expect(payload.handover_shifts).toEqual({
-      england: { day: Number(day.value), night: Number(night.value) },
+      england: { day: Number(day.value), night: Number(night.value), lead: Number(lead.value) },
     });
+    expect(Number(lead.value)).toBe(60);
   });
 
   it("hazard HZ-018 leaves out a nation whose shift figures are out of order, and tells the operator (#50 review round 1, clinical M4)", async () => {
@@ -674,6 +679,47 @@ describe("offline sync", () => {
       warn.mockRestore();
       await asTenant(DEMO.tenantId, "DELETE FROM rate_table WHERE id = $1", [insert[0]?.id]);
     }
+  });
+
+  it("hazard HZ-006 refuses the phone's token while the organisation has not switched Care mode on (H-381)", async () => {
+    const token = () =>
+      h.request("/v1/sync/token", { token: h.tokens.rae, tenant: OTHER.tenantId, method: "POST" });
+    expect((await token()).status).toBe(200);
+    await asTenant(
+      OTHER.tenantId,
+      "UPDATE feature_flag SET enabled = false WHERE flag_key = 'care.mobile_care_mode'",
+    );
+    try {
+      const refused = await token();
+      expect(refused.status).toBe(403);
+      // A code the phone reads as access withdrawn: it stops and holds unsent entries.
+      expect(await refused.json()).toMatchObject({ code: "care_mode_off" });
+      const upload = await h.request("/v1/sync/upload", {
+        token: h.tokens.rae,
+        tenant: OTHER.tenantId,
+        method: "POST",
+        body: { operations: [] },
+      });
+      expect(upload.status).toBe(403);
+      expect(await upload.json()).toMatchObject({ code: "care_mode_off" });
+      // A location row does not switch it on: the flag is organisation-wide.
+      await asTenant(
+        OTHER.tenantId,
+        "INSERT INTO feature_flag (flag_key, location_id, enabled) VALUES ('care.mobile_care_mode', $1, true)",
+        [OTHER.locationId],
+      );
+      expect((await token()).status).toBe(403);
+    } finally {
+      await asTenant(
+        OTHER.tenantId,
+        "DELETE FROM feature_flag WHERE flag_key = 'care.mobile_care_mode' AND location_id IS NOT NULL",
+      );
+      await asTenant(
+        OTHER.tenantId,
+        "UPDATE feature_flag SET enabled = true WHERE flag_key = 'care.mobile_care_mode'",
+      );
+    }
+    expect((await token()).status).toBe(200);
   });
 
   it("hazard HZ-028 issues the fail-safe window when the tenant's rate is out of range (L3)", async () => {

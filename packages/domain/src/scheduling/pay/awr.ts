@@ -19,6 +19,8 @@ export type AwrBreakReason =
   | "none"
   /** Incapable of working through sickness or injury (reg 7(8)(b), (9)). */
   | "sickness"
+  /** Jury service (reg 7(8)(e), (9)): pauses the clock up to its own limit. */
+  | "jury_service"
   /** Pregnancy, childbirth or maternity in the protected period; maternity, adoption or paternity leave (reg 7(8)(c), (d)(i) to (iii)). */
   | "protected_leave"
   /** Other statutory or contractual leave the worker is entitled to (reg 7(8)(d)(iv)). */
@@ -49,9 +51,9 @@ export function awrClock(weeks: readonly AwrWeek[], rates: PayRates): AwrClock {
   let count = 0;
   let qualifiedFromWeek: string | null = null;
   const resets: { week: string; reason: "break" | "new_role" }[] = [];
-  let run = { weeks: 0, sickness: 0, uncovered: false, reset: false };
+  let run = { weeks: 0, sickness: 0, jury: 0, uncovered: false, reset: false };
   const countWeek = (week: string) => {
-    run = { weeks: 0, sickness: 0, uncovered: false, reset: false };
+    run = { weeks: 0, sickness: 0, jury: 0, uncovered: false, reset: false };
     if (qualifiedFromWeek !== null) return;
     count++;
     if (count >= rates.awrQualifyingWeeks) qualifiedFromWeek = plusDays(week, DAYS_PER_WEEK);
@@ -77,9 +79,12 @@ export function awrClock(weeks: readonly AwrWeek[], rates: PayRates): AwrClock {
     run.weeks++;
     if (w.reason === "none") run.uncovered = true;
     if (w.reason === "sickness") run.sickness++;
+    if (w.reason === "jury_service") run.jury++;
     const covered =
       run.weeks <= rates.awrBreakResetWeeks ||
-      (!run.uncovered && run.sickness <= rates.awrSicknessPauseMaxWeeks);
+      (!run.uncovered &&
+        run.sickness <= rates.awrSicknessPauseMaxWeeks &&
+        run.jury <= rates.awrJuryServicePauseMaxWeeks);
     if (!covered && !run.reset && count > 0) {
       // Qualified or not, the next assignment counts from nothing again.
       count = 0;

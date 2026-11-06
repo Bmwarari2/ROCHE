@@ -7,6 +7,7 @@ const PRODUCTION = {
   NODE_ENV: "production",
   BETTER_AUTH_SECRET: "a-deployed-secret-that-is-long-enough-0123456789",
   EVIDENCE_LINK_SECRET: "a-deployed-evidence-link-key-long-enough-0123456789",
+  ELEARNING_LAUNCH_SECRET: "a-deployed-elearning-launch-key-long-enough-0123456789",
   SPEAK_UP_THROTTLE_SECRET: "a-deployed-speak-up-throttle-key-long-enough-0123456789",
   SYNC_SIGNING_KEY_PEM: "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----",
   DATABASE_APP_URL: "postgres://harbour_app@db.internal/harbour",
@@ -21,6 +22,12 @@ const PRODUCTION = {
   MALWARE_SCANNER: "clamd",
   SAFETY_CASE_VERSION: "v0.0",
   SSO_KEY_STORE: "gcp",
+  TENANT_KEY_PROVIDER: "cloudkms",
+  DATABASE_PITR_DAYS: "7",
+  DATABASE_BACKUP_RETENTION_DAYS: "30",
+  TENANT_KMS_KEY_RING: "projects/harbour-dev/locations/europe-west2/keyRings/harbour-dev-tenants",
+  CERTIFICATE_SIGNING_KEY:
+    "projects/harbour-dev/locations/europe-west2/keyRings/harbour-dev-certificates/cryptoKeys/certificate-signing/cryptoKeyVersions/1",
 } as const;
 
 describe("loadConfig", () => {
@@ -31,6 +38,7 @@ describe("loadConfig", () => {
   it.each([
     "BETTER_AUTH_SECRET",
     "EVIDENCE_LINK_SECRET",
+    "ELEARNING_LAUNCH_SECRET",
     "SPEAK_UP_THROTTLE_SECRET",
     "SYNC_SIGNING_KEY_PEM",
     "DATABASE_APP_URL",
@@ -42,6 +50,10 @@ describe("loadConfig", () => {
     "GCS_EXPORTS_BUCKET",
     "GCS_KMS_KEY",
     "SAFETY_CASE_VERSION",
+    "TENANT_KMS_KEY_RING",
+    "CERTIFICATE_SIGNING_KEY",
+    "DATABASE_PITR_DAYS",
+    "DATABASE_BACKUP_RETENTION_DAYS",
   ])("refuses to start in production without %s", (key) => {
     const env: Record<string, string> = { ...PRODUCTION };
     delete env[key];
@@ -51,6 +63,12 @@ describe("loadConfig", () => {
   it.each([
     ["local document storage", { DOCUMENT_STORAGE: "local" }, "DOCUMENT_STORAGE"],
     ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
+    ["local organisation keys", { TENANT_KEY_PROVIDER: "local" }, "TENANT_KEY_PROVIDER"],
+    [
+      "reading objects stored unencrypted",
+      { DOCUMENTS_LEGACY_PLAINTEXT: "on" },
+      "DOCUMENTS_LEGACY_PLAINTEXT",
+    ],
     [
       "one bucket for documents and exports",
       { GCS_EXPORTS_BUCKET: "harbour-dev-documents" },
@@ -64,6 +82,11 @@ describe("loadConfig", () => {
       "SMTP_PASSWORD",
     ],
     ["the browser idle timeout (HZ-111)", { SESSION_IDLE_TIMEOUT: "on" }, "SESSION_IDLE_TIMEOUT"],
+    [
+      "invented dm+d and competence (HZ-001, HZ-121)",
+      { MEDICINES_FIXTURES: "on" },
+      "MEDICINES_FIXTURES",
+    ],
     [
       "more than 10 sign-ins a minute",
       { AUTH_SIGN_IN_PER_MINUTE: "11" },
@@ -83,6 +106,14 @@ describe("loadConfig", () => {
     ],
   ])("refuses %s in production", (_label, change, message) => {
     expect(() => loadConfig({ ...PRODUCTION, ...change })).toThrow(message);
+  });
+
+  it("uses the medicines fixtures only where allowed: never in production, on elsewhere unless off", () => {
+    expect(loadConfig(PRODUCTION).medicinesFixtures).toBe(false);
+    expect(loadConfig({ NODE_ENV: "test" }).medicinesFixtures).toBe(true);
+    expect(loadConfig({ NODE_ENV: "test", MEDICINES_FIXTURES: "off" }).medicinesFixtures).toBe(
+      false,
+    );
   });
 
   // #39 review L2: Flagsmith only over TLS at the environment's own flags host.

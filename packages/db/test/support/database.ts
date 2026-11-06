@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import pg from "pg";
+import { markDatabaseEnvironment } from "../../src/admin/environment";
 import { runMigrations } from "../../src/admin/migrate";
 import {
   bootstrapRoles,
@@ -89,6 +90,8 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   };
 
   await runMigrations(pool("harbour_owner"));
+  // A test database: the invented dm+d fixture may load here (ADR-0080).
+  await markDatabaseEnvironment(pool("harbour_owner"), "test");
 
   return {
     name,

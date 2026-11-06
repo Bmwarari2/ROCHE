@@ -130,7 +130,7 @@ describe("hazard HZ-018 the handovers a home's card shows, newest first (clinica
     const entries = handoverEntries({
       now: new Date("2026-10-31T07:45:00.000Z"),
       nation: "england",
-      shifts: SHIFTS,
+      shifts: { england: { ...SHIFTS.england, lead: 60 } },
       handovers: [dayBefore, night],
     });
     expect(entries.map((e) => [e.role, e.handover?.id, e.status.chip.label])).toEqual([
@@ -141,6 +141,97 @@ describe("hazard HZ-018 the handovers a home's card shows, newest first (clinica
       "The night shift, 30/10/2026 at 20:00 to 31/10/2026 at 08:00",
     );
   });
+
+  it.each<[string, string, number | undefined, string[]]>([
+    [
+      "06:00, two hours before the night ends",
+      "2026-10-31T06:00:00.000Z",
+      60,
+      ["outgoing", "current"],
+    ],
+    [
+      "07:00, exactly the lead before it ends",
+      "2026-10-31T07:00:00.000Z",
+      60,
+      ["current", "outgoing"],
+    ],
+    ["07:59, a minute before it ends", "2026-10-31T07:59:00.000Z", 60, ["current", "outgoing"]],
+    ["06:30 with a 90-minute lead", "2026-10-31T06:30:00.000Z", 90, ["current", "outgoing"]],
+    [
+      "07:45 with no lead on the phone",
+      "2026-10-31T07:45:00.000Z",
+      undefined,
+      ["outgoing", "current"],
+    ],
+  ])(
+    "hazard HZ-018 at %s shows the running shift's own handover first only within the lead time (H-420)",
+    (_label, now, lead, roles) => {
+      const entries = handoverEntries({
+        now: new Date(now),
+        nation: "england",
+        shifts: { england: lead === undefined ? SHIFTS.england : { ...SHIFTS.england, lead } },
+        handovers: [dayBefore, night],
+      });
+      expect(entries.map((e) => e.role)).toEqual(roles);
+      // The handover the shift received is always shown, with its own state.
+      expect(entries.find((e) => e.role === "outgoing")?.handover?.id).toBe("h-day");
+    },
+  );
+
+  it.each<[string, string, string, string, string, string, string[]]>([
+    // Spring: the night of 28/03 runs from 20:00 GMT to 08:00 BST (07:00Z), 11 hours.
+    [
+      "06:45 BST on 29/03 (clocks forward)",
+      "2026-03-29T05:45:00.000Z",
+      "2026-03-28T08:00:00.000Z",
+      "2026-03-28T20:00:00.000Z",
+      "2026-03-28T20:00:00.000Z",
+      "2026-03-29T07:00:00.000Z",
+      ["outgoing", "current"],
+    ],
+    [
+      "07:15 BST on 29/03 (clocks forward)",
+      "2026-03-29T06:15:00.000Z",
+      "2026-03-28T08:00:00.000Z",
+      "2026-03-28T20:00:00.000Z",
+      "2026-03-28T20:00:00.000Z",
+      "2026-03-29T07:00:00.000Z",
+      ["current", "outgoing"],
+    ],
+    // Autumn: the night of 24/10 runs from 20:00 BST (19:00Z) to 08:00 GMT, 13 hours.
+    [
+      "06:45 GMT on 25/10 (clocks back)",
+      "2026-10-25T06:45:00.000Z",
+      "2026-10-24T07:00:00.000Z",
+      "2026-10-24T19:00:00.000Z",
+      "2026-10-24T19:00:00.000Z",
+      "2026-10-25T08:00:00.000Z",
+      ["outgoing", "current"],
+    ],
+    [
+      "07:15 GMT on 25/10 (clocks back)",
+      "2026-10-25T07:15:00.000Z",
+      "2026-10-24T07:00:00.000Z",
+      "2026-10-24T19:00:00.000Z",
+      "2026-10-24T19:00:00.000Z",
+      "2026-10-25T08:00:00.000Z",
+      ["current", "outgoing"],
+    ],
+  ])(
+    "hazard HZ-018 counts the lead back from the shift's real end at %s (H-420)",
+    (_label, now, dayStart, dayEnd, nightStart, nightEnd, roles) => {
+      const entries = handoverEntries({
+        now: new Date(now),
+        nation: "england",
+        shifts: { england: { ...SHIFTS.england, lead: 60 } },
+        handovers: [
+          handover({ id: "h-day", shift_name: "day", shift_start: dayStart, shift_end: dayEnd }),
+          handover({ shift_start: nightStart, shift_end: nightEnd, locked_at: null }),
+        ],
+      });
+      expect(entries.map((e) => e.role)).toEqual(roles);
+    },
+  );
 
   it("after the shift change shows only the outgoing handover", () => {
     const entries = handoverEntries({

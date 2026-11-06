@@ -16,8 +16,11 @@ const APPEND_ONLY_TABLES = [
   "staff_privacy_acknowledgement",
   "staff_image_consent",
   "audit_event",
+  "pay_run_line",
+  "agency_awr_record",
   "record_version",
   "workflow_transition",
+  "elearning_statement",
   "document_signature",
   "destruction_certificate",
   "care_note",
@@ -59,10 +62,18 @@ const APPEND_ONLY_TABLES = [
   "competence_withdrawal",
   "rota_publication",
   "roster_override",
+  "location_induction",
+  "agency_worker_feedback",
+  "clock_event",
+  "sleep_in_awake_period",
+  "working_time_result",
   "policy_signature",
   "processor_breach_notice",
   "processor_breach_notice_ack",
   "dependency_assessment",
+  "pulse_survey_participation",
+  "pulse_survey_response",
+  "recognition",
   "application_event",
   "interview",
   "equality_monitoring",
@@ -70,6 +81,15 @@ const APPEND_ONLY_TABLES = [
   // Deaths and missing persons (slice 37, migration 0099).
   "death_step",
   "missing_event",
+  // Batch 3a: lone working (0113) and supervision notes (0114).
+  "lone_worker_event",
+  "supervision_note",
+  // Batch 3a: fit notes and return-to-work meetings (0107), and the medicines record (0111).
+  "fit_note",
+  "return_to_work",
+  "medication_schedule",
+  "medication_reconciliation_source",
+  "medication_reconciliation_item",
 ];
 /**
  * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the
@@ -86,6 +106,24 @@ const UNVERSIONED_SILO_TABLES = [
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
 const GLOBAL_REFERENCE_TABLES = ["form_template", "rate_table", "retention_class"];
+
+/**
+ * National reference data with no `tenant_id` column at all, each with why it needs no tenant
+ * policy: it holds no organisation's or person's data, so every role reads every row. Each still
+ * has forced RLS (the check above), a read policy for everyone, and no INSERT, UPDATE or DELETE
+ * for the application: it is loaded by the owner or a loader role, never through the API.
+ */
+const NATIONAL_REFERENCE_TABLES: Readonly<Record<string, string>> = {
+  bank_holiday: "UK bank holidays from calendar.md (migration 0015)",
+  dmd_release: "the dm+d release history: which national release is in use (ADR-0080)",
+  dmd_lookup: "dm+d units, forms, routes and categories, published by the NHSBSA (ADR-0080)",
+  dmd_vtm: "dm+d therapeutic moieties, published by the NHSBSA (ADR-0080)",
+  dmd_vmp: "dm+d virtual medicinal products, published by the NHSBSA (ADR-0080)",
+  dmd_amp: "dm+d actual medicinal products, published by the NHSBSA (ADR-0080)",
+  dmd_vmpp: "dm+d virtual product packs, published by the NHSBSA (ADR-0080)",
+  dmd_ampp: "dm+d actual product packs, published by the NHSBSA (ADR-0080)",
+  dmd_gtin: "the GTINs printed on dm+d packs, published by the NHSBSA (ADR-0080)",
+};
 
 let db: TestDatabase;
 
@@ -177,6 +215,30 @@ describe("hazard HZ-011 row-level security coverage", () => {
     expect(rows.map((r) => r.table_name)).toEqual(
       [...GLOBAL_REFERENCE_TABLES, ...NULLABLE_TENANT_TABLES].sort(),
     );
+  });
+
+  it("keeps national reference tables tenant-free, readable by all and read-only to the application", async () => {
+    const tables = Object.keys(NATIONAL_REFERENCE_TABLES);
+    const { rows: withTenant } = await db.pool("harbour_owner").query<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND column_name = 'tenant_id' AND table_name = ANY($1)`,
+      [tables],
+    );
+    expect(withTenant).toEqual([]);
+    const { rows: readable } = await db.pool("harbour_owner").query<{ tablename: string }>(
+      `SELECT DISTINCT tablename FROM pg_policies
+       WHERE schemaname = 'public' AND tablename = ANY($1) AND cmd = 'SELECT'
+         AND permissive = 'PERMISSIVE' AND qual = 'true' AND 'public' = ANY (roles)`,
+      [tables],
+    );
+    expect(readable.map((r) => r.tablename).sort()).toEqual([...tables].sort());
+    const { rows: writes } = await db.pool("harbour_owner").query<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.role_table_grants
+       WHERE grantee = 'harbour_app' AND table_schema = 'public' AND table_name = ANY($1)
+         AND privilege_type <> 'SELECT'`,
+      [tables],
+    );
+    expect(writes).toEqual([]);
   });
 
   it("gives no Harbour role the ability to bypass RLS", async () => {

@@ -26,6 +26,7 @@ import {
   shiftTitle,
   youChip,
 } from "@/lib/handover";
+import { handoverItemWords } from "@/lib/handover-summary";
 import { t } from "@/lib/i18n";
 import { staffName } from "@/lib/mca";
 import { personNames } from "@/lib/people";
@@ -173,6 +174,10 @@ export default async function HandoverPage({
                             {itemFlags(item, unseen, t).map((flag) => (
                               <SafetyChip key={flag.label} chip={flag} />
                             ))}
+                          </p>
+                          {/* What is handed over, in the item's own summary (H-269, HZ-018). */}
+                          <p className="m-0" data-handover-summary="">
+                            {handoverItemWords(item, t)}
                           </p>
                           <p className="m-0 text-body-dense">
                             {t("care.handover.at", { dateTime: formatDateTime(item.at) ?? "" })}

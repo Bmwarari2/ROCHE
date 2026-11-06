@@ -301,6 +301,35 @@ export const PERMISSIONS = {
   "scheduling.dependency.manage": {
     description: "Write, approve and archive the organisation's dependency scale",
   },
+  "scheduling.lone_worker.check_in": {
+    description: "Start a lone-working session and check in, ask for help or raise duress",
+  },
+  // MFA (security review M3): monitors see where staff are and notes that may describe an injury.
+  // Checking in stays without MFA on purpose: a call for help is never refused for a factor.
+  "scheduling.lone_worker.monitor": {
+    description: "See lone workers' sessions and acknowledge their alarms where in scope",
+    sensitive: true,
+  },
+  "scheduling.lone_worker.manage": {
+    description: "Name the on-call route for lone-worker alarms",
+    sensitive: true,
+  },
+  "scheduling.wellbeing.manage": {
+    description:
+      "Run staff pulse surveys and read their results above the minimum group size, recognition and check-ins members share",
+  },
+  "scheduling.wellbeing.self": {
+    description: "Answer staff surveys, thank colleagues and keep own wellbeing check-ins",
+  },
+  // Pay runs hold staff file data and sickness dates (special category): MFA, as the staff file.
+  "scheduling.pay.manage": {
+    description: "Write pay rule sets and pay profiles; draft and calculate pay runs",
+    sensitive: true,
+  },
+  "scheduling.pay.approve": {
+    description: "Approve pay rule sets; check and lock pay runs; override their exceptions",
+    sensitive: true,
+  },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
   "operations.catering.manage": {
@@ -383,6 +412,15 @@ export const SILO_PERMISSIONS = ["safety.speak_up.manage", "workforce.casework.m
 export function isSiloPermission(permission: string): boolean {
   return (SILO_PERMISSIONS as readonly string[]).includes(permission);
 }
+
+/**
+ * Permissions kept in the catalogue but held by no built-in role until the screen they allow
+ * exists ([ADR-0125](../../../../docs/decisions/0125-speak-up-anonymised-view-not-yet-granted.md)).
+ * `safety.whistleblowing.read` is the master prompt's "whistleblowing (anonymised view)" for the
+ * quality lead (section 4): no API or screen reads it yet, and granting a permission that opens
+ * nothing let the guides suggest managers could see speak-up concerns (the slice 83 guides).
+ */
+export const NOT_YET_GRANTED: readonly string[] = ["safety.whistleblowing.read"];
 
 export type Permission = keyof typeof PERMISSIONS;
 

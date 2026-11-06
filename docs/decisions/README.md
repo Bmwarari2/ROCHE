@@ -65,6 +65,7 @@ for an answer.
 | [0072](0072-mfa-counts-only-for-the-session-that-used-it.md) | MFA counts only for the session that used it | accepted | 2026-10-16 | Phase 1 |
 | [0073](0073-changelog-fragments.md) | Development log entries as one file per pull request (deviation from section 20 rule 9's wording) | accepted | 2026-10-16 | All phases |
 | [0074](0074-shift-pattern-on-the-sync-token.md) | The phone learns the shift pattern from its sync token | accepted | 2026-10-13 | Phase 1 |
+| [0080](0080-dmd-reference-data.md) | dm+d reference data: the NHSBSA release in global tables, loaded whole by a loader role, refreshed monthly, a subset per device | proposed | 2026-10-31 | Phase 2 (slice 10) |
 | [0086](0086-pay-rules-engine.md) | Pay rules engine: pure functions over stored inputs, in whole pence, with their working | accepted | 2026-10-31 | Phase 2 |
 | [0087](0087-employment-law-not-yet-in-force.md) | Employment law not yet in force: record, do not calculate | accepted | 2026-10-31 | Phase 2 |
 | [0090](0090-dsar-workbench-and-disclosure-collector.md) | DSAR workbench and the disclosure collector: one collector over the export catalogue, redaction by a person | accepted | 2026-10-31 | Phase 2 |
@@ -73,6 +74,9 @@ for an answer.
 | [0098](0098-production-on-google-cloud.md) | Production on Google Cloud europe-west2, and Brian's open decisions take their defaults | accepted | 2026-10-31 | Before go-live |
 | [0126](0126-thapsus-hr-link.md) | Link Harbour to Thapsus-HR with one owner for each kind of staff data | accepted | 2026-11-01 | Phase 2 |
 | [0082](0082-medicines-rules-at-the-device-boundary.md) | Medicines rules at the medical-device boundary: tags set at transcription and checked, tenant lists as suggestions, no ingredient or allergen matching | proposed | 2026-10-31 | Phase 2 |
+| [0108](0108-quality-indicator-counts.md) | Quality indicator counts: one definer function returning numbers only | accepted | 2026-10-31 | Phase 2 |
+| [0114](0114-supervision-notes-kept-in-harbour.md) | Supervision and appraisal notes are kept in Harbour, read by few | proposed | 2026-10-31 | Phase 2 |
+| [0125](0125-speak-up-anonymised-view-not-yet-granted.md) | The speak-up anonymised view is not granted until it exists | accepted | 2026-10-31 | Phase 2 |
 
 ## Open items carried by these ADRs
 

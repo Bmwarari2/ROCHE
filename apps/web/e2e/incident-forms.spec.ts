@@ -61,7 +61,7 @@ test.describe.configure({ mode: "serial" });
 
 let incidentPath = "";
 
-test("hazard HZ-027 hazard HZ-090 the carer records a fall from a resident's record, never assumed no", async ({
+test("hazard HZ-027 hazard HZ-090 the carer records an unwitnessed fall from a resident's record, never assumed no, with when they were found", async ({
   page,
 }) => {
   await signIn(page, "carer@example.invalid");
@@ -89,6 +89,8 @@ test("hazard HZ-027 hazard HZ-090 the carer records a fall from a resident's rec
     "Say whether the emergency services were called",
     "Say whether the GP was contacted",
     "Say whether the person died",
+    // Asked for every fall, so an unwitnessed one counts its checks from when it was found (H-262).
+    "Say whether anyone saw the fall happen",
   ]) {
     await expect(summary.getByRole("link", { name: words })).toBeVisible();
   }
@@ -108,6 +110,15 @@ test("hazard HZ-027 hazard HZ-090 the carer records a fall from a resident's rec
   const answer = (question: string, choice: string) =>
     page.getByRole("group", { name: question }).getByRole("radio", { name: choice, exact: true });
   await answer("When did it happen?", "Just now").check();
+  // Nobody saw it: when they were found is asked, and required (H-262, HZ-027).
+  await answer("Did anyone see the fall happen?", "No").check();
+  await page.getByRole("button", { name: "Record the incident" }).click();
+  await expect(
+    page.getByRole("main").getByRole("alert").getByRole("link", {
+      name: "Say when they were found: just now, or earlier with the date and time, not before it happened",
+    }),
+  ).toBeVisible();
+  await answer("When were they found?", "Just now").check();
   await answer("Was the GP contacted?", "Yes").check();
   await answer("Were the emergency services called?", "No").check();
   await answer("Did the person die?", "No").check();

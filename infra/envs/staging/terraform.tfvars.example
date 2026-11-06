@@ -16,3 +16,7 @@ enable_flagsmith = false
 
 # Outgoing email through a UK SMTP provider on the sub-processor register (null: email off).
 # smtp = { host = "smtp.example.invalid", port = 587, tls = true }
+
+# The e-learning content origin's own registrable domain (ADR-0093): never under domain_name.
+# elearning_domain_name   = "harbour-learning.example"
+# elearning_dns_zone_name = null

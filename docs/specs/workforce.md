@@ -97,7 +97,8 @@ security on every table; the policies in section 3.
 | `training_record` | `worker_id`, `topic`, `tier`, `completed_on`, `expires_on` (a certificate's own last valid day), `provider` | Mutable with history (a correction is a change with `expected_version`); never by the worker |
 | `competence_sign_off` | `worker_id`, `competence` (`COMPETENCES`), `observed_on`, `observer_id`, `valid_until` (the day before observed plus the competence's refresh months) | Append-only. Observed in the observer's own name by a holder of `workforce.competence.observe`, never the worker, on a day no later than today |
 | `competence_withdrawal` | `sign_off_id` (one each), `reason` (at least 10 characters), `withdrawn_by` | Append-only; by a holder of `workforce.competence.observe` or `workforce.training.manage`, never the worker |
-| `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. No notes are kept (a supervision's notes stay with the supervisor's own records until slice 57) |
+| `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. Its notes are in `supervision_note` |
+| `supervision_note` (slice 57, migration 0114, ADR-0114) | `supervision_id`, `worker_id` (the supervision's), `discussion` (10 to 4,000 characters), `actions` (optional, up to 2,000), `supersedes_id` (the note it corrects), `written_by` | Append-only; written by whoever held the supervision, in their own name, never about themselves; a correction is a new note superseding the one in force (one original per supervision, each corrected once). Read by its writer, the member (`workforce.self.read`) and a supervisor for the member (`app.supervises_member`: organisation-wide HR, or a holder at a location where the member works), never by training, competence or staff file readers or by tenant-wide roles for that alone. Hidden from every reader, the system (exports, subject access) included, once its supervision record is soft-deleted (`app.supervision_in_force`). Likely special category |
 | `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker |
 
 Competences (`COMPETENCES` in `packages/domain/src/workforce/competence-port.ts`):
@@ -304,7 +305,8 @@ whatever the clock change.
 7. **Supervision and appraisal** (`supervision.ts`). `supervision.per_year` supervisions and
    `appraisal.per_year` appraisals a year: the next is due one interval (12 months divided by the
    number) after the last, or after the start date when none has been held; overdue from the day
-   after. Spot checks are recorded but do not count as supervisions.
+   after. Spot checks are recorded but do not count as supervisions. What a supervision covered
+   (H-692) is recorded by slice 57 (`supervision_note`, migration 0114, ADR-0114).
 8. **Qualifications and NMC revalidation** (`registration.ts`). A registered nurse's registration
    must be current on the day worked; revalidation is due every `nmc.revalidation.cycle_years` years
    on the renewal date the NMC gives; the planner counts `nmc.revalidation.practice_hours` practice
@@ -312,7 +314,15 @@ whatever the clock change.
    participatory), `nmc.revalidation.feedback_count` pieces of practice-related feedback and
    `nmc.revalidation.reflective_accounts` reflective accounts, plus a reflective discussion, a
    health and character declaration, professional indemnity and confirmation; reminders at the
-   document-expiry days.
+   document-expiry days. The nurse enters their own evidence (`PUT /v1/me/revalidation`: counts
+   and declarations, never the reflective text) and sends it for review; HR
+   (`workforce.training.manage`) reviews it, after which the counts are fixed; the confirmation is
+   recorded only by the confirmer, in their own name, never the nurse (HR or a line manager holding
+   `workforce.supervision.manage`, ideally an NMC registrant, as the NMC's revalidation guidance
+   sets out). The nurse stays responsible for revalidating with the NMC; Harbour only tracks it
+   (H-693, recommended answer applied 31/10/2026). The NMC registration records the part of the
+   register (`nmcPart`: nurse, midwife or nursing associate); only the nurse part counts as a
+   registered nurse on duty, and a nursing associate never does (H-835).
 9. **Sponsor licence** (`sponsor.ts`). A reportable change is due within
    `sponsor.change_report_working_days` working days of the day it happened (the location nation's
    bank holidays; the event's own day never counts). The salary check: guaranteed basic gross pay
@@ -326,7 +336,13 @@ whatever the clock change.
     a right to work, their registration is current where the role needs one, and every competence
     the shift needs is valid. Otherwise the result lists each blocker in words; a manager override
     needs a justification, is logged and reported, and never covers a missing right to work (illegal
-    working cannot be overridden).
+    working cannot be overridden), no DBS certificate at all (an Adult First check with a signed risk
+    assessment is the lawful supervised start) or a lapsed or missing registration (H-830; ADR-0099).
+11. **Driving for work** (`staff-file.ts`, `drivingCurrent`; H-835). A check beyond Schedule 3,
+    never part of a complete file: the licence checked with the DVLA (the date and the categories,
+    never the licence number or the check code) and business-use insurance seen, with its expiry,
+    verified by HR. A member counts as a `driver` on the staffing scale only while the licence check
+    is within `workforce.driving_licence_check_months` and the insurance is in date.
 
 11. **Applications** (`recruitment.ts`, `checkApplicationMove`). Stages: `applied`, `shortlisted`,
     `interviewed`, `offered`, `accepted`, and the closed stages `rejected`, `withdrawn`, `declined`.
@@ -450,7 +466,8 @@ Rate keys in use: `retention.staff_file.birthday_age`, `training.default_refresh
 `nmc.revalidation.participatory_cpd_hours`, `nmc.revalidation.feedback_count`,
 `nmc.revalidation.reflective_accounts`, `dbs.update_service.check_interval_months`,
 `sponsor.salary_floor.care_worker`, `sponsor.salary_floor.care_worker_hourly`,
-`sponsor.change_report_working_days`, `sponsor.counted_weekly_hours_max`.
+`sponsor.change_report_working_days`, `sponsor.counted_weekly_hours_max`,
+`workforce.driving_licence_check_months`.
 
 ## 5. API and events
 
@@ -582,6 +599,35 @@ Audit actions: `workforce.induction.viewed`, `.plan_set`, `.item_ticked`, `.shad
 `workforce.leaving.viewed`, `.recorded`, `.item_ticked`, `.exit_interview`, `.access_ended`
 (by the sweep with no actor), `workforce.reference.requested`, `.answered`. The
 `leaver-access` job runs hourly at 7 past.
+
+### Screens (slice 57)
+
+Web screens for WORK-005, WORK-008, WORK-009 and WORK-012, on the routes above and two added by
+this slice. The API and the database check every permission again; the web only decides what to
+offer. No form is offered on one's own record.
+
+| Screen | Path | Offered to | Does |
+| --- | --- | --- | --- |
+| Training matrix | `/training` | any of `workforce.training.manage`, `.competence.observe`, `.supervision.manage`, `.staff_file.read` | Every member of staff whose roles need training, a column per topic, each state an icon and a word (up to date, due soon, lapsed, not done; not needed for their roles). Filter by location, role and those needing attention (a GET form, ids and codes only); find by name in the browser, so no name enters an address |
+| Training requirements | `/training/requirements` | `workforce.training.manage` | Each role's topics, refresh and Oliver McGowan tier; set one role's requirement for a topic |
+| Training record | `/training/{memberId}` | as the matrix | The member's required training today and their records (record, correct); observed competences and sign-offs (sign off in one's own name, withdraw with a reason and a confirmation); supervisions and appraisals with the next due, and their notes where the viewer may read them (add or correct by whoever held it, earlier notes struck through); the NMC revalidation planner (H-693's default: HR records the evidence) |
+
+- **Routes added:**
+  - `GET /v1/workforce/training-matrix` uses the same permissions as one member's record. It
+    applies the member record's rules and filters by location (roles held there), role key and
+    attention. It returns at most 2,000 members, capped before any record is read, and says when
+    more match. It is audited without names.
+  - `POST /v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes` adds or corrects a
+    note. Only whoever held the supervision may use it, never the member. It is audited without the
+    note.
+  - The supervision POST takes an optional note.
+- **Large homes:** every row stays in the page, so screen reader table navigation and find-in-page
+  reach everyone. The browser skips laying out rows out of view (`content-visibility: auto`), and
+  the header stays in view without hiding focus. A windowed list was tried first and dropped after
+  the accessibility review, because rows that were not drawn could not be reached.
+- **After a save** the page opens again at `?done=<catalogue key>`. The status says what was done
+  and focus moves to the page's heading.
+- Strings are en-GB; Welsh entries are marked untranslated. Dates are dd/mm/yyyy.
 
 ## 6. Offline behaviour
 
@@ -811,8 +857,14 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Gap | Effect now | To close |
 | --- | --- | --- |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
-| Supervision and appraisal due dates raise no tasks yet | Shown in the development record only | Slice 57 (the supervision screens and their reminders) |
-| Revalidation evidence is recorded by HR, not by the nurse | A nurse cannot record their own evidence | Self-service with review (slice 57, H-693) |
+| Supervision and appraisal due dates raise no tasks yet | Shown on the training record with their state (slice 57) | Reminder tasks for supervisions and appraisals due (with the task engine's workforce reminders) |
+| Supervision notes are not read by tenant-wide roles (owner, group executive) for holding `workforce.supervision.manage` alone (slice 57, ADR-0114) | They see that a supervision happened, not what was said | A separate note permission, if wanted (H-1044) |
+| The matrix offers the built-in roles as filters; an organisation's own roles show by key on the requirements screen (slice 57) | A custom role's key, not its name, shows | A roles list in the API (with the role design screens) |
+| Every training record page has the same title, "Training record" (slice 57) | Browser tabs and history do not tell members apart; no name goes into history | Decide whether a name in the page title is acceptable (H-1046) |
+| Supervision templates and the wellbeing check-in (master prompt section 12.2) (slice 57) | Notes are free text | Templates per tenant, with ADR-0114's read rule |
+| The training screens' form and arrival components duplicate slice 58's workforce ones (`DevelopmentForm`, `WorkforceForm`), so the two branches merge cleanly (slice 57) | Two copies of the same component | Fold into one shared component once both are merged |
+| The e-learning player (slice 43) | Not part of these screens | Joins the training record when slice 43 lands |
+| Revalidation evidence is recorded by HR, not by the nurse | H-693's default applied in slice 57: HR records it from the nurse's evidence, and the nurse revalidates with the NMC | Self-service with review if H-693 decides so |
 | Reminders cover upcoming expiry only: required training never done, a member with no records, and an expired or withdrawn competence raise no task (the matrix and the port show them) | HR sees them in the development record, not in tasks | Slice 57 with the matrix screens (H-691) |
 | `withSystemRights` answers the port's and the record's narrow questions inside the caller's transaction; callers must await it alone | A concurrent query on the same transaction would run with the system's rights | Security-definer functions owned by a NOLOGIN role (ADR-0002), before slice 22 calls the port |
 | A location's team leader (`workforce.competence.observe`) reads development records and signs off competence across the organisation; the rule that an observer holds a valid sign-off for the same competence where the tenant requires it is not built | Wider than need-to-know; withdrawal reasons are free text | DPO decision (H-694); the observer rule in slice 57 |
@@ -927,3 +979,98 @@ pay or date of absence. Screens follow with slice 56.
 | Unauthorised absence is not drawn from the rota or leave records | Rota and leave (slice 36 onward) |
 | The family feed does not yet check staff image consent before a staff photo is published | Feed publishing checks (slice 56, H-905) |
 | Sponsor records follow the staff file's retention row; any sponsor-specific minimum is unconfirmed | H-901 |
+
+## 14. E-learning runtime (slice 43, migration 0112; ADR-0093)
+
+Register row WORK-006. SCORM 1.2, SCORM 2004 and xAPI packages run on a separate content origin;
+completions become slice 17 training records. The decision, its threat model and the options are
+in [ADR-0093](../decisions/0093-elearning-runtime.md).
+
+### 14.1 Records
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `elearning_course` | `title`, `topic` and `tier` (what a completion records), `standard`, `document_id` (the `elearning_package` document), `package_sha256`, `launch_path` and `launch_query` (from the manifest), `package_identifier`, `file_count`, `unpacked_bytes`, `package_index` (each file's path, data offset, sizes, CRC and method, read and checked once at upload), `status` (`active`, `retired`) | Read by staff and training leads; written by `workforce.training.manage`; the package must be an `elearning_package` document (trigger); mutable with history, never deleted |
+| `elearning_attempt` | `course_id`, `worker_id`, `status` (`in_progress`, `completed`, `passed`, `failed`), `score` (0 to 1), `location`, `suspend_data` (to resume), `total_seconds`, `finished_at`, `training_record_id`, `launch_nonce` (replaced at every start or resume, so only the latest launch token works) | The member's own (started, resumed and saved by them); read by those who read development records; keeps its member and course; only the system links the training record; a settled outcome (completed, passed or failed) is never changed: a retake is a new attempt |
+| `elearning_statement` | `attempt_id`, `statement_id` (once per attempt), `verb`, `statement` (as sent, at most 16 KB) | Append-only; the member's own attempt |
+
+### 14.2 Rules (`packages/domain/src/workforce/elearning.ts`, table-driven tests)
+
+1. A package is checked from its central directory before anything is unpacked: entry names
+   (`entryNameProblem`: no controls, separators or bidirectional overrides, normal form C only),
+   links, encryption, compression method, file types (`contentTypeOf`), duplicates, counts and
+   sizes, and the unpacked-to-packed ratio (`archiveProblem`, `ARCHIVE_LIMITS`: 5,000 entries,
+   500 MB, 200 MB an entry, 100 times). The archive must read the same to every reader: the end
+   record last, no ZIP64 locator, each local header matching its central entry, and the entries
+   tiling the file with no overlap or hidden bytes. Every file is then inflated once and its size
+   and CRC checked, before the course is kept (security review M3, H2).
+2. The launch page is the manifest's, resolved under the package (`launchPathOf`): SCORM from the
+   default organisation's first item with a resource (`xml:base` honoured), xAPI from
+   `tincan.xml`. It must be an HTML file the package holds.
+3. Only `CMI_ELEMENTS` are kept, each bounded (`cmiProblem`); the outcome comes from
+   `lesson_status` (1.2) or `success_status` then `completion_status` (2004), with the score
+   scaled 0 to 1 (`attemptOutcome`). xAPI completed, passed and failed verbs settle an xAPI
+   course (`xapiOutcome`).
+4. An attempt's status only moves forward (`nextAttemptStatus`), and a settled one (completed,
+   passed or failed) is final for that attempt; a completion or pass makes one training record
+   (`completesTraining`), audited in the same transaction whether the member's session or a
+   launch token reported it; a fail never does.
+5. Session time counts when the content finishes (`sessionSeconds`).
+
+### 14.3 Permissions
+
+| Action | Permission | Database |
+| --- | --- | --- |
+| Add a course from a package, retire one, see every attempt | `workforce.training.manage` | Course insert and update policies; attempts read through `app.reads_development` |
+| See active courses, start or resume one's own attempt, save it | `workforce.self.read` | Own attempts only (`app.reads_own_development`); the member never writes a training record |
+| Read a course's files and send its statements (the content origin) | A launch token for that attempt (no session) | Read and written as the token's member, who must still hold a staff role |
+
+### 14.4 API and web
+
+- `GET`/`POST /v1/workforce/elearning/courses`, `POST .../courses/{id}/retire`,
+  `GET`/`POST .../courses/{id}/attempts`, `PATCH /v1/workforce/elearning/attempts/{id}`;
+  `GET /e/launch/{token}/files/{path}` and `POST /e/launch/{token}/statements` (no session).
+  Audited: course added (or refused, with the problem code) and retired, attempt started and
+  completed (in the completion's own transaction, with how it arrived), with ids only.
+- Files are served by a ranged read of just their own bytes from the stored archive, inflated as
+  a stream and checked against the index, at most 16 at once an instance; the stored document
+  must still be available. Calls are throttled per attempt (files, statements, commits), an
+  attempt keeps at most 5,000 statements, a commit that changes nothing writes nothing, and the
+  runtime sends commits at most every 5 seconds (security review H2, M7). A launch token expires
+  after `ELEARNING_LAUNCH_MINUTES` (120 by default), is replaced by the next launch, and stops
+  working when the course is retired (M6).
+- The content origin is another registrable domain from the app's (`contentOrigin` refuses one on
+  the app's own site; Terraform's `elearning_domain_name`), and the Google Cloud load balancer
+  forwards only `/learn/*` on it to the web tier, Cloud Armor answering any other path there with a
+  fixed 404; the web proxy refuses every other path there, prefetches and route handlers
+  included (H1, M4). The package is told the member's first name only (M8).
+- Web: `/training/elearning` (courses; add and retire for training leads), the player at
+  `/training/elearning/{id}`, the upload route `/api/elearning/upload` (titles in headers), and the
+  content origin's `/learn/{token}` (runtime page, its script, package files, xAPI statements).
+
+### 14.5 Offline (mobile slice 72)
+
+Not built. The phone would need the stored archive, the allowlisted file list and a local runtime
+page under its own origin, with commits queued like other entries; statements and completions
+would sync on reconnect (H-1018).
+
+### 14.6 Tests
+
+`packages/domain/src/workforce/elearning.test.ts`, `packages/db/test/elearning.test.ts`,
+`apps/api/test/elearning-package.test.ts`, `apps/api/test/elearning.test.ts`,
+`apps/web/src/lib/elearning.test.ts`, `apps/web/src/lib/elearning-runtime.test.ts`,
+`apps/web/e2e/elearning.spec.ts` (a real SCORM package through the runtime to a training record,
+with axe in light and dark).
+
+### 14.7 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| A completion is self-reported by content in the member's browser | Optional confirmation by a training lead per course (H-1013) |
+| xAPI state and activity profile documents are not kept, so xAPI content cannot resume | A small state store per attempt, if courses need it (H-1016) |
+| SCORM interactions, objectives and comments are not kept | Only if a course's reporting needs them (H-1016) |
+| One content origin serves every organisation and course, so packages on one device share its storage | One origin per launch or per organisation under a wildcard certificate (security review M5; H-1017) |
+| The launch token travels in URL paths, which access logs keep | Exchange it for a first-party cookie on the content origin at first load (M6; H-1017) |
+| The app's session cookie is `__Secure-harbour.session_token`, which a subdomain could shadow | Rename it `__Host-` (one sign-out for everyone; H-1017) |
+| Restrictive policies target `harbour_app` only, as migration 0079 does, not `harbour_owner` as ADR-0002 asks | Align both migrations together (L7) |
+| Offline courses on the phone | Mobile slice 72 (H-1018) |

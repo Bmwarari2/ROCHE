@@ -184,8 +184,12 @@ export const CreateIncident = z
     harmGrade: HarmGrade.optional(),
     description: text(4000).min(3),
     immediateActions: text(4000).optional(),
-    emergencyServicesCalled: z.boolean().default(false),
-    gpContacted: z.boolean().default(false),
+    /**
+     * Null for "Not known yet" (H-264, HZ-090): the question stays open with a task for the
+     * person in charge, so a reporter is never pushed to guess yes or no.
+     */
+    emergencyServicesCalled: z.boolean().nullable().default(false),
+    gpContacted: z.boolean().nullable().default(false),
     contactNotes: text(2000).optional(),
     familyInformed: FamilyInformed.optional(),
     people: z.array(IncidentPersonInput).max(50).default([]),
@@ -205,8 +209,8 @@ export const UpdateIncident = z
     description: text(4000).min(3).optional(),
     immediateActions: text(4000).nullable().optional(),
     foundAt: isoDateTime.nullable().optional(),
-    emergencyServicesCalled: z.boolean().optional(),
-    gpContacted: z.boolean().optional(),
+    emergencyServicesCalled: z.boolean().nullable().optional(),
+    gpContacted: z.boolean().nullable().optional(),
     contactNotes: text(2000).nullable().optional(),
     familyInformed: FamilyInformed.nullable().optional(),
     /** Rows with an id are changed (or removed); rows without are added. */

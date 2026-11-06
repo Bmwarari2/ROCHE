@@ -622,15 +622,105 @@ describe("hazard HZ-016 IDDSI levels", () => {
     });
 
     const food = { chart: "food", meal: "lunch", portion: "half" };
-    expect((await observe(1, { ...food, iddsiLevel: "4" })).status).toBe(201);
-    expect((await observe(1, { ...food, iddsiLevel: "7" })).status).toBe(422);
-    const overridden = await observe(1, {
-      ...food,
-      iddsiLevel: "7",
-      overrideReason: "Family brought a sandwich",
-    });
+    // Given now, after the level was prescribed: an entry is judged against the level in force
+    // when it was given (H-166).
+    const now = () => ({ occurredAt: new Date().toISOString() });
+    expect((await observe(1, { ...food, iddsiLevel: "4" }, now())).status).toBe(201);
+    expect((await observe(1, { ...food, iddsiLevel: "7" }, now())).status).toBe(422);
+    const overridden = await observe(
+      1,
+      { ...food, iddsiLevel: "7", overrideReason: "Family brought a sandwich" },
+      now(),
+    );
     expect(overridden.status).toBe(201);
     expect((await json<ObservationItem>(overridden)).flags).toMatchObject({ iddsiAlert: true });
+  });
+
+  it("hazard HZ-016 hazard HZ-010 judges a drink against the level in force when it was given, and says the level has changed since (H-166), unless the device clock drifted", async () => {
+    const profile = (body: Record<string, unknown>) =>
+      as("manager", `/v1/people/${resident(4)}/care-profile`, { method: "PUT", body });
+    const first = await json<PersonCareProfile>(
+      await profile({
+        iddsiDrinkLevel: "4",
+        iddsiAdvisedBy: "Speech and language therapist",
+        version: 0,
+      }),
+    );
+    // A speech and language therapy change after the drink was given (offline) and before it
+    // reached the server.
+    expect(
+      (
+        await profile({
+          iddsiDrinkLevel: "0",
+          iddsiAdvisedBy: "Speech and language therapist",
+          version: first.version,
+        })
+      ).status,
+    ).toBe(200);
+    const [kept] = await asDemoTenant(
+      async (c) =>
+        (
+          await c.query<{ valid_from: Date; valid_to: Date }>(
+            `SELECT v.valid_from, v.valid_to FROM record_version v
+           JOIN person_care_profile p ON p.id = v.record_id
+           WHERE v.table_name = 'person_care_profile' AND p.person_id = $1`,
+            [resident(4)],
+          )
+        ).rows,
+    );
+    expect(kept).toBeDefined();
+    if (!kept) return;
+    const given = new Date((kept.valid_from.getTime() + kept.valid_to.getTime()) / 2);
+    const drink = { chart: "fluid_intake", ml: 150, iddsiLevel: "4" };
+    // Given at level 4 while 4 was prescribed: no reason needed, no alert, and the entry says the
+    // level has changed since.
+    const then = await observe(4, drink, { occurredAt: given.toISOString() }, "manager");
+    expect(then.status).toBe(201);
+    expect((await json<ObservationItem>(then)).flags).toMatchObject({
+      iddsi: { outcome: "match" },
+      iddsiAlert: false,
+      iddsiChangedSince: { prescribedThen: "4", prescribedNow: "0" },
+    });
+    // A device clock that disagrees with the server cannot place the entry in the history: the
+    // level now (0) is used, so the same drink needs a reason (HZ-010).
+    const drifted = await h.request(`/v1/people/${resident(4)}/observations`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: { occurredAt: given.toISOString(), values: drink },
+      headers: { "x-harbour-sent-at": new Date(Date.now() - 3 * 60 * MIN).toISOString() },
+    });
+    expect(drifted.status).toBe(422);
+    expect(JSON.stringify(await drifted.json())).toMatch(
+      /not the prescribed drink level \(Level 0/,
+    );
+    // A device that does not say when it sent the entry has a clock that cannot be checked: the
+    // level now (0) is used, and a phone's entry is kept and flagged (HZ-010, HZ-016).
+    const unchecked = await h.request(`/v1/people/${resident(4)}/observations`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: { occurredAt: given.toISOString(), values: drink },
+      headers: { "x-harbour-device": "0199d000-0000-4000-8000-0000000c0166" },
+    });
+    expect(unchecked.status, await unchecked.clone().text()).toBe(201);
+    expect((await json<ObservationItem>(unchecked)).flags).toMatchObject({
+      iddsi: { outcome: "mismatch" },
+      iddsiProblem: "reason_missing",
+    });
+    // The same drink given now is judged against level 0 and needs a reason on the web.
+    const now = await observe(4, drink, { occurredAt: new Date().toISOString() }, "manager");
+    expect(now.status).toBe(422);
+    const matched = await json<ObservationItem>(
+      await observe(
+        4,
+        { ...drink, iddsiLevel: "0" },
+        { occurredAt: new Date().toISOString() },
+        "manager",
+      ),
+    );
+    expect(matched.flags).toMatchObject({ iddsi: { outcome: "match" } });
+    expect(matched.flags.iddsiChangedSince).toBeUndefined();
   });
 });
 

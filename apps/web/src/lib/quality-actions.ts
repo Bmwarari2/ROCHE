@@ -10,12 +10,23 @@ import { type ActionResult, problemMessage } from "./outcome";
  * Runs one quality write (an evidence pack or the statement of purpose) through the API as the
  * signed-in person, and revalidates the screens that show it. The API's refusals are said in
  * words a manager can act on: separation of duties in this module's terms, and a workflow or
- * changed-record refusal (409) in the API's own plain words, which name what to do.
+ * changed-record refusal (409) in the API's own plain words, which name what to do. `fields` ties
+ * a refusal code to the field it is about (and, optionally, words of its own), so the error sits
+ * at that field and the summary links to it.
  */
 export async function sendQuality<T>(
-  subject: "pack" | "sop" | "framework" | "evidence" | "audit",
+  subject:
+    | "pack"
+    | "sop"
+    | "framework"
+    | "evidence"
+    | "audit"
+    | "policy"
+    | "dataSecurity"
+    | "target",
   paths: readonly string[],
   call: (api: ApiClient) => Promise<{ data?: T; error?: unknown }>,
+  fields: Readonly<Record<string, { readonly field: string; readonly message?: string }>> = {},
 ): Promise<ActionResult<T>> {
   try {
     const api = await tenantApi();
@@ -24,7 +35,12 @@ export async function sendQuality<T>(
       for (const path of paths) revalidatePath(path, "layout");
       return { ok: true, data };
     }
-    return { ok: false, ...qualityProblem(subject, error) };
+    const problem = qualityProblem(subject, error);
+    const at = fields[problem.code];
+    const message = at?.message ?? problem.message;
+    return at
+      ? { ok: false, code: problem.code, message, fields: { [at.field]: message } }
+      : { ok: false, ...problem };
   } catch (error) {
     // Redirects (the session ended, or step-up is needed) go through as navigation.
     unstable_rethrow(error);
@@ -33,12 +49,21 @@ export async function sendQuality<T>(
 }
 
 function qualityProblem(
-  subject: "pack" | "sop" | "framework" | "evidence" | "audit",
+  subject:
+    | "pack"
+    | "sop"
+    | "framework"
+    | "evidence"
+    | "audit"
+    | "policy"
+    | "dataSecurity"
+    | "target",
   error: unknown,
 ) {
   const problem = (typeof error === "object" && error !== null ? error : {}) as {
     code?: unknown;
     detail?: unknown;
+    title?: unknown;
   };
   const detail = typeof problem.detail === "string" ? problem.detail.trim() : "";
   switch (problem.code) {
@@ -49,7 +74,16 @@ function qualityProblem(
       return { code: problem.code, message: detail || t("quality.changed", { subject }) };
     case "version_conflict":
       return { code: "version_conflict", message: t("quality.changed", { subject }) };
-    default:
-      return problemMessage(error, t);
+    default: {
+      // A refusal this module names in its own words (evidence_required, notes_required and the
+      // like) is said as the API says it, never as "could not save just now".
+      const fallback = problemMessage(error, t);
+      const code = typeof problem.code === "string" ? problem.code : "";
+      const words = detail || (typeof problem.title === "string" ? problem.title.trim() : "");
+      const ownWords = /^[a-z_]+$/.test(code) && code !== "internal" && code !== "unavailable";
+      return fallback.code === "unavailable" && words && ownWords
+        ? { code, message: words }
+        : fallback;
+    }
   }
 }

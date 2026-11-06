@@ -117,6 +117,8 @@ export function IncidentManage({
                 </Link>
               </li>
             ))}
+            {close.contactsNotKnown ? <li>{t("safety.manage.close.contacts")}</li> : null}
+            {close.deathFactsNotKnown ? <li>{t("safety.manage.close.deathFacts")}</li> : null}
             {close.questions > 0 ? (
               <li>
                 {/* A native link, so the browser moves focus to the questions' section. */}

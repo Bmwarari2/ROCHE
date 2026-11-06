@@ -134,7 +134,11 @@ export async function createHarness(env: Record<string, string> = {}): Promise<H
   await ownerTx(
     owner,
     DEMO.tenantId,
-    ["INSERT INTO location (id, name) VALUES ($1, 'Harbour Lodge')", [LODGE.locationId]],
+    // In use since 2025, so a past month is a whole period on the quality dashboard (slice 47).
+    [
+      "INSERT INTO location (id, name, created_at) VALUES ($1, 'Harbour Lodge', '2025-01-01T00:00:00Z')",
+      [LODGE.locationId],
+    ],
     [
       `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
        VALUES ($1, $2, 'active', 'Gwen', 'Outofscope', '9990000077')`,
@@ -180,6 +184,9 @@ export async function createHarness(env: Record<string, string> = {}): Promise<H
        SELECT $1, id, $2 FROM role WHERE key = 'registered_manager'`,
       [OTHER.managerId, OTHER.locationId],
     ],
+    // Care mode on the phone is switched on here as for the demo tenant (H-381), so the suites
+    // reach the phone's routes; the refusal while it is off has its own test.
+    ["INSERT INTO feature_flag (flag_key, enabled) VALUES ('care.mobile_care_mode', true)"],
   );
 
   const config = loadConfig({

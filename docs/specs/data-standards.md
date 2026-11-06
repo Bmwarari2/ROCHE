@@ -72,6 +72,8 @@ the DSCR data migration schema.
 | PRSB Personalised Care and Support Plan | `care_plan`, `care_plan_section`, `care_plan_action`; additional support plans | v2.0 (December 2021), [theprsb.org](https://theprsb.org/standards/personalisedcareandsupportplan/); section list checked on 2026-10-11, element-level mapping still to verify |
 | ISO 639-1 and ISO 639-3 | `first_language` | Two-letter code where one exists, otherwise three-letter |
 | CQC identifiers | Provider and location IDs | Format `1-` followed by digits |
+| NHS Dictionary of Medicines and Devices (dm+d) | Medicines on the MAR, their forms, routes, units, packs and controlled drug and legal categories | The NHSBSA release (data model R2 XML), loaded from TRUD into global reference tables (ADR-0080; section "dm+d reference data" below) |
+| GS1 GTIN | The barcodes printed on dm+d packs | GTIN-8, -12, -13 and -14 with the GS1 check digit, stored as GTIN-14 |
 
 ## Platform: tenant, location and service
 
@@ -434,6 +436,8 @@ mapping of incident types to LFPSE categories is an open item below.
 | `incident.harm_grade` | LFPSE physical harm | `none`, `low`, `moderate`, `severe`, `fatal` | Staff judgement |
 | `incident.status` | Harbour (`INCIDENT_WORKFLOW`) | `open`, `under_review`, `closed` | Closed by someone other than `raised_by` |
 | `incident.retention_class` | [retention.md](retention.md) | `care_record`, `serious_incident` | `serious_incident` once any notification applies |
+| `incident.emergency_services_called`, `incident.gp_contacted` | Harbour | `true`, `false`, or null for "Not known yet" (migration 0118, H-264) | Asked every time, never assumed no (HZ-090); null leaves an urgent `safety.record_contacts` task until both are answered. Default `false` kept for earlier clients |
+| `incident_person.learning_disability`, `incident_person.autistic` | LeDeR (concept) | `true`, `false`, or null when not known yet | Asked on the web form for a person we support who died (H-482); null leaves a `safety.record_learning_disability_autism` task, and LeDeR is decided from the answers (HZ-013) |
 | `incident_person.kind`, `role` | RIDDOR 2013 reg 4 and 5 (worker, person not at work) | `service_user`, `worker`, `other_not_at_work`; `affected`, `witness`, `involved` | `infection` is `{ syndrome (acute_respiratory, diarrhoea_vomiting), onsetAt, couldBeLinkedWithinSetting, fluConfirmedAt, link ({ group } or not_linked) }` |
 | `classifier_answer.question_key`, `value` | The regulations each question quotes (`CLASSIFIER_QUESTIONS`) | `CLASSIFIER_QUESTION_KEYS`; `yes`, `no`, `unsure`, a whole number of days or hours, or option values | Append-only; the latest answer per key counts |
 | `statutory_notification.kind` | CQC Registration Regulations 2009 regs 16 and 18; RIDDOR 2013; Care Act 2014 s.42; regulation 20 of the 2014 Regulations; LeDeR; UKHSA; death certification reforms | `cqc_reg16_death`, `cqc_reg18_serious_injury`, `cqc_reg18_abuse`, `cqc_reg18_police`, `cqc_reg18_service_disruption`, `cqc_reg18_dols_outcome`, `riddor_death`, `riddor_specified_injury`, `riddor_non_worker_hospital`, `riddor_over_7_day`, `riddor_dangerous_occurrence`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person` | `STATUTORY_NOTIFICATION_KINDS` |
@@ -539,6 +543,7 @@ assurance pack.
 | `care_plan.copy_from_active` | Harbour | `true`, `false`, or null | Phase 1 (migration 0047; #26 review round 3). Whether starting the draft asked to copy the active plan (`CreateCarePlan.copyFromActive`), so a start sent again with its client id is compared with it (HZ-029); null for drafts started before. |
 | `care.alert.unrouted` audit event | Harbour | Reason and `scope.reasonCode`: `news2_threshold`, `iddsi_level_not_recorded`, `iddsi_reason_missing`, `iddsi_prescribed_unreadable`, `iddsi_unsafe_level`, or `urgent_result` for an alert stored before codes were kept | Phase 1 (#26 review rounds 2 and 3). An urgent result alert no one who can open the record could be told about: the result's opaque ids, the person and location ids, and a coded reason, never the result in words (HZ-014). |
 | `observation.flags.iddsiProblem` | Harbour | `level_not_recorded`, `reason_missing`, `prescribed_unreadable` | Phase 1 (care API follow-ups). On a food or drink entry kept from a device although the web form would have refused it for its IDDSI level (care.md rule 6, HZ-016, C3), beside `iddsi` (`outcome` adds `level_not_recorded` and `prescribed_unreadable`) and `iddsiAlert`; absent otherwise. |
+| `observation.flags.iddsiChangedSince` | Harbour | `{ prescribedThen, prescribedNow }`, each an IDDSI level code or null | Since 31/10/2026 (H-166). On a food or drink entry whose prescribed level changed between the time it was given and its upload: the entry is judged against `prescribedThen` (the care profile's history) and the web shows the level now (care.md rule 6, HZ-016); absent otherwise. Codes only, no free text. |
 | `StaffName` on API outputs (`recordedByStaff`, `handedOverByStaff`, `changedByStaff`, `publishedByStaff`, `assigneeStaff`, `completedByStaff`, `createdByStaff`, `decidedByStaff`, `authorStaff`, `sentByStaff`, a handover's `staff` and acknowledgements, the weekly break-glass report's `staff`) | Harbour (from `tenant_user.display_name` and `job_title`) | `{ id, displayName, jobTitle }` or null | Phase 1 (care API follow-ups; care.md section 5). Beside every opaque staff id a care response returns, read under the caller's row-level security and only on records the route already lets them read; null for a member not of the organisation (a system job). Never the email. Regulation 17 attribution. |
 | `escalation_policy_link` | Harbour (`ESCALATION_POLICY_TOOL_BANDS` in `packages/domain`) | Tool `news2`, `must`, `waterlow`, `braden`, `ng249_falls`; band one of the tool's bands (NEWS2 `low`, `low_medium`, `medium`, `high`; MUST `low`, `medium`, `high`; Waterlow `not_at_risk`, `at_risk`, `high_risk`, `very_high_risk`; Braden `severe_risk`, `high_risk`, `moderate_risk`, `at_risk`, `below_at_risk_threshold`; none for the falls pathway) or null for every band; location or null for the organisation; title (3 to 200 characters), reference (up to 100), policy document | Phase 1 (migration 0043; care API follow-ups). The organisation's escalation policy a validated tool's result links (care.md rule 5, HZ-012, HZ-014): a location's own policy for the band wins, then the location's for the tool, then the organisation's for the band, then for the tool; otherwise `not_configured`. Returned as `EscalationPolicyRef`. Configuration, not personal data; mutable, versioned, soft-deleted; one live link per tool, band and place. |
 | `discard_reason` | Harbour (`DEFAULT_DISCARD_REASONS` in `packages/domain`) | Code `^[a-z][a-z0-9_]{1,39}$`; English and Welsh labels; order; seeded; retired at | Phase 1 (migrations 0043 and 0044; care API follow-ups). The organisation's coded reasons for deleting unsent entries on a device (care.md section 6, Device integrity part 8; HZ-040, H-146). Every organisation starts with the five the phone offers (`recorded_elsewhere`, `entered_in_error`, `staff_left`, `nurse_in_charge_informed`, `other`), seeded by a trigger on `tenant`; a code is never deleted, only retired. Configuration, not personal data. A deletion with an organisation's own code is audited as `other` with the reason's id (`organisationReasonId`), never the code, so words an organisation writes never enter the hash-chained trail (#26 review round 2). Adding, changing and retiring a reason are audited by its id only, and a reason is changed by its id (`PUT /v1/discard-reasons/{reasonId}`; `DiscardReasonItem.id`), never its code in a URL (#26 review round 3). |
@@ -768,7 +773,7 @@ Code lists for [quality.md](quality.md) section 18 (migration 0094). Statuses ar
 | `dspt_assertion.assertion_ref` | DSPT assertion numbering | Two to four numbers separated by full stops (`1.1.1`) | Unique per organisation and year. |
 | `dspt_assertion.status` | Harbour | `not_started`, `in_progress`, `met`, `not_met`, `not_applicable` | `met` needs evidence linked; `not_met` and `not_applicable` need notes. |
 | `dspt_evidence.kind` | Harbour | `linked`, `unlinked` | Append-only; each document's latest event says whether it is evidence now; an organisation document only. |
-| `dspt_submission.outcome` | DSPT status | `standards_met`, `approaching_standards`, `standards_not_met` | `standards_not_met` is submitted but flagged. |
+| `dspt_submission.outcome` | DSPT status | `standards_exceeded` (earlier toolkit years; H-917), `standards_met`, `approaching_standards`, `standards_not_met` | `standards_not_met` is submitted but flagged. |
 | `security_certificate.kind` | NCSC Cyber Essentials; ICO data protection fee | `cyber_essentials`, `cyber_essentials_plus`, `ico_registration` | `reference` is the certificate or ICO registration number (1 to 100 characters); `expires_on` only when the certificate states it, after `issued_on`. |
 
 ## Single sign-on (Phase 2, slice 33)
@@ -877,7 +882,21 @@ category so a receiving system can read it.
 | `dependency_assessment.effective_from` | ISO 8601 date | `YYYY-MM-DD`, UK date, today or earlier | In force from 00:00 UK time on that date. |
 | `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
 | `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
-
+## Lone-worker safety (Phase 2, slice 46)
+Code lists for [scheduling.md](scheduling.md) section 19. No national standard defines lone-worker
+check-ins (BS 8484 covers lone-worker devices and alarm receiving centres, a later choice; H-539),
+so the codes are Harbour's. Times are instants in UTC, shown in UK local time (24-hour).
+| `lone_worker_session.work_kind` | Harbour | `domiciliary_visit`, `night_shift`, `other` | No place name or address is held: where the worker is comes only from optional location evidence. |
+| `lone_worker_session.interval_minutes` | Harbour | Whole minutes between `lone_worker.check_in_min_minutes` and `lone_worker.check_in_max_minutes` (rates.md) | The planned length is at most `lone_worker.session_max_hours`. |
+| `lone_worker_event.kind` | Harbour | `check_in`, `duress`, `help`, `finish` (`LONE_WORKER_EVENT_KINDS`) | A duress event is shown to the worker, and audited, as `check_in`. |
+| `lone_worker_event.device_at`, `received_at`, `effective_at`, `late` | ISO 8601 instant (UTC) | `effective_at` is `device_at`, never later than `received_at`; `late` is true when received `lone_worker.offline_flag_minutes` or more after it was made | A device clock ahead by more than `sync.clock_drift_flag_minutes` is refused, except for help and duress. |
+| `lone_worker_alarm.reason` | Harbour | `overdue`, `not_finished`, `duress`, `help` (`LONE_WORKER_ALARM_REASONS`) | |
+| `lone_worker_alarm.state` | Harbour | `open`, `acknowledged`, `resolved_by_check_in`, `resolved_late_check_in` (`LONE_WORKER_ALARM_STATES`) | Shown with words (`ALARM_STATE_WORDS`), never by colour alone. |
+| `lone_worker_alarm.outcome` | Harbour | `safe_confirmed`, `help_sent`, `emergency_services_called`, `other` (`LONE_WORKER_OUTCOMES`) | Any outcome but `safe_confirmed` suggests an incident report. |
+| `lone_worker_alarm.note` | Harbour | Plain text, 1 to 2,000 characters | Required to acknowledge. |
+| `lone_worker_location.latitude`, `longitude` | WGS 84 decimal degrees | Five decimal places (about one metre); empty once erased | Evidence only (H-527); erased at `delete_after`. |
+| `lone_worker_location.accuracy_metres` | Harbour | Whole metres, 0 to 100,000, or empty | As the device reported it. |
+| `LoneWorkerBoardItem.workerName` (API, slice 61) | Harbour | The member's display name, or null when none is held | Read from `tenant_user`, never stored on the session; shown to monitors as "Name not held" when null, never as an id. |
 ## Quality: policy library and read-and-sign (Phase 2, slice 25)
 
 Code lists for [quality.md](quality.md) section 18 (migration 0087). No national standard covers
@@ -906,17 +925,37 @@ names.
 
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `training_requirement.role_key` | Harbour | A role's key (`^[a-z][a-z0-9_]{1,63}$`) | Matches a role's key or the built-in key it is based on |
-| `training_requirement.topic`, `training_record.topic` | Skills for Care core and mandatory training | `care_certificate`, `safeguarding_adults`, `safeguarding_children`, `moving_and_handling`, `infection_prevention_and_control`, `fire_safety`, `health_and_safety`, `basic_life_support`, `food_hygiene`, `medicines`, `mental_capacity_and_dols`, `equality_diversity_and_human_rights`, `information_governance`, `dementia_awareness`, `fluids_and_nutrition`, `oliver_mcgowan` | |
-| `training_requirement.tier`, `training_record.tier` | Oliver McGowan Code of Practice | `1` or `2` (Oliver McGowan only) | Tier 2 meets a tier 1 requirement, never the reverse |
-| `training_requirement.refresh_years` | Harbour | Whole years, 1 to 10, or empty for `training.default_refresh_years` | |
-| `training_record.completed_on`, `expires_on` | Harbour | `YYYY-MM-DD` | |
-| `competence_sign_off.competence` | Harbour | `medicines_administration`, `controlled_drugs`, `insulin_administration`, `epilepsy_rescue_medication`, `moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` | Medicines ones refresh on `competence.medicines.refresh_months` |
-| `competence_sign_off.observed_on`, `valid_until` | Harbour | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
-| `competence_withdrawal.reason` | Harbour | Plain text, 10 to 500 characters | |
-| `supervision_record.kind` | Harbour | `supervision`, `appraisal`, `spot_check` | |
-| `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |
-| Outbox `workforce.competence.changed` | Harbour | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
+| `medication.vmp_id`, `amp_id`, `medication_reconciliation_item.vmp_id`, `amp_id` | dm+d VPID and APID (SNOMED CT concept ids) | 6 to 18 digits, partition `00` or `10`, Verhoeff check digit (`isDmdId`) | No foreign key until slice 10's tables (an expand step adds it). |
+| `medication.product_name` | dm+d VMP or AMP description | As dm+d words it at transcription | Kept as transcribed; a later dm+d release does not rewrite it. |
+| `medication.route_code`, `route_name` | dm+d route of administration lookup | Code and description | Permitted routes per product from dm+d (slice 10). |
+| `medication_schedule.unit_code`, `unit_name`, `medication.prn_dose.unit` | dm+d unit of measure | Code and description | Written in full on screen ("micrograms", "units") by `formatDose`. |
+| `medication_schedule.quantity`, `from_quantity`, `to_quantity` | Harbour (structured dose) | Numeric, more than zero, at most 3 decimal places | A range is from less than to; variable has no quantity. |
+| `medication_schedule.time` | ISO 8601 local time | `HH:MM`, 24-hour, UK time | Expanded to instants with the time-zone database (rule 4). |
+| `medication.pattern_kind` and its columns | Harbour (section 18 schedule type) | `every_day`; `every_n_days` (`interval_days`, `anchor_on`); `weekly` (`weekdays`, `interval_weeks`, `anchor_on`); `monthly` (`day_of_month`) | The anchor is its own date (rule 6a). |
+| `medication.state`, `origin`, `directions` | Harbour | As medicines.md rule 6 | |
+| `medication.source_kind`, `stop_source_kind`, `medication_reconciliation_source.kind` | Harbour (`MAR_SOURCE_KINDS`) | `prescription`, `pharmacy_label`, `pharmacy_mar`, `discharge_letter`, `transfer_letter`, `gp_record`, `clinic_letter`, `prescriber_instruction`, `previous_mar`; a source may also be `person_or_family` | No verbal instruction (H-552). |
+| `medication.cd_schedule` | Misuse of Drugs Regulations 2001 schedules, from dm+d | `1`, `2`, `3`, `4`, `4.1`, `4.2`, `5`; null until slice 10 | |
+| `medication_reconciliation.trigger` | Harbour; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
+| `medication_reconciliation_item.says` | Harbour | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
+
+## Workforce: e-learning (Phase 2, slice 43)
+
+Code lists for [workforce.md](workforce.md) section 14 (migration 0112; ADR-0093). SCORM 1.2 and
+2004 (ADL) and xAPI 1.0.3 (ADL) define the data model and statements; Harbour keeps the subset
+below, exported with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `elearning_course.standard` | ADL SCORM, xAPI | `scorm_1_2`, `scorm_2004`, `xapi` | From the manifest's schema version, or `tincan.xml` |
+| `elearning_course.topic`, `tier` | `TRAINING_TOPICS` (rule 5) | As `training_record` | What a completion records |
+| `elearning_course.launch_path`, `launch_query` | IMS content packaging `href` | A relative path inside the package (no `..`, no leading slash), at most 240 characters; query at most 500 | |
+| `elearning_attempt.status` | SCORM `lesson_status`; `completion_status` and `success_status`; xAPI verbs | `in_progress`, `completed`, `passed`, `failed` | Only moves forward |
+| `elearning_attempt.score` | `cmi.core.score.*` (1.2), `cmi.score.scaled` (2004), xAPI `result.score.scaled` | 0 to 1, four decimal places | |
+| `elearning_attempt.location`, `suspend_data` | `cmi.core.lesson_location` / `cmi.location`; `cmi.suspend_data` | At most 1,000 and 64,000 characters | To resume |
+| `elearning_attempt.total_seconds` | `cmi.core.session_time` (HHHH:MM:SS.SS), `cmi.session_time` (ISO 8601 duration) | Whole seconds | Counted when the content finishes |
+| `elearning_statement.statement` | xAPI statement | JSON, at most 16 KB | Kept as sent, once per `statement_id` |
+| `elearning_course.package_index` | ZIP central directory (PKWARE APPNOTE) | JSON array, one entry per file: `p` path, `o` data offset, `c` packed size, `u` unpacked size, `k` CRC-32, `m` method (0 stored, 8 deflate) | Written once at upload, after every file was checked; no personal data |
+| `elearning_attempt.launch_nonce` | Harbour | UUID | Replaced at every start or resume; only the latest launch token works |
 
 ## Rota builder (Phase 2, slice 21)
 
@@ -935,6 +974,88 @@ home rota; the fields below are Harbour's.
 | `roster_override.blocker_keys` | Harbour | `dbs:<reason>`, `dbs_supervised_only`, `registration`, `competence:<competence>:<reason>`; never a right to work or `not_active` (checked by the table) | The reason is a code (`no_certificate`, `expired`, ...), never what a DBS certificate disclosed. |
 | `rota_publication.staffing` | Harbour | `[{ date, periodKey, status }]`; status `below`, `incomplete`, `met_with_warnings`, `met`, `no_scale` | What the publisher was shown. |
 | `rota_publication.notice_minutes` | Harbour | Whole minutes, 0 or more | From publication to the first shift it published. |
+
+## Bank and agency workers (Phase 2, slice 27)
+
+Code lists for [scheduling.md](scheduling.md) section 15. No national standard defines these; the
+fields are Harbour's.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `absence.starts_on`, `ends_on` | ISO 8601 date | `YYYY-MM-DD` (UK calendar), shown dd/mm/yyyy; `ends_on` null while a sickness is open | Leave always has a last day. |
+| `absence.decided_by`, `decided_at`, `decision_reason` | Harbour | `tenant_user` id, UTC; a reason of 3 to 500 characters for a decline or a manager's cancellation | The decider is never the member (check `absence_decider_is_member`). The reason is about the rota, never health. |
+| `absence.self_certified_at`, `bradford_excluded_reason` | Harbour | UTC; free text of 3 to 500 characters | Self-certification covers `ssp.self_certification_days`; the exclusion reason is HR's only. |
+| `fit_note.issued_on`, `covers_from`, `covers_to` | ISO 8601 date | `YYYY-MM-DD` | `covers_to` on or after `covers_from`; issued no later than `covers_to`. |
+| `fit_note.fitness` and adjustments | The fit note form (Statement of Fitness for Work) | `not_fit`, `may_be_fit`; booleans `phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations` (ticked only when `may_be_fit`) | The condition stays on the document; never typed into Harbour. |
+| `fit_note.document_id` | Harbour | A `document` of category `staff_hr_document`, subject `fit_note`, retention `sickness_absence` | Opened only by holders of `workforce.hr_document.read`, audited. |
+| `return_to_work.*` | Harbour | `held_on` date; `held_by` (never the member); `fit_for_usual_duties`; the four adjustments; `notes` up to 4,000 characters | One per absence, after it ends. Notes never in an audit event. |
+| `revalidation_evidence.review_state`, `reviewed_by`, `reviewed_at`, `confirmed_by`, `confirmed_on` (H-693) | Harbour | `draft`, `submitted`, `reviewed`; `tenant_user` ids; UTC; UK date | The nurse writes their own counts; HR reviews; the confirmer is never the nurse |
+| `compliance_item.detail` for `driving_for_work` (H-835) | DVLA licence categories | `licenceCheckedOn` date; `categories` as the DVLA shows them (`^[A-Z][A-Z0-9+]{0,3}$`); `insuranceExpiresOn` date | Never the licence number or the DVLA check code. Current for `workforce.driving_licence_check_months` and while insured |
+| `compliance_item.detail.nmcPart` (H-835) | NMC register parts | `nurse`, `midwife`, `nursing_associate` | Required for an NMC registration; only `nurse` counts as a registered nurse on duty |
+| `shift_cover_need.resolution` | Harbour | `assignment_removed`, `absence_ended` | Raised once, resolved once (trigger `shift_cover_need_guard`). |
+
+## Absence and leave (Phase 2, slice 40)
+
+Code lists for absence and leave ([scheduling.md](scheduling.md) section 15; SCHED-010; migration
+0107). None maps to a national standard. Every column is exported. Fit notes and return to work
+are health data (special category, records-of-processing.md). Retention `sickness_absence`, cover
+needs `rota_and_timesheet`.
+
+## Time and attendance (Phase 2, slice 30)
+
+Code lists for [scheduling.md](scheduling.md) section 16. No national standard defines these;
+payroll exports (slice 76) map them to each provider.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `clock_event.kind` | Harbour | `in`, `out`, `break_start`, `break_end` | |
+| `clock_event.nfc_tag_ref`, `clock_setting.nfc_tag_refs` | Harbour | 1 to 64 of A-Z, a-z, 0-9, `_`, `-` | One of the location's tags. |
+| `clock_event.device_id` | Harbour | 1 to 120 of A-Z, a-z, 0-9, `.`, `_`, `:`, `-` | Opaque. |
+| `clock_event.device_time`, `recorded_at` | ISO 8601 date-time, UTC | `timestamptz` | The device's time is the time worked; both are kept (HZ-010). |
+| `clock_event.evidence`, `clock_setting.evidence` | Harbour | `none`, `at_location`, `nfc` | Never a position; `at_location` is the phone's word only (H-527). Kept only as the location's setting asks. |
+| `clock_event.flags` | Harbour | `late_upload`, `device_clock_ahead`, `outside_access_window`, `no_shift`, `not_eligible`, `no_induction`, `no_booking`, `not_on_shift`, `other_location`, `no_permission`, `evidence_not_matched`, and the pairing problems `no_clock_in`, `no_clock_out`, `break_not_ended`, `break_not_started`, `out_of_order` | |
+| `timesheet_entry.kind` | Harbour (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training`, `travel` | |
+| `timesheet_entry.travel` | Harbour (NMW travel time) | `between_assignments`, `home_to_first_assignment`, `last_assignment_to_home`, `commute_to_fixed_workplace` | |
+| `timesheet_entry.mileage_tenths` | Harbour | Whole tenths of a mile | Travel entries only. |
+| `timesheet_entry.breaks` | Harbour | `[{ start, end }]`, ISO 8601 UTC | Inside the entry. |
+| `timesheet_entry.status` | Harbour | `draft`, `approved` | Approved entries never change; a correction supersedes (`supersedes_id`). |
+| `TimesheetEntryItem.workerName` (API only) | Harbour | `tenant_user.display_name`, or null when the reader cannot see the member | Not stored on the entry; looked up under the reader's rights (slice 60). |
+| `WorkingTimeResultList.memberName` (API only) | Harbour | `tenant_user.display_name`; null when there are no results | Not stored; looked up under the reader's rights (slice 60). |
+| `PayRunLineItem.memberName`, `PayRunExceptionItem.memberName` (API only) | Harbour | `tenant_user.display_name`, or null | Not stored on the line; organisation-wide pay holders only (slice 60). |
+| `working_time_opt_out.notice_unit` | Harbour (WTR reg 5) | `days`, `months` | |
+| `working_time_result.findings` | Harbour | As `WorkingTimeFindingItem` (rule, citation, outcome, minutes) | With `input_hash`, so a result reproduces. |
+
+## Absence and leave (Phase 2, slice 40)
+
+Code lists for absence and leave ([scheduling.md](scheduling.md) section 17; SCHED-010; migration
+0107). None maps to a national standard. Every column is exported. Fit notes and return to work
+are health data (special category, records-of-processing.md). Retention `sickness_absence`, cover
+needs `rota_and_timesheet`.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `absence.kind` | Harbour (`ABSENCE_KINDS`) | `annual_leave`, `sickness`, `compassionate`, `carers_leave`, `parental_leave`, `maternity`, `paternity`, `adoption`, `unpaid`, `other` | Only `sickness` takes self-certification, fit notes, return to work, SSP and the Bradford factor; never a diagnosis. |
+| `absence.state` | Harbour (`ABSENCE_STATES`) | `requested`, `approved`, `declined`, `cancelled`, `recorded` | `requested` moves to `approved`, `declined` or `cancelled`; `approved` and `recorded` to `cancelled`; nothing back (trigger `absence_guard`). |
+
+## Pay calculation runs (Phase 2, slice 36)
+
+Code lists for [scheduling.md](scheduling.md) section 18. No national standard defines these; the
+payroll export (slice 76) maps them to each payroll provider. Money is whole pence (shown as
+"£1,234.56"); time is whole minutes; dates are UK dates (`YYYY-MM-DD`, shown dd/mm/yyyy).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `pay_profile.frequency`, `pay_run.frequency` | Harbour (pay reference period) | `weekly`, `monthly` | Auto-enrolment thresholds follow the period. |
+| `pay_profile.employment` | Harbour | `staff`, `bank`, `agency` | Agency workers are paid by their agency: their line pays nothing. |
+| `pay_profile.role_key`, `pay_rule_set.role_rates` keys | Harbour | Lower-case key, 1 to 60 of a-z, 0-9, `_` | The rule set's rate for the role. |
+| `pay_profile.qualifying_weekdays` | ISO 8601 weekday | 1 (Monday) to 7 (Sunday) | For SSP qualifying days. |
+| `pay_rule_set.enhancements` | Harbour | `[{ kind, mode, value }]`; kind `night`, `weekend`, `bank_holiday`, `overtime`; mode `percent` or `flat_per_hour` | Only the highest applies unless the set stacks them. |
+| `pay_rule_set.night_start_minute`, `night_end_minute` | Harbour | Minutes from UK midnight, 0 to 1439 | A window may cross midnight. |
+| `pay_run.kind`, `status` | Harbour | `regular`, `correction`; `draft`, `locked` | A locked run never changes. |
+| `pay_run_line.nmw_band` | National Minimum Wage Regulations 2015 | `21_plus`, `18_to_20`, `under_18`, `apprentice` | From the date of birth on the period's first day. |
+| `pay_run_line.ae_category` | Pensions Act 2008 | `eligible_jobholder`, `non_eligible_jobholder`, `entitled_worker`, `outside_age_range` | A flag only. |
+| `pay_run_line.input_hash` | SHA-256 | 64 lower-case hex characters | Of the canonical inputs, stored with the line. |
+| `pay_run_exception.kind` | Harbour | `unapproved_timesheet`, `no_pay_profile`, `no_role_rate`, `no_date_of_birth`, `below_nmw`, `ssp_earnings_missing`, `rate_missing` | Blocks locking until put right or overridden with a reason. |
 
 ## Workforce: applicant tracking (Phase 2, slice 23)
 
@@ -1034,6 +1155,56 @@ sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, t
 | `staff_image_consent.purpose`, `decision`, `decided_at` | Harbour | `newsletter`, `website`, `social_media`, `family_feed`; `given`, `refused`, `withdrawn`; UTC timestamp | Append-only; the latest decision stands |
 | `ldss_claim.course_title`, `completed_on`, `claimed_amount` | Skills for Care LDSS (England) | Plain text, 2 to 200; `YYYY-MM-DD`; pounds as claimed | Harbour holds no funding figure (H-903) |
 | `ldss_claim.status`, `reference`, `submitted_on`, `paid_on`, `reason` | Harbour | `planned`, `submitted`, `paid`, `rejected`, `withdrawn`; plain text | Submitted needs a reference and date; paid a date; rejected or withdrawn a reason |
+## dm+d reference data (Phase 2, slice 10)
+
+National reference data with no personal data and no organisation rows, so not part of any export
+([integrations.md](integrations.md) section 12; ADR-0080; migration 0110). A MAR entry stores the
+dm+d identifiers it names (`vmp_id`, `amp_id`, unit and route codes) with the dm+d words at
+transcription (slice 16); these tables say what the identifiers mean in the release in use.
+
+| Field | Standard | Format | Notes |
+| --- | --- | --- | --- |
+| `dmd_vtm.id`, `dmd_vmp.id`, `dmd_amp.id`, `dmd_vmpp.id`, `dmd_ampp.id` | dm+d (SNOMED CT UK Drug Extension concept identifiers) | 6 to 18 digits, partition `00` or `10`, Verhoeff check digit (`isDmdId`) | VTMID, VPID, APID, VPPID, APPID. An identifier dm+d changed keeps its row, pointing to its successor (`superseded_by`). |
+| `dmd_lookup.kind`, `code` | dm+d `f_lookup2` | `unit_of_measure`, `form`, `route`, `control_drug_category`, `legal_category`; the dm+d code as published | The id is `kind:code`; `description` is dm+d's own words, shown as dm+d writes them. |
+| `dmd_vmp.unit_dose_uom_code`, `udfs_uom_code`, `strength_uom_codes` | dm+d units of measure | Unit codes from `dmd_lookup` | The units a dose may be written in (medicines.md rule 2, H-652). Strengths' units only: ingredients are never stored. |
+| `dmd_vmp.udfs`, `dmd_vmpp.quantity` | dm+d | Decimal as dm+d writes it | Never converted. |
+| `dmd_gtin.gtin` | GS1 GTIN | 14 digits, GS1 check digit; a GTIN-8, -12 or -13 padded with leading zeros | `start_date` and `end_date` as dm+d gives them; in force on the UK date; withdrawn when a later release lacks the mapping. |
+| `dmd_release.name`, `released_on` | NHSBSA release naming | The release's own name (`nhsbsa_dmd_10.1.0_20261026000001`); `YYYY-MM-DD` | The release in use is the latest loaded by `released_on`. |
+
+## Medicines record and reconciliation (Phase 2, slice 16)
+
+Migration 0111 ([medicines.md](medicines.md) sections 2 and 12). Retention class `mar_chart`;
+every column is exported. dm+d (NHSBSA, SNOMED CT UK Drug Extension) is the coding standard;
+until slice 10 the identifiers are checked by shape and check digit, not against the release.
+
+| `training_requirement.role_key` | Harbour | A role's key (`^[a-z][a-z0-9_]{1,63}$`) | Matches a role's key or the built-in key it is based on |
+| `training_requirement.topic`, `training_record.topic` | Skills for Care core and mandatory training | `care_certificate`, `safeguarding_adults`, `safeguarding_children`, `moving_and_handling`, `infection_prevention_and_control`, `fire_safety`, `health_and_safety`, `basic_life_support`, `food_hygiene`, `medicines`, `mental_capacity_and_dols`, `equality_diversity_and_human_rights`, `information_governance`, `dementia_awareness`, `fluids_and_nutrition`, `oliver_mcgowan` | |
+| `training_requirement.tier`, `training_record.tier` | Oliver McGowan Code of Practice | `1` or `2` (Oliver McGowan only) | Tier 2 meets a tier 1 requirement, never the reverse |
+| `training_requirement.refresh_years` | Harbour | Whole years, 1 to 10, or empty for `training.default_refresh_years` | |
+| `training_record.completed_on`, `expires_on` | Harbour | `YYYY-MM-DD` | |
+| `competence_sign_off.competence` | Harbour | `medicines_administration`, `controlled_drugs`, `insulin_administration`, `epilepsy_rescue_medication`, `moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` | Medicines ones refresh on `competence.medicines.refresh_months` |
+| `competence_sign_off.observed_on`, `valid_until` | Harbour | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
+| `competence_withdrawal.reason` | Harbour | Plain text, 10 to 500 characters | |
+| `supervision_record.kind` | Harbour | `supervision`, `appraisal`, `spot_check` | |
+| `supervision_note.discussion`, `.actions` | Harbour | Free text: 10 to 4,000 characters; actions optional, 2 to 2,000 | Likely special category (ADR-0114); read only by the writer, the member and a supervisor for the member; never in audit, outbox, search or sync |
+| `supervision_note.supersedes_id` | Harbour | `supervision_note.id` | A correction; the earlier note is kept and shown struck through |
+| `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |
+| Outbox `workforce.competence.changed` | Harbour | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
+
+## Staff wellbeing and voice (Phase 2, slice 44)
+Code lists for [scheduling.md](scheduling.md) section 20 (migration 0115). No national standard
+covers these fields; exported with these names. Survey responses are anonymous and are not
+exported (only a closed survey's results above the minimum group size leave Harbour).
+| `pulse_survey.questions` | Harbour | `[{ id, kind, text }]`; `kind` `scale` or `free_text`; 1 to 20 questions; text up to 300 characters | |
+| `pulse_survey.state` | Harbour | `draft`, `open`, `closed` | Never back |
+| `pulse_survey.opens_on`, `closes_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
+| `pulse_survey_response.answers` | Harbour | Object by question id: whole number 1 to 5, or text up to 2,000 characters | Not exported |
+| `pulse_survey_response.submitted_week` | Harbour | `YYYY-MM-DD`, always a Monday (the UK week) | The only time kept |
+| `recognition.message` | Harbour | Plain text, 1 to 500 characters | |
+| `wellbeing_check_in.mood` | Harbour | Whole number 1 (low) to 5 (good), the member's own word | Never a score |
+| `wellbeing_check_in.note` | Harbour | Plain text up to 1,000 characters; possibly health | |
+| `wellbeing_check_in.shared_at` | Harbour | ISO 8601 UTC, or empty while private | Set by the database |
+| `RecognitionItem.fromName`, `toName`; `CheckInItem.memberName`; `RecognitionColleagues.items[].name` (API, slice 61) | Harbour | The member's display name, or null when none is held | Read from `tenant_user`, never stored with the record; `memberName` only on a manager's view of shared check-ins |
 
 ## Platform operational tables (not part of the MODS export)
 

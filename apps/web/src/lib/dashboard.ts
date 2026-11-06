@@ -8,6 +8,7 @@ import type {
   RoundView,
   StatutoryNotificationSummary,
 } from "@harbour/contracts";
+import { NOTIFICATION_KINDS } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import {
   BREAK_GLASS_REPORT_PAGE,
@@ -163,6 +164,11 @@ export interface TileSummary {
   readonly current?: "compiled" | "notCompiled";
   /** Statutory notifications only: the soonest due time of those still to submit (HZ-013). */
   readonly earliestDue?: string;
+  /**
+   * Statutory notifications only: the soonest is a "without delay" kind, worded with the law's
+   * words as on the incident page, never "due by" (H-410).
+   */
+  readonly earliestWithoutDelay?: boolean;
 }
 
 /** A summary from its counts: overdue or urgent first, then to do, else nothing waiting. */
@@ -274,11 +280,17 @@ export function dolsTile(loads: readonly Load<RoundTasks>[], href: string): Tile
 
 /**
  * Handovers of the last week that the incoming shift has not acknowledged (the API's
- * `unacknowledged`, HZ-018), and for one location whether the shift running now has one.
+ * `unacknowledged`, HZ-018), and for one location whether the shift running now has one. Once
+ * `acknowledgementDueAt` (the shift's end plus `handover.acknowledgement_grace_minutes`, when the
+ * nurse in charge is alerted) has passed, a handover still not acknowledged is overdue and said
+ * apart (H-410); before then it is "To do".
  */
 export function handoverTile(
   loads: readonly Load<{
-    items: readonly Pick<HandoverSummary, "shift" | "unacknowledged" | "pending">[];
+    items: readonly Pick<
+      HandoverSummary,
+      "shift" | "unacknowledged" | "pending" | "acknowledgementDueAt"
+    >[];
   }>[],
   href: string,
   now: Date = new Date(),
@@ -289,16 +301,23 @@ export function handoverTile(
   const lists = all.data.map((d) => d.items);
   const ended = lists.flat().filter((h) => Date.parse(h.shift.end) <= now.getTime());
   // Not acknowledged by the incoming shift, or a late addition still to be seen by someone who
-  // had acknowledged it. "To do", not "Overdue": how long the incoming shift has to read it is
-  // the tenant's to set (a human action), so the dashboard never says it is late.
+  // had acknowledged it: "To do" until the grace period after the shift's end has passed, then a
+  // handover the incoming shift has still not acknowledged is overdue (H-410). With no due time
+  // (the figure could not be read) it stays "To do", never late on a guess.
   const waiting = ended.filter((h) => h.unacknowledged === true || h.pending.length > 0).length;
+  const overdue = ended.filter(
+    (h) =>
+      h.unacknowledged === true &&
+      typeof h.acknowledgementDueAt === "string" &&
+      Date.parse(h.acknowledgementDueAt) <= now.getTime(),
+  ).length;
   // A view limited to the reader's people cannot tell (null): never "every one acknowledged".
   const notKnown = ended.some((h) => h.unacknowledged === null);
   const base = summary("handover", href, {
     count: waiting,
-    apart: 0,
+    apart: overdue,
     partial: all.partial,
-    late: null,
+    late: overdue > 0 ? "overdue" : null,
   });
   const tile: TileSummary = notKnown && waiting === 0 ? { ...base, state: "notKnown" } : base;
   if (loads.length !== 1 || lists.length !== 1) return tile;
@@ -351,7 +370,8 @@ export function incidentsTile(
  */
 export function notificationsTile(
   loads: readonly Load<{
-    items: readonly Pick<StatutoryNotificationSummary, "clock" | "dueAt">[];
+    items: readonly (Pick<StatutoryNotificationSummary, "clock" | "dueAt"> &
+      Partial<Pick<StatutoryNotificationSummary, "kind">>)[];
   }>[],
 ): TileSummary | null {
   const href = "/notifications/statutory";
@@ -368,10 +388,20 @@ export function notificationsTile(
     late: late > 0 ? "overdue" : null,
   });
   const earliest = todo
-    .map((n) => n.dueAt)
-    .filter((d) => !Number.isNaN(Date.parse(d)))
-    .sort((a, b) => Date.parse(a) - Date.parse(b))[0];
-  return earliest ? { ...tile, earliestDue: earliest } : tile;
+    .filter((n) => !Number.isNaN(Date.parse(n.dueAt)))
+    .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))[0];
+  if (!earliest) return tile;
+  // A "without delay" kind is due from the moment it happened: worded as the law and the incident
+  // page word it, never "due by" (H-410).
+  const withoutDelay =
+    earliest.kind !== undefined &&
+    (NOTIFICATION_KINDS as Record<string, { clock: string } | undefined>)[earliest.kind]?.clock ===
+      "without_delay";
+  return {
+    ...tile,
+    earliestDue: earliest.dueAt,
+    ...(withoutDelay ? { earliestWithoutDelay: true } : {}),
+  };
 }
 
 /** Outages under way (urgent) and closed ones still to reconcile (operations.md rules 9 to 15). */
@@ -464,8 +494,8 @@ export function countLine(tile: TileSummary, t: Translator): string {
 /** The part said apart ("1 of them overdue"), when there is one. */
 export function apartLine(tile: TileSummary, t: Translator): string | null {
   const { id } = tile;
-  // A handover not acknowledged is the count itself; a break-glass report has no part apart.
-  if (tile.count === null || tile.apart === 0 || id === "breakGlass" || id === "handover") {
+  // A break-glass report has no part apart; a handover's is the ones now overdue (H-410).
+  if (tile.count === null || tile.apart === 0 || id === "breakGlass") {
     return null;
   }
   return t(`dashboard.tile.${id}.apart`, { count: tile.apart });

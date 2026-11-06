@@ -27,12 +27,14 @@ the rules in section 10.3 that protect people.
 
 Not in Phase 2: MEDS-009 GP proxy ordering and MEDS-010 pharmacy interface (Phase 5), MEDS-011 home
 care levels of support (Phase 4). The dm+d reference data and its download are INTG-006
-([integrations.md](integrations.md)).
+([integrations.md](integrations.md) section 12: the reference tables, loader, search, product and
+GTIN lookups and the device subset built in slice 10; the download is slice 75).
 
 ## 2. Schema (for slices 10 and 16; no migration in slice 2)
 
 Forced RLS on every tenant table (ADR-0002), scoped by the person (`person_child_scope`, as the care
-record). dm+d reference tables are global, with no `tenant_id` (ADR-0080, slice 10).
+record). dm+d reference tables are global, with no `tenant_id` (ADR-0080; built in slice 10,
+migration 0110, [integrations.md](integrations.md) section 12).
 
 | Table | Kind | Key columns | Retention class |
 | --- | --- | --- | --- |
@@ -117,7 +119,13 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    "mcg/hr"); a measured unit is written "2 × 5 ml spoonfuls", so its size is never read as part of
    the number. No thousands separator ("5000 units"). Harbour never converts a dose: a number with
    more than 3 decimal places is refused with "ask the prescriber or pharmacist", never "use a
-   smaller unit" (H-551). **Variable doses** (HZ-005): the day doses come from a dosing record (for
+   smaller unit" (H-551). A quantity below 1 in g, mg or micrograms is refused
+   (`smaller_unit_permitted`) where dm+d permits the next smaller unit for the product (mg,
+   micrograms, nanograms), so "0.5 g" is never transcribed where the BNF's prescription-writing
+   guidance asks for "500 mg"; the message names the smaller unit and says to ask the prescriber or
+   pharmacist for the dose in it, and Harbour never works out the converted figure (recommended
+   answer to H-551, 31/10/2026; the pharmacist confirms it at the testing phase). Mass units are
+   recognised by their dm+d description. **Variable doses** (HZ-005): the day doses come from a dosing record (for
    example a warfarin schedule after an INR test, with its source), second-checked like an entry,
    and a dose is given only from a checked one (rule 18, slice 3; slice 16 stores it). Slice 2 had
    blocked every variable-dose entry until the dosing record existed. With no checked record
@@ -777,3 +785,165 @@ schema, API, web or mobile changes in this slice.
 | `administration.ts` | `ADMINISTRATION_OUTCOMES`, `OUTCOME_WORDS`, `OUTCOME_REASONS`, `REASON_WORDS`, `DOSE_TAKEN_OUTCOMES`, `DOSE_ALREADY_TAKEN_OUTCOMES`, `REVIEW_FLAG_WORDS`, `GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH`, `REPORTED_FLAGS`, `countReportedFlags`, `checkAdministration` (with `AdministrationEscalation`, `ReviewFlag`), `checkRoundClose`, `marRowLocked`, `checkAmendment`, `checkCorrection` | Rules 17, 23 |
 | `controlled-drugs.ts` | `cdPageKey`, `cdBalanceAfter`, `checkCdEntry`, `defaultCdWitnessPolicy`, `cdPageBalance`, `cdStockCheck`, `cdStockCheckDueAt` | Rules 24 to 27 |
 | `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | Every medicines figure (cycle, windows, intervals, PRN outcome, CD stock check, competence and override) |
+| `dmd-release.ts` (slice 10) | `checkDmdRelease`, `dmdReleaseOrder`, `dmdReleaseFreshness`, `dmdReleaseDateFromName`, `isGtin`, `toGtin14`, `dmdSearchQuery`, `dmdDoseUnitCodes`, `dmdProductFacts`, the release content types | Rules 1 and 2 against the reference data; [integrations.md](integrations.md) section 12 rules 2 to 8 |
+| `dmd-subset.ts` (slice 10) | `selectDmdDeviceSubset` | The device's dm+d subset ([integrations.md](integrations.md) section 12 rule 9; slice 68) |
+
+## 12. As built (slice 16, schema and API)
+
+Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
+`packages/contracts/src/medicines.ts`, routes `apps/api/src/routes/medicines.ts`, mapping
+`apps/api/src/services/medicines.ts`, ports `apps/api/src/integrations/medicines-ports.ts`.
+
+- **Tables** as section 2, with these choices:
+  - `medication.medicine_id` groups the versions of one entry (the first version's id; a restart is
+    a new entry). The rules still receive every version of the person's product
+    (`earlierEntries`) and every version of the entry (`versions`, `entryVersions`).
+  - The when-required dose is JSON (`prn_dose`); regular times are `medication_schedule` rows,
+    written in the same transaction as their entry (a trigger refuses later additions).
+  - Decisions are JSON (`EntryDecision` or `ItemDecision`), validated by the API, with the entry or
+    line and the kind as columns. A new set marks the earlier rows deleted while the
+    reconciliation is open.
+- **Database rules**:
+  - Forced RLS by tenant and `person_child_scope` on all six tables; no DELETE for `harbour_app`.
+  - On `medication`, a trigger keeps what a version says fixed and sets the check, stop,
+    replacement and withdrawal once each; a stop may be replaced only by an earlier one (rule
+    6b). The state needs the column that defines it.
+  - A new version must replace an earlier version of the same medicine and the same VMP, take
+    the next number after the latest, and be not yet checked. The unique (medicine, version) key
+    refuses a second change from the same version, so `expectedVersion` holds under concurrency.
+  - A replacement moves to a later version only when the version it named has been withdrawn,
+    to a live version of the same medicine that replaces this row, and never to a later time (v1 replaced by v2; v2 withdrawn as transcribed in error; v3 then
+    replaces v1). The API writes a withdrawal before the version that follows it.
+  - Every child row is tied to one person by composite keys: a version's source and stop
+    documents (`document (tenant, person, id)`), its reconciliation, a line's source, a decision's
+    line and the entry a decision made. A document, line or entry from another person's record is
+    refused by the database.
+  - A completed reconciliation, its sources, lines and decisions never change. Only a non-app
+    role (retention) may mark a completed one deleted, once, never undone; the app may never change
+    `deleted_at`.
+  - `capture_version` keeps each earlier state of a row in `record_version`.
+- **Concurrency**: every write for a person (including a reconciliation's sources and lines, so
+  nothing arrives while one completes) takes a transaction-scoped advisory lock on that
+  person (`medicines:<person id>`) before reading the record, so two requests for the same
+  person are tried one after the other against the latest record. Reads (history, the MAR) take
+  no lock. A unique-key clash is a 409;
+  a check or key refusal by the database is a 422 `medicine_refused_by_record`.
+- **Names**: the product, route and unit names stored and shown are dm+d's own, looked up by
+  code from `DmdFactsPort`, never the request's. A line's product name also comes from dm+d.
+- **Documents**: a source or stop document must be this person's, available and not deleted,
+  when it is named and again, for every source, when the reconciliation completes.
+- **dm+d** (slice 10 merged in batch 3a): `vmp_id` and `amp_id` are validated identifiers
+  (`isDmdId` in the API, the SNOMED CT shape in the database) with no foreign key yet: the
+  fixtures below are not in the dm+d fixture release, so the keys wait until they are one set
+  (`packages/db/test/medicines-record.test.ts` says so and must change with them). The dm+d facts
+  (routes and units) come from `DmdFactsPort`: slice 10's reference tables whenever a release is
+  loaded (`dmdTablesPort`; VMPs only, never an invalid or superseded product), otherwise the
+  configured port. Production with no release loaded uses `unavailableDmd`, which knows no
+  product, so nothing is transcribed. The
+  fixture of four invented products (no AMPs: an AMP is unknown) and `fixedCompetence` are used
+  only when `MEDICINES_FIXTURES` is on; it defaults on outside production, and production
+  refuses to start with it on. A pilot or staging stack holding real people's records sets it
+  to `off` (H-1022). A product dm+d does not hold is refused as "dm+d does not hold
+  this product" or "The dm+d reference data is not loaded yet", also at completion.
+- **Competence** (slice 17 not yet built): `MedicinesCompetencePort`, read on the server for the
+  signed-in member at the time of the action. Production uses `unavailableCompetence`, which
+  answers `not_held`, so no second check or completion is accepted until the workforce port
+  exists. Tests use `fixedCompetence`.
+- **Permissions**: reading needs `medicines.record.manage`, `medicines.emar.administer` or
+  `care.plan.read`; no separate `medicines.record.read` is added (section 3's question,
+  ADR-0071's per-permission scope applies). Writing needs `medicines.record.manage`.
+- **Times**: the rules are tried at the time of recording on the server (the member's action);
+  a reconciliation's plan is applied with its `completedAt` (HZ-010).
+- **Unchecked policy**: `give_with_notice`, the default in force (H-550), until a tenant setting
+  exists.
+- **Reconciliation events**: an admission is the placement, from 00:00 UK time on its start date;
+  a return is the hospital transfer's `returned_at`. A transfer between homes has no event record
+  yet, so it is started as a `transfer` with no event. Completing a return's reconciliation marks
+  its `medicines_reconciled` check and task done, with the transfer row locked; that check cannot
+  be ticked by hand on the transfer, and its task is evidence-only on the tasks route. A return recorded without a transfer record raises its tasks
+  against the person and has no event to answer, so it is reconciled as a `change` until H-1023
+  is decided.
+- **MAR**: each dose carries its entry's status now (`entryStatus`: words, whether it may be
+  given, any notice), so a chart cell never shows a dose without its notice. The status is the
+  entry's now, not at each dose's time (H-1025).
+- **Audit and outbox**: `medicines.entry.viewed`, `.transcribed`, `.changed`, `.checked`,
+  `.check_found_difference`, `.stopped`, and `medicines.reconciliation.started`, `.viewed`,
+  `.source_added`, `.item_added`, `.decided`, `.completed`. A refused check or completion is
+  audited as `denied` (with the problem codes) outside the refused transaction, so it is kept. All carry ids and counts, never content. Outbox: `medicines.entry.changed`,
+  `medicines.entry.stopped` and `medicines.reconciliation.completed`, with ids only.
+- **Tests**: `packages/db/test/medicines-record.test.ts` (20) and `apps/api/test/medicines.test.ts`
+  (28), with the `MEDICINES_FIXTURES` cases in `apps/api/test/config.test.ts`.
+
+## 13. Web screens (slice 52, MEDS-001 and MEDS-006)
+
+The person record's **Medicines** tab, for holders of `medicines.record.manage`,
+`medicines.emar.administer` or `care.plan.read` (the API's read rule); writing needs
+`medicines.record.manage`. Every page sits inside the record frame, so the point-of-care header
+(name, photo, date of birth, NHS number and allergies) is above every medicine, and each form that
+records a medicine repeats, at its top, the person's name, date of birth and NHS number, the allergy
+status and every allergy with its severity and reaction, most severe first (`PersonCheck`; the full
+identity bar there is H-1287). Harbour never matches a medicine to an
+allergy or to a person: the screens show both, and people compare them.
+
+**Rules**
+
+1. **The list** (`/people/{id}/medicines`): the entries in force or scheduled, one per medicine,
+   each with its product (dm+d's name), route, the dose and schedule in the domain's words
+   (`directionsInWords`, never rewritten), the start and any stop or review date, and its state as
+   an icon and a word. An entry not yet checked always says **Not yet checked**, with the API's
+   notice. Outstanding reconciliations (an admission, a transfer, a return from hospital) are shown
+   above the list with a way to start one; an open reconciliation is linked.
+2. **One entry** (`/people/{id}/medicines/{entryId}`): what the version says, who transcribed it and
+   from which source, the second check, any stop, and the version history, newest first. A
+   withdrawn version is shown struck through (`<del>`) with the word **Withdrawn** and its reason;
+   a replaced version says **Replaced**.
+3. **Transcription** (`/people/{id}/medicines/new`): the product is chosen from dm+d by searching
+   (`GET /v1/medicines/products?q=`; until slice 10's reference data, the API's dm+d port answers,
+   which is the invented fixture outside production and nothing in production, so nothing can be
+   transcribed there yet); the route and dose unit are chosen only from what dm+d permits for that
+   product. Directions are regular (a pattern: every day, every n days, weekly on chosen days, or
+   monthly on a day; and one to eight times, each with its dose) or when required (one dose). A
+   dose is an amount, a range or "variable", with its unit; it is sent and shown exactly as
+   entered. The prescriber, the start, and the source document (its kind and reference) are
+   required; the stop, review date, indication and special instructions are optional. One dose time
+   is shown, with "Add another dose time" up to eight. A dose with no time is refused, never
+   dropped. A dose is the number typed (a leading zero is refused; "1.50" is sent as 1.5). Changing
+   the product starts the route, unit and doses again. After saving, the entry opens and says so.
+   The API's
+   refusals (for example a restart needing a reason) are shown at their fields with their words,
+   and a reason field appears only when the API asks for it.
+4. **Second check**: offered to a holder of `medicines.record.manage` other than the transcriber,
+   while the entry is not yet checked. The checker ticks that they compared the entry with the
+   source document itself, and says whether it matches; a difference needs words. The API reads
+   competence from the workforce port; a refusal is shown in its words.
+5. **Stopping**: when it takes effect, the reason and the source of the instruction (kind and
+   reference), with the version as read. Never inferred: only a person stops a medicine.
+6. **Reconciliation** (`/people/{id}/medicines/reconciliations/{recId}`): started from the list (for
+   an outstanding event, or as a change). Then, in order on one page: the sources (kind, reference,
+   when received, and why it is current where the API asks); the lines from each source, as written
+   (with a dm+d product where known, and what the line says: start, continue, change, stop or
+   unclear); a decision by a person for every current entry (continue, change, stop with a reason,
+   or a query) and every line not matched to one (start, not started with a reason, or a query);
+   and completion (allergies compared, the person's involvement or why not, and why there is no
+   discharge letter where the API asks). Harbour never decides: a line that says "stop" does not
+   stop anything until a person decides it. A refused completion shows every problem in the API's
+   words (listing them by entry and line needs an API change: H-1283). Continuing or changing a
+   medicine with a version that starts later asks why that version still stands. Each entry shows
+   its state and route beside its decision. A decision is saved at the reconciliation's version on
+   the person's screen; if anyone decided anything since, it is refused (the API records the last
+   saver as the decider of the set: H-1286). A change reconciliation takes the server's time.
+7. **Self-administration** (MEDS-006's self-administration records) is not in slice 16's API, so
+   there is no screen yet (H-1281).
+8. **Status as an icon and a word**: Not yet checked, Checked, Difference found, Stopped, Replaced,
+   Withdrawn; a reconciliation Open or Completed.
+
+**API added in this slice**: `GET /v1/medicines/products?q=` (`medicines.record.manage`; two or more
+characters; dm+d's name, permitted routes and dose units; `loaded` says whether dm+d is loaded),
+through a `search` on `DmdFactsPort`. With `MEDICINES_FIXTURES` on, the competence fixture holds
+the demo owner, manager and nurse as current, so the local journeys can check and complete.
+
+**Tests**: `apps/web/src/lib/medicines.test.ts` (state chips, the transcription, check, stop and
+reconciliation forms read into the contract, doses kept exactly as entered);
+`apps/api/test/medicines.test.ts` (the product search); `apps/web/e2e/medicines.spec.ts`
+(transcribe, second check by another person, stop, and a reconciliation from sources to
+completion; axe in light and dark).

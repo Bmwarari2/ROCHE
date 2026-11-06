@@ -4,6 +4,7 @@ import type {
   Me,
   OutageItem,
   OutageReconciliation,
+  ReconcileEntry,
 } from "@harbour/contracts";
 import type { Translator } from "@harbour/i18n";
 import { formatDate, formatDateTime } from "./format";
@@ -133,15 +134,29 @@ export interface ReviewItem {
   readonly key: string;
   readonly kind: "duplicate" | "outside";
   readonly entryIds: readonly string[];
+  /**
+   * Each entry with its person, kind and time, as the API returned it (H-267, HZ-092), in the
+   * order of `entryIds`; an entry the API did not describe is left out here and keeps its
+   * reference in the label.
+   */
+  readonly entries: readonly ReconcileEntry[];
 }
 
 /**
  * Every possible duplicate group and every back-entry outside the window with no reason, each to
- * be reviewed before the outage is reconciled (operations.md section 12, #38 review round 2).
+ * be reviewed before the outage is reconciled (operations.md section 12, #38 review round 2),
+ * with the person, kind and time of each entry so it can be found (H-267).
  */
 export function reviewItems(
-  reconciliation: Pick<OutageReconciliation, "duplicateGroups" | "outsideWindowEntryIds">,
+  reconciliation: Pick<OutageReconciliation, "duplicateGroups" | "outsideWindowEntryIds"> &
+    Partial<Pick<OutageReconciliation, "reviewEntries">>,
 ): ReviewItem[] {
+  const byId = new Map((reconciliation.reviewEntries ?? []).map((e) => [e.id, e]));
+  const entriesOf = (ids: readonly string[]) =>
+    ids.flatMap((id) => {
+      const entry = byId.get(id);
+      return entry ? [entry] : [];
+    });
   return [
     ...reconciliation.duplicateGroups
       .filter((group) => group.length > 0)
@@ -149,13 +164,42 @@ export function reviewItems(
         key: `duplicate-${index}`,
         kind: "duplicate" as const,
         entryIds: group,
+        entries: entriesOf(group),
       })),
     ...reconciliation.outsideWindowEntryIds.map((id) => ({
       key: `outside-${id}`,
       kind: "outside" as const,
       entryIds: [id],
+      entries: entriesOf([id]),
     })),
   ];
+}
+
+/** The record tab an entry is on, for its link (H-267). */
+export function entryTab(kind: string): "notes" | "charts" | "body-map" | "activities" {
+  if (kind.startsWith("observation")) return "charts";
+  if (kind === "body_map_mark") return "body-map";
+  if (kind === "activity_record" || kind === "visit_log") return "activities";
+  return "notes";
+}
+
+/**
+ * One entry to review in words (H-267): who it is about (or that the reader cannot see them),
+ * what kind of record, when it happened and how it was recorded, and its reference.
+ */
+export function reviewEntryLine(entry: ReconcileEntry, t: Translator): string {
+  const [table = "", chart] = entry.kind.split(".");
+  return t("operations.reconcile.entry", {
+    name: entry.person
+      ? `${entry.person.givenName} ${entry.person.familyName}`.trim()
+      : t("operations.reconcile.entryHidden"),
+    kind: chart
+      ? t("care.charts.kind", { chart })
+      : t("operations.reconcile.entryKind", { kind: table }),
+    dateTime: formatDateTime(entry.occurredAt) ?? "",
+    source: entry.source,
+    ref: entryReference(entry.id),
+  });
 }
 
 /** The reviewed entry ids to send, from the items ticked; null while any item is not ticked. */

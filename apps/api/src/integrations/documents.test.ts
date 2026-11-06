@@ -2,7 +2,6 @@ import type { DocumentStoragePort, HealthResult } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { type Config, loadConfig } from "../config";
 import { assertStorageReady, createDocumentServices, createExportStorage } from "./documents";
-import { GcsDocumentStorage, LocalDocumentStorage } from "./storage";
 
 /**
  * #164 security review: production checks both buckets before it starts (L1), and Cloud Storage
@@ -110,9 +109,10 @@ describe("Cloud Storage never falls back to local disk (L4)", () => {
       GCS_EXPORTS_BUCKET: "harbour-exports",
       GCS_KMS_KEY: KEY,
     });
-    expect(createDocumentServices(configured).storage).toBeInstanceOf(GcsDocumentStorage);
-    expect(createExportStorage(configured)).toBeInstanceOf(GcsDocumentStorage);
+    // Every store encrypts with the organisation's key around the bucket (ADR-0109).
+    expect(createDocumentServices(configured).storage.provider).toBe("gcs");
+    expect(createExportStorage(configured).provider).toBe("gcs");
     const local = loadConfig({ NODE_ENV: "development" });
-    expect(createDocumentServices(local).storage).toBeInstanceOf(LocalDocumentStorage);
+    expect(createDocumentServices(local).storage.provider).toBe("local");
   });
 });

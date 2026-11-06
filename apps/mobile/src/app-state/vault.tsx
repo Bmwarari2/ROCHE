@@ -117,6 +117,7 @@ import { commitOfflineDays, type PendingWindow, windowToCommit } from "../sync/o
 import { resolveOfflineWindow } from "../sync/offline-window";
 import { flushRefusedCopies } from "../sync/refused-copies";
 import { setWriteScope } from "../sync/write-scope-store";
+import { sessionEndNotices } from "./care-mode-gate";
 import {
   HandOverNotAllowedError,
   type HandOverResult,
@@ -406,7 +407,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const wipingRef = useRef(false);
   const busyRef = useRef(false);
   const signOutAndWipeRef = useRef<(notice?: string) => Promise<void>>(async () => undefined);
-  const sessionEndedRef = useRef<(revoked?: boolean) => Promise<void>>(async () => undefined);
+  const sessionEndedRef = useRef<(revoked?: boolean, careModeOff?: boolean) => Promise<void>>(
+    async () => undefined,
+  );
   const afterSyncRef = useRef<() => Promise<void>>(async () => undefined);
   // The window a token carried, waiting for a sync with it to complete (M2).
   const pendingWindowRef = useRef<PendingWindow | null>(null);
@@ -612,6 +615,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         randomBytes: (length) => Crypto.getRandomBytes(length),
         options: keyOptions,
         preferredProtection: preferredKeyProtection(),
+        // Until the key can be bound to the passcode, a live organisation's Care mode enrols only
+        // devices with strong biometrics (H-125).
+        allowNewPasscodeKey: appEnv.demoMode,
       });
       if (key.protection === "passcode") {
         // The keystore read did not prompt, so ask for the passcode explicitly.
@@ -690,8 +696,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           getTenantId: () => tenantRef.current,
           // The device id, so the server can tell who has used this device (round 7, M1).
           getDeviceId: () => opened.getClientId(),
-          onSessionRevoked: () => {
-            void sessionEndedRef.current();
+          onSessionRevoked: (reason) => {
+            void sessionEndedRef.current(false, reason === "care_mode_off");
           },
           // A manager revoked this device: a remote wipe, keeping unsent entries under the hold
           // rules, marked revoked (care.md section 6, Device integrity part 2).
@@ -833,8 +839,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
    * hold's report and notifications start here.
    */
   const sessionEnded = useCallback(
-    async (revoked = false) => {
+    async (revoked = false, careModeOff = false) => {
       if (wipingRef.current || holdingRef.current) return;
+      // Care mode switched off for the organisation is said as such (H-381).
+      const notices = sessionEndNotices({ revoked, careModeOff, wipeNotice: REMOTE_WIPE_NOTICE });
       holdingRef.current = true;
       try {
         const current = dbRef.current;
@@ -852,8 +860,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           lastServerTime: current?.currentStatus.lastSyncedAt ?? null,
           // The session is ended on the server too: access withdrawn leaves it alive otherwise
           // (security review round 5, S-L3).
-          wipe: () =>
-            signOutAndWipe(revoked ? t("mobile.vault.deviceRevoked") : REMOTE_WIPE_NOTICE, true),
+          wipe: () => signOutAndWipe(notices.wipe, true),
           revoked,
           hold: async (held: HeldWork) => {
             idle.stop();
@@ -873,7 +880,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
             windowValidUntilRef.current = null;
             setRestoreProblemText(null);
             setError(null);
-            await session.holdSession(held, revoked ? t("mobile.held.revoked") : undefined);
+            await session.holdSession(held, notices.held);
             void scheduleHeldNotifications(planHeldNotifications(held, now));
             // The server hears of the hold at once when it can, and again while the app runs; then
             // the ended session is ended on the server too (security review round 5, S-L3).

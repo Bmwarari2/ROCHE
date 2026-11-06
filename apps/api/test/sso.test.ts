@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDatabase } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createAuth, isBlockedSsoPath, SSO_DISABLED_PATHS } from "../src/auth/better-auth";
 import { FACTOR_ROUTES } from "../src/auth/session-factor";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
@@ -668,6 +668,34 @@ describe("#33 re-check 2", () => {
     // Ended for good: switching it back on does not revive them.
     expect((await h.request("/v1/me", { token: api, tenant: DEMO.tenantId })).status).toBe(401);
     expect((await h.request("/v1/memberships", { token: tenantless })).status).toBe(401);
+  });
+
+  it("#33 re-check 3 L: a request racing the session's end is still taken as SSO", async () => {
+    const api = await freshSession();
+    const authRoute = await freshSession();
+    // A second read of the session row, as a request racing a sign-out or the end of an SSO
+    // session would make it, finds nothing. The SSO tenant must come from the session Better Auth
+    // resolved, so that read is never made and the session is never taken for a password one.
+    const pool = h.handle.services.authPool;
+    const query = pool.query.bind(pool) as (...a: unknown[]) => Promise<unknown>;
+    const spy = vi
+      .spyOn(pool, "query")
+      .mockImplementation(((text: unknown, ...rest: unknown[]) =>
+        typeof text === "string" && /SELECT sso_tenant_id FROM auth\.session/.test(text)
+          ? Promise.resolve({ rows: [], rowCount: 0 })
+          : query(text, ...rest)) as never);
+    await owner("UPDATE feature_flag SET enabled = false WHERE flag_key = 'platform.sso'");
+    try {
+      const refused = await h.request("/v1/me", { token: api, tenant: DEMO.tenantId });
+      expect(refused.status).toBe(401);
+      expect(await codeOf(refused)).toBe("sso_session_ended");
+      const gate = await h.request("/api/auth/get-session", { token: authRoute });
+      expect(gate.status).toBe(401);
+      expect(await codeOf(gate)).toBe("sso_session_ended");
+    } finally {
+      spy.mockRestore();
+      await owner("UPDATE feature_flag SET enabled = true WHERE flag_key = 'platform.sso'");
+    }
   });
 
   it("L: the operator console refuses an SSO-bound session", async () => {

@@ -12,7 +12,7 @@ import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { personContext } from "../services/care";
-import { refuseRevokedDevice } from "../services/devices";
+import { refuseCareModeOff, refuseRevokedDevice } from "../services/devices";
 import { heldHandoverOf, planHandedOverEntry } from "../services/held-handover";
 import {
   copyRefusedEntry,
@@ -67,6 +67,7 @@ export function createRefusedEntriesRouter() {
             "sync.refused_entry",
             c.get("requestId"),
           );
+          if (access.deviceId) await refuseCareModeOff(c.get("services"), access);
         }
         // A handed-over copy is checked against the hold like the entry it is, and admitted in
         // the copy's transaction (#25 review round 3, low).

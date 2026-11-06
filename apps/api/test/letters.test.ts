@@ -239,6 +239,17 @@ describe("hazard HZ-051 letters from approved templates", () => {
     const text = pdfText(new Uint8Array(await pdf.arrayBuffer()));
     expect(text).toContain("Sample letter: about an invented person for practice. Do not send.");
     expect(text).toContain("Dear Kit Sample,");
+    // The letterhead from the organisation's branding and the address for the window envelope
+    // (H-228): each address line on a line of its own.
+    const [org] = await sql<{ name: string; brand_name: string | null }>(
+      "SELECT name, brand_name FROM tenant WHERE id = $1",
+      [DEMO.tenantId],
+    );
+    const lines = text.split("\n");
+    expect(lines).toContain(org?.brand_name ?? org?.name ?? "");
+    for (const part of ["Kit Sample", "2 Example Road", "Exampletown", "EX1 1EX"]) {
+      expect(lines).toContain(part);
+    }
   });
 
   it("refuses a typed value for a field that comes from the record, a missing one, and another person's contact", async () => {

@@ -8,6 +8,8 @@
 
 // why: money units, not statutory figures (those come from the rate table).
 export const PENCE_PER_POUND = 100;
+/** Mileage on a timesheet is in whole tenths of a mile (slice 30). */
+export const TENTHS_PER_MILE = 10;
 /** A percentage in basis points (12.07% is 1207) avoids binary fractions. */
 const BASIS_POINTS_PER_PERCENT = 100;
 export const BASIS_POINTS_IN_WHOLE = BASIS_POINTS_PER_PERCENT * 100;
@@ -51,6 +53,8 @@ export interface WorkingLine {
  */
 export function canonicalInput(value: unknown): string {
   const sort = (v: unknown): unknown => {
+    // An instant as its ISO text: an object's keys would lose it (a Date has none).
+    if (v instanceof Date) return v.toISOString();
     if (Array.isArray(v)) return v.map(sort);
     if (v && typeof v === "object") {
       return Object.fromEntries(

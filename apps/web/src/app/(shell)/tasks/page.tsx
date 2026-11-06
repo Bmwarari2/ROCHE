@@ -150,14 +150,20 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
           ) : null}
           <TaskEvidenceBadge task={task} />
         </p>
-        <dl className="m-0 grid grid-cols-1 gap-x-4 gap-y-1 text-body-dense sm:grid-cols-[max-content_1fr]">
+        <dl className="m-0 grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-1 text-body-dense sm:grid-cols-[max-content_minmax(0,1fr)]">
           {task.personId ? (
             <>
               <dt className="font-semibold">{t("tasks.item.about")}</dt>
               <dd className="m-0">
                 {person ? (
                   <div className="flex flex-col gap-1">
-                    <Link href={`/people/${task.personId}`}>{personNames(person).full}</Link>
+                    {/* A 44 px target on its own line (section 8; MOB-013 at 360 px). */}
+                    <Link
+                      href={`/people/${task.personId}`}
+                      className="inline-flex min-h-target items-center self-start"
+                    >
+                      {personNames(person).full}
+                    </Link>
                     <PersonNeeds person={person} />
                   </div>
                 ) : (

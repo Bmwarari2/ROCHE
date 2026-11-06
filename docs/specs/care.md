@@ -195,8 +195,15 @@ applies). Figures come from `rate_table` by key.
    entry's problem in words with an icon, in place of the reason line, and says plainly when a
    thinner drink or more solid food may not be safe (#26 review round 2, C1). A drink recorded as
    refused (not given) needs no level and raises nothing, since there was no texture to check.
-   The level given is compared with the prescription in the care profile when the entry reaches
-   the server, not when it was given (for the CSO, H-166).
+   The level given is compared with the level prescribed when the food or drink was given, read
+   from the care profile's history (`record_version`; `iddsiLevelsAt`), so care given correctly
+   before a speech and language therapy change is not flagged against the new level; an entry from
+   before the profile existed is compared with the level now, as before, since no history covers
+   its time (never "no level" on a guess), and so is an entry whose device clock disagrees with
+   the server (HZ-010). When the level changed between the entry's
+   time and its upload, the entry keeps `flags.iddsiChangedSince` (`prescribedThen`,
+   `prescribedNow`) and the web says so with the level now, so staff still see that the person's
+   level has since changed (recommended answer to H-166, 31/10/2026; HZ-016).
    An urgent result alert (a NEWS2 band, an IDDSI entry) goes only to someone who can open the
    person's record (the database's own person scope, read for each member as at sign-in), on the
    staff and with a role in force: the nurse in charge at the location; with no one there who
@@ -884,9 +891,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   a Retry-After is honoured up to 10 minutes, above the firewall's 300 seconds. A 403 is read from
   its RFC 9457 problem body (security reviews S6, round 3 H1 and round 4 H1). A session code
   (`not_a_member`, `mfa_enrolment_required`, `step_up_required`) ends the session. Any other code
-  from the API (`missing_permission`, `feature_disabled`, or one the build does not know) on the
+  from the API (`missing_permission`, `feature_disabled`, `care_mode_off`, or one the build does not know) on the
   sync token or a batch upload means the access Care mode needs was withdrawn, so the session ends
-  for Care mode; on a single care entry it moves that entry to "needs attention". Only a 403 with
+  for Care mode; on a single care entry it moves that entry to "needs attention", except
+  `care_mode_off`, which ends the session and holds the entry with the rest (H-381, HZ-006). Only a 403 with
   no JSON body, an HTML page or the edge's `edge_blocked` asks `GET /v1/me` first, sending
   `x-harbour-tenant`: a 401, a session code or an answer without `people.person.read` ends the
   session; otherwise a care entry moves to "needs attention" and the sync token and batch uploads
@@ -1028,8 +1036,12 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     one notice a day (below): no cap stops a task (round 7, M2; human action H-149). The task is due
     at once when any of its entries is an observation (fluids, repositioning, vital signs and every
     other chart), because a possible duplicate counts towards the day's totals and can complete a
-    round; otherwise 24 hours after it is raised, and an observation added later brings it forward
-    (hazard HZ-008; clinical review round 7, M3; human actions H-147 and H-148). The deletion
+    round, and at once when any of its entries completed a scheduled task (`task_outcome`
+    `completed`: a note, activity or assessment that answered a round), so a round never shows as
+    done for up to a day on the strength of a possible duplicate (recommended answer to H-148,
+    31/10/2026; HZ-003, HZ-040); otherwise 24 hours after it is raised, and an observation or an
+    entry that completed a task added later brings it forward (hazard HZ-008; clinical review
+    round 7, M3; human actions H-147 and H-148). The deletion
     records' entry ids are read from `device_discard_entry`, never by scanning the audit trail
     (Device integrity, part 3, below; the HZ-040 go-live blocker).
   - A device a manager revokes is told at its next contact and wipes, keeping its unsent entries
@@ -1477,8 +1489,11 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     reader (the token's person ids), and any home with a handover on the phone. The reach is kept
     with the pattern and cleared when a token's handover family no longer reaches the phone.
   - When the running shift's handover is already on the phone (its staff compile it before they
-    hand over), it is shown first as "This shift, not final" (or final once locked), then the
-    outgoing one (clinical review H1; the lead time is H-420).
+    hand over), it is shown as "This shift, not final" (or final once locked) beside the outgoing
+    one (clinical review H1). It comes first only within `handover.preview_lead_minutes` (60,
+    policy, to verify) before the running shift ends, carried on the token as each nation's `lead`;
+    before then, or when the phone has no lead figure, the outgoing one comes first, since that is
+    the handover the shift is working from (recommended answer to H-420, 31/10/2026; HZ-018).
   - For each home on the phone, the outgoing handover is the shift before the one running now, by
     the home's nation's pattern (`shiftAt`, `previousShift`). The screen says its state as an icon
     and a word before any item: "Not compiled yet" when no handover for that shift is on the phone
@@ -1569,7 +1584,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   has not acknowledged it.
 - `/handover/{location}/{handover}` lists the items the reader may see by person (full name, room
   and communication needs), each kind in an icon and words, its time, "Added since it was
-  compiled" and "New to you", and a link to its record; notes on each item and on the whole
+  compiled" and "New to you", and a link to its record; each item's own summary, as the phone words
+  it (`handover-summary.ts` over `HANDOVER_SUMMARY_KEYS`; an item without one is worded by its
+  kind), so the reader learns what is handed over without opening every record (recommended answer
+  to H-269, 31/10/2026; HZ-018); notes on each item and on the whole
   handover while it is open; who has read it and who has new items to read. "I have read this
   handover" sends `you.seenToken` with a UUIDv7; `handover_changed` reloads the page and says
   what to do. Compiling again adds anything new; too many compiles a minute is said in words.
@@ -1588,6 +1606,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
 - Start (`in_progress`), Done and Not done (`skipped`, with a reason of at least 3 characters) go
   to `POST /v1/tasks/{id}/transition` with the task's version; a task that needs a record links to
   the person's charts instead. The round opens again saying what was done, with focus there.
+- Each task says who it is for ("For: Registered Manager", a named member, or anyone on the shift
+  who may do it), and its actions are offered only to holders of the permission it names: the task
+  item carries `requiredPermission` and `assigneeRoleKey` (recommended answer to H-270,
+  31/10/2026; HZ-003). The API still checks that the permission reaches the person.
 
 ## 7. Clinical safety
 

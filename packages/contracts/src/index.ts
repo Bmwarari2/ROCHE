@@ -179,6 +179,12 @@ export const SyncOperation = z
     data: z.record(z.string(), z.unknown()).optional(),
     /** Device clock when the batch was sent, for drift detection (HZ-010). */
     deviceSentAt: isoDateTime.optional(),
+    /**
+     * Device clock when the entry was recorded: a bank or agency worker's entry is accepted only
+     * if recorded inside a booked window, and after it closes only for the upload grace period
+     * (H-921).
+     */
+    recordedAt: isoDateTime.optional(),
   })
   .meta({ id: "SyncOperation" });
 
@@ -501,6 +507,8 @@ export const TENANT_HEADER = "x-harbour-tenant";
 /** Header carrying the device id, recorded in the audit log. */
 export const DEVICE_HEADER = "x-harbour-device";
 
+export * from "./absence";
+export * from "./agency";
 export * from "./branding";
 export * from "./care";
 export * from "./care-planning";
@@ -513,6 +521,7 @@ export * from "./data-security";
 export * from "./deaths-missing";
 export * from "./devices";
 export * from "./disclosure";
+export * from "./dmd";
 export * from "./dpia";
 export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";
 export * from "./escalation-policy";
@@ -523,14 +532,18 @@ export * from "./imports";
 export * from "./induction";
 export * from "./invitations";
 export * from "./letters";
+export * from "./lone-worker";
 export * from "./mca";
+export * from "./medicines";
 export * from "./members";
 export * from "./onboarding";
 export * from "./operations";
+export * from "./pay";
 export * from "./people";
 export * from "./person-summary";
 export * from "./quality";
 export * from "./quality-audits";
+export * from "./quality-dashboard";
 export * from "./quality-framework";
 export * from "./records";
 export * from "./rota";
@@ -544,6 +557,8 @@ export * from "./sso";
 export * from "./staff";
 export * from "./sub-processors";
 export * from "./tasks";
+export * from "./time-attendance";
+export * from "./wellbeing";
 
 /**
  * A member asks for their own account to be deleted (MOB-011; master prompt 17.3; App Store
@@ -563,6 +578,7 @@ export const AccountDeletionRequest = z
   })
   .meta({ id: "AccountDeletionRequest" });
 export type AccountDeletionRequest = z.infer<typeof AccountDeletionRequest>;
+export * from "./elearning";
 export * from "./recruitment";
 export * from "./sponsorship";
 export * from "./workforce";

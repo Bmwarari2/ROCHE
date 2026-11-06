@@ -10,8 +10,12 @@ import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { complaintsShown } from "@/lib/complaints";
 import { readNotifications } from "@/lib/dashboard-data";
 import { dataRightsShown } from "@/lib/data-rights";
+import { dataSecurityShown } from "@/lib/data-security";
+import { dependencyShown } from "@/lib/dependency";
+import { developmentShown } from "@/lib/development";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
+import { elearningShown } from "@/lib/elearning";
 import { evidencePacksShown } from "@/lib/evidence-packs";
 import { exportShown } from "@/lib/exports";
 import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
@@ -20,15 +24,20 @@ import { peopleLabel, t } from "@/lib/i18n";
 import { importShown } from "@/lib/imports";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
+import { loneWorkerNavShown } from "@/lib/lone-worker";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
+import { absencesShown, myTimeShown, payShown, timesheetsShown } from "@/lib/pay-time";
+import { dashboardShown } from "@/lib/quality-dashboard";
 import { auditsShown, frameworkShown } from "@/lib/quality-programme";
 import { retentionShown } from "@/lib/retention";
+import { myShiftsShown, rotaShown } from "@/lib/rota";
 import { roundShown } from "@/lib/round";
 import { safeguardingShown } from "@/lib/safeguarding";
 import { searchShown } from "@/lib/search";
 import { speakUpShown } from "@/lib/speak-up";
 import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
+import { wellbeingNavShown } from "@/lib/wellbeing";
 
 /** "CQC location 1-000000001", for the location switcher. */
 function locationDescription(location: LocationSummary): string | undefined {
@@ -80,17 +89,32 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         search: searchShown(me.permissions) ? t("shell.nav.search") : undefined,
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
+        rota: rotaShown(me.permissions) ? t("shell.nav.rota") : undefined,
+        myShifts: myShiftsShown(me.permissions) ? t("shell.nav.myShifts") : undefined,
+        dependency: dependencyShown(me.permissions) ? t("shell.nav.dependency") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
         safeguarding: safeguardingShown(me.permissions) ? t("shell.nav.safeguarding") : undefined,
+        raiseSafeguarding:
+          !safeguardingShown(me.permissions) && me.permissions.includes("safety.incident.report")
+            ? t("shell.nav.raiseSafeguarding")
+            : undefined,
         complaints: complaintsShown(me.permissions) ? t("shell.nav.complaints") : undefined,
         speakUp: speakUpShown(me.permissions, isFamilyMember(me))
           ? t("shell.nav.speakUp")
           : undefined,
         approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
+        loneWorking: loneWorkerNavShown(me.permissions) ? t("shell.nav.loneWorking") : undefined,
+        wellbeing: wellbeingNavShown(me.permissions) ? t("shell.nav.wellbeing") : undefined,
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
         tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
         documents: isFamilyMember(me) ? undefined : t("shell.nav.documents"),
+        training: developmentShown(me.permissions) ? t("shell.nav.training") : undefined,
+        myTime: myTimeShown(me.permissions) ? t("shell.nav.myTime") : undefined,
+        myPay: myTimeShown(me.permissions) ? t("shell.nav.myPay") : undefined,
+        timesheets: timesheetsShown(me.permissions) ? t("shell.nav.timesheets") : undefined,
+        absences: absencesShown(me.permissions) ? t("shell.nav.absences") : undefined,
+        pay: payShown(me.permissions) ? t("shell.nav.pay") : undefined,
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
         evidencePacks: evidencePacksShown(me.permissions)
           ? t("shell.nav.evidencePacks")
@@ -98,8 +122,15 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         statementOfPurpose: statementShown(me.permissions)
           ? t("shell.nav.statementOfPurpose")
           : undefined,
+        elearning: elearningShown(me.permissions) ? t("shell.nav.elearning") : undefined,
         framework: frameworkShown(me.permissions) ? t("shell.nav.framework") : undefined,
         audits: auditsShown(me.permissions) ? t("shell.nav.audits") : undefined,
+        policies: t("shell.nav.policies"),
+        dataSecurity: dataSecurityShown(me.permissions) ? t("shell.nav.dataSecurity") : undefined,
+        qualityDashboard: dashboardShown(me.permissions)
+          ? t("shell.nav.qualityDashboard")
+          : undefined,
+        pir: dashboardShown(me.permissions) ? t("shell.nav.pir") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
@@ -115,6 +146,8 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         unreadNotifications: t("shell.nav.unread", { count: unread }),
         settings: t("shell.nav.settings"),
         accountMenu: t("shell.account.menu", { name: me.user.name }),
+        menu: t("shell.nav.menu"),
+        closeMenu: t("shell.nav.closeMenu"),
         security: t("security.title"),
         signOut: t("common.signOut"),
       }}

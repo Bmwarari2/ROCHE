@@ -102,6 +102,16 @@ describe("catalogues", () => {
       "common.or",
       "common.recordThem",
       "people.communication.preferredFormat",
+      // Inside "For {name}, born {born}" when no date of birth is recorded.
+      "medicines.person.noBirthDate",
+      // The subject of a date check ("Enter {subject} as dd/mm/yyyy") and a decision's words.
+      "medicines.form.anchorSubject",
+      "medicines.form.startsSubject",
+      "medicines.form.stopsSubject",
+      "medicines.form.reviewSubject",
+      "medicines.stop.whenSubject",
+      "medicines.rec.receivedSubject",
+      "medicines.rec.undecided",
     ]);
     for (const [key, message] of Object.entries(catalogues["en-GB"])) {
       if (continuations.has(key) || /^[{:]/.test(message)) continue;

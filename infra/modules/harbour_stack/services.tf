@@ -59,6 +59,7 @@ locals {
       DATABASE_WORKER_URL      = local.secret["db-harbour_worker-url"]
       BETTER_AUTH_SECRET       = local.secret["api-auth-secret"]
       EVIDENCE_LINK_SECRET     = local.secret["api-evidence-link-secret"]
+      ELEARNING_LAUNCH_SECRET  = local.secret["api-elearning-launch-secret"]
       SPEAK_UP_THROTTLE_SECRET = local.secret["api-speak-up-throttle-secret"]
       SYNC_SIGNING_KEY_PEM     = local.secret["api-sync-signing-key-pem"]
       SYNC_SIGNING_KEY_ID      = local.secret["api-sync-signing-key-id"]
@@ -269,6 +270,7 @@ module "svc_web" {
     HOSTNAME                = "0.0.0.0"
     API_BASE_URL            = "https://${local.hosts.api}"
     PUBLIC_WEB_URL          = "https://${local.hosts.web}"
+    ELEARNING_ORIGIN        = local.learn_enabled ? "https://${local.hosts.learn}" : ""
     TRUSTED_PROXY_CIDRS     = join(",", local.trusted_proxy_cidrs)
     NEXT_TELEMETRY_DISABLED = "1"
   }

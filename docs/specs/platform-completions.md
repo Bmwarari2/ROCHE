@@ -65,7 +65,8 @@ the second step (TOTP or a passkey) within the step-up window.
 5. **Time window.** Access ends at the earlier of the role assignment's end and, for agency and
    bank workers, the shift end plus `access.agency.post_shift_hours` (`agencyAccessEndsAt`). An
    agency worker with no shift recorded gets no window at all: search fails closed
-   (`no_shift_recorded`). After the window no plan is made, and a plan made earlier shows nothing.
+   (`no_shift_recorded`). From slice 27 the shift is the booked shift open now, and outside it the
+   member's roles reach nothing at all ([ADR-0088](../decisions/0088-rota-derived-agency-access.md)). After the window no plan is made, and a plan made earlier shows nothing.
 6. **People who have left.** Discharged, deceased, archived and not-admitted people (and their
    documents and notes) are left out unless the user holds `platform.search.archived` (owner,
    Registered Manager, deputy, quality lead) and asks for them, so a former resident is not chosen

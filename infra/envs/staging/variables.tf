@@ -96,3 +96,15 @@ variable "budget_monthly_limit" {
   type        = number
   default     = 1500
 }
+
+variable "elearning_domain_name" {
+  description = "Registrable domain for the e-learning content origin (ADR-0093), never domain_name or under it; null leaves courses unlaunched."
+  type        = string
+  default     = null
+}
+
+variable "elearning_dns_zone_name" {
+  description = "Cloud DNS zone in this project for elearning_domain_name, or null to create its records by hand from the manual_elearning_dns_records output."
+  type        = string
+  default     = null
+}

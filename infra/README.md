@@ -50,6 +50,7 @@ call the same `harbour_stack` module, so staging rehearses exactly what prod wil
 | --- | --- | --- |
 | `app.<domain>` | load balancer (Cloud Armor), then `web` (Next.js, port 3000) | `/_next/static/*` only goes through a separate backend with Cloud CDN; pages never do |
 | `api.<domain>` | load balancer (Cloud Armor), then `api` (Hono, port 4000) with a ClamAV sidecar on 127.0.0.1:3310 | Also serves `/v1/sync/jwks` for PowerSync |
+| `learn.<elearning_domain_name>` | load balancer (Cloud Armor), then `web`, on its own backend and its own Certificate Manager certificate | The e-learning content origin (ADR-0093), on its own registrable domain (`elearning_domain_name`, never `<domain>` or under it, so package script is another site from the app; security review H1). Only `/learn/*` is forwarded; Cloud Armor answers any other path on this host with a fixed 404 (M4). Its backend adds no X-Frame-Options (the app frames the runtime page) and sends `Referrer-Policy: no-referrer`. DNS in `elearning_dns_zone_name`, or listed in `manual_elearning_dns_records`; `ELEARNING_ORIGIN` on the web service. Unset, courses do not launch |
 | `sync.<domain>` | load balancer (Cloud Armor), then `powersync` (port 8080) | Self-hosted PowerSync, unified mode, always one instance; `/api/admin` is refused at the edge |
 | `flags.<domain>` | load balancer (Cloud Armor), then `flagsmith` (port 8000) | Optional, `enable_flagsmith = false` by default; only Harbour's NAT addresses and `flags_admin_ranges` reach it |
 | none | `worker` | pg-boss jobs; same image as `api`; internal ingress; CPU always allocated |
@@ -225,7 +226,7 @@ Google's front ends and the NAT addresses), `POWERSYNC_URL`, `SYNC_JWT_AUDIENCE`
 `SSO_KEY_STORE=gcp`, `SAFETY_CASE_VERSION`, and, once an email provider is chosen, `SMTP_HOST`,
 `SMTP_PORT` and `SMTP_TLS` (unset until then). Secrets (each a whole secret version):
 `DATABASE_APP_URL`, `DATABASE_AUTH_URL`, `DATABASE_OPERATOR_URL`, `DATABASE_WORKER_URL`,
-`BETTER_AUTH_SECRET`, `EVIDENCE_LINK_SECRET`, `SPEAK_UP_THROTTLE_SECRET` (keys the network hash
+`BETTER_AUTH_SECRET`, `EVIDENCE_LINK_SECRET`, `ELEARNING_LAUNCH_SECRET` (the e-learning launch token key, ADR-0093, from `api-elearning-launch-secret`; refused in production if unset; an environment seeded before slice 43 needs that secret seeded, H-1011), `SPEAK_UP_THROTTLE_SECRET` (keys the network hash
 in the public speak-up limits, ADR-0089; refused in production if unset), `SYNC_SIGNING_KEY_PEM`,
 `SYNC_SIGNING_KEY_ID`, `HARBOUR_DB_PASSWORD_HARBOUR_APP`, `HARBOUR_DB_PASSWORD_HARBOUR_AUTH`,
 `HARBOUR_DB_PASSWORD_HARBOUR_WORKER`, and `SMTP_USER` and `SMTP_PASSWORD` with the provider.
