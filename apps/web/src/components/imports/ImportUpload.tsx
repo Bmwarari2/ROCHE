@@ -98,6 +98,7 @@ export function ImportUpload({
     setFileError(null);
     setColumnErrors({});
     setFile(null);
+    setTypeNotice("");
     const picked = event.currentTarget.files?.[0];
     if (!picked) return;
     if (picked.size > IMPORT_UPLOAD_MAX_BYTES) {
@@ -179,7 +180,7 @@ export function ImportUpload({
           }
         }}
       />
-      <p role="status" aria-live="polite" className="m-0 empty:hidden">
+      <p role="status" aria-live="polite" className={typeNotice ? "m-0" : "sr-only"}>
         {typeNotice}
       </p>
       <SelectField
