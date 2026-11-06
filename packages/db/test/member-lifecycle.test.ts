@@ -299,3 +299,115 @@ describe("H-566 a leaver's access and a suspension never race past the last user
     expect([PIA, QUIN]).toContain(managers[0]);
   });
 });
+
+describe("H-566 the lifecycle times and the erasure sweep (migration 0153)", () => {
+  const ROSA = "0199f000-0000-7000-8000-000000000741";
+  const times = (member: string, tenant: string = TENANT_A) =>
+    owner(
+      (c) =>
+        c
+          .query<{ changed: Date | null; erased: Date | null; auth: string | null }>(
+            `SELECT status_changed_at AS changed, sign_in_erased_at AS erased, auth_user_id AS auth
+               FROM tenant_user WHERE id = $1`,
+            [member],
+          )
+          .then((r) => r.rows[0]),
+      tenant,
+    );
+  const due = () =>
+    db
+      .pool("harbour_worker")
+      .query<{ tenant_user_id: string; auth_user_id: string }>(
+        "SELECT tenant_user_id, auth_user_id FROM app.sign_ins_due_for_erasure()",
+      )
+      .then((r) => r.rows);
+  const system = (tenant: string = TENANT_A) => as(null, tenant);
+
+  beforeAll(async () => {
+    await owner((c) =>
+      c.query(
+        `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status)
+         VALUES ($1, 'auth-rosa', 'Rosa Example', 'rosa@example.invalid', 'active')`,
+        [ROSA],
+      ),
+    );
+    // The manager acts again, whatever the tests above left them as (the owner is not held).
+    await setState(a.manager, "active");
+  });
+
+  it("records when the status changed, through app.change_membership only", async () => {
+    expect((await times(ROSA))?.changed).toBeNull();
+    await as(a.manager)(change(ROSA, "suspend"));
+    const first = (await times(ROSA))?.changed;
+    expect(first).not.toBeNull();
+    await as(a.manager)(change(ROSA, "reinstate"));
+    expect((await times(ROSA))?.changed?.getTime()).toBeGreaterThanOrEqual(first?.getTime() ?? 0);
+    for (const column of [
+      "status_changed_at",
+      "sign_in_erased_at",
+      "sign_in_erasure_requested_at",
+    ]) {
+      await expect(
+        as(a.manager)((c) =>
+          c.query(`UPDATE tenant_user SET ${column} = now() WHERE id = $1`, [ROSA]),
+        ),
+        column,
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  it("records only the member's own request", async () => {
+    await as(ROSA)((c) => c.query("SELECT app.request_sign_in_erasure()"));
+    const [row] = (
+      await owner((c) =>
+        c.query<{ asked: Date | null }>(
+          "SELECT sign_in_erasure_requested_at AS asked FROM tenant_user WHERE id = $1",
+          [ROSA],
+        ),
+      )
+    ).rows;
+    expect(row?.asked).not.toBeNull();
+    await expect(system()((c) => c.query("SELECT app.request_sign_in_erasure()"))).rejects.toThrow(
+      /not_permitted/,
+    );
+  });
+
+  it("is due only once the membership that asked has ended and none is held elsewhere", async () => {
+    expect((await due()).map((r) => r.auth_user_id)).not.toContain("auth-rosa");
+    // Not while it is only suspended.
+    await as(a.manager)(change(ROSA, "suspend"));
+    expect((await due()).map((r) => r.auth_user_id)).not.toContain("auth-rosa");
+    await as(a.manager)(change(ROSA, "end"));
+    expect(await due()).toContainEqual({ tenant_user_id: ROSA, auth_user_id: "auth-rosa" });
+  });
+
+  it("keeps a sign-in active or suspended in another organisation", async () => {
+    await setState(a.carer, "left");
+    await owner((c) =>
+      c.query("UPDATE tenant_user SET sign_in_erasure_requested_at = now() WHERE id = $1", [
+        a.carer,
+      ]),
+    );
+    expect((await due()).map((r) => r.auth_user_id)).not.toContain(AUTH_USER_SHARED);
+    await owner(
+      (c) =>
+        c.query("UPDATE tenant_user SET status = 'suspended' WHERE auth_user_id = $1", [
+          AUTH_USER_SHARED,
+        ]),
+      TENANT_B,
+    );
+    expect((await due()).map((r) => r.auth_user_id)).not.toContain(AUTH_USER_SHARED);
+  });
+
+  it("lets the system unlink only an ended membership whose sign-in is due, recording when", async () => {
+    await expect(system()(change(a.carer, "unlink_sign_in"))).rejects.toThrow(/sign_in_in_use/);
+    // The system does nothing else.
+    await expect(system()(change(XAVI, "suspend"))).rejects.toThrow(/not_permitted/);
+    expect(await system()(change(ROSA, "unlink_sign_in"))).toBe("left");
+    const after = await times(ROSA);
+    expect(after?.auth).toBeNull();
+    expect(after?.erased).not.toBeNull();
+    expect(await system()(change(ROSA, "unlink_sign_in"))).toBe("unchanged");
+    expect((await due()).map((r) => r.auth_user_id)).not.toContain("auth-rosa");
+  });
+});

@@ -219,6 +219,12 @@ export const tenantUser = pgTable(
     /** MFA is mandatory for every role that can read care records (section 5.3). */
     mfaRequired: boolean("mfa_required").notNull().default(true),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    /** When the membership was last suspended, reinstated or ended (H-566, migration 0153). */
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
+    /** When the member asked for their account to be deleted (MOB-011, H-566). */
+    signInErasureRequestedAt: timestamp("sign_in_erasure_requested_at", { withTimezone: true }),
+    /** When their sign-in identity was erased; the row, name and job title stay (Regulation 17). */
+    signInErasedAt: timestamp("sign_in_erased_at", { withTimezone: true }),
     ...mutableColumns(),
   },
   (t) => [
