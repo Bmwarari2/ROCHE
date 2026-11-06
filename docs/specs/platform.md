@@ -1522,8 +1522,9 @@ HZ-024 (care plans), HZ-124 (staff files), HZ-072 (sample data).
     whatever the organisation's policy for other unchecked entries (H-550). An undo withdraws
     the batch's medicines, only while none of them has been checked.
 29. **Care plans arrive as drafts** (HZ-024). One row is one need domain for a person; a person's
-    rows become one draft plan with a section for each, at the person's home. A person who
-    already has a draft is refused (one draft per person). Nothing is published: a person reviews
+    rows become one draft plan with a section for each, at the person's home; a person with no
+    home is refused (`person_has_no_home`). A person who already has a draft is refused (one draft
+    per person). Nothing is published: a person reviews
     each draft, adds actions and sign-off, and publishes it as for one written by hand. An undo
     removes the drafts only while every one is unchanged and unpublished.
 30. **Staff file checks arrive unverified** (HZ-124). One row is one check of a member's staff
@@ -1555,6 +1556,12 @@ HZ-024 (care plans), HZ-124 (staff files), HZ-072 (sample data).
 - `apps/api/test/imports-clinical.test.ts`: each type end to end over HTTP (upload, dry run with
   every row's outcome, commit with step-up, undo), the refusals of rules 27 to 30, an imported
   medicine held off the MAR until checked, nothing echoed.
+- `apps/web/e2e/import-clinical.spec.ts`: the record type chosen on upload, every row's outcome
+  in words with an icon, with axe in light and dark.
+
+**Web.** The upload step asks what the file holds and offers that type's fields for each column;
+the check lists every row's outcome; the allergy section shows for people only. Human actions:
+H-1300 to H-1309 (each with its recommended answer, applied until the testing-phase review).
 
 ## Phase 2: single sign-on (PLAT-005)
 

@@ -126,6 +126,12 @@ medicine. Allergies in the sources are compared with the recorded allergies by t
 confirms it; Harbour matches no allergen (the section 6 grey area, decided in ADR-0082 with slice 3).
 The time-critical and minimum-interval rules (ADR-0082) are slice 3's and are not in this slice.
 
+**Importing medicines, care plans and staff files (Phase 2, slice 51)**: re-checked; still inside
+the boundary. The import stores what the file says, through the same rules as a record entered by
+hand: medicines by dm+d code with dm+d's own facts and the medicines rules unchanged, held until a
+second person checks them; care plans as drafts; staff file checks unverified. It adds no
+calculation, suggestion, score or comparison.
+
 **Medicines record and reconciliation storage and API (Phase 2, slice 16)**: re-checked; still inside
 the boundary. The tables store what was transcribed and the database refuses rewriting it; the API
 runs the slice 2 rules unchanged and adds no calculation, suggestion or ingredient comparison. The
