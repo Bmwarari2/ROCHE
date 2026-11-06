@@ -19,7 +19,78 @@ screens (#128, `docs/user-guides/`).
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
-## Paused 01/11/2026: where to resume
+## Paused 06/11/2026: where to resume
+
+The owner paused all work in the evening of 06/11/2026. Every builder was asked to commit and push what it had. The lead session was session_01WyHwXxaKQJTDJrvMPoeK59. A separate **owner desk** session (session_01WyHwXxFfytYp5iembsjq2h, tag `owner-desk`) holds the owner's questions and to-dos. Send it anything the owner must do or decide.
+
+**On `main` since 01/11:**
+- #166: dependency advisories and image scanning.
+- #167: the Thapsus-HR link plan, ADR-0126.
+- #168: the 01/11 resume notes.
+- #169 and #170: the vulnerability gates. The release scans its images. CI fails on an overdue exception, and a daily check runs too. decode-uri-component is patched.
+- **Batch 3a (#171):** migrations 0104 to 0118 and 11 branches without migrations. `main`'s highest migration is **0118**.
+
+**Open pull request: batch 3b (#172)**, integration branch `integration/phase-2-batch-3b`.
+- Contents:
+  - migrations 0120 to 0139;
+  - slice 38 renumbered to **0140**;
+  - slices 72 and 86, and the web controlled drugs register.
+- Reviews: the security, clinical-safety and accessibility reviewers say it is mergeable.
+- Fixed during review:
+  - the gitleaks false positives (exact-value allowlist);
+  - the seed's duplicate rate rows (the Playwright failure);
+  - a PRN rule. Every new or changed when-required entry now needs its 24-hour maximum, in the domain, API, web and import (HZ-004 tests, CSO options under H-1066, import tags H-1400).
+- API contract changes, recorded with reasons in `apps/api/openapi-breaking-ignore.txt`:
+  - H-876: reference decline reason;
+  - H-940: the staff privacy notice must be a document;
+  - 3a's nmcPart: the web staff file sends it.
+- The medication error and review hazard is **HZ-134** (it collided with HZ-131).
+- **To resume:**
+  - Check that the remote head is the integrator's last push (an earlier push silently failed).
+  - Wait for CI to be green, then merge.
+  - `main`'s highest migration is then 0140.
+
+**Batch 3c, ready to build after 3b merges** (all branches finished, reviewed and pushed):
+
+| Migration | Branch | Head | Notes |
+| --- | --- | --- | --- |
+| 0141, 0142 | `feat/integrations-hr-link-rota` (slice 88, contains slice 87's `feat/integrations-hr-link-connection` and slice 86) | 97368dbf | It merged `integration/phase-2-batch-3a`, so it is built on 3a. Webhook route `/p/integrations/thapsus-hr/{organisation id}`. Logged for slice 90: not-found cancellations retried every run, no drift release screen. |
+| 0143 | `feat/meds-prn-protocols` (slice 28) | 8626554b | Built on 0123; uses 0123's PRN limit columns. Check it against 3b's PRN maximum rule. |
+| 0144 | `feat/platform-member-lifecycle` (H-566) | 421ccadd | Suspend, end, reinstate, erase sign-in identity. H-1395 (lost-device hold closure) not built. |
+| 0145 | `feat/meds-phase1-outputs` (slice 49) | 27bfd145 | Add `MEDICINES_OUTPUT_HISTORY_DAYS` to `.env.example`. The not-available stock task is a TODO needing slice 42's hook. |
+
+**The rename to Thapsus Care (owner request, 06/11).**
+- When: after batch 3c, while nothing else is in flight.
+- What changes: the names people see (i18n en-GB and cy, web and mobile metadata, PWA manifest, Expo display name, emails, PDFs, docs, README, CLAUDE.md, guides, safety case, records of processing). Visual baselines are re-recorded.
+- What stays: technical identifiers (`@harbour/*`, `HARBOUR_*`, Google Cloud project, bucket and service account names, database roles, Terraform resources, mobile bundle IDs), because renaming cloud resources replaces them.
+- Record it as **ADR-0127**.
+- New strings since 06/11 already use the `app.name` message.
+
+**Next Phase 2 work after the rename:**
+- web medicines slices 50, 53 and 55, including slice 45's web screens;
+- mobile slices 68 to 70;
+- the Thapsus-HR link slices 89 and 90, and re-pinning slice 86's contract mock to Thapsus-HR's published OpenAPI once its Phase 19 partner endpoints are on its `main`;
+- guides 81 and 82;
+- the slice 85 gate record;
+- the dm+d download Terraform.
+
+Follow-ups:
+- Move SECURITY DEFINER functions to NOLOGIN owners, with an ADR (batch 3a security review).
+- Review the vulnerability exceptions for zod, extract-zip and glob/minimatch by **14/11**, or the daily check fails from 15/11. A reminder is scheduled for 12/11.
+
+**Thapsus-HR (now `Thapsus-dev/PROJECT_KAREN`, transferred 06/11):**
+- #32, the security audit, is merged.
+- #33 is Phase 19, "Partner workforce link", on `phase-19-partner-link`. The plan is ADR-0238. Built so far:
+  - part A (sub-processors, flag, payroll goldens, an additions-only OpenAPI check; ADR-0240);
+  - part B (partner connections and partner-managed shifts and clock events; migrations 0052 and 0053; ADR-0243);
+  - part C (events, partner pay items, pay-rate read) as far as it got. Read the branch's PROGRESS.md notes and any `wip/phase-19-part-c` branch.
+- #34 moves Lighthouse to its own CI job on a 4-core runner (ADR-0239, ADR-0241), because the private repository's 2-core runners fail the gate. The owner must create the runner and set `LIGHTHOUSE_RUNNER` (its HUMAN_TODO §14) before #34 and #33 can go green.
+- #33 also needs visual baselines for `/trust/subprocessors` and `/app/settings/partners`. Take them from CI's actual screenshots (artifact `verify-logs`, `apps/web/e2e/.results`) after checking each image, because no Docker is available in cloud sessions.
+- Free numbers there: ADR-0245 (0244 is part C's if it used it) and HUMAN_TODO §16 (§15 may be part C's).
+
+**Next free numbers in Harbour:** migration **0146**, human actions **H-1401**, hazard **HZ-135**, ADR **0128** (0127 is reserved for the rename).
+
+## Paused 01/11/2026 (superseded by 06/11 above)
 
 All build work is paused at the owner's request. The account also reached its monthly spend
 limit at about 06:40 UTC, which had already stopped the builder sessions. Each builder was asked to
