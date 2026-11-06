@@ -501,12 +501,14 @@ describe("hazard HZ-121 a completed reconciliation is the record of what was dec
   });
 });
 
-describe("hazard HZ-005 dm+d codes until the reference data lands (slice 10)", () => {
-  it("stores dm+d identifiers by shape, and needs a foreign key once a VMP or AMP table exists", async () => {
-    // Slice 10 adds the dm+d reference tables. Until then the VMP and AMP are validated
-    // identifiers (isDmdId in the API; the shape here). When a table for VMPs or AMPs appears,
-    // this test fails until an expand step adds the foreign keys from every column that holds
-    // one (medicines.md section 11).
+describe("hazard HZ-005 dm+d codes beside the reference data (slice 10)", () => {
+  it("stores dm+d identifiers by shape, without foreign keys to the reference tables yet", async () => {
+    // Slice 10's tables exist (migration 0110), but the record keeps no foreign key to them yet
+    // (batch 3a decision): development, tests and the demo tenant transcribe from the invented
+    // fixture port, whose products are not in the dm+d fixture release. The API takes a product's
+    // facts only from the release in use when one is loaded, and refuses every product in
+    // production when none is. The foreign keys follow once the fixtures are one set (medicines.md
+    // section 11). When they are added, this test must expect them.
     const owner = db.pool("harbour_owner");
     const tableFor = async (kind: "vmp" | "amp") =>
       (
@@ -529,7 +531,8 @@ describe("hazard HZ-005 dm+d codes until the reference data lands (slice 10)", (
     for (const kind of ["vmp", "amp"] as const) {
       const exists = (await tableFor(kind)) > 0;
       for (const table of ["medication", "medication_reconciliation_item"]) {
-        expect(await hasForeignKey(table, `${kind}_id`), `${table}.${kind}_id`).toBe(exists);
+        expect(exists, `a ${kind} table`).toBe(true);
+        expect(await hasForeignKey(table, `${kind}_id`), `${table}.${kind}_id`).toBe(false);
       }
     }
     // Every other column is valid, so only the identifier's shape is refused.

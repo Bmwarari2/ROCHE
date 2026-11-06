@@ -574,6 +574,10 @@ REVOKE DELETE, TRUNCATE ON public.medication, public.medication_schedule,
   public.medication_reconciliation, public.medication_reconciliation_source,
   public.medication_reconciliation_item, public.medication_reconciliation_decision FROM harbour_app;
 --> statement-breakpoint
+-- The append-only tables take no UPDATE either (default privileges grant it; the triggers refuse it).
+REVOKE UPDATE ON public.medication_schedule, public.medication_reconciliation_source,
+  public.medication_reconciliation_item FROM harbour_app;
+--> statement-breakpoint
 -- The medicines record is not published to devices yet: the offline eMAR (slices 68 to 70) adds it.
 
 -- Sample data mode (migration 0069, HZ-072): a sample person's medicines go with them. The one

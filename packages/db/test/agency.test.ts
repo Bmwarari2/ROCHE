@@ -534,3 +534,27 @@ describe("AWR records: break reasons, role changes and withdrawals (H-924)", () 
     ).toBe(0);
   });
 });
+
+describe("hazard HZ-011 the agency window binds the definer owners that read role rows (batch 3a)", () => {
+  it("applies to the API, the owner and every definer owner that reads role_assignment or access_grant", async () => {
+    const policies = await owner().query<{ table: string; roles: string[] }>(
+      `SELECT tablename AS table, roles::text[] AS roles FROM pg_policies
+        WHERE policyname = 'agency_window' ORDER BY tablename`,
+    );
+    const readers = await owner().query<{ grantee: string }>(
+      `SELECT DISTINCT grantee FROM information_schema.column_privileges
+        WHERE table_schema = 'public' AND table_name IN ('role_assignment', 'access_grant')
+          AND privilege_type = 'SELECT' AND grantee LIKE 'harbour\\_%'`,
+    );
+    expect(policies.rows.map((r) => r.table)).toEqual(["access_grant", "role_assignment"]);
+    for (const { roles } of policies.rows) {
+      for (const { grantee } of readers.rows) {
+        if (grantee === "harbour_owner" || grantee === "harbour_app") continue;
+        // The worker and the auth service act for no member, so the window does not apply.
+        if (["harbour_worker", "harbour_auth", "harbour_sync"].includes(grantee)) continue;
+        expect(roles, grantee).toContain(grantee);
+      }
+      expect(roles).toEqual(expect.arrayContaining(["harbour_app", "harbour_owner"]));
+    }
+  });
+});

@@ -123,6 +123,25 @@ describe("the medicines record", () => {
     expect([422]).toContain(unknown.status);
   });
 
+  it("hazard HZ-005 refuses a when-required medicine in plain words until its dose limits can be recorded", async () => {
+    const r = await send("manager", `/v1/people/${BEN}/medicines`, {
+      method: "POST",
+      body: draft({
+        directions: {
+          kind: "when_required",
+          dose: { kind: "amount", quantity: 1, unit: TABLET },
+        },
+        indication: "Pain",
+      }),
+    });
+    expect(r.status).toBe(422);
+    const body = (await r.json()) as { code: string; title: string };
+    expect(body.code).toBe("medicine_prn_not_yet");
+    expect(body.title).toBe(
+      "When-required medicines can be added once dose limits can be recorded.",
+    );
+  });
+
   it("refuses a dose with more than 3 decimal places, and a route dm+d does not give", async () => {
     const dose = await send("manager", `/v1/people/${BEN}/medicines`, {
       method: "POST",

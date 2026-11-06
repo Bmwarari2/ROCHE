@@ -832,11 +832,14 @@ Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
   code from `DmdFactsPort`, never the request's. A line's product name also comes from dm+d.
 - **Documents**: a source or stop document must be this person's, available and not deleted,
   when it is named and again, for every source, when the reconciliation completes.
-- **dm+d** (slice 10 not yet merged): `vmp_id` and `amp_id` are validated identifiers
-  (`isDmdId` in the API, the SNOMED CT shape in the database) with no foreign key. A test in
-  `packages/db/test/medicines-record.test.ts` fails once a VMP table exists until an expand step
-  adds the foreign key. The dm+d facts (routes and units) come from `DmdFactsPort`. Production
-  uses `unavailableDmd`, which knows no product, so nothing is transcribed until slice 10. The
+- **dm+d** (slice 10 merged in batch 3a): `vmp_id` and `amp_id` are validated identifiers
+  (`isDmdId` in the API, the SNOMED CT shape in the database) with no foreign key yet: the
+  fixtures below are not in the dm+d fixture release, so the keys wait until they are one set
+  (`packages/db/test/medicines-record.test.ts` says so and must change with them). The dm+d facts
+  (routes and units) come from `DmdFactsPort`: slice 10's reference tables whenever a release is
+  loaded (`dmdTablesPort`; VMPs only, never an invalid or superseded product), otherwise the
+  configured port. Production with no release loaded uses `unavailableDmd`, which knows no
+  product, so nothing is transcribed. The
   fixture of four invented products (no AMPs: an AMP is unknown) and `fixedCompetence` are used
   only when `MEDICINES_FIXTURES` is on; it defaults on outside production, and production
   refuses to start with it on. A pilot or staging stack holding real people's records sets it

@@ -168,12 +168,20 @@ async function factsFor(c: Context<AppEnv>, product: DmdProductRef): Promise<Dmd
 
 type DraftBody = z.infer<typeof TranscribeMedicine> | z.infer<typeof ChangeMedicine>;
 
-/**
- * The request's directions in the domain's shape. The PRN maximum is not taken or stored until
- * the administration schema (batch 3b, migration 0123): none recorded until then.
- */
+/** The request's directions in the domain's shape: regular directions only until batch 3b. */
 function directionsOf(d: DraftBody["directions"]): MarEntryDraft["directions"] {
-  return d.kind === "when_required" ? { ...d, maxQuantityPer24Hours: null } : d;
+  // A when-required medicine needs its dose limits (H-1066), which the record cannot store until
+  // the administration schema (batch 3b, migration 0123). Refused in plain words until then, never
+  // recorded without them.
+  if (d.kind === "when_required") {
+    throw new HttpProblem(
+      422,
+      "medicine_prn_not_yet",
+      "When-required medicines can be added once dose limits can be recorded.",
+      "When-required medicines can be added once dose limits can be recorded. Until then, record them the way your organisation does now.",
+    );
+  }
+  return d;
 }
 
 function draftOf(personId: string, body: DraftBody): MarEntryDraft {

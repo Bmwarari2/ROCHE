@@ -81,8 +81,15 @@ const APPEND_ONLY_TABLES = [
   // Deaths and missing persons (slice 37, migration 0099).
   "death_step",
   "missing_event",
+  // Batch 3a: lone working (0113) and supervision notes (0114).
   "lone_worker_event",
   "supervision_note",
+  // Batch 3a: fit notes and return-to-work meetings (0107), and the medicines record (0111).
+  "fit_note",
+  "return_to_work",
+  "medication_schedule",
+  "medication_reconciliation_source",
+  "medication_reconciliation_item",
 ];
 /**
  * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the
