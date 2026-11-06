@@ -202,6 +202,13 @@ const Env = z.object({
    * stored in the database.
    */
   SSO_KEY_STORE: z.enum(["gcp", "memory"]).default("memory"),
+  /**
+   * Payroll export to Xero Payroll UK (scheduling.md section 19 rule 8): `mock` records batches and
+   * calls nothing, with tokens held in memory under each connection's own secret name;
+   * `off` (the default) refuses every API export. The live client is not built yet (H-1190), so
+   * production accepts only `off`.
+   */
+  PAYROLL_XERO: z.enum(["off", "mock"]).default("off"),
   SSO_TEST_KEYS: z.string().default("{}"),
   /**
    * DNS proofs and OpenID discovery: the network, or in tests SSO_MOCK_TXT (JSON map of record
@@ -363,6 +370,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       }
     }
     if (parsed.SSO_KEY_STORE !== "gcp") throw new Error("SSO_KEY_STORE must be gcp in production");
+    if (parsed.PAYROLL_XERO !== "off") throw new Error("PAYROLL_XERO must be off in production");
     if (parsed.SSO_LOOKUPS !== "system")
       throw new Error("SSO_LOOKUPS must be system in production");
     if (parsed.SSO_TEST_IDP_ORIGINS !== "") {

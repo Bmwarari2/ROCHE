@@ -94,3 +94,8 @@ organisation's own records) and the DPIA. The mock is refused in production.
 | 11 October 2026 | Pending entries for family notifications: SES for family email and a UK SMS gateway (Phase 1, slice 12) | Not applicable (no live tenants); notice due before they process family data |
 | 31 October 2026 | The NHSBSA dm+d release from TRUD recorded as a download source, not a sub-processor (Phase 2 slice 10, ADR-0080) | Not applicable (no personal data) |
 | 31 October 2026 | Pending entries for the vetting and identity ports (Phase 2, slice 77; ADR-0094); none switched on | Not applicable (no provider chosen) |
+
+## Payroll providers (Phase 2, slice 76; ADR-0097)
+
+An organisation's payroll provider (Xero Payroll UK, Staffology, Sage or BrightPay) is the organisation's own processor, under the organisation's own contract with it: not a Thapsus sub-processor (H-520 recommended answer, applied 31/10/2026; the DPO confirms it at testing). Harbour sends a locked pay run's figures to it only when someone in the organisation exports them, with step-up. A file export is downloaded by that person and moved by the organisation. The Xero Payroll UK adapter sends over its API to the organisation's own Xero account, with tokens the organisation granted, kept in the managed secret store. Before the adapter is switched on, the DPO records where Xero processes the data and the transfer mechanism if it is outside the UK (H-1192). What leaves is the payroll reference, hours, pay elements, the total, holiday accrued and the auto-enrolment flags: never a name, date of birth, NI number, bank detail or health information.
+

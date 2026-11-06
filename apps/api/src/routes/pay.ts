@@ -597,6 +597,7 @@ export const payRouter = createRouter()
           qualifyingWeekdays: row?.qualifyingWeekdays ?? [],
           sspAverageWeeklyEarningsPence: row?.sspAverageWeeklyEarningsPence ?? null,
           statePensionAgeOn: row?.statePensionAgeOn ?? null,
+          payrollReference: row?.payrollReference ?? null,
         },
         200,
       );
@@ -646,6 +647,7 @@ export const payRouter = createRouter()
         qualifyingWeekdays: [...new Set(body.qualifyingWeekdays)].sort(),
         sspAverageWeeklyEarningsPence: body.sspAverageWeeklyEarningsPence,
         statePensionAgeOn: body.statePensionAgeOn,
+        payrollReference: body.payrollReference,
       };
       const row = await payChange(c, access, what, async (tx) => {
         const [member] = await withSystemRights(tx, () =>
@@ -684,6 +686,7 @@ export const payRouter = createRouter()
           qualifyingWeekdays: row.qualifyingWeekdays,
           sspAverageWeeklyEarningsPence: row.sspAverageWeeklyEarningsPence,
           statePensionAgeOn: row.statePensionAgeOn,
+          payrollReference: row.payrollReference,
         },
         200,
       );

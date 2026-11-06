@@ -5425,6 +5425,94 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.payroll_connection": {
+    context: "scheduling",
+    description:
+      "The organisation's connection to its payroll provider's API (scheduling.md section 19 rule 8): the provider, its id for the organisation and the name of the secret holding the tokens, never a token.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      provider: { description: "The payroll provider (xero_payroll_uk)." },
+      external_organisation_id: { description: "The provider's own id for the organisation." },
+      secret_ref: {
+        class: "internal",
+        description:
+          "The name of the organisation's own managed secret holding the OAuth tokens, made by the database (never the tokens).",
+      },
+      status: { description: "connected or disconnected." },
+      connected_by: { description: "Who connected it (tenant_user.id)." },
+      connected_at: "exported",
+      disconnected_at: { description: "When it was disconnected (UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.payroll_export": {
+    context: "scheduling",
+    description:
+      "Each export of a locked pay run to payroll (scheduling.md section 19): the format, the line count, the payroll references used and the SHA-256 of what was produced, which the locked run reproduces. Append-only; the file itself is never kept.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      run_id: { description: "The pay run exported (pay_run.id)." },
+      calculation: { description: "The run's calculation exported.", unit: "count" },
+      format: {
+        description: "How it left Harbour.",
+        codes: {
+          xero_payroll_uk: "Sent to Xero Payroll UK through its API.",
+          staffology_csv: "A Staffology pay elements file.",
+          sage_csv: "A Sage Payroll payments file.",
+          brightpay_csv: "A BrightPay hours and pay file.",
+        },
+      },
+      format_version: { description: "The version of the format's layout.", unit: "count" },
+      line_count: { description: "Pay lines in the export.", unit: "count" },
+      content_sha256: { description: "The SHA-256 of what was produced (hex)." },
+      reexport: { description: "Another export of the same calculation came before." },
+      outcome: {
+        description: "generated (a file) or pending (an API export, until its result is recorded).",
+      },
+      payroll_references: {
+        description: "Member id to payroll reference, as exported; a re-export reuses them.",
+      },
+      exported_by: { description: "Who exported it (tenant_user.id)." },
+      exported_at: "exported",
+    },
+  },
+  "public.payroll_export_result": {
+    context: "scheduling",
+    description:
+      "The payroll provider's result for an API export (scheduling.md section 19 rule 8), recorded after the call. Append-only, one per export.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      export_id: { description: "The export (payroll_export.id)." },
+      outcome: {
+        description: "What the provider said.",
+        codes: {
+          sent: "Taken in by the provider.",
+          failed: "Refused by the provider, or never sent: nothing was taken in.",
+          unknown: "No answer came: check the provider before exporting again.",
+        },
+      },
+      external_ref: { description: "The provider's batch id, when it gave one." },
+      recorded_by: { description: "Who exported it (tenant_user.id)." },
+      recorded_at: "exported",
+    },
+  },
   "public.pay_rule_set": {
     context: "scheduling",
     description:
@@ -5498,6 +5586,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         unit: "pence",
       },
       state_pension_age_on: { description: "When state pension age is reached (UK date)." },
+      payroll_reference: {
+        description: "The organisation's works number, or the payroll provider's employee id.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
