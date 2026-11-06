@@ -1,3 +1,4 @@
+import { DEMO } from "@harbour/db/seed";
 import type { DmdProductFacts, DmdProductRef, MedicinesCompetence } from "@harbour/domain";
 
 /**
@@ -28,8 +29,18 @@ export interface DmdFactsPort {
   facts(
     product: Pick<DmdProductRef, "vmpId" | "ampId">,
   ): Promise<(DmdProductFacts & { readonly name: string }) | null>;
+  /**
+   * Products whose dm+d name contains every word of `query` (case ignored), at most `limit`, by
+   * name: for choosing a product when transcribing (slice 52). VMPs only until slice 10.
+   */
+  search(query: string, limit: number): Promise<DmdSearchHit[]>;
   /** Whether the reference data is loaded at all (so a refusal can say why). */
   readonly loaded: boolean;
+}
+
+export interface DmdSearchHit extends DmdProductFacts {
+  readonly vmpId: string;
+  readonly name: string;
 }
 
 export interface MedicinesPorts {
@@ -43,7 +54,11 @@ export const unavailableCompetence: MedicinesCompetencePort = {
 };
 
 /** No dm+d reference data yet: no product is known, so nothing is transcribed. */
-export const unavailableDmd: DmdFactsPort = { facts: async () => null, loaded: false };
+export const unavailableDmd: DmdFactsPort = {
+  facts: async () => null,
+  search: async () => [],
+  loaded: false,
+};
 
 /** A competence source for development and tests: what each member holds, `not_held` otherwise. */
 export function fixedCompetence(
@@ -107,6 +122,19 @@ export const FIXTURE_DMD: ReadonlyMap<string, DmdProductFacts & { readonly name:
 
 export const fixtureDmd: DmdFactsPort = {
   loaded: true,
+  search: async (query, limit) => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    return [...FIXTURE_DMD.entries()]
+      .filter(([, f]) => words.every((w) => f.name.toLowerCase().includes(w)))
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+      .slice(0, limit)
+      .map(([vmpId, f]) => ({
+        vmpId,
+        name: f.name,
+        permittedRoutes: f.permittedRoutes,
+        permittedDoseUnits: f.permittedDoseUnits,
+      }));
+  },
   facts: async (product) => {
     // The fixture holds no AMPs, so a branded product it cannot vouch for is unknown.
     if (product.ampId) return null;
@@ -127,6 +155,20 @@ export const fixtureDmd: DmdFactsPort = {
  */
 export function createMedicinesPorts(fixtures: boolean): MedicinesPorts {
   return fixtures
-    ? { competence: fixedCompetence(), dmd: fixtureDmd }
+    ? { competence: fixedCompetence(demoCompetence()), dmd: fixtureDmd }
     : { competence: unavailableCompetence, dmd: unavailableDmd };
+}
+
+/**
+ * With the fixtures on (never in production), the invented demo owner, manager and nurse hold
+ * current medicines competence, so the local journeys can check and complete (slice 52). Every
+ * other member holds none until the workforce port exists.
+ */
+function demoCompetence(): ReadonlyMap<string, MedicinesCompetence> {
+  return new Map(
+    (["owner", "manager", "nurse"] as const).map((key) => [
+      `${DEMO.tenantId}:${DEMO.users[key].id}`,
+      "current" as const,
+    ]),
+  );
 }
