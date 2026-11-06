@@ -33,6 +33,12 @@ describe("H-566 membership changes, every action from every state", () => {
       suspended: { ok: true, outcome: "replay" },
       left: { ok: false, problem: "membership_ended" },
     },
+    reinstate: {
+      invited: { ok: true, outcome: "replay" },
+      active: { ok: true, outcome: "replay" },
+      suspended: { ok: true, outcome: "apply" },
+      left: { ok: false, problem: "membership_ended" },
+    },
     end: {
       invited: { ok: false, problem: "suspend_first" },
       active: { ok: false, problem: "suspend_first" },
@@ -54,7 +60,7 @@ describe("H-566 membership changes, every action from every state", () => {
     expect(checkMembershipChange(facts({ action, state }))).toEqual(expected);
   });
 
-  it.each(["suspend", "end", "erase_sign_in"] as const)(
+  it.each(["suspend", "reinstate", "end", "erase_sign_in"] as const)(
     "never lets a manager %s their own membership",
     (action) => {
       expect(checkMembershipChange(facts({ action, state: "left", self: true }))).toEqual({

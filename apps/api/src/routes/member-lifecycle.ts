@@ -1,13 +1,18 @@
-import { ChangeMembership, EraseSignInResult, MembershipChangeResult } from "@harbour/contracts";
+import {
+  ChangeMembership,
+  EraseSignInResult,
+  MemberLifecycle,
+  MembershipChangeResult,
+  ReinstateMember,
+} from "@harbour/contracts";
 import {
   authSession,
-  authUser,
-  authVerification,
   deviceBinding,
   operatorUser,
   type Transaction,
   task,
   tenantUser,
+  withRequestContext,
 } from "@harbour/db";
 import {
   checkMembershipChange,
@@ -17,15 +22,21 @@ import {
   type MembershipState,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import { AuditedRefusal, auditInTx, withAuditedRefusal, writeAudit } from "../http/audit";
 import { requirePermission, type TenantAccess } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { ACCOUNT_DELETION_TASK_KIND } from "../services/account-deletion";
-import { hurryRevokedHold, lastReportedWaiting } from "../services/device-holds";
+import {
+  entriesToHandOver,
+  hurryRevokedHold,
+  lastReportedWaiting,
+  waitingOwnedBy,
+} from "../services/device-holds";
 import { inSystemView } from "../services/devices";
+import { ERASED_SCOPE, eraseSignInIdentity } from "../services/member-erasure";
 import { memberReached } from "./member-sessions";
 import {
   conflictResponse,
@@ -59,6 +70,8 @@ const PERMISSION = "platform.user.manage";
 const SUSPENDED = "platform.member.suspended";
 const ENDED = "platform.member.ended";
 const ERASED = "platform.member.sign_in_erased";
+const REINSTATED = "platform.member.reinstated";
+const LIFECYCLE_VIEWED = "platform.member.lifecycle_viewed";
 const DELETION_COMPLETED = "platform.account_deletion.completed";
 const SIGN_OUT_ACTION = "platform.session.revoked_for_member";
 
@@ -112,7 +125,17 @@ async function elsewhere(tx: Transaction, tenantUserId: string): Promise<number>
   return Number(result.rows[0]?.n ?? 0);
 }
 
+/** The devices the member is bound to for Care mode (any binding, revoked or not). */
+async function devicesOf(tx: Transaction, tenantUserId: string): Promise<string[]> {
+  const rows = await tx
+    .selectDistinct({ id: deviceBinding.deviceId })
+    .from(deviceBinding)
+    .where(eq(deviceBinding.tenantUserId, tenantUserId));
+  return rows.map((r) => r.id);
+}
+
 const DATABASE_REFUSALS: ReadonlySet<string> = new Set<MembershipProblem>([
+  "beyond_inviter",
   "own_membership",
   "membership_ended",
   "suspend_first",
@@ -127,7 +150,7 @@ const DATABASE_REFUSALS: ReadonlySet<string> = new Set<MembershipProblem>([
 async function changeInDatabase(
   tx: Transaction,
   tenantUserId: string,
-  action: "suspend" | "end" | "unlink_sign_in",
+  action: "suspend" | "reinstate" | "end" | "unlink_sign_in",
   auditAction: string,
   scope: Record<string, unknown> = {},
 ): Promise<void> {
@@ -256,19 +279,12 @@ export const memberLifecycleRouter = createRouter()
             { reasonCode },
           );
           if (outcome === "replay") {
-            return { replay: true, signOut: null, reports: new Map(), waiting: 0 };
+            return { replay: true, signOut: null, reports: new Map<string, number>(), waiting: 0 };
           }
-          const devices = await tx
-            .selectDistinct({ id: deviceBinding.deviceId })
-            .from(deviceBinding)
-            .where(
-              and(eq(deviceBinding.tenantUserId, tenantUserId), isNull(deviceBinding.revokedAt)),
-            );
-          const reports = await lastReportedWaiting(
-            tx,
-            devices.map((d) => d.id),
-          );
-          const waiting = [...reports.values()].reduce((sum, r) => sum + r.waiting, 0);
+          // Only the member's own entries: a colleague's on a shared device are neither counted
+          // nor hurried (H-566 clinical review M1).
+          const reports = await waitingOwnedBy(tx, tenantUserId, await devicesOf(tx, tenantUserId));
+          const waiting = [...reports.values()].reduce((sum, n) => sum + n, 0);
           if (waiting > 0 && confirmEntriesWaiting !== true) {
             throw refusal(
               SUSPENDED,
@@ -331,10 +347,10 @@ export const memberLifecycleRouter = createRouter()
       }
       // A suspended member will not sign in to send what their phone holds: the hold falls due at
       // once, as after a revocation, so another member hands it over (#40 review M2).
-      for (const [deviceId, report] of done.reports) {
+      for (const [deviceId, owned] of done.reports) {
         await hurryRevokedHold(services.db, access, {
           deviceId,
-          waiting: report.waiting,
+          waiting: owned,
           now,
           requestId,
           because: "signed_out",
@@ -376,7 +392,7 @@ export const memberLifecycleRouter = createRouter()
       const access = await requirePermission(c, PERMISSION);
       await requireStepUp(c, access, ENDED);
       const { tenantUserId } = c.req.valid("param");
-      const { reasonCode } = c.req.valid("json");
+      const { reasonCode, deviceCheck } = c.req.valid("json");
       const services = c.get("services");
       const requestId = c.get("requestId");
       const now = new Date();
@@ -393,13 +409,41 @@ export const memberLifecycleRouter = createRouter()
           ) {
             return true;
           }
+          // What the member's devices still hold (H-566 clinical review B1, M2, M4): entries of
+          // theirs held on a device with an open hold wait to be handed over; and a suspended
+          // phone cannot report again, so the manager says how each device was checked.
+          const devices = await devicesOf(tx, tenantUserId);
+          const held = await entriesToHandOver(tx, tenantUserId, devices);
+          if (held > 0) {
+            throw refusal(
+              ENDED,
+              tenantUserId,
+              "entries_to_hand_over",
+              membershipProblem("entries_to_hand_over"),
+              { reasonCode, entriesToHandOver: held },
+            );
+          }
+          if (devices.length > 0 && !deviceCheck) {
+            throw refusal(
+              ENDED,
+              tenantUserId,
+              "devices_unchecked",
+              membershipProblem("devices_unchecked"),
+              { reasonCode, devicesUsed: devices.length },
+            );
+          }
           await changeInDatabase(tx, tenantUserId, "end", ENDED, { reasonCode });
           await auditInTx(tx, access, {
             action: ENDED,
             resourceType: "tenant_user",
             resourceId: tenantUserId,
             reason: reasonCode,
-            scope: { reasonCode, from: member.state },
+            scope: {
+              reasonCode,
+              from: member.state,
+              deviceCheck: deviceCheck ?? null,
+              devicesUsed: devices.length,
+            },
             requestId,
           });
           return false;
@@ -407,6 +451,204 @@ export const memberLifecycleRouter = createRouter()
       );
       return c.json(
         { tenantUserId, state: "left" as const, replay, sessionsEnded: 0, entriesWaiting: 0 },
+        200,
+      );
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/members/{tenantUserId}/reinstate",
+      tags: ["platform"],
+      summary: "Reinstate a suspended member",
+      description:
+        "platform.user.manage with step-up and a coded reason (H-566, H-1463). Undoes a suspension before the membership ends: the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. An ended membership is never reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.",
+      security,
+      request: {
+        params: Params,
+        body: { content: { "application/json": { schema: ReinstateMember } } },
+      },
+      responses: {
+        200: jsonBody(MembershipChangeResult, "Reinstated (or already active)"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, PERMISSION);
+      await requireStepUp(c, access, REINSTATED);
+      const { tenantUserId } = c.req.valid("param");
+      const { reasonCode } = c.req.valid("json");
+      const services = c.get("services");
+      const requestId = c.get("requestId");
+      const now = new Date();
+      // Whether the manager holds everything the member's roles and grants give, where they apply
+      // (app.may_invite, read in the manager's own view, as an invitation is; security review H1).
+      const mayGiveBack = await withRequestContext(services.db, access.context, async (tx) => {
+        const r = await tx.execute<{ may: boolean }>(
+          sql`SELECT app.may_invite(${tenantUserId}::uuid) AS may`,
+        );
+        return r.rows[0]?.may === true;
+      });
+      const done = await withAuditedRefusal(c, access, () =>
+        inSystemView(services.db, access, async (tx) => {
+          const member = await lockMember(tx, access, tenantUserId, now);
+          if (!member) {
+            throw refusal(
+              REINSTATED,
+              tenantUserId,
+              "not_found_or_out_of_scope",
+              problems.notFound(),
+              {
+                reasonCode,
+              },
+            );
+          }
+          if (
+            checked("reinstate", REINSTATED, tenantUserId, access, member, {}, { reasonCode }) ===
+            "replay"
+          ) {
+            return { replay: true, state: member.state };
+          }
+          if (!mayGiveBack) {
+            throw refusal(
+              REINSTATED,
+              tenantUserId,
+              "beyond_inviter",
+              new HttpProblem(
+                403,
+                "beyond_inviter",
+                "You cannot give this person's roles back.",
+                MEMBERSHIP_MESSAGES.beyond_inviter,
+              ),
+              { reasonCode },
+            );
+          }
+          await changeInDatabase(tx, tenantUserId, "reinstate", REINSTATED, { reasonCode });
+          const state = member.authUserId === null ? ("invited" as const) : ("active" as const);
+          await auditInTx(tx, access, {
+            action: REINSTATED,
+            resourceType: "tenant_user",
+            resourceId: tenantUserId,
+            reason: reasonCode,
+            scope: { reasonCode, from: member.state, to: state },
+            requestId,
+          });
+          return { replay: false, state };
+        }),
+      );
+      return c.json(
+        {
+          tenantUserId,
+          state: done.state,
+          replay: done.replay,
+          sessionsEnded: 0,
+          entriesWaiting: 0,
+        },
+        200,
+      );
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/members/{tenantUserId}/lifecycle",
+      tags: ["platform"],
+      summary: "A member's membership and sign-in status",
+      description:
+        "platform.user.manage, for a member it reaches (anyone else reads as not found, audited by opaque id). The membership's state, when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, the entries their devices last reported waiting as theirs and those still to hand over, how many devices they used and when one last reported. No address or sign-in detail.",
+      security,
+      request: { params: Params },
+      responses: {
+        200: jsonBody(MemberLifecycle, "The member's status"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, PERMISSION);
+      const { tenantUserId } = c.req.valid("param");
+      const services = c.get("services");
+      const now = new Date();
+      const found = await inSystemView(services.db, access, async (tx) => {
+        const [row] = await tx
+          .select({
+            displayName: tenantUser.displayName,
+            jobTitle: tenantUser.jobTitle,
+            state: tenantUser.status,
+            authUserId: tenantUser.authUserId,
+            statusChangedAt: tenantUser.statusChangedAt,
+            requestedAt: tenantUser.signInErasureRequestedAt,
+            erasedAt: tenantUser.signInErasedAt,
+          })
+          .from(tenantUser)
+          .where(and(eq(tenantUser.id, tenantUserId), isNull(tenantUser.deletedAt)));
+        if (!row || !(await memberReached(tx, access, tenantUserId, now))) return null;
+        const devices = await devicesOf(tx, tenantUserId);
+        const reports = await lastReportedWaiting(tx, devices);
+        const owned = await waitingOwnedBy(tx, tenantUserId, devices);
+        const latest = [...reports.values()]
+          .map((r) => r.at)
+          .sort((x, y) => y.getTime() - x.getTime())[0];
+        const open = await tx
+          .select({ id: task.id })
+          .from(task)
+          .where(
+            and(
+              eq(task.kind, ACCOUNT_DELETION_TASK_KIND),
+              eq(task.sourceType, "tenant_user"),
+              eq(task.sourceId, tenantUserId),
+              inArray(task.status, ["open", "in_progress"]),
+              isNull(task.deletedAt),
+            ),
+          )
+          .limit(1);
+        return {
+          row,
+          devices: devices.length,
+          latest: latest ?? null,
+          waiting: [...owned.values()].reduce((sum, n) => sum + n, 0),
+          toHandOver: await entriesToHandOver(tx, tenantUserId, devices),
+          requestOpen: open.length > 0,
+          others: row.authUserId ? await elsewhere(tx, tenantUserId) : 0,
+        };
+      });
+      if (!found) {
+        await writeAudit(services.appPool, access, {
+          action: LIFECYCLE_VIEWED,
+          outcome: "denied",
+          resourceType: "tenant_user",
+          resourceId: tenantUserId,
+          reason: "not_found_or_out_of_scope",
+          requestId: c.get("requestId"),
+        });
+        throw problems.notFound();
+      }
+      const { row } = found;
+      const signIn = row.authUserId
+        ? found.others > 0
+          ? ("kept_other_organisation" as const)
+          : ("kept" as const)
+        : row.erasedAt
+          ? ("erased" as const)
+          : ("none" as const);
+      return c.json(
+        {
+          id: tenantUserId,
+          displayName: row.displayName,
+          jobTitle: row.jobTitle,
+          state: row.state,
+          statusChangedAt: row.statusChangedAt?.toISOString() ?? null,
+          deletionRequestedAt: row.requestedAt?.toISOString() ?? null,
+          deletionRequestOpen: found.requestOpen,
+          signIn,
+          signInErasedAt: row.erasedAt?.toISOString() ?? null,
+          entriesWaiting: found.waiting,
+          entriesToHandOver: found.toHandOver,
+          devicesUsed: found.devices,
+          lastReportedAt: found.latest?.toISOString() ?? null,
+        },
         200,
       );
     },
@@ -459,22 +701,11 @@ export const memberLifecycleRouter = createRouter()
         resourceId: tenantUserId,
         // Exactly what goes: the sign-in, never the member row, whose display name, job title and
         // the organisation's own copy of the address stay with the staff file (staff_file).
-        scope: {
-          removed: [
-            "sign_in_address",
-            "password_hash",
-            "passkeys",
-            "totp_secret_and_backup_codes",
-            "sessions",
-            "verification_tokens",
-            "member_sign_in_link",
-          ],
-          kept: ["member_row"],
-        },
+        scope: ERASED_SCOPE,
         requestId,
       });
       try {
-        await eraseSignIn(services.authPool, plan);
+        await eraseSignInIdentity(services.authPool, plan);
       } catch (error) {
         await writeAudit(services.appPool, access, {
           action: ERASED,
@@ -523,45 +754,3 @@ export const memberLifecycleRouter = createRouter()
       return c.json({ tenantUserId, erased: true, deletionRequestClosed }, 200);
     },
   );
-
-/**
- * Deletes a sign-in identity in one transaction of the auth role: its verification tokens (by
- * address; any naming the user, such as password resets and passkey challenges; and the
- * second-factor records of its sessions), then the user, whose sessions,
- * accounts (password hash), TOTP secret and backup codes, and passkeys go with it (foreign keys on
- * delete cascade). A sign-in already gone deletes nothing.
- */
-async function eraseSignIn(authPool: pg.Pool, authUserId: string): Promise<void> {
-  const client = await authPool.connect();
-  try {
-    await client.query("BEGIN");
-    const auth = drizzle(client);
-    const [user] = await auth
-      .select({ email: authUser.email })
-      .from(authUser)
-      .where(eq(authUser.id, authUserId))
-      .for("update");
-    if (user) {
-      const sessions = await auth
-        .select({ id: authSession.id })
-        .from(authSession)
-        .where(eq(authSession.userId, authUserId));
-      await auth.delete(authVerification).where(
-        or(
-          eq(authVerification.identifier, user.email),
-          // Password reset tokens hold the user id; passkey challenges hold it inside their
-          // JSON (they also expire within minutes).
-          sql`strpos(${authVerification.value}, ${authUserId}) > 0`,
-          ...sessions.map((x) => eq(authVerification.identifier, `session-factor:${x.id}`)),
-        ),
-      );
-      await auth.delete(authUser).where(eq(authUser.id, authUserId));
-    }
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-}

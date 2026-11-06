@@ -1393,6 +1393,8 @@
           "state": {
             "type": "string",
             "enum": [
+              "invited",
+              "active",
               "suspended",
               "left"
             ]
@@ -1433,10 +1435,131 @@
           },
           "confirmEntriesWaiting": {
             "type": "boolean"
+          },
+          "deviceCheck": {
+            "type": "string",
+            "enum": [
+              "device_returned_checked",
+              "device_lost_incident_raised"
+            ]
           }
         },
         "required": [
           "reasonCode"
+        ]
+      },
+      "ReinstateMember": {
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "suspended_in_error",
+              "investigation_cleared",
+              "returned_from_absence",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "reasonCode"
+        ]
+      },
+      "MemberLifecycle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "invited",
+              "active",
+              "suspended",
+              "left"
+            ]
+          },
+          "statusChangedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deletionRequestedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deletionRequestOpen": {
+            "type": "boolean"
+          },
+          "signIn": {
+            "$ref": "#/components/schemas/MemberSignInState"
+          },
+          "signInErasedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entriesToHandOver": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "devicesUsed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastReportedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "jobTitle",
+          "state",
+          "statusChangedAt",
+          "deletionRequestedAt",
+          "deletionRequestOpen",
+          "signIn",
+          "signInErasedAt",
+          "entriesWaiting",
+          "entriesToHandOver",
+          "devicesUsed",
+          "lastReportedAt"
+        ]
+      },
+      "MemberSignInState": {
+        "type": "string",
+        "enum": [
+          "kept",
+          "kept_other_organisation",
+          "erased",
+          "none"
         ]
       },
       "EraseSignInResult": {
@@ -62172,6 +62295,185 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/reinstate": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Reinstate a suspended member",
+        "description": "platform.user.manage with step-up and a coded reason (H-566, H-1463). Undoes a suspension before the membership ends: the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. An ended membership is never reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReinstateMember"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reinstated (or already active)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipChangeResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/lifecycle": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "A member's membership and sign-in status",
+        "description": "platform.user.manage, for a member it reaches (anyone else reads as not found, audited by opaque id). The membership's state, when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, the entries their devices last reported waiting as theirs and those still to hand over, how many devices they used and when one last reported. No address or sign-in detail.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The member's status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

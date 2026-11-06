@@ -11,6 +11,7 @@ import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { backupDays } from "../services/certificates";
 import { sweepInvitations } from "../services/invitations";
+import { sweepSignInErasures } from "../services/member-erasure";
 import { checkDmdFreshness, RETIRED_DMD_QUEUE } from "./dmd";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
@@ -229,6 +230,9 @@ await work(QUEUES.downtimePacks, async () => {
 });
 await work(QUEUES.invitations, async () => {
   await sweepInvitations({ workerPool, appPool, authPool, logger });
+  // Sign-ins whose account deletion request can now complete (H-566): counts only.
+  const erased = await sweepSignInErasures({ workerPool, appDb: deps.appDb, authPool, logger });
+  if (erased > 0) logger.info({ event: "member.sign_in_erasure.sweep", erased }, "sign-ins erased");
 });
 
 // Public speak-up intake windows that have passed (ADR-0089): counts only, no personal data.

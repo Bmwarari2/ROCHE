@@ -111,6 +111,26 @@ export const MEMBER_CHANGE_REASONS = [
   "other",
 ] as const;
 
+/** How a manager checked the devices a member used before ending the membership: a code. */
+export const MEMBER_DEVICE_CHECKS = [
+  "device_returned_checked",
+  "device_lost_incident_raised",
+] as const;
+export type MemberDeviceCheck = (typeof MEMBER_DEVICE_CHECKS)[number];
+
+/** Why a suspension is undone before the membership ends (H-1463): a code, never words. */
+export const MEMBER_REINSTATE_REASONS = [
+  "suspended_in_error",
+  "investigation_cleared",
+  "returned_from_absence",
+  "other",
+] as const;
+
+export const ReinstateMember = z
+  .object({ reasonCode: z.enum(MEMBER_REINSTATE_REASONS) })
+  .meta({ id: "ReinstateMember" });
+export type ReinstateMember = z.infer<typeof ReinstateMember>;
+
 export const ChangeMembership = z
   .object({
     reasonCode: z.enum(MEMBER_CHANGE_REASONS),
@@ -119,6 +139,12 @@ export const ChangeMembership = z
      * last reported waiting (they stay on each device, protected, until handed over).
      */
     confirmEntriesWaiting: z.boolean().optional(),
+    /**
+     * Ending only (H-566, clinical review B1): how the devices the member used for Care mode were
+     * checked. A suspended member's phone cannot report again, so entries written after its last
+     * report are known only to whoever holds it. Needed when they used any device.
+     */
+    deviceCheck: z.enum(MEMBER_DEVICE_CHECKS).optional(),
   })
   .meta({ id: "ChangeMembership" });
 export type ChangeMembership = z.infer<typeof ChangeMembership>;
@@ -126,7 +152,8 @@ export type ChangeMembership = z.infer<typeof ChangeMembership>;
 export const MembershipChangeResult = z
   .object({
     tenantUserId: uuid,
-    state: z.enum(["suspended", "left"]),
+    /** Reinstating leaves the member active, or invited when they have no sign-in. */
+    state: z.enum(["invited", "active", "suspended", "left"]),
     /** True when the membership was already in this state: nothing changed. */
     replay: z.boolean(),
     /** Sessions of the person's sign-in ended (0 while they work for another organisation). */
@@ -136,6 +163,38 @@ export const MembershipChangeResult = z
   })
   .meta({ id: "MembershipChangeResult" });
 export type MembershipChangeResult = z.infer<typeof MembershipChangeResult>;
+
+export const MemberSignInState = z
+  .enum(["kept", "kept_other_organisation", "erased", "none"])
+  .meta({ id: "MemberSignInState" });
+export type MemberSignInState = z.infer<typeof MemberSignInState>;
+
+/** A member's membership and sign-in, as a manager sees them (H-566). No address or sign-in. */
+export const MemberLifecycle = z
+  .object({
+    id: uuid,
+    displayName: z.string(),
+    jobTitle: z.string().nullable(),
+    state: z.enum(["invited", "active", "suspended", "left"]),
+    /** When the membership was last suspended, reinstated or ended. */
+    statusChangedAt: z.iso.datetime({ offset: true }).nullable(),
+    /** When the member asked for their account to be deleted, if they did. */
+    deletionRequestedAt: z.iso.datetime({ offset: true }).nullable(),
+    /** True while that request is still open. */
+    deletionRequestOpen: z.boolean(),
+    signIn: MemberSignInState,
+    signInErasedAt: z.iso.datetime({ offset: true }).nullable(),
+    /** Entries the member's devices last reported waiting that are theirs. */
+    entriesWaiting: z.number().int().min(0),
+    /** Entries the member owns on devices whose hold is still open: ending waits for them. */
+    entriesToHandOver: z.number().int().min(0),
+    /** Devices the member used for Care mode: ending needs a device check when any. */
+    devicesUsed: z.number().int().min(0),
+    /** When any of those devices last reported its unsent work, if one ever did. */
+    lastReportedAt: z.iso.datetime({ offset: true }).nullable(),
+  })
+  .meta({ id: "MemberLifecycle" });
+export type MemberLifecycle = z.infer<typeof MemberLifecycle>;
 
 export const EraseSignInResult = z
   .object({
