@@ -14,6 +14,7 @@ import {
   Archive,
   Banknote,
   Bell,
+  Biohazard,
   BookCheck,
   BookOpen,
   Briefcase,
@@ -24,10 +25,12 @@ import {
   ClipboardList,
   CloudOff,
   FileLock,
+  FileOutput,
   FileSearch,
   FileSpreadsheet,
   FileText,
   FileUp,
+  Flower2,
   FolderLock,
   Gauge,
   GraduationCap,
@@ -54,6 +57,7 @@ import {
   TriangleAlert,
   UserPlus,
   UserRoundCheck,
+  UserSearch,
   Users,
   Wallet,
 } from "lucide-react";
@@ -86,6 +90,13 @@ export interface ShellFrameLabels {
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
+  /** Shown only to holders of safety.outbreak.manage (SAFE-013). */
+  readonly outbreaks?: string | undefined;
+  /** Shown only to people who may read incidents (SAFE-014, SAFE-015). */
+  readonly deaths?: string | undefined;
+  readonly missing?: string | undefined;
+  /** Shown only to holders of safety.incident.manage or safety.disclosure.approve (SAFE-016). */
+  readonly disclosures?: string | undefined;
   /** Shown only to holders of safety.safeguarding.manage (SAFE-006). */
   readonly safeguarding?: string | undefined;
   /**
@@ -207,6 +218,10 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
   }
+  if (pathname.startsWith("/outbreaks")) return "outbreaks";
+  if (pathname.startsWith("/deaths")) return "deaths";
+  if (pathname.startsWith("/missing")) return "missing";
+  if (pathname.startsWith("/disclosures")) return "disclosures";
   if (pathname.startsWith("/safeguarding")) return "safeguarding";
   if (pathname.startsWith("/complaints")) return "complaints";
   if (pathname.startsWith("/speak-up")) return "speak-up";
@@ -361,6 +376,32 @@ export function ShellFrame({
             label: labels.incidents,
             href: "/incidents",
             icon: <TriangleAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.outbreaks
+      ? [
+          {
+            id: "outbreaks",
+            label: labels.outbreaks,
+            href: "/outbreaks",
+            icon: <Biohazard {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.deaths
+      ? [{ id: "deaths", label: labels.deaths, href: "/deaths", icon: <Flower2 {...icon} /> }]
+      : []),
+    ...(labels.missing
+      ? [{ id: "missing", label: labels.missing, href: "/missing", icon: <UserSearch {...icon} /> }]
+      : []),
+    ...(labels.disclosures
+      ? [
+          {
+            id: "disclosures",
+            label: labels.disclosures,
+            href: "/disclosures",
+            icon: <FileOutput {...icon} />,
           },
         ]
       : []),

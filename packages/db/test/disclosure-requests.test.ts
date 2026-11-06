@@ -160,6 +160,53 @@ describe("hazard HZ-011 disclosure requests (migration 0103)", () => {
         [id],
       ),
     );
+    // H-958: the pack is downloaded once and its hand-over recorded once, each in one's own name,
+    // by a secure route only; neither is changed afterwards.
+    await expect(
+      asHome((c) =>
+        c.query(
+          "UPDATE disclosure_request SET pack_downloaded_at = now(), pack_downloaded_by = $2 WHERE id = $1",
+          [id, a.manager],
+        ),
+      ),
+    ).rejects.toThrow(/disclosure_downloader_not_you/);
+    await asHome((c) =>
+      c.query(
+        "UPDATE disclosure_request SET pack_downloaded_at = now(), pack_downloaded_by = $2 WHERE id = $1",
+        [id, a.northManager],
+      ),
+    );
+    await expect(
+      asHome((c) =>
+        c.query(
+          "UPDATE disclosure_request SET pack_downloaded_at = NULL, pack_downloaded_by = NULL WHERE id = $1",
+          [id],
+        ),
+      ),
+    ).rejects.toThrow(/disclosure_pack_already_downloaded/);
+    await expect(
+      asHome((c) =>
+        c.query(
+          `UPDATE disclosure_request SET handed_over_at = now(), handed_over_by = $2,
+             handed_over_route = 'email' WHERE id = $1`,
+          [id, a.northManager],
+        ),
+      ),
+    ).rejects.toThrow(/disclosure_request_hand_over/);
+    await asHome((c) =>
+      c.query(
+        `UPDATE disclosure_request SET handed_over_at = now(), handed_over_by = $2,
+           handed_over_route = 'secure_portal' WHERE id = $1`,
+        [id, a.northManager],
+      ),
+    );
+    await expect(
+      asHome((c) =>
+        c.query("UPDATE disclosure_request SET handed_over_route = 'in_person' WHERE id = $1", [
+          id,
+        ]),
+      ),
+    ).rejects.toThrow(/disclosure_already_handed_over/);
     // Items are fixed once the request has moved on.
     await expect(
       asHome((c) =>

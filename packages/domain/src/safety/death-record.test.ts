@@ -90,21 +90,45 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
         NOW,
       ),
     ).toEqual([
-      "This step is done in the notification centre: submit the notification there, or record here why it is not needed.",
+      "This step is settled in the notification centre: submit the notification there, or decide there that it is not required.",
     ]);
-    // Not needed, with a reason (the person died in hospital, for example).
-    const notNeeded = deathRecordView({
-      facts: judged,
-      recorded: [{ step: "medical_examiner_pack", outcome: "not_needed", at: NOW }],
-      notifications: {},
-      review: noReview,
-      now: NOW,
-      rates,
-    });
-    expect(notNeeded.steps.find((s) => s.step === "medical_examiner_pack")?.state).toBe(
-      "not_needed",
-    );
   });
+
+  it.each(["medical_examiner_pack", "cqc_reg16_notification", "leder_notification"] as const)(
+    "hazard HZ-013 never marks %s not needed on the death record (H-950)",
+    (step) => {
+      const ld = deathRecordView({
+        facts: { ...judged, learningDisabilityOrAutism: true },
+        recorded: [],
+        notifications: {},
+        review: noReview,
+        now: NOW,
+        rates,
+      });
+      const enough = "The person died in hospital, so the hospital notifies.";
+      expect(
+        deathStepProblems(
+          ld.plan,
+          DIED,
+          { step, outcome: "not_needed", at: NOW, note: enough },
+          NOW,
+        ),
+      ).toEqual([
+        "This step is settled in the notification centre: submit the notification there, or decide there that it is not required.",
+      ]);
+      // A "not needed" recorded here earlier never settles it: only the notification does.
+      const earlier = deathRecordView({
+        facts: { ...judged, learningDisabilityOrAutism: true },
+        recorded: [{ step, outcome: "not_needed", at: NOW }],
+        notifications: {},
+        review: noReview,
+        now: NOW,
+        rates,
+      });
+      expect(earlier.steps.find((s) => s.step === step)?.state).toBe("outstanding");
+      expect(earlier.closeProblems.some((p) => p.includes("notification centre"))).toBe(true);
+    },
+  );
 
   it("closes only with every step done or not needed and the review recorded", () => {
     const all = deathRecordView({
@@ -126,7 +150,7 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
     });
     expect(without.closeProblems).toEqual([
       "Record telling the family, or why it is not needed.",
-      "Record the medical examiner information, or why it is not needed.",
+      "Submit the medical examiner information, or decide it is not required, in the notification centre.",
       "Submit the regulator's death notification, or decide it is not required, in the notification centre.",
       "Record the mortality review: its findings and lessons.",
     ]);
@@ -215,5 +239,55 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
     expect(
       deathReviewProblems({ findings: `  ${"x".repeat(DEATH_REASON_MIN - 1)} `, lessons: enough }),
     ).toHaveLength(1);
+  });
+});
+
+describe("hazard HZ-013 the police steps stand until the clinician's judgement (slice 63)", () => {
+  const unjudged: DeathRecordFacts = {
+    diedAt: DIED,
+    expected: null,
+    possiblyUnnatural: null,
+    learningDisabilityOrAutism: false,
+  };
+  const refused =
+    "The clinician's judgement is not recorded yet, so this police step cannot be marked not needed. Record the judgement first.";
+  it.each<[string, DeathRecordFacts, Parameters<typeof deathStepProblems>[2], string[]]>([
+    [
+      "police told, not needed, no judgement",
+      unjudged,
+      { step: "police_informed", outcome: "not_needed", at: NOW, note: enough },
+      [refused],
+    ],
+    [
+      "room left, not needed, no judgement",
+      unjudged,
+      { step: "preserve_room_and_equipment", outcome: "not_needed", at: NOW, note: enough },
+      [refused],
+    ],
+    [
+      "police told, done, no judgement",
+      unjudged,
+      { step: "police_informed", outcome: "done", at: NOW, note: null },
+      [],
+    ],
+    [
+      "police told, not needed, expected only",
+      { ...unjudged, expected: true },
+      { step: "police_informed", outcome: "not_needed", at: NOW, note: enough },
+      [refused],
+    ],
+    [
+      "another step, not needed, no judgement",
+      unjudged,
+      { step: "family_informed", outcome: "not_needed", at: NOW, note: enough },
+      [],
+    ],
+  ])("%s", (_name, facts, step, problems) => {
+    expect(
+      deathStepProblems(deathRecordPlan(facts, rates), DIED, step, NOW, {
+        expected: facts.expected,
+        possiblyUnnatural: facts.possiblyUnnatural,
+      }),
+    ).toEqual(problems);
   });
 });

@@ -470,6 +470,16 @@ async function LeavingTab({
         </p>
       ) : null}
 
+      {exit?.kind === "death" && exit.state !== "planned" && may("safety.incident.manage") ? (
+        <p className="m-0">
+          <Link
+            href={`/deaths/new?exitRecord=${exit.id}`}
+            className="inline-flex min-h-target items-center underline"
+          >
+            {t("deaths.fromExit")}
+          </Link>
+        </p>
+      ) : null}
       {exit && actions.has("awaitReturns") ? (
         <MoveButton personId={id} path={path} move="awaitReturns" version={exit.version} />
       ) : null}

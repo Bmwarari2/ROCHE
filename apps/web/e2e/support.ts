@@ -25,7 +25,8 @@ export function demoPerson(n: number): string {
 /**
  * Waits for entry animations (a sheet or menu fading in) to finish, so axe measures contrast on
  * what people see once it has settled, not a half-transparent frame. Endless animations, such as
- * a spinner, are skipped.
+ * a spinner, are skipped, and so are animations on elements nobody can see: Chromium hides a
+ * closed `<details>` with content-visibility, and a transition there never runs to its end.
  */
 export async function settleAnimations(page: Page) {
   await page.evaluate(() =>
@@ -37,7 +38,7 @@ export async function settleAnimations(page: Page) {
         // animations, so waiting on them would never end; axe does not measure it either.
         .filter((animation) => {
           const target = (animation.effect as KeyframeEffect | null)?.target;
-          return !target || target.checkVisibility();
+          return !(target instanceof Element) || target.checkVisibility() !== false;
         })
         .map((animation) => animation.finished.catch(() => undefined)),
     ),

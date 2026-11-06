@@ -26,6 +26,7 @@ export type RecordTab =
   | "dependency"
   | "activities"
   | "reviews"
+  | "herbert"
   | "safeguarding"
   | "hospital"
   | "pre-admission"
@@ -49,6 +50,7 @@ type TabPermission =
   | "medicines.record.manage"
   | "medicines.emar.administer"
   | "care.note.read"
+  | "safety.incident.read"
   | "people.person.read"
   | "people.movement.record"
   | "comms.letter.manage"
@@ -80,6 +82,8 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "dependency", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
   { tab: "reviews", needs: "care.plan.read" },
+  // The Herbert Protocol profile handed to the police if the person goes missing (SAFE-015).
+  { tab: "herbert", needs: "safety.incident.read" },
   // The protective measures of open safeguarding concerns, for carers (SAFE-006; HZ-126).
   { tab: "safeguarding", needs: "care.plan.read" },
   { tab: "hospital", needs: "people.movement.record" },

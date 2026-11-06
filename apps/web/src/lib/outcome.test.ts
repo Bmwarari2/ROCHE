@@ -138,3 +138,17 @@ describe("collectedRefusal", () => {
     expect(collectedRefusal([])).toBeNull();
   });
 });
+
+describe("a refusal the record's state makes (HZ-013)", () => {
+  it("says the API's own sentence, from its title when it has no detail", () => {
+    const title =
+      "Submit the outbreak report to the health protection team, or record why it is not needed, before closing the outbreak.";
+    expect(problemMessage({ code: "invalid_state", title, status: 409 }, t)).toEqual({
+      code: "invalid_state",
+      message: title,
+    });
+    expect(problemMessage({ code: "invalid_state", detail: "Do this first." }, t).message).toBe(
+      "Do this first.",
+    );
+  });
+});

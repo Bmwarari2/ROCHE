@@ -500,6 +500,25 @@ export const outbreaksRouter = createRouter()
           }
         }
         const existing = await allOutbreakCases(tx, id);
+        // One current row per person (HZ-013): a second would count them twice in the UKHSA report
+        // and keep an old "unwell" row open; a change is recorded by superseding the current row.
+        if (!body.supersedesId) {
+          const already = currentCases(existing.map(domainCase)).some(
+            (r) =>
+              (body.personId !== null && r.personId === body.personId) ||
+              (body.tenantUserId !== null && r.tenantUserId === body.tenantUserId),
+          );
+          if (already) {
+            throw refused(
+              problems.invalid(
+                "This person is already on the line list. Update their existing row instead.",
+              ),
+              A.caseRecorded,
+              id,
+              "person_already_listed",
+            );
+          }
+        }
         if (body.supersedesId) {
           const latest = currentCases(existing.map(domainCase)).some(
             (r) => r.id === body.supersedesId,

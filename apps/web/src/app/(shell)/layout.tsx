@@ -103,6 +103,18 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         speakUp: speakUpShown(me.permissions, isFamilyMember(me))
           ? t("shell.nav.speakUp")
           : undefined,
+        outbreaks: me.permissions.includes("safety.outbreak.manage")
+          ? t("shell.nav.outbreaks")
+          : undefined,
+        deaths: me.permissions.includes("safety.incident.read") ? t("shell.nav.deaths") : undefined,
+        missing: me.permissions.includes("safety.incident.read")
+          ? t("shell.nav.missing")
+          : undefined,
+        disclosures:
+          me.permissions.includes("safety.incident.manage") ||
+          me.permissions.includes("safety.disclosure.approve")
+            ? t("shell.nav.disclosures")
+            : undefined,
         approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
         loneWorking: loneWorkerNavShown(me.permissions) ? t("shell.nav.loneWorking") : undefined,
