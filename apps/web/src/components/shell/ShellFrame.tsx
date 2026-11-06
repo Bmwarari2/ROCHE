@@ -21,6 +21,7 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarOff,
+  ChartColumn,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
@@ -45,6 +46,7 @@ import {
   Megaphone,
   MessageSquare,
   Newspaper,
+  Package,
   Palette,
   Scale,
   ScrollText,
@@ -87,6 +89,8 @@ export interface ShellFrameLabels {
   readonly people?: string | undefined;
   /** Shown only to people who read care plans (care.plan.read), whose round it is. */
   readonly round?: string | undefined;
+  readonly medicinesStock?: string | undefined;
+  readonly medicinesReports?: string | undefined;
   /** Shown only to people who take part in the shift handover (care.handover.manage). */
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
@@ -221,6 +225,8 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/my-shifts")) return "my-shifts";
   if (pathname.startsWith("/settings/dependency")) return "dependency";
   if (pathname.startsWith("/round")) return "round";
+  if (pathname.startsWith("/medicines-stock")) return "medicines-stock";
+  if (pathname.startsWith("/medicines-reports")) return "medicines-reports";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
@@ -353,6 +359,26 @@ export function ShellFrame({
       : []),
     ...(labels.round
       ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]
+      : []),
+    ...(labels.medicinesStock
+      ? [
+          {
+            id: "medicines-stock",
+            label: labels.medicinesStock,
+            href: "/medicines-stock",
+            icon: <Package {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.medicinesReports
+      ? [
+          {
+            id: "medicines-reports",
+            label: labels.medicinesReports,
+            href: "/medicines-reports",
+            icon: <ChartColumn {...icon} />,
+          },
+        ]
       : []),
     ...(labels.handover
       ? [

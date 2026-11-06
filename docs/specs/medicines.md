@@ -1813,3 +1813,296 @@ Not sent to devices yet (the round stream is a contract until slice 68).
   refusals, the flag and escalation before an assessment and none after; protocol refusals, a dose
   by a named member once per id, refusals in words, entered in error, a prescribed product,
   withdrawal.
+
+## 18. Web: stock, homely remedies, errors and reviews (slice 55; MEDS-007, MEDS-008, MEDS-012, MEDS-013)
+
+No migration and no API change. In the side navigation: "Medicines stock" (`medicines.stock.manage`) and "Medicines reports" (`medicines.record.manage`); the person's Medicines tab links their stock, homely remedies and medication reviews.
+
+### Stock, ordering, disposal and temperatures screens (slice 55, MEDS-008)
+
+The web screens for section 15 (slice 42's API; no API, contract or database change). A home's
+stock page is at `/medicines-stock/{locationId}` (`/medicines-stock` sends the reader to the chosen
+home, or lists the homes when the shell shows every one). A person's stock is under their record's
+**Medicines** tab, at `/people/{id}/medicines/stock`, inside the record frame, so the point-of-care
+header is above it. Reading needs any of the API's readers (`medicines.record.manage`,
+`medicines.emar.administer` or `medicines.stock.manage`); every change needs
+`medicines.stock.manage`, except a temperature reading, which `medicines.emar.administer` may also
+record. The API checks each again, and its refusals are shown in its own words at the field they
+belong to.
+
+**Rules**
+
+1. **The home's page** has three sections. The **ordering cycle** shows the cycle's length (the rate
+   table's `medicines.ordering_cycle_days`, from the API), the day a cycle started and when the next
+   starts; a stock manager sets the first day of a cycle, against the version read. **Orders** lists
+   each order by its cycle, newest first, with its step as an icon and a word (draft, submitted,
+   part received, received, cancelled), its number of lines and how and when it was sent.
+   **Storage and temperatures** lists each fridge and medicines room or cupboard, each opening its
+   readings, and a stock manager adds one (a kind and a name of 2 to 80 characters).
+2. **Starting an order** (`/medicines-stock/{locationId}/orders/new`) lists each person at the home
+   the reader may see, with each medicine on their MAR in force and its dose unit. A quantity typed
+   for a medicine orders it; one left empty does not. The first day of the next cycle is offered.
+   At least one quantity is needed. The API checks each line is the person's own medicine at this
+   home and never a controlled drug.
+3. **An order** (`/medicines-stock/{locationId}/orders/{orderId}`) shows its step (icon and word),
+   when and how it was sent, the pharmacy's reference, and each line with the person, the medicine,
+   the quantity ordered and the quantity received (a line received beyond its quantity says so in
+   words). A draft is submitted by hand or through the pharmacy (the API says when the pharmacy is
+   not connected); an order not yet received can be cancelled.
+4. **A fridge's or room's readings** (`/medicines-stock/{locationId}/storage/{storageId}`) lists the
+   last 100, newest first. Each shows its state as an icon and words, never colour alone: "In
+   range", or "Out of range, too warm", "too cold" or "since the last reading" (the thermometer's
+   maximum or minimum). Whether a reading is out of range is the API's (the database's) decision,
+   from the rate table; the screen never works it out. Each shows the range that applied, as the API
+   stored it, and the thermometer's lowest and highest since the last reading. An out-of-range
+   reading with a task says an urgent task asks the person in charge to check the storage and ask
+   the pharmacist.
+5. **Recording a reading**: the temperature now and, optionally, the lowest and highest since the
+   last reading, each from -50 to 60 with at most one decimal place (8.04 is refused, so a reading at
+   a range's edge is never rounded into it; HZ-132). After it is recorded the form shows its state
+   (icon and words), the range that applied and the API's own words on what happens next. Nothing on
+   these screens says whether the medicines can still be used.
+6. **A person's stock** lists each item with its balance as the API counts it (never added up in the
+   browser), a balance below nought as an icon and the words "Below nought, count needed", and its
+   last movement. Each controlled drug shows its register's balance, says it is kept in the
+   register, and links to the register page; it is never counted here. A stock manager opens an
+   item from a medicine on the MAR in force that has none.
+7. **A stock item** (`/people/{id}/medicines/stock/{itemId}`) lists its latest movements in words
+   (received, given, returned, disposed of, a dose corrected, a count adjusted) with the signed
+   change, the balance after and who recorded it when. A stock manager records:
+   - a **receipt**, naming the open order line it fills when there is one (lines of submitted and
+     part-received orders for this person's medicine);
+   - a **return** to the pharmacy;
+   - a **count**, where a count that differs from the balance shown needs a reason (the API compares
+     again under a lock);
+   - a **disposal**: the quantity, a coded reason, a note, and either a witness (a member at the
+     home, never the recorder) or why no one could witness it (at least 10 characters), never both.
+     The organisation's policy decides whether a disposal may go unwitnessed; the API says so when it
+     may not. Where the reader cannot see the staff list (`platform.user.manage`), the form says to
+     ask a manager to record a witnessed disposal.
+8. **Witnessing a disposal** (`/people/{id}/medicines/stock/disposals/{disposalId}`): a disposal
+   movement links here for stock managers other than its recorder. The page shows the medicine, the
+   quantity and when, and the named witness confirms it once, in their own session; the API refuses
+   anyone else in its words. Only this closes the witness task.
+9. Quantities are numbers above nought with at most three decimal places and no leading zero; a
+   count may be nought. Dates are typed as day, month and year.
+
+**As built**: `apps/web/src/lib/medicine-stock.ts` (pure readers into the contract, chips as icon and
+word, the field for each stock refusal), `apps/web/src/app/actions/medicine-stock.ts` (each body
+checked against the contract's zod schema with only the form's fields),
+`apps/web/src/components/medicines/stock/LocationStockForms.tsx` and `PersonStockForms.tsx`, and the
+pages above. The home's stock page needs a link in the side navigation and the person's
+**Medicines** tab needs a link to the stock page (not built in this area; see the lead's notes).
+
+**Known gaps**: the API has no expiry date on a stock item, so no expiry state is shown (when one is
+added, show it as an icon and words, never colour alone). A disposal has no read route, so its
+witness state is shown only on arrival after recording it ("waiting for the witness to confirm it")
+and the witness page finds it among the item's latest ten movements. The new-order page reads each
+person's MAR one request at a time in parallel (one per person at the home).
+
+**Tests**: `apps/web/src/lib/medicine-stock.test.ts` (who sees and changes stock; an order's step,
+a reading's state, a balance below nought and a disposal's witness state each as an icon and a word;
+a temperature to one decimal place at most, 8.04 and 1.95 refused; a reading at the edge that the API
+found in range stays in range; receipts, returns, counts, disposals, the cycle, a new order, a
+submission and storage read into the contract with each mistake at its field; which order lines a
+receipt can fill; which entries an item can be opened from); `apps/web/e2e/medicine-stock.spec.ts`
+(the manager sets the cycle, adds a fridge, records a reading in range and one out of range, starts
+and submits an order, opens an item, receives the order line, counts with a reason, and records a
+disposal the nurse confirms as witness; axe in light and dark at every screen, with and without
+errors).
+
+### Homely remedies on the web (MEDS-007; slice 55; HZ-120, HZ-007)
+
+The home's homely remedy protocols and a person's homely remedy doses are on the web, on the slice
+38 API (section 15.3). The web keeps nothing: every rule (the rate table's limits on the days and
+the review, who is named, the dose, the gap, the 24 hours, the course, the same product prescribed)
+is the API's, and its words are shown as they are.
+
+**The home's protocols** (`/medicines-stock/{locationId}/homely-remedies`) list each protocol with
+its state as an icon and the API's words (in use; review overdue, not to be used until reviewed;
+withdrawn), the figures agreed with the GP or pharmacist (what it is for, one dose, the shortest gap,
+the most in 24 hours, the days before the GP is asked, who agreed it and when, the review date, how
+many staff it names, the dm+d code when coded), and why it was last changed or withdrawn. A
+medicines manager adds one (`.../new`), changes one (`.../{protocolId}/change`, every figure as it
+stands, the staff ticked, a new reason, the version read) and withdraws one (`.../{protocolId}/withdraw`,
+with a reason and the version read). A withdrawn protocol offers neither.
+
+**A person's homely remedies** (`/people/{id}/medicines/homely-remedies`, in the record's medicines
+tab) list the doses given, newest first: the product, the amount and unit, when, why, "Given by you"
+for the reader's own, when and why a dose was recorded afterwards, and any flags in words. A dose
+entered in error stays, struck through, with an "Entered in error" chip and the reason. Someone who
+may give homely remedies at the person's home sees "Give a homely remedy": the person and every
+allergy (`PersonCheck`), the home's protocols in use, the chosen protocol's figures beside it, and
+the amount (the protocol's dose filled in). "Check against the protocol" asks the API
+(`POST .../homely-remedy-doses/check`) and shows its answer in its words; only a dose the check found
+within the protocol, for the same protocol and amount, offers why it is given, the allergy
+confirmation and "Record the dose".
+
+#### Rules
+
+1. The pages are shown to holders of `medicines.record.manage`, `medicines.emar.administer` or
+   `care.plan.read`; the location page also needs the home to be one of the reader's locations.
+   Adding, changing and withdrawing a protocol are offered only with `medicines.record.manage`.
+2. A protocol's state is always an icon and the API's words: in use (tick), review overdue
+   (warning triangle), withdrawn (circle with a line through it).
+3. The protocol form reads every field before anything is sent: the product (200 characters), an
+   optional dm+d code (6 to 18 digits), what it is for (500), one dose and the most in 24 hours
+   (above zero, at most three decimal places, never rounded, the most in 24 hours not below one
+   dose), the unit (60), the shortest gap in hours (above zero, at most 168, two decimal places),
+   the days before the GP is asked (a whole number from 1 to 365), at least one member of staff,
+   who agreed it, GP or pharmacist, the date agreed and a review after it. The organisation's
+   limits on the days and how far ahead the review may be are the rate table's, applied by the API
+   (no literal in the web).
+4. The staff a protocol may name are the organisation's staff the reader may list (by name and job
+   title), the reader, and anyone the protocol already names whom the reader cannot list (shown as
+   such, so a change never drops them unseen).
+5. A change sends every figure again, a new reason and the version read; a stale version is the
+   API's conflict, said in words. A withdrawal sends a reason and the version read.
+6. A dose is checked with the API before it can be recorded. A check that finds anything shows each
+   problem in the API's words and offers no way to record it; a changed protocol or amount needs a
+   new check.
+7. A dose is recorded now, by the person signed in, with why it is given and the giver's
+   confirmation that they compared the person's allergies with the remedy; Harbour never compares
+   them (HZ-007, ADR-0082). The web never sends a dose as already given (`alreadyGiven` is null,
+   whatever a crafted call holds). The client's id is made by the page, so a resend is one record.
+8. A refusal shows the API's words at the field it belongs to (the dose at the amount; on the
+   protocol form the dose, the most in 24 hours, the gap, the days, the staff, the date agreed and
+   the review), and anything else above the form.
+9. A dose may be marked entered in error, with a reason, by the member who gave it (holding
+   `medicines.emar.administer`) or by a medicines manager, while it still stands; the API checks the
+   home again. The dose stays, struck through, with the reason.
+10. The server actions check every body against the contract's schema and send only the form's
+    fields; nothing about the person is logged.
+
+#### As built (slice 55)
+
+- `apps/web/src/lib/homely-remedies.ts` (pure readers, chips, permissions, addresses, the member
+  list) with `homely-remedies.test.ts`.
+- `apps/web/src/app/actions/homely-remedies.ts` (add, change, withdraw, check, record, entered in
+  error).
+- `apps/web/src/components/medicines/homely/` (`ProtocolSummary`, `ProtocolForm`,
+  `WithdrawProtocolForm`, `HomelyDoseForm`, `EnteredInErrorForm`, `load-members.ts`).
+- Pages: `apps/web/src/app/(shell)/medicines-stock/[locationId]/homely-remedies/` (list, `new`,
+  `[protocolId]/change`, `[protocolId]/withdraw`) and
+  `apps/web/src/app/(shell)/people/[id]/medicines/homely-remedies/page.tsx`.
+- Gap: a dose already given and recorded afterwards (`alreadyGiven`, recorded with flags and
+  escalated) is not offered on the web; the web lists such doses with their flags in words. Doses
+  show "Given by you" only, not the giver's name, because the reader may not be able to list staff.
+- Links to these pages from the medicines-stock location page and the person's medicines tab are
+  for the lead to add (those pages belong to other areas).
+
+#### Tests
+
+- Vitest `apps/web/src/lib/homely-remedies.test.ts`: `hazard HZ-120 who sees and changes homely
+  remedies`, `hazard HZ-120 a protocol's state is an icon and the API's words, never colour alone`,
+  `hazard HZ-120 reading the protocol form` (every field refusal, table-driven; the rate table's
+  limits left to the API), `hazard HZ-120 hazard HZ-007 checking and recording a dose` (amounts never
+  rounded; allergies confirmed; never sent as already given; the API's words; a new check after a
+  change), `hazard HZ-120 a dose entered in error stays, struck through, with its reason`,
+  `hazard HZ-120 the staff a protocol may name`.
+- Playwright `apps/web/e2e/homely-remedies.spec.ts`: `hazard HZ-120 hazard HZ-007 homely remedies
+  only within the home's protocol` (add with errors, change with a reason, check a dose outside the
+  protocol, record one with the allergies beside it, too soon in the API's words, entered in error,
+  withdraw; axe light and dark at every screen, with and without errors).
+
+### Medication errors, reviews and reports on the web (MEDS-012, MEDS-013)
+
+For docs/specs/medicines.md section 14 (a new subsection "14.7 Web screens (slice 55)"). Built on
+the slice 45 API (`apps/api/src/routes/medication-errors.ts`) with no API, contract, database or
+domain change. Hazard HZ-134 (with HZ-003 for an omitted dose and HZ-119 for the override report).
+
+#### Screens
+
+- **Medication error on an incident**: `/incidents/{id}/medication-error`, linked from the incident
+  page by one button, "Medication error details", shown on a medication incident the reader sees
+  whole. The page shows what was recorded (the kinds and stage in the API's words with their NRLS
+  source, whether it reached the person as an icon and words, the three questions, what was done,
+  who was told, when and their advice, the root cause and the controlled drug report), the
+  escalations ("What is still to do") in the API's own reasons, and the form that adds or changes
+  the details.
+- **A person's medication reviews**: `/people/{id}/medicines/reviews`, inside the medicines tab of
+  the record. Where the reviews stand (the tracker line), every review newest first, a form to book
+  one, and for each review a disclosure to record it done, move it or cancel it (booked), or
+  correct it (done).
+- **Medicines reports**: `/medicines-reports` chooses the location (or goes to the shell's chosen
+  one); `/medicines-reports/{locationId}` lists the four reports; `/reviews` is the review tracker;
+  `/overrides`, `/prn` and `/trend` are the override report, the PRN and psychotropic report and the
+  medication error trend.
+
+#### Rules
+
+1. The error page needs `safety.incident.read`; the form shows only to a holder of
+   `safety.incident.report` who raised the incident, manages incidents (`safety.incident.manage`)
+   or added the record, on an open incident. The API decides again (its raiser or a manager of
+   incidents where it happened, or the member who added the record; MFA; never a restricted or
+   closed incident).
+2. A restricted incident shows a notice and no record; an incident of another type says the
+   details go on a medication incident; a closed incident shows its record with a notice and no
+   form.
+3. Adding chooses the person from the people we support on the incident: one is chosen for the
+   reader; with several, the page lists each to record for. The medicine is chosen from the
+   person's medicines record and the dose record from their records in the 24 hours either side of
+   the incident (superseded records left out). A list that cannot be read keeps what was recorded.
+4. The form says each mistake at its field before anything is sent, mirroring
+   `checkMedicationErrorRecord`: unknown kinds or stage, an omitted dose answered as not reaching
+   the person (HZ-003), who was told without when (or the reverse), told before the incident or in
+   the future, a controlled drug report date without its reference (or the reverse) or in the
+   future, a report with "no controlled drug", and answers over 2,000 characters (120 for the
+   reference). An empty answer is sent as not answered, never as "no".
+5. The API's refusal sentences (`MEDICATION_ERROR_PROBLEM_WORDS`, `REVIEW_PROBLEM_WORDS`) are found
+   in its refusal and shown at their fields; any other refusal shows above the form in its words.
+6. The escalations are the API's `prompts`, in its order, each as an icon and a name with the API's
+   reason: clinical advice, the controlled drug report, the safeguarding consideration (each shown
+   as still to do) and how CQC is decided (information). The page says Harbour sends none of them
+   and that each goes once what answers it is recorded. The web adds or removes none.
+7. Whether it reached the person is the API's `nearMiss` in words and an icon: reached, a near miss,
+   or not yet known. A controlled drug presumed from the medicine's schedule is said so.
+8. Reviews need `medicines.record.manage`. Booking takes the date due; recording done takes the
+   date (not in the future), the clinician's name and role and the outcome in the clinician's
+   words; moving takes the new date and a reason; cancelling takes a reason; correcting one done
+   takes a reason. The version read is sent back. Harbour suggests no change to a medicine.
+9. Each review's state and the tracker's status are an icon and words (the API's `statusWords` for
+   the tracker: overdue, due soon, booked, due by the interval and not booked, none booked or
+   done), never colour alone; a booking later than the interval allows is said in words.
+10. The reports need `medicines.record.manage` and a location in the reader's list; the API also
+    refuses an assigned scope. The tracker lists people overdue first, as the API orders them, with
+    a count of overdue and due soon, and links each person to their reviews.
+11. The override, PRN and trend reports choose their period (the contract's `from` and `to`, UK
+    dates, inclusive) with date boxes in a form that uses the page's address, so the report can be
+    bookmarked. Defaults: the last 28 days, and for the trend the last six calendar months. A date
+    that is not real or an end before the start is said at its field and nothing is read; a period
+    longer than `medicines.report_max_days` is refused by the API in its words.
+12. Every report is a table with a caption and a row header, every count in its own cell, so it is
+    read without colour; no chart is drawn. The trend has three tables (reached or not, kinds,
+    stages), every month a column with zeros shown, a total column, and only kinds and stages that
+    happened listed; the NRLS source is named. The PRN report shows the API's note above its
+    table every time. The override report names a member no longer listed as such.
+13. Every report says it counts records for a person to look into and judges nothing.
+
+#### As built
+
+- `apps/web/src/lib/medication-errors.ts` (pure readers, chips, period reading, table rows) with
+  table-driven tests in `medication-errors.test.ts` (56 tests).
+- `apps/web/src/app/actions/medication-errors.ts`: `addMedicationError`, `changeMedicationError`,
+  `scheduleReview`, `changeReview` (done, reschedule, cancel); each body checked with the contract's
+  zod schema (`NewMedicationError`, `EditMedicationError`, `ScheduleMedicationReview`,
+  `RecordMedicationReview`, and the reschedule and cancel bodies built from the contract's pieces,
+  matching the API's `ChangeMedicationReview` and `CancelMedicationReview`).
+- Components in `apps/web/src/components/medicines/errors/`: `MedicationErrorForm`,
+  `MedicationErrorDetails` (with `MedicationErrorEscalations`), `ReviewForms`, `PeriodForm`,
+  `ReportTable`, `ReportFrame`, `report-location`.
+- E2E: `apps/web/e2e/medication-errors.spec.ts`.
+
+#### Tests
+
+- `apps/web/src/lib/medication-errors.test.ts`: `hazard HZ-134 the medication error form is read
+  into the contract` (every detail; empty is null, never no; 17 refusals at their fields including
+  `hazard HZ-003 an omitted dose answered as not reaching the person`), `hazard HZ-134 the
+  escalations are shown in the API's order as icon and word, never sent`, `hazard HZ-134 the API's
+  refusals show at their fields`, `hazard HZ-134 medication reviews: status as icon and words, each
+  change with its reason`, `hazard HZ-134 hazard HZ-119 the reports: periods, and tables readable
+  without colour`.
+- `apps/web/e2e/medication-errors.spec.ts`: `hazard HZ-134 hazard HZ-003 the manager records a
+  medication error and its follow-up`, `hazard HZ-134 the manager books, moves and records a
+  medication review`, `hazard HZ-134 hazard HZ-119 the home's review tracker and medicines reports`
+  (axe in light and dark at every screen, with and without errors).

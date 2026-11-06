@@ -150,6 +150,11 @@ H-09, H-105, H-521, H-522, H-535, H-569, H-663, H-664, H-781 and H-829.
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 55, web stock, homely remedies, errors and reviews** (`feat/meds-web-stock-errors`,
+MEDS-007, MEDS-008, MEDS-012, MEDS-013, from batch 3b; no migration): stock, ordering and temperatures
+for a home and a person; homely remedy protocols and doses checked against them; the medication
+error record on the incident; medication reviews and the tracker; the override, PRN and trend reports.
+
 **Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
 recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
 H-213, H-214, H-262, H-264 (migration 0118), H-267, H-269, H-270, H-381, H-410, H-420, H-481,

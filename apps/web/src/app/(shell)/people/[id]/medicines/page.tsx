@@ -10,6 +10,7 @@ import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { stockShown } from "@/lib/medicine-stock";
 import {
   entryChip,
   entryHref,
@@ -64,6 +65,38 @@ async function MedicinesTab({ params }: { readonly params: Params }) {
           </ButtonLink>
         ) : null}
       </div>
+      <nav aria-label={t("medicines.links.label")}>
+        <ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-1 p-0">
+          {stockShown(me.permissions) ? (
+            <li>
+              <Link
+                href={`${medicinesHref(id)}/stock`}
+                className="inline-flex min-h-target items-center underline"
+              >
+                {t("medicines.links.stock")}
+              </Link>
+            </li>
+          ) : null}
+          <li>
+            <Link
+              href={`${medicinesHref(id)}/homely-remedies`}
+              className="inline-flex min-h-target items-center underline"
+            >
+              {t("medicines.links.homely")}
+            </Link>
+          </li>
+          {writer ? (
+            <li>
+              <Link
+                href={`${medicinesHref(id)}/reviews`}
+                className="inline-flex min-h-target items-center underline"
+              >
+                {t("medicines.links.reviews")}
+              </Link>
+            </li>
+          ) : null}
+        </ul>
+      </nav>
       {data.openReconciliationId ? (
         <Notice
           icon={<ClipboardList size={20} strokeWidth={1.5} aria-hidden="true" />}

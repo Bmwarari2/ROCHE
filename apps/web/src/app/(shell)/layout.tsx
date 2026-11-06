@@ -90,6 +90,12 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           : undefined,
         search: searchShown(me.permissions) ? t("shell.nav.search") : undefined,
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
+        medicinesStock: me.permissions.includes("medicines.stock.manage")
+          ? t("shell.nav.medicinesStock")
+          : undefined,
+        medicinesReports: me.permissions.includes("medicines.record.manage")
+          ? t("shell.nav.medicinesReports")
+          : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         rota: rotaShown(me.permissions) ? t("shell.nav.rota") : undefined,
         myShifts: myShiftsShown(me.permissions) ? t("shell.nav.myShifts") : undefined,
