@@ -1171,6 +1171,7 @@ timekeeping (R22).
 | `POST /v1/lone-worker/sessions` | check_in | Client id; 201 or 200 on replay; audited `session_started` |
 | `GET /v1/lone-worker/sessions/mine` | check_in | Duress shown as check-in; overdue alarm only |
 | `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in) |
+| `POST /v1/lone-worker/emergency` | check_in | Help or duress without a usable session (H-1317, slice 71): recorded in the worker's open session, else the session of their open help or duress alarm, else a new session finished as it starts, at the named session's location when it is theirs, the location given, or another where they work; alarmed like any help or duress (the route, else the Registered Manager and owner); answers as a session's event (duress as a check-in); client UUID, replay answered before a limit of 30 in 10 minutes; audited `session_started` and `event_recorded` with `withoutSession` (duress as check-in) |
 | `GET /v1/lone-worker/board` | monitor | Open sessions with status words; audited |
 | `GET /v1/lone-worker/alarms` | monitor | Open by default; with the latest location point; audited |
 | `POST /v1/lone-worker/alarms/{id}/acknowledge` | monitor | `expected_version`; audited `alarm_acknowledged` |
@@ -1259,8 +1260,9 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    waits to send (so a monitor's "safe confirmed" moves it), otherwise worked out on the phone as the
    server does (section 17.3 rule 3). "Overdue" is said in words with an icon, and aloud when it
    becomes overdue. A session known only on the phone (started offline) says that nobody is told
-   if a check-in is missed or help is asked for until it reaches Harbour, with "call 999"; a start
-   the API refused says lone working did not start.
+   if a check-in is missed until it reaches Harbour, and that Ask for help still reaches the
+   on-call person, with "call 999"; a start the API refused says lone working did not start, in the
+   same terms.
 3. **Duress**: a long press on Check in, held `DURESS_HOLD_MS` (1.5 seconds) so it does not happen
    by accident, acting when the hold registers (so a screen reader's long press and a slow press
    act once, and a cancelled tap never does; the answer comes while the finger is still down,
@@ -1273,18 +1275,23 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    encrypted upload queue or, if the session ended first, in the encrypted held entries, from which
    it goes back into the queue when the owner signs in again (H-1315). A duress press the API
    refused before reaching the event (the session unknown or refused, access withdrawn) raised no
-   alarm; the screen then says the session is not with Harbour (rule 2), and whether the API should
-   accept help and duress for any session is H-1317.
-4. **Help**: one press, never held up by another press. The line says only what is true: waiting
+   alarm there, so the phone sends it again to `POST /v1/lone-worker/emergency` (H-1317, section
+   17.6), which records it against the worker and raises the alarm; only if that refuses too (the
+   member checks in nowhere, or no longer may) is it kept as a check-in under "needs attention".
+4. **Help**: one press, never held up by another press, offered with no session too (sent to the
+   emergency route, H-1317). The line says only what is true: waiting
    (no connection: it has not reached anyone yet), being sent, refused (it did not reach anyone:
-   call 999 or the on-call person now), or with Harbour (the session shows the request); each with
+   call 999 or the on-call person now), or with Harbour (it left the phone unrefused, or the
+   session shows it); each with
    "If you are in danger, call 999". It never says help is on its way.
 5. **Finish**: asks first ("Finish lone working? Nobody will expect your check-ins after this.");
    Help stays offered while the finish waits to send.
 6. Off: when the API says lone working is not switched on, the screen says so and offers no start.
 
 Not built: a reminder on the phone when a check-in falls due without a connection (H-1313), and
-help or duress from the lock screen (H-1314).
+help or duress from the lock screen (H-1314). A member who no longer holds the check-in permission
+anywhere cannot be recorded in lone working at all; the phone keeps such a press under "needs
+attention" with "call 999".
 
 ### 18.5 Data on the device
 
@@ -1302,8 +1309,12 @@ last answer about the member's own session is kept in `sync_meta`. All are in th
 - Phone logic, table-driven: clock state, actions, location and shift; shift list; next due;
   duress shown as a check-in everywhere; queued actions from the upload queue; the upload mapping
   and its refusals (`scheduling.test.ts`); the SQL on the phone's schema (`queries.test.ts`).
-- Connector: each route, a refused clock-in in the API's words, a refused duress kept as a check-in,
-  nothing through the general upload (`connector.test.ts`).
+- Connector: each route, a refused clock-in in the API's words, help and duress refused by their
+  session sent to the emergency route, kept as a check-in only if that refuses too, nothing through
+  the general upload (`connector.test.ts`).
+- API: help and duress without a usable session recorded against the sender and alarmed, duress
+  answered as a check-in, a resend answered once, a repeated press re-sending the open alarm
+  (`apps/api/test/lone-worker.test.ts`, H-1317).
 - Render: the clock card, my shifts, and lone working, with a duress press drawing exactly the same
   screen as a check-in (`shifts.render.test.ts`).
 - Maestro (demo build): `hazard-HZ-125-shifts-and-lone-working.yaml`, written, not yet run on a

@@ -126,6 +126,20 @@ export function toShiftUpload(
       body,
     };
   }
+  // Help with no session on the phone (H-1317): straight to the emergency route. The row's
+  // session id is its own id, so the queue keeps one key.
+  if (action === "emergency") {
+    if (body.kind !== "help" || body.id !== entry.id || sessionId !== entry.id) return refused();
+    if (!isInstant(body.deviceAt)) return refused();
+    return {
+      kind: "request",
+      table: entry.table,
+      recordId: entry.id,
+      tenantId,
+      path: "/v1/lone-worker/emergency",
+      body: { id: body.id, kind: "help", deviceAt: body.deviceAt, sessionId: null },
+    };
+  }
   if (action === "event") {
     if (typeof body.kind !== "string" || !LONE_WORKER_KINDS.has(body.kind)) return refused();
     if (body.id !== entry.id || !isInstant(body.deviceAt)) return refused();
@@ -158,4 +172,30 @@ export function screenSafePayload(
   const body = parsed(payload.body);
   if (body?.kind !== "duress") return { ...payload };
   return { ...payload, body: JSON.stringify({ ...body, kind: "check_in" }) };
+}
+
+/**
+ * A help or duress press its session's route refused with 403 or 404 (the session unknown, someone
+ * else's, refused at its start) goes again to `POST /v1/lone-worker/emergency`, which records it
+ * against the worker and raises the alarm all the same (H-1317; scheduling.md section 17.3 rule
+ * 7). Anything else, or a refusal there too, is kept under "needs attention" as before.
+ */
+export function emergencyRequest(
+  request: ShiftUploadRequest,
+  status: number,
+): ShiftUploadRequest | null {
+  if (request.table !== "lone_worker_outbox" || (status !== 403 && status !== 404)) return null;
+  const match = /^\/v1\/lone-worker\/sessions\/([^/]+)\/events$/.exec(request.path);
+  const kind = request.body.kind;
+  if (!match || (kind !== "help" && kind !== "duress")) return null;
+  return {
+    ...request,
+    path: "/v1/lone-worker/emergency",
+    body: {
+      id: request.body.id,
+      kind,
+      deviceAt: request.body.deviceAt,
+      sessionId: decodeURIComponent(match[1] ?? ""),
+    },
+  };
 }

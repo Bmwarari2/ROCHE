@@ -99,6 +99,24 @@ export const RecordLoneWorkerEvent = z
   })
   .meta({ id: "RecordLoneWorkerEvent" });
 
+/**
+ * Help or duress the worker's session could not take (H-1317; scheduling.md section 17.3 rule 7):
+ * the session unknown, someone else's or refused at its start. Recorded against the worker all the
+ * same, at the session's location when it is theirs, else the given location or one where they
+ * work, and alarmed to the same people. The answer reads exactly as for a session's event.
+ */
+export const RecordLoneWorkerEmergency = z
+  .object({
+    /** The client's UUID: the same press sent twice records once. */
+    id: uuid,
+    kind: z.enum(["help", "duress"]),
+    deviceAt: isoDateTime,
+    /** The session the phone sent it for, if any; used only when it is the worker's own. */
+    sessionId: uuid.nullable().optional(),
+    locationId: uuid.nullable().optional(),
+  })
+  .meta({ id: "RecordLoneWorkerEmergency" });
+
 /** What the worker's own screen shows: a duress check-in reads as an ordinary check-in. */
 export const LoneWorkerOwnEvent = z
   .object({

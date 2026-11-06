@@ -227,6 +227,13 @@ describe("lone working, rendered (HZ-125)", () => {
     ]);
   });
 
+  it("offers help with no session, which reaches the on-call person (H-1317)", async () => {
+    const { element, sent } = panel(loneWorkerView({ on: true, session: null }, [], NOW));
+    const view = await render(element);
+    await view.press("lone-help");
+    expect(sent).toEqual(["help"]);
+  });
+
   it("says when lone working is off for the organisation", async () => {
     const view = await render(panel(loneWorkerView({ on: false, session: null }, [], NOW)).element);
     expect(view.texts()).toContain("Lone working is not switched on for your organisation.");
@@ -283,7 +290,7 @@ describe("lone working, rendered: the reviews of slice 71", () => {
 
   it("hazard HZ-125 says a refused help press reached nobody, and to call 999", async () => {
     const view = loneWorkerView(session, [], NOW, [
-      { action: "event", sessionId: SESSION, kind: "help" },
+      { action: "event", sessionId: SESSION, kind: "help", eventId: null },
     ]);
     const drawn = await render(draw(view).element);
     expect(drawn.texts()).toContain(

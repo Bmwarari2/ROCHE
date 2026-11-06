@@ -1166,7 +1166,7 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
 - `shift` and `clock_event` (scheduling.md section 18) hold the member's own published shifts and
   clock events for the token's `shift_days`, with the database column names; `clock_event.recorded_at`
   is empty until the event has reached the server. `lone_worker_outbox` holds a lone-working action
-  until it is sent (`action` `start` or `event`, `session_id`, `body` as the API's contract JSON,
+  until it is sent (`action` `start`, `event` or `emergency` (help with no session, H-1317), `session_id`, `body` as the API's contract JSON,
   `queued_at`); it is insert-only, so the row lives only in the upload queue (or `held_entry` if
   the session ended first) and never syncs down. A refused or parked clock event or lone-working
   action goes to `upload_issue` with no person, a duress press kept as a check-in. `sync_meta` keeps

@@ -34,6 +34,15 @@ Branch `feat/mobile-shifts-checkins`, slice 71 (no PR yet).
   is kept as a check-in wherever it is parked; queued ids must match the idempotency key; queued
   actions count only for the signed-in organisation.
 
+## H-1317: help and duress without a usable session
+
+- API: `POST /v1/lone-worker/emergency` records a help or duress press its session could not
+  take against the worker and raises the alarm to the same people; duress answers as a check-in;
+  rate-limited and audited. OpenAPI and the typed client regenerated.
+- Phone: help or duress refused by its session (403, 404) goes there; help is offered with no
+  session; the help line says when Harbour has it; "nobody is told" now covers missed check-ins
+  only.
+
 ## What is next
 
 - Run the Maestro flow on an emulator; a local reminder when a check-in falls due offline

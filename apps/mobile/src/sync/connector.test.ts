@@ -1478,15 +1478,49 @@ describe("uploadData: clock events and lone working go to their own routes (sche
     [404, "not_found"],
     [403, "forbidden"],
   ])(
-    "hazard HZ-125 keeps a duress press refused with %s only as a check-in (security review of slice 71)",
+    "hazard HZ-125 sends a duress press its session refused with %s to the emergency route, and keeps it only as a check-in if that refuses too (H-1317)",
     async (status, code) => {
-      const { fetch } = fakeFetch([problem(status, code, "Not recorded.")]);
+      const { fetch, calls } = fakeFetch([
+        problem(status, code, "Not recorded."),
+        problem(422, "invalid", "This could not be recorded in lone working."),
+      ]);
       const queue = fakeQueue([loneEvent("duress")]);
       await connector(fetch).instance.uploadData(queue.source);
+      expect(calls[1]?.url).toBe(`${API}/v1/lone-worker/emergency`);
       expect(JSON.stringify(queue.issues())).not.toContain("duress");
       expect(queue.state.completed).toBe(1);
     },
   );
+
+  it.each([["help"], ["duress"]])(
+    "hazard HZ-125 records a %s press whose session is unknown through the emergency route, with nothing left needing attention (H-1317)",
+    async (kind) => {
+      const { fetch, calls } = fakeFetch([
+        problem(404, "not_found", "Not found."),
+        json({ id: EVENT, kind: "check_in", message: "Recorded" }, 201),
+      ]);
+      const queue = fakeQueue([loneEvent(kind)]);
+      await connector(fetch).instance.uploadData(queue.source);
+      expect(calls[1]?.url).toBe(`${API}/v1/lone-worker/emergency`);
+      expect(new Headers(calls[1]?.init?.headers).get("idempotency-key")).toBe(EVENT);
+      expect(JSON.parse(String(calls[1]?.init?.body))).toEqual({
+        id: EVENT,
+        kind,
+        deviceAt: "2026-10-11T10:02:00.000Z",
+        sessionId: SESSION,
+      });
+      expect(queue.issues()).toEqual([]);
+      expect(queue.state.completed).toBe(1);
+    },
+  );
+
+  it("never sends a check-in to the emergency route", async () => {
+    const { fetch, calls } = fakeFetch([problem(404, "not_found", "Not found.")]);
+    const queue = fakeQueue([loneEvent("check_in")]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls).toHaveLength(1);
+    expect(queue.issues()).toHaveLength(1);
+  });
 
   it("never sends a clock event or lone-working action through the general upload", async () => {
     const bad = { ...clockIn(), opData: { ...clockIn().opData, location_id: "not-a-uuid" } };

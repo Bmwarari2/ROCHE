@@ -44,7 +44,7 @@ export interface Mine {
 /** A lone-worker action queued on the phone (`lone_worker_outbox`), not yet sent. */
 export interface QueuedAction {
   readonly id: string;
-  readonly action: "start" | "event";
+  readonly action: "start" | "event" | "emergency";
   readonly sessionId: string;
   readonly body: Record<string, unknown>;
 }
@@ -61,6 +61,8 @@ export interface RefusedAction {
   readonly action: "start" | "event";
   readonly sessionId: string;
   readonly kind: string;
+  /** The refused press's own id, when it had one. */
+  readonly eventId: string | null;
 }
 
 /** What the help line says: nothing, waiting, being sent, refused, or with Harbour. */
@@ -152,7 +154,14 @@ export function loneWorkerView(
   queued: readonly QueuedAction[],
   now: Date,
   refusals: readonly RefusedAction[] = [],
+  /** Help presses made on this phone since the screen opened, by id. */
+  pressedHelp: readonly string[] = [],
 ) {
+  // A help press that has left the phone and was not refused has reached Harbour (H-1317: with
+  // or without a session).
+  const helpSent = pressedHelp.some(
+    (id) => !queued.some((q) => q.id === id) && !refusals.some((r) => r.eventId === id),
+  );
   // A refused help press counts for the session it was for (or when there is none on the phone).
   const helpRefusedFor = (id: string | null) =>
     refusals.some(
@@ -175,7 +184,7 @@ export function loneWorkerView(
       waiting: queued.length,
       helpWaiting: queued.some((q) => q.body.kind === "help"),
       helpRefused: helpRefusedFor(null),
-      helpReceived: false,
+      helpReceived: helpSent,
       unconfirmed: false,
       startRefused,
       finished: false,
@@ -219,7 +228,7 @@ export function loneWorkerView(
     waiting: queued.length,
     helpWaiting: queued.some((q) => q.body.kind === "help"),
     helpRefused: helpRefusedFor(sessionId),
-    helpReceived: mineEvents.some((e) => e.kind === "help"),
+    helpReceived: helpSent || mineEvents.some((e) => e.kind === "help"),
     unconfirmed: server === null,
     startRefused,
     finished,
@@ -254,7 +263,11 @@ export function queuedActions(
     if (data.tenant_id !== tenantId) continue;
     const action = data.action;
     const sessionId = data.session_id;
-    if ((action !== "start" && action !== "event") || typeof sessionId !== "string") continue;
+    if (
+      (action !== "start" && action !== "event" && action !== "emergency") ||
+      typeof sessionId !== "string"
+    )
+      continue;
     let body: unknown;
     try {
       body = typeof data.body === "string" ? JSON.parse(data.body) : null;
@@ -330,16 +343,29 @@ export function refusedActions(
     if (typeof p !== "object" || p === null) continue;
     const data = p as Record<string, unknown>;
     const action = data.action;
-    if ((action !== "start" && action !== "event") || typeof data.session_id !== "string") continue;
+    if (
+      (action !== "start" && action !== "event" && action !== "emergency") ||
+      typeof data.session_id !== "string"
+    )
+      continue;
     let kind = "";
+    let eventId: string | null = null;
     try {
       const body: unknown = typeof data.body === "string" ? JSON.parse(data.body) : null;
-      if (typeof body === "object" && body !== null)
-        kind = String((body as { kind?: unknown }).kind ?? "");
+      if (typeof body === "object" && body !== null) {
+        const b = body as { kind?: unknown; id?: unknown };
+        kind = String(b.kind ?? "");
+        eventId = typeof b.id === "string" ? b.id : null;
+      }
     } catch {
       kind = "";
     }
-    out.push({ action, sessionId: data.session_id, kind: screenKind(kind) });
+    out.push({
+      action: action === "start" ? "start" : "event",
+      sessionId: data.session_id,
+      kind: screenKind(kind),
+      eventId,
+    });
   }
   return out;
 }

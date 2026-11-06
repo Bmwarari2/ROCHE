@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { screenSafePayload, toShiftUpload } from "../sync/shift-upload";
-import { clockStatement, loneEventStatement, loneStartStatement } from "./actions";
+import { emergencyRequest, screenSafePayload, toShiftUpload } from "../sync/shift-upload";
+import {
+  clockStatement,
+  loneEmergencyStatement,
+  loneEventStatement,
+  loneStartStatement,
+} from "./actions";
 import { type ClockEventRow, clockState, clockView, type ShiftRow, shiftItems } from "./clock-view";
 import {
   helpState,
@@ -418,15 +423,15 @@ describe("what lone working says when something did not reach Harbour (clinical 
     expect(
       refusedActions([issue("event", "duress"), issue("start", ""), { payload: "x" }]),
     ).toEqual([
-      { action: "event", sessionId: SESSION, kind: "check_in" },
-      { action: "start", sessionId: SESSION, kind: "check_in" },
+      { action: "event", sessionId: SESSION, kind: "check_in", eventId: EVENT },
+      { action: "start", sessionId: SESSION, kind: "check_in", eventId: EVENT },
     ]);
   });
 
   it("says a refused help press reached nobody, and a refused start began nothing", () => {
     const refusals = [
-      { action: "event" as const, sessionId: SESSION, kind: "help" },
-      { action: "start" as const, sessionId: SESSION, kind: "check_in" },
+      { action: "event" as const, sessionId: SESSION, kind: "help", eventId: null },
+      { action: "start" as const, sessionId: SESSION, kind: "check_in", eventId: null },
     ];
     expect(loneWorkerView({ on: true, session: null }, [], now, refusals)).toMatchObject({
       kind: "none",
@@ -523,5 +528,75 @@ describe("what lone working says when something did not reach Harbour (clinical 
     expect(
       toShiftUpload({ op: "PUT", table: "lone_worker_outbox", id: EVENT, opData: start }).kind,
     ).toBe("refused");
+  });
+});
+
+describe("help with no session on the phone (H-1317)", () => {
+  const at = new Date("2026-10-11T09:40:00.000Z");
+
+  it("queues help with no session for the emergency route", () => {
+    const statement = loneEmergencyStatement({ eventId: EVENT, tenantId: TENANT, at });
+    const columns = /\(([^)]*)\) VALUES/
+      .exec(statement.sql)?.[1]
+      ?.split(",")
+      .map((c) => c.trim());
+    const opData: Record<string, unknown> = {};
+    for (const [i, c] of (columns ?? []).entries()) if (c !== "id") opData[c] = statement.params[i];
+    expect(
+      toShiftUpload({ op: "PUT", table: "lone_worker_outbox", id: EVENT, opData }),
+    ).toMatchObject({
+      kind: "request",
+      path: "/v1/lone-worker/emergency",
+      body: { id: EVENT, kind: "help", deviceAt: at.toISOString(), sessionId: null },
+    });
+  });
+
+  it("never sends anything but help that way", () => {
+    const body = JSON.stringify({ id: EVENT, kind: "duress", deviceAt: at.toISOString() });
+    const opData = { tenant_id: TENANT, action: "emergency", session_id: EVENT, body };
+    expect(toShiftUpload({ op: "PUT", table: "lone_worker_outbox", id: EVENT, opData }).kind).toBe(
+      "refused",
+    );
+  });
+
+  it.each([
+    [404, "help", true],
+    [403, "duress", true],
+    [404, "check_in", false],
+    [422, "duress", false],
+  ])("sends a press refused with %s (%s) to the emergency route: %s", (status, kind, sent) => {
+    const request = {
+      kind: "request" as const,
+      table: "lone_worker_outbox" as const,
+      recordId: EVENT,
+      tenantId: TENANT,
+      path: `/v1/lone-worker/sessions/${SESSION}/events`,
+      body: { id: EVENT, kind, deviceAt: at.toISOString() },
+    };
+    const next = emergencyRequest(request, status);
+    expect(next !== null).toBe(sent);
+    if (next) expect(next.body).toMatchObject({ sessionId: SESSION, kind });
+  });
+
+  it("says Harbour has a help press once it has left the phone unrefused", () => {
+    const view = loneWorkerView({ on: true, session: null }, [], at, [], [EVENT]);
+    expect(view.helpReceived).toBe(true);
+    const queued = [
+      {
+        id: EVENT,
+        action: "emergency" as const,
+        sessionId: EVENT,
+        body: { id: EVENT, kind: "help" },
+      },
+    ];
+    expect(loneWorkerView({ on: true, session: null }, queued, at, [], [EVENT])).toMatchObject({
+      helpReceived: false,
+      helpWaiting: true,
+    });
+    const refused = [{ action: "event" as const, sessionId: EVENT, kind: "help", eventId: EVENT }];
+    expect(loneWorkerView({ on: true, session: null }, [], at, refused, [EVENT])).toMatchObject({
+      helpReceived: false,
+      helpRefused: true,
+    });
   });
 });

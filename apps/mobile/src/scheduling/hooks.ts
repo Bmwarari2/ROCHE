@@ -14,6 +14,7 @@ import { TENANT_HEADER } from "../sync/session-signals";
 import {
   clockStatement,
   type LoneWorkKind,
+  loneEmergencyStatement,
   loneEventStatement,
   loneStartStatement,
 } from "./actions";
@@ -218,9 +219,10 @@ export function useLoneWorker(now: Date) {
   );
   const refusals = useMemo(() => refusedActions(refusedRows), [refusedRows]);
   const mine = answer?.mine ?? null;
+  const [pressedHelp, setPressedHelp] = useState<string[]>([]);
   const view = useMemo(
-    () => loneWorkerView(mine, queued, now, refusals),
-    [mine, queued, now, refusals],
+    () => loneWorkerView(mine, queued, now, refusals, pressedHelp),
+    [mine, queued, now, refusals, pressedHelp],
   );
   const write = useCallback(
     async (statement: { sql: string; params: (string | null)[] }): Promise<WriteOutcome> => {
@@ -260,17 +262,20 @@ export function useLoneWorker(now: Date) {
     [tenantId, write],
   );
   const event = useCallback(
-    (kind: LoneWorkerEventKind): Promise<WriteOutcome> => {
-      if (!tenantId || !view.sessionId) return Promise.resolve("not_saved");
-      return write(
-        loneEventStatement({
-          eventId: newEntryId(),
-          sessionId: view.sessionId,
-          tenantId,
-          kind,
-          at: new Date(),
-        }),
-      );
+    async (kind: LoneWorkerEventKind): Promise<WriteOutcome> => {
+      if (!tenantId) return "not_saved";
+      const eventId = newEntryId();
+      const at = new Date();
+      // Help with no session on the phone still goes, to the emergency route (H-1317).
+      const statement = view.sessionId
+        ? loneEventStatement({ eventId, sessionId: view.sessionId, tenantId, kind, at })
+        : kind === "help"
+          ? loneEmergencyStatement({ eventId, tenantId, at })
+          : null;
+      if (!statement) return "not_saved";
+      const outcome = await write(statement);
+      if (outcome === "saved" && kind === "help") setPressedHelp((ids) => [...ids, eventId]);
+      return outcome;
     },
     [tenantId, view.sessionId, write],
   );

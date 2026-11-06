@@ -272,6 +272,15 @@ export function LoneWorkingPanel({
             onPress={() => void start()}
             testID="lone-start"
           />
+          {/* Help is offered with no session too: it reaches the on-call person (H-1317). */}
+          <Button
+            label={t("mobile.lone.help")}
+            accessibilityHint={t("mobile.lone.helpHint")}
+            variant="destructive"
+            loading={helping}
+            onPress={() => void send("help")}
+            testID="lone-help"
+          />
         </View>
       ) : (
         <View style={{ gap: theme.space[1] }}>

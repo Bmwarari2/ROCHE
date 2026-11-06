@@ -61,7 +61,12 @@ import {
   type SessionCheck,
   TENANT_HEADER,
 } from "./session-signals";
-import { isShiftWritableTable, screenSafePayload, toShiftUpload } from "./shift-upload";
+import {
+  emergencyRequest,
+  isShiftWritableTable,
+  screenSafePayload,
+  toShiftUpload,
+} from "./shift-upload";
 import { type WriteScope, writeScopeFromToken } from "./write-scope";
 
 export type UploadOp = "PUT" | "PATCH" | "DELETE";
@@ -518,6 +523,19 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       await this.postChange(request, clientId);
     } catch (error) {
       if (!(error instanceof UploadRejectedError)) throw error;
+      // Help or duress its session could not take still raises the alarm (H-1317).
+      const emergency = emergencyRequest(request, error.status);
+      if (emergency) {
+        try {
+          await this.postChange(emergency, clientId);
+          return;
+        } catch (second) {
+          if (!(second instanceof UploadRejectedError)) throw second;
+          await park(second.status, second.code, second.reason ?? t("mobile.issues.unknownReason"));
+          this.options.onRefused?.();
+          return;
+        }
+      }
       await park(error.status, error.code, error.reason ?? t("mobile.issues.unknownReason"));
       this.options.onRefused?.();
     }

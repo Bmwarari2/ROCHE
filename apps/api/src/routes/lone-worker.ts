@@ -8,6 +8,7 @@ import {
   LoneWorkerEventResult,
   LoneWorkerMine,
   LoneWorkerRoute,
+  RecordLoneWorkerEmergency,
   RecordLoneWorkerEvent,
   SetLoneWorkerRoute,
   StartLoneWorkerSession,
@@ -18,6 +19,7 @@ import {
   incident,
   type LoneWorkerAlarmRow,
   type LoneWorkerSessionRow,
+  location,
   loneWorkerAlarm,
   loneWorkerEvent,
   loneWorkerLocation,
@@ -61,6 +63,7 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { RateLimiter, requireWithinLimit } from "../http/rate-limit";
 import { accessRowsOfMember } from "../services/access-rows";
 import {
   acknowledgeAlarmNotifications,
@@ -107,6 +110,25 @@ const A = {
   acknowledged: "scheduling.lone_worker.alarm_acknowledged",
   board: "scheduling.lone_worker.board_viewed",
 } as const;
+
+/**
+ * Help and duress without a usable session (H-1317): generous, so a frightened worker pressing
+ * again and again is never refused, but bounded against a script. A replay of the same press
+ * (its client id) is answered before the limit is counted.
+ */
+const EMERGENCY_LIMIT = new RateLimiter("lone_worker_emergency", 30, 10 * 60_000);
+
+/** The answer the worker reads: a duress press reads exactly as a check-in (HZ-125). */
+function workerMessage(kind: LoneWorkerEventKind, told: number | null): string {
+  const shown = kindShownToWorker(kind);
+  return shown === "help"
+    ? (told ?? 0) > 0
+      ? "Help has been asked for. The on-call person has been told."
+      : "Help has been asked for. If you are in danger, call 999."
+    : shown === "finish"
+      ? "Your session has finished."
+      : "Thank you. You are checked in.";
+}
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 const stateConflict = (detail: string) => new HttpProblem(409, "invalid_state", detail);
@@ -867,6 +889,198 @@ export const loneWorkerRouter = createRouter()
         },
         outcome.created ? 201 : 200,
       );
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/lone-worker/emergency",
+      tags: ["scheduling"],
+      summary: "Ask for help or raise duress without a usable session",
+      description:
+        "scheduling.lone_worker.check_in (H-1317; scheduling.md section 17.3 rule 7). For a help or duress press whose session the API does not know, is someone else's, or refused at its start. Recorded against the worker in their open session, else with an open help or duress alarm's session (a repeated press), else in a new finished session at the session's location when it is theirs, the given location or another where they work, and alarmed to the same people as any help or duress (the organisation's route, else the Registered Manager and owner). Answers exactly as a session's event; a duress press reads as a check-in. Idempotent by the client's id; rate-limited; audited (duress as a check-in event).",
+      security,
+      request: { body: { content: { "application/json": { schema: RecordLoneWorkerEmergency } } } },
+      responses: {
+        201: jsonBody(LoneWorkerEventResult, "Recorded"),
+        200: jsonBody(LoneWorkerEventResult, "Already recorded with this id"),
+        ...errorResponses,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, CHECK_IN);
+      const body = c.req.valid("json");
+      const now = new Date();
+      const answer = (
+        event: { id: string; kind: string; effectiveAt: Date; late: boolean },
+        told: number | null,
+        status: 200 | 201,
+      ) =>
+        c.json(
+          {
+            id: event.id,
+            kind: kindShownToWorker(event.kind as LoneWorkerEventKind),
+            effectiveAt: event.effectiveAt.toISOString(),
+            late: event.late,
+            nextDueAt: null,
+            message: workerMessage(event.kind as LoneWorkerEventKind, told),
+          },
+          status,
+        );
+      // A replay is answered before the limit, so a resend from an offline queue is never refused.
+      const replay = await withTenant(c, async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(loneWorkerEvent)
+          .where(eq(loneWorkerEvent.id, body.id));
+        return existing ?? null;
+      });
+      if (replay) {
+        if (replay.kind !== body.kind) throw problems.invalid("That event id is already used.");
+        return answer(replay, null, 200);
+      }
+      await requireWithinLimit(c.get("services").db, access, EMERGENCY_LIMIT);
+      // Where it is recorded: the session's location when the session is the worker's own, else
+      // the location given, else another where they work (by name).
+      const where = await asSystem(c, access, async (tx) => {
+        const rows = await accessRowsOfMember(tx, access.tenantUserId);
+        const [named] = body.sessionId
+          ? await tx
+              .select({
+                locationId: loneWorkerSession.locationId,
+                worker: loneWorkerSession.workerTenantUserId,
+              })
+              .from(loneWorkerSession)
+              .where(eq(loneWorkerSession.id, body.sessionId))
+          : [];
+        const places = await tx
+          .select({ id: location.id })
+          .from(location)
+          .where(eq(location.status, "active"))
+          .orderBy(location.name, location.id);
+        const candidates = [
+          named && named.worker === access.tenantUserId ? named.locationId : null,
+          body.locationId ?? null,
+          ...places.map((p) => p.id),
+        ].filter((id): id is string => id !== null);
+        return candidates.find((id) => worksAt(rows, id, now)) ?? null;
+      });
+      if (!where) {
+        // Neutral words: the same for help and duress (HZ-125).
+        throw await (async () => {
+          await writeAudit(c.get("services").appPool, access, {
+            action: A.event,
+            outcome: "denied",
+            resourceType: "lone_worker_session",
+            reason: "no_location",
+            requestId: c.get("requestId"),
+          });
+          return problems.invalid(
+            "This could not be recorded in lone working, because you have no location where you check in. If you are in danger, call 999.",
+          );
+        })();
+      }
+      const outcome = await change(
+        c,
+        access,
+        { action: A.event, resourceType: "lone_worker_session", id: null },
+        async (tx) => {
+          // The worker's open session takes it; else the session of an open help or duress alarm
+          // of theirs (a repeated press re-sends that alarm at most once a minute); else a new
+          // session, finished as it starts, so it is never overdue.
+          let [session] = await tx
+            .select()
+            .from(loneWorkerSession)
+            .where(
+              and(
+                eq(loneWorkerSession.workerTenantUserId, access.tenantUserId),
+                isNull(loneWorkerSession.finishedAt),
+                isNull(loneWorkerSession.deletedAt),
+              ),
+            );
+          if (!session) {
+            const [alarmed] = await tx
+              .select({ sessionId: loneWorkerAlarm.sessionId })
+              .from(loneWorkerAlarm)
+              .where(
+                and(
+                  eq(loneWorkerAlarm.workerTenantUserId, access.tenantUserId),
+                  eq(loneWorkerAlarm.state, "open"),
+                  inArray(loneWorkerAlarm.reason, ["help", "duress"]),
+                ),
+              )
+              .orderBy(desc(loneWorkerAlarm.raisedAt))
+              .limit(1);
+            if (alarmed) {
+              [session] = await tx
+                .select()
+                .from(loneWorkerSession)
+                .where(eq(loneWorkerSession.id, alarmed.sessionId));
+            }
+          }
+          if (!session) {
+            [session] = await tx
+              .insert(loneWorkerSession)
+              .values({
+                locationId: where,
+                workerTenantUserId: access.tenantUserId,
+                workKind: "other",
+                startedAt: now,
+                plannedEndAt: new Date(now.getTime() + 60_000),
+                intervalMinutes: 1,
+                finishedAt: now,
+              })
+              .returning();
+            if (!session) throw new Error("session not stored");
+            await audit(c, tx, access, {
+              action: A.started,
+              resourceType: "lone_worker_session",
+              resourceId: session.id,
+              scopeExtra: { locationId: session.locationId, withoutSession: true },
+            });
+          }
+          const [event] = await tx
+            .insert(loneWorkerEvent)
+            .values({
+              id: body.id,
+              sessionId: session.id,
+              kind: body.kind,
+              deviceAt: new Date(body.deviceAt),
+              receivedAt: now,
+              // Counted from receipt, as help and duress always are without a usable session.
+              effectiveAt: now,
+              late: false,
+            })
+            .returning();
+          if (!event) throw new Error("event not stored");
+          // Duress audited exactly as a check-in, as on a session.
+          await audit(c, tx, access, {
+            action: A.event,
+            resourceType: "lone_worker_session",
+            resourceId: session.id,
+            scopeExtra: {
+              eventId: event.id,
+              kind: kindShownToWorker(body.kind),
+              late: false,
+              withoutSession: true,
+            },
+          });
+          return { session, event };
+        },
+      );
+      let told: number | null = null;
+      try {
+        told = await asSystem(c, access, (tx) =>
+          raiseWorkerAlarm(tx, outcome.session, { id: outcome.event.id, kind: body.kind }, now),
+        );
+      } catch {
+        // The sweep raises any help or duress alarm the API did not.
+        c.get("services").logger.warn(
+          { sessionId: outcome.session.id, eventId: outcome.event.id },
+          "lone-worker alarm left to the sweep",
+        );
+      }
+      return answer(outcome.event, told, 201);
     },
   )
   .openapi(

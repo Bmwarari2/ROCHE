@@ -69,6 +69,26 @@ export function loneStartStatement(input: {
   };
 }
 
+/** Help with no session on the phone (H-1317): sent to the emergency route. */
+export function loneEmergencyStatement(input: {
+  readonly eventId: string;
+  readonly tenantId: string;
+  readonly at: Date;
+}): Statement {
+  const body = { id: input.eventId, kind: "help", deviceAt: input.at.toISOString() };
+  return {
+    sql: INSERT_LONE_WORKER_SQL,
+    params: [
+      input.eventId,
+      input.tenantId,
+      "emergency",
+      input.eventId,
+      JSON.stringify(body),
+      input.at.toISOString(),
+    ],
+  };
+}
+
 /**
  * A lone-working event: the outbox row's id is the event's own. A duress press is written the
  * same way as a check-in, with only its kind different, and nothing else on the phone records it.
