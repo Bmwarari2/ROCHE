@@ -35217,6 +35217,9 @@
               "failed": {
                 "type": "integer"
               },
+              "held": {
+                "type": "integer"
+              },
               "error": {
                 "type": [
                   "string",
@@ -35230,6 +35233,7 @@
               "cancelled",
               "coverNeeds",
               "failed",
+              "held",
               "error"
             ]
           },
@@ -35513,6 +35517,25 @@
         "required": [
           "withdrawn",
           "accessRestored"
+        ]
+      },
+      "HrCopiesReleased": {
+        "type": "object",
+        "properties": {
+          "released": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "drift",
+              "disconnected"
+            ]
+          }
+        },
+        "required": [
+          "released",
+          "mode"
         ]
       },
       "SupportAccessRequest": {
@@ -91300,6 +91323,114 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/absences/release": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Release absence copies the HR platform no longer lists (step-up)",
+        "description": "While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected or off, cancels every copy still in force. Refused with the current number when it differs from expectedCount.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedCount": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "checked_in_hr_platform",
+                      "link_ended",
+                      "other_recorded_in_review"
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedCount",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrCopiesReleased"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

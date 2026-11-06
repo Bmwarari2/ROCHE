@@ -56,6 +56,14 @@ Behind `integrations.thapsus_hr`, off by default. Harbour keeps the rota.
   - absence sync failures are audited, published and alerted after 3;
   - the note shows after a disconnect while copies remain, and on the home's rotas, absences and tasks;
   - `delivery_refused` goes to rota managers.
+- Clinical safety reviewer, second pass, request changes (fixed):
+  - held drift now has a release: `POST /v1/integrations/hr-link/absences/release`, for the link's
+    managers with step-up, a coded reason and the number they saw, re-read from Thapsus-HR; it also
+    ends copies after a disconnect (H-1345 answers (6) and (8) updated);
+  - copies already over no longer count towards the guard and go at once;
+  - the note states the time once, in UK time, in its `<time>` line (also accessibility H1).
+- Security reviewer, second pass, approve; its N1 is fixed: a new delivery attempt (including a
+  return to an earlier payload) gets a new key, and a retry of the same attempt keeps its key.
 
 ## Left
 
@@ -65,4 +73,7 @@ Behind `integrations.thapsus_hr`, off by default. Harbour keeps the rota.
 - A Playwright journey with axe over the note on the rota pages needs a way to seed a stale link in
   the end-to-end environment (no database access there today); the component is checked with axe
   in jsdom.
-- Mobile shift screens do not show the note yet.
+- Mobile shift screens do not show the note yet (recorded against HZ-133; mobile has no rota or
+  cover screens today).
+- No screen yet for releasing held drift; the alert task names the action and the API serves it
+  (slice 90 screens).

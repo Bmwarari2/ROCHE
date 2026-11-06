@@ -33923,6 +33923,98 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/integrations/hr-link/absences/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Release absence copies the HR platform no longer lists (step-up)
+     * @description While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected or off, cancels every copy still in force. Refused with the current number when it differs from expectedCount.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            expectedCount: number;
+            /** @enum {string} */
+            reason: "checked_in_hr_platform" | "link_ended" | "other_recorded_in_review";
+          };
+        };
+      };
+      responses: {
+        /** @description Released */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrCopiesReleased"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/p/integrations/thapsus-hr/{tenantId}": {
     parameters: {
       query?: never;
@@ -61997,6 +62089,7 @@ export interface components {
         cancelled: number;
         coverNeeds: number;
         failed: number;
+        held: number;
         error: string | null;
       } | null;
       deliveries: {
@@ -62061,6 +62154,11 @@ export interface components {
       /** @enum {boolean} */
       withdrawn: true;
       accessRestored: boolean;
+    };
+    HrCopiesReleased: {
+      released: number;
+      /** @enum {string} */
+      mode: "drift" | "disconnected";
     };
     SupportAccessRequest: {
       /** Format: uuid */

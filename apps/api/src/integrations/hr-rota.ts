@@ -25,11 +25,19 @@ import {
   inboundAbsence,
   planHrAbsence,
   type ThapsusHrPort,
+  ukIsoDate,
 } from "@harbour/domain";
 import { and, asc, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { raiseCoverNeeds, resolveCoverNeeds } from "../services/absence";
-import { HR_ACTOR, type HrLinkSettings, raiseHrAlert, recordSync, ukRefusal } from "./hr-link";
+import {
+  closeHrAlert,
+  HR_ACTOR,
+  type HrLinkSettings,
+  raiseHrAlert,
+  recordSync,
+  ukRefusal,
+} from "./hr-link";
 
 /**
  * The Thapsus-HR link's rota, clocking and absence flows (integrations.md section 11.2; slice 88;
@@ -229,6 +237,8 @@ export interface AbsenceOutcome {
   readonly cancelled: number;
   readonly coverNeeds: number;
   readonly failed: number;
+  /** Copies held by the drift guard for a person to release (HZ-133). */
+  readonly held: number;
   readonly error: string | null;
 }
 
@@ -246,8 +256,13 @@ export async function pullAbsences(
   tenantId: string,
   port: ThapsusHrPort,
   now: Date,
+  /**
+   * A person's release of held drift (HZ-133): the number of current copies they saw and agreed
+   * may be cancelled. A different number now cancels nothing and returns `drift_changed`.
+   */
+  release?: { readonly expected: number; readonly by: string },
 ): Promise<AbsenceOutcome> {
-  const out = { copied: 0, changed: 0, cancelled: 0, coverNeeds: 0, failed: 0 };
+  const out = { copied: 0, changed: 0, cancelled: 0, coverNeeds: 0, failed: 0, held: 0 };
   const { linked, waiting } = await members(tx);
   const connection = await connectionId(tx);
   const seen = new Set<string>();
@@ -364,39 +379,71 @@ export async function pullAbsences(
     await absencesFailed(tx, tenantId, now, "record_failed");
     return { ...out, error: "record_failed" };
   }
-  // Drift (HZ-133): a copy whose absence Thapsus-HR no longer lists stops blocking the rota, but
-  // many at once (an empty list, say) waits for a person.
-  const copies = (
+  // Drift (HZ-133): a copy whose absence Thapsus-HR no longer lists stops blocking the rota. One
+  // already over cannot change the rota and goes at once (a list that covers only a recent window
+  // ages those out); many current ones at once (an empty list, say) wait for a person to release.
+  const today = ukIsoDate(now);
+  const gone = (
     await tx
-      .select({ id: absence.id, hrId: absence.hrId })
+      .select({ id: absence.id, hrId: absence.hrId, endsOn: absence.endsOn })
       .from(absence)
       .where(and(eq(absence.source, "thapsus_hr"), ne(absence.state, "cancelled")))
   ).filter((c) => !(c.hrId && seen.has(c.hrId)));
-  if (copies.length > DRIFT_GUARD) {
+  const current = gone.filter((c) => c.endsOn === null || c.endsOn >= today);
+  const past = gone.filter((c) => !current.includes(c));
+  if (release && release.expected !== current.length) {
+    return { ...out, held: current.length, error: "drift_changed" };
+  }
+  if (!release && current.length > DRIFT_GUARD) {
     if (connection) {
       await raiseHrAlert(
         tx,
-        "absence_record_failed",
+        "absence_drift_held",
         "integration_connection",
         connection,
         now,
-        copies.map((c) => c.hrId ?? ""),
+        current.map((c) => c.hrId ?? ""),
       );
     }
+    await cancelCopies(tx, tenantId, past, "integrations.hr_link.absence_removed");
     await absencesFailed(tx, tenantId, now, "drift_held");
-    return { ...out, error: "drift_held" };
+    return { ...out, cancelled: past.length, held: current.length, error: "drift_held" };
   }
+  out.cancelled += await cancelCopies(tx, tenantId, past, "integrations.hr_link.absence_removed");
+  out.cancelled += await cancelCopies(
+    tx,
+    tenantId,
+    current,
+    release ? "integrations.hr_link.drift_released" : "integrations.hr_link.absence_removed",
+    release?.by,
+  );
+  if (release && connection) {
+    await closeHrAlert(tx, "absence_drift_held", connection, now, release.by);
+  }
+  await recordSync(tx, "absences", now, null);
+  return { ...out, error: null };
+}
+
+/**
+ * Cancels Thapsus-HR copies and resolves their cover needs, one audit event each with the
+ * person who released them when a person did (HZ-133). Returns how many.
+ */
+async function cancelCopies(
+  tx: Transaction,
+  tenantId: string,
+  copies: readonly { readonly id: string }[],
+  action: string,
+  by?: string,
+): Promise<number> {
   for (const c of copies) {
     await tx
       .update(absence)
       .set({ state: "cancelled", updatedBy: null })
       .where(eq(absence.id, c.id));
     await resolveCoverNeeds(tx, { absenceId: c.id }, "absence_ended");
-    await audit(tx, tenantId, "integrations.hr_link.absence_removed", "absence", c.id);
-    out.cancelled += 1;
+    await audit(tx, tenantId, action, "absence", c.id, by ? { releasedBy: by } : undefined);
   }
-  await recordSync(tx, "absences", now, null);
-  return { ...out, error: null };
+  return copies.length;
 }
 
 export interface DeliveryOutcome {
@@ -719,6 +766,43 @@ export async function syncRotaSafely(
     );
   }
   return { absences, deliveries };
+}
+
+/**
+ * A person's release of copies the link can no longer keep right (HZ-133): while connected, the
+ * drift the guard held, re-read from Thapsus-HR now; once disconnected (or the flag is off), every
+ * copy still in force. `expected` is the number the person saw; any other number now cancels
+ * nothing. Returns the outcome; `error` is `drift_changed` when the number differs.
+ */
+export async function releaseHrCopies(
+  tx: Transaction,
+  tenantId: string,
+  link: { readonly port: ThapsusHrPort; readonly settings: HrLinkSettings } | null,
+  now: Date,
+  release: { readonly expected: number; readonly by: string },
+): Promise<AbsenceOutcome> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`hr_link_rota:${tenantId}`}))`);
+  const none = { copied: 0, changed: 0, cancelled: 0, coverNeeds: 0, failed: 0, held: 0 };
+  if (link) {
+    const refusal = await ukRefusal(link.port, link.settings);
+    if (refusal) return { ...none, error: refusal };
+    return pullAbsences(tx, tenantId, link.port, now, release);
+  }
+  const copies = await tx
+    .select({ id: absence.id })
+    .from(absence)
+    .where(and(eq(absence.source, "thapsus_hr"), ne(absence.state, "cancelled")));
+  if (copies.length !== release.expected) {
+    return { ...none, held: copies.length, error: "drift_changed" };
+  }
+  const cancelled = await cancelCopies(
+    tx,
+    tenantId,
+    copies,
+    "integrations.hr_link.drift_released",
+    release.by,
+  );
+  return { ...none, cancelled, error: null };
 }
 
 /** Thapsus-HR copies still in force (the staleness route reads whether any remain). */

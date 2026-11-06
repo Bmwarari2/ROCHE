@@ -281,6 +281,12 @@ export const HR_ALERTS = {
     urgent: true,
   },
   sync_failing: { title: "The HR platform link keeps failing to sync", urgent: true },
+  absence_drift_held: {
+    title: "Approve removing absences the HR platform no longer lists",
+    urgent: true,
+    // Releasing held drift cancels copies that block the rota (HZ-133).
+    permission: "integrations.hr_link.manage",
+  },
   delivery_refused: {
     title: "Check a shift or clock event the HR platform refused",
     urgent: false,
@@ -352,6 +358,27 @@ export async function raiseHrAlert(
     updatedBy: null,
   });
   return true;
+}
+
+/** Marks an open alert done when a person has acted on it (a release of held drift). */
+export async function closeHrAlert(
+  tx: Transaction,
+  alert: HrAlert,
+  sourceId: string,
+  now: Date,
+  by: string,
+): Promise<void> {
+  await tx
+    .update(task)
+    .set({ status: "done", completedAt: now, completedBy: by })
+    .where(
+      and(
+        eq(task.kind, `integrations.hr_link.${alert}`),
+        eq(task.sourceId, sourceId),
+        sql`${task.status} IN ('open', 'in_progress')`,
+        isNull(task.deletedAt),
+      ),
+    );
 }
 
 /** Records a sync's outcome for its kind (rule 9 reads the last good sync from here). */

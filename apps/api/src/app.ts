@@ -50,6 +50,7 @@ import { familyFeedRouter } from "./routes/family-feed";
 import { feedPublishRouter } from "./routes/feed-publish";
 import { handoversRouter } from "./routes/handovers";
 import { hrLinkInboundRouter, hrLinkRouter } from "./routes/hr-link";
+import { hrLinkAbsencesRouter } from "./routes/hr-link-absences";
 import { hrLinkLeaversRouter } from "./routes/hr-link-leavers";
 import { incidentsRouter } from "./routes/incidents";
 import { inductionRouter } from "./routes/induction";
@@ -452,6 +453,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", integrationsRouter);
   app.route("/", hrLinkRouter);
   app.route("/", hrLinkLeaversRouter);
+  app.route("/", hrLinkAbsencesRouter);
   app.route("/", hrLinkInboundRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);

@@ -274,6 +274,85 @@ describe("hazard HZ-123 an absence from Thapsus-HR blocks the rota and raises co
   });
 });
 
+describe("hazard HZ-133 many copies dropping out at once are held until a person releases them (rule 13)", () => {
+  const release = (expectedCount: number, who = "manager") =>
+    send("POST", "/v1/integrations/hr-link/absences/release", who, {
+      expectedCount,
+      reason: "checked_in_hr_platform",
+    });
+  const states = async () =>
+    (
+      await sql<{ hr_id: string; state: string }>(
+        "SELECT hr_id, state FROM absence WHERE hr_id LIKE 'held_%' ORDER BY hr_id",
+      )
+    ).map((r) => r.state);
+
+  it("holds current copies, still blocking, but lets one already over go at once", async () => {
+    for (let i = 1; i <= 7; i++) {
+      await sql(
+        `INSERT INTO absence (member_id, location_id, kind, starts_on, ends_on, state, source, hr_id)
+         VALUES ($1, $2, 'annual_leave', $3, $4, 'recorded', 'thapsus_hr', $5)`,
+        [CARER, LOC, inDays(20 + i * 3), inDays(21 + i * 3), `held_${i}`],
+      );
+    }
+    await sql(
+      `INSERT INTO absence (member_id, location_id, kind, starts_on, ends_on, state, source, hr_id)
+       VALUES ($1, $2, 'annual_leave', $3, $4, 'recorded', 'thapsus_hr', 'old_1')`,
+      [CARER, LOC, inDays(-6), inDays(-4)],
+    );
+    mock.absencesList.length = 0;
+    const r = (await sync()).absences as unknown as { held: number; cancelled: number };
+    expect(r).toMatchObject({ held: 7, cancelled: 1, error: "drift_held" });
+    expect(await states()).toEqual(Array(7).fill("recorded"));
+    const [old] = await sql<{ state: string }>("SELECT state FROM absence WHERE hr_id = 'old_1'");
+    expect(old?.state).toBe("cancelled");
+    const alert = await sql(
+      "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.absence_drift_held' AND status = 'open' AND required_permission = 'integrations.hr_link.manage'",
+    );
+    expect(alert).toHaveLength(1);
+    // Held again on the next run, not released by it.
+    expect(((await sync()).absences as unknown as { held: number }).held).toBe(7);
+  });
+
+  it("refuses someone without the link's manage permission", async () => {
+    expect((await release(7, "carer")).status).toBe(403);
+  });
+
+  it("releases nothing when the number the person saw is no longer right", async () => {
+    const r = await release(6);
+    expect(r.status).toBe(409);
+    expect(((await r.json()) as { code: string }).code).toBe("hr_link_drift_changed");
+    expect(await states()).toEqual(Array(7).fill("recorded"));
+  });
+
+  it("releases the held copies, re-read from Thapsus-HR, audited, and closes the alert", async () => {
+    // One came back in the meantime: it is kept, and the person's number no longer matches.
+    mock.absencesList.push({
+      id: "held_7",
+      employeeId: "emp_carer",
+      type: "annual_leave",
+      startsOn: inDays(41),
+      endsOn: inDays(42),
+      status: "approved",
+    } as never);
+    expect((await release(7)).status).toBe(409);
+    const r = await release(6);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ released: 6, mode: "drift" });
+    expect(await states()).toEqual([...Array(6).fill("cancelled"), "recorded"]);
+    const done = await sql(
+      "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.absence_drift_held' AND status = 'done' AND completed_by IS NOT NULL",
+    );
+    expect(done).toHaveLength(1);
+    const audited = await sql(
+      "SELECT 1 FROM audit_event WHERE action = 'integrations.hr_link.drift_released' AND resource_type = 'absence'",
+    );
+    expect(audited).toHaveLength(6);
+    mock.absencesList.length = 0;
+    await sync();
+  });
+});
+
 describe("hazard HZ-133 rota readers see when the HR platform's data is out of date (rule 9)", () => {
   type S = { linked: boolean; stale: boolean; lastGoodSyncAt: string | null };
   const staleness = async (who: string) =>
@@ -420,5 +499,26 @@ describe("hazard HZ-133 the rota still says so when the link stops but its absen
       stale: boolean;
     };
     expect(r).toMatchObject({ linked: true, stale: true });
+  });
+
+  it("lets the link's manager end the copies still in force once disconnected", async () => {
+    await sql(
+      `INSERT INTO absence (member_id, location_id, kind, starts_on, state, source, hr_id)
+       VALUES ($1, $2, 'other', $3, 'recorded', 'thapsus_hr', 'after_1')`,
+      [CARER, LOC, inDays(60)],
+    );
+    const [{ n } = { n: 0 }] = await sql<{ n: number }>(
+      "SELECT count(*)::int AS n FROM absence WHERE source = 'thapsus_hr' AND state <> 'cancelled'",
+    );
+    const r = await send("POST", "/v1/integrations/hr-link/absences/release", "manager", {
+      expectedCount: n,
+      reason: "link_ended",
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ released: n, mode: "disconnected" });
+    const left = await sql(
+      "SELECT 1 FROM absence WHERE source = 'thapsus_hr' AND state <> 'cancelled'",
+    );
+    expect(left).toHaveLength(0);
   });
 });

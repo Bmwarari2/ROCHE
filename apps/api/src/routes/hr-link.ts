@@ -180,6 +180,7 @@ const SyncResult = z
         cancelled: z.number().int(),
         coverNeeds: z.number().int(),
         failed: z.number().int(),
+        held: z.number().int(),
         error: z.string().nullable(),
       })
       .nullable(),

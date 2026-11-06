@@ -231,8 +231,12 @@ How slice 88 applies the rules:
   ends it, whatever its type. An unknown type is copied as other and raised. A change of type or
   start replaces the copy; a request, a cancellation or an absence no longer listed cancels it and
   resolves its cover needs (drift). A record that cannot be read or applied never frees a copy: it
-  is raised, the run does no drift and is not a good sync; drift that would cancel more than 5
-  copies at once waits for a person. An approved absence for a member whose match is not confirmed
+  is raised, the run does no drift and is not a good sync. A copy already over goes at once (it
+  cannot change the rota); more than 5 current copies dropping out at once are held, still
+  blocking, and raised to the link's managers, who release them with a fresh step-up, a coded
+  reason and the number they saw: the list is read again from Thapsus-HR then, and a different
+  number releases nothing (`POST /v1/integrations/hr-link/absences/release`). Once the link is
+  disconnected or off, the same action ends the copies still in force. An approved absence for a member whose match is not confirmed
   is raised, never copied. A member with no home in the staff file takes the home of their oldest
   live role, else is raised. Cover needs are raised on the member's rostered shifts at any home
   (HZ-123). A person here cannot change a copy ("Managed in the HR platform").
@@ -308,6 +312,8 @@ Events emitted:
 - `integrations.hr_link.sync_failed`;
 - `integrations.hr_link.stale` (slice 88, with the rota's notice);
 - `integrations.hr_link.drift_detected`.
+- `integrations.hr_link.drift_released` (slice 88: a person released held copies, with the count and
+  whether the link was connected).
 
 Every write that the sync makes is an audit event with the actor `integration:thapsus_hr` and
 opaque identifiers only.
