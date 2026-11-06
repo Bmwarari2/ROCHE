@@ -45491,8 +45491,7 @@
             "$ref": "#/components/schemas/CdWitness"
           },
           "covert": {
-            "type": "boolean",
-            "default": false
+            "type": "boolean"
           },
           "correctionReason": {
             "type": "string",

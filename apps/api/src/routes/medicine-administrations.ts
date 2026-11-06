@@ -848,7 +848,8 @@ export const medicineAdministrationsRouter = createRouter()
             // A correction that moves no stock carries the chain's register entry forward, so a later
             // correction corrects that entry (security review M1, clinical review H1).
             cdEntryId: cdMove?.id ?? original.cdEntryId,
-            covert: body.covert,
+            // Left out, the covert mark carries forward while the dose is still given (HZ-026).
+            covert: body.covert ?? (original.covert && input.outcome === "given"),
             now,
           });
           await neverFailingTheDose(

@@ -72,6 +72,16 @@ in). The PR to `main` opens once batch 3a's has merged and this branch is green 
 - Migration 0139 was edited before reaching main (the agency_window grants). A database that ran an
   earlier 0139 needs rebuilding; batch 3b ran only on private databases.
 
+- Clinical re-review, non-blocking (fixed here): a correction that left out `covert` dropped the
+  mark; it now carries forward while the dose is still given, with an HZ-026 test. The five
+  "hazards at residual risk 3" paragraphs are one list again.
+- Clinical re-review, open: homely remedy doses are not yet counted by the eMAR's 24-hour and
+  interval checks, nor shown on the MAR, round or phone (fix before slices 52 and 55; HZ-120);
+  offline e-learning completion takes the sync day, not the day finished (HZ-124, H-1013); training
+  uploads share the phone's upload queue with doses, with no test that a dose passes a training 429;
+  the Thapsus-HR staleness defaults are literals, not rate keys, with no clock-change test;
+  `homely_remedy_administration.flags` has no allowed-values constraint.
+
 ## For the CSO and DPO
 
 - H-1400: how imported medicines get their tags and minimum interval.

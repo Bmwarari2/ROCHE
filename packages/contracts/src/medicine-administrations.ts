@@ -85,6 +85,11 @@ export const CorrectAdministration = z
     givenAt: isoDateTime,
     /** Who gave it, when the correction names someone other than the record did. */
     givenBy: uuid.nullable().default(null),
+    /**
+     * Given covertly, as corrected. Left out, the original's mark carries forward while the dose
+     * is still given, so a correction never quietly drops it (HZ-026, clinical review).
+     */
+    covert: z.boolean().optional(),
   })
   .meta({ id: "CorrectAdministration" });
 

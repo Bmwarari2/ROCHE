@@ -74140,8 +74140,7 @@ export interface components {
       /** @default null */
       intervalOverrideReason: string | null;
       controlledDrug?: components["schemas"]["CdWitness"];
-      /** @default false */
-      covert: boolean;
+      covert?: boolean;
       correctionReason: string;
       /** Format: date-time */
       givenAt: string;

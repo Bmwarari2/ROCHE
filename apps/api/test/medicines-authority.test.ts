@@ -206,6 +206,25 @@ describe("hazard HZ-026 covert administration under a best-interests decision (s
     expect(marked.escalations).toEqual([]);
   });
 
+  it("keeps a covert dose's mark through a correction that leaves it out", async () => {
+    const given = await dose("given", true);
+    expect(given.status, await given.clone().text()).toBe(201);
+    const original = (await json<Recorded>(given)).administration;
+    const r = await send("manager", `/v1/medicine-administrations/${original.id}/corrections`, {
+      method: "POST",
+      body: {
+        id: randomUUID(),
+        correctionReason: "Recorded against the wrong time",
+        entryId,
+        outcome: "given",
+        amount: { quantity: 2, unitCode: TABLET.code },
+        givenAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+      },
+    });
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect((await json<Recorded>(r)).administration.covert).toBe(true);
+  });
+
   it("reviews it with a reason and the version read", async () => {
     const body = {
       capacityAssessmentId: covertCapacity,
