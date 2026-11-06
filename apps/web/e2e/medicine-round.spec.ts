@@ -60,13 +60,14 @@ function ukTimeNow(): string {
 async function transcribe(
   request: APIRequestContext,
   person: string,
+  search: string,
   directions: (unit: { code: string; name: string }) => unknown,
   extra: Record<string, unknown> = {},
 ) {
-  const search = await request.get(`${API_URL}/v1/medicines/products?q=ibuprofen`, { headers });
-  expect(search.ok()).toBe(true);
+  const found = await request.get(`${API_URL}/v1/medicines/products?q=${search}`, { headers });
+  expect(found.ok()).toBe(true);
   const product = (
-    (await search.json()) as {
+    (await found.json()) as {
       items: {
         vmpId: string;
         name: string;
@@ -75,7 +76,7 @@ async function transcribe(
       }[];
     }
   ).items[0];
-  if (!product) throw new Error("The dm+d fixture has no ibuprofen: is MEDICINES_FIXTURES on?");
+  if (!product) throw new Error(`The dm+d fixture has no ${search}: is MEDICINES_FIXTURES on?`);
   const unit =
     product.permittedDoseUnits.find((u) => u.name === "tablet") ?? product.permittedDoseUnits[0];
   const route = product.permittedRoutes[0];
@@ -105,6 +106,7 @@ test("hazard HZ-007 hazard HZ-117 hazard HZ-003 the nurse records a when-require
   const product = await transcribe(
     manager.request,
     person,
+    "ibuprofen",
     (unit) => ({
       kind: "when_required",
       dose: { kind: "amount", quantity: 1, unit },
@@ -115,6 +117,7 @@ test("hazard HZ-007 hazard HZ-117 hazard HZ-003 the nurse records a when-require
   await transcribe(
     manager.request,
     person,
+    "paracetamol",
     (unit) => ({
       kind: "regular",
       schedule: {
