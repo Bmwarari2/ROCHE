@@ -28,6 +28,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Merge batch 3b (06/11/2026)
+
+`integration/phase-2-batch-3b`, from batch 3a: migrations 0120 to 0140 (slice 38 renumbered from
+0142 to 0140) with web-cd-register, slices 72 and 86. When-required medicines are recorded again
+with their limits; imported medicines bring their tags, interval and maximum from the file. Hazard
+ids separated: speak-up HZ-131, Thapsus-HR HZ-133, medication errors HZ-134. The Thapsus-HR link
+takes 0141 and 0142, slice 28 takes 0143. The PR waits for batch 3a's. See
+`docs/changelog-dev/2026-11-06-integration-phase-2-batch-3b.md`.
+
 ## Paused 01/11/2026: where to resume
 
 All build work is paused at the owner's request. The account also reached its monthly spend
