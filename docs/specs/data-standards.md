@@ -943,17 +943,26 @@ fields are Harbour's.
 
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `agency_worker.kind`, `agency_booking.kind` | Harbour | `agency`, `bank` | An agency worker names their agency; a bank worker none. |
-| `agency_worker.dbs_enhanced_barred` | Harbour (DBS check levels) | Boolean | True only for an enhanced DBS with the adults' barred list, as the agency confirmed it. |
-| `agency_worker.right_to_work_expires_on`, `registration_valid_until` | ISO 8601 date | `YYYY-MM-DD`, UK date; null for an unlimited right to work | The last valid day. |
-| `agency_worker.registration_body` | Harbour | `nmc`, `hcpc`, `swe`, `gmc` | The register the role needs. |
-| `agency_booking.charge_pence_per_hour`, `cost_pence`, `agency.default_charge_pence_per_hour` | Harbour | Whole pence | Cost: paid minutes (shift less break) at the charge, to the nearest penny. |
-| `agency_booking.status` | Harbour | `confirmed`, `cancelled` | A cancelled booking stays cancelled. |
-| `location_induction.items` | Harbour | Lower-case keys (`fire_exits`, `emergency_procedures`, ...), 1 to 40 | The location's own checklist. |
-| `agency_worker_feedback.kind` | Harbour | `positive`, `concern`, `do_not_rebook` | `do_not_rebook` marks the worker not to be booked. |
-| `agency_awr_record.kind` | Harbour | `break_reason`, `role_change`, `withdrawal` | Append-only; a withdrawal names the record it withdraws, once. |
-| `agency_awr_record.reason` | Agency Workers Regulations 2010 reg 7(8) | `sickness`, `jury_service`, `protected_leave`, `annual_leave`, `shutdown`, `industrial_action` | Covers a break week only when it spans every day of it. |
-| `agency_awr_record.from_on`, `to_on`, `notified_on` | ISO 8601 date | `YYYY-MM-DD`, UK dates | `notified_on` is when the worker was told of a new role in writing (reg 7(3)). |
+| `absence.kind` | Harbour (`ABSENCE_KINDS`) | `annual_leave`, `sickness`, `compassionate`, `carers_leave`, `parental_leave`, `maternity`, `paternity`, `adoption`, `parental_bereavement`, `unpaid`, `other` | Only `sickness` takes self-certification, fit notes, return to work, SSP and the Bradford factor; never a diagnosis. |
+| `absence.state` | Harbour (`ABSENCE_STATES`) | `requested`, `approved`, `declined`, `postponed`, `cancelled`, `recorded` | `requested` moves to `approved`, `declined`, `postponed` or `cancelled` (statutory leave is never declined; only carer's and parental leave are postponed: H-970); `approved` and `recorded` to `cancelled`; nothing back (trigger `absence_guard`). |
+| `absence.starts_on`, `ends_on` | ISO 8601 date | `YYYY-MM-DD` (UK calendar), shown dd/mm/yyyy; `ends_on` null while a sickness is open | Leave always has a last day. |
+| `absence.decided_by`, `decided_at`, `decision_reason` | Harbour | `tenant_user` id, UTC; a reason of 3 to 500 characters for a decline or a manager's cancellation | The decider is never the member (check `absence_decider_is_member`). The reason is about the rota, never health. |
+| `absence.self_certified_at`, `bradford_excluded_reason` | Harbour | UTC; free text of 3 to 500 characters | Self-certification covers `ssp.self_certification_days`; the exclusion reason is HR's only. |
+| `fit_note.issued_on`, `covers_from`, `covers_to` | ISO 8601 date | `YYYY-MM-DD` | `covers_to` on or after `covers_from`; issued no later than `covers_to`. |
+| `fit_note.fitness` and adjustments | The fit note form (Statement of Fitness for Work) | `not_fit`, `may_be_fit`; booleans `phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations` (ticked only when `may_be_fit`) | The condition stays on the document; never typed into Harbour. |
+| `fit_note.document_id` | Harbour | A `document` of category `staff_hr_document`, subject `fit_note`, retention `sickness_absence` | Opened only by holders of `workforce.hr_document.read`, audited. |
+| `return_to_work.*` | Harbour | `held_on` date; `held_by` (never the member); `fit_for_usual_duties`; the four adjustments; `notes` up to 4,000 characters | One per absence, after it ends. Notes never in an audit event. |
+| `revalidation_evidence.review_state`, `reviewed_by`, `reviewed_at`, `confirmed_by`, `confirmed_on` (H-693) | Harbour | `draft`, `submitted`, `reviewed`; `tenant_user` ids; UTC; UK date | The nurse writes their own counts; HR reviews; the confirmer is never the nurse |
+| `compliance_item.detail` for `driving_for_work` (H-835) | DVLA licence categories | `licenceCheckedOn` date; `categories` as the DVLA shows them (`^[A-Z][A-Z0-9+]{0,3}$`); `insuranceExpiresOn` date | Never the licence number or the DVLA check code. Current for `workforce.driving_licence_check_months` and while insured |
+| `compliance_item.detail.nmcPart` (H-835) | NMC register parts | `nurse`, `midwife`, `nursing_associate` | Required for an NMC registration; only `nurse` counts as a registered nurse on duty |
+| `shift_cover_need.resolution` | Harbour | `assignment_removed`, `absence_ended` | Raised once, resolved once (trigger `shift_cover_need_guard`). |
+
+## Absence and leave (Phase 2, slice 40)
+
+Code lists for absence and leave ([scheduling.md](scheduling.md) section 15; SCHED-010; migration
+0107). None maps to a national standard. Every column is exported. Fit notes and return to work
+are health data (special category, records-of-processing.md). Retention `sickness_absence`, cover
+needs `rota_and_timesheet`.
 
 ## Workforce: applicant tracking (Phase 2, slice 23)
 

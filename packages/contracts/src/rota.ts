@@ -36,8 +36,12 @@ const ShiftShapeFields = {
   requiredCompetences: z.array(Competence).max(8).default([]),
   requiredSkills: z.array(StaffingSkill).max(4).default([]),
   supervised: z.boolean().default(false),
-  /** The organisation counts it as care on the floor (false for housekeeping, kitchen, office). */
-  countsAsCare: z.boolean().default(true),
+  /**
+   * The organisation counts it as care on the floor (false for housekeeping, kitchen, office).
+   * Left out, it is true, except for a supervised or shadowing shift, which counts only when the
+   * organisation chooses (H-830).
+   */
+  countsAsCare: z.boolean().optional(),
 };
 
 export const CreateShiftTemplate = z
@@ -122,6 +126,11 @@ export const AssignmentItem = z
     publishedAt: isoDateTime.nullable(),
     /** The blockers a manager's override covered, as `blockerKey`s; empty when none. */
     overridden: z.array(z.string()),
+    /**
+     * HZ-123: the member is away (an approved or recorded absence) on the shift, so it needs
+     * cover and the staffing comparison does not count them. Never says why.
+     */
+    coverNeeded: z.boolean(),
   })
   .meta({ id: "AssignmentItem" });
 
@@ -337,6 +346,8 @@ export const RotaCheck = z
      * them (H-927; HZ-073): assign people so they can see allergies and care plans.
      */
     peopleUnassigned: z.array(uuid),
+    /** HZ-123: assignments whose member is away on the shift: counted as open, with a warning. */
+    coverNeededAssignmentIds: z.array(uuid),
     /** True when any comparison is not `met` or any working time finding stands. */
     hasWarnings: z.boolean(),
     /**

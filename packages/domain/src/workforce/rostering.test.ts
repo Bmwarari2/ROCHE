@@ -66,18 +66,42 @@ describe("hazard HZ-124 a worker without a required check cannot be rostered (wo
 
   it("hazard HZ-124 takes a manager's override with a justification, and lists what it overrode", () => {
     const decision = rosterDecision(
-      { ...ok, registrationCurrent: false },
+      { ...ok, dbs: { kind: "supervised_only" } },
       { justification: reason, byTenantUserId: "manager-1" },
     );
-    expect(decision).toEqual({ allowed: true, overridden: [{ kind: "registration" }] });
+    expect(decision).toEqual({ allowed: true, overridden: [{ kind: "dbs_supervised_only" }] });
   });
 
   it("hazard HZ-124 refuses an override without a real justification", () => {
     const decision = rosterDecision(
-      { ...ok, registrationCurrent: false },
+      { ...ok, dbs: { kind: "supervised_only" } },
       { justification: "x".repeat(MIN_OVERRIDE_JUSTIFICATION - 1), byTenantUserId: "manager-1" },
     );
     expect(decision).toMatchObject({ allowed: false, overrideRefused: "justification_required" });
+  });
+
+  it.each<[string, Partial<Parameters<typeof rosterDecision>[0]>, string]>([
+    [
+      "no DBS certificate at all",
+      { dbs: { kind: "not_clear", reason: "no_certificate" } },
+      "no_dbs",
+    ],
+    ["a lapsed registration", { registrationCurrent: false }, "registration"],
+    [
+      "no DBS and a lapsed registration",
+      { dbs: { kind: "not_clear", reason: "no_certificate" }, registrationCurrent: false },
+      "no_dbs",
+    ],
+  ])("hazard HZ-124 never overrides %s (H-830)", (_name, input, refused) => {
+    const decision = rosterDecision(
+      { ...ok, ...input },
+      { justification: reason, byTenantUserId: "manager-1" },
+    );
+    expect(decision).toMatchObject({
+      allowed: false,
+      overridable: false,
+      overrideRefused: refused,
+    });
   });
 
   it("hazard HZ-124 never overrides a missing right to work (illegal working)", () => {

@@ -37,6 +37,8 @@ export function agencyRosterChecks(
       rightToWork: { kind: "none" },
       registrationCurrent: null,
       memberActive,
+      registeredNurse: false,
+      driver: false,
     };
   }
   const dbsConfirmed = confirmation.dbsConfirmedOn !== null && confirmation.dbsConfirmedOn <= day;
@@ -58,5 +60,15 @@ export function agencyRosterChecks(
     confirmation.registrationBody === null
       ? null
       : confirmation.registrationValidUntil !== null && confirmation.registrationValidUntil >= day;
-  return { dbs, rightToWork, registrationCurrent, memberActive };
+  // The confirmation names the register, not its part, and carries no driving check (H-835): an
+  // agency worker never counts as a registered nurse or a driver for the staffing scale, so a
+  // skill-mix shortfall shows rather than hides (HZ-123).
+  return {
+    dbs,
+    rightToWork,
+    registrationCurrent,
+    memberActive,
+    registeredNurse: false,
+    driver: false,
+  };
 }

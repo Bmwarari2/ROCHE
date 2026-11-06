@@ -10,6 +10,7 @@ import {
   jsonb,
   pgTable,
   text,
+  timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -27,7 +28,7 @@ import { location, tenantUser } from "./platform";
  * only by a holder of `workforce.dbs_risk_assessment.sign`. The database enforces the same.
  */
 
-/** `SCHEDULE3_ITEMS` in packages/domain, kept in step by test/staff-file.test.ts. */
+/** `COMPLIANCE_ITEMS` in packages/domain, kept in step by test/staff-file.test.ts. */
 export const COMPLIANCE_ITEM_KINDS = [
   "identity_with_photo",
   "dbs_certificate",
@@ -38,6 +39,7 @@ export const COMPLIANCE_ITEM_KINDS = [
   "health_fitness",
   "right_to_work",
   "professional_registration",
+  "driving_for_work",
 ] as const;
 
 /** Professional registers a role may need (`RoleRegistration` in packages/domain). */
@@ -323,10 +325,36 @@ export const revalidationEvidence = pgTable(
     healthAndCharacter: boolean("health_and_character").notNull().default(false),
     professionalIndemnity: boolean("professional_indemnity").notNull().default(false),
     confirmation: boolean("confirmation").notNull().default(false),
+    /**
+     * H-693: `draft` while the nurse (or HR) fills it in, `submitted` when the nurse sends it for
+     * review, `reviewed` once HR has checked it (then only the confirmation may change).
+     */
+    reviewState: text("review_state").notNull().default("draft"),
+    reviewedBy: uuid("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /** The confirmer, in their own name and never the nurse (NMC revalidation guidance). */
+    confirmedBy: uuid("confirmed_by"),
+    confirmedOn: date("confirmed_on"),
     ...mutableColumns(),
   },
   (t) => [
     unique("revalidation_evidence_tenant_id_id_key").on(t.tenantId, t.id),
+    workerRef("revalidation_evidence_reviewed_by_fk", t, t.reviewedBy),
+    workerRef("revalidation_evidence_confirmed_by_fk", t, t.confirmedBy),
+    check(
+      "revalidation_evidence_review_state",
+      sql`review_state IN ('draft', 'submitted', 'reviewed')`,
+    ),
+    check(
+      "revalidation_evidence_reviewed",
+      sql`(review_state = 'reviewed') = (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+        AND reviewed_by IS DISTINCT FROM worker_id`,
+    ),
+    check(
+      "revalidation_evidence_confirmed",
+      sql`confirmation = (confirmed_by IS NOT NULL AND confirmed_on IS NOT NULL)
+        AND confirmed_by IS DISTINCT FROM worker_id`,
+    ),
     unique("revalidation_evidence_cycle_key").on(t.tenantId, t.workerId, t.cycleDueOn),
     workerRef("revalidation_evidence_worker_fk", t, t.workerId),
     check(

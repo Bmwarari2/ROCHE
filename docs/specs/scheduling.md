@@ -731,7 +731,8 @@ one at a time; an override is for a live assignment of its worker, made in the s
    role's own register, counting only items verified by someone other than the member; and each
    competence the shift needs from the competence port, which blocks if the sign-off has lapsed by
    then or now. No staff file means no DBS and no right to work. A blocked member is refused (422
-   `not_eligible`; `right_to_work` or `not_active` when those block, never overridable) unless a
+   `not_eligible`; `right_to_work`, `not_active`, `no_dbs` or `registration` when those block,
+   never overridable: H-830, ADR-0099) unless a
    holder of `scheduling.rota.approve` at the location overrides with a justification and the
    blocker keys they were shown (each with its reason: `dbs:<reason>`, `competence:<name>:<reason>`);
    if the blockers have changed since, the override is refused (409 `blockers_changed`). Never for
@@ -747,8 +748,10 @@ one at a time; an override is for a live assignment of its worker, made in the s
 5. **The rota against the requirement** (HZ-123; `staffingProvided` then `compareStaffing`): per
    date of the rota and each shift period of the scale in force, the care minutes of assigned
    `work` shifts the organisation counts as care (`counts_as_care`; not housekeeping, kitchen or
-   office) inside the period less each shift's break in proportion, and for each skill the fewest
-   holders on shift at any moment of the period (`fewestPresent`: a handover overlap or two
+   office; a supervised or shadowing shift or template is not counted unless the organisation says
+   so, as `countsAsCare` defaults to false when `supervised` is true: H-830) inside the period less each shift's break in proportion, and for each skill the fewest
+   holders on shift at any moment of the period (a registered nurse only on the nurse part of the
+   NMC register, a driver only with a current driving-for-work check: H-835; `fewestPresent`: a handover overlap or two
    holders one after the other never count as two); shifts of the neighbouring rotas at the
    location that reach into the period count too; open shifts, sleep-ins, on-call and training give
    no care minutes. The comparison carries the requirement's source, notice, method and every
@@ -943,3 +946,121 @@ location).
   members unaffected; only an agency-only member registered).
 - API: `apps/api/test/agency.test.ts` (agencies and workers; booking with the rule and refusals;
   cost; AWR; induction; feedback and do not rebook; the access window through the API).
+
+  day (slice 27), the screens (slice 59), offline swap requests (slice 71).
+
+## 15. Absence and leave (slice 40; SCHED-010)
+
+Master prompt section 12.3 (absence and leave: requests and approvals, the Bradford factor,
+return to work, fit notes, SSP) with the slice 6 pay rules (section 4b rules 4 and 8). Hazards
+HZ-123 (an absence must never silently empty a shift the staffing comparison counts) and HZ-124
+(nobody is put on a shift on a day they are absent). Statutory family leave is recorded as a
+kind of leave here; its pay (SMP and the other family payments) and the screens follow. Human
+actions H-970 to H-979.
+
+### Schema (migration 0107)
+
+Row-level security: an absence is read by its member (their own, through any role with
+`scheduling.timesheet.self`), by holders of `scheduling.rota.manage` or `.approve` at its location,
+and by the system context for the export; written by its member (a request, a cancellation of
+their own request) or a rota manager there. A fit note and a return to work record are health
+data: read and written only by holders of `workforce.hr_document.read` at the location (and read by
+the member themselves), never by a rota manager without it; a fit note's document is never readable
+by the member it is about through HR rights (`app.absence_member`). Earlier versions of an absence
+(which may hold the Bradford exclusion reason) are read only with HR rights at its home. Leaving a
+sickness out of the Bradford factor needs HR rights at the home and is never for one's own; a
+decision's reason never changes without the decision. Guards: an absence keeps its member,
+location and kind; a decision is made by a holder of `scheduling.rota.approve` there, never the
+member (`absence_decider_is_member`); `requested` moves to `approved`, `declined` or `cancelled`,
+`recorded` (a sickness, or leave a manager records) to `cancelled`, nothing back. A cover need is
+raised only by the decision or recording that caused it, in the same transaction, through
+`app.raise_cover_need` (definer rights to see the assignment at any home; it checks the caller holds
+`.approve` or `.manage` at the absence's home, the absence takes the member away and the assignment
+is theirs), which also marks a published shift as changed since publication; whoever raised a need
+reads it.
+
+1. **Requests and approvals.** A member asks for leave for themselves at a home where they hold a
+   role (`requested`); a holder of `scheduling.rota.approve` there approves or declines it, never
+   their own, a decline with a reason. Statutory leave is never declined (H-970, recommended answer
+   applied 31/10/2026): maternity, paternity, adoption and parental bereavement leave are notified
+   and approved or recorded; carer's leave and unpaid parental leave may only be postponed as the law
+   allows (`postponed`, with a reason; the member asks again for the later dates). The database
+   refuses a decline of these kinds and a postponement of any other (`absence_statutory`). A rota manager records a sickness or leave for a member
+   (`recorded`). The member cancels their own request before it is decided; a manager cancels an
+   approved or recorded absence with a reason.
+2. **Kinds** (`ABSENCE_KINDS`): `annual_leave`, `sickness`, `compassionate`, `carers_leave`,
+   `parental_leave`, `maternity`, `paternity`, `adoption`, `parental_bereavement`, `unpaid`,
+   `other`. Compassionate leave stays the organisation's own policy until bereavement leave under
+   the Employment Rights Act 2025 commences. A carer's leave request shows the days of carer's leave
+   approved or recorded in the last 12 months against `carers_leave.weeks_per_12_months` (Carer's
+   Leave Regulations 2024; `carersLeaveTaken`), advisory for the approver and never a refusal. Only `sickness` takes
+   self-certification, fit notes, return to work, SSP and the Bradford factor; only the leave kinds
+   are requested.
+3. **Self-certification and fit notes.** A sickness of up to `ssp.self_certification_days`
+   calendar days is covered by the member's own statement (`self_certified_at`); a longer one needs
+   a fit note for the days after (`fitNoteNeeded`): the absence says which days are not covered.
+   A fit note is an uploaded document (HR-only, retention `sickness_absence`) with its dates,
+   whether the member is not fit or may be fit, and which adjustments are ticked; the condition is
+   never typed into Harbour and never in an audit event or a log.
+4. **Return to work.** One record per sickness after it ends, by a holder of
+   `workforce.hr_document.read`: when, who held it, whether the member is fit for their usual
+   duties and which adjustments were agreed, and notes. Audited with ids only.
+5. **Bradford factor** (section 4b rule 8, `bradfordFactor`). Over `absence.bradford.window_weeks`
+   (the rate table), from the member's sickness days (recorded or approved, not cancelled), with
+   the spells, the days, the score, the window and the working shown. It is never compared with a
+   trigger, never raises a task and never changes anything (H-583); absences that must not count
+   against a member (pregnancy-related, disability-related) are left out by the manager in words
+   (`excluded` with a reason), never by a rule.
+6. **SSP** (section 4b rule 4, `sickPay`). A period of incapacity for work is at least
+   `ssp.piw_min_days` consecutive calendar days of sickness; periods no more than
+   `ssp.piw_link_weeks` weeks apart link, so their paid days count towards the limit
+   (`periodsOfIncapacity`). The HR user gives the average weekly earnings from payroll and the
+   member's qualifying days; Harbour returns the working from the slice 6 rule. Nothing is paid or
+   stored by Harbour; the result is advice for payroll with its input hash. No figure is a literal.
+7. **Cover** (HZ-123). When an absence is approved or recorded, every live assignment of the
+   member on a shift that overlaps the absence's days at any location gets a cover need in the same
+   transaction. The rota keeps the assignment (it never silently empties), shows it as needing
+   cover, and the check counts it as open with a warning naming the cover needs; publishing then
+   needs the period acknowledged as for any shortfall. A cover need resolves when the assignment is
+   removed (someone else can then be put on) or the absence is cancelled or declined.
+   Each cover need also raises a task (`scheduling.cover_needed`, from the outbox event, by the
+   worker as the system) for the holders of `scheduling.rota.manage` at the shift's home, who are
+   told at once; it is due `scheduling.cover_task_lead_minutes` before the shift starts (at once,
+   and urgent, when that has passed), escalates as any permission-routed task (to the holders of
+   its permission, else a manager elsewhere), names the shift only, and is cancelled ("cover no
+   longer needed") when its cover need resolves. Only the holders of `scheduling.rota.manage` at
+   the home and its assignee see it (with the rota, its shift would say who is away), and nobody
+   closes it by hand while the need is open and the shift has not started. One task per need
+   (`task_cover_need_key`); nothing is raised for a resolved need or a shift already started.
+8. **No rostering onto an absence** (HZ-124). Putting a member on a shift on a day they have an
+   approved or recorded absence is refused (`member_absent`).
+
+### Permissions
+
+| Action | Permission |
+| --- | --- |
+| Ask for own leave; read and cancel own absences | `scheduling.timesheet.self` |
+| Record a sickness or leave for a member; read absences at a home | `scheduling.rota.manage` there |
+| Approve or decline leave (never own) | `scheduling.rota.approve` there |
+| Add and open fit notes; record return to work; the Bradford factor; SSP working | `workforce.hr_document.read` there |
+
+`/v1/absences` (list by home or member, ask, record), `/v1/absences/{id}` (read),
+`/{id}/decision`, `/{id}/cancel`, `/{id}/end` (a sickness's last day), `/{id}/fit-notes` (upload
+the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNoteId}/content`,
+`/{id}/return-to-work`, `/{id}/bradford-exclusion`, `/v1/members/{id}/bradford`, `POST /{id}/ssp` (the earnings in the body, never the address). Audit:
+`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
+`workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
+`workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
+a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (cover need, shift, absence, location; consumed by the worker).
+
+- Domain: `packages/domain/src/scheduling/absence.test.ts` (table-driven: decisions never by the
+  member; state moves; days of an absence; fit note needed after the self-certification days, the
+  days uncovered; periods of incapacity at the minimum length and linked within the link weeks;
+  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs).
+- Database: `packages/db/test/absence.test.ts` (cross-tenant denial on all four tables; a member
+  sees only their own; a rota manager reads but never a fit note or return to work; decisions only
+  by an approver, never the member; state moves; fit notes and return to work append-only).
+- API: `apps/api/test/absence.test.ts` (ask and approve with cover needs raised; decline and cancel
+  resolving them; recording a sickness; fit note upload and open audited; return to work; the
+  Bradford factor with its working; SSP working; assigning onto an absence refused; the rota check
+  counting a cover need as open with a warning).

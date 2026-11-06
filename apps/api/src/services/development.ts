@@ -181,6 +181,8 @@ export async function developmentRecord(
   const names: StaffLookup = await staffNames(tx, [
     ...signOffs.flatMap((r) => [r.s.observerId, r.w?.withdrawnBy]),
     ...supervisions.map((s) => s.heldBy),
+    evidence?.reviewedBy,
+    evidence?.confirmedBy,
   ]).catch(() => NO_STAFF);
 
   const requirements = await requirementsFor(tx, keys);
@@ -302,6 +304,10 @@ export async function developmentRecord(
             healthAndCharacter: evidence.healthAndCharacter,
             professionalIndemnity: evidence.professionalIndemnity,
             confirmation: evidence.confirmation,
+            reviewState: evidence.reviewState as "draft" | "submitted" | "reviewed",
+            reviewedBy: evidence.reviewedBy ? names(evidence.reviewedBy) : null,
+            confirmedBy: evidence.confirmedBy ? names(evidence.confirmedBy) : null,
+            confirmedOn: evidence.confirmedOn,
             daysLeft: plan.daysLeft,
             outstanding: [...plan.outstanding],
             ready: plan.ready,

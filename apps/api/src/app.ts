@@ -18,6 +18,7 @@ import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
+import { absencesRouter } from "./routes/absences";
 import { agencyRouter } from "./routes/agency";
 import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
@@ -287,6 +288,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     "/v1/documents/*",
     "/v1/people/:id/photo",
     "/v1/workforce/staff-files/:id/items/:kind/documents",
+    "/v1/absences/:id/fit-notes",
   ]) {
     app.use(
       path,
@@ -429,6 +431,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", schedulingDependencyRouter);
   app.route("/", rotaRouter);
   app.route("/", agencyRouter);
+  app.route("/", absencesRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

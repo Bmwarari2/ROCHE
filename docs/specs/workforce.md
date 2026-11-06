@@ -304,7 +304,8 @@ whatever the clock change.
 7. **Supervision and appraisal** (`supervision.ts`). `supervision.per_year` supervisions and
    `appraisal.per_year` appraisals a year: the next is due one interval (12 months divided by the
    number) after the last, or after the start date when none has been held; overdue from the day
-   after. Spot checks are recorded but do not count as supervisions.
+   after. Spot checks are recorded but do not count as supervisions. What a supervision covered
+   (H-692) is recorded by slice 57 (`supervision_note`, migration 0114, ADR-0114).
 8. **Qualifications and NMC revalidation** (`registration.ts`). A registered nurse's registration
    must be current on the day worked; revalidation is due every `nmc.revalidation.cycle_years` years
    on the renewal date the NMC gives; the planner counts `nmc.revalidation.practice_hours` practice
@@ -312,7 +313,15 @@ whatever the clock change.
    participatory), `nmc.revalidation.feedback_count` pieces of practice-related feedback and
    `nmc.revalidation.reflective_accounts` reflective accounts, plus a reflective discussion, a
    health and character declaration, professional indemnity and confirmation; reminders at the
-   document-expiry days.
+   document-expiry days. The nurse enters their own evidence (`PUT /v1/me/revalidation`: counts
+   and declarations, never the reflective text) and sends it for review; HR
+   (`workforce.training.manage`) reviews it, after which the counts are fixed; the confirmation is
+   recorded only by the confirmer, in their own name, never the nurse (HR or a line manager holding
+   `workforce.supervision.manage`, ideally an NMC registrant, as the NMC's revalidation guidance
+   sets out). The nurse stays responsible for revalidating with the NMC; Harbour only tracks it
+   (H-693, recommended answer applied 31/10/2026). The NMC registration records the part of the
+   register (`nmcPart`: nurse, midwife or nursing associate); only the nurse part counts as a
+   registered nurse on duty, and a nursing associate never does (H-835).
 9. **Sponsor licence** (`sponsor.ts`). A reportable change is due within
    `sponsor.change_report_working_days` working days of the day it happened (the location nation's
    bank holidays; the event's own day never counts). The salary check: guaranteed basic gross pay
@@ -326,7 +335,13 @@ whatever the clock change.
     a right to work, their registration is current where the role needs one, and every competence
     the shift needs is valid. Otherwise the result lists each blocker in words; a manager override
     needs a justification, is logged and reported, and never covers a missing right to work (illegal
-    working cannot be overridden).
+    working cannot be overridden), no DBS certificate at all (an Adult First check with a signed risk
+    assessment is the lawful supervised start) or a lapsed or missing registration (H-830; ADR-0099).
+11. **Driving for work** (`staff-file.ts`, `drivingCurrent`; H-835). A check beyond Schedule 3,
+    never part of a complete file: the licence checked with the DVLA (the date and the categories,
+    never the licence number or the check code) and business-use insurance seen, with its expiry,
+    verified by HR. A member counts as a `driver` on the staffing scale only while the licence check
+    is within `workforce.driving_licence_check_months` and the insurance is in date.
 
 11. **Applications** (`recruitment.ts`, `checkApplicationMove`). Stages: `applied`, `shortlisted`,
     `interviewed`, `offered`, `accepted`, and the closed stages `rejected`, `withdrawn`, `declined`.
@@ -450,7 +465,8 @@ Rate keys in use: `retention.staff_file.birthday_age`, `training.default_refresh
 `nmc.revalidation.participatory_cpd_hours`, `nmc.revalidation.feedback_count`,
 `nmc.revalidation.reflective_accounts`, `dbs.update_service.check_interval_months`,
 `sponsor.salary_floor.care_worker`, `sponsor.salary_floor.care_worker_hourly`,
-`sponsor.change_report_working_days`, `sponsor.counted_weekly_hours_max`.
+`sponsor.change_report_working_days`, `sponsor.counted_weekly_hours_max`,
+`workforce.driving_licence_check_months`.
 
 ## 5. API and events
 

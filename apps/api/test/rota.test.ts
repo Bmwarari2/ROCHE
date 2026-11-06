@@ -181,6 +181,32 @@ describe("shift templates and patterns", () => {
     medsTemplate = ((await meds.json()) as { id: string }).id;
   });
 
+  it("hazard HZ-123 a supervised template does not count as care unless the organisation says so (H-830)", async () => {
+    const base = {
+      kind: "work",
+      startMinute: 480,
+      endMinute: 1200,
+      breakMinutes: 30,
+      supervised: true,
+    };
+    const shadow = await as("manager", `/v1/locations/${LOC}/shift-templates`, {
+      method: "POST",
+      body: { ...base, name: "Shadowing day" },
+    });
+    expect(shadow.status).toBe(201);
+    expect(((await shadow.json()) as { countsAsCare: boolean }).countsAsCare).toBe(false);
+    const chosen = await as("manager", `/v1/locations/${LOC}/shift-templates`, {
+      method: "POST",
+      body: { ...base, name: "Supervised day, counted", countsAsCare: true },
+    });
+    expect(((await chosen.json()) as { countsAsCare: boolean }).countsAsCare).toBe(true);
+    const plain = await as("manager", `/v1/locations/${LOC}/shift-templates`, {
+      method: "POST",
+      body: { ...base, supervised: false, name: "Plain day" },
+    });
+    expect(((await plain.json()) as { countsAsCare: boolean }).countsAsCare).toBe(true);
+  });
+
   it("refuses a break as long as the shift", async () => {
     const response = await as("manager", `/v1/locations/${LOC}/shift-templates`, {
       method: "POST",
@@ -390,6 +416,53 @@ describe("hazard HZ-124 assigning applies the rostering rule", () => {
     );
     expect(audit).toHaveLength(1);
     expect(audit[0]?.detail).not.toContain("Nurse in charge");
+  });
+
+  it("hazard HZ-124 never overrides no DBS certificate at all (H-830)", async () => {
+    const [item] = await sql<{ id: string; detail: unknown }>(
+      `SELECT c.id, c.detail FROM compliance_item c JOIN staff_profile p ON p.id = c.staff_profile_id
+       WHERE p.tenant_user_id = $1 AND c.kind = 'dbs_certificate'`,
+      [CARER],
+    );
+    await sql("UPDATE compliance_item SET detail = $2 WHERE id = $1", [
+      item?.id,
+      JSON.stringify({
+        kind: "dbs_certificate",
+        certificate: null,
+        updateService: null,
+        barredListClearOn: null,
+      }),
+    ]);
+    try {
+      const shift = (await getRota(rotaId)).shifts.find(
+        (s) => s.label !== "Medicines round",
+      ) as Shift;
+      const shown = (await (
+        await as("manager", `/v1/shifts/${shift.id}/eligibility?workerId=${CARER}`)
+      ).json()) as { overridable: boolean; blockers: { key: string }[] };
+      expect(shown.blockers.map((b) => b.key)).toContain("dbs:no_certificate");
+      expect(shown.overridable).toBe(false);
+      const tried = await as("manager", `/v1/shifts/${shift.id}/assignment`, {
+        method: "POST",
+        body: {
+          workerId: CARER,
+          version: shift.version,
+          override: {
+            justification: "Covering sickness at short notice",
+            blockerKeys: shown.blockers.map((b) => b.key),
+          },
+        },
+      });
+      expect(tried.status).toBe(422);
+      const refused = (await tried.json()) as { code: string; title: string };
+      expect(refused.code).toBe("no_dbs");
+      expect(refused.title).toMatch(/cannot be overridden/);
+    } finally {
+      await sql("UPDATE compliance_item SET detail = $2 WHERE id = $1", [
+        item?.id,
+        JSON.stringify(item?.detail),
+      ]);
+    }
   });
 
   it("hazard HZ-124 refuses an override from a member without scheduling.rota.approve", async () => {

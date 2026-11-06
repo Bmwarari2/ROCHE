@@ -1,3 +1,4 @@
+export * from "./absence";
 export * from "./agency";
 export * from "./auth";
 export * from "./care";

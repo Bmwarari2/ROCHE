@@ -385,7 +385,8 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
 // security evidence (migration 0094) refers only to organisation documents, never a person's (the
 // API refuses one), so it never holds up a removal in practice; listed so a document it cites is
 // never removed with a sample. A disclosure request about a sample person is a real record of a
-// disclosure (migration 0103).
+// disclosure (migration 0103). A fit note refers to a staff document that may be about a sample
+// person's file (migration 0107).
 const BLOCKS_REMOVAL = [
   "complaint",
   "compliment",
@@ -395,6 +396,7 @@ const BLOCKS_REMOVAL = [
   "dsar_case",
   "dspt_evidence",
   "escalation_policy_link",
+  "fit_note",
   "outage",
   "outbreak",
   "policy_version",

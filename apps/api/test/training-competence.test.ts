@@ -438,3 +438,87 @@ describe("hazard HZ-124 reminders end with a renewal, and readers come from the 
     expect((await as("carer", `${dev(NURSE)}/development`)).status).toBe(404);
   });
 });
+
+describe("H-693 a nurse enters their own revalidation; HR reviews; only a confirmer confirms", () => {
+  const cycle = daysFromToday(400);
+  const counts = {
+    cycleDueOn: cycle,
+    practiceHours: 450,
+    cpdHours: 35,
+    participatoryCpdHours: 20,
+    feedbackPieces: 5,
+    reflectiveAccounts: 5,
+    reflectiveDiscussion: true,
+    healthAndCharacter: true,
+    professionalIndemnity: true,
+  };
+  type Plan = { version: number; reviewState: string; confirmation: boolean; ready: boolean };
+  const planOf = async (r: Response) => ((await r.json()) as { revalidation: Plan }).revalidation;
+
+  it("lets the nurse write and submit their own evidence, never confirm it", async () => {
+    const saved = await as("nurse", "/v1/me/revalidation", {
+      method: "PUT",
+      body: { ...counts, submit: true },
+    });
+    expect(saved.status).toBe(200);
+    const plan = await planOf(saved);
+    expect(plan.reviewState).toBe("submitted");
+    expect(plan.confirmation).toBe(false);
+    // The confirmation is never the nurse's, even straight to the database.
+    await expect(
+      sql(
+        `UPDATE revalidation_evidence SET confirmation = true, confirmed_by = worker_id,
+           confirmed_on = $2 WHERE worker_id = $1 AND cycle_due_on = $3`,
+        [NURSE, today(), cycle],
+      ),
+    ).rejects.toThrow(
+      /revalidation_evidence_confirmed|revalidation_confirmer_not_you|revalidation_needs_a_member/,
+    );
+  });
+
+  it("HR reviews it, then the counts are fixed", async () => {
+    const [row] = await sql<{ version: number }>(
+      "SELECT version FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
+      [NURSE, cycle],
+    );
+    // No confirmation before the review.
+    const early = await as("manager", `${dev(NURSE)}/revalidation/confirmation`, {
+      method: "POST",
+      body: { expectedVersion: row?.version, cycleDueOn: cycle, confirmedOn: today() },
+    });
+    expect(early.status).toBe(409);
+    const reviewed = await as("owner", `${dev(NURSE)}/revalidation/review`, {
+      method: "POST",
+      body: { expectedVersion: row?.version, cycleDueOn: cycle },
+    });
+    expect(reviewed.status).toBe(200);
+    expect((await planOf(reviewed)).reviewState).toBe("reviewed");
+    const late = await as("nurse", "/v1/me/revalidation", {
+      method: "PUT",
+      body: { ...counts, practiceHours: 460, expectedVersion: (row?.version ?? 0) + 1 },
+    });
+    expect(late.status).toBe(409);
+  });
+
+  it("the confirmer confirms in their own name; the nurse cannot", async () => {
+    const [row] = await sql<{ version: number }>(
+      "SELECT version FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
+      [NURSE, cycle],
+    );
+    const own = await as("nurse", `${dev(NURSE)}/revalidation/confirmation`, {
+      method: "POST",
+      body: { expectedVersion: row?.version, cycleDueOn: cycle, confirmedOn: today() },
+    });
+    expect(own.status).toBe(403);
+    const confirmed = await as("manager", `${dev(NURSE)}/revalidation/confirmation`, {
+      method: "POST",
+      body: { expectedVersion: row?.version, cycleDueOn: cycle, confirmedOn: today() },
+    });
+    expect(confirmed.status).toBe(200);
+    const [stored] = await sql<{ confirmed_by: string; confirmation: boolean }>(
+      "SELECT confirmed_by, confirmation FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
+      [NURSE, cycle],
+    );
+    expect(stored).toEqual({ confirmed_by: DEMO.users.manager.id, confirmation: true });
+  });
+});

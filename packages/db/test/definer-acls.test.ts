@@ -59,6 +59,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     ["harbour_operator"],
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
+  // Cover needs at any home of the organisation (HZ-123, migration 0107).
+  "app.raise_cover_need(uuid, uuid)": ["harbour_app"],
+  "app.absence_member(uuid)": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
   // Import wizard (Phase 2 slice 26, migration 0088).
   "app.undo_import_batch(uuid, text)": ["harbour_app"],
