@@ -266,6 +266,39 @@ describe("sign-ins due for erasure (migration 0144)", () => {
     expect(row).toEqual({ email: `${SOLO}@erased.invalid`, display_name: "Sol Example" });
   });
 
+  it("never marks a sign-in not due, and lets a new membership overtake an erasure begun (security review N1)", async () => {
+    const system = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      inContext(app(), ctx(TENANT_A, null, "tenant"), fn);
+    await expect(
+      system((c) =>
+        c.query("SELECT app.mark_sign_in_erased($1, 'auth-a-manager', false)", [a.manager]),
+      ),
+    ).rejects.toThrow(/not due/);
+    // Unlinking a row never marked changes nothing.
+    const unlinked = await system((c) =>
+      c.query<{ changed: boolean }>(
+        "SELECT app.mark_sign_in_erased($1, 'auth-a-manager', true) AS changed",
+        [a.manager],
+      ),
+    );
+    expect(unlinked.rows[0]?.changed).toBe(false);
+    // An erasure begun, then the person joins an organisation again: it waits.
+    await owner(TENANT_A, (c) =>
+      c.query(
+        `INSERT INTO tenant_user (auth_user_id, display_name, email, status, sign_in_erasure_requested_at, sign_in_erased_at)
+         VALUES ('auth-a-begun', 'Bo Example', 'bo@example.invalid', 'left', now(), now())`,
+      ),
+    );
+    expect(await dueOne("auth-a-begun")).toBe(true);
+    await owner(TENANT_B, (c) =>
+      c.query(
+        `INSERT INTO tenant_user (auth_user_id, display_name, email, status)
+         VALUES ('auth-a-begun', 'Bo Example', 'bo@example.invalid', 'active')`,
+      ),
+    );
+    expect(await dueOne("auth-a-begun")).toBe(false);
+  });
+
   it("takes no sign-in again once erased, and keeps the record of it", async () => {
     await expect(
       owner(TENANT_A, (c) =>

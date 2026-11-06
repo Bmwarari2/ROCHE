@@ -27,8 +27,6 @@ const as =
 const asOwnerRole = as(a.manager, "tenant");
 const asNorthManager = as(a.northManager, "locations", [a.locationNorth]);
 const asCarer = as(a.carer, "assigned");
-/** A worker job: no member, the organisation's view. */
-const asJob = as(null, "tenant");
 const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_B, ids.b.manager, "tenant"), fn);
 /** Before anyone is signed in: no organisation chosen. */
@@ -906,7 +904,8 @@ describe("hazard HZ-011 revocations when the member changes, or with no reviser 
   it("lets a worker-style change to the member (no app.user_id) revoke an open invitation", async () => {
     const before = await openOf(INVITED_SOUTH);
     expect(before?.revocation_reason).toBeNull();
-    await asJob((c) =>
+    // As the owning role with no member (the application role writes no state: migration 0144).
+    await asOwnerDb(TENANT_A, (c) =>
       c.query("UPDATE tenant_user SET status = 'suspended' WHERE id = $1", [INVITED_SOUTH]),
     );
     expect(await openOf(INVITED_SOUTH)).toMatchObject({

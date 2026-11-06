@@ -390,9 +390,52 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
     expect(ended.status).toBe(200);
   });
 
+  it("lets a device revoked as lost or stolen not block ending, its hold left open (clinical review M2)", async () => {
+    const lost = "0199d000-0000-4000-8000-0000000e0568";
+    const nurse = DEMO.users.nurse.id;
+    await asDemo(
+      `INSERT INTO device_binding (device_id, tenant_user_id, revoked_at, revoked_by, revocation_reason)
+       VALUES ($1, $2, now(), $3, 'lost_or_stolen')`,
+      [lost, nurse, DEMO.users.owner.id],
+    );
+    // The device's last report, as the report route writes it (the application role writes audit).
+    const app = await h.db.pool("harbour_app").connect();
+    try {
+      await app.query("BEGIN");
+      await app.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [DEMO.tenantId],
+      );
+      await app.query(
+        `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, actor_tenant_user_id, scope)
+         VALUES ($1, 'sync.device.report', 'device', $2, $3::uuid,
+                 jsonb_build_object('waiting', 2, 'ownerTenantUserId', $3::text))`,
+        [DEMO.tenantId, lost, nurse],
+      );
+      await app.query("COMMIT");
+    } finally {
+      app.release();
+    }
+    const [hold] = await asDemo<{ id: string }>(
+      `INSERT INTO task (kind, title, required_permission, due_at, source_type, source_id)
+       VALUES ('sync.device_hold', 'Unsent entries on a device', 'care.held_entry.hand_over', now(),
+               'device_hold', $1) RETURNING id`,
+      [lost],
+    );
+    const owner = await signIn(DEMO.users.owner.email);
+    const suspended = await suspend(owner, nurse, { confirmEntriesWaiting: true });
+    expect(suspended.status, await suspended.clone().text()).toBe(200);
+    const ended = await end(owner, nurse, "device_lost_incident_raised");
+    expect(ended.status, await ended.clone().text()).toBe(200);
+    const [still] = await asDemo<{ status: string }>("SELECT status FROM task WHERE id = $1", [
+      hold?.id,
+    ]);
+    expect(still?.status).not.toBe("done");
+  });
+
   it("shows a member's status to a manager it reaches, with no address", async () => {
     const owner = await signIn(DEMO.users.owner.email);
-    const response = await lifecycle(owner, DEMO.users.nurse.id);
+    const response = await lifecycle(owner, DEMO.users.manager.id);
     expect(response.status).toBe(200);
     const body = await json<Record<string, unknown>>(response);
     expect(body).toMatchObject({

@@ -44,11 +44,14 @@ lifecycle).
   invited, active or suspended (tenants onboarding or active only); memberships marked before the
   sign-in is deleted so a stopped run finishes; audit only for what changed; one failure never
   stops the sweep; managers suspending each other serialised; the application role writes no
-  status, sign-in link or lifecycle time; narrower grants on the cross-organisation reads.
+  status, sign-in link or lifecycle time; narrower grants on the cross-organisation reads; only a
+  sign-in due is marked, and a new membership makes an erasure begun wait (N1).
 - Accessibility: a late entries-waiting refusal shows the confirmation; destructive end button;
   plainer errors, hint, titles and a keyboard step in the journey.
 
 ## Left
 
 - Reinstating a suspended membership (H-1392); a suspended phone's device report (H-1394); a
-  lost-device hold closure (H-1395); reach checked in the database; the residuals in H-1393.
+  lost-device hold closure (H-1395); reach checked in the database; the residuals in H-1393; an
+  incident id with `device_lost_incident_raised`, a test for a capped hold blocking the end, and
+  the end checks inside the status change's transaction (clinical re-review).

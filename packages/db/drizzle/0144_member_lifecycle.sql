@@ -141,12 +141,18 @@ BEGIN
     RAISE EXCEPTION 'Only the system erases a sign-in' USING ERRCODE = 'insufficient_privilege';
   END IF;
   IF p_unlink THEN
+    -- Only a row marked first (security review N1).
     UPDATE public.tenant_user u
-       SET auth_user_id = NULL, sign_in_erased_at = coalesce(u.sign_in_erased_at, now()),
+       SET auth_user_id = NULL,
            email = CASE WHEN u.status = 'left' THEN u.id::text || '@erased.invalid' ELSE u.email END
      WHERE u.tenant_id = app.current_tenant_id() AND u.id = p_member
-       AND u.auth_user_id = p_auth_user_id;
+       AND u.auth_user_id = p_auth_user_id AND u.sign_in_erased_at IS NOT NULL;
   ELSE
+    -- Only a sign-in due for erasure is marked (security review N1).
+    IF NOT app.sign_in_due_for_erasure(p_auth_user_id) THEN
+      RAISE EXCEPTION 'This sign-in is not due for erasure'
+        USING ERRCODE = 'object_not_in_prerequisite_state';
+    END IF;
     UPDATE public.tenant_user u SET sign_in_erased_at = now()
      WHERE u.tenant_id = app.current_tenant_id() AND u.id = p_member
        AND u.auth_user_id = p_auth_user_id AND u.sign_in_erased_at IS NULL;
@@ -162,13 +168,20 @@ GRANT EXECUTE ON FUNCTION app.change_member_status(uuid, text), app.request_sign
   app.mark_sign_in_erased(uuid, text, boolean) TO harbour_app;
 --> statement-breakpoint
 
--- Whether a sign-in is due for erasure: an erasure already begun (a membership marked while still
--- linked) is always finished; otherwise a membership that asked has been ended, and no membership
--- of the sign-in in an onboarding or active organisation is invited, active or suspended (a
--- suspension elsewhere may yet be ended or reinstated there: H-1392, H-1393). Never an operator's.
+-- Whether a sign-in is due for erasure. Never an operator's, and never while a membership of the
+-- sign-in in an onboarding or active organisation is invited or active. Then: an erasure already
+-- begun (a membership marked while still linked) is finished; otherwise a membership that asked has
+-- been ended and none is suspended in such an organisation (a suspension elsewhere may yet be ended
+-- or reinstated there: H-1392, H-1393). An erasure begun and then overtaken by a new membership
+-- waits, its mark kept, until that membership ends too (security review N1).
 CREATE OR REPLACE FUNCTION app.sign_in_due_for_erasure(p_auth_user_id text) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
   SELECT NOT EXISTS (SELECT 1 FROM public.operator_user op WHERE op.auth_user_id = p_auth_user_id)
+    AND NOT EXISTS (SELECT 1 FROM public.tenant_user o
+                      JOIN public.tenant t ON t.id = o.tenant_id
+                    WHERE o.auth_user_id = p_auth_user_id AND o.deleted_at IS NULL
+                      AND o.status IN ('invited', 'active')
+                      AND t.status IN ('onboarding', 'active'))
     AND (
       EXISTS (SELECT 1 FROM public.tenant_user tu
               WHERE tu.auth_user_id = p_auth_user_id AND tu.deleted_at IS NULL
@@ -179,7 +192,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
           AND NOT EXISTS (SELECT 1 FROM public.tenant_user o
                             JOIN public.tenant t ON t.id = o.tenant_id
                           WHERE o.auth_user_id = p_auth_user_id AND o.deleted_at IS NULL
-                            AND o.status IN ('invited', 'active', 'suspended')
+                            AND o.status = 'suspended'
                             AND t.status IN ('onboarding', 'active'))))
 $$;
 --> statement-breakpoint
