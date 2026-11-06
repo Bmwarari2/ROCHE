@@ -2,7 +2,11 @@ import {
   type AssignableRole,
   CreateMember,
   type InvitationSummary,
+  MEMBER_END_REASONS,
+  MEMBER_SUSPEND_REASONS,
+  type MemberLifecycle,
   type MemberSummary,
+  type MembershipState,
 } from "@harbour/contracts";
 import type { Translator } from "@harbour/i18n";
 import type { FieldErrors } from "./outcome";
@@ -50,6 +54,46 @@ const MEMBER_CHIP: Record<MemberSummary["state"], Omit<TeamChip, "label">> = {
 
 export function memberChip(state: MemberSummary["state"], t: Translator): TeamChip {
   return { ...MEMBER_CHIP[state], label: t("team.member.state", { state }) };
+}
+
+const MEMBERSHIP_CHIP: Record<MembershipState, Omit<TeamChip, "label">> = {
+  ...MEMBER_CHIP,
+  left: { status: "neutral", icon: "ban" },
+};
+
+/** A membership's state, ended included (H-566), as an icon and a word. */
+export function membershipChip(state: MembershipState, t: Translator): TeamChip {
+  return { ...MEMBERSHIP_CHIP[state], label: t("team.lifecycle.state", { state }) };
+}
+
+/**
+ * Which change to offer (H-566): suspend an active membership, end a suspended one, nothing else.
+ * The manager never changes their own; the API refuses that too.
+ */
+export function membershipChange(
+  member: Pick<MemberLifecycle, "id" | "state">,
+  myId: string,
+): "suspend" | "end" | null {
+  if (member.id === myId) return null;
+  if (member.state === "active") return "suspend";
+  if (member.state === "suspended") return "end";
+  return null;
+}
+
+/** The coded reasons for a change, with their words. */
+export function membershipReasons(
+  kind: "suspend" | "end",
+  t: Translator,
+): { readonly value: string; readonly label: string }[] {
+  return kind === "suspend"
+    ? MEMBER_SUSPEND_REASONS.map((reason) => ({
+        value: reason,
+        label: t("team.suspend.reasonOption", { reason }),
+      }))
+    : MEMBER_END_REASONS.map((reason) => ({
+        value: reason,
+        label: t("team.end.reasonOption", { reason }),
+      }));
 }
 
 /**
@@ -147,6 +191,11 @@ const REFUSALS = new Set([
   "member_mfa_not_required",
   "email_invalid",
   "invitation_closed",
+  "own_membership",
+  "last_user_manager",
+  "membership_state",
+  "entries_waiting",
+  "entries_to_hand_over",
 ]);
 
 /** The words for a team refusal, or null for one the shared problem words cover. */

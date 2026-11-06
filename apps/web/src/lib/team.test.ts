@@ -5,6 +5,9 @@ import {
   mayResend,
   mayRevoke,
   memberChip,
+  membershipChange,
+  membershipChip,
+  membershipReasons,
   ORGANISATION,
   readInvite,
   roleLine,
@@ -129,5 +132,50 @@ describe("refusals in words", () => {
   it("leaves other codes to the shared words", () => {
     expect(teamRefusal("step_up_required", t)).toBeNull();
     expect(teamRefusal(undefined, t)).toBeNull();
+  });
+});
+
+describe("the membership lifecycle (H-566)", () => {
+  const me = "0199a000-0000-7000-8000-000000000001";
+  const other = "0199a000-0000-7000-8000-000000000002";
+  it.each([
+    ["active", other, "suspend"],
+    ["suspended", other, "end"],
+    ["left", other, null],
+    ["invited", other, null],
+    ["active", me, null],
+    ["suspended", me, null],
+  ] as const)("offers a %s member (%s) the change %s", (state, id, expected) => {
+    expect(membershipChange({ id, state }, me)).toBe(expected);
+  });
+
+  it("says each state as an icon and a word, ended included", () => {
+    expect(membershipChip("left", t)).toEqual({ status: "neutral", icon: "ban", label: "Ended" });
+    expect(membershipChip("suspended", t).label).toBe("Suspended");
+  });
+
+  it("offers every coded reason the API takes, in words", () => {
+    for (const kind of ["suspend", "end"] as const) {
+      const reasons = membershipReasons(kind, t);
+      expect(reasons.length).toBeGreaterThan(0);
+      for (const r of reasons) {
+        if (r.value !== "other") expect(r.label, r.value).not.toBe("Another reason");
+      }
+    }
+    expect(membershipReasons("suspend", t).map((r) => r.value)).toContain(
+      "account_deletion_requested",
+    );
+  });
+
+  it("has words for the lifecycle refusals", () => {
+    for (const code of [
+      "own_membership",
+      "last_user_manager",
+      "membership_state",
+      "entries_waiting",
+      "entries_to_hand_over",
+    ]) {
+      expect(teamRefusal(code, t), code).not.toContain("Something went wrong");
+    }
   });
 });

@@ -1,5 +1,6 @@
 "use server";
 
+import type { EndMember, SuspendMember } from "@harbour/contracts";
 import type { ApiClient } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
@@ -68,6 +69,44 @@ export async function revokeInvitation(invitationId: string): Promise<ActionResu
     const { error, response } = await api.POST("/v1/invitations/{id}/revoke", {
       params: { path: { id: invitationId } },
     });
+    if (!response.ok) return teamProblem(error);
+    revalidatePath("/settings/team", "layout");
+    return { ok: true, data: null };
+  });
+}
+
+type MembershipChange =
+  | {
+      readonly kind: "suspend";
+      readonly reasonCode: string;
+      readonly confirmEntriesWaiting: boolean;
+    }
+  | { readonly kind: "end"; readonly reasonCode: string };
+
+/**
+ * Suspends or ends a membership (H-566). The API checks `platform.user.manage`, step-up, its
+ * reach, the reason code and the held care entries again.
+ */
+export async function changeMembership(
+  memberId: string,
+  change: MembershipChange,
+): Promise<ActionResult<null>> {
+  if (!isUuid(memberId)) return refused(t("errors.notFound"), "not_found");
+  return withApi<null>(async (api) => {
+    const params = { path: { tenantUserId: memberId } };
+    const { error, response } =
+      change.kind === "suspend"
+        ? await api.POST("/v1/members/{tenantUserId}/suspend", {
+            params,
+            body: {
+              reasonCode: change.reasonCode as SuspendMember["reasonCode"],
+              confirmEntriesWaiting: change.confirmEntriesWaiting,
+            },
+          })
+        : await api.POST("/v1/members/{tenantUserId}/end", {
+            params,
+            body: { reasonCode: change.reasonCode as EndMember["reasonCode"] },
+          });
     if (!response.ok) return teamProblem(error);
     revalidatePath("/settings/team", "layout");
     return { ok: true, data: null };

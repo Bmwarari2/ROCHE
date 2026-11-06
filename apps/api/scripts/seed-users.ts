@@ -78,6 +78,47 @@ const FAMILY_MEMBER = {
 } as const;
 
 /**
+ * A member of staff at Harbour House with no sign-in, for the member lifecycle journey (H-566):
+ * the manager suspends then ends this membership. Local testing only, with
+ * HARBOUR_DEMO_E2E_PASSKEY=1. An invented name and an example.invalid address.
+ */
+const LEAVER = {
+  id: "0194d000-0000-7000-8000-000000000307",
+  email: "lee.leaver@example.invalid",
+  name: "Lee Leaver",
+  jobTitle: "Care worker",
+} as const;
+
+/** The leaver's active membership and care worker role at Harbour House; rerunnable. */
+async function seedLeaver(): Promise<void> {
+  const client = await owner.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await client.query(
+      `INSERT INTO tenant_user (id, display_name, email, job_title, status)
+       VALUES ($1, $2, $3, $4, 'active') ON CONFLICT (id) DO NOTHING`,
+      [LEAVER.id, LEAVER.name, LEAVER.email, LEAVER.jobTitle],
+    );
+    await client.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+       SELECT $1, id, $2, 'Demo seed' FROM role WHERE key = 'care_worker'
+         AND NOT EXISTS (SELECT 1 FROM role_assignment WHERE tenant_user_id = $1)`,
+      [LEAVER.id, DEMO.locationId],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * The end-to-end passkey: a P-256 key derived from a published phrase, so it is no secret and
  * proves nothing outside a local test database. apps/web/e2e/support.ts derives the same key for
  * Chromium's virtual authenticator. Returns the COSE public key Better Auth stores (base64) and the
@@ -406,6 +447,7 @@ try {
     passkeyHolders.push(["family", await seedFamilyMember()]);
     passkeyHolders.push(["starter", await seedStarterOrganisation()]);
     await seedSharedCoordinator();
+    await seedLeaver();
   }
   for (const [key, authUserId] of passkeyHolders) {
     const passkey = e2ePasskey(key);
