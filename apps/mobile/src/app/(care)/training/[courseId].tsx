@@ -1,5 +1,5 @@
-import { Button, Text, useTheme } from "@harbour/ui-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Button, ICON_STROKE_WIDTH, iconByName, Text, useTheme } from "@harbour/ui-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { View } from "react-native";
 import { WebView } from "react-native-webview";
@@ -50,7 +50,18 @@ export default function OfflineCourseScreen() {
   }
   const source = course && attempt && file ? built.current : null;
 
-  if (!ready) return <Screen testID="course-screen">{null}</Screen>;
+  const Alert = iconByName("circle-alert");
+  // The header names the course open, not just "Training".
+  const header = course ? <Stack.Screen options={{ title: course.manifest.title }} /> : null;
+  if (!ready) {
+    return (
+      <Screen testID="course-screen">
+        <Text accessibilityLiveRegion="polite" style={{ padding: theme.space[2] }}>
+          {t("mobile.training.player.loading")}
+        </Text>
+      </Screen>
+    );
+  }
   if (!source) {
     return (
       <Screen testID="course-screen">
@@ -63,14 +74,30 @@ export default function OfflineCourseScreen() {
   }
   return (
     <Screen testID="course-screen">
+      {header}
       <View style={{ padding: theme.space[1], gap: theme.space[1] }}>
         <Text variant="bodyDense" tone="secondary">
           {t("mobile.training.player.saved", { appName })}
         </Text>
         {blocked ? (
-          <Text variant="bodyDense" tone="danger" accessibilityRole="alert" testID="course-blocked">
-            {t("mobile.training.blocked")}
-          </Text>
+          <View style={{ flexDirection: "row", gap: theme.space[1], alignItems: "flex-start" }}>
+            <Alert
+              color={theme.colors.danger}
+              size={20}
+              strokeWidth={ICON_STROKE_WIDTH}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text
+              variant="bodyDense"
+              tone="danger"
+              accessibilityRole="alert"
+              style={{ flexShrink: 1 }}
+              testID="course-blocked"
+            >
+              {t("mobile.training.blocked")}
+            </Text>
+          </View>
         ) : null}
       </View>
       <WebView
@@ -94,6 +121,7 @@ export default function OfflineCourseScreen() {
           const message = parseRuntimeMessage(event.nativeEvent.data);
           if (message) void report(message);
         }}
+        accessibilityLabel={course?.manifest.title}
         testID="course-webview"
       />
     </Screen>

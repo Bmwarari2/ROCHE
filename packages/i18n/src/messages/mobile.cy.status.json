@@ -446,6 +446,7 @@
     "mobile.training.offlineList",
     "mobile.training.open",
     "mobile.training.player.close",
+    "mobile.training.player.loading",
     "mobile.training.player.missing",
     "mobile.training.player.saved",
     "mobile.training.remove",

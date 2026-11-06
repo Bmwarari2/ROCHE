@@ -11,6 +11,14 @@ import {
   type OfflineAttempt,
 } from "./offline-plan";
 
+const STATE_ICONS: Record<CourseState, string> = {
+  online: "circle-minus",
+  downloading: "refresh-cw",
+  on_phone: "circle-check",
+  finished_waiting: "cloud-upload",
+  finished: "circle-check",
+};
+
 export interface OnlineCourse {
   readonly id: string;
   readonly title: string;
@@ -22,6 +30,8 @@ export interface CourseItem {
   readonly title: string;
   readonly state: CourseState;
   readonly stateWords: string;
+  /** A Lucide icon name shown beside the words (never colour alone). */
+  readonly stateIcon: string;
   /** "12 MB" for a course on the phone, else null (known once downloaded). */
   readonly size: string | null;
   readonly canDownload: boolean;
@@ -67,11 +77,17 @@ export function courseItems(input: {
       title,
       state,
       stateWords: courseStatusWords(state),
+      stateIcon: STATE_ICONS[state],
       size: kept ? formatBytes(kept.manifest.totalBytes) : null,
       canDownload: !kept && offered && input.online !== null && input.downloading === null,
       canOpen: kept !== null && !settled && input.downloading !== courseId,
       canRemove: kept !== null && input.downloading !== courseId,
     });
   }
-  return items.sort((a, b) => a.title.localeCompare(b.title, "en-GB"));
+  // Work waiting to send first, so it is never off the screen; then by title.
+  return items.sort(
+    (a, b) =>
+      Number(b.state === "finished_waiting") - Number(a.state === "finished_waiting") ||
+      a.title.localeCompare(b.title, "en-GB"),
+  );
 }

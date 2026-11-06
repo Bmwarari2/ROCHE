@@ -36,7 +36,11 @@ export default function TrainingScreen() {
   const onRemove = (courseId: string) =>
     Alert.alert(t("mobile.training.removeTitle"), t("mobile.training.removeBody"), [
       { text: t("mobile.training.keep"), style: "cancel" },
-      { text: t("mobile.training.remove"), onPress: () => void remove(courseId) },
+      {
+        text: t("mobile.training.remove"),
+        style: "destructive",
+        onPress: () => void remove(courseId),
+      },
     ]);
 
   return (
@@ -56,15 +60,16 @@ export default function TrainingScreen() {
                 {t("mobile.training.waiting", { count: waiting, appName })}
               </Text>
             ) : null}
-            {progress ? (
-              <Text variant="bodyDense" accessibilityLiveRegion="polite" testID="training-progress">
-                {t("mobile.training.downloading", {
-                  done: String(progress.done),
-                  total: String(progress.total),
-                })}
-              </Text>
-            ) : null}
           </View>
+          {/* Outside the grouped view, so its live region is read on Android too. */}
+          {progress ? (
+            <Text variant="bodyDense" accessibilityLiveRegion="polite" testID="training-progress">
+              {t("mobile.training.downloading", {
+                done: String(progress.done),
+                total: String(progress.total),
+              })}
+            </Text>
+          ) : null}
         </Card>
         {items.length === 0 ? (
           <Text testID="training-none">{t("mobile.training.none")}</Text>
