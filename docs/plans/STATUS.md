@@ -28,6 +28,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Merge batch 3c (06/11/2026)
+
+`integration/phase-2-batch-3c`, from batch 3b: the Thapsus-HR link's slices 87 and 88 (0141,
+0142), PRN protocols (slice 28, 0143) and medicines in the Phase 1 outputs (slice 49, renumbered
+0145 to 0144). `feat/platform-member-lifecycle` is left out: it is a second design of H-566 beside
+0129, and its new parts are deferred to a rework on `app.change_membership`. An HR leaving is no
+longer withdrawn once access has ended (until reinstatement exists). The PR opens once #172 is on
+`main`. See `docs/changelog-dev/2026-11-06-integration-phase-2-batch-3c.md`.
+
 ## Merge batch 3b (06/11/2026)
 
 `integration/phase-2-batch-3b`, from batch 3a: migrations 0120 to 0140 (slice 38 renumbered from
