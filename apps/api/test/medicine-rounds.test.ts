@@ -469,6 +469,26 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     expect(
       (await json<{ resolution: { correctionId: string } }>(done)).resolution.correctionId,
     ).toBe(correctionId);
+    // The correction's author decided, so it is a self-review; neither they nor the uploader may
+    // close its retrospective review (hazard HZ-004; clinical and security rechecks).
+    const [review] = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ id: string; version: number }>(
+            `SELECT id, version FROM task
+              WHERE kind = 'medicines.administration.conflict_retrospective' AND source_id = $1`,
+            [conflictId],
+          )
+        ).rows,
+    );
+    expect(review).toBeDefined();
+    for (const who of ["owner", "manager"]) {
+      const closed = await send(who, `/v1/tasks/${review?.id}/transition`, {
+        method: "POST",
+        body: { to: "done", version: review?.version },
+      });
+      expect(closed.status).toBe(403);
+    }
   });
 
   it("hazard HZ-010 refuses a time given in the future beyond the clock drift allowance", async () => {

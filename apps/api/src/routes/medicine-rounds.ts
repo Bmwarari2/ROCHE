@@ -32,6 +32,7 @@ import {
   CONFLICT_TASK,
   type ConflictRow,
   conflictOut,
+  conflictParties,
   joinedTo,
   pendingConflicts,
   RETROSPECTIVE_TASK,
@@ -362,19 +363,7 @@ export const medicineRoundsRouter = createRouter()
           // Deciding on a record you made, gave, corrected or uploaded is a self-review (re-review
           // L1, M4; security re-review 2). A lone nurse may still decide, so the conflict never
           // waits for the day shift, and a retrospective review goes to someone else (H-1270).
-          const named = body.correctionId
-            ? rows.find((r) => r.id === body.correctionId)
-            : undefined;
-          const parties = [
-            row.uploadedBy,
-            ...joined.map((r) => r.uploadedBy),
-            ...[row, ...joined].map((r) => (r.uploaded as { givenBy?: string | null }).givenBy),
-            standing.recordedBy,
-            standing.administeredBy,
-            current.recordedBy,
-            current.administeredBy,
-            named?.recordedBy,
-          ];
+          const parties = conflictParties(row, joined, rows, body.correctionId);
           const selfReview = parties.includes(access.tenantUserId);
           const controlled = await isControlledDrug(tx, row.medicationId);
           if (controlled !== (pre?.controlled ?? false)) {

@@ -1,10 +1,5 @@
 import type { MedicineRound } from "@harbour/contracts";
-import {
-  medicationAdministration,
-  medicationAdministrationConflict,
-  type Transaction,
-  task,
-} from "@harbour/db";
+import { medicationAdministrationConflict, type Transaction, task } from "@harbour/db";
 import {
   addUkDays,
   doseNotices,
@@ -30,6 +25,7 @@ import {
   administrationOut,
   effective,
   givenDoses,
+  personAdministrations,
   supersededBy,
   witnessesFor,
 } from "./medicine-administrations";
@@ -426,8 +422,40 @@ export async function conflictOut(
 export const RETROSPECTIVE_TASK = "medicines.administration.conflict_retrospective";
 
 /**
+ * Everyone who took part in a conflict's dose: its uploaders and the givers they named, who
+ * recorded and gave the record that stood and the record that stands now, and who recorded the
+ * correction named in the decision. Used to mark a self-review and to keep each of them from
+ * closing its retrospective review (clinical reviews B1 and recheck).
+ */
+export function conflictParties(
+  row: ConflictRow,
+  joined: readonly ConflictRow[],
+  rows: readonly AdministrationRow[],
+  correctionId: string | null,
+): (string | null | undefined)[] {
+  const standing = rows.find((r) => r.id === row.standingId);
+  const later = supersededBy(rows);
+  let current = standing;
+  for (let i = 0; current && later.has(current.id) && i < rows.length; i++) {
+    const nextId = later.get(current.id);
+    current = rows.find((r) => r.id === nextId) ?? current;
+  }
+  const named = correctionId ? rows.find((r) => r.id === correctionId) : undefined;
+  return [
+    row.uploadedBy,
+    ...joined.map((r) => r.uploadedBy),
+    ...[row, ...joined].map((r) => (r.uploaded as { givenBy?: string | null }).givenBy),
+    standing?.recordedBy,
+    standing?.administeredBy,
+    current?.recordedBy,
+    current?.administeredBy,
+    named?.recordedBy,
+  ];
+}
+
+/**
  * Why someone may not close a self-reviewed conflict's retrospective review: they decided it, or
- * recorded or uploaded the dose, so the review would not be independent (clinical review B1).
+ * took part in its dose (`conflictParties`), so the review would not be independent.
  */
 export async function retrospectiveRefusal(
   tx: Transaction,
@@ -440,20 +468,14 @@ export async function retrospectiveRefusal(
     .from(medicationAdministrationConflict)
     .where(eq(medicationAdministrationConflict.id, conflictId));
   if (!row) return "missing_permission";
-  const joined = await joinedTo(tx, conflictId);
-  const [standing] = await tx
-    .select({
-      recordedBy: medicationAdministration.recordedBy,
-      administeredBy: medicationAdministration.administeredBy,
-    })
-    .from(medicationAdministration)
-    .where(eq(medicationAdministration.id, row.standingId));
-  const involved = [
-    row.resolvedBy,
-    row.uploadedBy,
-    ...joined.map((r) => r.uploadedBy),
-    standing?.recordedBy,
-    standing?.administeredBy,
-  ];
-  return involved.includes(tenantUserId) ? "own_decision" : null;
+  const rows = await personAdministrations(tx, row.personId);
+  // Refuse when the records cannot be seen: the check is never skipped (security recheck).
+  if (
+    !rows.some((r) => r.id === row.standingId) ||
+    (row.correctionId !== null && !rows.some((r) => r.id === row.correctionId))
+  ) {
+    return "missing_permission";
+  }
+  const parties = conflictParties(row, await joinedTo(tx, conflictId), rows, row.correctionId);
+  return [row.resolvedBy, ...parties].includes(tenantUserId) ? "own_decision" : null;
 }
