@@ -853,7 +853,28 @@ recommended answer is in force until the testing-phase review
 ([recommended-answers.md](recommended-answers.md)).
 
 | # | Action | Owner | What the build produced | Unblocks | Status |
+## Phase 2: learning platform imports (slice 78)
+
+Logged by slice 78 (WORK-006 LMS imports; ADR-0102) on 1 November 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
+| H-1250 | Choose the first learning platform with the design partner, register for its API, build the live `LearningPlatformClient` against its sandbox and the live credential store adapter (credentials written to the managed secret store under the source's `secret_ref`, removed when the source ends); until then `LMS_API` is `off` in production and only the mock exists | Brian | `apps/api/src/integrations/lms/learning-platform.ts`; H-520 | Pulls from a platform | open |
+| H-1251 | Decide whether xAPI statements from an external platform should be imported beside completions, and how they relate to slice 43's own statement store | Brian with the DPO | workforce.md section 13.7 | xAPI imports | open |
+| H-1252 | Build the training import screens (sources, mappings, links, the dry-run report and commit, skips, certificates) with the accessibility review | Web lane | workforce.md section 13.4 | Imports without the API | open |
+| H-1253 | Check the column headings of the design partner's platform's completion export against `LMS_CSV_HEADINGS`, with invented or test data only, and add any the platform uses | Brian with the design partner | `packages/domain/src/workforce/lms-import.ts` | Real file imports | open |
+| H-1254 | Confirm with the DPO that the learning platform is the organisation's own processor (H-520's recommended answer), where each candidate holds data (UK or an adequacy decision or the IDTA), and record it in the sub-processor notes and the DPIA (R25) | DPO | ADR-0102; sub-processors.md section 2a | Switching on a platform | open |
+| H-1256 | Move certificate fetching after a commit to the job queue (pg-boss), with a per-organisation limit, retries and the same size cap and timeout | Engineering | workforce.md section 13.2 rule 8 | Imports of more than 50 certificates at once | open |
+| H-1257 | Build the live connection handshake to write the credential and the platform organisation it was issued for together under the source's secret, and add a contract test that the live client never uses an organisation other than the stored one | Engineering | `apps/api/src/integrations/lms/learning-platform.ts`; H-1250 | Pulls from a platform | open |
+| H-1255 | Review with the CSO that an imported completion counts towards the training matrix and the rota's training checks exactly as a Harbour record does (HZ-124), and whether certain topics should need a certificate before they count | CSO | hazard-log.md HZ-124 | Clinical safety sign-off of slice 78 | open |
+
+## Per tenant at onboarding
+
+Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
+assessment ([template](../clinical-safety/dcb0160-deployment-template.md)), enrol shared devices in
+MDM, sign off imported data, confirm photos for every person, approve role design and run the
+[tenant onboarding](../runbooks/tenant-onboarding.md) checklist.
+
 | H-1340 | Confirm the default owner for each kind of data: Thapsus-HR for employee records, leavers, pay rates, leave and sickness; Harbour for care shifts, clocking, timesheet approval and pay units, recruitment, DBS, right to work, training and competence. Recommended answer: as ADR-0126 sets out | Brian | ADR-0126; [integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014) section 11 | Slices 87 to 89 | open (recommended answer in force) |
 | H-1341 | Decide whether Thapsus-HR is a sub-processor of Harbour or the provider's own processor, and add the sharing as a purpose in the records of processing. Recommended answer: when the provider contracts for Thapsus-HR separately, it is the provider's own processor and a recipient the provider instructs, not a Harbour sub-processor; when Thapsus sells the two products as one service, it joins the sub-processor register and the DPIA | DPO lead | Plan data protection row for slices 87 to 89; DPIA risk R30 | Turning the link on for a real tenant | open (recommended answer in force) |
 | H-1342 | Decide how the link is sold, and add a clause to both products' contracts saying that the provider instructs the sharing. Recommended answer: included at no extra charge for customers of both products | Brian | ADR-0126 | Selling the link | open (recommended answer in force) |

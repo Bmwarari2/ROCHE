@@ -251,6 +251,12 @@ const Env = z.object({
    * production accepts only `off`.
    */
   PAYROLL_XERO: z.enum(["off", "mock"]).default("off"),
+  /**
+   * Pulls from a learning platform's API (workforce.md section 13 rule 1): `mock` answers from
+   * memory and calls nothing; `off` (the default) refuses every pull. No live client is built yet
+   * (H-1250), so production accepts only `off`. File imports need neither.
+   */
+  LMS_API: z.enum(["off", "mock"]).default("off"),
   SSO_TEST_KEYS: z.string().default("{}"),
   /**
    * DNS proofs and OpenID discovery: the network, or in tests SSO_MOCK_TXT (JSON map of record
@@ -365,6 +371,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");
+    if (parsed.LMS_API !== "off") throw new Error("LMS_API must be off in production");
     // A live organisation's DCB0160 assessment must cover the release it runs (HZ-014 and the
     // clinical risk management plan section 7), so the local default is never assumed.
     if (!env.SAFETY_CASE_VERSION) throw new Error("SAFETY_CASE_VERSION must be set in production");

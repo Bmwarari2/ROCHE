@@ -45,6 +45,7 @@ import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
 import type { DataKeyCache } from "../integrations/envelope";
+import type { LearningPlatformAdapter } from "../integrations/lms/learning-platform";
 import type { MedicinesPorts } from "../integrations/medicines-ports";
 import type { XeroPayrollAdapter } from "../integrations/payroll/xero";
 import type { ChannelAdapter } from "../integrations/registry";
@@ -106,6 +107,8 @@ export interface Services {
   readonly tenantKeys: TenantKeyPort;
   /** Unwrapped data keys in memory, forgotten for an organisation when it is shredded. */
   readonly dataKeyCache: DataKeyCache;
+  /** Pulls from learning platforms (workforce.md section 13), or null while off. */
+  readonly learningPlatform: LearningPlatformAdapter | null;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */

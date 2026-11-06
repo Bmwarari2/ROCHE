@@ -47,6 +47,11 @@ Download sources are not sub-processors either. The NHSBSA dm+d release, downloa
 England) for the medicines reference data, is national reference data Harbour fetches; TRUD receives
 only Thapsus's account credentials, never tenant or personal data ([ADR-0080](../decisions/0080-dmd-reference-data.md);
 H-510, H-511).
+### 2a. The organisation's own processors (not Thapsus sub-processors)
+
+| Service | Why it is not a Thapsus sub-processor | Status |
+| --- | --- | --- |
+| A learning platform the organisation imports training completions from (workforce.md section 13; ADR-0102) | The organisation chooses and contracts the platform; Harbour receives its completions (a file the organisation uploads, or a pull through the learning platform port with the organisation's own credentials) and sends it nothing but the request. Whether a platform holds data in the UK, or under an adequacy decision or the IDTA, is the organisation's to check, and the DPO confirms this treatment (H-520, H-1254) | No live client: mock only (H-1250) |
 
 ## 3. Optional AI providers (off by default, enabled per tenant)
 

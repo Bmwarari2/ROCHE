@@ -116,12 +116,27 @@ export const DOCUMENT_CATEGORIES = {
     retentionClass: "organisation_document",
     inline: false,
   },
+  /**
+   * A training certificate (workforce.md section 13 rule 8; WORK-006): belongs to one training
+   * record and is read as that record is, by readers of development records and by the member it
+   * is about. Added only through the training import and record routes by holders of
+   * `workforce.training.manage`, never for their own record; never served by the general
+   * document routes.
+   */
+  training_certificate: {
+    label: "Training certificate",
+    contentTypes: [...IMAGES, "application/pdf"],
+    maxBytes: 10 * MB,
+    personRequired: false,
+    retentionClass: "training_record",
+    inline: false,
+  },
 } as const satisfies Record<string, DocumentCategory>;
 
-/** The categories the general document routes serve: not HR-only staff documents or e-learning packages. */
+/** The categories the general document routes serve: not the workforce's own (HR-only staff documents, training certificates) or e-learning packages. */
 export type GeneralDocumentCategory = Exclude<
   DocumentCategoryKey,
-  "staff_hr_document" | "elearning_package"
+  "staff_hr_document" | "elearning_package" | "training_certificate"
 >;
 
 export type DocumentCategoryKey = keyof typeof DOCUMENT_CATEGORIES;

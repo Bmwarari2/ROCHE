@@ -18,6 +18,11 @@ import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { TenantKeysShredded } from "./integrations/envelope";
+import {
+  LearningPlatformAdapter,
+  MemoryLearningPlatformSecrets,
+  MockLearningPlatformClient,
+} from "./integrations/lms/learning-platform";
 import { createMedicinesPorts } from "./integrations/medicines-ports";
 import {
   MemoryPayrollSecretStore,
@@ -62,6 +67,7 @@ import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { invitationsRouter } from "./routes/invitations";
 import { letterTemplatesRouter } from "./routes/letter-templates";
 import { lettersRouter } from "./routes/letters";
+import { lmsImportRouter } from "./routes/lms-import";
 import { loneWorkerRouter } from "./routes/lone-worker";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
@@ -182,6 +188,9 @@ export interface AppHandle {
   readonly payrollMock: MockXeroPayrollClient;
   /** The mock's tokens by secret name (development and tests). */
   readonly payrollSecrets: MemoryPayrollSecretStore;
+  /** The learning platform mock and its credentials (development and tests). */
+  readonly learningPlatformMock: MockLearningPlatformClient;
+  readonly learningPlatformSecrets: MemoryLearningPlatformSecrets;
   close(): Promise<void>;
 }
 
@@ -201,6 +210,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   const ssoKeys = createSsoKeyStore(config);
   const payrollMockClient = new MockXeroPayrollClient();
   const payrollSecrets = new MemoryPayrollSecretStore();
+  const learningPlatformMock = new MockLearningPlatformClient();
+  const learningPlatformSecrets = new MemoryLearningPlatformSecrets();
   const services: Services = {
     config,
     logger,
@@ -222,6 +233,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
         : null,
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
+    learningPlatform:
+      config.LMS_API === "mock"
+        ? new LearningPlatformAdapter(learningPlatformMock, learningPlatformSecrets)
+        : null,
     transferPackLimiter: new RateLimiter(
       "transfer_pack",
       config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
@@ -328,6 +343,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     "/v1/people/:id/photo",
     "/v1/workforce/staff-files/:id/items/:kind/documents",
     "/v1/absences/:id/fit-notes",
+    "/v1/workforce/members/:memberId/training-records/:recordId/certificate",
   ]) {
     app.use(
       path,
@@ -361,6 +377,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
           c,
           new HttpProblem(413, "too_large", "The file is too large. Import it a home at a time."),
         ),
+    }),
+  );
+  // A learning platform's file of completions, capped as an import (workforce.md section 13).
+  app.use(
+    "/v1/workforce/lms-sources/:id/imports",
+    bodyLimit({
+      maxSize: IMPORT_MAX_BODY_BYTES,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The file is too large.")),
     }),
   );
   // The logo is small (512 KB): a larger body is refused before it is read or decoded.
@@ -457,6 +482,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", inductionRouter);
   app.route("/", colleaguesRouter);
   app.route("/", developmentRouter);
+  app.route("/", lmsImportRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", elearningRouter);
   app.route("/", elearningLaunchRouter);
@@ -559,6 +585,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     signer,
     payrollMock: payrollMockClient,
     payrollSecrets,
+    learningPlatformMock,
+    learningPlatformSecrets,
     close: async () => {
       await Promise.all([appPool.end(), authPool.end(), operatorPool.end()]);
     },

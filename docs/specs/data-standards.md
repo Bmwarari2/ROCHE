@@ -1257,6 +1257,28 @@ Migration 0128 ([medicines.md](medicines.md) section 14). Retention class
 | `controlled_drug_witness_assertion.movement` | Harbour | The movements above, or `stock_check` | Used once, before `expires_at`. |
 | `controlled_drug_stock_check.counted`, `expected`, `difference` | Harbour | Numeric, 3 decimal places | A difference raises a medication incident. |
 
+## Workforce: imports of external training records (Phase 2, slice 78)
+
+Code lists for [workforce.md](workforce.md) section 13 (migration 0132; ADR-0102). Harbour's own
+fields, exported in the full tenant export with these names. Learner ids, course codes and record
+ids are the learning platform's; Harbour checks only their shape.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `lms_source.kind` | Harbour | `file`, `api` | An API source is off until connected |
+| `lms_source.secret_ref` | Harbour | `lms/{tenant}/{source}`, made by the database | Never a credential, never chosen by a caller; internal in the export |
+| `lms_learner_link.learner_id`, `lms_import_row.learner_id` | The platform's learner id | `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$` | Never an email (no `@`); blank in a row when it failed the check |
+| `lms_course_map.course_code`, `lms_import_row.course_code` | The platform's course code | `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$` | |
+| `lms_import_row.record_id`, `training_record.external_record_id` | The platform's completion id | Up to 240 characters, no `@`; `derived:{learner}/{course}/{date}` when the platform gives none | Unique per source on training records |
+| `lms_import_row.completed_on`, `expires_on` | Harbour | `YYYY-MM-DD`; read from `dd/mm/yyyy` or `yyyy-mm-dd` | Never in the future; expiry not before completion |
+| `lms_import_row.problems` | Harbour (`LMS_ROW_PROBLEMS`) | `learner_id`, `course_code`, `completed_on`, `completed_in_future`, `expires_on`, `expires_before_completion`, `record_id`, `provider` | |
+| `lms_import_row.class` | Harbour (`LMS_ROW_CLASSES`) | `ready`, `unmatched_learner`, `unmapped_course`, `already_recorded`, `own_record`, `invalid` | The latest dry run's |
+| `lms_import_row.outcome` | Harbour | `pending`, `imported`, `skipped` | |
+| `lms_import.format` | Harbour | `csv`, `json`, `api` | |
+| `lms_import.status` | Harbour | `open`, `closed`, `discarded` | |
+| `training_record.source` | Harbour | `harbour`, `lms` | An imported record's completion is fixed |
+| `document.category` `training_certificate` | Harbour (`DOCUMENT_CATEGORIES`) | JPEG, PNG, WebP or PDF, 10 MB | Attached to a training record; read as it is |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
