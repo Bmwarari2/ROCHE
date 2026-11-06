@@ -33,6 +33,12 @@ export async function settleAnimations(page: Page) {
       document
         .getAnimations()
         .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+        // Content that is not rendered (inside a closed <details>, say) never advances its
+        // animations, so waiting on them would never end; axe does not measure it either.
+        .filter((animation) => {
+          const target = (animation.effect as KeyframeEffect | null)?.target;
+          return !target || target.checkVisibility();
+        })
         .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );

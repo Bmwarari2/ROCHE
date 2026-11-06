@@ -74,6 +74,8 @@ for an answer.
 | [0126](0126-thapsus-hr-link.md) | Link Harbour to Thapsus-HR with one owner for each kind of staff data | accepted | 2026-11-01 | Phase 2 |
 | [0082](0082-medicines-rules-at-the-device-boundary.md) | Medicines rules at the medical-device boundary: tags set at transcription and checked, tenant lists as suggestions, no ingredient or allergen matching | proposed | 2026-10-31 | Phase 2 |
 
+| [0108](0108-quality-indicator-counts.md) | Quality indicator counts: one definer function returning numbers only | accepted | 2026-10-31 | Phase 2 |
+
 ## Open items carried by these ADRs
 
 Items Brian may want to confirm (each ADR says how to change it):

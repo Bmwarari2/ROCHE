@@ -82,6 +82,7 @@ import {
 import { platformImportsRouter } from "./routes/platform-imports";
 import { policiesRouter } from "./routes/policies";
 import { qualityAuditsRouter } from "./routes/quality-audits";
+import { qualityDashboardRouter } from "./routes/quality-dashboard";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { recruitmentRouter } from "./routes/recruitment";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
@@ -420,6 +421,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dataSecurityRouter);
   app.route("/", dsarRouter);
   app.route("/", disclosuresRouter);
+  app.route("/", qualityDashboardRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

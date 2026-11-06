@@ -25973,9 +25973,10 @@
           "employment_history",
           "health_fitness",
           "right_to_work",
-          "professional_registration"
+          "professional_registration",
+          "driving_for_work"
         ],
-        "description": "A Schedule 3 pre-employment requirement"
+        "description": "A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)"
       },
       "StaffFileItem": {
         "type": "object",
@@ -26547,6 +26548,18 @@
                   "null"
                 ],
                 "format": "date"
+              },
+              "nmcPart": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "nurse",
+                  "midwife",
+                  "nursing_associate",
+                  null
+                ]
               }
             },
             "required": [
@@ -26555,6 +26568,40 @@
               "pin",
               "renewalDueOn",
               "revalidationDueOn"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "driving_for_work"
+                ]
+              },
+              "licenceCheckedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "categories": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9+]{0,3}$"
+                },
+                "minItems": 1,
+                "maxItems": 20
+              },
+              "insuranceExpiresOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "kind",
+              "licenceCheckedOn",
+              "categories",
+              "insuranceExpiresOn"
             ]
           },
           {
@@ -26580,7 +26627,9 @@
               "employment_gaps",
               "registration_lapsed",
               "health_not_declared_fit",
-              "references_none"
+              "references_none",
+              "driving_not_current",
+              "nmc_part_missing"
             ]
           },
           "reason": {
@@ -31139,6 +31188,27 @@
           "confirmation": {
             "type": "boolean"
           },
+          "reviewState": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitted",
+              "reviewed"
+            ]
+          },
+          "reviewedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "confirmedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "confirmedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "daysLeft": {
             "type": "integer"
           },
@@ -31165,6 +31235,10 @@
           "healthAndCharacter",
           "professionalIndemnity",
           "confirmation",
+          "reviewState",
+          "reviewedBy",
+          "confirmedBy",
+          "confirmedOn",
           "daysLeft",
           "outstanding",
           "ready"
@@ -31371,7 +31445,7 @@
           "professionalIndemnity": {
             "type": "boolean"
           },
-          "confirmation": {
+          "submit": {
             "type": "boolean"
           }
         },
@@ -31384,8 +31458,46 @@
           "reflectiveAccounts",
           "reflectiveDiscussion",
           "healthAndCharacter",
-          "professionalIndemnity",
-          "confirmation"
+          "professionalIndemnity"
+        ]
+      },
+      "ReviewRevalidation": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cycleDueOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "cycleDueOn"
+        ]
+      },
+      "ConfirmRevalidation": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cycleDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "confirmedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "cycleDueOn",
+          "confirmedOn"
         ]
       },
       "EvidenceLinkCodeSent": {
@@ -36529,6 +36641,7 @@
       "DsptOutcome": {
         "type": "string",
         "enum": [
+          "standards_exceeded",
           "standards_met",
           "approaching_standards",
           "standards_not_met"
@@ -38506,6 +38619,508 @@
         "required": [
           "expectedVersion",
           "reportOn"
+        ]
+      },
+      "QualityDashboard": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "minGroupSize": {
+            "type": "integer"
+          },
+          "indicators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QualityIndicatorOut"
+            }
+          }
+        },
+        "required": [
+          "locationId",
+          "generatedAt",
+          "period",
+          "minGroupSize",
+          "indicators"
+        ]
+      },
+      "QualityIndicatorOut": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/QualityIndicatorKey"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "lower_is_better",
+              "higher_is_better"
+            ]
+          },
+          "multiplier": {
+            "type": "number"
+          },
+          "method": {
+            "type": "string"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "numerator": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "denominator": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "display": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/QualityIndicatorStatus"
+          },
+          "reasonCode": {
+            "$ref": "#/components/schemas/QualityNoDataReason"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "green": {
+                "type": "number"
+              },
+              "amber": {
+                "type": "number"
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "location",
+                  "organisation"
+                ]
+              },
+              "organisationDefault": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "green": {
+                    "type": "number"
+                  },
+                  "amber": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "green",
+                  "amber"
+                ]
+              }
+            },
+            "required": [
+              "green",
+              "amber",
+              "level",
+              "organisationDefault"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "unit",
+          "direction",
+          "multiplier",
+          "method",
+          "source",
+          "numerator",
+          "denominator",
+          "period",
+          "value",
+          "display",
+          "status",
+          "reasonCode",
+          "reason",
+          "target"
+        ]
+      },
+      "QualityIndicatorKey": {
+        "type": "string",
+        "enum": [
+          "falls",
+          "pressure_ulcers",
+          "medication_errors",
+          "missed_visits",
+          "overdue_reviews",
+          "training_compliance",
+          "agency_hours",
+          "complaints",
+          "staff_turnover",
+          "incident_response"
+        ]
+      },
+      "QualityIndicatorStatus": {
+        "type": "string",
+        "enum": [
+          "green",
+          "amber",
+          "red",
+          "no_data"
+        ]
+      },
+      "QualityNoDataReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "unknown_indicator",
+          "no_value",
+          "no_denominator",
+          "incomplete_data",
+          "no_target",
+          "source_not_built",
+          "small_number",
+          null
+        ]
+      },
+      "QualityIndicatorTargetList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QualityIndicatorTargetOut"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "QualityIndicatorTargetOut": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "indicatorKey": {
+            "$ref": "#/components/schemas/QualityIndicatorKey"
+          },
+          "green": {
+            "type": "number"
+          },
+          "amber": {
+            "type": "number"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "indicatorKey",
+          "green",
+          "amber",
+          "version"
+        ]
+      },
+      "SetQualityIndicatorTarget": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "indicatorKey": {
+            "$ref": "#/components/schemas/QualityIndicatorKey"
+          },
+          "green": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "amber": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "expectedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "locationId",
+          "indicatorKey",
+          "green",
+          "amber",
+          "expectedVersion"
+        ]
+      },
+      "ClearQualityIndicatorTarget": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "PirPrefill": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questionSet": {
+            "type": "object",
+            "properties": {
+              "regulator": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "confirmed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "regulator",
+              "name",
+              "version",
+              "confirmed"
+            ]
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PirPrefillItem"
+            }
+          }
+        },
+        "required": [
+          "locationId",
+          "questionSet",
+          "period",
+          "asOf",
+          "items"
+        ]
+      },
+      "PirPrefillItem": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "area": {
+            "$ref": "#/components/schemas/PirQuestionArea"
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "count",
+              "percent",
+              "hours",
+              "yes_no"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "prefilled",
+              "to_complete"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asOf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "records": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reasonCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "not_built",
+              "no_value",
+              "small_number",
+              null
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "area",
+          "label",
+          "unit",
+          "source",
+          "status",
+          "value",
+          "asOf",
+          "records",
+          "reasonCode",
+          "reason"
+        ]
+      },
+      "PirQuestionArea": {
+        "type": "string",
+        "enum": [
+          "safe",
+          "effective",
+          "caring",
+          "responsive",
+          "well-led"
         ]
       },
       "SubProcessorOverview": {
@@ -41677,8 +42292,7 @@
             "default": false
           },
           "countsAsCare": {
-            "type": "boolean",
-            "default": true
+            "type": "boolean"
           }
         },
         "required": [
@@ -42123,6 +42737,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "coverNeeded": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -42130,7 +42747,8 @@
           "version",
           "worker",
           "publishedAt",
-          "overridden"
+          "overridden",
+          "coverNeeded"
         ]
       },
       "CreateRota": {
@@ -42243,8 +42861,7 @@
                 "default": false
               },
               "countsAsCare": {
-                "type": "boolean",
-                "default": true
+                "type": "boolean"
               }
             },
             "required": [
@@ -42614,6 +43231,13 @@
               "format": "uuid"
             }
           },
+          "coverNeededAssignmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           "hasWarnings": {
             "type": "boolean"
           },
@@ -42658,6 +43282,7 @@
           "openShiftIds",
           "inductionsDue",
           "peopleUnassigned",
+          "coverNeededAssignmentIds",
           "hasWarnings",
           "periodsToAcknowledge",
           "blockedAssignmentIds",
@@ -43938,6 +44563,795 @@
           "to",
           "items",
           "totalPence"
+        ]
+      },
+      "AbsenceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbsenceItem"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "truncated"
+        ]
+      },
+      "AbsenceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "member": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "displayName"
+            ]
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AbsenceKind"
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AbsenceState"
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decisionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selfCertifiedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "bradfordExcluded": {
+            "type": "boolean"
+          },
+          "coverNeeded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fitNoteUncoveredDays": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "member",
+          "locationId",
+          "kind",
+          "startsOn",
+          "endsOn",
+          "state",
+          "decidedBy",
+          "decidedAt",
+          "decisionReason",
+          "selfCertifiedAt",
+          "bradfordExcluded",
+          "coverNeeded",
+          "fitNoteUncoveredDays"
+        ]
+      },
+      "AbsenceKind": {
+        "type": "string",
+        "enum": [
+          "annual_leave",
+          "sickness",
+          "compassionate",
+          "carers_leave",
+          "parental_leave",
+          "maternity",
+          "paternity",
+          "adoption",
+          "parental_bereavement",
+          "unpaid",
+          "other"
+        ]
+      },
+      "AbsenceState": {
+        "type": "string",
+        "enum": [
+          "requested",
+          "approved",
+          "declined",
+          "postponed",
+          "cancelled",
+          "recorded"
+        ]
+      },
+      "NewAbsence": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AbsenceKind"
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "selfCertified": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "locationId",
+          "kind",
+          "startsOn",
+          "endsOn"
+        ]
+      },
+      "AbsenceDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "member": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "displayName"
+            ]
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AbsenceKind"
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AbsenceState"
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decisionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selfCertifiedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "bradfordExcluded": {
+            "type": "boolean"
+          },
+          "coverNeeded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fitNoteUncoveredDays": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "carersLeave": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "takenDays": {
+                "type": "integer"
+              },
+              "allowanceDays": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "overAllowance": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "takenDays",
+              "allowanceDays",
+              "overAllowance"
+            ]
+          },
+          "fitNotes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FitNoteItem"
+            }
+          },
+          "returnToWork": {
+            "$ref": "#/components/schemas/ReturnToWorkItem"
+          },
+          "bradfordExcludedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "member",
+          "locationId",
+          "kind",
+          "startsOn",
+          "endsOn",
+          "state",
+          "decidedBy",
+          "decidedAt",
+          "decisionReason",
+          "selfCertifiedAt",
+          "bradfordExcluded",
+          "coverNeeded",
+          "fitNoteUncoveredDays",
+          "carersLeave",
+          "fitNotes",
+          "returnToWork",
+          "bradfordExcludedReason"
+        ]
+      },
+      "FitNoteItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "absenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issuedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "coversFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "coversTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "fitness": {
+            "type": "string",
+            "enum": [
+              "not_fit",
+              "may_be_fit"
+            ]
+          },
+          "phasedReturn": {
+            "type": "boolean"
+          },
+          "amendedDuties": {
+            "type": "boolean"
+          },
+          "alteredHours": {
+            "type": "boolean"
+          },
+          "workplaceAdaptations": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "absenceId",
+          "documentId",
+          "issuedOn",
+          "coversFrom",
+          "coversTo",
+          "fitness",
+          "phasedReturn",
+          "amendedDuties",
+          "alteredHours",
+          "workplaceAdaptations",
+          "createdAt"
+        ]
+      },
+      "ReturnToWorkItem": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "absenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "heldOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "heldBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fitForUsualDuties": {
+            "type": "boolean"
+          },
+          "phasedReturn": {
+            "type": "boolean"
+          },
+          "amendedDuties": {
+            "type": "boolean"
+          },
+          "alteredHours": {
+            "type": "boolean"
+          },
+          "workplaceAdaptations": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "absenceId",
+          "heldOn",
+          "heldBy",
+          "fitForUsualDuties",
+          "phasedReturn",
+          "amendedDuties",
+          "alteredHours",
+          "workplaceAdaptations",
+          "notes",
+          "createdAt"
+        ]
+      },
+      "DecideAbsence": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "decline",
+              "postpone"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "decision"
+        ]
+      },
+      "CancelAbsence": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "EndAbsence": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "version",
+          "endsOn"
+        ]
+      },
+      "ExcludeFromBradford": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "reason"
+        ],
+        "description": "A reason leaves it out; null puts it back"
+      },
+      "NewReturnToWork": {
+        "type": "object",
+        "properties": {
+          "heldOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "fitForUsualDuties": {
+            "type": "boolean"
+          },
+          "phasedReturn": {
+            "type": "boolean",
+            "default": false
+          },
+          "amendedDuties": {
+            "type": "boolean",
+            "default": false
+          },
+          "alteredHours": {
+            "type": "boolean",
+            "default": false
+          },
+          "workplaceAdaptations": {
+            "type": "boolean",
+            "default": false
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "heldOn",
+          "fitForUsualDuties"
+        ]
+      },
+      "BradfordResult": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "spells": {
+            "type": "integer"
+          },
+          "days": {
+            "type": "integer"
+          },
+          "score": {
+            "type": "integer"
+          },
+          "windowStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "windowEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "windowWeeks": {
+            "type": "integer"
+          },
+          "excludedAbsences": {
+            "type": "integer"
+          },
+          "working": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberId",
+          "spells",
+          "days",
+          "score",
+          "windowStart",
+          "windowEnd",
+          "windowWeeks",
+          "excludedAbsences",
+          "working",
+          "notice"
+        ]
+      },
+      "SspResultItem": {
+        "type": "object",
+        "properties": {
+          "absenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "applies": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "no_rate_for_nation",
+              "not_a_period_of_incapacity",
+              null
+            ]
+          },
+          "periodOfIncapacity": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "startsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "endsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "linkedAbsences": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "startsOn",
+              "endsOn",
+              "linkedAbsences"
+            ]
+          },
+          "weeklyPence": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daysPaid": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "payPence": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daysLeft": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "working": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "string"
+                },
+                "pence": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "step",
+                "pence"
+              ]
+            }
+          },
+          "inputHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "absenceId",
+          "applies",
+          "reason",
+          "periodOfIncapacity",
+          "weeklyPence",
+          "daysPaid",
+          "payPence",
+          "daysLeft",
+          "working",
+          "inputHash",
+          "notice"
+        ]
+      },
+      "SspQuery": {
+        "type": "object",
+        "properties": {
+          "averageWeeklyEarningsPence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          },
+          "qualifyingWeekdays": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "minItems": 1,
+            "maxItems": 7
+          }
+        },
+        "required": [
+          "averageWeeklyEarningsPence",
+          "qualifyingWeekdays"
         ]
       }
     },
@@ -70190,7 +71604,7 @@
               "$ref": "#/components/schemas/ComplianceItemKind"
             },
             "required": true,
-            "description": "A Schedule 3 pre-employment requirement",
+            "description": "A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)",
             "name": "kind",
             "in": "path"
           }
@@ -70397,7 +71811,7 @@
               "$ref": "#/components/schemas/ComplianceItemKind"
             },
             "required": true,
-            "description": "A Schedule 3 pre-employment requirement",
+            "description": "A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)",
             "name": "kind",
             "in": "path"
           },
@@ -76496,7 +77910,7 @@
           "workforce"
         ],
         "summary": "Record a supervision, appraisal or spot check",
-        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.",
+        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept here (slice 57 records them). Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -76595,7 +78009,7 @@
           "workforce"
         ],
         "summary": "Record revalidation evidence for a cycle",
-        "description": "workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Audited.",
+        "description": "workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Never the confirmation (POST .../revalidation/confirmation) and never once reviewed. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -76620,6 +78034,292 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PutRevalidationEvidence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/revalidation": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record your own revalidation evidence",
+        "description": "workforce.self.read. A registered nurse enters their own counts and declarations (never the reflective text), and may send them for HR to review with `submit` (H-693). Never the confirmation, never once reviewed. The nurse stays responsible for revalidating with the NMC. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutRevalidationEvidence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/revalidation/review": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Mark revalidation evidence as reviewed",
+        "description": "workforce.training.manage, never for oneself, against expectedVersion. The counts are then fixed; only the confirmation may follow (H-693). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRevalidation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/revalidation/confirmation": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record that you confirmed a nurse's revalidation",
+        "description": "The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Harbour only tracks it: the nurse revalidates with the NMC. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRevalidation"
               }
             }
           }
@@ -86645,6 +88345,418 @@
         }
       }
     },
+    "/v1/quality/dashboard": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The quality indicators for one location and period, each with its working",
+        "description": "`quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. `from` and `to` are whole calendar months that have ended, at most 12 (422 `period_not_months`, `period_not_ended`, `period_too_long`). A source Harbour does not record yet, a period before the location started recording in Harbour or with a downtime still to reconcile gives `no_data` with its reason and no working. A small count (`quality.indicator.min_group_size`) is withheld with its value, but keeps its status against the target. Audited (`quality.dashboard.viewed`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dashboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityDashboard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/indicator-targets": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The organisation's indicator targets",
+        "description": "`quality.audit.manage`. The organisation defaults and, with `locationId`, that location's own targets; without it, the targets of every location the reader holds the permission at.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Targets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityIndicatorTargetList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Set a target for an indicator",
+        "description": "`quality.audit.manage` at the location, or across the organisation for the default (`locationId` null). Green and amber in the indicator's direction (422 `wrong_order`), percentages 0 to 100 (422 `percent_range`); a location's target no looser than the organisation default unless set by an organisation-wide holder (422 `looser_than_organisation`). `expectedVersion` null adds a target (409 `already_set` when one is live); otherwise the live target's version (409 when stale). Audited (`quality.indicator_target.set`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetQualityIndicatorTarget"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The target",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityIndicatorTargetOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/indicator-targets/{id}/clear": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Clear a target",
+        "description": "`quality.audit.manage` where the target applies. The indicator is then rated against the organisation default, or not at all. Audited (`quality.indicator_target.cleared`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearQualityIndicatorTarget"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/pir": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The Provider Information Return prefill for one location",
+        "description": "`quality.audit.manage` at the location. The last 12 whole calendar months. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Harbour, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "locationId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The prefill",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PirPrefill"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sub-processors": {
       "get": {
         "tags": [
@@ -92784,6 +94896,1255 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AgencyCostList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Absences and leave a member may see",
+        "description": "scheduling.timesheet.self (one's own), scheduling.rota.manage or .approve (those at the homes they reach; row-level security decides). Filter by home, member and dates; newest first, up to 500. Fit note coverage only for holders of workforce.hr_document.read.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "memberId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Absences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Ask for one's own leave, or record a sickness or leave for a member",
+        "description": "Without memberId (or one's own): scheduling.timesheet.self, at a home where the member holds a role; leave kinds only (state requested). With another member: scheduling.rota.manage at the home (state recorded), which raises a cover need on each of the member's rostered shifts it touches (HZ-123). Audited (scheduling.absence.requested or .recorded) with the kind and dates.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "One absence; with its fit notes and return to work for HR",
+        "description": "As the list. Fit notes, the return to work record and the Bradford exclusion reason only for holders of workforce.hr_document.read. Audited (scheduling.absence.viewed) for a sickness.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/decision": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Approve, decline or postpone a leave request",
+        "description": "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/cancel": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Cancel an absence",
+        "description": "The member cancels their own request before it is decided (scheduling.timesheet.self); a rota manager or approver at the home cancels an approved or recorded absence with a reason. Its open cover needs are resolved (absence_ended). Audited (scheduling.absence.cancelled), never the reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/end": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Record a sickness's last day",
+        "description": "scheduling.rota.manage at the home, for an open sickness (approved or recorded). Cover needs on shifts after the last day are resolved. Audited (scheduling.absence.ended) with the date.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/bradford-exclusion": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Leave a sickness out of the Bradford factor, or put it back",
+        "description": "workforce.hr_document.read and scheduling.rota.manage at the home: a reason (pregnancy-related, disability-related) leaves it out; null puts it back. Audited (scheduling.absence.bradford_excluded), never the reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExcludeFromBradford"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/fit-notes": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Add a fit note to a sickness (the body is the file)",
+        "description": "workforce.hr_document.read at the home, never for one's own absence. The document is checked by its contents, scanned and kept as an HR-only staff document with retention sickness_absence; the dates, fitness and ticked adjustments are stored beside it, never the condition. Audited (workforce.fit_note.added) with ids and dates only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "issuedOn",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "coversFrom",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "coversTo",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "not_fit",
+                "may_be_fit"
+              ]
+            },
+            "required": true,
+            "name": "fitness",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "phasedReturn",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "amendedDuties",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "alteredHours",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "workplaceAdaptations",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/pdf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitNoteItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/fit-notes/{fitNoteId}/content": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Open a fit note (audited)",
+        "description": "workforce.hr_document.read at the home, never one's own (as every HR-only document). Every open is audited as workforce.fit_note.viewed.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "fitNoteId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The fit note",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/return-to-work": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Record the return to work conversation after a sickness",
+        "description": "workforce.hr_document.read at the home, by someone other than the member, once the sickness has ended; one per absence (409 return_to_work_recorded). Audited (workforce.return_to_work.recorded) with ids and whether fit, never the notes.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewReturnToWork"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReturnToWorkItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{id}/bradford": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "A member's Bradford factor, with its working",
+        "description": "workforce.hr_document.read reaching a home where the member has an absence (or across the organisation). Over absence.bradford.window_weeks (the rate table) from the member's sickness days, not cancelled and not left out; days the member was not rostered between two absences join them into one spell. Shown with its working and a notice; never compared with a trigger and never acted on (H-583). Audited (workforce.bradford.viewed) with the member id.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The working",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BradfordResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/ssp": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "The SSP working for a sickness, for payroll",
+        "description": "workforce.hr_document.read at the home. From the member's sicknesses: the period of incapacity this one belongs to (ssp.piw_min_days, linked within ssp.piw_link_weeks), the qualifying days already paid in it, and the slice 6 rule (ssp.weekly, ssp.earnings_percentage, ssp.waiting_days, ssp.max_weeks) with the earnings and qualifying days given. Advice only: nothing is paid or stored. Audited (scheduling.ssp.calculated) with the absence id, never the earnings.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SspQuery"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The working",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SspResultItem"
                 }
               }
             }

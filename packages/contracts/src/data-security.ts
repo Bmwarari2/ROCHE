@@ -18,7 +18,7 @@ export const DsptAssertionStatus = z
   .enum(["not_started", "in_progress", "met", "not_met", "not_applicable"])
   .meta({ id: "DsptAssertionStatus" });
 export const DsptOutcome = z
-  .enum(["standards_met", "approaching_standards", "standards_not_met"])
+  .enum(["standards_exceeded", "standards_met", "approaching_standards", "standards_not_met"])
   .meta({ id: "DsptOutcome" });
 export const CertificateKind = z
   .enum(["cyber_essentials", "cyber_essentials_plus", "ico_registration"])

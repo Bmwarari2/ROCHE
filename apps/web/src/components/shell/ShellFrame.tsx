@@ -13,14 +13,17 @@ import {
   Archive,
   Bell,
   BookCheck,
+  BookOpen,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
   FileLock,
   FileSearch,
+  FileSpreadsheet,
   FileText,
   FileUp,
   FolderLock,
+  Gauge,
   House,
   ListChecks,
   ListTodo,
@@ -93,6 +96,14 @@ export interface ShellFrameLabels {
   readonly framework?: string | undefined;
   /** Shown only to holders of quality.audit.manage (QUAL-004). */
   readonly audits?: string | undefined;
+  /** The policy library: every member reads it and signs what they must (QUAL-008). */
+  readonly policies?: string | undefined;
+  /** Shown only to holders of quality.dsar.manage (QUAL-012). */
+  readonly dataSecurity?: string | undefined;
+  /** Shown only to holders of quality.audit.manage (QUAL-005). */
+  readonly qualityDashboard?: string | undefined;
+  /** Shown only to holders of quality.audit.manage (QUAL-006). */
+  readonly pir?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown to staff (not family portal sessions): their tasks and the team's (PLAT-011). */
@@ -384,6 +395,46 @@ export function ShellFrame({
             label: labels.audits,
             href: "/quality/audits",
             icon: <ClipboardCheck {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.policies
+      ? [
+          {
+            id: "policies",
+            label: labels.policies,
+            href: "/policies",
+            icon: <BookOpen {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataSecurity
+      ? [
+          {
+            id: "data-security",
+            label: labels.dataSecurity,
+            href: "/quality/data-security",
+            icon: <ShieldCheck {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.qualityDashboard
+      ? [
+          {
+            id: "quality-dashboard",
+            label: labels.qualityDashboard,
+            href: "/quality/dashboard",
+            icon: <Gauge {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.pir
+      ? [
+          {
+            id: "pir",
+            label: labels.pir,
+            href: "/quality/pir",
+            icon: <FileSpreadsheet {...icon} />,
           },
         ]
       : []),

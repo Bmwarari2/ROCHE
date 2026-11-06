@@ -60,7 +60,7 @@ export function QualityFeedback({
   );
 }
 
-/** A reason of 3 to 500 characters and one button: revoke or discard. */
+/** A reason (3 to 500 characters unless `min` says more) and one button: revoke, discard or retire. */
 export function QualityReasonForm({
   title,
   intro,
@@ -71,6 +71,7 @@ export function QualityReasonForm({
   done,
   onSend,
   confirm,
+  min,
   children,
 }: {
   readonly title: string;
@@ -83,6 +84,8 @@ export function QualityReasonForm({
   readonly onSend: (reason: string) => Promise<ActionResult<unknown>>;
   /** A box that must be ticked first, for a step that cannot be undone. */
   readonly confirm?: string;
+  /** The fewest characters the API takes for this reason, when more than the usual 3. */
+  readonly min?: number;
   readonly children?: ReactNode;
 }) {
   const ids = useFieldIds(["reason", "confirm"]);
@@ -91,7 +94,7 @@ export function QualityReasonForm({
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const read = readEndReason(data, t);
+    const read = readEndReason(data, t, min);
     const unconfirmed = confirm && data.get("confirm") !== "yes";
     if (!read.ok || unconfirmed) {
       return fail({

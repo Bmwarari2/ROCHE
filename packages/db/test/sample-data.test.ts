@@ -387,6 +387,14 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
 // never removed with a sample. A disclosure request about a sample person is a real record of a
 // disclosure (migration 0103). A fit note refers to a staff document that may be about a sample
 // person's file (migration 0107).
+// A policy version that uses an organisation document (slice 25) is the organisation's own record:
+// a sample document it points to is not removed (the foreign key stops it), like an escalation
+// policy link.
+// A data protection complaint about a sample person is a real complaint record (migration 0082):
+// its foreign key stops the removal rather than the complaint going with the sample.
+// Data security evidence (migration 0094) refers only to organisation documents, never a person's
+// (the API refuses one), so it never holds up a removal in practice; listed so a document it cites
+// is never removed with a sample.
 const BLOCKS_REMOVAL = [
   "complaint",
   "compliment",

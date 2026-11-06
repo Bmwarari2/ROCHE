@@ -549,7 +549,7 @@ belongs to slice 47, and this slice writes the rule it will test (rule 22).
 | `quality-indicators.ts` | `IndicatorDefinition` (key, numerator and denominator descriptions, multiplier, unit, direction `lower_is_better` or `higher_is_better`, method in words), `IndicatorInput` (numerator, denominator, coverage: the share of the period and locations with data), `IndicatorTarget` (tenant targets: green and amber thresholds), `IndicatorResult` (value or null, status `green`, `amber`, `red` or `no_data`, reason, method shown) | QUAL-005 |
 | `quality-pir.ts` | `PirDataPoint` (key, CQC question area, label, source, unit), `PirValue` (value, as of, source records count, or missing with why), `PirDraft` (each data point with its value or "not available", never a guessed zero) | QUAL-006 |
 | `policies.ts` | `PolicyVersion` (policy key, version number, state `draft`, `published`, `superseded`, `retired`, change size `minor` or `major`, review due date, roles that must read it, published by and at), `PolicySignature` (staff member, version, signed at), `ReadAndSignStatus` (who must sign, who has, who is outstanding and since when, who is overdue a reminder) | QUAL-008 |
-| `quality-data-security.ts` | `DsptSubmission` (financial year, submitted on, status `standards_met`, `approaching_standards`, `standards_not_met`), `CertificateRecord` (kind `cyber_essentials`, `cyber_essentials_plus`, `ico_registration`; reference; issued on; expires on when the certificate says), `RenewalStatus` (`current`, `due_soon`, `expired`, `missing`) | QUAL-012 |
+| `quality-data-security.ts` | `DsptSubmission` (financial year, submitted on, status `standards_exceeded`, `standards_met`, `approaching_standards`, `standards_not_met`), `CertificateRecord` (kind `cyber_essentials`, `cyber_essentials_plus`, `ico_registration`; reference; issued on; expires on when the certificate says), `RenewalStatus` (`current`, `due_soon`, `expired`, `missing`) | QUAL-012 |
 
 ### 17.2 Permissions
 
@@ -755,7 +755,6 @@ question id (as the screens send) or a statement id; an unknown id is refused wi
   type not yet available, never evidence, missing record), lists, coverage and removal; the
   evidence pack taking statement and key question ids and refusing others.
 - The evidence pack's API tests use statement ids from version 1.
-
 ## 18. Policy library and read-and-sign (slice 25: QUAL-008; migration 0087)
 
 Stores and serves the slice 8 policy rules (section 17.3, rules 25 to 28) in lane E. Screens are
@@ -964,7 +963,6 @@ focus the page heading and say what was done.
   mapping a statement and reading coverage and a statement's evidence; an audit from a starter
   through scheduling, answers, refused and then accepted completion, and tagging; a mock
   inspection.
-
 ## 18. Data security evidence (slice 32: QUAL-012)
 
 Schema, API and renewal tasks for rules 29 to 31 (section 17.3); the screens are slice 65.
@@ -980,7 +978,7 @@ and `harbour_owner`; the application never deletes.
 | --- | --- | --- |
 | `dspt_assertion` | mutable aggregate (`version`) | One DSPT assertion the organisation tracks for a financial year (`2025/26`): its reference as the toolkit numbers it (`1.1.1`), title, status (`not_started`, `in_progress`, `met`, `not_met`, `not_applicable`), notes and an owner |
 | `dspt_evidence` | append-only | Evidence linked to an assertion: an organisation document (never a person's), and later its unlinking, each with who and when; the current evidence is each document's latest event |
-| `dspt_submission` | mutable aggregate | The organisation's DSPT submission for a financial year (one per year): the day submitted, the outcome (`standards_met`, `approaching_standards`, `standards_not_met`) and the toolkit's reference |
+| `dspt_submission` | mutable aggregate | The organisation's DSPT submission for a financial year (one per year): the day submitted, the outcome (`standards_exceeded` (H-917), `standards_met`, `approaching_standards`, `standards_not_met`) and the toolkit's reference |
 | `security_certificate` | mutable aggregate | A Cyber Essentials, Cyber Essentials Plus or ICO registration record: reference (certificate number or ICO registration number), issued on, the expiry the certificate states (if any), the issuing body and a copy (an organisation document) |
 
 ### 18.2 Rules
@@ -1034,3 +1032,194 @@ Retention: interim `audit_event` (8 years from creation) until the DPO sets peri
   table (missing, current, due soon, expired, DSPT due and submitted), assertion rules (met needs
   evidence, notes for not met), evidence refusals (a person's document, unknown, already linked),
   stale versions, audit without text, and the renewal tasks raised once.
+## 21. Web screens: policies and data security (slice 65; QUAL-008, QUAL-012)
+
+Branch `feat/web-policies-data-security`, built on the policy library API (section 18, slice 25)
+with the data security evidence API (the second section 18, slice 32) merged in. The dashboard and
+PIR screens wait for slice 47. Spec, permission matrix and test list came before the code (section
+20 rule 3). The web holds no rules of its own: the API checks every one again, and the screens put
+its decisions into words. Status is shown as an icon plus a word, every form posts (`method="post"`), and the strings are
+`quality.policies.*` and `quality.dataSecurity.*`. Online only.
+
+### Screens
+
+| Route | Shows | Who sees it |
+| --- | --- | --- |
+| `/policies` | "To read and sign" (from `/v1/me/policies`: the versions in force the reader's role must sign and has not), then the library: each policy's version in force, its review status (current, due soon, overdue, no review date) and whether the reader has signed | Every member (sidebar "Policies") |
+| `/policies/new` | A new policy: title, short name, whether someone else must publish it, and its first draft | `quality.policy.manage` |
+| `/policies/[id]` | The version in force (text or organisation document, roles who must sign, review date) with the sign form; for managers, who has read and signed; the draft (edit, publish); every version with its state, where a superseded one says "Superseded: version N is in force" (HZ-128), or "No version is in force now" once the policy is retired; retire | Every member; the manager parts to `quality.policy.manage` |
+| `/quality/data-security` | The DSPT for this financial year (submitted, due, due soon, overdue, with the deadline), Cyber Essentials, Cyber Essentials Plus and the ICO registration (current, due soon, expired, or "Missing: no record", never current), and counts of assertions by status with "met without evidence" counted apart | `quality.dsar.manage` across the organisation (sidebar "Data security") |
+| `/quality/data-security/assertions?year=` | The year's assertions with their status and evidence; add an assertion, change its status (notes for not met and not applicable), link and unlink organisation documents | As above |
+| `/quality/data-security/submissions` | One submission per financial year; record this year's, correct an earlier one (the earlier values stay in its history) | As above |
+| `/quality/data-security/certificates` | Every certificate and registration newest first, the newest of each kind with its status and older ones "Replaced by a newer record"; record one (expiry after issue, never issued in the future) | As above |
+
+The data security API refuses a location-scoped holder (`requireOrganisationWide`), so the pages
+tell that holder the screens are for whoever handles data protection for the whole organisation.
+
+### Actions
+
+| Action | Permission (API) | The screen |
+| --- | --- | --- |
+| Add a policy, start a draft (minor or major), save a draft | `quality.policy.manage` | A minor change keeps signatures and a major one asks everyone to sign again, so the form says which is which. A new draft copies the text and roles but needs its own review date before it is published |
+| Publish | `quality.policy.manage`; another person when the policy needs a second reviewer | The author of such a draft sees a notice saying someone else must publish it, not the form. A draft with no roles or no review date shows what it still needs instead of the form. The publisher ticks "I have checked this draft" |
+| Retire | `quality.policy.manage` | A reason of at least 10 characters (the contract's minimum, checked at the field) and a confirm box |
+| Sign | Any member asked to sign the version in force | "I have read and understood this version and will follow it" must be ticked (H-914, recommended answer applied 31/10/2026) |
+| Assertions, evidence, submissions, certificates | `quality.dsar.manage` (organisation-wide) | Refusals the API names (evidence required for met, notes required, a date in the future, a short name in use) are shown at their field. Stopping the last evidence for an assertion marked met needs a box ticked first, saying it will then show as met with no evidence. Buttons name their assertion ("Save where 1.1.1 stands") |
+
+### Tests
+
+- Unit: `apps/web/src/lib/policies.test.ts` (chips, the version in force for a superseded one, the
+  draft and new-policy readers) and `apps/web/src/lib/data-security.test.ts` (a missing certificate
+  is never current, met without evidence, the assertion, submission and certificate readers).
+- Journey with axe in light and dark themes: `apps/web/e2e/policies-data-security.spec.ts`. HZ-128:
+  the manager drafts a policy that needs a second reviewer and is told someone else must publish
+  it; the owner publishes it; the manager signs (refused until the box is ticked); a minor change is
+  published by the owner, and version 1 then names version 2 as in force. Data security: the owner
+  adds an assertion, met is refused without evidence, not applicable needs notes, and the owner
+  records a certificate and this year's submission.
+
+## 22. Quality dashboard and PIR prefill (slice 47: QUAL-005, QUAL-006; migration 0108)
+
+Stores the tenant's indicator targets and works out the slice 8 indicators (section 17.3, rules
+16 to 24) per location from the tables that exist today. The screens are slice 65 part 2. Plan
+slice 47 says "from events the source slices publish"; those read models do not exist yet, so
+the counts are read from the source tables through one database function that returns counts
+only ([ADR-0108](../decisions/0108-quality-indicator-counts.md)). Spec, permission matrix and test
+list came before the code.
+
+### 22.1 What each indicator reads today
+
+| Indicator | Numerator | Denominator | Source today |
+| --- | --- | --- | --- |
+| Falls | Incidents of type `fall` that occurred in the period at the location | Occupied bed-days | `incident`; `bed_occupancy` with `room` |
+| Pressure ulcers | Body map marks first recorded in the period whose latest version that is not a healing record is a pressure ulcer (corrections either way) | Occupied bed-days | `body_map_mark`; `bed_occupancy` |
+| Medication errors | Incidents of type `medication` that occurred in the period | Occupied bed-days | `incident`; `bed_occupancy` |
+| Overdue reviews | For the people living at the location now (wherever their plan was written): active care plans and active risk assessments past their review date, today, and each person with no active care plan holding a review date | The same plans and assessments, and those people | `care_plan`, `risk_assessment` by the person's current location; `person` |
+| Incidents reviewed in time | Incidents that occurred in the period, moved on from `open` by someone other than their raiser within `quality.incident_review.target_days` UK days of the day they occurred, and not back to open since | Incidents that occurred in the period, less those whose time has not run out and that are not yet reviewed | `incident`; the `safety.incident` workflow transitions |
+| Missed visits, training compliance, agency hours, complaints, staff turnover | - | - | Not built: shown as "No data" with "Harbour does not record this yet" |
+
+Occupied bed-days are the days a bed was held for someone at the location in the period, less the
+days between leaving for hospital and coming back, and the days after a death (a room not yet
+cleared is not occupied).
+
+Complaints wait for the safety complaints register (the data protection complaints register is
+one kind of complaint only, so it is not shown as the complaints figure); staff turnover waits
+for employment records (a member's access is not their employment).
+
+### 22.2 Rules
+
+38. **Never rated without its data** (rule 22, HZ-129). An indicator whose source is not built
+    is `no_data` with "Harbour does not record this yet". The period must be over, wholly after
+    the location started recording in Harbour (the later of its record's creation and its first
+    care note) and free of any downtime not yet reconciled for its coverage to be complete;
+    otherwise "Data incomplete for this period", with no numerator or denominator (they would be
+    a running tally). A location with no bed occupancy in the period has no bed-days and its rates
+    are "There is nothing to measure against", never 0. Each view says when it was counted.
+39. **Every figure shows its working**: numerator and denominator (each as a number, or withheld
+    under rule 40), the period it covers (overdue reviews are as at today, so their period is
+    today), the source in words and the method from rule 16.
+40. **Small numbers never point at one person.** A numerator of 1 or more but fewer than
+    `quality.indicator.min_group_size` (rate table) is withheld with its value (`small_number`),
+    but its status against the target is still shown, so a rising signal is never hidden from
+    the people who govern the location (with no target it stays unrated). For an indicator whose
+    denominator counts records about people (overdue reviews, incidents reviewed in time), a
+    denominator, or a remainder (denominator less numerator), in the same range is withheld the
+    same way. Zero is shown. The PIR prefill withholds the same counts and marks them to complete,
+    and withholds a small number of records behind a yes.
+41. **Targets are the tenant's** (rule 18): per indicator, an organisation default and optionally
+    one per location; the location's own wins. Green and amber are in the indicator's direction
+    (`checkIndicatorTarget`, and a database check); percentages 0 to 100. A location's own
+    target is no looser than the organisation default unless someone holding
+    `quality.audit.manage` across the organisation sets it, and the default is shown beside it.
+    With no target, a value is shown unrated.
+42. **Counts only, by location**: the dashboard is for one location the reader holds
+    `quality.audit.manage` at, for whole calendar months that have ended, at most twelve, so no
+    two views can be subtracted to single out a day.
+    The database function checks that permission itself and returns counts, never rows, names or
+    ids. Incidents are counted whoever they involve, so a manager's own view of incidents does not
+    change the figure.
+43. **PIR prefill** (rules 23 and 24): for one location, the last 12 whole calendar months.
+    Each data point in the question set (`PIR_QUESTION_SET`, unconfirmed until H-602) is
+    `prefilled` with its value, as-of date and record count, or `to_complete` with the reason (not
+    built in Harbour, a small number, no data). Built today: incidents and medication errors in
+    the last 12 months, and whether care records are kept digitally (care notes recorded at the
+    location in that time). Nothing is submitted; the Registered Manager copies it across.
+44. **Audit**: viewing the dashboard (`quality.dashboard.viewed`) and the PIR prefill
+    (`quality.pir.viewed`) with the location and period; setting and clearing a target
+    (`quality.indicator_target.set`, `.cleared`) with the indicator key. Ids and codes only.
+
+### 22.3 Schema (migration 0108)
+
+| Table | Kind | Columns | Rules |
+| --- | --- | --- | --- |
+| `quality_indicator_target` | mutable aggregate (`version`, history) | `location_id` (null: the organisation default), `indicator_key` (one of the ten), `green`, `amber` (0 or more) | One live row per organisation, location and indicator; green and amber in the indicator's direction; cleared by `deleted_at`, never deleted |
+
+Forced RLS, the tenant policy and restrictive policies for `harbour_app` and `harbour_owner`:
+any member holding `quality.audit.manage` somewhere reads the targets (they are organisation
+figures, not personal data); writing a location's target needs `quality.audit.manage` at that
+location, and the organisation default needs it organisation-wide.
+
+`app.quality_indicator_counts(location, from, to, target_days)` is a security-definer function
+owned by the no-login role `harbour_quality_reader`, executable by `harbour_app` only. It refuses
+a caller without `quality.audit.manage` at the location and returns one JSON object of counts. The
+reader role holds SELECT on the tables it counts and on the role tables the permission check
+reads, and nothing else; the tenant policy still holds it to the caller's organisation.
+
+Retention: `quality_indicator_target` is `organisation_document` (kept while current, then with
+the organisation's records); it holds no personal data.
+
+### 22.4 Permission matrix
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the dashboard and the PIR prefill for a location | `quality.audit.manage` at that location (organisation-wide covers every location) | API and database function |
+| Read targets | `quality.audit.manage` anywhere | RLS |
+| Set or clear a location's target | `quality.audit.manage` at that location | API and RLS |
+| Set or clear the organisation default | `quality.audit.manage` organisation-wide | API and RLS |
+
+### 22.5 API
+
+| Route | Does |
+| --- | --- |
+| `GET /v1/quality/dashboard?locationId&from&to` | Every indicator for the location and period: key, title, method, unit, source, numerator, denominator, period, value, status and reason |
+| `GET /v1/quality/indicator-targets?locationId` | The organisation defaults and the location's own targets |
+| `PUT /v1/quality/indicator-targets` | Set a target (`locationId` or null, `indicatorKey`, `green`, `amber`, `expectedVersion` or null for a new one) |
+| `POST /v1/quality/indicator-targets/{id}/clear` | Clear a target (`expectedVersion`) |
+| `GET /v1/quality/pir?locationId` | The PIR prefill for the last 12 whole months |
+
+### 22.6 Clinical safety and data protection
+
+HZ-129 (a quality indicator or audit score falsely reassures) is added to the hazard log with
+rules 38 to 43 as its controls, each with a `hazard HZ-129 ...` test. Inside the medical-device
+boundary: the figures are counts and the tenant's own targets, never a Harbour score. No new
+personal data: the function returns counts, and rule 40 keeps a small count from pointing at one
+person.
+
+### 22.7 Tests
+
+- `packages/domain/src/quality/quality-indicators.test.ts` and `quality-pir.test.ts`: rules 38 to
+  41 and 43, table-driven (`hazard HZ-129 ...`).
+- `packages/db/test/quality-indicators.test.ts`: targets isolated between organisations and by
+  location permission, the direction check, one live target each; the function refuses a reader
+  without the permission at the location, counts only that location and organisation, takes UK
+  days, counts incidents whatever the reader's own scope, and returns no row data.
+- `apps/api/test/quality-dashboard.test.ts`: permissions and scope, not-built and incomplete
+  indicators never rated, small numbers withheld, targets with the location's own winning, RAG,
+  audit, and the PIR prefill.
+
+## 23. Web screens: quality dashboard and PIR figures (slice 65 part 2; QUAL-005, QUAL-006)
+
+The screens for section 22, on `feat/quality-dashboard-pir`. The web holds no rules of its own;
+the API decides every one again. Status is an icon and a word, never colour alone (green "Within
+target" with a tick, amber "Close to target" with an alert, red "Outside target" with a warning
+triangle, "No rating" with a dash), and targets are said in the same words, never by colour name
+("within target at 100 or lower; close to target up to 250; outside target above 250"). Strings
+are `quality.dashboard.*` and `quality.pir.*`.
+
+- Unit: `apps/web/src/lib/quality-dashboard.test.ts` (the months offered and read, statuses and
+  figures in words, a withheld count never 0, the target form, PIR answers and the text to copy).
+- Journey with axe in light and dark themes: `apps/web/e2e/quality-dashboard-pir.spec.ts`
+  (HZ-129: the five not built and the incomplete months never rated; months the wrong way round;
+  the organisation's falls target refused the wrong way round, then set; a home's own target set
+  and cleared; the Registered Manager refused a looser target; the PIR figures by key question
+  with the text to copy).

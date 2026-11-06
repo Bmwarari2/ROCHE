@@ -666,6 +666,13 @@
       "when": 1793479838265,
       "tag": "0107_absence_leave",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1793480123131,
+      "tag": "0108_quality_indicators",
+      "breakpoints": true
     }
   ]
 }

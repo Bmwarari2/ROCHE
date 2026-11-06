@@ -10,6 +10,7 @@ import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { complaintsShown } from "@/lib/complaints";
 import { readNotifications } from "@/lib/dashboard-data";
 import { dataRightsShown } from "@/lib/data-rights";
+import { dataSecurityShown } from "@/lib/data-security";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
 import { evidencePacksShown } from "@/lib/evidence-packs";
@@ -21,6 +22,7 @@ import { importShown } from "@/lib/imports";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
+import { dashboardShown } from "@/lib/quality-dashboard";
 import { auditsShown, frameworkShown } from "@/lib/quality-programme";
 import { retentionShown } from "@/lib/retention";
 import { roundShown } from "@/lib/round";
@@ -100,6 +102,12 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           : undefined,
         framework: frameworkShown(me.permissions) ? t("shell.nav.framework") : undefined,
         audits: auditsShown(me.permissions) ? t("shell.nav.audits") : undefined,
+        policies: t("shell.nav.policies"),
+        dataSecurity: dataSecurityShown(me.permissions) ? t("shell.nav.dataSecurity") : undefined,
+        qualityDashboard: dashboardShown(me.permissions)
+          ? t("shell.nav.qualityDashboard")
+          : undefined,
+        pir: dashboardShown(me.permissions) ? t("shell.nav.pir") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
