@@ -26,8 +26,24 @@ export interface OfflineRuntimeConfig {
   readonly learnerName: string;
 }
 
+/**
+ * The content security policy the runtime puts on the launch page before anything loads: the
+ * package's own files on the phone and inline code only, nothing from the network, no forms
+ * posted anywhere (security review of slice 72, M1). A platform-level block is H-1366.
+ */
+export const OFFLINE_CSP =
+  "default-src file: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'";
+
 export interface RuntimeWindow {
   ReactNativeWebView?: { postMessage(message: string): void };
+  document?: {
+    readonly head: { appendChild(node: unknown): unknown } | null;
+    readonly documentElement: { appendChild(node: unknown): unknown } | null;
+    createElement(tag: string): Record<string, unknown>;
+  };
+  navigator?: Record<string, unknown>;
+  WebSocket?: unknown;
+  EventSource?: unknown;
   API?: unknown;
   API_1484_11?: unknown;
   fetch?: unknown;
@@ -80,6 +96,26 @@ export function offlineRuntimeMain(win: RuntimeWindow, config: OfflineRuntimeCon
   const MAX_VALUE = 64000;
   const MAX_ELEMENTS = 2000;
   const standard = config.standard;
+
+  // Nothing leaves the phone: a policy on the page first, then the ways round it stopped.
+  try {
+    const doc = win.document;
+    const meta = doc?.createElement("meta");
+    if (doc && meta) {
+      meta.httpEquiv = "Content-Security-Policy";
+      meta.content =
+        "default-src file: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'";
+      (doc.head ?? doc.documentElement)?.appendChild(meta);
+    }
+  } catch {
+    // The interceptions below still apply.
+  }
+  if (win.navigator) win.navigator.sendBeacon = () => false;
+  const refuse = function Offline() {
+    throw new Error("Offline");
+  };
+  win.WebSocket = refuse;
+  win.EventSource = refuse;
   const resume = config.entry === "resume";
 
   const send = (message: Record<string, unknown>) => {

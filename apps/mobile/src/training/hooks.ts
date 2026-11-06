@@ -11,9 +11,16 @@ import { platformFetch } from "../auth/clients";
 import { appEnv } from "../config/app-env";
 import { newEntryId } from "../platform/ids";
 import { TENANT_HEADER } from "../sync/session-signals";
-import { messageStatement, nextLocalAttempt, startStatement } from "./actions";
+import {
+  mergeCommits,
+  messageStatement,
+  nextLocalAttempt,
+  startStatement,
+  statementsAllowed,
+} from "./actions";
 import {
   attemptMetaId,
+  COMMIT_GAP_MS,
   courseMetaId,
   type DownloadedCourse,
   type OfflineAttempt,
@@ -255,7 +262,7 @@ export function useOfflineCourse(courseId: string) {
     };
   }, [db, tenantId, courseId]);
 
-  const report = useCallback(
+  const save = useCallback(
     async (message: RuntimeMessage) => {
       const { course, attempt } = current.current;
       if (!course || !attempt) return;
@@ -277,6 +284,53 @@ export function useOfflineCourse(courseId: string) {
       setState((s) => ({ ...s, attempt: next }));
     },
     [db, tenantId, courseId],
+  );
+
+  // Commits are held back and merged, then saved at most every `COMMIT_GAP_MS`; finishing, or
+  // leaving the course, saves at once (security review of slice 72, M2).
+  const waitingCommit = useRef<Extract<RuntimeMessage, { type: "commit" }> | null>(null);
+  const lastSaved = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flush = useCallback(async () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    const message = waitingCommit.current;
+    waitingCommit.current = null;
+    if (!message) return;
+    lastSaved.current = Date.now();
+    await save(message);
+  }, [save]);
+  useEffect(
+    () => () => {
+      void flush();
+    },
+    [flush],
+  );
+
+  const report = useCallback(
+    async (message: RuntimeMessage) => {
+      const { attempt } = current.current;
+      if (!attempt) return;
+      if (message.type === "statements") {
+        // Never more than the server keeps, so a course cannot fill the phone.
+        if (!statementsAllowed(attempt, message.statements.length)) return;
+        await save(message);
+        return;
+      }
+      waitingCommit.current = mergeCommits(waitingCommit.current, message);
+      const wait = lastSaved.current + COMMIT_GAP_MS - Date.now();
+      if (message.finished || wait <= 0) {
+        await flush();
+        return;
+      }
+      if (!timer.current) {
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          void flush();
+        }, wait);
+      }
+    },
+    [save, flush],
   );
 
   return { ...state, tenantId, report };

@@ -343,9 +343,19 @@ describe("MOB-007 WORK-006 courses taken offline on the phone (slice 72)", () =>
     });
     expect(changed.status).toBe(422);
     expect(await codeOf(changed)).toBe("course_changed");
-    // Another member never takes over the phone's attempt.
+    // Another member never takes over the phone's attempt, nor learns the id is used.
     const theirs = await put(attemptId, { courseId, packageSha256: sha }, "nurse");
-    expect(theirs.status).toBeGreaterThanOrEqual(400);
+    expect(theirs.status).toBe(404);
+    // A member never has the course open on more than three phones.
+    const more = [
+      "0199f300-0000-7000-8000-00000000ab03",
+      "0199f300-0000-7000-8000-00000000ab04",
+      "0199f300-0000-7000-8000-00000000ab05",
+    ];
+    const answers = [];
+    for (const extra of more)
+      answers.push((await put(extra, { courseId, packageSha256: sha })).status);
+    expect(answers).toEqual([201, 201, 422]);
     const [row] = await sql<{ worker_id: string }>(
       "SELECT worker_id FROM elearning_attempt WHERE id = $1",
       [attemptId],

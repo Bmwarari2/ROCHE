@@ -7,6 +7,7 @@ import { useSession } from "../../../app-state/session";
 import { Screen } from "../../../components/Screen";
 import { t } from "../../../i18n/t";
 import { useOfflineCourse } from "../../../training/hooks";
+import { isInsideFolder } from "../../../training/offline-plan";
 import {
   offlineLaunchQuery,
   offlineRuntimeSource,
@@ -113,7 +114,7 @@ export default function OfflineCourseScreen() {
         cacheEnabled={false}
         onShouldStartLoadWithRequest={(request) => {
           // Only the course's own files on the phone; nothing else ever loads here.
-          const inside = request.url.startsWith(folder);
+          const inside = isInsideFolder(request.url, folder);
           if (!inside) setBlocked(true);
           return inside;
         }}

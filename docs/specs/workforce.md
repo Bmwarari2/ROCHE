@@ -1012,25 +1012,34 @@ in [ADR-0093](../decisions/0093-elearning-runtime.md).
    phone's copy, with an offline runtime injected first (`offlineRuntimeMain`): the SCORM 1.2 and
    2004 APIs as on the content origin, keeping only `CMI_ELEMENTS`, and, for xAPI, the course's
    record store pointed at an address that never leaves the phone (`OFFLINE_LRS`), its statements
-   caught there. The course may open only its own files: any other address is stopped and said,
-   and nothing from the network loads. The course is told the attempt's id and the member's first
-   name only.
+   caught there. The course may open only its own files: a page outside the course's folder is
+   stopped and said (`isInsideFolder`, dot segments and escapes resolved). Before anything loads,
+   the runtime puts a content security policy on the page (`OFFLINE_CSP`: the package's own files
+   and inline code only, `connect-src 'none'`, no forms), refuses `fetch` and `XMLHttpRequest` to
+   the network, and stops beacons, WebSockets and server-sent events. A platform-level block, which
+   would also cover frames inside the page, is H-1366. The course is told the attempt's id and the
+   member's first name only.
 3. **Queued and sent.** The attempt is started on the phone by its own UUID, and each commit and
    batch of statements is queued in `elearning_outbox` (insert-only) with a client UUID, each
-   statement given an id when the course left it out. On sync they go, in order, to
+   statement given an id when the course left it out. Commits are merged and queued at most every
+   5 seconds (finishing at once), and no more than 5,000 statements an attempt, as the server keeps,
+   so a course cannot fill the phone or hold up care uploads. On sync they go, in order, to
    `PUT /v1/workforce/elearning/offline-attempts/{id}` (refused in words when the course has been
    retired or its package changed since the download), `PATCH .../attempts/{id}` and
-   `POST .../attempts/{id}/statements` (as the token route, with the member's session). A refusal
+   `POST .../attempts/{id}/statements` (as the token route, with the member's session, on an
+   active course only). The start is throttled per member and refused in words beyond three
+   offline attempts in progress at one course; an id already used reads as not found. A refusal
    stays under "needs attention" in the API's words, never dropped. Where to resume and how the
    attempt stands are kept in the encrypted database, by the same rules as the server's.
 4. **Remove.** Removing a course deletes its files and record; work waiting to send is kept and
-   still sent.
+   still sent. Every course's files go when the session ends, the phone is wiped or its work is
+   held.
 
 Tests: `apps/api/test/elearning.test.ts` (offline manifest, files, offline attempts, statements),
 `apps/mobile/src/training/training.test.ts` (storage check, paths, queued rows, runtime, list),
 `apps/mobile/src/components/training.render.test.ts`, `apps/mobile/src/sync/connector.test.ts`,
 `packages/sync/test/client-schema.test.ts` (the outbox is sent up only). Questions: H-1360 to
-H-1365.
+H-1366.
 
 ### 14.6 Tests
 

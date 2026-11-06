@@ -119,6 +119,11 @@ let serving = 0;
 const fileThrottle = new MemoryThrottle(600, 60_000);
 const statementThrottle = new MemoryThrottle(120, 60_000);
 const commitThrottle = new MemoryThrottle(60, 60_000);
+/** The phone's routes, per member, before anything is looked up (security review of slice 72). */
+const offlineStartThrottle = new MemoryThrottle(20, 60_000);
+const memberStatementThrottle = new MemoryThrottle(120, 60_000);
+/** Attempts started offline and still in progress, per member and course: phones, not floods. */
+const OFFLINE_OPEN_ATTEMPTS_MAX = 3;
 /** Statements kept for one attempt at most (review M7). */
 const STATEMENTS_PER_ATTEMPT_MAX = 5000;
 
@@ -703,12 +708,18 @@ export const elearningRouter = createRouter()
       const access = await requirePermission(c, SELF);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
+      const wait = offlineStartThrottle.take(access.tenantUserId);
+      if (wait !== null) throw tooMany(wait);
       const result = await change(c, access, A.started, ATTEMPT_SOURCE, id, async (tx) => {
         const [existing] = await tx
           .select()
           .from(elearningAttempt)
           .where(
-            and(eq(elearningAttempt.id, id), eq(elearningAttempt.workerId, access.tenantUserId)),
+            and(
+              eq(elearningAttempt.id, id),
+              eq(elearningAttempt.workerId, access.tenantUserId),
+              isNull(elearningAttempt.deletedAt),
+            ),
           );
         if (existing) {
           if (existing.courseId !== body.courseId) throw problems.notFound();
@@ -750,6 +761,31 @@ export const elearningRouter = createRouter()
             "course_changed",
           );
         }
+        const [open] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(elearningAttempt)
+          .where(
+            and(
+              eq(elearningAttempt.courseId, course.id),
+              eq(elearningAttempt.workerId, access.tenantUserId),
+              eq(elearningAttempt.status, "in_progress"),
+              isNull(elearningAttempt.deletedAt),
+            ),
+          );
+        if ((open?.n ?? 0) >= OFFLINE_OPEN_ATTEMPTS_MAX) {
+          throw refused(
+            new HttpProblem(
+              422,
+              "too_many_attempts",
+              "You have this course open on too many phones. Finish it on one of them first.",
+            ),
+            A.started,
+            COURSE_SOURCE,
+            course.id,
+            "too_many_attempts",
+          );
+        }
+        // An id already used by anyone else reads as not found, never as a clash (review L6).
         const [row] = await tx
           .insert(elearningAttempt)
           .values({
@@ -758,8 +794,9 @@ export const elearningRouter = createRouter()
             workerId: access.tenantUserId,
             launchNonce: randomUUID(),
           })
+          .onConflictDoNothing()
           .returning();
-        if (!row) throw new Error("attempt not stored");
+        if (!row) throw problems.notFound();
         await audit(c, tx, access, {
           action: A.started,
           resourceType: ATTEMPT_SOURCE,
@@ -793,7 +830,8 @@ export const elearningRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, SELF);
       const { id } = c.req.valid("param");
-      const wait = statementThrottle.take(id);
+      // Per member first, so nobody uses up another attempt's allowance (review L5).
+      const wait = memberStatementThrottle.take(access.tenantUserId);
       if (wait !== null) throw tooMany(wait);
       const parsed = parseStatements(c.req.valid("json"));
       const found = await withTenant(c, async (tx) => {
@@ -815,6 +853,16 @@ export const elearningRouter = createRouter()
         return course ? { attempt, course } : null;
       });
       if (!found) throw problems.notFound();
+      const attemptWait = statementThrottle.take(id);
+      if (attemptWait !== null) throw tooMany(attemptWait);
+      // A retired or removed course takes no more, as on the content origin (review L4).
+      if (found.course.status !== "active" || found.course.deletedAt) {
+        throw new HttpProblem(
+          422,
+          "course_unavailable",
+          "This course is no longer offered, so the work done on the phone was not kept.",
+        );
+      }
       const claims: LaunchClaims = {
         attemptId: id,
         tenantId: access.tenantId,

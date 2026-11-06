@@ -14,7 +14,19 @@ Branch `feat/mobile-training-offline`, slice 72 (no PR yet), on `feat/work-elear
   name. Dependencies: `expo-file-system`, `react-native-webview` (MIT).
 - Sync: `elearning_outbox` is insert-only, never synced down; no stream or migration added.
 - Docs: workforce.md section 14.5, data standards, records of processing, feature register,
-  H-1360 to H-1365 (H-1018 answered).
+  H-1360 to H-1366 (H-1018 answered).
+
+## Review round 1
+
+- Accessibility: status with an icon and a word, warnings with an icon, labels containing the
+  visible words, the player titled and named for its course, progress read on Android, waiting
+  work listed first, a confirmed removal, a loading message, a Maestro journey (not yet run).
+- Security: a content security policy and blocked beacons, sockets and event streams in the
+  offline runtime (a platform-level block is H-1366); commits merged and queued at most every five
+  seconds and statements capped per attempt; the offline start throttled per member, capped at
+  three open attempts a course and answering not found for a used id; statements only for an
+  active course, throttled per member first; a stricter folder check; course files removed on
+  wipe and hold.
 
 ## What is next
 

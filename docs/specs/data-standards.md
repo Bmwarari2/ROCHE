@@ -1130,7 +1130,8 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   back, so they are empty on synced rows.
 - Training taken offline (mobile slice 72; workforce.md section 14.5): a downloaded course's
   package files are kept in the app's documents folder (training content, no personal data),
-  under `elearning/<tenant id>/<course id>/`; `sync_meta` keeps the course's offline answer and
+  under `elearning/<tenant id>/<course id>/`, removed with the course and, for every course, when
+  the session ends, the phone is wiped or its work is held; `sync_meta` keeps the course's offline answer and
   when it was downloaded under `elearning-course:<tenant id>:<course id>`, and the phone's attempt
   (its id, status, `location` and `suspend_data`) under `elearning-attempt:<tenant id>:<course
   id>`. `elearning_outbox` (insert-only) holds what is waiting to send: `action` `start` (the

@@ -77,3 +77,17 @@ export function launchFile(tenantId: string, manifest: OfflineManifest): File | 
   const file = new File(courseFolder(tenantId, manifest.courseId), ...segments);
   return file.exists ? file : null;
 }
+
+/**
+ * Every course on the phone, for every organisation: removed with everything else when the
+ * session ends, the phone is wiped or the database is held (security review of slice 72, L8).
+ * Never throws: a failure leaves only training content, which holds no personal data.
+ */
+export function removeAllCourseFiles(): void {
+  try {
+    const all = new Directory(Paths.document, "elearning");
+    if (all.exists) all.delete();
+  } catch {
+    // Training content only; the next wipe tries again.
+  }
+}

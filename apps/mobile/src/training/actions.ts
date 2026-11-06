@@ -4,7 +4,11 @@
  * phone's own record of the attempt, so it resumes where the member left off. Pure.
  */
 import { attemptOutcome, nextAttemptStatus, xapiOutcome } from "@harbour/domain";
-import type { OfflineAttempt, OfflineManifest } from "./offline-plan";
+import {
+  type OfflineAttempt,
+  type OfflineManifest,
+  STATEMENTS_PER_ATTEMPT_MAX,
+} from "./offline-plan";
 import type { RuntimeMessage } from "./offline-runtime";
 
 export interface Statement {
@@ -72,6 +76,27 @@ export function messageStatement(input: {
   };
 }
 
+/**
+ * Commits held back while a course runs (security review of slice 72, M2): the elements of a
+ * waiting commit with a newer one's on top, so only the latest of each is queued, at most every
+ * `COMMIT_GAP_MS`; a finishing commit carries everything waiting.
+ */
+export function mergeCommits(
+  waiting: Extract<RuntimeMessage, { type: "commit" }> | null,
+  next: Extract<RuntimeMessage, { type: "commit" }>,
+): Extract<RuntimeMessage, { type: "commit" }> {
+  if (!waiting) return next;
+  return { type: "commit", cmi: { ...waiting.cmi, ...next.cmi }, finished: next.finished };
+}
+
+/**
+ * Statements a course may still queue for an attempt: none beyond what the server keeps, so a
+ * course can never fill the phone (M2).
+ */
+export function statementsAllowed(attempt: OfflineAttempt, count: number): boolean {
+  return (attempt.statementsQueued ?? 0) + count <= STATEMENTS_PER_ATTEMPT_MAX;
+}
+
 /** The phone's record of the attempt after a message, by the same rules as the server's. */
 export function nextLocalAttempt(
   attempt: OfflineAttempt,
@@ -91,6 +116,7 @@ export function nextLocalAttempt(
     };
   }
   let status = attempt.status;
+  const statementsQueued = (attempt.statementsQueued ?? 0) + message.statements.length;
   for (const s of message.statements) {
     const verb = (s.verb as { id?: unknown } | undefined)?.id;
     const scaled = (s.result as { score?: { scaled?: unknown } } | undefined)?.score?.scaled;
@@ -100,5 +126,5 @@ export function nextLocalAttempt(
     );
     if (outcome) status = nextAttemptStatus(status, outcome.status);
   }
-  return { ...attempt, status };
+  return { ...attempt, status, statementsQueued };
 }

@@ -37,7 +37,15 @@ export interface OfflineAttempt {
   readonly status: "in_progress" | "completed" | "passed" | "failed";
   readonly location: string | null;
   readonly suspendData: string | null;
+  /** Statements queued for this attempt: never more than the server keeps (5,000). */
+  readonly statementsQueued?: number;
 }
+
+/** As the server keeps per attempt (`STATEMENTS_PER_ATTEMPT_MAX`). */
+export const STATEMENTS_PER_ATTEMPT_MAX = 5000;
+
+/** Commits are saved at most this often while a course runs; finishing saves at once. */
+export const COMMIT_GAP_MS = 5000;
 
 /** Sizes in words: "850 KB", "12 MB", "1.2 GB". */
 export function formatBytes(bytes: number): string {
@@ -173,6 +181,7 @@ export function parseAttempt(value: string | null | undefined): OfflineAttempt |
       status,
       location: typeof a.location === "string" ? a.location : null,
       suspendData: typeof a.suspendData === "string" ? a.suspendData : null,
+      statementsQueued: typeof a.statementsQueued === "number" ? a.statementsQueued : 0,
     };
   } catch {
     return null;
@@ -192,4 +201,30 @@ const STATE_WORDS = {
 /** What a course's card says about it, in words (never by colour alone). */
 export function courseStatusWords(state: CourseState): string {
   return t(STATE_WORDS[state]);
+}
+
+/**
+ * Whether an address the course asks to open is one of its own files: a `file:` address under the
+ * course's folder once dot segments and escapes are resolved, never a folder beside it with a
+ * similar name (security review of slice 72, L7).
+ */
+export function isInsideFolder(url: string, folder: string): boolean {
+  let target: URL;
+  let root: URL;
+  try {
+    target = new URL(url);
+    root = new URL(folder.endsWith("/") ? folder : `${folder}/`);
+  } catch {
+    return false;
+  }
+  if (target.protocol !== "file:" || root.protocol !== "file:") return false;
+  let path: string;
+  try {
+    path = decodeURIComponent(target.pathname);
+  } catch {
+    return false;
+  }
+  const rootPath = decodeURIComponent(root.pathname);
+  if (path.split("/").some((s) => s === "..")) return false;
+  return path.startsWith(rootPath) && path.length > rootPath.length;
 }

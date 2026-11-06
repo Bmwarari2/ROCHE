@@ -1,9 +1,16 @@
 import { CMI_ELEMENTS } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { toTrainingUpload } from "../sync/training-upload";
-import { messageStatement, nextLocalAttempt, startStatement } from "./actions";
+import {
+  mergeCommits,
+  messageStatement,
+  nextLocalAttempt,
+  startStatement,
+  statementsAllowed,
+} from "./actions";
 import {
   formatBytes,
+  isInsideFolder,
   type OfflineManifest,
   parseManifest,
   STORAGE_RESERVE_BYTES,
@@ -11,6 +18,7 @@ import {
   storageCheck,
 } from "./offline-plan";
 import {
+  OFFLINE_CSP,
   OFFLINE_LRS,
   type OfflineRuntimeConfig,
   offlineLaunchQuery,
@@ -394,5 +402,67 @@ describe("the training list says what each course is on this phone", () => {
     expect(items).toMatchObject([
       { courseId: COURSE, canDownload: false, canOpen: true, size: "3 KB" },
     ]);
+  });
+});
+
+describe("the security review of slice 72", () => {
+  it("puts a policy on the page that lets nothing reach the network, and stops beacons and sockets", () => {
+    const appended: Record<string, unknown>[] = [];
+    const win: RuntimeWindow = {
+      document: {
+        head: { appendChild: (n: unknown) => appended.push(n as Record<string, unknown>) },
+        documentElement: null,
+        createElement: () => ({}),
+      },
+      navigator: {},
+    };
+    offlineRuntimeMain(win, {
+      standard: "scorm_1_2",
+      entry: "ab-initio",
+      location: null,
+      suspendData: null,
+      learnerId: ATTEMPT,
+      learnerName: "Ada",
+    });
+    expect(appended[0]).toEqual({ httpEquiv: "Content-Security-Policy", content: OFFLINE_CSP });
+    expect(OFFLINE_CSP).toContain("connect-src 'none'");
+    const beacon = win.navigator?.sendBeacon as (() => boolean) | undefined;
+    expect(beacon?.()).toBe(false);
+    expect(() => new (win.WebSocket as new () => unknown)()).toThrow("Offline");
+  });
+
+  it("merges held-back commits, the newer elements on top", () => {
+    const first = { type: "commit" as const, cmi: { a: "1", b: "1" }, finished: false };
+    const second = { type: "commit" as const, cmi: { b: "2" }, finished: true };
+    expect(mergeCommits(null, first)).toEqual(first);
+    expect(mergeCommits(first, second)).toEqual({
+      type: "commit",
+      cmi: { a: "1", b: "2" },
+      finished: true,
+    });
+  });
+
+  it("never queues more statements for an attempt than the server keeps", () => {
+    const attempt = {
+      attemptId: ATTEMPT,
+      courseId: COURSE,
+      status: "in_progress" as const,
+      location: null,
+      suspendData: null,
+    };
+    expect(statementsAllowed({ ...attempt, statementsQueued: 4950 }, 50)).toBe(true);
+    expect(statementsAllowed({ ...attempt, statementsQueued: 4951 }, 50)).toBe(false);
+  });
+
+  it.each([
+    ["file:///data/app/elearning/t/c/index.html", true],
+    ["file:///data/app/elearning/t/c/a/b.png", true],
+    ["file:///data/app/elearning/t/c", false],
+    ["file:///data/app/elearning/t/c-other/index.html", false],
+    ["file:///data/app/elearning/t/c/../other/index.html", false],
+    ["file:///data/app/elearning/t/c/%2e%2e/other/x.html", false],
+    ["https://tracker.example.invalid/", false],
+  ])("opens %s inside the course's folder: %s", (url, inside) => {
+    expect(isInsideFolder(url, "file:///data/app/elearning/t/c")).toBe(inside);
   });
 });
