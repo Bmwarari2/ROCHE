@@ -38,6 +38,7 @@ import { speakUpShown } from "@/lib/speak-up";
 import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
 import { wellbeingNavShown } from "@/lib/wellbeing";
+import { caseworkShown, recruitmentShown, staffShown } from "@/lib/workforce";
 
 /** "CQC location 1-000000001", for the location switcher. */
 function locationDescription(location: LocationSummary): string | undefined {
@@ -116,6 +117,10 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         absences: absencesShown(me.permissions) ? t("shell.nav.absences") : undefined,
         pay: payShown(me.permissions) ? t("shell.nav.pay") : undefined,
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
+        recruitment: recruitmentShown(me.permissions) ? t("shell.nav.recruitment") : undefined,
+        staff: staffShown(me.permissions) ? t("shell.nav.staff") : undefined,
+        // A restricted silo (ADR-0089): only holders of the silo permission see it here.
+        cases: caseworkShown(me.permissions) ? t("shell.nav.cases") : undefined,
         evidencePacks: evidencePacksShown(me.permissions)
           ? t("shell.nav.evidencePacks")
           : undefined,

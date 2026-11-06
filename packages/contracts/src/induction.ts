@@ -205,15 +205,24 @@ export const RecordExitInterview = z
   })
   .meta({ id: "RecordExitInterview" });
 export const RecordReferenceRequest = z
-  .object({ requestedOn: isoDate, requester: text(2, 200), kind: z.enum(["factual", "conduct"]) })
+  .object({
+    requestedOn: isoDate,
+    requester: text(2, 200),
+    /** H-876: a conduct reference unless a factual one is chosen on purpose. */
+    kind: z.enum(["factual", "conduct"]).default("conduct"),
+  })
   .meta({ id: "RecordReferenceRequest" });
 export const AnswerReferenceRequest = z
   .object({
     expectedVersion: version,
     state: z.enum(["sent", "declined"]),
     sentOn: isoDate.nullable().default(null),
+    /**
+     * H-876: references rest on legitimate interests, never consent, so "no consent to share" is
+     * no longer a reason to decline (requests declined with it before stay as they were).
+     */
     declinedReason: z
-      .enum(["no_consent_to_share", "not_employed_here", "duplicate_request"])
+      .enum(["not_employed_here", "duplicate_request", "requester_not_verified"])
       .nullable()
       .default(null),
   })

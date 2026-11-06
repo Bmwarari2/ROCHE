@@ -60,6 +60,7 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { raiseMissingBirthDateTask } from "../services/leavers";
 import { rateRows } from "../services/rates";
 import {
   fileState,
@@ -991,6 +992,8 @@ export const inductionRouter = createRouter()
           .update(staffProfile)
           .set({ leftOn: body.leavingOn })
           .where(eq(staffProfile.id, id));
+        // H-874: no date of birth, no keep-until date: HR is asked to record it.
+        if (keep === null) await raiseMissingBirthDateTask(tx, id, body.leavingOn);
         await auditFile(c, tx, access, A.leaving, id);
       });
       return c.json(detail, 201);

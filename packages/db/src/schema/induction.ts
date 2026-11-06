@@ -55,10 +55,16 @@ export const LEAVING_REASONS = [
 export const EXIT_INTERVIEW_STATES = ["not_offered", "offered", "declined", "held"] as const;
 export const REFERENCE_KINDS = ["factual", "conduct"] as const;
 export const REFERENCE_STATES = ["requested", "sent", "declined"] as const;
+/**
+ * Decline reasons the database accepts: the domain's (H-876 replaced "no consent to share" with
+ * "requester not verified"), and the old one kept valid only for requests already declined with it
+ * (expand and contract; the API no longer takes it).
+ */
 export const REFERENCE_DECLINED_REASONS = [
   "no_consent_to_share",
   "not_employed_here",
   "duplicate_request",
+  "requester_not_verified",
 ] as const;
 
 const ref = (

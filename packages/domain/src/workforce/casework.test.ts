@@ -8,6 +8,7 @@ import {
   type CaseMove,
   type CaseMoveProblem,
   type CaseStage,
+  caseRetentionClass,
   caseTimeline,
   checkCaseMove,
   checkHearingChange,
@@ -33,6 +34,7 @@ const facts = (overrides: Partial<CaseFacts> = {}): CaseFacts => ({
   regulatorReferral: null,
   subjectRegistered: false,
   linkedToSafeguarding: false,
+  removesFromRegulatedActivity: false,
   ...overrides,
 });
 
@@ -102,6 +104,22 @@ describe("checkCaseMove (workforce.md rule 15)", () => {
       facts({ type: "grievance" }),
       decide({ outcome: "dismissal", warningExpiresOn: null }),
       "outcome_not_for_case_type",
+    ],
+    [
+      "H-802 decides an action short of dismissal that removes the member from regulated activity",
+      facts(),
+      decide({
+        outcome: "action_short_of_dismissal",
+        warningExpiresOn: null,
+        removesFromRegulatedActivity: true,
+      }),
+      "outcome",
+    ],
+    [
+      "H-802 refuses the removal flag with any other outcome",
+      facts(),
+      decide({ removesFromRegulatedActivity: true }),
+      "removal_only_with_action_short_of_dismissal",
     ],
     [
       "refuses a warning without the date it stops counting",
@@ -232,6 +250,7 @@ describe("referralDecisionsDue (rule 17)", () => {
     outcome: null,
     subjectRegistered: false,
     linkedToSafeguarding: false,
+    removesFromRegulatedActivity: false,
   };
   const cases: readonly [
     string,
@@ -278,6 +297,36 @@ describe("referralDecisionsDue (rule 17)", () => {
     [
       "an ill-health dismissal needs neither",
       { ...base, type: "sickness_absence", outcome: "dismissal" },
+      "outcome_accepted",
+      { dbs: false, regulator: false },
+    ],
+    [
+      "H-802 a disciplinary redeployment needs the DBS decision",
+      { ...base, outcome: "redeployment" },
+      "outcome_accepted",
+      { dbs: true, regulator: false },
+    ],
+    [
+      "H-802 a capability redeployment needs the DBS decision",
+      { ...base, type: "capability", outcome: "redeployment" },
+      "outcome_accepted",
+      { dbs: true, regulator: false },
+    ],
+    [
+      "H-802 an ill-health redeployment needs neither",
+      { ...base, type: "sickness_absence", outcome: "redeployment" },
+      "outcome_accepted",
+      { dbs: false, regulator: false },
+    ],
+    [
+      "H-802 action short of dismissal out of regulated activity needs the DBS decision",
+      { ...base, outcome: "action_short_of_dismissal", removesFromRegulatedActivity: true },
+      "outcome_accepted",
+      { dbs: true, regulator: false },
+    ],
+    [
+      "H-802 action short of dismissal that keeps regulated activity needs neither",
+      { ...base, outcome: "action_short_of_dismissal" },
       "outcome_accepted",
       { dbs: false, regulator: false },
     ],
@@ -676,5 +725,50 @@ describe("the casework silo (ADR-0089; workforce.md section 3)", () => {
     expect(holders[0]?.permissions).toEqual(["workforce.casework.manage"]);
     expect(SILO_PERMISSIONS).toContain("workforce.casework.manage");
     expect(PERMISSIONS["workforce.casework.manage"]).toMatchObject({ sensitive: true });
+  });
+});
+
+describe("caseRetentionClass (H-806)", () => {
+  const base = {
+    type: "disciplinary" as const,
+    outcome: null,
+    closingReason: "outcome_accepted" as const,
+    linkedToSafeguarding: false,
+    dbsReferral: null,
+    regulatorReferral: null,
+  };
+  it.each<[string, Partial<Parameters<typeof caseRetentionClass>[0]>, string]>([
+    ["a grievance", { type: "grievance", outcome: "upheld" }, "casework_no_sanction"],
+    ["no case to answer", { closingReason: "no_case_to_answer" }, "casework_no_sanction"],
+    ["a withdrawn case", { closingReason: "withdrawn" }, "casework_no_sanction"],
+    ["a warning", { outcome: "first_written_warning" }, "staff_file"],
+    ["a final warning", { outcome: "final_written_warning" }, "staff_file"],
+    ["a dismissal", { outcome: "dismissal" }, "staff_file"],
+    ["action short of dismissal", { outcome: "action_short_of_dismissal" }, "staff_file"],
+    ["a redeployment", { outcome: "redeployment" }, "staff_file"],
+    ["a failed probation", { type: "probation", outcome: "not_passed" }, "staff_file"],
+    ["no action after a hearing", { outcome: "no_action" }, "staff_file"],
+    [
+      "a grievance linked to safeguarding",
+      { type: "grievance", linkedToSafeguarding: true },
+      "staff_file",
+    ],
+    [
+      "a withdrawn case referred to the DBS",
+      { closingReason: "withdrawn", dbsReferral: "referred" },
+      "staff_file",
+    ],
+    [
+      "a grievance referred to the regulator",
+      { type: "grievance", regulatorReferral: "referred" },
+      "staff_file",
+    ],
+    [
+      "a withdrawn case whose referral was not required",
+      { closingReason: "withdrawn", dbsReferral: "not_required" },
+      "casework_no_sanction",
+    ],
+  ])("%s", (_name, overrides, expected) => {
+    expect(caseRetentionClass({ ...base, ...overrides })).toBe(expected);
   });
 });

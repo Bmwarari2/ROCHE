@@ -17,6 +17,7 @@ import {
   type ComplianceDetail,
   complianceItemView,
   complianceReminderDue,
+  type EvidenceSource,
   requiredItems,
   resolveWorkforceRates,
   type StaffProfileFacts,
@@ -174,6 +175,8 @@ export function staffFileItem(
       riskAssessmentSignedBy: names(row?.riskAssessmentSignedBy),
       expiresOn: view?.expiresOn ?? null,
       recheckDueOn: view?.recheckDueOn ?? null,
+      evidenceSource: (row?.evidenceSource ?? "manual") as EvidenceSource,
+      vettingCheckId: row?.vettingCheckId ?? null,
       notes: view ? view.notes.map((n) => ({ ...n })) : [],
     };
   });

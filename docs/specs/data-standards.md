@@ -860,6 +860,12 @@ Schedule 3; registration bodies are the UK statutory registers.
 | `compliance_item.verified_on`, `verified_by` | Harbour | `YYYY-MM-DD`; `tenant_user.id` | Set together; never the worker |
 | `compliance_item.risk_assessment_signed_on`, `_by` | Harbour | `YYYY-MM-DD`; `tenant_user.id` | DBS only; never the worker |
 | `compliance_item.expires_on`, `recheck_due_on` | Harbour | `YYYY-MM-DD` | Worked out from the detail when saved |
+| `compliance_item.evidence_source`, `vetting_check_id` | Harbour (slice 77) | `manual` (default), `idsp_right_to_work`, `dbs_application`, `dbs_status_check`, `nmc_register_check`; `vetting_check.id` | Set together; recorded by hand sets `manual` |
+| `vetting_consent.purpose`, `given_on`, `withdrawn_on` | DBS (slice 77) | `dbs_application`, `dbs_update_service`; `YYYY-MM-DD` | Recorded and withdrawn by HR in their own name, never the worker; one in force per purpose |
+| `vetting_check.kind`, `state` | Harbour (slice 77) | `idsp_right_to_work`, `dbs_application`, `dbs_status_check`, `nmc_register_check`; `pending`, `completed`, `failed` | Moves forward only; applied once |
+| `vetting_check.checked` | Harbour (slice 77) | `{ document }` (`british_passport`, `irish_passport`, `irish_passport_card`), `{ certificateNumber }` (12 digits), `{ pin }`, or `{}` | What was checked, so a result for a replaced certificate or PIN is not applied |
+| `vetting_check.result` | The port's strict schema (`packages/contracts/src/vetting.ts`) | IDSP: `outcome` (`identity_verified`, `not_verified`), `checkedOn`, `document`. DBS application: `outcome` (`certificate_issued`, `withdrawn`), `checkedOn`, `issuedOn`, `certificateNumber`, `level`, `result` (`clear`, `information_disclosed`). Update Service: `outcome` (`no_new_information`, `new_information`, `details_not_matched`), `checkedOn`. NMC: `outcome` (`registered`, `registered_with_conditions`, `not_registered`), `checkedOn`, `renewalDueOn` | Criminal offence data (DBS). An answer with any other field is refused; never what a certificate disclosed |
+| `vetting_check.error` | Harbour | A short code (`provider_unavailable`, `invalid_answer`, `provider_error`, `unknown_reference`) | Never the provider's text |
 | `document.category` `staff_hr_document` | Harbour | JPEG, PNG, WebP or PDF up to 15 MB; subject `compliance_item` | HR-only; retention `staff_file`, or `right_to_work_copy` for right to work copies |
 | `task.details` of a `workforce.compliance_expiry` task | Harbour | `staffProfileId`, `complianceItemKind`, `reminderDueOn` (`YYYY-MM-DD`), `reminderDays` | Opaque; the title is generic |
 ## Dependency tool (Phase 2, slice 12)
@@ -1101,6 +1107,9 @@ and left out of the organisation-wide export (H-805).
 | `employee_case.warning_expires_on` | Tenant policy | `YYYY-MM-DD`, after the decision | Warnings only (H-808) |
 | `employee_case.appeal_outcome` | Acas Code | `upheld`, `partly_upheld`, `not_upheld` | Decided by the appeal chair |
 | `employee_case.closed_reason` | Harbour | `outcome_accepted`, `appeal_decided`, `resolved_informally`, `no_case_to_answer`, `withdrawn`, `left_employment` | |
+| `employee_case.removes_from_regulated_activity` | Safeguarding Vulnerable Groups Act 2006 s 35 | Boolean | Only with `action_short_of_dismissal`; decided with the outcome (H-802) |
+| `employee_case.retention_class` | retention.md | `staff_file`, `casework_no_sanction` | Set by the database as the case closes (H-806) |
+| `casework_support_ticket` | Harbour | `case_id`, `new_manager_id`, `requested_by`, `reason` (10 to 1,000 characters), `approved_by`, `approved_at`, `used_by_operator`, `used_at` | H-804: ids only; never the case's content |
 | `employee_case.suspended_on`, `suspension_review_on` | Acas Code (suspension a precaution) | `YYYY-MM-DD`, set together; review after the start | Disciplinary only; ends before closing |
 | `employee_case.dbs_referral`, `regulator_referral` | SVGA 2006 s.35; NMC, HCPC, SWE, GMC guidance | `referred` (with `_on`, a date) or `not_required` (with `_reason`: `harm_test_not_met`, `not_regulated_activity`, `referred_by_another_body`, `other_recorded_in_case`) | The people's decision; Harbour refers nobody |
 | `employee_case.subject_registered` | Harbour | Boolean, from the staff profile's `registration_body` when opened | Makes the regulator decision due |
@@ -1128,7 +1137,7 @@ H-871).
 | `leaver_record.reason` | Harbour (ASC-WDS leaving reasons to map later) | `resignation`, `end_of_fixed_term`, `retirement`, `dismissal`, `redundancy`, `tupe_transfer_out`, `death_in_service`, `other` | H-873 |
 | `leaver_record.exit_interview` | Harbour | `not_offered`, `offered`, `declined`, `held` | Forward only |
 | `leaver_record.staff_file_retain_until` | Records Management Code of Practice | `YYYY-MM-DD` or empty | Rule 23 |
-| `reference_request.kind`, `state`, `declined_reason` | Harbour; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct`; `requested`, `sent`, `declined`; `no_consent_to_share`, `not_employed_here`, `duplicate_request` | H-876 |
+| `reference_request.kind`, `state`, `declined_reason` | Harbour; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct` (default `conduct`); `requested`, `sent`, `declined`; `not_employed_here`, `duplicate_request`, `requester_not_verified` (`no_consent_to_share` kept only on requests declined with it before H-876) | H-876, applied 31/10/2026 |
 
 ## Workforce: sponsor licence, staff privacy and LDSS (Phase 2, slice 35)
 

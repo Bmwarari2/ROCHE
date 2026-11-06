@@ -20,11 +20,19 @@ const op = (token: string, path: string, init: { method?: string; body?: unknown
   h.request(path, { token: h.tokens[token], ...init });
 
 describe("integrations settings (section 15.3)", () => {
-  it("lists ports and shows unconfigured ones fall back to mocks", async () => {
+  it("lists ports (unconfigured communications fall back to mocks; vetting ports stay off)", async () => {
     const body = await json<{ ports: string[]; items: unknown[] }>(
       await demo("owner", "/v1/integrations"),
     );
-    expect(body.ports).toEqual(["comms.email", "comms.sms", "comms.push"]);
+    expect(body.ports).toEqual([
+      "comms.email",
+      "comms.sms",
+      "comms.push",
+      "workforce.idsp",
+      "workforce.dbs_ebulk",
+      "workforce.dbs_update_service",
+      "workforce.nmc_register",
+    ]);
     expect(body.items).toEqual([]);
   });
 

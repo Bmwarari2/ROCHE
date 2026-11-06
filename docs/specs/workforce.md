@@ -167,6 +167,20 @@ file's rules (section 3). TUPE import comes with slice 51.
 | `leaver_record` | `staff_profile_id` (one each), `leaving_on`, `reason` (`LEAVING_REASONS`), `access_removed_at`, `_by` (empty for the sweep), `exit_interview` (`not_offered`, `offered`, `declined`, `held`), `exit_interview_on`, `exit_interview_summary`, `staff_file_retain_until` | Mutable; the date and reason stay; ended access stays ended; the exit interview only moves forward. Recording one sets the staff profile's `left_on` |
 | `reference_request` | `staff_profile_id`, `requested_on`, `requester` (an organisation, never a person's name), `kind` (`factual`, `conduct`), `state` (`requested`, `sent`, `declined`), `sent_on`, `sent_by`, `declined_reason` | Mutable once: answered once, sent in the sender's own name |
 
+### 2e. Identity and vetting adapters (slice 77, migration 0120)
+
+WORK-002 and ADR-0094: electronic routes for four of the staff file's checks, each off until the
+organisation configures a provider for its port (`integration_connection`), with manual entry and
+uploaded evidence the default. No vendor is chosen (H-521 to H-523); the only adapter is the
+contract-tested mock, which never runs in production. Two tenant tables with forced row-level
+security, following the staff file's rules (section 3), and two columns added to `compliance_item`.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `vetting_consent` | `staff_profile_id`, `purpose` (`dbs_application`, `dbs_update_service`), `given_on`, `recorded_by`, `withdrawn_on`, `withdrawn_by` | Mutable once: withdrawn once, never given again on the same row (a new consent is a new row); one consent in force per purpose; recorded and withdrawn in the recorder's own name, never by the worker |
+| `vetting_check` | `staff_profile_id`, `kind` (`idsp_right_to_work`, `dbs_application`, `dbs_status_check`, `nmc_register_check`), `provider`, `consent_id` (the DBS checks), `requested_by`, `requested_at`, `checked` (what was checked: the IDSP document, the certificate number or the PIN), `state` (`pending`, `completed`, `failed`), `external_reference`, `result` (the port's result, strictly parsed), `error`, `completed_at`, `applied_at`, `applied_by`, `compliance_item_id` | Mutable forward only: pending to completed or failed, and a completed check applied once, in the applier's own name, never by the worker; keeps its file, kind and what was checked |
+| `compliance_item` (added) | `evidence_source` (`manual` by default, or the check's kind), `vetting_check_id` | Recording an item by hand sets `manual`; applying a check sets its kind and id |
+
 ## 3. Permissions
 
 In the catalogue since Phase 0 ([permissions.md](permissions.md)): `workforce.recruitment.manage`,
@@ -407,6 +421,14 @@ whatever the clock change.
     dismissal or a final written warning (disciplinary or capability), or is linked to a
     safeguarding concern. A decision is `referred` on a date or `not_required` with a reason code.
     Harbour never decides or makes a referral (H-802).
+
+    H-802 (recommended answer applied 31/10/2026, reviewed at testing): the DBS decision is also due when a disciplinary or capability case ends in redeployment, or in an action short of dismissal marked as removing the member from regulated activity (`removes_from_regulated_activity`, decided with the outcome), because the Safeguarding Vulnerable Groups Act 2006 s 35 duty applies to any such removal. Harbour still only asks for the decision.
+
+    H-806: a case closed as a grievance, with no case to answer or withdrawn takes `casework_no_sanction` (6 years after closure); one ending in a sanction, dismissal or referral, or concerning safeguarding, stays with the staff file (`caseRetentionClass`; set by the database as the case closes, migration 0121). Expired warnings stay on the case marked as no longer counting.
+
+    H-804: when every case manager has left, a holder of `platform.user.manage` raises a support ticket naming the case by id and the new case manager (never themselves, the approver or the member of staff the case is about); the data protection lead (`platform.dpia.sign`) approves it with step-up; Thapsus support appoints them once (`app.operator_appoint_case_manager`) without reading the case, audited to the organisation, whose owners are told.
+
+    H-805: a case manager exports their case as JSON with a fresh step-up (`GET /v1/workforce/cases/{id}/export`, audited); the organisation-wide export still never carries casework. A staff subject access request raises a task for each case about or naming the requester for its case manager (`raiseCaseworkDsarTasks`, through `app.casework_for_subject_access`, ids only); a case with no case manager employed goes to support (H-804).
 18. **Hearings and suspension** (`checkHearingInvitation`, `checkHearingChange`,
     `checkSuspension`). A hearing or appeal hearing is arranged only once the employee has the
     issue in writing (and, in a disciplinary or capability case, the evidence) and has been told
@@ -454,10 +476,35 @@ whatever the clock change.
     a summary the leaver may see). A reference request names the organisation asking; it is sent
     once, in the sender's own name, or declined with a reason. Leaving items are overdue from the
     day after the leaving date.
+
+    H-873 (applied 31/10/2026): the sweep ends access at the later of the end of the leaving day and the end of the last rostered shift that starts on it (`accessEndsAt`; the rota through `RotaPort`), so a night worker is never cut off mid-shift; ending access at once with step-up stays for dismissals. H-879: the sweep then signs the leaver out of every device, unless they still work for another organisation, keeping unsent entries on the device for hand-over; a leaver keeps no access to their own staff file and asks through a subject access request. H-876: a reference request is a conduct reference by default, and "requester not verified" replaces "no consent to share" (references rest on legitimate interests with the staff privacy notice, never consent).
 23. **Keeping the staff file** (`staffFileRetainUntil`). From the leaving date: the organisation's
     own `staff_file.after_leaving` row when it set one (6 years by default), otherwise the default
     to the later of leaving and the birthday at `retention.staff_file.birthday_age` (75); with no
     date of birth the file is kept and the date left empty for a person to decide (H-874).
+
+    H-874 (applied 31/10/2026): a leaver with no date of birth gives HR a task to record it at leaving; until it is, the file is kept and comes up for a person's decision once the after-leaving period (`staff_file.after_leaving`) has passed (`staffFileReviewDue`, a task raised once by the leaver sweep), never kept indefinitely without review. Each organisation chooses its staff file row once at onboarding, approved by its data protection lead.
+
+24. **Vetting adapters** (`vetting.ts`; ADR-0094). A check starts only when its port is on, on
+    someone else's file, with no check of that kind pending (`vettingRequestProblem`). The IDSP
+    checks only a valid British or Irish passport or an Irish passport card; everyone else is
+    checked with the Home Office online share code or by hand. A DBS application needs the
+    worker's consent to it, and an Update Service status check their consent to status checks, in
+    force on the day (`consentActive`: from the day given until the day withdrawn), a subscribed
+    certificate's number and their date of birth. An NMC check needs the role's register to be the
+    NMC and a PIN on the file. A result changes nothing by itself: a holder of
+    `workforce.staff_file.manage` applies it (`vettingApplication`), verifying the item in their
+    name on the check's date with the check as its source. An IDSP verification adds an unlimited
+    `idsp` right to work check; an issued certificate records its level, number, issue date and
+    whether it is clear, and nothing it disclosed; a status check records its date and result (new
+    information then blocks, rule 3); an NMC registration moves the renewal date. Not verified,
+    withdrawn, details not matched, not registered and registered with conditions are never
+    applied, and a result is not applied once the file's certificate number or PIN has changed
+    (`vettingCheckStillMatches`). Once the worker withdraws their consent, a pending DBS check is
+    neither asked about nor applied, and an answer arriving after it fails the check
+    (`consent_withdrawn`); it can be cancelled. The database names a check as an item's source only
+    when the same transaction applied it, and refuses any change under that label: recorded by hand,
+    the item goes back to `manual`.
 
 Rate keys in use: `retention.staff_file.birthday_age`, `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
 `competence.medicines.refresh_months`, `supervision.per_year`, `appraisal.per_year`,
@@ -484,6 +531,20 @@ audit event with opaque ids only; refusals are audited too. Dates are UK dates (
 | `POST /v1/workforce/staff-files/{id}/items/dbs_certificate/risk-assessment` | `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment, in the caller's name, never their own |
 | `POST /v1/workforce/staff-files/{id}/items/{kind}/documents` | `workforce.staff_file.manage` and `workforce.hr_document.read` | Add an HR-only document to an item (the file as the body, as the document store takes it); never to `dbs_certificate` |
 | `GET /v1/workforce/staff-files/{id}/documents/{documentId}/content` | `workforce.hr_document.read` | Open an HR-only document; every open writes `workforce.hr_document.viewed` |
+| `GET /v1/workforce/vetting/ports` | `workforce.staff_file.read` or `.manage` | Which vetting ports the organisation has switched on, and their provider (slice 77) |
+| `GET /v1/workforce/staff-files/{id}/vetting` | `workforce.staff_file.read` or `.manage` | The file's consents and checks |
+| `POST /v1/workforce/staff-files/{id}/vetting/consents` | `workforce.staff_file.manage` | Record the worker's consent to a DBS application or to Update Service status checks, with the date given (never one's own); 409 while one is in force |
+| `POST /v1/workforce/staff-files/{id}/vetting/consents/{consentId}/withdraw` | `workforce.staff_file.manage` | Record its withdrawal, once |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks` | `workforce.staff_file.manage` | Start a check through the port's adapter (rule 24); 409 `adapter_off` when the port is off |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/refresh` | `workforce.staff_file.manage` | Ask the adapter again about a pending check; 409 `not_sent` for one that never reached the provider, `consent_withdrawn` for a DBS check whose consent is no longer in force |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/cancel` | `workforce.staff_file.manage` | Mark a pending check failed (`cancelled`), so a new one can start |
+| `POST /v1/workforce/staff-files/{id}/vetting/checks/{checkId}/apply` | `workforce.staff_file.manage` | Apply a completed check to its item, verified in the caller's name on the check's date with the check as its source; the item's `expectedVersion` when it exists |
+| `PUT /v1/integrations/{port}` (a vetting port) | `integrations.connection.manage`, fresh step-up | Switch a vetting port on with a known provider (`mock` outside production only) |
+
+Audit events (slice 77): `workforce.vetting.viewed` (every read of a file's consents and checks:
+DBS results are criminal offence data), `workforce.vetting_consent.recorded`, `.withdrawn`,
+`workforce.vetting_check.started`, `.refreshed`, `.answered` (the state and error code stored),
+`.applied`, `.cancelled`, each with opaque ids and codes only, and refusals with their reason.
 | `GET /v1/me/staff-file` | `workforce.self.read` | The member's own profile and where each of their checks stands |
 
 Audit actions: `workforce.staff_file.created`, `.updated`, `workforce.compliance_item.recorded`,
@@ -628,6 +689,41 @@ offer. No form is offered on one's own record.
 - **After a save** the page opens again at `?done=<catalogue key>`. The status says what was done
   and focus moves to the page's heading.
 - Strings are en-GB; Welsh entries are marked untranslated. Dates are dd/mm/yyyy.
+### Screens (slice 58)
+
+Web screens for WORK-001, WORK-004, WORK-010 and WORK-013, on the routes above. Every screen checks
+the permission again in the API; the web only decides what to offer.
+
+| Screen | Path | Offered to | Does |
+| --- | --- | --- | --- |
+| Job templates | `/workforce/job-templates` | `workforce.recruitment.manage` | List and add templates: Care Workforce Pathway role, registration, essential criteria, values-based questions |
+| Vacancies | `/workforce/vacancies`, `/workforce/vacancies/{id}` | `workforce.recruitment.manage` | Add and open vacancies; the applications, each stage as an icon and a word; add an application; change status; equality counts, withheld below the minimum |
+| Application | `/workforce/applications/{id}` | `workforce.recruitment.manage` | Shortlist against each criterion, record an interview (panel from the colleagues list, each answer scored 1 to 4, the total shown, never a decision), make an offer, record the response, close it (with confirmation) |
+| Staff | `/workforce/staff` | `workforce.staff_file.read` or `.manage` | Each member's file state, with links to their induction and leaving |
+| Induction | `/workforce/staff/{id}/induction` | as Staff; assessors for the Care Certificate | Checklist ticks, plan, shadow shifts, probation reviews and decision, each Care Certificate standard assessed and observed |
+| Leaving | `/workforce/staff/{id}/leaving` | as Staff | Record a leaving, the checklist, end access now (confirmation and step-up), exit interview, references |
+| Employee relations | `/workforce/cases`, `/workforce/cases/{id}` | the case's members; opening a case to `workforce.casework.manage` | My cases; members, hearings, suspension, referrals, outcome, appeal, timeline and notes, each action offered only to the part that may take it |
+
+- **The silo in the navigation.** "Employee relations" appears only for holders of
+  `workforce.casework.manage`. The navigation never shows whether anyone is on a case, so a member
+  named on a case without the permission reaches it by its link. The list and the case page show
+  nothing to a non-member: the API answers 404, and the page answers "not found".
+- **Colleagues.** `GET /v1/workforce/colleagues` (any of `workforce.recruitment.manage`,
+  `workforce.staff_file.read`, `workforce.staff_file.manage`, `workforce.casework.manage`) lists
+  colleagues by name and job title only. A colleague is an invited or active member holding a role
+  in force (started, not ended, not archived) that is neither a portal role nor one in
+  `NON_STAFF_ROLE_KEYS` (inspector, external professional, agency worker, family, person receiving
+  care). Naming a case member or an interview panel refuses anyone else (422), so the rule holds past
+  the picker. The read is audited (`workforce.colleague.listed`) without names. It needs no verified
+  second factor: it holds staff names only, never a care record.
+- **Names on cases.** `CaseSummary.subjectName` and `CaseDetail.staff` name only the people the case
+  references, and only to its active members.
+- **After a save** the page opens again at `?done=<catalogue key>&at=…`. The status says what was
+  done and focus moves to the page's heading. Only a known `workforce.*` key is said, so the address
+  cannot put words on the page. The form is cleared, so an append-only entry is not sent twice.
+- **Destructive steps** (remove a case member, close an application, close a case, end access now)
+  say what follows and need a confirmation box; ending access also needs step-up.
+- Strings are en-GB; Welsh entries are marked untranslated. Dates are dd/mm/yyyy, times 24-hour.
 
 ## 6. Offline behaviour
 
@@ -776,6 +872,26 @@ Slice 17:
   Oliver McGowan tiers; the port; the outbox events; the reminders once each; HR sees its
   reminders.
 
+
+Slice 77:
+
+- `vetting.test.ts` (domain, table-driven): ports, items and sources line up; consent in force on
+  the day; every reason a check may not start (own file, port off, a check pending, IDSP documents,
+  consent, certificate number, subscription, date of birth, register, PIN); applying every outcome
+  of every port, and a result dated after today; a result for a changed certificate or PIN.
+- `apps/api/src/integrations/vetting.test.ts`: the shared contract suite
+  (`vetting.contract.ts`) run on every mock scenario: answers parse strictly, retries are
+  idempotent, requests carry only the declared fields, health reports, the mock refused in
+  production; the adapter chooser off without a connection.
+- `packages/db/test/vetting.test.ts`: another organisation's consents and checks never seen or
+  written; the worker reads their own and writes none; one consent in force per purpose;
+  withdrawn once; a check moves forward only and is applied once in the applier's own name; the
+  evidence source checks; nothing deleted.
+- `apps/api/test/vetting.test.ts`: ports off by default; switching one on needs step-up and a known
+  provider; each route's permission and refusal audit; consent required for the DBS checks; the
+  IDSP, DBS, Update Service and NMC journeys through the mock to an applied item with its source;
+  outcomes that are never applied; a result for a replaced certificate.
+
 API, web and mobile tests come with slices 35, 56 and 57; the Phase 2 gate needs expired
 competence to block administration (with [medicines.md](medicines.md)).
 
@@ -848,7 +964,8 @@ Slice 29:
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
 H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 17: H-690
-to H-693; slice 23: H-730 to H-735; slice 39: H-800 to H-809; slice 29: H-870 to H-879).
+to H-693; slice 23: H-730 to H-735; slice 39: H-800 to H-809; slice 29: H-870 to H-879; slice 77:
+H-1120 to H-1129).
 
 ## 11. Known gaps
 
@@ -877,17 +994,27 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | A refused HR upload (malware, wrong type) | Not audited as `workforce.hr_document.added` denied | Wrap the document store's refusals in audited refusals |
 | The full tenant export runs as the system | Holders of `platform.export.create` export staff files and HR-only documents | Decide with the DPO whether the export needs the HR permissions too (H-577) |
 | Casework does not stop someone holding the caseworker role from being named on a case about a colleague they are close to, or a member reading a case after their own conflict arises (slice 39) | Conflicts of interest are for the case manager to manage | A declared-conflict check when naming members (slice 58) |
-| A case nobody can read once its last case manager leaves (slice 39) | The case stays, unread, until support acts under an approval ticket | The support route (H-804) |
-| Members are any member of the organisation; a portal account could be named (slice 39) | Only a case manager names members, and only staff accounts are offered in the screens | Refuse a member holding only portal roles (slice 58) |
+| A case nobody can read once its last case manager leaves (slice 39) | Closed by H-804 (31/10/2026): a support ticket, raised by a user manager and approved by the data protection lead, lets Thapsus support appoint the case manager it names, without reading the case | Screens to raise and approve tickets (the routes exist) |
 | Audit events show that a case exists and who acts on it (by ids) to readers of the audit log (slice 39) | The owner and quality lead see case ids and action codes, never the subject or the content | An audit view that hides casework events from those not named (with the speak-up silo, ADR-0089) |
-| Casework is left out of the organisation-wide export and reaches a staff DSAR only through a case member (slice 39) | The provider cannot export its casework in one step | H-805 |
+| Casework is left out of the organisation-wide export (slice 39) | H-805 (31/10/2026): each case manager exports their case with step-up; a staff subject access request raises a task for the case manager of each case about or naming the requester (`raiseCaseworkDsarTasks`) | The DSAR workbench (on main) calls `raiseCaseworkDsarTasks` when a staff request opens, once the two are merged |
 | Migration 0101 carries its own silo guards for `workforce.casework.manage`; migration 0086 (speak-up) carries the same for `safety.speak_up.manage` | Two sets of guard triggers, one per silo permission | Fold both into `app.silo_permissions()` once both are merged |
 | Opening a case tells the opener whether the member of staff is on a professional register (`subject_registered`, copied from the staff file, which the caseworker role cannot read) (slice 39) | A caseworker learns one fact of a colleague's staff file by opening a case about them; every opening is audited | Accepted: rule 17 needs it; reviewed with the screens (slice 58) |
 | Read-and-sign at induction counts the published policies the worker's roles need now (slice 29) | A policy published later joins the count; who has not signed which policy is the policy library's view (quality.md) | Nothing to close; documented |
 | Shadow shifts are recorded by HR, not by the colleague shadowed, and are not linked to the rota (slice 29) | The shift is the manager's account | Link to rota shifts (slice 17's rota port) |
 | A leaving date, once recorded, is not corrected (slice 29) | A wrong date needs support to correct it, with the audit trail | A correction that records the change and recomputes access and retention (slice 58) |
-| Device sessions of a leaver are not ended by the sweep (slice 29) | The member holds nothing once left (no role is counted), so the API refuses them; a Care mode device keeps their unsent entries | Revoke the leaver's devices with the sweep (with platform device management) |
+| Device sessions of a leaver are not ended by the sweep (slice 29) | Closed by H-879 (31/10/2026): the sweep signs the leaver out of every device unless they still work for another organisation; entries not yet sent stay on the device for hand-over (HZ-040, HZ-110) | Nothing to close |
+| Access ends after a rostered shift that starts on the leaving day (H-873) | The rota is not merged here, so `NO_ROTA` answers no shift and access ends at the end of the leaving day | Wire the rota builder's adapter to `RotaPort` when scheduling merges |
 | The keep-until date is worked out once, when the leaving is recorded (slice 29) | A later change of the organisation's retention row or date of birth does not move it | The retention engine's employment triggers (with H-575) |
+| A member named on a case without `workforce.casework.manage` has no navigation entry (slice 58) | They reach the case by its link (the silo shows nothing in the navigation) | Show the entry when `GET /v1/workforce/cases` is not empty, without a count, if the CSO and DPO agree (H-933) |
+| A case manager who does not hold `workforce.casework.manage` cannot load the colleagues list (slice 58) | They cannot name members from the screen; a caseworker names them | Let active case managers read colleagues for their case (H-934) |
+| Linking a safeguarding concern to a case has no screen (slice 58) | The API route exists; the timeline shows a link made there | A picker for the safeguarding concerns the member may read (with the safety screens) |
+| The demo seed has no casework holder (slice 58) | The web journeys cover the silo (no entry, nothing shown) and recruitment; running a case is covered by the API tests | A demo caseworker in the e2e seed (H-936) |
+| Welsh copy for the workforce screens (slice 58) | Welsh shows the English words, marked untranslated | Translation (H-939) |
+| The vetting adapters have no screens (slice 77) | HR uses the API; the routes and the evidence source on each item exist | The staff file screens (slice 56, H-1129) |
+| No vendor adapter exists (slice 77) | Every vetting port stays off in production; manual entry is the only route | One adapter per contracted provider, passing the shared contract suite (H-1120 to H-1123) |
+| The worker cannot record or withdraw their own DBS consent (slice 77) | HR records both, with the date the worker gave or withdrew it | Self-service, if decided (H-1128) |
+| Pending checks are refreshed or cancelled by hand (slice 77) | A DBS application stays pending until HR asks again; one that never reached the provider is cancelled and started again | A worker job polling pending checks, or the provider's webhook through the inbound quarantine, once a provider is chosen |
+| An IDSP's own report is not kept (slice 77) | The item records the check's method, date and the checker | Keep it as an HR-only document if the adviser says so (H-1127) |
 
 ## 12. Sponsor licence, staff data protection and LDSS (slice 35, migration 0097)
 

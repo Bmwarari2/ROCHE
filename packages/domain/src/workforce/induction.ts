@@ -1,4 +1,5 @@
 import { addPeriod } from "../platform/retention";
+import { ukEndOfDay } from "../shared/time";
 
 /**
  * Onboarding, the Care Certificate and leavers (workforce.md section 2d and rules 19 to 23;
@@ -301,8 +302,49 @@ export function checkLeaving(input: {
  * Rule 22: access ends at the end of the leaving day, so from the UK day after it; earlier when a
  * manager ends it at once (a dismissal, for example).
  */
-export function accessRemovalDue(leavingOn: string, today: string): boolean {
-  return today > leavingOn;
+export function accessRemovalDue(
+  leavingOn: string,
+  now: Date,
+  lastShiftEndsAt: Date | null = null,
+): boolean {
+  return now.getTime() >= accessEndsAt(leavingOn, lastShiftEndsAt).getTime();
+}
+
+/**
+ * Rule 22 and H-873: when the sweep ends a leaver's access, at the later of the end of the leaving
+ * day (UK) and the end of the last rostered shift that starts on it, so a night worker is never
+ * cut off mid-shift. Ending access at once (step-up) is separate and stays immediate.
+ */
+export function accessEndsAt(leavingOn: string, lastShiftEndsAt: Date | null): Date {
+  const endOfDay = ukEndOfDay(leavingOn);
+  return lastShiftEndsAt && lastShiftEndsAt.getTime() > endOfDay.getTime()
+    ? lastShiftEndsAt
+    : endOfDay;
+}
+
+/**
+ * H-874: a staff file with no keep-until date (no date of birth to work the 75th birthday from)
+ * is listed for a person's decision once the after-leaving period has passed
+ * (`staff_file.after_leaving` in retention.md), never kept indefinitely without review.
+ */
+export function staffFileReviewDue(input: {
+  readonly leftOn: string;
+  readonly retainUntil: string | null;
+  readonly afterLeaving: { readonly period: number; readonly unit: "years" | "months" };
+  readonly today: string;
+}): boolean {
+  if (input.retainUntil !== null) return false;
+  return input.today >= staffFileReviewOn(input.leftOn, input.afterLeaving);
+}
+
+/** H-874: the day a file with no keep-until date comes up for review. */
+export function staffFileReviewOn(
+  leftOn: string,
+  afterLeaving: { readonly period: number; readonly unit: "years" | "months" },
+): string {
+  return addPeriod(new Date(`${leftOn}T00:00:00Z`), afterLeaving.period, afterLeaving.unit)
+    .toISOString()
+    .slice(0, 10);
 }
 
 /** Rule 22: the exit interview moves from not offered to offered, then declined or held. */
@@ -357,11 +399,24 @@ export function leaverState(input: {
 
 export const REFERENCE_KINDS = ["factual", "conduct"] as const;
 export const REFERENCE_STATES = ["requested", "sent", "declined"] as const;
+/**
+ * Why a reference request is declined (H-876). References rest on legitimate interests, with the
+ * staff privacy notice telling staff, never consent, so "no consent to share" is not a reason; a
+ * request from an organisation that cannot be confirmed is.
+ */
 export const REFERENCE_DECLINED_REASONS = [
-  "no_consent_to_share",
   "not_employed_here",
   "duplicate_request",
+  "requester_not_verified",
 ] as const;
+
+/**
+ * H-876: in care a reference is a conduct reference by default (dates, role, reason for leaving,
+ * and whether a sanction in force or a safeguarding concern led to action or a referral), because
+ * the new employer must obtain evidence of conduct and the reason employment ended (Schedule 3
+ * paragraphs 4 and 5 of the 2014 Regulations). A factual one is chosen only on purpose.
+ */
+export const DEFAULT_REFERENCE_KIND = "conduct" as const;
 
 /**
  * Rule 23: how long the staff file is kept once employment ends (retention.md), from the

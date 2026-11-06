@@ -581,4 +581,5 @@ export type AccountDeletionRequest = z.infer<typeof AccountDeletionRequest>;
 export * from "./elearning";
 export * from "./recruitment";
 export * from "./sponsorship";
+export * from "./vetting";
 export * from "./workforce";

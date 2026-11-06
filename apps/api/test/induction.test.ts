@@ -22,6 +22,24 @@ const json = async <T>(response: Response) => (await response.json()) as T;
 const today = () => ukIsoDate(new Date());
 const inDays = (days: number) => ukIsoDate(addUkDays(new Date(), days));
 
+/** As the system in the demo organisation, through the application role: tasks are read as the
+ * system sees them (their row-level security applies to the owner role too). */
+async function systemSql<T = Record<string, unknown>>(text: string, params: unknown[] = []) {
+  const client = await h.db.pool("harbour_app").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true), set_config('app.user_id', '', true)",
+      [DEMO.tenantId],
+    );
+    const { rows } = await client.query(text, params);
+    await client.query("COMMIT");
+    return rows as T[];
+  } finally {
+    client.release();
+  }
+}
+
 async function sql<T = Record<string, unknown>>(text: string, params: unknown[] = []) {
   const client = await h.db.pool("harbour_owner").connect();
   try {
@@ -52,7 +70,7 @@ interface Leaving {
   exitInterview: string;
   staffFileRetainUntil: string | null;
   checklist: { kind: string; status: string }[];
-  references: { id: string; state: string; version: number }[];
+  references: { id: string; state: string; version: number; kind: string }[];
 }
 
 let profile = "";
@@ -265,17 +283,33 @@ describe("leaving (rules 22 and 23)", () => {
   });
 
   it("ends access by the sweep from the day after the leaving date, once", async () => {
-    await as("manager", `/v1/workforce/staff-files/${agencyProfile}/leaving`, {
+    const recorded = await as("manager", `/v1/workforce/staff-files/${agencyProfile}/leaving`, {
       method: "POST",
       body: { leavingOn: inDays(-1), reason: "end_of_fixed_term" },
     });
+    expect(recorded.status, await recorded.clone().text()).toBe(201);
+    // H-874: no date of birth on the file, so HR is asked to record it.
+    const [birthDateTask] = await systemSql<{ n: number }>(
+      "SELECT count(*)::int AS n FROM task WHERE kind = 'workforce.leaver_birth_date' AND source_id = $1",
+      [agencyProfile],
+    );
+    expect(birthDateTask?.n).toBe(1);
     const deps = {
       workerPool: h.db.pool("harbour_worker"),
       appDb: createDatabase(h.db.pool("harbour_app")),
       logger: createLogger("silent"),
+      authPool: h.db.pool("harbour_auth"),
     };
+    // H-873: not while a rostered shift that started on the leaving day is still running.
+    const shiftEndsLater = { lastShiftEnding: async () => new Date(Date.now() + 3_600_000) };
+    expect(await sweepLeaverAccess(deps, new Date(), shiftEndsLater)).toBe(0);
     expect(await sweepLeaverAccess(deps)).toBe(1);
     expect(await sweepLeaverAccess(deps)).toBe(0);
+    // H-879: Agency Ash also works for another organisation, so their sign-in is kept there.
+    const [kept] = await sql<{ outcome: string; reason: string | null }>(
+      "SELECT outcome, reason FROM audit_event WHERE action = 'workforce.leaving.sessions_ended'",
+    );
+    expect(kept).toMatchObject({ outcome: "denied", reason: "member_of_other_organisation" });
     const [member] = await sql<{ status: string }>(
       "SELECT status FROM tenant_user WHERE email = 'agency@example.invalid' AND tenant_id = $1",
       [DEMO.tenantId],
@@ -285,6 +319,54 @@ describe("leaving (rules 22 and 23)", () => {
       await as("manager", `/v1/workforce/staff-files/${agencyProfile}/leaving`),
     );
     expect(leaving.staffFileRetainUntil).toBeNull();
+
+    // H-874: once the after-leaving period has passed, the file comes up for review, once.
+    const later = new Date(Date.now() + 7 * 366 * 86_400_000);
+    await sweepLeaverAccess(deps, later);
+    await sweepLeaverAccess(deps, later);
+    const [review] = await systemSql<{ n: number }>(
+      "SELECT count(*)::int AS n FROM task WHERE kind = 'workforce.staff_file_retention_review' AND source_id = $1",
+      [agencyProfile],
+    );
+    expect(review?.n).toBe(1);
+  });
+
+  it("H-876 takes a conduct reference by default and never declines for want of consent", async () => {
+    const posted = await as("manager", `/v1/workforce/staff-files/${agencyProfile}/references`, {
+      method: "POST",
+      body: { requestedOn: today(), requester: "Example Nursing Ltd" },
+    });
+    let leaving = await json<Leaving>(posted);
+    const reference = leaving.references.find((r) => r.state === "requested");
+    expect(reference?.kind).toBe("conduct");
+    const noConsent = await as(
+      "manager",
+      `/v1/workforce/staff-files/${agencyProfile}/references/${reference?.id}`,
+      {
+        method: "PATCH",
+        body: {
+          expectedVersion: reference?.version,
+          state: "declined",
+          declinedReason: "no_consent_to_share",
+        },
+      },
+    );
+    expect(noConsent.status).toBe(422);
+    leaving = await json<Leaving>(
+      await as(
+        "manager",
+        `/v1/workforce/staff-files/${agencyProfile}/references/${reference?.id}`,
+        {
+          method: "PATCH",
+          body: {
+            expectedVersion: reference?.version,
+            state: "declined",
+            declinedReason: "requester_not_verified",
+          },
+        },
+      ),
+    );
+    expect(leaving.references.find((r) => r.id === reference?.id)?.state).toBe("declined");
   });
 
   it("audits by ids and codes only", async () => {

@@ -2,6 +2,7 @@ import {
   AddCaseNote,
   ArrangeHearing,
   CaseDetail,
+  CaseExport,
   type CaseHearing,
   CaseList,
   type CaseMember,
@@ -54,10 +55,13 @@ import {
   type AppEnv,
   mfaRefusal,
   requirePermission,
+  stepUpFresh,
+  stepUpRefusal,
   type TenantAccess,
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { allColleagues, staffNames } from "../services/staff";
 import {
   conflictResponse,
   createRouter,
@@ -80,6 +84,7 @@ import { audit, dbCode } from "./people-shared";
 
 const OPEN = "workforce.casework.manage";
 const A = {
+  exported: "workforce.case.exported",
   opened: "workforce.case.opened",
   viewed: "workforce.case.viewed",
   listed: "workforce.case.listed",
@@ -201,6 +206,7 @@ async function factsOf(tx: Transaction, row: CaseRow): Promise<CaseFacts> {
     regulatorReferral: (row.regulatorReferral ?? null) as ReferralDecision | null,
     subjectRegistered: row.subjectRegistered,
     linkedToSafeguarding: row.safeguardingIncidentId !== null,
+    removesFromRegulatedActivity: row.removesFromRegulatedActivity,
   };
 }
 
@@ -228,11 +234,16 @@ const event = (
   extra: Partial<typeof employeeCaseEvent.$inferInsert> = {},
 ) => tx.insert(employeeCaseEvent).values({ caseId, kind, occurredOn, ...extra });
 
-function summaryOf(row: CaseRow, myRoles: readonly CaseMemberRole[]): CaseSummary {
+function summaryOf(
+  row: CaseRow,
+  myRoles: readonly CaseMemberRole[],
+  subjectName: string | null,
+): CaseSummary {
   return {
     id: row.id,
     caseType: row.caseType as CaseType,
     subjectTenantUserId: row.subjectTenantUserId,
+    subjectName,
     stage: row.stage as CaseStage,
     stageSince: row.stageSince,
     openedOn: row.openedOn,
@@ -286,12 +297,29 @@ async function detailOf(tx: Transaction, loaded: Loaded): Promise<CaseDetail> {
     .orderBy(asc(employeeCaseEvent.createdAt), asc(employeeCaseEvent.id));
   const facts = await factsOf(tx, row);
   const due = referralDecisionsDue(facts, (row.closedReason ?? null) as CaseClosingReason | null);
+  const names = await staffNames(tx, [
+    row.subjectTenantUserId,
+    ...members.flatMap((m) => [m.tenantUserId, m.addedBy]),
+    ...hearings.map((h) => h.ledBy),
+    ...events.map((e) => e.recordedBy),
+  ]);
+  const staff = [
+    ...new Set([
+      row.subjectTenantUserId,
+      ...members.flatMap((m) => [m.tenantUserId, m.addedBy]),
+      ...hearings.map((h) => h.ledBy),
+      ...events.map((e) => e.recordedBy),
+    ]),
+  ].flatMap((id) => {
+    const found = names(id);
+    return found ? [found] : [];
+  });
   const stageSteps = events
     .filter((e) => e.toStage !== null && (e.kind === "opened" || e.kind === "stage_changed"))
     .map((e) => ({ stage: e.toStage as CaseStage, on: e.occurredOn }));
   return {
     case: {
-      ...summaryOf(row, myRoles),
+      ...summaryOf(row, myRoles, names(row.subjectTenantUserId)?.displayName ?? null),
       summary: row.summary,
       subjectRegistered: row.subjectRegistered,
       outcome: (row.outcome ?? null) as CaseOutcome | null,
@@ -305,6 +333,8 @@ async function detailOf(tx: Transaction, loaded: Loaded): Promise<CaseDetail> {
       closedReason: (row.closedReason ?? null) as CaseDetail["case"]["closedReason"],
       closedOn: row.closedOn,
       safeguardingIncidentId: row.safeguardingIncidentId,
+      removesFromRegulatedActivity: row.removesFromRegulatedActivity,
+      retentionClass: row.retentionClass as CaseDetail["case"]["retentionClass"],
     },
     referrals: {
       dbs: {
@@ -321,6 +351,7 @@ async function detailOf(tx: Transaction, loaded: Loaded): Promise<CaseDetail> {
       },
     },
     members: members.map(memberOf),
+    staff,
     hearings: hearings.map(hearingOf),
     timeline: events.map((e) => ({
       id: e.id,
@@ -402,10 +433,17 @@ export const caseworkRouter = createRouter()
               .orderBy(asc(employeeCase.openedOn), asc(employeeCase.id))
           : [];
         await audit(c, tx, access, { action: A.listed, resourceType: "employee_case" });
+        const names = await staffNames(
+          tx,
+          rows.map((r) => r.subjectTenantUserId),
+        );
         return rows.map((r) =>
           summaryOf(
             r,
-            mine.filter((m) => m.caseId === r.id).map((m) => m.memberRole as CaseMemberRole),
+            mine
+              .filter((m) => m.caseId === r.id && m.removedAt === null)
+              .map((m) => m.memberRole as CaseMemberRole),
+            names(r.subjectTenantUserId)?.displayName ?? null,
           ),
         );
       });
@@ -477,6 +515,43 @@ export const caseworkRouter = createRouter()
   )
   .openapi(
     createRoute({
+      method: "get",
+      path: "/v1/workforce/cases/{id}/export",
+      tags: ["workforce"],
+      summary: "Export an employee relations case",
+      description:
+        "A case manager of the case, with a fresh step-up (H-805): the whole case as JSON, to take with the provider. Not found for anyone else; refused to other members. Casework never goes in the organisation-wide export. Audited.",
+      security,
+      request: { params: IdParam },
+      responses: { 200: jsonBody(CaseExport, "The case"), ...errorResponses, ...notFoundResponse },
+    }),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      const access = memberAccess(c);
+      const stepUp = c.get("access");
+      if (!stepUpFresh(stepUp)) throw stepUpRefusal(stepUp);
+      const detail = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const loaded = await loadCase(tx, access, A.exported, id);
+          requireRole(loaded, A.exported, ["case_manager"]);
+          await auditCase(c, tx, access, A.exported, id);
+          return detailOf(tx, loaded);
+        }),
+      );
+      c.header("Content-Disposition", `attachment; filename="employee-case-${id}.json"`);
+      c.header("Cache-Control", "no-store");
+      return c.json(
+        {
+          exportedAt: new Date().toISOString(),
+          format: "harbour.employee_case.v1" as const,
+          detail,
+        },
+        200,
+      );
+    },
+  )
+  .openapi(
+    createRoute({
       method: "post",
       path: "/v1/workforce/cases/{id}/members",
       tags: ["workforce"],
@@ -504,6 +579,16 @@ export const caseworkRouter = createRouter()
             A.memberNamed,
             id,
             "self_appointment",
+          );
+        }
+        // Only the provider's own staff take a part: never an inspector, a visiting professional,
+        // an agency worker or a portal account, whatever the request names.
+        if (!(await allColleagues(tx, [body.tenantUserId]))) {
+          throw refused(
+            problems.invalid("That person cannot take this part of the case."),
+            A.memberNamed,
+            id,
+            "not_a_colleague",
           );
         }
         const check = checkMemberAppointment({
@@ -637,6 +722,7 @@ export const caseworkRouter = createRouter()
               warningExpiresOn: body.warningExpiresOn,
               appealRightGiven: body.appealRightGiven,
               noHearingReason: body.noHearingReason,
+              removesFromRegulatedActivity: body.removesFromRegulatedActivity,
             };
             break;
           case "appeal":
@@ -671,6 +757,7 @@ export const caseworkRouter = createRouter()
                 outcome: body.outcome,
                 outcomeDecidedOn: body.on,
                 warningExpiresOn: body.warningExpiresOn,
+                removesFromRegulatedActivity: body.removesFromRegulatedActivity,
               }
             : {}),
           ...(body.to === "closed"
