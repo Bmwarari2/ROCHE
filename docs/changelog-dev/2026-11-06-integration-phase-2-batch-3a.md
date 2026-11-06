@@ -41,6 +41,14 @@ Branch `integration/phase-2-batch-3a`.
 - No new processing beyond the merged branches' own records. Clinical-safety and security reviews
   ran on the merge resolutions; their findings are fixed or listed below.
 
+## API contract
+
+- Reviewed oasdiff ignores (`apps/api/openapi-breaking-ignore.txt`): the incident answers widen from
+  boolean to boolean or null ("not known yet", 0118), and the staff file's unnamed detail variants
+  re-index because `professional_registration` gains an optional `nmcPart` and `driving_for_work` is
+  new (H-835). The API now refuses an NMC registration without `nmcPart`; no client sends staff file
+  items in this batch, and batch 3b's staff file screens (`feat/web-staff-file`) must send it.
+
 ## What is next
 
 - Move the definer functions owned by `harbour_owner` to NOLOGIN owners, with an ADR (security
