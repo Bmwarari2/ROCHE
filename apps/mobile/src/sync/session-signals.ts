@@ -6,7 +6,7 @@
  *
  * - a session code (`not_a_member`, `mfa_enrolment_required`, `mfa_verification_required`,
  *   `step_up_required`): the session has ended;
- * - any other code the API sends (`missing_permission`, `feature_disabled`, or one this build does
+ * - any other code the API sends (`missing_permission`, `feature_disabled`, `care_mode_off`, or one this build does
  *   not know): on the sync token, the access Care mode needs has been withdrawn, so the device holds
  *   its unsent work (or wipes when there is none); on a single entry, that entry was refused;
  * - no JSON body, an HTML page, or the web application firewall's `edge_blocked`: the request never

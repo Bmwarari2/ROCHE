@@ -215,6 +215,39 @@ describe("hazard HZ-013 incident workflow: the person who raised it cannot close
       },
       1,
     ],
+    [
+      "hazard HZ-090 the emergency services or the GP still not known yet (H-264)",
+      {
+        notifications: [],
+        openQuestions: [],
+        candourState: null,
+        candour: NONE,
+        contactsNotKnown: true,
+      },
+      1,
+    ],
+    [
+      "hazard HZ-013 someone who died with a learning disability or autism answer not known yet (H-482)",
+      {
+        notifications: [],
+        openQuestions: [],
+        candourState: null,
+        candour: NONE,
+        deathFactsNotKnown: true,
+      },
+      1,
+    ],
+    [
+      "hazard HZ-090 the emergency services and the GP answered",
+      {
+        notifications: [],
+        openQuestions: [],
+        candourState: null,
+        candour: NONE,
+        contactsNotKnown: false,
+      },
+      0,
+    ],
   ])(
     "hazard HZ-013 a decision cannot close without evidence or a not-notifiable reason: %s",
     (_name, view, count) => {

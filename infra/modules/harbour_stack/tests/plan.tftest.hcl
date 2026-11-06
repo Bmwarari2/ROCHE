@@ -100,6 +100,25 @@ run "dev_defaults" {
     )
     error_message = "pgAudit lines must go to the security log bucket, not the application one."
   }
+
+  # A location's nightly downtime pack that could not be built alerts on its own, on any one line
+  # (H-214, HZ-021).
+  assert {
+    condition = (
+      strcontains(module.observability.log_metric_filters.downtime_pack_failed, "jsonPayload.event=\"worker.job.failed\"") &&
+      strcontains(module.observability.log_metric_filters.downtime_pack_failed, "jsonPayload.queue=\"downtime-packs\"")
+    )
+    error_message = "The downtime pack alert must match the worker's worker.job.failed event for the downtime-packs queue."
+  }
+
+  assert {
+    condition = (
+      module.observability.log_alert_rules.downtime_pack_failed.aligner == "ALIGN_SUM" &&
+      module.observability.log_alert_rules.downtime_pack_failed.threshold == 0 &&
+      module.observability.log_alert_rules.downtime_pack_failed.comparison == "COMPARISON_GT"
+    )
+    error_message = "The downtime pack alert must fire on any one failed downtime pack line (HZ-021)."
+  }
 }
 
 # Artifact Registry scans every image it receives (H-1170), beside the CI image scan.

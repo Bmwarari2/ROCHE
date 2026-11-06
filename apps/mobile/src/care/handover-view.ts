@@ -144,11 +144,14 @@ export interface HandoverEntry {
 }
 
 /**
- * What a home's handover card shows, newest first (clinical review of the handover screen, H1):
- * when the shift running now already has a handover (its staff compile it before they hand over,
- * and the incoming staff read it then), that one first, said to be this shift's and whether it is
- * final; then the outgoing one with its state. With no pattern, the newest handover on the phone
- * with its own shift and state, under "Cannot tell" (M1).
+ * What a home's handover cards show (clinical review of the handover screen, H1; H-420): the
+ * outgoing handover, the one the shift running now received and is working from, with its state;
+ * and, when the running shift already has a handover (its staff compile it before they hand over,
+ * and the incoming staff read it then), that one too, said to be this shift's and whether it is
+ * final. The running shift's own handover comes first only within `handover.preview_lead_minutes`
+ * (the nation's `lead`) before the shift ends, the overlap before a shift change; before then, or
+ * when the phone has no lead figure, the outgoing one comes first. With no pattern, the newest
+ * handover on the phone with its own shift and state, under "Cannot tell" (M1).
  */
 export function handoverEntries(input: ExpectedHandoverInput): HandoverEntry[] {
   const expected = expectedHandover(input);
@@ -164,13 +167,22 @@ export function handoverEntries(input: ExpectedHandoverInput): HandoverEntry[] {
     );
     return [{ role: "latest", status: unknownStatusView(latest), handover: latest }];
   }
+  const outgoing: HandoverEntry = {
+    role: "outgoing",
+    status: handoverStatusView(expected),
+    handover: expected.kind === "not_compiled" ? null : expected.handover,
+  };
   const entries: HandoverEntry[] = [];
+  let currentFirst = false;
   const figures = input.nation ? input.shifts?.[input.nation] : undefined;
   if (figures) {
     const running = shiftAt(input.now, twoShiftPattern(figures.day, figures.night));
     const current = input.handovers.find(
       (h) => parseInstant(h.shift_start)?.getTime() === running.start.getTime(),
     );
+    currentFirst =
+      figures.lead !== undefined &&
+      input.now.getTime() >= running.end.getTime() - figures.lead * 60_000;
     if (current) {
       entries.push({
         role: "current",
@@ -187,12 +199,7 @@ export function handoverEntries(input: ExpectedHandoverInput): HandoverEntry[] {
       });
     }
   }
-  entries.push({
-    role: "outgoing",
-    status: handoverStatusView(expected),
-    handover: expected.kind === "not_compiled" ? null : expected.handover,
-  });
-  return entries;
+  return currentFirst ? [...entries, outgoing] : [outgoing, ...entries];
 }
 
 /** "Cannot tell", with the shift and state of the handover shown, when there is one (M1). */

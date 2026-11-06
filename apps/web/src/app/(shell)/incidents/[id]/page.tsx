@@ -10,6 +10,8 @@ import { CommunicationStatus } from "@/components/people/CommunicationStatus";
 import { AfterDeath } from "@/components/safety/AfterDeath";
 import { CandourSection } from "@/components/safety/CandourSection";
 import { ClassifierQuestions } from "@/components/safety/ClassifierQuestions";
+import { IncidentContactsForm } from "@/components/safety/IncidentContactsForm";
+import { IncidentDeathFactsForm } from "@/components/safety/IncidentDeathFactsForm";
 import { IncidentManage } from "@/components/safety/IncidentManage";
 import { IncidentNotifications } from "@/components/safety/IncidentNotifications";
 import { InvestigationSection } from "@/components/safety/InvestigationSection";
@@ -22,6 +24,7 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { questionsYouMayAnswer } from "@/lib/incident-forms";
 import {
+  deathFactsToRecord,
   doneToShow,
   followUpDoneToShow,
   incidentManageView,
@@ -306,6 +309,16 @@ export default async function IncidentPage({
               ["contactNotes", incident.contactNotes],
             ]}
           />
+          {/* "Not known yet" stays open until answered, here (H-264, HZ-090). */}
+          {mayAnswer &&
+          (incident.emergencyServicesCalled === null || incident.gpContacted === null) ? (
+            <IncidentContactsForm
+              incidentId={incident.id}
+              version={incident.version}
+              emergencyServicesCalled={incident.emergencyServicesCalled}
+              gpContacted={incident.gpContacted}
+            />
+          ) : null}
         </Card>
       )}
       {showsPostFallCard(incident) ? (
@@ -366,6 +379,32 @@ export default async function IncidentPage({
         linked={can(me.permissions, "safety.incident.manage")}
         now={now}
       />
+      {mayAnswer
+        ? // A death's learning disability and autism, answered from the record (H-482, HZ-013):
+          // recording both does the Registered Manager's task, and closing waits for them.
+          deathFactsToRecord(incident).map((person) => {
+            const name =
+              (person.personId ? names.get(person.personId) : undefined) ??
+              t("safety.incident.unnamed", { kind: person.kind });
+            return (
+              <Card
+                key={person.id}
+                as="section"
+                title={t("safety.incident.deathFactsTitle", { name })}
+                headingLevel={2}
+              >
+                <IncidentDeathFactsForm
+                  incidentId={incident.id}
+                  version={incident.version}
+                  personRowId={person.id}
+                  name={name}
+                  learningDisability={person.learningDisability}
+                  autistic={person.autistic}
+                />
+              </Card>
+            );
+          })
+        : null}
       <CandourSection
         incident={incident}
         record={candourRecord}

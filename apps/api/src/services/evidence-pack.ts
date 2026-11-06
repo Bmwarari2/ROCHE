@@ -64,7 +64,8 @@ export interface StoredField {
 const MAX_LABEL = 80;
 
 const words = (code: string) => code.replaceAll("_", " ");
-const yesNo = (value: boolean) => (value ? "Yes" : "No");
+/** "Not known yet" for an answer the reporter left open (H-264). */
+const yesNo = (value: boolean | null) => (value === null ? "Not known yet" : value ? "Yes" : "No");
 
 export interface PersonNames {
   readonly id: string;

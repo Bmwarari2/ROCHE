@@ -29,11 +29,15 @@ const FIELDS = [
   "location",
   "type",
   "occurredAt",
+  "fallWitnessed",
+  "foundAt",
   "description",
   "immediateActions",
   "severity",
   "harmGrade",
   "died",
+  "learningDisability",
+  "autistic",
   "injuryDetails",
   "emergencyServicesCalled",
   "gpContacted",
@@ -46,13 +50,33 @@ const yesNo = (["yes", "no"] as const).map((answer) => ({
   value: answer,
   label: t("safety.questions.answer", { answer }),
 }));
+/** "Not known yet" records no answer and keeps the question open with a task (H-264, H-482). */
+const yesNoNotKnown = (["yes", "no", "not_known"] as const).map((answer) => ({
+  value: answer,
+  label: t("safety.questions.answer", { answer }),
+}));
+/** The two choices for when the person was found (H-262). */
+const foundWhen = {
+  hint: t("safety.record.hint", { field: "foundAt" }),
+  now: {
+    label: t("safety.record.foundWhen", { when: "now" }),
+    description: t("safety.record.foundWhenDescription", { when: "now" }),
+  },
+  earlier: {
+    label: t("safety.record.foundWhen", { when: "earlier" }),
+    description: t("safety.record.foundWhenDescription", { when: "earlier" }),
+  },
+};
 
 /**
  * Record an incident or near miss (`safety.incident.report`; register row SAFE-001; hazards
  * HZ-013 and HZ-027). Started from a person's record it is about them, at their home; otherwise
  * the reporter chooses the location. Whether the emergency services were called, whether the GP
  * was contacted and whether the person died are asked every time, never assumed "no" (#42
- * review). A fall asks the point-of-care questions. The incident's UUIDv7 goes with every attempt,
+ * review); the first two take "Not known yet", which leaves a task (H-264). A death asks whether
+ * the person had a learning disability or was autistic (H-482). A fall asks whether anyone saw it
+ * and, if nobody did, when the person was found; a missing person asks when they were found
+ * (H-262). A fall asks the point-of-care questions. The incident's UUIDv7 goes with every attempt,
  * so trying again after a lost connection never records it twice (HZ-029). Once recorded, the
  * incident's page opens, with the questions still to answer and the notifications' clocks.
  */
@@ -72,6 +96,8 @@ export function IncidentForm({
   const router = useRouter();
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [type, setType] = useState("");
+  const [witnessed, setWitnessed] = useState<"yes" | "no" | null>(null);
+  const [died, setDied] = useState<"yes" | "no" | null>(null);
   const [pending, startTransition] = useTransition();
   const ids = useFieldIds(FIELDS);
   const entry = useEntryId();
@@ -159,6 +185,31 @@ export function IncidentForm({
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
         />
+        {type === "fall" ? (
+          <RadioGroup
+            id={ids.fallWitnessed}
+            name="fallWitnessed"
+            legend={label("fallWitnessed")}
+            layout="inline"
+            options={yesNo}
+            value={witnessed}
+            onValueChange={setWitnessed}
+            required
+            error={errorFor(result, "fallWitnessed")}
+          />
+        ) : null}
+        {(type === "fall" && witnessed === "no") || type === "missing_person" ? (
+          // Post-fall observations count from when the person was found (H-262, HZ-027).
+          <WhenField
+            key={type}
+            name="foundAt"
+            id={ids.foundAt}
+            legend={label(type === "fall" ? "foundAt" : "foundAtOptional")}
+            explicit={foundWhen}
+            error={errorFor(result, "foundAt")}
+            errorParts={partsFor(result, "foundAt")}
+          />
+        ) : null}
         <TextArea
           id={ids.description}
           name="description"
@@ -211,9 +262,35 @@ export function IncidentForm({
               hint={t("safety.record.hint", { field: "yesNo" })}
               layout="inline"
               options={yesNo}
+              value={died}
+              onValueChange={setDied}
               required
               error={errorFor(result, "died")}
             />
+            {died === "yes" ? (
+              <>
+                <RadioGroup
+                  id={ids.learningDisability}
+                  name="learningDisability"
+                  legend={label("learningDisability")}
+                  hint={t("safety.record.hint", { field: "record" })}
+                  layout="inline"
+                  options={yesNoNotKnown}
+                  required
+                  error={errorFor(result, "learningDisability")}
+                />
+                <RadioGroup
+                  id={ids.autistic}
+                  name="autistic"
+                  legend={label("autistic")}
+                  hint={t("safety.record.hint", { field: "record" })}
+                  layout="inline"
+                  options={yesNoNotKnown}
+                  required
+                  error={errorFor(result, "autistic")}
+                />
+              </>
+            ) : null}
             <TextArea
               id={ids.injuryDetails}
               name="injuryDetails"
@@ -232,7 +309,7 @@ export function IncidentForm({
           legend={label("emergencyServicesCalled")}
           hint={t("safety.record.hint", { field: "askFirst" })}
           layout="inline"
-          options={yesNo}
+          options={yesNoNotKnown}
           required
           error={errorFor(result, "emergencyServicesCalled")}
         />
@@ -242,7 +319,7 @@ export function IncidentForm({
           legend={label("gpContacted")}
           hint={t("safety.record.hint", { field: "askFirst" })}
           layout="inline"
-          options={yesNo}
+          options={yesNoNotKnown}
           required
           error={errorFor(result, "gpContacted")}
         />

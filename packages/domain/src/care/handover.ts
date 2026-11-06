@@ -28,6 +28,11 @@ export const HANDOVER_RATE_KEYS = {
    * acknowledged its handover (H-153, to verify).
    */
   acknowledgementGraceMinutes: "handover.acknowledgement_grace_minutes",
+  /**
+   * Within this long before a shift ends, the phone shows the running shift's own handover first;
+   * before then, the one the shift received (H-420, HZ-018; policy, to verify).
+   */
+  previewLeadMinutes: "handover.preview_lead_minutes",
 } as const;
 
 export interface ShiftStart {

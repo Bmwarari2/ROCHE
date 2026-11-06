@@ -31,6 +31,7 @@ import { DB_ID_ITEM } from "../security/db-key";
 import { flushPendingReport } from "../sync/device-report";
 import { CARE_ACCESS_PERMISSION } from "../sync/session-signals";
 import { clearWriteScope } from "../sync/write-scope-store";
+import { admitCareMode } from "./care-mode-gate";
 import { admitSignIn, type HeldWork, loadHeldMarker, serialiseHeldWork } from "./held-work";
 import { type AppMode, parseAppMode } from "./preferences-model";
 
@@ -153,6 +154,15 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
     // Entries held for someone else stay held: this sign-in is ended and refused (HZ-006).
     const current = await readHeld();
     setHeld(current);
+    // Care mode stays off until the organisation switches it on, once a safety case covers the
+    // app (H-381); a phone holding entries still admits a sign-in so they can leave it.
+    await admitCareMode({
+      me: loaded,
+      demoMode: appEnv.demoMode,
+      holdsEntries: current !== null,
+      token: newToken,
+      signOut: (token) => authClient.signOut(token),
+    });
     if (current) await sendWaitingReport(loaded, newToken);
     // The owner is back: the vault reopens the same encrypted database and puts the entries back
     // into the upload queue. The marker stays until that has worked (clinical review M2).

@@ -6802,6 +6802,15 @@
           "assigneeStaff": {
             "$ref": "#/components/schemas/StaffName"
           },
+          "assigneeRoleKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requiredPermission": {
+            "type": "string"
+          },
           "dueAt": {
             "type": "string",
             "format": "date-time"
@@ -6896,6 +6905,8 @@
           "locationId",
           "assigneeTenantUserId",
           "assigneeStaff",
+          "assigneeRoleKey",
+          "requiredPermission",
           "dueAt",
           "windowStart",
           "windowEnd",
@@ -14591,6 +14602,15 @@
           "assigneeStaff": {
             "$ref": "#/components/schemas/StaffName"
           },
+          "assigneeRoleKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requiredPermission": {
+            "type": "string"
+          },
           "dueAt": {
             "type": "string",
             "format": "date-time"
@@ -14688,6 +14708,8 @@
           "locationId",
           "assigneeTenantUserId",
           "assigneeStaff",
+          "assigneeRoleKey",
+          "requiredPermission",
           "dueAt",
           "windowStart",
           "windowEnd",
@@ -14878,6 +14900,13 @@
               "boolean",
               "null"
             ]
+          },
+          "acknowledgementDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         },
         "required": [
@@ -14894,7 +14923,8 @@
           "acknowledgedBy",
           "pending",
           "staff",
-          "unacknowledged"
+          "unacknowledged",
+          "acknowledgementDueAt"
         ]
       },
       "HandoverDetail": {
@@ -14963,6 +14993,13 @@
               "boolean",
               "null"
             ]
+          },
+          "acknowledgementDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "agencyWithoutPeople": {
             "type": "array",
@@ -15054,6 +15091,7 @@
           "pending",
           "staff",
           "unacknowledged",
+          "acknowledgementDueAt",
           "agencyWithoutPeople",
           "items",
           "notes",
@@ -18175,11 +18213,17 @@
             "maxLength": 4000
           },
           "emergencyServicesCalled": {
-            "type": "boolean",
+            "type": [
+              "boolean",
+              "null"
+            ],
             "default": false
           },
           "gpContacted": {
-            "type": "boolean",
+            "type": [
+              "boolean",
+              "null"
+            ],
             "default": false
           },
           "contactNotes": {
@@ -18458,10 +18502,16 @@
             "format": "date-time"
           },
           "emergencyServicesCalled": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "gpContacted": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "contactNotes": {
             "type": [
@@ -22004,6 +22054,12 @@
               "format": "uuid"
             }
           },
+          "reviewEntries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReconcileEntry"
+            }
+          },
           "enteredByYou": {
             "type": "boolean"
           },
@@ -22024,8 +22080,76 @@
           "digitalEntriesInWindow",
           "duplicateGroups",
           "outsideWindowEntryIds",
+          "reviewEntries",
           "enteredByYou",
           "blockers"
+        ]
+      },
+      "ReconcileEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "person": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "givenName": {
+                "type": "string"
+              },
+              "familyName": {
+                "type": "string"
+              },
+              "preferredName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "givenName",
+              "familyName",
+              "preferredName"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "back_entry",
+              "digital"
+            ]
+          },
+          "paperReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "person",
+          "kind",
+          "occurredAt",
+          "source",
+          "paperReference"
         ]
       },
       "ReconcileOutage": {
@@ -69394,7 +69518,7 @@
           "safety"
         ],
         "summary": "Close an incident (someone other than the person who raised it)",
-        "description": "Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
+        "description": "Refused while a notification is a draft or ready, a classifier question is open, whether the emergency services were called or the GP contacted is not known yet (H-264), someone who died has no learning disability or autism answer (H-482), the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
         "security": [
           {
             "bearerAuth": []
@@ -73015,7 +73139,7 @@
           "operations"
         ],
         "summary": "What reconciling the outage needs: the counts, possible duplicates and blockers",
-        "description": "Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts only.",
+        "description": "Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts, and for each entry to review its person (named only when you can see them), kind and time (H-267); never an entry's text or values.",
         "security": [
           {
             "bearerAuth": []
@@ -88311,7 +88435,7 @@
           "sync"
         ],
         "summary": "A short-lived token for the PowerSync service, scoped to tenant and assignments",
-        "description": "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+        "description": "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
         "security": [
           {
             "bearerAuth": []

@@ -5,6 +5,7 @@ import {
   checkTransferPackHandover,
   type HospitalTransferInput,
   type HospitalTransferPack,
+  missingToAcknowledge,
   RETURN_FROM_HOSPITAL_CHECKS,
   returnFromHospitalChecks,
   TRANSFER_PACK_SECTIONS,
@@ -157,6 +158,19 @@ describe("transfer pack sections", () => {
       "about_me",
       "eating_and_drinking",
     ]);
+  });
+
+  it("hazard HZ-023 reserves the named acknowledgement for every critical section but About Me (H-27, HZ-008)", () => {
+    expect(TRANSFER_PACK_SECTIONS.filter((s) => s.acknowledge).map((s) => s.key)).toEqual([
+      "photo",
+      "allergies",
+      "medicines",
+      "communication",
+      "resuscitation",
+      "eating_and_drinking",
+    ]);
+    // Every acknowledged section is critical, so it also prints "not recorded" on page 1.
+    expect(TRANSFER_PACK_SECTIONS.filter((s) => s.acknowledge && !s.critical)).toEqual([]);
   });
 
   it("produces a complete pack when everything is recorded", () => {
@@ -501,6 +515,46 @@ describe("hand-over of the pack", () => {
       problem: "reason_required",
     });
     expect(checkTransferPackHandover(incomplete, ack)).toEqual({ ok: true, incomplete: true });
+  });
+
+  it.each<[string, Partial<HospitalTransferInput>, boolean, string[]]>([
+    ["no About Me", { aboutMe: null }, false, []],
+    ["an empty About Me", { aboutMe: source({ my_wellness: { text: " " } }) }, false, []],
+    [
+      "no About Me and no allergy status",
+      { aboutMe: null, allergies: source({ status: "unknown" }) },
+      true,
+      ["allergies"],
+    ],
+    ["no IDDSI levels", { eatingAndDrinking: null }, true, ["eating_and_drinking"]],
+    [
+      "no communication needs recorded",
+      { communication: source({ status: "not_recorded" }) },
+      true,
+      ["communication"],
+    ],
+  ])(
+    "hazard HZ-023 %s: printed not recorded on page 1, acknowledgement needed %s (H-27)",
+    (_label, overrides, needed, listed) => {
+      const result = pack(overrides);
+      expect(result.missingCritical.length).toBeGreaterThan(0);
+      expect(result.complete).toBe(false);
+      const check = checkTransferPackHandover(result, null);
+      if (needed) {
+        expect(check).toMatchObject({
+          ok: false,
+          problem: "acknowledgement_required",
+          missingCritical: listed,
+        });
+      } else {
+        expect(check).toEqual({ ok: true, incomplete: true });
+      }
+    },
+  );
+
+  it("hazard HZ-023 asks for the acknowledgement for a section key the pack does not know", () => {
+    expect(missingToAcknowledge(["about_me", "a_new_section"])).toEqual(["a_new_section"]);
+    expect(missingToAcknowledge(["about_me"])).toEqual([]);
   });
 });
 

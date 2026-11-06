@@ -14880,7 +14880,7 @@ export interface paths {
     put?: never;
     /**
      * Close an incident (someone other than the person who raised it)
-     * @description Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).
+     * @description Refused while a notification is a draft or ready, a classifier question is open, whether the emergency services were called or the GP contacted is not known yet (H-264), someone who died has no learning disability or autism answer (H-482), the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).
      */
     post: {
       parameters: {
@@ -18019,7 +18019,7 @@ export interface paths {
     };
     /**
      * What reconciling the outage needs: the counts, possible duplicates and blockers
-     * @description Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts only.
+     * @description Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts, and for each entry to review its person (named only when you can see them), kind and time (H-267); never an entry's text or values.
      */
     get: {
       parameters: {
@@ -31810,7 +31810,7 @@ export interface paths {
     put?: never;
     /**
      * A short-lived token for the PowerSync service, scoped to tenant and assignments
-     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.
      */
     post: {
       parameters: {
@@ -53079,6 +53079,8 @@ export interface components {
       /** Format: uuid */
       assigneeTenantUserId: string | null;
       assigneeStaff: components["schemas"]["StaffName"];
+      assigneeRoleKey: string | null;
+      requiredPermission: string;
       /** Format: date-time */
       dueAt: string;
       /** Format: date-time */
@@ -55227,6 +55229,8 @@ export interface components {
       /** Format: uuid */
       assigneeTenantUserId: string | null;
       assigneeStaff: components["schemas"]["StaffName"];
+      assigneeRoleKey: string | null;
+      requiredPermission: string;
       /** Format: date-time */
       dueAt: string;
       /** Format: date-time */
@@ -55301,6 +55305,8 @@ export interface components {
       pending: string[];
       staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
+      /** Format: date-time */
+      acknowledgementDueAt: string | null;
     };
     HandoverDetail: {
       /** Format: uuid */
@@ -55322,6 +55328,8 @@ export interface components {
       pending: string[];
       staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
+      /** Format: date-time */
+      acknowledgementDueAt: string | null;
       agencyWithoutPeople: {
         /** Format: uuid */
         memberId: string;
@@ -56234,9 +56242,9 @@ export interface components {
       description: string;
       immediateActions?: string;
       /** @default false */
-      emergencyServicesCalled: boolean;
+      emergencyServicesCalled: boolean | null;
       /** @default false */
-      gpContacted: boolean;
+      gpContacted: boolean | null;
       contactNotes?: string;
       familyInformed?: components["schemas"]["FamilyInformed"];
       /** @default [] */
@@ -56307,8 +56315,8 @@ export interface components {
       immediateActions?: string | null;
       /** Format: date-time */
       foundAt?: string | null;
-      emergencyServicesCalled?: boolean;
-      gpContacted?: boolean;
+      emergencyServicesCalled?: boolean | null;
+      gpContacted?: boolean | null;
       contactNotes?: string | null;
       familyInformed?: components["schemas"]["FamilyInformed"];
       people?: components["schemas"]["IncidentPersonInput"][];
@@ -57223,8 +57231,26 @@ export interface components {
       digitalEntriesInWindow: number;
       duplicateGroups: string[][];
       outsideWindowEntryIds: string[];
+      reviewEntries: components["schemas"]["ReconcileEntry"][];
       enteredByYou: boolean;
       blockers: string[];
+    };
+    ReconcileEntry: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      person: {
+        givenName: string;
+        familyName: string;
+        preferredName: string | null;
+      } | null;
+      kind: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** @enum {string} */
+      source: "back_entry" | "digital";
+      paperReference: string | null;
     };
     ReconcileOutage: {
       /** @description What was checked */

@@ -132,6 +132,26 @@ H-09, H-105, H-521, H-522, H-535, H-569, H-663, H-664, H-781 and H-829.
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
+recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
+H-213, H-214, H-262, H-264 (migration 0118), H-267, H-269, H-270, H-381, H-410, H-420, H-481,
+H-482, H-543, H-551 and H-595. Left open, each with a note in
+[human-actions.md](human-actions.md):
+- H-125: the native module binding the database key to the device passcode (iOS
+  `SecAccessControl` with `.userPresence`, Android Keystore with device-credential
+  authentication); the interim rule (Care mode enrols only devices with strong biometrics) is built.
+- H-228: the print test of the letterhead and window address on real DL and C5 envelopes.
+- H-268: back-entry from paper on the incident and assessment APIs and their web forms (needs
+  `outage_id`, the paper time and reference on `incident` and `assessment`: a migration, the
+  back-entry checks in both routes and the paper record choice on both forms).
+- H-306: judging a task move's permission at the time of care waits for the phone to send that
+  time (H-309, whose default keeps the check at upload).
+- **Release blocker (H-595)**: HZ-126 is now rated Catastrophic, residual 4 until H-599 is settled;
+  under the clinical risk management plan a residual of 4 blocks a production release that relies
+  on the safeguarding log (on `main` since slice 13), so it is not used by a live tenant until then.
+- The ratings applied here (H-543, H-595, H-267) are recommended ratings, not the CSO's; the CSO
+  rates them, and signs safety case v0.1 (H-381), at the testing phase.
+
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or
 security change rather than a web one:

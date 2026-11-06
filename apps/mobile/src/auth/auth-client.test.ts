@@ -31,6 +31,7 @@ const me = {
   tenantUserId: "tu-1",
   locations: [{ id: "l1", name: "Example House" }],
   permissions: ["people.person.read"],
+  flags: { "care.mobile_care_mode": true },
 };
 
 const client = (fetch: FetchLike) =>
@@ -152,6 +153,18 @@ describe("getMe and signOut", () => {
     expect(calls[0]?.url).toBe("https://api.example.invalid/v1/me");
     expect(headerOf(calls[0], "authorization")).toBe("Bearer tok");
     expect(headerOf(calls[0], "x-harbour-tenant")).toBeNull();
+  });
+
+  it("hazard HZ-006 keeps only true or false flags, and none when the answer has none (H-381)", async () => {
+    const odd = fakeFetch([
+      json({ ...me, flags: { "care.mobile_care_mode": "yes", "care.tool.braden": false } }),
+    ]);
+    await expect(client(odd.fetch).getMe("tok")).resolves.toMatchObject({
+      flags: { "care.tool.braden": false },
+    });
+    const { flags: _, ...older } = me;
+    const none = fakeFetch([json(older)]);
+    await expect(client(none.fetch).getMe("tok")).resolves.toMatchObject({ flags: {} });
   });
 
   it("asks in the session's organisation when it knows it (security review round 4, H1)", async () => {

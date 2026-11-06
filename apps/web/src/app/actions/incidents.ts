@@ -38,18 +38,21 @@ export async function recordIncident(input: IncidentInput): Promise<ActionResult
   }
   // "Just now" is when the server receives the form, never the browser's clock (HZ-090). A retry
   // keeps the incident's id, so the API returns the copy already recorded with its first time.
-  const occurredAt = input.draft.occurredAt ?? new Date().toISOString();
+  const { foundAtNow, ...draft } = input.draft;
+  const occurredAt = draft.occurredAt ?? new Date().toISOString();
   if (!isIsoInstant(occurredAt)) {
     return refused(t("care.errors.whenRequired"), "invalid", ["occurredAt"]);
   }
-  const personPaths = (input.draft.people ?? []).flatMap((p) =>
+  // "Just now" for when the person was found is the server's time too (H-262, HZ-090).
+  const found = foundAtNow ? { foundAt: new Date().toISOString() } : {};
+  const personPaths = (draft.people ?? []).flatMap((p) =>
     p.personId && isUuid(p.personId) ? [`/people/${p.personId}`] : [],
   );
   return sendAndRevalidate(["/incidents", "/notifications/statutory", ...personPaths], (api) =>
     api.POST("/v1/incidents", {
       headers: isIsoInstant(input.sentAt) ? { "x-harbour-sent-at": input.sentAt } : {},
       // For a web entry "made" is when the server receives it (care.md rule 3): no device time.
-      body: { ...input.draft, occurredAt, id: input.id },
+      body: { ...draft, ...found, occurredAt, id: input.id },
     }),
   );
 }
@@ -96,6 +99,86 @@ export async function reviewIncident(
       },
     }),
   );
+}
+
+/**
+ * Record what is now known about whether the emergency services were called and the GP contacted
+ * (H-264, HZ-090): the person who raised it or a holder of `safety.incident.manage`, with the
+ * version the page showed. "Not known yet" stays null and keeps its task open.
+ */
+export async function recordIncidentContacts(
+  incidentId: string,
+  input: {
+    readonly emergencyServicesCalled: boolean | null;
+    readonly gpContacted: boolean | null;
+    readonly version: number;
+  },
+): Promise<ActionResult<IncidentDetail>> {
+  if (!isUuid(incidentId)) return refused(t("errors.notFound"), "not_found");
+  return sendAndRevalidate(["/incidents", "/notifications/statutory"], (api) =>
+    api.PUT("/v1/incidents/{id}", {
+      params: { path: { id: incidentId } },
+      body: {
+        emergencyServicesCalled: input.emergencyServicesCalled,
+        gpContacted: input.gpContacted,
+        version: input.version,
+      },
+    }),
+  );
+}
+
+/**
+ * Record whether a person we support who died had a learning disability and whether they were
+ * autistic (H-482, HZ-013): yes, no or "Not known yet" (left open, with its task). The person's
+ * row on the incident is read here and sent whole, as the API replaces it, with only these two
+ * answers changed; the version is the one the page showed, so a change meanwhile is refused.
+ */
+export async function recordIncidentDeathFacts(
+  incidentId: string,
+  input: {
+    readonly personRowId: string;
+    readonly learningDisability: boolean | null;
+    readonly autistic: boolean | null;
+    readonly version: number;
+  },
+): Promise<ActionResult<IncidentDetail>> {
+  if (!isUuid(incidentId) || !isUuid(input.personRowId)) {
+    return refused(t("errors.notFound"), "not_found");
+  }
+  return sendAndRevalidate(["/incidents", "/notifications/statutory"], async (api) => {
+    const read = await api.GET("/v1/incidents/{id}", { params: { path: { id: incidentId } } });
+    if (!read.data) return { error: read.error };
+    const row = read.data.people.find((p) => p.id === input.personRowId);
+    if (!row || row.kind !== "service_user" || !row.died || !row.personId) {
+      return { error: { code: "not_found" } };
+    }
+    return api.PUT("/v1/incidents/{id}", {
+      params: { path: { id: incidentId } },
+      body: {
+        people: [
+          {
+            id: row.id,
+            kind: row.kind,
+            role: row.role,
+            personId: row.personId,
+            ...(row.otherName ? { otherName: row.otherName } : {}),
+            ...(row.injuryDetails ? { injuryDetails: row.injuryDetails } : {}),
+            died: true,
+            ...(input.learningDisability === null
+              ? {}
+              : { learningDisability: input.learningDisability }),
+            ...(input.autistic === null ? {} : { autistic: input.autistic }),
+            ...(row.subjectToMentalHealthAct === null
+              ? {}
+              : { subjectToMentalHealthAct: row.subjectToMentalHealthAct }),
+            bodyMapMarkIds: [...row.bodyMapMarkIds],
+            ...(row.infection ? { infection: row.infection } : {}),
+          },
+        ],
+        version: input.version,
+      },
+    });
+  });
 }
 
 /**

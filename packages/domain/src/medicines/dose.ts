@@ -211,7 +211,40 @@ export function formatDose(dose: Dose): string {
   return `As on the current dosing record, in ${doseUnitName(dose.unit, false)}`;
 }
 
-export type DoseProblem = "unit_not_permitted" | "not_a_dose_quantity" | "range_not_ascending";
+export type DoseProblem =
+  | "unit_not_permitted"
+  | "not_a_dose_quantity"
+  | "range_not_ascending"
+  | "smaller_unit_permitted";
+
+/**
+ * The mass units in the order the BNF steps down through them, each with the names dm+d and
+ * prescribers write it under. A quantity below 1 in one of the first three is written in the next
+ * one where dm+d permits it for the product ("500 mg", never "0.5 g"; H-551).
+ */
+const MASS_UNITS = [
+  { key: "g", names: ["g", "gram", "grams", "gramme", "grammes"] },
+  { key: "mg", names: ["mg", "milligram", "milligrams", "milligramme", "milligrammes"] },
+  {
+    key: "microgram",
+    names: ["microgram", "micrograms", "mcg", "\u00b5g", "\u03bcg", "ug", "microgramme"],
+  },
+  { key: "nanogram", names: ["nanogram", "nanograms", "ng", "nanogramme"] },
+] as const;
+
+type MassUnitKey = (typeof MASS_UNITS)[number]["key"];
+
+/** The mass unit a dm+d unit is, by its description; null for any other unit. */
+function massUnit(unit: DoseUnit): MassUnitKey | null {
+  const name = unit.name.trim().toLowerCase();
+  return MASS_UNITS.find((m) => (m.names as readonly string[]).includes(name))?.key ?? null;
+}
+
+/** The next smaller mass unit, for g, mg and micrograms; null otherwise. */
+function nextSmallerMassUnit(key: MassUnitKey): MassUnitKey | null {
+  const index = MASS_UNITS.findIndex((m) => m.key === key);
+  return index >= 0 && index < 3 ? (MASS_UNITS[index + 1]?.key ?? null) : null;
+}
 
 export interface DoseIssue {
   readonly problem: DoseProblem;
@@ -245,6 +278,20 @@ export function checkDose(dose: Dose, permittedUnits: readonly DoseUnit[]): read
     issues.push({
       problem: "range_not_ascending",
       message: "A dose range goes from the smaller amount to the larger, for example 1 to 2.",
+    });
+  }
+  // A quantity below 1 in g, mg or micrograms where dm+d permits the next smaller unit for the
+  // product: the BNF asks for the smaller unit ("500 mg", never "0.5 g"). Harbour never converts a
+  // dose (medical-device boundary), so it refuses and sends the reader to the prescriber (H-551).
+  const mass = massUnit(dose.unit);
+  const smaller = mass ? nextSmallerMassUnit(mass) : null;
+  const smallerUnit = smaller ? permittedUnits.find((u) => massUnit(u) === smaller) : undefined;
+  if (smallerUnit && quantities.some((q) => Number.isFinite(q) && q > 0 && q < 1)) {
+    const name = doseUnitName(dose.unit, false);
+    const smallerName = doseUnitName(smallerUnit, false);
+    issues.push({
+      problem: "smaller_unit_permitted",
+      message: `A dose below 1 ${doseUnitName(dose.unit, true)} is written in ${smallerName} for this product, never as a decimal of ${name}. Harbour does not convert doses: ask the prescriber or pharmacist for the dose in ${smallerName}.`,
     });
   }
   return issues;

@@ -491,6 +491,9 @@
     "mobile.when.zoneGmt",
     "mobile.when.zoneHint",
     "mobile.when.zoneLabel",
-    "mobile.when.zoneRequired"
+    "mobile.when.zoneRequired",
+    "mobile.signIn.careModeOff",
+    "mobile.unlock.strongBiometricsRequired",
+    "mobile.held.careModeOff"
   ]
 }

@@ -104,13 +104,21 @@ export function lederPrompt(
 
 export interface AfterDeath {
   readonly person: IncidentPersonItem;
+  /**
+   * The CQC death notification (regulation 16) for this person on this incident, with its clock,
+   * so it is seen beside the medical examiner pack and LeDeR (H-481); null when none is drafted.
+   */
+  readonly death: StatutoryNotificationSummary | null;
   readonly examiner: StatutoryNotificationSummary | null;
   readonly leder: LederPrompt;
 }
 
+/** The regulator's statutory death notification kinds (CQC regulation 16 in England). */
+export const DEATH_NOTIFICATION_KINDS: readonly string[] = ["cqc_reg16_death"];
+
 /**
- * The people using the service who died on this incident, each with their medical examiner
- * notification and the LeDeR prompt; empty for an incident with no death or one the reader sees
+ * The people using the service who died on this incident, each with their CQC death notification
+ * (regulation 16), their medical examiner notification and the LeDeR prompt; empty for an incident with no death or one the reader sees
  * only in part (the notifications are not theirs to see).
  */
 export function afterDeath(
@@ -122,6 +130,10 @@ export function afterDeath(
     .filter((p) => p.kind === "service_user" && p.died && p.personId)
     .map((person) => ({
       person,
+      death:
+        notifications.find(
+          (n) => DEATH_NOTIFICATION_KINDS.includes(n.kind) && n.personId === person.personId,
+        ) ?? null,
       examiner:
         notifications.find(
           (n) => n.kind === "medical_examiner" && n.personId === person.personId,

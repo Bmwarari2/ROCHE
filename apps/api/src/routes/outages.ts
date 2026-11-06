@@ -9,7 +9,7 @@ import {
   type OutageReconciliation as OutageReconciliationT,
   ReconcileOutage,
 } from "@harbour/contracts";
-import { outage, type Transaction } from "@harbour/db";
+import { outage, person, type Transaction } from "@harbour/db";
 import {
   checkOutageClosure,
   checkOutageDeclaration,
@@ -26,7 +26,7 @@ import {
   type RateNation,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
@@ -445,7 +445,7 @@ export const outagesRouter = createRouter()
       tags: ["operations"],
       summary: "What reconciling the outage needs: the counts, possible duplicates and blockers",
       description:
-        "Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts only.",
+        "Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts, and for each entry to review its person (named only when you can see them), kind and time (H-267); never an entry's text or values.",
       security,
       request: { params: OutageParams },
       responses: {
@@ -480,6 +480,27 @@ export const outagesRouter = createRouter()
           resourceId: id,
           scope: { locationId: row.locationId, backEntries: r.summary.backEntries },
         });
+        // The person, kind and time of each entry to review, so the reviewer can find it (H-267,
+        // HZ-092): names only of people the reader can see, read in their own scope.
+        const toReview = new Set([
+          ...r.summary.duplicateGroups.flat(),
+          ...r.entries.outsideUnexplained,
+        ]);
+        const reviewRecords = r.entries.records.filter((e) => toReview.has(e.id));
+        const personIds = [...new Set(reviewRecords.map((e) => e.personId))];
+        const visible =
+          personIds.length === 0
+            ? []
+            : await tx
+                .select({
+                  id: person.id,
+                  givenName: person.givenName,
+                  familyName: person.familyName,
+                  preferredName: person.preferredName,
+                })
+                .from(person)
+                .where(and(inArray(person.id, personIds), isNull(person.deletedAt)));
+        const names = new Map(visible.map((p) => [p.id, p]));
         return {
           outage: outageItem(row),
           backEntries: r.summary.backEntries,
@@ -490,6 +511,26 @@ export const outagesRouter = createRouter()
           digitalEntriesInWindow: r.summary.digitalEntriesInWindow,
           duplicateGroups: r.summary.duplicateGroups.map((g) => [...g]),
           outsideWindowEntryIds: [...r.entries.outsideUnexplained],
+          reviewEntries: reviewRecords
+            .toSorted((a, b) => a.eventAt.getTime() - b.eventAt.getTime())
+            .map((e) => {
+              const named = names.get(e.personId);
+              return {
+                id: e.id,
+                personId: e.personId,
+                person: named
+                  ? {
+                      givenName: named.givenName,
+                      familyName: named.familyName,
+                      preferredName: named.preferredName,
+                    }
+                  : null,
+                kind: e.entryKind,
+                occurredAt: e.eventAt.toISOString(),
+                source: e.source,
+                paperReference: e.paperReference,
+              };
+            }),
           enteredByYou: r.enteredByYou,
           blockers: r.stops,
         };
