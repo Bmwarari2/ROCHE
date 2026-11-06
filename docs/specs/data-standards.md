@@ -908,17 +908,18 @@ names.
 
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `training_requirement.role_key` | Harbour | A role's key (`^[a-z][a-z0-9_]{1,63}$`) | Matches a role's key or the built-in key it is based on |
-| `training_requirement.topic`, `training_record.topic` | Skills for Care core and mandatory training | `care_certificate`, `safeguarding_adults`, `safeguarding_children`, `moving_and_handling`, `infection_prevention_and_control`, `fire_safety`, `health_and_safety`, `basic_life_support`, `food_hygiene`, `medicines`, `mental_capacity_and_dols`, `equality_diversity_and_human_rights`, `information_governance`, `dementia_awareness`, `fluids_and_nutrition`, `oliver_mcgowan` | |
-| `training_requirement.tier`, `training_record.tier` | Oliver McGowan Code of Practice | `1` or `2` (Oliver McGowan only) | Tier 2 meets a tier 1 requirement, never the reverse |
-| `training_requirement.refresh_years` | Harbour | Whole years, 1 to 10, or empty for `training.default_refresh_years` | |
-| `training_record.completed_on`, `expires_on` | Harbour | `YYYY-MM-DD` | |
-| `competence_sign_off.competence` | Harbour | `medicines_administration`, `controlled_drugs`, `insulin_administration`, `epilepsy_rescue_medication`, `moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` | Medicines ones refresh on `competence.medicines.refresh_months` |
-| `competence_sign_off.observed_on`, `valid_until` | Harbour | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
-| `competence_withdrawal.reason` | Harbour | Plain text, 10 to 500 characters | |
-| `supervision_record.kind` | Harbour | `supervision`, `appraisal`, `spot_check` | |
-| `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |
-| Outbox `workforce.competence.changed` | Harbour | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
+| `medication.vmp_id`, `amp_id`, `medication_reconciliation_item.vmp_id`, `amp_id` | dm+d VPID and APID (SNOMED CT concept ids) | 6 to 18 digits, partition `00` or `10`, Verhoeff check digit (`isDmdId`) | No foreign key until slice 10's tables (an expand step adds it). |
+| `medication.product_name` | dm+d VMP or AMP description | As dm+d words it at transcription | Kept as transcribed; a later dm+d release does not rewrite it. |
+| `medication.route_code`, `route_name` | dm+d route of administration lookup | Code and description | Permitted routes per product from dm+d (slice 10). |
+| `medication_schedule.unit_code`, `unit_name`, `medication.prn_dose.unit` | dm+d unit of measure | Code and description | Written in full on screen ("micrograms", "units") by `formatDose`. |
+| `medication_schedule.quantity`, `from_quantity`, `to_quantity` | Harbour (structured dose) | Numeric, more than zero, at most 3 decimal places | A range is from less than to; variable has no quantity. |
+| `medication_schedule.time` | ISO 8601 local time | `HH:MM`, 24-hour, UK time | Expanded to instants with the time-zone database (rule 4). |
+| `medication.pattern_kind` and its columns | Harbour (section 18 schedule type) | `every_day`; `every_n_days` (`interval_days`, `anchor_on`); `weekly` (`weekdays`, `interval_weeks`, `anchor_on`); `monthly` (`day_of_month`) | The anchor is its own date (rule 6a). |
+| `medication.state`, `origin`, `directions` | Harbour | As medicines.md rule 6 | |
+| `medication.source_kind`, `stop_source_kind`, `medication_reconciliation_source.kind` | Harbour (`MAR_SOURCE_KINDS`) | `prescription`, `pharmacy_label`, `pharmacy_mar`, `discharge_letter`, `transfer_letter`, `gp_record`, `clinic_letter`, `prescriber_instruction`, `previous_mar`; a source may also be `person_or_family` | No verbal instruction (H-552). |
+| `medication.cd_schedule` | Misuse of Drugs Regulations 2001 schedules, from dm+d | `1`, `2`, `3`, `4`, `4.1`, `4.2`, `5`; null until slice 10 | |
+| `medication_reconciliation.trigger` | Harbour; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
+| `medication_reconciliation_item.says` | Harbour | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
 
 ## Rota builder (Phase 2, slice 21)
 
@@ -1101,6 +1102,12 @@ transcription (slice 16); these tables say what the identifiers mean in the rele
 | `dmd_vmp.udfs`, `dmd_vmpp.quantity` | dm+d | Decimal as dm+d writes it | Never converted. |
 | `dmd_gtin.gtin` | GS1 GTIN | 14 digits, GS1 check digit; a GTIN-8, -12 or -13 padded with leading zeros | `start_date` and `end_date` as dm+d gives them; in force on the UK date; withdrawn when a later release lacks the mapping. |
 | `dmd_release.name`, `released_on` | NHSBSA release naming | The release's own name (`nhsbsa_dmd_10.1.0_20261026000001`); `YYYY-MM-DD` | The release in use is the latest loaded by `released_on`. |
+
+## Medicines record and reconciliation (Phase 2, slice 16)
+
+Migration 0111 ([medicines.md](medicines.md) sections 2 and 12). Retention class `mar_chart`;
+every column is exported. dm+d (NHSBSA, SNOMED CT UK Drug Extension) is the coding standard;
+until slice 10 the identifiers are checked by shape and check digit, not against the release.
 
 ## Platform operational tables (not part of the MODS export)
 

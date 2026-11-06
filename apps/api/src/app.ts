@@ -16,6 +16,7 @@ import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import { createMedicinesPorts } from "./integrations/medicines-ports";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { absencesRouter } from "./routes/absences";
@@ -52,6 +53,7 @@ import { letterTemplatesRouter } from "./routes/letter-templates";
 import { lettersRouter } from "./routes/letters";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { medicinesRouter } from "./routes/medicines";
 import { medicinesDmdRouter } from "./routes/medicines-dmd";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
@@ -207,6 +209,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       mocks,
       smtp: config.smtp,
     }),
+    medicines: createMedicinesPorts(config.medicinesFixtures),
     mockEmail: mocks.email,
     evidenceLinkThrottles: {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
@@ -424,6 +427,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dsarRouter);
   app.route("/", disclosuresRouter);
   app.route("/", qualityDashboardRouter);
+  app.route("/", medicinesRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

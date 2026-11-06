@@ -18,6 +18,7 @@ export * from "./induction";
 export * from "./integrations";
 export * from "./invitations";
 export * from "./mca";
+export * from "./medicines";
 export * from "./medicines-dmd";
 export * from "./onboarding";
 export * from "./operations";

@@ -164,6 +164,12 @@ or treatment ([safety.md](../specs/safety.md) section 11).
 
 **dm+d reference data (Phase 2, slice 10; re-checked for ADR-0080)**: reference data only, inside the boundary, with no dose rule, score or recommendation ([integrations.md](../specs/integrations.md) section 11; `packages/domain/src/medicines/dmd-release.ts` and `dmd-subset.ts`). Harbour stores and shows what the NHSBSA publishes (names, forms, routes, units, packs, legal and controlled drug categories, GTINs, invalid and discontinued flags) and finds products by the words of their names or their codes. It reads ingredients only for the units their strengths are given in and never stores, searches or compares them. The dose units it offers for a product are the codes dm+d gives (the unit dose, its form size's unit and the strength units); Harbour never converts between them, never derives a dose from a strength or pack size, and never checks a dose against a range. A barcode lookup returns the packs dm+d says carry that GTIN, all of them when there are several, and leaves the choice to the person; matching the pack to the MAR entry is an identity check (slice 22, ADR-0081). The out-of-date warning is about the age of the data, not about any medicine. The device subset chooses rows by the products on the MARs and their packs, by identity only. The CSO confirms this reading (H-650), and a pharmacist the set of dose units (H-652).
 
+**Medicines record and reconciliation storage and API (Phase 2, slice 16)**: re-checked; still inside
+the boundary. The tables store what was transcribed and the database refuses rewriting it; the API
+runs the slice 2 rules unchanged and adds no calculation, suggestion or ingredient comparison. The
+MAR route lists the prescribed doses the domain expands; dm+d facts (permitted routes and units)
+come from the reference data, and with none loaded nothing is transcribed rather than guessed.
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built
