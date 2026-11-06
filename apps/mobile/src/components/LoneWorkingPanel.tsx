@@ -309,7 +309,12 @@ export function LoneWorkingPanel({
             ) : null}
             {answeredTime && !view.unconfirmed ? (
               <Text variant="bodyDense" tone="secondary" testID="lone-as-at">
-                {t("mobile.lone.asAt", { time: ukDateTimeParts(answeredTime).time })}
+                {t("mobile.lone.asAt", {
+                  time:
+                    ukDateTimeParts(answeredTime).date === ukDateTimeParts(now()).date
+                      ? ukDateTimeParts(answeredTime).time
+                      : `${ukDateTimeParts(answeredTime).date} ${ukDateTimeParts(answeredTime).time}`,
+                })}
               </Text>
             ) : null}
           </View>

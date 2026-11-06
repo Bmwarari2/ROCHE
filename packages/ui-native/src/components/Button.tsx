@@ -1,5 +1,5 @@
 import { button } from "@harbour/ui/tokens";
-import { type Ref, useRef } from "react";
+import type { Ref } from "react";
 import {
   ActivityIndicator,
   type GestureResponderEvent,
@@ -21,9 +21,9 @@ export interface ButtonProps {
   readonly label: string;
   readonly onPress: (event: GestureResponderEvent) => void;
   /**
-   * A press held for `delayLongPress` ms. It acts when the finger lifts, as a press does, and gives
-   * exactly the same feedback (haptic, look and what is said), so nobody watching can tell the two
-   * apart.
+   * A press held for `delayLongPress` ms. It gives exactly the same feedback as a press (haptic,
+   * look and what is said); it acts when the hold registers, while the finger is still down
+   * (H-1311).
    */
   readonly onLongPress?: (event: GestureResponderEvent) => void;
   readonly delayLongPress?: number;
@@ -81,18 +81,10 @@ export function Button({
     if (feedback !== "none") haptics?.[feedback]();
     onPress(event);
   };
-  // A long press is only noted while held; it acts on release, like a press (never while the finger
-  // is still down, which someone watching could see).
-  const held = useRef(false);
+  // A long press acts as soon as it registers, as the platform's own long-press gesture does, so a
+  // screen reader's long press and a slow press both act once and a cancelled tap never does.
   const handleLongPress = onLongPress
-    ? () => {
-        held.current = true;
-      }
-    : undefined;
-  const handlePressOut = onLongPress
     ? (event: GestureResponderEvent) => {
-        if (!held.current) return;
-        held.current = false;
         if (feedback !== "none") haptics?.[feedback]();
         onLongPress(event);
       }
@@ -108,7 +100,6 @@ export function Button({
       disabled={inactive}
       onPress={handlePress}
       onLongPress={handleLongPress}
-      onPressOut={handlePressOut}
       delayLongPress={delayLongPress}
       testID={testID}
       hitSlop={4}

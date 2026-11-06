@@ -28,7 +28,7 @@ Branch `feat/mobile-shifts-checkins`, slice 71 (no PR yet).
 - Clinical safety: help says when it was refused and reached nobody; a session known only on the
   phone, or a refused start, says nobody is told; the last answer from Harbour is kept, with its
   time, across a restart; the server's due time is used when nothing waits; help stays while a
-  finish waits; duress acts on release; clock-change tests. An API accepting help and duress for an
+  finish waits; clock-change tests. Duress acting on release was tried and dropped in the accessibility re-check (a cancelled press would still send it); it acts when the hold registers (H-1311). An API accepting help and duress for an
   unknown session is H-1317.
 - Security: held clock and lone-working actions go back into the queue at sign-in; a duress press
   is kept as a check-in wherever it is parked; queued ids must match the idempotency key; queued

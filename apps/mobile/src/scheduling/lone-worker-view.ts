@@ -153,7 +153,11 @@ export function loneWorkerView(
   now: Date,
   refusals: readonly RefusedAction[] = [],
 ) {
-  const helpRefused = refusals.some((r) => r.action === "event" && r.kind === "help");
+  // A refused help press counts for the session it was for (or when there is none on the phone).
+  const helpRefusedFor = (id: string | null) =>
+    refusals.some(
+      (r) => r.action === "event" && r.kind === "help" && (id === null || r.sessionId === id),
+    );
   const startRefused = refusals.some((r) => r.action === "start");
   const start = queued.find((q) => q.action === "start");
   const server = mine?.session && !mine.session.finishedAt ? mine.session : null;
@@ -170,7 +174,7 @@ export function loneWorkerView(
       lines: [],
       waiting: queued.length,
       helpWaiting: queued.some((q) => q.body.kind === "help"),
-      helpRefused,
+      helpRefused: helpRefusedFor(null),
       helpReceived: false,
       unconfirmed: false,
       startRefused,
@@ -214,7 +218,7 @@ export function loneWorkerView(
     lines,
     waiting: queued.length,
     helpWaiting: queued.some((q) => q.body.kind === "help"),
-    helpRefused,
+    helpRefused: helpRefusedFor(sessionId),
     helpReceived: mineEvents.some((e) => e.kind === "help"),
     unconfirmed: server === null,
     startRefused,

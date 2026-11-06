@@ -1262,7 +1262,9 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    if a check-in is missed or help is asked for until it reaches Harbour, with "call 999"; a start
    the API refused says lone working did not start.
 3. **Duress**: a long press on Check in, held `DURESS_HOLD_MS` (1.5 seconds) so it does not happen
-   by accident, acting when the finger lifts as a press does. It gives the same haptic, the same
+   by accident, acting when the hold registers (so a screen reader's long press and a slow press
+   act once, and a cancelled tap never does; the answer comes while the finger is still down,
+   H-1311). It gives the same haptic, the same
    answer, said aloud too ("Checked in at 10:02."), the same line in the session and the same count
    waiting to send as a check-in. Nothing the phone shows or keeps in a readable table names it: a
    queued duress press is shown as a check-in, a refused or held one is kept in "needs attention" as

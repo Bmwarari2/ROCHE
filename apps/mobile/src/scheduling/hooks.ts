@@ -153,6 +153,13 @@ function useMine(): { readonly answer: MineAnswer | null; readonly refresh: () =
       credentials: "omit",
     })
       .then(async (response) => {
+        // Access withdrawn or the session gone: the kept answer no longer holds, so the screen
+        // stops showing a session as with Harbour (clinical re-review of slice 71).
+        if (response.status === 403 || response.status === 404) {
+          setAnswer(null);
+          await db.execute("DELETE FROM sync_meta WHERE id = ?", [metaId]);
+          return;
+        }
         if (!response.ok) return;
         const parsed = parseMine(await response.json());
         if (!parsed) return;
