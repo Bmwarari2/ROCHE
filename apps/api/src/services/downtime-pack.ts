@@ -347,6 +347,7 @@ export async function sourcesChangedSince(
   locationId: string,
   personIds: readonly string[],
   since: Date,
+  snapshot: string | null = null,
 ): Promise<boolean> {
   const ids = sql`ARRAY[${sql.join(
     personIds.length > 0 ? personIds.map((id) => sql`${id}`) : [sql`NULL`],
@@ -374,6 +375,51 @@ export async function sourcesChangedSince(
           (SELECT max(greatest(d.updated_at, d.deleted_at)) FROM document d
             WHERE d.id IN (SELECT p.photo_document_id FROM person p WHERE p.id = ANY (${ids})))
         ) > ${since.toISOString()}::timestamptz AS changed`,
+  );
+  if (rows[0]?.changed === true) return true;
+  return snapshot !== null && (await writtenAfterSnapshot(tx, locationId, ids, snapshot));
+}
+
+/**
+ * Whether any source row was written by a transaction the build's snapshot could not see (slice
+ * 49 review): a record's time is when its transaction began, so a write that began before the build
+ * and committed after it has a time before the pack's "as at" and the time check misses it. The row's
+ * `xmin` against the snapshot is commit order, so the printed "as at" never claims data it lacks.
+ * Rows a later build saw are visible to its snapshot, so this never rebuilds in a loop.
+ */
+async function writtenAfterSnapshot(
+  tx: Transaction,
+  locationId: string,
+  ids: ReturnType<typeof sql>,
+  snapshot: string,
+): Promise<boolean> {
+  // The snapshot's xmax and in-progress ids as 32-bit ids, compared by age (newer is younger).
+  const unseen = (alias: string) =>
+    sql`(age(${sql.raw(alias)}.xmin) <= age(((split_part(${snapshot}, ':', 2))::bigint % 4294967296)::text::xid)
+         OR ${sql.raw(alias)}.xmin::text = ANY (
+           SELECT (x::bigint % 4294967296)::text
+           FROM unnest(string_to_array(nullif(split_part(${snapshot}, ':', 3), ''), ',')) AS x))`;
+  const byPerson = (table: string, key = "person_id") =>
+    sql`EXISTS (SELECT 1 FROM ${sql.identifier(table)} t
+         WHERE t.${sql.identifier(key)} = ANY (${ids}) AND ${unseen("t")})`;
+  const { rows } = await tx.execute<{ changed: boolean }>(
+    sql`SELECT (
+          EXISTS (SELECT 1 FROM location l WHERE l.id = ${locationId} AND ${unseen("l")})
+          OR ${byPerson("person", "id")}
+          OR ${byPerson("allergy")}
+          OR ${byPerson("advance_care_record")}
+          OR ${byPerson("person_care_profile")}
+          OR ${byPerson("contact")}
+          OR ${byPerson("care_plan")}
+          OR ${byPerson("care_plan_section")}
+          OR ${byPerson("risk_assessment")}
+          OR ${byPerson("medication")}
+          OR ${byPerson("medication_administration")}
+          OR ${byPerson("medication_dosing_record")}
+          OR EXISTS (SELECT 1 FROM document d
+            WHERE d.id IN (SELECT p.photo_document_id FROM person p WHERE p.id = ANY (${ids}))
+              AND ${unseen("d")})
+        ) AS changed`,
   );
   return rows[0]?.changed === true;
 }
@@ -425,9 +471,12 @@ export async function buildDowntimePack(
   const rates = await operationsRates(tx, input.tenantId, place.nation as Nation, input.now);
   // The information's time is the database's clock before anything is read, so a change after it
   // (on the same clock) means the pack no longer serves (`sourcesChangedSince`).
-  const [{ at }] = (await tx.execute<{ at: string }>(sql`SELECT clock_timestamp() AS at`)).rows as [
-    { at: string },
-  ];
+  // With the snapshot taken at the same moment (`writtenAfterSnapshot`), stored with the pack.
+  const [{ at, snapshot }] = (
+    await tx.execute<{ at: string; snapshot: string }>(
+      sql`SELECT clock_timestamp() AS at, pg_current_snapshot()::text AS snapshot`,
+    )
+  ).rows as [{ at: string; snapshot: string }];
   const asAt = new Date(at);
   const people = await livePeopleAt(tx, place.id);
   // A UUIDv7 from the database, so the stored row and the pack's own id agree.
@@ -463,7 +512,7 @@ export async function buildDowntimePack(
       asAt: pack.asAt,
       validUntil: pack.validUntil,
       generatedBy: input.generatedBy,
-      content: JSON.parse(JSON.stringify(pack)),
+      content: { ...JSON.parse(JSON.stringify(pack)), buildSnapshot: snapshot },
       warnings: warningCounts(pack),
     })
     .returning();
@@ -507,7 +556,8 @@ export async function packServes(
 ): Promise<boolean> {
   if (!row || row.validUntil.getTime() <= now.getTime()) return false;
   const ids = people.map((p) => p.id);
-  if (await sourcesChangedSince(tx, row.locationId, ids, row.asAt)) return false;
+  const snapshot = (row.content as { buildSnapshot?: string }).buildSnapshot ?? null;
+  if (await sourcesChangedSince(tx, row.locationId, ids, row.asAt, snapshot)) return false;
   // A pack whose eMAR read failed for someone is built again on the next read (security M1).
   if (medicinesUnreadable(row).length > 0) return false;
   const pages = (row.content as { pages?: { personId?: string; status?: string }[] }).pages ?? [];

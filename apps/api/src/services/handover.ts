@@ -7,8 +7,10 @@ import {
   handoverItem,
   incident,
   location,
+  medicationAdministration,
   notification,
   observation,
+  person,
   type Transaction,
   task,
 } from "@harbour/db";
@@ -266,6 +268,25 @@ export async function handoverSources(
         entryInShift(observation.occurredAt, observation.recordedAt),
       ),
     );
+  // Doses refused on the eMAR by people living here, the record that stands (slice 49; HZ-003).
+  const refusedDoses = await tx
+    .select({
+      id: medicationAdministration.id,
+      personId: medicationAdministration.personId,
+      occurredAt: medicationAdministration.givenAt,
+      recordedAt: medicationAdministration.recordedAt,
+    })
+    .from(medicationAdministration)
+    .innerJoin(person, eq(person.id, medicationAdministration.personId))
+    .where(
+      and(
+        eq(person.locationId, locationId),
+        eq(medicationAdministration.outcome, "refused"),
+        entryInShift(medicationAdministration.givenAt, medicationAdministration.recordedAt),
+        sql`NOT EXISTS (SELECT 1 FROM medication_administration c
+              WHERE c.supersedes_id = ${medicationAdministration.id})`,
+      ),
+    );
   const incidents = await tx
     .select({
       id: incident.id,
@@ -382,6 +403,7 @@ export async function handoverSources(
     }),
     incidents: incidents.map((i) => ({ ...i, personIds: i.personIds ?? [] })),
     bodyMapMarks: marks,
+    refusedDoses,
     notes,
     alerts: alertConditions(await withAlertReasons(tx, alerts as AlertNotification[])),
   };
@@ -893,6 +915,11 @@ export async function sweepHandovers(
             OR EXISTS (SELECT 1 FROM body_map_mark e WHERE e.location_id = ${handover.locationId}
               AND e.recorded_at > ${handover.refreshedAt} - ${margin}::interval
               AND e.occurred_at >= ${handover.shiftStart} AND e.occurred_at < ${handover.shiftEnd})
+            OR EXISTS (SELECT 1 FROM medication_administration e
+              JOIN person p ON p.id = e.person_id
+              WHERE p.location_id = ${handover.locationId} AND e.outcome = 'refused'
+              AND e.recorded_at > ${handover.refreshedAt} - ${margin}::interval
+              AND e.given_at >= ${handover.shiftStart} AND e.given_at < ${handover.shiftEnd})
             OR EXISTS (SELECT 1 FROM incident e WHERE e.location_id = ${handover.locationId}
               AND e.deleted_at IS NULL AND e.recorded_at > ${handover.refreshedAt} - ${margin}::interval
               AND e.occurred_at >= ${handover.shiftStart} AND e.occurred_at < ${handover.shiftEnd})

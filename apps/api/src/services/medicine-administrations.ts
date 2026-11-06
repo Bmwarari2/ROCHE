@@ -33,7 +33,7 @@ import {
   resolveMedicinesRates,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { lockPerson, personEntries } from "./medicines";
 import { loadPerson } from "./people";
 import { rateRows } from "./rates";
@@ -72,6 +72,54 @@ export async function personAdministrations(
     .from(medicationAdministration)
     .where(eq(medicationAdministration.personId, personId))
     .orderBy(asc(medicationAdministration.givenAt), asc(medicationAdministration.recordedAt));
+}
+
+/**
+ * A person's administration records from `since` (given, recorded or due then or later), and the
+ * latest given record of each medicine version before it that no record corrects, so "last given"
+ * never goes missing (slice 49 security review M3). A correction after `since` comes with it.
+ */
+export async function recentAdministrations(
+  tx: Transaction,
+  personId: string,
+  since: Date,
+): Promise<AdministrationRow[]> {
+  const recent = await tx
+    .select()
+    .from(medicationAdministration)
+    .where(
+      and(
+        eq(medicationAdministration.personId, personId),
+        or(
+          gte(medicationAdministration.givenAt, since),
+          gte(medicationAdministration.recordedAt, since),
+          gte(medicationAdministration.dueAt, since),
+        ),
+      ),
+    );
+  const have = new Set(recent.map((r) => r.id));
+  const latest = await tx.execute<{ id: string }>(
+    sql`SELECT DISTINCT ON (a.medication_id) a.id FROM medication_administration a
+         WHERE a.person_id = ${personId} AND a.given_at < ${since.toISOString()}::timestamptz
+           AND a.outcome IN ('given', 'self_administered', 'given_by_family')
+           AND NOT EXISTS (SELECT 1 FROM medication_administration c WHERE c.supersedes_id = a.id)
+         ORDER BY a.medication_id, a.given_at DESC, a.recorded_at DESC`,
+  );
+  const older = latest.rows.map((r) => r.id).filter((id) => !have.has(id));
+  const rows =
+    older.length === 0
+      ? recent
+      : [
+          ...recent,
+          ...(await tx
+            .select()
+            .from(medicationAdministration)
+            .where(inArray(medicationAdministration.id, older))),
+        ];
+  return rows.sort(
+    (a, b) =>
+      a.givenAt.getTime() - b.givenAt.getTime() || a.recordedAt.getTime() - b.recordedAt.getTime(),
+  );
 }
 
 /** Which record corrects each record (the correction's id), if any. */

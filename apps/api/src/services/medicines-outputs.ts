@@ -18,7 +18,7 @@ import {
   type AdministrationRow,
   effective,
   medicinesRates,
-  personAdministrations,
+  recentAdministrations,
 } from "./medicine-administrations";
 import { roundFor, TAKEN } from "./medicine-rounds";
 import { personEntries, UNCHECKED_POLICY } from "./medicines";
@@ -31,6 +31,13 @@ import { loadPerson } from "./people";
  * record and pass it on; they never say what to give (medical-device boundary). A person with no
  * eMAR entries keeps the Phase 1 source (where the paper MAR is kept; the pre-admission list).
  */
+
+const settings = { historyDays: 35 };
+
+/** Set from configuration at start-up (`MEDICINES_OUTPUT_HISTORY_DAYS`). */
+export function configureMedicinesOutputs(options: { readonly historyDays: number }): void {
+  settings.historyDays = options.historyDays;
+}
 
 export interface EmarFacts {
   readonly entries: readonly MarEntry[];
@@ -53,7 +60,11 @@ export async function emarFacts(
   if (entries.length === 0) return null;
   return {
     entries,
-    rows: await personAdministrations(tx, personId),
+    rows: await recentAdministrations(
+      tx,
+      personId,
+      new Date(now.getTime() - settings.historyDays * 86_400_000),
+    ),
     rates:
       rates ??
       (await medicinesRates(tx, tenantId, (await loadPerson(tx, personId)).nation, ukIsoDate(now))),
@@ -109,7 +120,31 @@ export function downtimeMedicinesFrom(
       lastGivenAt: p.lastGiven ? new Date(p.lastGiven.at) : null,
     };
   });
-  return { status: "recorded", scheduled, prn, producedAt: now };
+  // When-required medicines on hold (the round leaves them off): listed as on hold, as held
+  // scheduled doses are, never silently missing (slice 49 review).
+  const listed = new Set(round.whenRequired.map((p) => p.entryId));
+  const taken = eff.filter((r) => TAKEN.has(r.outcome) && r.givenAt);
+  const heldPrn = facts.entries.flatMap((entry) => {
+    if (entry.directions.kind !== "when_required" || listed.has(entry.id)) return [];
+    const status = marEntryStatus(entry, now, UNCHECKED_POLICY);
+    if (status.mayGive || NOT_IN_FORCE.has(status.words)) return [];
+    const versions = entryVersionIds(entry, facts.entries);
+    const last = taken
+      .filter((r) => versions.has(r.medicationId))
+      .reduce<Date | null>((at, r) => (at === null || r.givenAt > at ? r.givenAt : at), null);
+    return [
+      {
+        name: entry.product.name,
+        dose: formatDose(entry.directions.dose),
+        route: routeWords(entry.route),
+        reason: entry.indication ?? null,
+        lastGivenAt: last,
+        onHold: true,
+        notice: status.notice,
+      },
+    ];
+  });
+  return { status: "recorded", scheduled, prn: [...prn, ...heldPrn], producedAt: now };
 }
 
 const NOT_IN_FORCE: ReadonlySet<string> = new Set([

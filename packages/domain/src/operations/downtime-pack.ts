@@ -136,6 +136,9 @@ export interface PrnMedicine {
   readonly route: string;
   readonly reason: string | null;
   readonly lastGivenAt: Date | null;
+  /** The entry may not be given now on the eMAR: printed as on hold (slice 49 review). */
+  readonly onHold?: boolean;
+  readonly notice?: string | null;
 }
 
 /** Medicines from the eMAR, or where staff find them until then. */

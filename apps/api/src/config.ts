@@ -99,6 +99,11 @@ const Env = z.object({
     .default("local-development-speak-up-throttle-secret-0123456789"),
   /** How long a verified link session lasts in the browser (never past the link's own expiry). */
   EVIDENCE_LINK_SESSION_MINUTES: z.coerce.number().int().positive().max(240).default(60),
+  /**
+   * How many days of a person's administration records the downtime and transfer packs read, plus
+   * the latest given record of each medicine however old (slice 49 security review M3).
+   */
+  MEDICINES_OUTPUT_HISTORY_DAYS: z.coerce.number().int().min(3).max(400).default(35),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
   DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),

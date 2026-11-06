@@ -1,7 +1,7 @@
 # Medicines in the Phase 1 outputs (Phase 2 slice 49)
 
-Branch `feat/meds-phase1-outputs`, from `feat/meds-rounds` (slice 48). MEDS-001, MEDS-002. No
-migration.
+Branch `feat/meds-phase1-outputs`, from `feat/meds-rounds` (slice 48). MEDS-001, MEDS-002.
+Migration 0145.
 
 ## What changed
 
@@ -25,12 +25,22 @@ migration.
 - Docs: medicines.md section 16, the hazard log (HZ-003, HZ-021, HZ-023), data standards, records of
   processing, the medical-device boundary.
 
+- **Round 3 (lead's leftovers)**:
+  - **Migration 0145**: `handover_item.source_type` gains `medication_administration`. A refused
+    dose reaches the shift handover as a refusal ("Refused: a medicine"), including one recorded
+    late. `app.downtime_pack_people()` accepts the pack's `buildSnapshot`.
+  - The downtime pack is stale when any source row was written by a transaction its build snapshot
+    could not see, so the printed "as at" never covers data it lacks.
+  - Administration history is read for `MEDICINES_OUTPUT_HISTORY_DAYS` (default 35) plus the latest
+    given record of each medicine before it.
+  - Held when-required medicines print as on hold.
+  - Tests: location scope (another home never appears), and the transfer record route's audit.
+
 ## Left
 
-- Not yet on the handover: refused doses (need a new `handover_item` source, a migration), and
-  medicines not available (no task is raised for them yet).
-- Residual risk for the CSO (H-102, reworded): a printed or cached copy of the downtime pack lists a
-  dose recorded after it was made as having no outcome recorded.
-- H-82, H-102 and H-151 stay open for the CSO; the eMAR now answers their medicines part.
-- Follow-ups for the lead: bound the administration history read per person (security review),
-  and show held when-required medicines on the downtime pack as on hold rather than leaving them off.
+- TODO for the batch: a medicine recorded as not available should raise the stock task through
+  slice 42's hook (`feat/meds-stock`), which this base does not have.
+- Add `MEDICINES_OUTPUT_HISTORY_DAYS` (optional, default 35) to `.env.example` if the batch keeps one
+  for the API.
+- The CSO items stay on their recommended answers: H-82, H-102, H-151, the variable-dose wording, and
+  "not started yet" entries.

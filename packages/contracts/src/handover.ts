@@ -133,7 +133,15 @@ export const HandoverItemKind = z
   });
 
 export const HandoverSourceType = z
-  .enum(["task", "observation", "incident", "body_map_mark", "care_note", "notification"])
+  .enum([
+    "task",
+    "observation",
+    "incident",
+    "body_map_mark",
+    "care_note",
+    "notification",
+    "medication_administration",
+  ])
   .meta({ id: "HandoverSourceType" });
 
 export const HandoverItem = z

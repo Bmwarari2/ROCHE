@@ -48722,7 +48722,8 @@ export interface components {
       | "incident"
       | "body_map_mark"
       | "care_note"
-      | "notification";
+      | "notification"
+      | "medication_administration";
     HandoverNoteItem: {
       /** Format: uuid */
       id: string;

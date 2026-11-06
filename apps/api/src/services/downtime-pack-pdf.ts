@@ -107,10 +107,15 @@ function medicinesLines(m: Json<DowntimeMedicinesContent> | null): string[] {
           : `Due ${when}: ${what}.`;
       return d.notice ? [line, d.notice] : [line];
     }),
-    ...m.prn.map(
-      (p) =>
-        `When required: ${p.name} ${p.dose} ${p.route}. Last given ${p.lastGivenAt ? ukDateTime(p.lastGivenAt) : "not recorded on the eMAR"}.`,
-    ),
+    ...(
+      m.prn as (Json<DowntimeMedicinesContent & { status: "recorded" }>["prn"][number] & {
+        onHold?: boolean;
+        notice?: string | null;
+      })[]
+    ).flatMap((p) => {
+      const line = `${p.onHold ? "On hold on the eMAR, not to be given: when required" : "When required"}: ${p.name} ${p.dose} ${p.route}. Last given ${p.lastGivenAt ? ukDateTime(p.lastGivenAt) : "not recorded on the eMAR"}.`;
+      return p.onHold && p.notice ? [line, p.notice] : [line];
+    }),
   ];
   // An empty list never reads as no medicines (clinical review M4).
   if (m.due.length === 0 && m.prn.length === 0) {

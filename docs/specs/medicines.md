@@ -1237,8 +1237,8 @@ person scope, and its retention class is `mar_chart`.
 
 ## 16. Medicines in the Phase 1 outputs (slice 49, API)
 
-MEDS-001 and MEDS-002, with HZ-003, HZ-021 and HZ-023. No migration; the packs' JSON content gains
-fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice` in
+MEDS-001 and MEDS-002, with HZ-003, HZ-021 and HZ-023. Migration 0145 (a refused dose as a
+handover source; the pack's build snapshot); the packs' JSON content gains fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice` in
 `packages/domain/src/medicines/outputs.ts`.
 
 - **Every printed or exported medicines list** opens with when it was read from the eMAR and "This
@@ -1254,7 +1254,8 @@ fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice`
   A dose of an entry that may not be given now (a check that found a difference) is `onHold: true`
   and prints "On hold on the eMAR, not to be given: …". The entry's notice (not yet checked, a
   variable dose, a change tomorrow) is `notice` and prints on the next line. When-required medicines
-  carry dose, route, indication and when last given. `producedAt` is when the eMAR was read. An empty
+  carry dose, route, indication and when last given; one on hold is listed as "On hold on the eMAR,
+  not to be given: when required: …" with its notice, never left off. `producedAt` is when the eMAR was read. An empty
   list prints "No dose is due on the eMAR while this pack is in use, and no when-required medicine is
   on it."
   - Someone with no eMAR entries keeps where the paper MAR is kept.
@@ -1263,9 +1264,16 @@ fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice`
     or <the paper MAR place> if it is in use." It also gets a `medicines_unreadable` warning. The
     person ids are logged and audited (`medicinesUnreadable`), the nightly build raises the job
     alarm, and the pack is built again on the next read.
-  - The medicines rates are read once per pack.
+  - The medicines rates are read once per pack. Each person's administration records are read for
+    `MEDICINES_OUTPUT_HISTORY_DAYS` (configuration, default 35), with the latest given record of each
+    medicine version before that, uncorrected, so "last given" never goes missing
+    (`recentAdministrations`).
   - A medicines change, a dosing record or an administration for anyone on the pack makes it stale
-    when it is next read online. A printed or cached copy is not updated (residual risk: H-102).
+    when it is next read online. Besides the record times, the pack keeps the database snapshot it
+    was built from (`buildSnapshot`): a row written by a transaction that snapshot could not see (one
+    that began before the build and committed after it) also makes it stale, so the printed "as at"
+    is never later than the data it covers. A printed or cached copy is not updated (residual risk:
+    H-102).
 - **Transfer pack (HZ-023, H-82)**: for a person with entries on the eMAR, `medicines` has `source:
   "emar"`, `producedAt` and each entry in force (not withdrawn, not yet started, replaced, stopped or
   ended). Each item has:
@@ -1285,7 +1293,9 @@ fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice`
   could not be read …"), logged and audited by person id.
 - **Handover and care plans (HZ-003, H-151)**: outstanding doses (`medicines.dose.outstanding`) and
   a person whose doses could not be worked out (`medicines.dose.check_failed`) reach the shift
-  handover as their tasks. A care plan medicines action still never generates tasks; its notice
-  reads "Not a round: medicines rounds are on the eMAR". Not yet on the handover:
-  - a refused dose, which needs a new handover source (a migration);
-  - a medicine not available, which raises no task yet.
+  handover as their tasks. A dose refused on the eMAR (the record that stands; a corrected one is
+  not) reaches it as a `refusal` item, source `medication_administration`, summary
+  `handover.summary.refusal` with `chart: medicine` ("Refused: a medicine"); a refusal recorded late
+  is added to a locked handover by the sweep. A care plan medicines action still never generates
+  tasks; its notice reads "Not a round: medicines rounds are on the eMAR". Not yet: a medicine not
+  available raises no stock task on this base (slice 42's hook; for the batch).

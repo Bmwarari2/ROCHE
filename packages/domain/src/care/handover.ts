@@ -269,8 +269,19 @@ export interface HandoverAlertSource {
   readonly acknowledgedAt: Date | null;
 }
 
+/**
+ * A dose recorded as refused on the eMAR, the record that stands (a corrected record is not
+ * handed over), at the person's home (slice 49; HZ-003). `occurredAt` is when it was recorded as
+ * given or offered (`given_at`).
+ */
+export interface HandoverRefusedDoseSource extends Timed {
+  readonly personId: string;
+}
+
 export interface HandoverSources {
   readonly tasks: readonly HandoverTaskSource[];
+  /** Doses refused on the eMAR (slice 49); absent before the eMAR. */
+  readonly refusedDoses?: readonly HandoverRefusedDoseSource[];
   readonly observations: readonly HandoverObservationSource[];
   readonly incidents: readonly HandoverIncidentSource[];
   readonly bodyMapMarks: readonly HandoverMarkSource[];
@@ -284,7 +295,8 @@ export type HandoverSourceType =
   | "incident"
   | "body_map_mark"
   | "care_note"
-  | "notification";
+  | "notification"
+  | "medication_administration";
 
 /**
  * What a handover item says, as a catalogue key and its parameters, so a screen words it in the
@@ -429,6 +441,13 @@ export function compileHandover(
         side: mark.side ?? "",
       });
     }
+  }
+  for (const dose of sources.refusedDoses ?? []) {
+    if (!belongs(dose, shift)) continue;
+    add("refusal", "medication_administration", dose.id, dose.personId, dose.occurredAt, {
+      source: "medication_administration",
+      chart: "medicine",
+    });
   }
   for (const note of sources.notes) {
     if (!belongs(note, shift)) continue;

@@ -5,6 +5,7 @@ import { createDocumentServices, createExportStorage } from "../integrations/doc
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { sweepInvitations } from "../services/invitations";
+import { configureMedicinesOutputs } from "../services/medicines-outputs";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
 import {
@@ -46,6 +47,7 @@ import {
  */
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL);
+configureMedicinesOutputs({ historyDays: config.MEDICINES_OUTPUT_HISTORY_DAYS });
 const workerPool = createPool(
   config.DATABASE_WORKER_URL,
   { max: 4 },

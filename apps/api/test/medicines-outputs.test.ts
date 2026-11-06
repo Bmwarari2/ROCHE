@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { createDatabase, type Transaction } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
+import { withAdminClient } from "@harbour/db/testing";
 import { ukDateOf, ukStartOfDay } from "@harbour/domain";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixedCompetence } from "../src/integrations/medicines-ports";
-import { createHarness, type Harness } from "./support/harness";
+import { recentAdministrations } from "../src/services/medicine-administrations";
+import { createHarness, type Harness, LODGE } from "./support/harness";
 import { pdfPages } from "./support/pdf-text";
 
 /**
@@ -83,7 +87,7 @@ interface DueContent {
     onHold?: boolean;
     notice?: string | null;
   }[];
-  prn?: { name: string; reason: string | null; lastGivenAt: string | null }[];
+  prn?: { name: string; reason: string | null; lastGivenAt: string | null; onHold?: boolean }[];
 }
 interface Pack {
   id: string;
@@ -212,6 +216,34 @@ describe("hazard HZ-021 the downtime pack lists doses due from the eMAR", () => 
   });
 });
 
+describe("hazard HZ-021 a write that began before the pack was built and committed after it", () => {
+  it("hazard HZ-021 makes the pack stale, so the printed time never claims data it lacks", async () => {
+    await pack();
+    const client = await h.db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [DEMO.tenantId],
+      );
+      // Its time is when this transaction began, before the pack below is built.
+      await client.query(
+        `INSERT INTO contact (person_id, role, given_name, family_name, phone)
+         VALUES ($1, 'next_of_kin', 'Contact', 'Example Late', '01632 960999')`,
+        [ADA],
+      );
+      const built = await pack();
+      await client.query("COMMIT");
+      const after = await pack();
+      expect(after.id).not.toBe(built.id);
+      // Once seen, the pack is reused: no rebuild loop.
+      expect((await pack()).id).toBe(after.id);
+    } finally {
+      client.release();
+    }
+  });
+});
+
 describe("hazard HZ-021 entries that may not be given, and an eMAR that cannot be read", () => {
   it("hazard HZ-021 prints a held entry's doses as on hold, never as due", async () => {
     const held = (
@@ -237,7 +269,34 @@ describe("hazard HZ-021 entries that may not be given, and an eMAR that cannot b
       },
     });
     expect(checked.status, await checked.clone().text()).toBe(200);
+    const heldPrn = (
+      await transcribe(
+        {
+          product: LACTULOSE,
+          indication: "Constipation",
+          directions: {
+            kind: "when_required",
+            dose: { kind: "amount", quantity: 15, unit: ML },
+            maxQuantityPer24Hours: 30,
+          },
+        },
+        DEV,
+      )
+    ).id;
+    const prnChecked = await send("owner", `/v1/medicines/${heldPrn}/check`, {
+      method: "POST",
+      body: {
+        outcome: "differs_from_source",
+        difference: "The dose differs from the prescription",
+        comparedWithSource: true,
+      },
+    });
+    expect(prnChecked.status, await prnChecked.clone().text()).toBe(200);
     const page = (await pack()).pages.find((p) => p.personId === DEV);
+    // A held when-required medicine is listed as on hold, never left off (slice 49 review).
+    expect(page?.content.medicinesDue?.prn).toEqual([
+      expect.objectContaining({ onHold: true, reason: "Constipation" }),
+    ]);
     const doses = page?.content.medicinesDue?.due ?? [];
     expect(doses.length).toBeGreaterThan(0);
     expect(doses.every((d) => d.onHold === true)).toBe(true);
@@ -247,6 +306,7 @@ describe("hazard HZ-021 entries that may not be given, and an eMAR that cannot b
       .flat()
       .join(" ");
     expect(text).toContain("On hold on the eMAR, not to be given: Paracetamol");
+    expect(text).toContain("On hold on the eMAR, not to be given: when required: Lactulose");
     const transfer = await json<TransferPack>(
       await send("manager", `/v1/people/${DEV}/transfer-pack`),
     );
@@ -302,6 +362,131 @@ describe("hazard HZ-021 entries that may not be given, and an eMAR that cannot b
   });
 });
 
+describe("hazard HZ-003 a refused dose reaches the shift handover (slice 49, migration 0145)", () => {
+  it("hazard HZ-003 hands over a dose refused on the eMAR as a refusal", async () => {
+    const EVE = "0194d000-0000-7000-8600-000000000005";
+    const at = new Date(
+      Math.floor(
+        Math.max(Date.now() - 30 * MINUTE, ukStartOfDay(ukDateOf(new Date())).getTime() + MINUTE) /
+          MINUTE,
+      ) * MINUTE,
+    );
+    const entry = await transcribe(
+      {
+        earlierDosesDueReason: "Due this morning; the paper MAR shows it was not given",
+        directions: {
+          kind: "regular",
+          schedule: {
+            pattern: { kind: "every_day" },
+            times: [{ time: ukTime(at), dose: { kind: "amount", quantity: 1, unit: TABLET } }],
+          },
+        },
+      },
+      EVE,
+    );
+    const refused = await send("manager", `/v1/people/${EVE}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: randomUUID(),
+        entryId: entry.id,
+        dueAt: at.toISOString(),
+        outcome: "refused",
+        reason: { code: "declined" },
+      },
+    });
+    expect(refused.status, await refused.clone().text()).toBe(201);
+    const recordId = (await json<{ administration: { id: string } }>(refused)).administration.id;
+    const compile = async () => {
+      const r = await send("manager", `/v1/locations/${DEMO.locationId}/handovers`, {
+        method: "POST",
+        body: {},
+      });
+      expect([200, 201], await r.clone().text()).toContain(r.status);
+      return json<{
+        items: {
+          sourceType: string;
+          sourceId: string;
+          kind: string;
+          personId: string | null;
+          summary: { key: string; params: Record<string, string> } | null;
+        }[];
+      }>(r);
+    };
+    const item = (await compile()).items.find((i) => i.sourceId === recordId);
+    expect(item).toMatchObject({
+      kind: "refusal",
+      sourceType: "medication_administration",
+      personId: EVE,
+      summary: { key: "handover.summary.refusal", params: { chart: "medicine" } },
+    });
+  });
+});
+
+describe("the packs read a bounded administration history (slice 49 security review)", () => {
+  it("reads the window and the latest given record of each medicine before it, never older ones", async () => {
+    const FAY = "0194d000-0000-7000-8600-000000000006";
+    const entry = await transcribe(
+      {
+        product: LACTULOSE,
+        indication: "Constipation",
+        directions: {
+          kind: "when_required",
+          dose: { kind: "amount", quantity: 15, unit: ML },
+          maxQuantityPer24Hours: 30,
+        },
+      },
+      FAY,
+    );
+    const given = await send("manager", `/v1/people/${FAY}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: randomUUID(),
+        entryId: entry.id,
+        outcome: "given",
+        amount: { quantity: 15, unitCode: ML.code },
+      },
+    });
+    expect(given.status, await given.clone().text()).toBe(201);
+    const recent = (await json<{ administration: { id: string } }>(given)).administration.id;
+    // Older copies of that record, written as they would have been (triggers off, as superuser).
+    const copy = async (daysAgo: number, outcome: string) => {
+      const id = randomUUID();
+      await withAdminClient(async (c) => {
+        await c.query("SET session_replication_role = replica");
+        await c.query(
+          `INSERT INTO medication_administration
+           SELECT (jsonb_populate_record(NULL::medication_administration, to_jsonb(a) ||
+             jsonb_build_object('id', $2::uuid, 'outcome', $3::text,
+               'given_at', now() - make_interval(days => $4),
+               'recorded_at', now() - make_interval(days => $4)))).*
+           FROM medication_administration a WHERE a.id = $1`,
+          [recent, id, outcome, daysAgo],
+        );
+        await c.query("SET session_replication_role = origin");
+      }, h.db.name);
+      return id;
+    };
+    const old = await copy(60, "given");
+    const older = await copy(70, "given");
+    await copy(50, "refused");
+    const db = createDatabase(h.db.pool("harbour_owner"));
+    const read = (since: Date) =>
+      db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT set_config('app.tenant_id', ${DEMO.tenantId}, true), set_config('app.scope', 'tenant', true)`,
+        );
+        return recentAdministrations(tx as unknown as Transaction, FAY, since);
+      });
+    const DAY = 24 * 60 * MINUTE;
+    // The window holds today's record; before it, only the latest given record (60 days ago) comes,
+    // never the older one or a refusal.
+    expect((await read(new Date(Date.now() - 35 * DAY))).map((r) => r.id)).toEqual([old, recent]);
+    const wider = (await read(new Date(Date.now() - 65 * DAY))).map((r) => r.id);
+    expect(wider).toHaveLength(4);
+    expect(wider[0]).toBe(older);
+  });
+});
+
 interface TransferPack {
   missingCritical: string[];
   attention?: { code: string }[];
@@ -349,5 +534,58 @@ describe("hazard HZ-023 the transfer pack lists medicines from the eMAR", () => 
     expect(r.status).toBe(200);
     const body = await json<TransferPack>(r);
     expect(body.content.medicines.source).not.toBe("emar");
+  });
+});
+
+describe("scope and audit of the medicines in the packs (slice 49 security review)", () => {
+  it("hazard HZ-011 never puts another home's people or medicines on a location-scoped builder's pack", async () => {
+    const r = await send("owner", `/v1/people/${LODGE.personId}/medicines`, {
+      method: "POST",
+      body: {
+        product: { ...PARACETAMOL, name: "Paracetamol 500mg tablets" },
+        route: ORAL,
+        prescriber: "Dr A Example",
+        startsAt: ukStartOfDay(ukDateOf(new Date())).toISOString(),
+        source: SOURCE,
+        indication: "Lodge only",
+        directions: {
+          kind: "when_required",
+          dose: { kind: "amount", quantity: 1, unit: TABLET },
+          maxQuantityPer24Hours: 4,
+        },
+      },
+    });
+    expect(r.status, await r.clone().text()).toBe(201);
+    // The Registered Manager covers Harbour House only.
+    const body = await pack();
+    expect(body.pages.map((p) => p.personId)).not.toContain(LODGE.personId);
+    expect(JSON.stringify(body)).not.toContain("Lodge only");
+    expect((await send("manager", `/v1/locations/${LODGE.locationId}/downtime-pack`)).status).toBe(
+      404,
+    );
+    expect((await send("manager", `/v1/people/${LODGE.personId}/transfer-pack`)).status).toBe(404);
+  });
+
+  it("hazard HZ-023 audits the transfer sent with the person, saying the eMAR could not be read", async () => {
+    const person = await json<{ version: number }>(await send("manager", `/v1/people/${CARL}`));
+    const created = await send("manager", `/v1/people/${CARL}/hospital-transfers`, {
+      method: "POST",
+      body: {
+        leftAt: new Date().toISOString(),
+        hospitalName: "Example General Hospital",
+        sendItemIds: [],
+        version: person.version,
+      },
+    });
+    expect(created.status, await created.clone().text()).toBe(201);
+    const { id } = await json<{ id: string }>(created);
+    const audited = await asDemo((c) =>
+      c.query<{ scope: { medicinesEmarUnreadable?: boolean } }>(
+        `SELECT scope FROM audit_event WHERE action = 'people.hospital_transfer.create'
+         AND resource_id = $1`,
+        [id],
+      ),
+    );
+    expect(audited.rows[0]?.scope.medicinesEmarUnreadable).toBe(true);
   });
 });
