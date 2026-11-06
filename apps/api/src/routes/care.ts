@@ -497,10 +497,13 @@ export const careRouter = createRouter()
             // Food and drink are judged against the levels prescribed when they were given, not
             // when the entry reached the server (H-166, HZ-016). A device clock that disagrees
             // with the server cannot place the entry in the history, so the level now is used
-            // (HZ-010).
+            // (HZ-010); so is an entry from a device that does not say when it was sent, whose
+            // clock cannot be checked at all.
+            const clockChecked = access.deviceId === null || Boolean(c.req.header(SENT_AT_HEADER));
             const iddsiThen =
               (body.values.chart === "food" || body.values.chart === "fluid_intake") &&
-              !times.clockDrift
+              !times.clockDrift &&
+              clockChecked
                 ? await iddsiLevelsAt(tx, profile, times.occurredAt)
                 : null;
             const { flags, triggers } = chartRules(

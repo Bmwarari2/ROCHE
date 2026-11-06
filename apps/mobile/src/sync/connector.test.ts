@@ -99,15 +99,16 @@ function connector(
   fetch: FetchLike,
   overrides: { token?: string | null; now?: () => Date; tenantId?: string | null } = {},
 ) {
-  const revoked = { count: 0, device: 0 };
+  const revoked = { count: 0, device: 0, reasons: [] as (string | undefined)[] };
   const sleeps: number[] = [];
   const instance = new HarbourConnector({
     apiUrl: API,
     fetch,
     getToken: async () => (overrides.token === undefined ? "tok" : overrides.token),
     getTenantId: () => (overrides.tenantId === undefined ? TENANT : overrides.tenantId),
-    onSessionRevoked: () => {
+    onSessionRevoked: (reason) => {
       revoked.count += 1;
+      revoked.reasons.push(reason);
     },
     onDeviceRevoked: () => {
       revoked.device += 1;
@@ -336,6 +337,7 @@ describe("fetchCredentials", () => {
   it.each([
     ["missing_permission", () => problem(403, "missing_permission", "No access.")],
     ["feature_disabled", () => problem(403, "feature_disabled", "Switched off.")],
+    ["care_mode_off", () => problem(403, "care_mode_off", "Care mode is switched off.")],
     ["an unknown code", () => problem(403, "a_code_this_build_does_not_know", "No.")],
   ])(
     "hazard HZ-006 treats a 403 %s from the sync token as access withdrawn, without asking /v1/me (round 4, H1)",
@@ -345,6 +347,8 @@ describe("fetchCredentials", () => {
       await expect(instance.fetchCredentials()).resolves.toBeNull();
       expect(revoked.count).toBe(1);
       expect(calls).toHaveLength(1);
+      // Care mode switched off is named, so the phone says so (H-381).
+      expect(revoked.reasons).toEqual([_case === "care_mode_off" ? "care_mode_off" : undefined]);
     },
   );
 
@@ -544,6 +548,7 @@ describe("uploadData: care entries go to their own endpoints", () => {
 
   it.each([
     ["missing_permission", () => problem(403, "missing_permission", "Refused.")],
+    // Another switched-off feature (an unlicensed tool, say) is not Care mode off (re-review L1).
     ["feature_disabled", () => problem(403, "feature_disabled", "Refused.")],
     ["an unknown code", () => problem(403, "a_code_this_build_does_not_know", "Refused.")],
   ])(
@@ -559,6 +564,19 @@ describe("uploadData: care entries go to their own endpoints", () => {
       expect(queue.state.completed).toBe(1);
     },
   );
+
+  it("hazard HZ-006 holds, never parks, an entry refused because Care mode was switched off (H-381)", async () => {
+    const { fetch, calls } = fakeFetch([problem(403, "care_mode_off", "Refused.")]);
+    const { instance, revoked } = connector(fetch);
+    const queue = fakeQueue([note()]);
+    await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+    expect(calls).toHaveLength(1);
+    // The session ends once, saying why, and the entry stays queued for the hold.
+    expect(revoked.count).toBe(1);
+    expect(revoked.reasons).toEqual(["care_mode_off"]);
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(0);
+  });
 
   it.each([
     ["no JSON body", emptyForbidden],
@@ -824,7 +842,7 @@ describe("hazard HZ-040 a device a manager revoked (care.md section 6, Device in
     const { fetch, calls } = fakeFetch([revokedProblem()]);
     const { instance, revoked } = connector(fetch);
     expect(await instance.fetchCredentials()).toBeNull();
-    expect(revoked).toEqual({ count: 0, device: 1 });
+    expect(revoked).toMatchObject({ count: 0, device: 1 });
     // Decided by the API: no need to ask GET /v1/me.
     expect(calls).toHaveLength(1);
   });
@@ -836,7 +854,7 @@ describe("hazard HZ-040 a device a manager revoked (care.md section 6, Device in
     await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(DeviceRevokedError);
     expect(queue.issues()).toEqual([]);
     expect(queue.state.completed).toBe(0);
-    expect(revoked).toEqual({ count: 0, device: 1 });
+    expect(revoked).toMatchObject({ count: 0, device: 1 });
     // Not retried: the device is told once.
     expect(calls).toHaveLength(1);
   });

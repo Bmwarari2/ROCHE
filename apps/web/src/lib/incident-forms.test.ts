@@ -15,6 +15,7 @@ import {
   readAnswer,
   readAnswers,
   readContactsAnswers,
+  readDeathFacts,
   readIncidentForm,
 } from "./incident-forms";
 import { notificationsView } from "./incidents";
@@ -529,5 +530,29 @@ describe("reading the record an incident form (#42 review; HZ-027)", () => {
     );
     expect(read.ok).toBe(false);
     expect(!read.ok && read.parts?.occurredAt).toContain("hour");
+  });
+});
+
+describe("hazard HZ-013 learning disability and autism recorded after a death (H-482)", () => {
+  it.each([
+    [
+      { learningDisability: "yes", autistic: "no" },
+      { learningDisability: true, autistic: false },
+    ],
+    [
+      { learningDisability: "not_known", autistic: "yes" },
+      { learningDisability: null, autistic: true },
+    ],
+  ])("reads %j as chosen, not known yet included", (entries, answers) => {
+    expect(readDeathFacts(form(entries), t)).toEqual({ ok: true, answers });
+  });
+
+  it("asks for each answer, never assuming one", () => {
+    const read = readDeathFacts(form({ learningDisability: "yes" }), t);
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(Object.keys(read.errors)).toEqual(["autistic"]);
+    const none = readDeathFacts(form({}), t);
+    if (!none.ok)
+      expect(Object.keys(none.errors).sort()).toEqual(["autistic", "learningDisability"]);
   });
 });

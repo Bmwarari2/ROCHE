@@ -891,7 +891,7 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
 - `care.mobile_care_mode` (recommended answer to H-381, 31/10/2026): Care mode on the phone, off by
   default and organisation-wide (a location row does not switch it on; never set by Flagsmith).
   While it is off the phone refuses Care mode sign-in unless it holds unsent entries, and the API
-  refuses the sync token, the batch upload and a phone's entry uploads with 403 `feature_disabled`
+  refuses the sync token, the batch upload and a phone's entry uploads with 403 `care_mode_off`
   (`refuseCareModeOff`), which the phone reads as access withdrawn, holding unsent entries; a
   manager's hand-over of held entries is not refused. The demo tenant has it on. The organisation
   switches it on only once a clinical safety case covers the app.

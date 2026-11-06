@@ -891,9 +891,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   a Retry-After is honoured up to 10 minutes, above the firewall's 300 seconds. A 403 is read from
   its RFC 9457 problem body (security reviews S6, round 3 H1 and round 4 H1). A session code
   (`not_a_member`, `mfa_enrolment_required`, `step_up_required`) ends the session. Any other code
-  from the API (`missing_permission`, `feature_disabled`, or one the build does not know) on the
+  from the API (`missing_permission`, `feature_disabled`, `care_mode_off`, or one the build does not know) on the
   sync token or a batch upload means the access Care mode needs was withdrawn, so the session ends
-  for Care mode; on a single care entry it moves that entry to "needs attention". Only a 403 with
+  for Care mode; on a single care entry it moves that entry to "needs attention", except
+  `care_mode_off`, which ends the session and holds the entry with the rest (H-381, HZ-006). Only a 403 with
   no JSON body, an HTML page or the edge's `edge_blocked` asks `GET /v1/me` first, sending
   `x-harbour-tenant`: a 401, a session code or an answer without `people.person.read` ends the
   session; otherwise a care entry moves to "needs attention" and the sync token and batch uploads

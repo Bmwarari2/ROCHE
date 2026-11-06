@@ -694,6 +694,20 @@ describe("hazard HZ-016 IDDSI levels", () => {
     expect(JSON.stringify(await drifted.json())).toMatch(
       /not the prescribed drink level \(Level 0/,
     );
+    // A device that does not say when it sent the entry has a clock that cannot be checked: the
+    // level now (0) is used, and a phone's entry is kept and flagged (HZ-010, HZ-016).
+    const unchecked = await h.request(`/v1/people/${resident(4)}/observations`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: { occurredAt: given.toISOString(), values: drink },
+      headers: { "x-harbour-device": "0199d000-0000-4000-8000-0000000c0166" },
+    });
+    expect(unchecked.status, await unchecked.clone().text()).toBe(201);
+    expect((await json<ObservationItem>(unchecked)).flags).toMatchObject({
+      iddsi: { outcome: "mismatch" },
+      iddsiProblem: "reason_missing",
+    });
     // The same drink given now is judged against level 0 and needs a reason on the web.
     const now = await observe(4, drink, { occurredAt: new Date().toISOString() }, "manager");
     expect(now.status).toBe(422);

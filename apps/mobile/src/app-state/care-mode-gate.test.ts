@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { admitCareMode, CareModeOffError, careModeOn } from "./care-mode-gate";
+import { admitCareMode, CareModeOffError, careModeOn, sessionEndNotices } from "./care-mode-gate";
 
 const on = { flags: { "care.mobile_care_mode": true } };
 const off = { flags: { "care.mobile_care_mode": false } };
@@ -35,5 +35,29 @@ describe("hazard HZ-006 Care mode on the phone is a control, not an instruction 
       admitCareMode({ me, demoMode: false, holdsEntries, token: "t", signOut }),
     ).resolves.toBeUndefined();
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["nothing unsent", "wipe"],
+    ["unsent entries kept", "held"],
+  ] as const)(
+    "hazard HZ-006 says Care mode was switched off when a session ends for it, with %s",
+    (_label, which) => {
+      const notices = sessionEndNotices({
+        revoked: false,
+        careModeOff: true,
+        wipeNotice: "Sign in",
+      });
+      expect(notices[which]).toMatch(/switched off for your organisation/);
+      expect(notices[which]).not.toBe("Sign in");
+    },
+  );
+
+  it("keeps the usual notices otherwise, and a revoked device's over Care mode", () => {
+    expect(
+      sessionEndNotices({ revoked: false, careModeOff: false, wipeNotice: "Sign in" }),
+    ).toEqual({ wipe: "Sign in", held: undefined });
+    const revoked = sessionEndNotices({ revoked: true, careModeOff: true, wipeNotice: "Sign in" });
+    expect(revoked.held).toMatch(/withdrew this device/);
   });
 });

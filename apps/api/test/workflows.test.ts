@@ -687,6 +687,65 @@ describe("PLAT-011 open workflows and approvals", () => {
     expect(await blocked()).toBe(false);
   });
 
+  it("hazard HZ-013 hazard HZ-091 marks closing blocked while a death has no learning disability or autism answer, as the close route does (H-482)", async () => {
+    const response = await as("manager", "/v1/incidents", {
+      method: "POST",
+      body: {
+        locationId: DEMO.locationId,
+        type: "injury",
+        occurredAt: ago(2 * 60 * MIN),
+        description: "Found unresponsive in bed during the night check.",
+        emergencyServicesCalled: true,
+        gpContacted: true,
+        people: [{ kind: "service_user", role: "affected", personId: DEMO_RESIDENT, died: true }],
+      },
+    });
+    expect(response.status, await response.clone().text()).toBe(201);
+    const incident = await json<IncidentDetail>(response);
+    await answerEverything(incident.id);
+    const facts = async () =>
+      forIncident((await list("owner", "all")).items, incident.id)?.incident;
+    expect((await facts())?.closeBlocked).toBe(true);
+    const current = await json<IncidentDetail>(await as("owner", `/v1/incidents/${incident.id}`));
+    const person = current.people[0];
+    expect(person).toBeDefined();
+    if (!person) return;
+    const answered = await as("owner", `/v1/incidents/${incident.id}`, {
+      method: "PUT",
+      body: {
+        people: [
+          {
+            id: person.id,
+            kind: "service_user",
+            role: "affected",
+            personId: DEMO_RESIDENT,
+            died: true,
+            learningDisability: false,
+            autistic: false,
+          },
+        ],
+        version: current.version,
+      },
+    });
+    expect(answered.status, await answered.clone().text()).toBe(200);
+    // Read before closing: the list and the close route agree, and the death facts no longer
+    // stand in the way (the duty of candour may still, whatever it decides).
+    const blockedAfter = (await facts())?.closeBlocked;
+    expect(blockedAfter).toBeDefined();
+    const closing = await as("owner", `/v1/incidents/${incident.id}/close`, {
+      method: "POST",
+      body: {
+        reason: "Reviewed.",
+        version: (await json<IncidentDetail>(await as("owner", `/v1/incidents/${incident.id}`)))
+          .version,
+      },
+    });
+    expect(closing.status === 422).toBe(blockedAfter);
+    if (closing.status === 422) {
+      expect(JSON.stringify(await closing.json())).not.toMatch(/learning disability/);
+    }
+  });
+
   it("records the view in the audit trail without content", async () => {
     const events = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ scope: Record<string, unknown> }>(

@@ -43,7 +43,7 @@ that change what is built for care, safety, mobile and medicines items whose cod
   summaries); the notifications tile words a "without delay" kind as the incident page does.
 - **Care mode** (H-381, H-125): `care.mobile_care_mode`, organisation-wide and off by default (on
   for the demo tenant), refuses the phone's Care mode sign-in (unless it holds unsent entries), its
-  sync token and its uploads (403 `feature_disabled`, read as access withdrawn, entries held); the
+  sync token and its uploads (403 `care_mode_off`, read as access withdrawn, entries held); the
   store build waits for `MOBILE_SAFETY_CASE_COVERS_APP`. Until the native passcode-binding module
   exists, a live organisation enrols only devices with strong biometrics.
 - **Letters** (H-228): the letter PDF carries the provider's letterhead at the top right and the
@@ -56,7 +56,6 @@ that change what is built for care, safety, mobile and medicines items whose cod
 - H-268: back-entry on the incident and assessment APIs (a migration for their paper fields) and
   the paper record choice on their forms.
 - H-306: the time-of-care permission check, after H-309.
-- HZ-127's rating when slice 37 adds its entry.
 - Set `MOBILE_SAFETY_CASE_COVERS_APP` and each organisation's `care.mobile_care_mode` only once a
   signed safety case covers the app. Check whether any pilot tenant already uses Care mode: its
   phones stop syncing (holding unsent entries) once this is deployed until the flag is on.
@@ -66,6 +65,27 @@ that change what is built for care, safety, mobile and medicines items whose cod
   safeguarding log.
 - A web form to record a death's learning disability and autism answers after the incident was
   recorded (the API takes them on `PUT /v1/incidents/{id}`; the web has no form yet).
+
+## Clinical re-review round 2 (06/11/2026)
+
+- **High, HZ-006, H-381**: an entry the phone was uploading when Care mode was switched off was
+  parked as refused; it is now held with the rest of the unsent work (the connector reads
+  `care_mode_off` on upload as access withdrawn). The API now sends its own `care_mode_off` code
+  for Care mode, so another switched-off feature (`feature_disabled`, for example an unlicensed
+  tool) is still parked as one entry's refusal, never read as Care mode off.
+- **Medium, HZ-006, H-381**: the phone now says Care mode was switched off for the organisation,
+  both when it wipes (nothing unsent) and when it holds entries (`mobile.held.careModeOff`), rather
+  than only "sign in again".
+- **Low, HZ-091**: an incident whose people the reader cannot all see is restricted and offers no
+  close form, so the page never offers a close the API refuses for a hidden death (now tested).
+- **Low, HZ-010, HZ-016**: an entry from a device that sends no sent-at time is judged against the
+  IDDSI level now, as a drifted clock is.
+- **Low, traceability**: the hazard log cites the renamed HZ-016 test and the new HZ-006, HZ-013 and
+  HZ-091 tests; HZ-013's control row names the close block and the later-recording form.
+- Tests added: the approvals list's close block for a death without learning disability or autism
+  answers (API), the death-facts form and close offer (web), the Care mode off hold and notices
+  (mobile). The web incident form asks the question wherever a death can be recorded (it records a
+  person only from their page), and the incident page records the answers later.
 
 ## Human actions logged
 

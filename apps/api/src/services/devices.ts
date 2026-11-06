@@ -350,7 +350,8 @@ export async function refuseRevokedDevice(
 }
 
 /**
- * Refuses a phone's sync token or upload with 403 `feature_disabled` while the organisation has not
+ * Refuses a phone's sync token or upload with 403 `care_mode_off` (its own code, so a phone never
+ * reads another switched-off feature as Care mode off; clinical re-review round 2, L1) while the organisation has not
  * switched Care mode on (`care.mobile_care_mode`, off by default; H-381): the mobile exclusion from
  * the clinical safety case is a control, not an instruction. The flag is organisation-wide (a
  * location row does not switch it on). The phone reads the refusal as access withdrawn: it stops
@@ -372,7 +373,10 @@ export async function refuseCareModeOff(
       .where(and(eq(featureFlag.flagKey, CARE_MODE_FLAG), isNull(featureFlag.deletedAt))),
   );
   if (evaluateFlag(CARE_MODE_FLAG, rows, null)) return;
-  throw problems.featureDisabled(
+  throw new HttpProblem(
+    403,
+    "care_mode_off",
+    "Care mode on the phone is switched off for your organisation.",
     "Care mode on the phone is switched off for your organisation until a clinical safety case covers the app. Ask your manager.",
   );
 }

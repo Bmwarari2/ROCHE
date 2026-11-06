@@ -474,6 +474,7 @@
     "mobile.when.zoneLabel",
     "mobile.when.zoneRequired",
     "mobile.signIn.careModeOff",
-    "mobile.unlock.strongBiometricsRequired"
+    "mobile.unlock.strongBiometricsRequired",
+    "mobile.held.careModeOff"
   ]
 }

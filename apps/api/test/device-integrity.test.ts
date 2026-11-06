@@ -1313,10 +1313,10 @@ describe("part 6: hand-over of held entries", () => {
       // access withdrawn, so it keeps them under the hold rules.
       const own = await noteFrom("carer", device, {}, newId());
       expect(own.status).toBe(403);
-      expect((await json<{ code: string }>(own)).code).toBe("feature_disabled");
+      expect((await json<{ code: string }>(own)).code).toBe("care_mode_off");
       const copy = await sendCopy("carer", refusal(newId()), device);
       expect(copy.status).toBe(403);
-      expect((await json<{ code: string }>(copy)).code).toBe("feature_disabled");
+      expect((await json<{ code: string }>(copy)).code).toBe("care_mode_off");
       // The web, with no device, is not a phone: its entries are taken.
       expect((await noteFrom("carer", undefined, {}, newId())).status).toBe(201);
       // A manager's hand-over is how held entries leave the phone: never refused for Care mode.

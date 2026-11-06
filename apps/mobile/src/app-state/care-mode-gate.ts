@@ -15,6 +15,26 @@ export function careModeOn(me: Pick<Me, "flags">, demoMode: boolean): boolean {
   return demoMode || me.flags?.[CARE_MODE_FLAG] === true;
 }
 
+/**
+ * What the phone says when a session ends (H-381): Care mode switched off for the organisation is
+ * named, both when there was nothing unsent (the records are removed) and when unsent entries are
+ * kept, so the carer is not told only to sign in again while it stays off.
+ */
+export function sessionEndNotices(input: {
+  readonly revoked: boolean;
+  readonly careModeOff: boolean;
+  /** The usual notice when there is nothing unsent: sign in again. */
+  readonly wipeNotice: string;
+}): { readonly wipe: string; readonly held: string | undefined } {
+  if (input.revoked) {
+    return { wipe: t("mobile.vault.deviceRevoked"), held: t("mobile.held.revoked") };
+  }
+  if (input.careModeOff) {
+    return { wipe: t("mobile.signIn.careModeOff"), held: t("mobile.held.careModeOff") };
+  }
+  return { wipe: input.wipeNotice, held: undefined };
+}
+
 /** The sign-in was refused because Care mode is off for the organisation. */
 export class CareModeOffError extends Error {
   constructor() {

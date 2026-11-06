@@ -118,7 +118,7 @@ section 6); the table says what is built.
   (`packages/domain/src/platform/feature-flags.ts`) is off by default: while it is off the phone
   refuses Care mode sign-in (`apps/mobile/src/app-state/care-mode-gate.ts`; a phone holding unsent
   entries still admits a sign-in so they can be handed over or their deletion recorded), and the API
-  refuses the sync token, the batch upload and a phone's entry uploads with 403 `feature_disabled`
+  refuses the sync token, the batch upload and a phone's entry uploads with 403 `care_mode_off`
   (`refuseCareModeOff` in `apps/api/src/services/devices.ts`), which the phone reads as access
   withdrawn, holding unsent entries under the hold rules. Only the demo tenant (invented data) has it
   on. The `eas-build` job in `.github/workflows/mobile.yml` builds no store binary unless the

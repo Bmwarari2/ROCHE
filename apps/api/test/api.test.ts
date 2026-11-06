@@ -693,7 +693,7 @@ describe("offline sync", () => {
       const refused = await token();
       expect(refused.status).toBe(403);
       // A code the phone reads as access withdrawn: it stops and holds unsent entries.
-      expect(await refused.json()).toMatchObject({ code: "feature_disabled" });
+      expect(await refused.json()).toMatchObject({ code: "care_mode_off" });
       const upload = await h.request("/v1/sync/upload", {
         token: h.tokens.rae,
         tenant: OTHER.tenantId,
@@ -701,7 +701,7 @@ describe("offline sync", () => {
         body: { operations: [] },
       });
       expect(upload.status).toBe(403);
-      expect(await upload.json()).toMatchObject({ code: "feature_disabled" });
+      expect(await upload.json()).toMatchObject({ code: "care_mode_off" });
       // A location row does not switch it on: the flag is organisation-wide.
       await asTenant(
         OTHER.tenantId,
