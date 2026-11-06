@@ -18,7 +18,7 @@ import { DMD_LOAD_LIMITS, type DmdLoadLimits } from "./files";
 import { DmdLoadTimeout, parseDmdRelease } from "./parse";
 
 /**
- * The dm+d release loader (integrations.md section 11 rules 1 to 4; ADR-0080; HZ-113). It reads
+ * The dm+d release loader (integrations.md section 12 rules 1 to 4; ADR-0080; HZ-113). It reads
  * the release, checks it whole (`checkDmdRelease`), and writes it in one transaction through the
  * loader functions of migration 0110 (owned by `harbour_dmd_loader`; the connecting role needs
  * only EXECUTE: `harbour_worker` for the job, `harbour_owner` for a manual run). Loading the same

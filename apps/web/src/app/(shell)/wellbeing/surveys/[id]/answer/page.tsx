@@ -14,7 +14,7 @@ import { wellbeingAccess } from "@/lib/wellbeing";
 export const metadata: Metadata = { title: t("scheduling.wellbeing.answer.title") };
 
 /**
- * Answer a survey anonymously (scheduling.md section 16 rules 2 to 4). The page says plainly what
+ * Answer a survey anonymously (scheduling.md section 20 rules 2 to 4). The page says plainly what
  * is recorded (that you took part; your answers, with the week the survey closed) and what is not
  * (your name, the time, anything linking the answers to you), and that results show only once the
  * survey has closed and enough people answered.

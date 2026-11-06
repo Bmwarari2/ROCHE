@@ -14,7 +14,7 @@ import type { DmdFactsPort, DmdSearchHit } from "../integrations/medicines-ports
 import { rateRows } from "./rates";
 
 /**
- * Reads of the dm+d reference tables (integrations.md section 11 rules 5 to 7; ADR-0080; HZ-113).
+ * Reads of the dm+d reference tables (integrations.md section 12 rules 5 to 7; ADR-0080; HZ-113).
  * Global data with no personal data, read under the request's own context (forced row-level
  * security with a read policy for every role). Only the release in use is ever shown, with its
  * date and whether it is out of date.

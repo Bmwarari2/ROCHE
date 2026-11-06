@@ -18,7 +18,7 @@ import { id, mutableColumns, tenantId } from "./_columns";
 import { location, tenantUser } from "./platform";
 
 /**
- * Staff wellbeing and voice (scheduling.md section 16; SCHED-011): pulse surveys, recognition and
+ * Staff wellbeing and voice (scheduling.md section 20; SCHED-011): pulse surveys, recognition and
  * wellbeing check-ins. The rules live in packages/domain/src/scheduling/wellbeing. Row-level
  * security, the guards and the two definer functions that alone reach survey responses are in
  * migration 0115.
@@ -103,7 +103,7 @@ export const pulseSurveyParticipation = pgTable(
 );
 
 /**
- * An anonymous survey response (section 16 rule 3): a random id, the survey, the UK week it came
+ * An anonymous survey response (section 20 rule 3): a random id, the survey, the UK week it came
  * in and the answers. No member, no creator, no exact time. The application role has no grant on
  * it: `app.submit_pulse_response` writes it and `app.pulse_survey_results` reads it, above the
  * minimum group size only.

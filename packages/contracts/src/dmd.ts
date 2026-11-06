@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * dm+d reference data (integrations.md section 11; INTG-006, MEDS-001; ADR-0080; HZ-113): search,
+ * dm+d reference data (integrations.md section 12; INTG-006, MEDS-001; ADR-0080; HZ-113): search,
  * a product with its units and forms, the packs a barcode names, and the release history. National
  * reference data with no personal data. Every response carries the release in use and whether it
  * is out of date, so a screen can never show dm+d data without saying how old it is. Dates are

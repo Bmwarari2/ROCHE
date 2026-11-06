@@ -13,7 +13,7 @@ import { toAnswer, wellbeingAccess } from "@/lib/wellbeing";
 export const metadata: Metadata = { title: t("scheduling.wellbeing.title") };
 
 /**
- * Wellbeing (SCHED-011, slice 61; scheduling.md section 16): the surveys a member may answer, their
+ * Wellbeing (SCHED-011, slice 61; scheduling.md section 20): the surveys a member may answer, their
  * own check-ins (private unless they choose to share each one with their manager) and thanks to and
  * from colleagues. Managers are linked to surveys and to what their teams share.
  */

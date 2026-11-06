@@ -880,7 +880,7 @@ category so a receiving system can read it.
 | `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
 | `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
 ## Lone-worker safety (Phase 2, slice 46)
-Code lists for [scheduling.md](scheduling.md) section 14. No national standard defines lone-worker
+Code lists for [scheduling.md](scheduling.md) section 19. No national standard defines lone-worker
 check-ins (BS 8484 covers lone-worker devices and alarm receiving centres, a later choice; H-539),
 so the codes are Harbour's. Times are instants in UTC, shown in UK local time (24-hour).
 | `lone_worker_session.work_kind` | Harbour | `domiciliary_visit`, `night_shift`, `other` | No place name or address is held: where the worker is comes only from optional location evidence. |
@@ -1155,7 +1155,7 @@ sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, t
 ## dm+d reference data (Phase 2, slice 10)
 
 National reference data with no personal data and no organisation rows, so not part of any export
-([integrations.md](integrations.md) section 11; ADR-0080; migration 0110). A MAR entry stores the
+([integrations.md](integrations.md) section 12; ADR-0080; migration 0110). A MAR entry stores the
 dm+d identifiers it names (`vmp_id`, `amp_id`, unit and route codes) with the dm+d words at
 transcription (slice 16); these tables say what the identifiers mean in the release in use.
 
@@ -1189,7 +1189,7 @@ until slice 10 the identifiers are checked by shape and check digit, not against
 | Outbox `workforce.competence.changed` | Harbour | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
 
 ## Staff wellbeing and voice (Phase 2, slice 44)
-Code lists for [scheduling.md](scheduling.md) section 16 (migration 0115). No national standard
+Code lists for [scheduling.md](scheduling.md) section 20 (migration 0115). No national standard
 covers these fields; exported with these names. Survey responses are anonymous and are not
 exported (only a closed survey's results above the minimum group size leave Harbour).
 | `pulse_survey.questions` | Harbour | `[{ id, kind, text }]`; `kind` `scale` or `free_text`; 1 to 20 questions; text up to 300 characters | |

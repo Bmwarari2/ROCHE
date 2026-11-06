@@ -364,7 +364,7 @@ in section 11.2 can go live.
 - Web (slice 90): Playwright with axe on every new screen, including the staleness notice and the
   read-only labels.
 
-## 11. dm+d reference data (INTG-006; slice 10; ADR-0080)
+## 12. dm+d reference data (INTG-006; slice 10; ADR-0080)
 
 The NHS Dictionary of Medicines and Devices (dm+d), published by the NHSBSA through TRUD, is the
 only source of the medicines Harbour records ([medicines.md](medicines.md) rule 1, HZ-005). Slice

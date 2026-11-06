@@ -15,7 +15,7 @@ import { type ActionResult, problemMessage, refused } from "@/lib/outcome";
 import { isIsoDate } from "@/lib/uk-time";
 
 /**
- * Staff wellbeing writes (scheduling.md section 16), sent to the API as the signed-in person. The
+ * Staff wellbeing writes (scheduling.md section 20), sent to the API as the signed-in person. The
  * API checks every rule again and refuses in its own words. A survey answer goes with nothing
  * about the person: no id, no time, nothing kept by the web app.
  */

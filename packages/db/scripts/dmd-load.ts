@@ -4,7 +4,7 @@ import { dmdFixtureReleaseDirectories, loadDmdRelease, readDmdReleaseDirectory }
 import { ownerUrl } from "./env";
 
 /**
- * A manual dm+d load (integrations.md section 11; ADR-0080), as harbour_owner:
+ * A manual dm+d load (integrations.md section 12; ADR-0080), as harbour_owner:
  *   pnpm --filter @harbour/db dmd:load <release directory>   a release a person downloaded
  *   pnpm --filter @harbour/db dmd:load                       the invented fixture releases
  * The fixture is never loaded in production, staging or pilot (HZ-113): this script refuses it

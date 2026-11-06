@@ -7,7 +7,7 @@ import { createLogger } from "../src/logger";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
- * dm+d reference data through the API (integrations.md section 11; INTG-006, MEDS-001; ADR-0080;
+ * dm+d reference data through the API (integrations.md section 12; INTG-006, MEDS-001; ADR-0080;
  * HZ-113): the worker job loads the invented fixture releases through the mock source; search,
  * product, GTIN and history each carry the release in use and whether it is out of date; invalid
  * products are left out unless asked for; withdrawn and ended GTINs never match; a mistyped code or

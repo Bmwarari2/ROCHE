@@ -150,7 +150,7 @@ async function requireAssignable(
 }
 
 /**
- * A cover task (scheduling.md section 15 rule 7; HZ-123) is for the rota's managers only: matched
+ * A cover task (scheduling.md section 17 rule 7; HZ-123) is for the rota's managers only: matched
  * with the rota, its shift would say which colleague is away. Anyone else at the home (who the
  * task's row-level security lets see a task with no person) does not see it; its assignee does.
  */

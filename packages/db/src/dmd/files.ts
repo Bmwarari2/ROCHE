@@ -10,7 +10,7 @@ import {
 } from "@harbour/domain";
 
 /**
- * Release files on disk and in memory (integrations.md section 11 rule 1; ADR-0080). A release is
+ * Release files on disk and in memory (integrations.md section 12 rule 1; ADR-0080). A release is
  * read in chunks, never whole, within limits set before anything is read: how many files, how many
  * bytes in all, and how long the load may take (the worker's `DMD_RELEASE_MAX_FILES`,
  * `DMD_RELEASE_MAX_BYTES` and `DMD_LOAD_TIMEOUT_MINUTES`). A symbolic link is refused, in the

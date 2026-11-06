@@ -1,5 +1,5 @@
 /**
- * dm+d reference data releases (integrations.md section 11; INTG-006, MEDS-001; ADR-0080; HZ-113).
+ * dm+d reference data releases (integrations.md section 12; INTG-006, MEDS-001; ADR-0080; HZ-113).
  * The NHSBSA publishes dm+d as a release of XML files; Harbour loads a release whole or not at all
  * into global reference tables. These are the rules the loader applies before it writes anything,
  * and the rules every search and lookup applies to what it shows: the release must be internally
@@ -229,7 +229,7 @@ export interface DmdReleaseCheck {
 }
 
 /**
- * Checks a release before anything is written (integrations.md section 11 rule 2; HZ-113): every
+ * Checks a release before anything is written (integrations.md section 12 rule 2; HZ-113): every
  * file has records; identifiers have the dm+d (SNOMED CT concept) shape and appear once; every
  * reference resolves (VMP to VTM, AMP to VMP, VMPP to VMP, AMPP to VMPP and AMP, the AMPP's AMP
  * and VMPP naming the same VMP, GTIN to AMPP); every form, route, unit, controlled drug and legal

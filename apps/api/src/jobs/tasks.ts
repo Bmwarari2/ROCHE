@@ -753,7 +753,7 @@ export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()):
  * deletes its staged rows in the same transaction; audited with the row count.
  */
 /**
- * Staff pulse surveys past their last day (scheduling.md section 16 rule 4; security review round 2
+ * Staff pulse surveys past their last day (scheduling.md section 20 rule 4; security review round 2
  * of slice 44): each open survey whose closing date has passed is closed as the system, which
  * releases its waiting responses in the same transaction; audited with no member and no count.
  */
@@ -997,7 +997,7 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       );
     });
   }
-  // A shift an absence left needing cover (scheduling.md section 15 rule 7; HZ-123): a task for
+  // A shift an absence left needing cover (scheduling.md section 17 rule 7; HZ-123): a task for
   // the rota managers at the shift's home. A failure throws, so the relay retries; the task is
   // raised once per need.
   handlers.set("scheduling.cover_needed", async (event) => {

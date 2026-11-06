@@ -21,7 +21,7 @@ import { SaxesParser } from "saxes";
 /**
  * Reads an NHSBSA dm+d release (data model R2 XML: `f_lookup2`, `f_vtm2`, `f_vmp2`, `f_amp2`,
  * `f_vmpp2`, `f_ampp2` and the supplementary `f_gtin2`) into the domain's release content
- * (integrations.md section 11; ADR-0080). Only what Harbour keeps is read: names, identifiers,
+ * (integrations.md section 12; ADR-0080). Only what Harbour keeps is read: names, identifiers,
  * invalid flags, previous identifiers, the form, routes, units and controlled drug category, packs,
  * legal category, discontinuation and GTINs. Ingredients are read only for the units their strengths
  * are given in, never kept (medical-device boundary). A document type declaration is refused, so

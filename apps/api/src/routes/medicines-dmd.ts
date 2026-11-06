@@ -18,7 +18,7 @@ import {
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
 /**
- * dm+d reference data (integrations.md section 11; INTG-006, MEDS-001; ADR-0080; HZ-113): search,
+ * dm+d reference data (integrations.md section 12; INTG-006, MEDS-001; ADR-0080; HZ-113): search,
  * a product with its units and forms, the packs a barcode names, and the release history. For
  * anyone who works with medicines. National reference data with no personal data: reads are not
  * care-record views and are not audited one by one (each load is in the release history). Every

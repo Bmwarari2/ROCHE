@@ -103,7 +103,7 @@ export const UPLOADED_BEFORE_DELETION_TASK_KIND = "sync.entry_deleted_after_uplo
 export const REFUSED_REVIEW_TASK_KIND = "care.refused_entry_review";
 /**
  * A shift an absence left needing cover, for the holders of scheduling.rota.manage at its home
- * (scheduling.md section 15 rule 7; HZ-123); defined here for the same reason as the review above.
+ * (scheduling.md section 17 rule 7; HZ-123); defined here for the same reason as the review above.
  */
 export const COVER_TASK_KIND = "scheduling.cover_needed";
 /** A flagged-entry task points at the deletion record it comes from. */

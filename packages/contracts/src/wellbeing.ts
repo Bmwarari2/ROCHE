@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Staff wellbeing and voice (scheduling.md section 16; SCHED-011). Covers pulse surveys whose
+ * Staff wellbeing and voice (scheduling.md section 20; SCHED-011). Covers pulse surveys whose
  * results show only once closed and above the minimum group size, anonymous responses, recognition
  * and wellbeing check-ins a manager sees only while shared. Nothing here scores or judges anyone.
  */

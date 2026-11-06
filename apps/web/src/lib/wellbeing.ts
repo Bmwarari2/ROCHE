@@ -10,7 +10,7 @@ import type { FieldProblem } from "./outcome";
 import { readDateField } from "./uk-time";
 
 /**
- * Staff wellbeing screens (SCHED-011, Phase 2 slice 61; scheduling.md section 16). The API decides
+ * Staff wellbeing screens (SCHED-011, Phase 2 slice 61; scheduling.md section 20). The API decides
  * who answers, when results show and who sees what. These helpers word and order what it returns
  * and check forms before they are sent. Nothing here scores or judges anyone. Results are shown
  * only when the API says they are visible, and a scale's counts all or none: if the API hides any

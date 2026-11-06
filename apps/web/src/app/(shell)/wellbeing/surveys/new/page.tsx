@@ -10,7 +10,7 @@ import { wellbeingAccess } from "@/lib/wellbeing";
 export const metadata: Metadata = { title: t("scheduling.wellbeing.form.pageTitle") };
 
 /**
- * Write a staff survey as a draft (scheduling.md section 16 rule 1). The whole organisation is
+ * Write a staff survey as a draft (scheduling.md section 20 rule 1). The whole organisation is
  * offered as well as each home; the API refuses it for someone who manages only some homes.
  */
 export default async function NewSurveyPage() {

@@ -4,7 +4,7 @@ import { dmdGtinKey, dmdLookupKey } from "./dmd-release";
 import { type DmdSubsetRows, selectDmdDeviceSubset } from "./dmd-subset";
 
 /**
- * The dm+d subset a device holds (integrations.md section 11 rule 9; ADR-0080; HZ-113): only the
+ * The dm+d subset a device holds (integrations.md section 12 rule 9; ADR-0080; HZ-113): only the
  * products on the location's MARs, their successors, the packs that could be in the person's hand
  * and the barcodes on them. Slice 68 sends it; these are the rules that choose it.
  */

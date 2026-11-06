@@ -18,7 +18,7 @@ import { sqlList } from "./_codes";
 import { searchVector } from "./_columns";
 
 /**
- * dm+d reference data (integrations.md section 11; INTG-006, MEDS-001; ADR-0080; HZ-113; migration
+ * dm+d reference data (integrations.md section 12; INTG-006, MEDS-001; ADR-0080; HZ-113; migration
  * 0110). The NHS Dictionary of Medicines and Devices as the NHSBSA publishes it: global reference
  * tables with no `tenant_id`, like `bank_holiday`, read by every role and written only by the
  * release loader's functions (owned by the NOLOGIN `harbour_dmd_loader`), never by the application.

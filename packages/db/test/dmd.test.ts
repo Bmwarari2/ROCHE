@@ -19,7 +19,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, inContext, seedTwoTenants, TENANT_A } from "./support/fixtures";
 
 /**
- * The dm+d reference data in the database (integrations.md section 11; INTG-006, MEDS-001;
+ * The dm+d reference data in the database (integrations.md section 12; INTG-006, MEDS-001;
  * ADR-0080; HZ-113; migration 0110): the invented fixture release loads and reads back, loading it
  * again changes nothing, a newer release adds, invalidates, supersedes and withdraws, and a broken,
  * older or shrunken release is refused whole with its problems in the history while the release in

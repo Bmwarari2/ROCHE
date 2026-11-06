@@ -8,7 +8,7 @@ import {
 import type { DmdReleaseFiles, DmdReleaseSourcePort, HealthResult } from "@harbour/domain";
 
 /**
- * Adapters for the dm+d release source port (integrations.md section 11; ADR-0080). The TRUD
+ * Adapters for the dm+d release source port (integrations.md section 12; ADR-0080). The TRUD
  * adapter is slice 75; until it lands, development and tests use the mock (the invented fixture
  * releases) and production has no source, which the job says rather than loading nothing silently.
  * The database itself refuses the fixture unless it is marked dev or test (migration 0110).

@@ -6,8 +6,10 @@ builds rotas, time and attendance and the pay rules engine for care homes
 is integrated, not built (section 12). Slice 5 wrote this specification and the Working Time rules
 (SCHED-003); slice 6 added the pay rules (section 4b), and the schema slices (12, 21, 27, 30, 36,
 40, 44, 46) confirm their tables against section 2. Slice 12 adds the dependency tool and the
-required care hours per shift (section 13); slice 21 adds the rota builder (section 14); slice 27 bank and agency workers (section 15); slice 30 time and attendance (section 16); slice 40 absence and leave (section 17); slice 36 pay calculation runs (section 18). Status
-per feature:
+required care hours per shift (section 13); slice 21 adds the rota builder (section 14); slice 27
+bank and agency workers (section 15); slice 30 time and attendance (section 16); slice 40 absence
+and leave (section 17); slice 36 pay calculation runs (section 18); slice 46 lone-worker safety
+(section 19); slice 44 staff wellbeing and voice (section 20). Status per feature:
 [feature register](feature-register.md).
 
 ## 1. Purpose and register rows
@@ -947,201 +949,6 @@ location).
 - API: `apps/api/test/agency.test.ts` (agencies and workers; booking with the rule and refusals;
   cost; AWR; induction; feedback and do not rebook; the access window through the API).
 
-  day (slice 27), the screens (slice 59), offline swap requests (slice 71).
-
-## 15. Absence and leave (slice 40; SCHED-010)
-
-Master prompt section 12.3 (absence and leave: requests and approvals, the Bradford factor,
-return to work, fit notes, SSP) with the slice 6 pay rules (section 4b rules 4 and 8). Hazards
-HZ-123 (an absence must never silently empty a shift the staffing comparison counts) and HZ-124
-(nobody is put on a shift on a day they are absent). Statutory family leave is recorded as a
-kind of leave here; its pay (SMP and the other family payments) and the screens follow. Human
-actions H-970 to H-979.
-
-### Schema (migration 0107)
-
-Row-level security: an absence is read by its member (their own, through any role with
-`scheduling.timesheet.self`), by holders of `scheduling.rota.manage` or `.approve` at its location,
-and by the system context for the export; written by its member (a request, a cancellation of
-their own request) or a rota manager there. A fit note and a return to work record are health
-data: read and written only by holders of `workforce.hr_document.read` at the location (and read by
-the member themselves), never by a rota manager without it; a fit note's document is never readable
-by the member it is about through HR rights (`app.absence_member`). Earlier versions of an absence
-(which may hold the Bradford exclusion reason) are read only with HR rights at its home. Leaving a
-sickness out of the Bradford factor needs HR rights at the home and is never for one's own; a
-decision's reason never changes without the decision. Guards: an absence keeps its member,
-location and kind; a decision is made by a holder of `scheduling.rota.approve` there, never the
-member (`absence_decider_is_member`); `requested` moves to `approved`, `declined` or `cancelled`,
-`recorded` (a sickness, or leave a manager records) to `cancelled`, nothing back. A cover need is
-raised only by the decision or recording that caused it, in the same transaction, through
-`app.raise_cover_need` (definer rights to see the assignment at any home; it checks the caller holds
-`.approve` or `.manage` at the absence's home, the absence takes the member away and the assignment
-is theirs), which also marks a published shift as changed since publication; whoever raised a need
-reads it.
-
-1. **Requests and approvals.** A member asks for leave for themselves at a home where they hold a
-   role (`requested`); a holder of `scheduling.rota.approve` there approves or declines it, never
-   their own, a decline with a reason. Statutory leave is never declined (H-970, recommended answer
-   applied 31/10/2026): maternity, paternity, adoption and parental bereavement leave are notified
-   and approved or recorded; carer's leave and unpaid parental leave may only be postponed as the law
-   allows (`postponed`, with a reason; the member asks again for the later dates). The database
-   refuses a decline of these kinds and a postponement of any other (`absence_statutory`). A rota manager records a sickness or leave for a member
-   (`recorded`). The member cancels their own request before it is decided; a manager cancels an
-   approved or recorded absence with a reason.
-2. **Kinds** (`ABSENCE_KINDS`): `annual_leave`, `sickness`, `compassionate`, `carers_leave`,
-   `parental_leave`, `maternity`, `paternity`, `adoption`, `parental_bereavement`, `unpaid`,
-   `other`. Compassionate leave stays the organisation's own policy until bereavement leave under
-   the Employment Rights Act 2025 commences. A carer's leave request shows the days of carer's leave
-   approved or recorded in the last 12 months against `carers_leave.weeks_per_12_months` (Carer's
-   Leave Regulations 2024; `carersLeaveTaken`), advisory for the approver and never a refusal. Only `sickness` takes
-   self-certification, fit notes, return to work, SSP and the Bradford factor; only the leave kinds
-   are requested.
-3. **Self-certification and fit notes.** A sickness of up to `ssp.self_certification_days`
-   calendar days is covered by the member's own statement (`self_certified_at`); a longer one needs
-   a fit note for the days after (`fitNoteNeeded`): the absence says which days are not covered.
-   A fit note is an uploaded document (HR-only, retention `sickness_absence`) with its dates,
-   whether the member is not fit or may be fit, and which adjustments are ticked; the condition is
-   never typed into Harbour and never in an audit event or a log.
-4. **Return to work.** One record per sickness after it ends, by a holder of
-   `workforce.hr_document.read`: when, who held it, whether the member is fit for their usual
-   duties and which adjustments were agreed, and notes. Audited with ids only.
-5. **Bradford factor** (section 4b rule 8, `bradfordFactor`). Over `absence.bradford.window_weeks`
-   (the rate table), from the member's sickness days (recorded or approved, not cancelled), with
-   the spells, the days, the score, the window and the working shown. It is never compared with a
-   trigger, never raises a task and never changes anything (H-583); absences that must not count
-   against a member (pregnancy-related, disability-related) are left out by the manager in words
-   (`excluded` with a reason), never by a rule.
-6. **SSP** (section 4b rule 4, `sickPay`). A period of incapacity for work is at least
-   `ssp.piw_min_days` consecutive calendar days of sickness; periods no more than
-   `ssp.piw_link_weeks` weeks apart link, so their paid days count towards the limit
-   (`periodsOfIncapacity`). The HR user gives the average weekly earnings from payroll and the
-   member's qualifying days; Harbour returns the working from the slice 6 rule. Nothing is paid or
-   stored by Harbour; the result is advice for payroll with its input hash. No figure is a literal.
-7. **Cover** (HZ-123). When an absence is approved or recorded, every live assignment of the
-   member on a shift that overlaps the absence's days at any location gets a cover need in the same
-   transaction. The rota keeps the assignment (it never silently empties), shows it as needing
-   cover, and the check counts it as open with a warning naming the cover needs; publishing then
-   needs the period acknowledged as for any shortfall. A cover need resolves when the assignment is
-   removed (someone else can then be put on) or the absence is cancelled or declined.
-   Each cover need also raises a task (`scheduling.cover_needed`, from the outbox event, by the
-   worker as the system) for the holders of `scheduling.rota.manage` at the shift's home, who are
-   told at once; it is due `scheduling.cover_task_lead_minutes` before the shift starts (at once,
-   and urgent, when that has passed), escalates as any permission-routed task (to the holders of
-   its permission, else a manager elsewhere), names the shift only, and is cancelled ("cover no
-   longer needed") when its cover need resolves. Only the holders of `scheduling.rota.manage` at
-   the home and its assignee see it (with the rota, its shift would say who is away), and nobody
-   closes it by hand while the need is open and the shift has not started. One task per need
-   (`task_cover_need_key`); nothing is raised for a resolved need or a shift already started.
-8. **No rostering onto an absence** (HZ-124). Putting a member on a shift on a day they have an
-   approved or recorded absence is refused (`member_absent`).
-
-## 16. Staff wellbeing and voice (slice 44; SCHED-011)
-
-Pulse surveys, recognition notes and wellbeing check-ins (master prompt 12.3, "Staff wellbeing and
-voice"; CQC Well-led, workforce wellbeing). The organisation hears its staff without being able to
-single anyone out. A survey's results show only when enough people answered. A survey response
-cannot be traced to the person who gave it. A check-in is the member's own until they choose to
-share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decision about a member
-(UK GDPR Article 22 does not arise). Exit interviews, turnover by team and the speak-up link to slice
-24 are later work (H-1083).
-
-### Schema
-
-- `pulse_survey`: `location_id` (the home whose staff it asks; null for the whole organisation),
-  `title`, `questions` (jsonb array of `{ id, kind: "scale" | "free_text", text }`), `opens_on`,
-  `closes_on`, `state` (`draft`, `open`, `closed`), `created_by`, and the mutable columns.
-- `pulse_survey_participation`: `(tenant_id, survey_id, member_id)` and nothing else: no time and
-  no link to a response. It stops a second response and lets a member see that they took part.
-- `pulse_survey_response`: `id` (a random UUID, never time-ordered), `tenant_id`, `survey_id`,
-  `submitted_week` (the Monday of the UK week it came in) and `answers` (jsonb object keyed by
-  question id: a whole number from 1 to 5 for a scale, text up to 2,000 characters for free text).
-  It has no member, no creator, no exact time, no version history and no audit row that names it.
-  The application role cannot read or write it directly. A response first waits in
-  `pulse_survey_response_pending` and moves here, in a shuffled order, in the transaction that closes
-  the survey (`app.release_pulse_responses`), so no response shares a transaction with the
-  participation it came with. Both tables are reached only through definer functions owned by the
-  NOLOGIN role `harbour_wellbeing_owner`: `app.submit_pulse_response`, the release, and
-  `app.pulse_survey_results`.
-- `recognition`: `from_member_id`, `to_member_id`, `location_id` (the recipient's home), `message`
-  (up to 500 characters), `created_at`. Append-only.
-- `wellbeing_check_in`: `member_id`, `location_id` (the member's home), `mood` (1 to 5, the member's
-  own word for how they are), `note` (optional, up to 1,000 characters), `shared_at` (null unless
-  the member shares it), `created_at`. Only `shared_at` ever changes, and only the member changes it.
-
-### Rules
-
-1. **Survey life** (`checkSurveyMove`). A survey moves draft, then open, then closed, never back. Its
-   questions and dates are fixed once it opens. It has 1 to 20 questions with distinct ids and
-   non-empty text, and it closes on or after the day it opens (`checkSurveyDefinition`).
-2. **Who answers** (`app.submit_pulse_response`). A member holding `scheduling.wellbeing.self`
-   answers an open survey, between its dates, once. They must be on a staff profile made before the
-   survey opened, by an account also made before then (at its home, for a home's survey; neither
-   creation date can be changed), and never its writer or a holder of
-   `scheduling.wellbeing.manage` there, who could otherwise make up respondents or take away their
-   own answers. Each answer is checked against
-   the survey's questions (`checkResponse`). At least one question must be answered.
-3. **No link to the member**. The response row holds no member and no exact time: the week
-   only: the week the survey closed, the same for every response. Its id is random. The participation row holds no time and a random id.
-   Nothing is audited as an answer arrives. When the survey closes, one audit event
-   `scheduling.pulse_survey.responded` is written for each response, naming the survey only, so the
-   audit never shows answers arriving. Its actor is anonymous:
-   no member, no sign-in, no roles, no address, no device, no request id. A request log shows only
-   that a member took part, which the participation row already records; it never holds an answer.
-4. **Minimum group size**. The size is `wellbeing.survey_min_group_size` from the rate
-   table. An organisation may raise it and never lower it: the larger of the global row and its
-   own applies. Results show only once the survey has closed, so a manager cannot watch answers
-   arrive one at a time. They show only when at least that many people answered (`resultsVisible`).
-   Each question shows only when at least that many answered it. A survey whose last day has passed
-   is closed within the hour by the worker as the system (`closeEndedSurveysJob`), which may do
-   nothing else to it. Below the size, the results say
-   "Fewer than N people answered" and give no count, average, spread or text. There is no breakdown,
-   filter or export of responses: a home that wants its own results runs its own survey.
-   Free-text answers come in alphabetical order, never the order they arrived. A scale's counts
-   show all or none: when any point was chosen by fewer than the size, every count is hidden, zeros
-   too, since a hidden count could otherwise be worked out from the number who answered
-   (`suppressCounts`). Comparing two overlapping surveys of
-   the same people can still narrow down answers; that remains a risk the DPIA records (R28).
-5. **Recognition**. A member holding `scheduling.wellbeing.self` thanks a colleague, never
-   themselves. The note is seen by its sender, its recipient and the holders of
-   `scheduling.wellbeing.manage` at the recipient's home. It is append-only and is never part of a
-   performance record.
-6. **Check-ins are the member's**. A member holding `scheduling.wellbeing.self` records
-   their own check-ins and sees them. A manager (`scheduling.wellbeing.manage` at the member's home)
-   sees a check-in only while it is shared. The member may share or stop sharing at any time;
-   stopping hides it again. A check-in is never a referral or a judgement. The screen points to the
-   organisation's own support (its employee assistance details) and to emergency help, set by the
-   organisation (H-1084).
-
-### Permissions
-
-| Action | Permission |
-| --- | --- |
-| Ask for own leave; read and cancel own absences | `scheduling.timesheet.self` |
-| Record a sickness or leave for a member; read absences at a home | `scheduling.rota.manage` there |
-| Approve or decline leave (never own) | `scheduling.rota.approve` there |
-| Add and open fit notes; record return to work; the Bradford factor; SSP working | `workforce.hr_document.read` there |
-
-`/v1/absences` (list by home or member, ask, record), `/v1/absences/{id}` (read),
-`/{id}/decision`, `/{id}/cancel`, `/{id}/end` (a sickness's last day), `/{id}/fit-notes` (upload
-the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNoteId}/content`,
-`/{id}/return-to-work`, `/{id}/bradford-exclusion`, `/v1/members/{id}/bradford`, `POST /{id}/ssp` (the earnings in the body, never the address). Audit:
-`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
-`workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
-`workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
-a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (cover need, shift, absence, location; consumed by the worker).
-
-- Domain: `packages/domain/src/scheduling/absence.test.ts` (table-driven: decisions never by the
-  member; state moves; days of an absence; fit note needed after the self-certification days, the
-  days uncovered; periods of incapacity at the minimum length and linked within the link weeks;
-  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs).
-- Database: `packages/db/test/absence.test.ts` (cross-tenant denial on all four tables; a member
-  sees only their own; a rota manager reads but never a fit note or return to work; decisions only
-  by an approver, never the member; state moves; fit notes and return to work append-only).
-- API: `apps/api/test/absence.test.ts` (ask and approve with cover needs raised; decline and cancel
-  resolving them; recording a sickness; fit note upload and open audited; return to work; the
-  Bradford factor with its working; SSP working; assigning onto an absence refused; the rota check
-  counting a cover need as open with a warning).
-
 ## 16. Time and attendance and working-time records (slice 30; SCHED-004, SCHED-003)
 
 Master prompt section 12.3 (clock in and out, exceptions, timesheet approval, mileage; Working
@@ -1244,7 +1051,259 @@ Audit events carry ids only: `scheduling.clock.recorded`, `.refused`; `schedulin
 `scheduling.timesheet_approved` (entry, worker, location) for pay (slice 36) and
 `scheduling.working_time.finding_raised` (result, worker) for the dashboard.
 
-## 14. Lone-worker safety (slice 46; SCHED-012)
+## 17. Absence and leave (slice 40; SCHED-010)
+
+Master prompt section 12.3 (absence and leave: requests and approvals, the Bradford factor,
+return to work, fit notes, SSP) with the slice 6 pay rules (section 4b rules 4 and 8). Hazards
+HZ-123 (an absence must never silently empty a shift the staffing comparison counts) and HZ-124
+(nobody is put on a shift on a day they are absent). Statutory family leave is recorded as a
+kind of leave here; its pay (SMP and the other family payments) and the screens follow. Human
+actions H-970 to H-979.
+
+### Schema (migration 0107)
+
+| Table | Kind | Columns | Retention class |
+| --- | --- | --- | --- |
+| `absence` | mutable, `expected_version` | `member_id` (the `tenant_user` absent), `location_id` (the home whose rota it touches), `kind` (`ABSENCE_KINDS`), `starts_on`, `ends_on` (null while a sickness is open), `state` (`requested`, `approved`, `declined`, `cancelled`, `recorded`), `decided_by`, `decided_at`, `decision_reason`, `self_certified_at`, `ended_at`; never a diagnosis | `sickness_absence` for sickness, else `rota_and_timesheet` |
+| `fit_note` | append-only | `absence_id`, `document_id` (an HR-only staff document, retention `sickness_absence`), `issued_on`, `covers_from`, `covers_to`, `fitness` (`not_fit`, `may_be_fit`), the four ticked adjustments (`phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations`); never the condition written on the note | `sickness_absence` |
+| `return_to_work` | append-only | `absence_id`, `member_id`, `held_on`, `held_by`, `fit_for_usual_duties`, `adjustments_agreed` (the same four), `notes` (the conversation, special category); one per absence | `sickness_absence` |
+| `shift_cover_need` | append-only, then resolved once | `shift_id`, `assignment_id`, `absence_id`, `location_id`, `raised_at`, `resolved_at`, `resolution` (`assignment_removed`, `absence_ended`) | `rota_and_timesheet` |
+
+Row-level security: an absence is read by its member (their own, through any role with
+`scheduling.timesheet.self`), by holders of `scheduling.rota.manage` or `.approve` at its location,
+and by the system context for the export; written by its member (a request, a cancellation of
+their own request) or a rota manager there. A fit note and a return to work record are health
+data: read and written only by holders of `workforce.hr_document.read` at the location (and read by
+the member themselves), never by a rota manager without it; a fit note's document is never readable
+by the member it is about through HR rights (`app.absence_member`). Earlier versions of an absence
+(which may hold the Bradford exclusion reason) are read only with HR rights at its home. Leaving a
+sickness out of the Bradford factor needs HR rights at the home and is never for one's own; a
+decision's reason never changes without the decision. Guards: an absence keeps its member,
+location and kind; a decision is made by a holder of `scheduling.rota.approve` there, never the
+member (`absence_decider_is_member`); `requested` moves to `approved`, `declined` or `cancelled`,
+`recorded` (a sickness, or leave a manager records) to `cancelled`, nothing back. A cover need is
+raised only by the decision or recording that caused it, in the same transaction, through
+`app.raise_cover_need` (definer rights to see the assignment at any home; it checks the caller holds
+`.approve` or `.manage` at the absence's home, the absence takes the member away and the assignment
+is theirs), which also marks a published shift as changed since publication; whoever raised a need
+reads it.
+
+### Rules
+
+1. **Requests and approvals.** A member asks for leave for themselves at a home where they hold a
+   role (`requested`); a holder of `scheduling.rota.approve` there approves or declines it, never
+   their own, a decline with a reason. Statutory leave is never declined (H-970, recommended answer
+   applied 31/10/2026): maternity, paternity, adoption and parental bereavement leave are notified
+   and approved or recorded; carer's leave and unpaid parental leave may only be postponed as the law
+   allows (`postponed`, with a reason; the member asks again for the later dates). The database
+   refuses a decline of these kinds and a postponement of any other (`absence_statutory`). A rota manager records a sickness or leave for a member
+   (`recorded`). The member cancels their own request before it is decided; a manager cancels an
+   approved or recorded absence with a reason.
+2. **Kinds** (`ABSENCE_KINDS`): `annual_leave`, `sickness`, `compassionate`, `carers_leave`,
+   `parental_leave`, `maternity`, `paternity`, `adoption`, `parental_bereavement`, `unpaid`,
+   `other`. Compassionate leave stays the organisation's own policy until bereavement leave under
+   the Employment Rights Act 2025 commences. A carer's leave request shows the days of carer's leave
+   approved or recorded in the last 12 months against `carers_leave.weeks_per_12_months` (Carer's
+   Leave Regulations 2024; `carersLeaveTaken`), advisory for the approver and never a refusal. Only `sickness` takes
+   self-certification, fit notes, return to work, SSP and the Bradford factor; only the leave kinds
+   are requested.
+3. **Self-certification and fit notes.** A sickness of up to `ssp.self_certification_days`
+   calendar days is covered by the member's own statement (`self_certified_at`); a longer one needs
+   a fit note for the days after (`fitNoteNeeded`): the absence says which days are not covered.
+   A fit note is an uploaded document (HR-only, retention `sickness_absence`) with its dates,
+   whether the member is not fit or may be fit, and which adjustments are ticked; the condition is
+   never typed into Harbour and never in an audit event or a log.
+4. **Return to work.** One record per sickness after it ends, by a holder of
+   `workforce.hr_document.read`: when, who held it, whether the member is fit for their usual
+   duties and which adjustments were agreed, and notes. Audited with ids only.
+5. **Bradford factor** (section 4b rule 8, `bradfordFactor`). Over `absence.bradford.window_weeks`
+   (the rate table), from the member's sickness days (recorded or approved, not cancelled), with
+   the spells, the days, the score, the window and the working shown. It is never compared with a
+   trigger, never raises a task and never changes anything (H-583); absences that must not count
+   against a member (pregnancy-related, disability-related) are left out by the manager in words
+   (`excluded` with a reason), never by a rule.
+6. **SSP** (section 4b rule 4, `sickPay`). A period of incapacity for work is at least
+   `ssp.piw_min_days` consecutive calendar days of sickness; periods no more than
+   `ssp.piw_link_weeks` weeks apart link, so their paid days count towards the limit
+   (`periodsOfIncapacity`). The HR user gives the average weekly earnings from payroll and the
+   member's qualifying days; Harbour returns the working from the slice 6 rule. Nothing is paid or
+   stored by Harbour; the result is advice for payroll with its input hash. No figure is a literal.
+7. **Cover** (HZ-123). When an absence is approved or recorded, every live assignment of the
+   member on a shift that overlaps the absence's days at any location gets a cover need in the same
+   transaction. The rota keeps the assignment (it never silently empties), shows it as needing
+   cover, and the check counts it as open with a warning naming the cover needs; publishing then
+   needs the period acknowledged as for any shortfall. A cover need resolves when the assignment is
+   removed (someone else can then be put on) or the absence is cancelled or declined.
+   Each cover need also raises a task (`scheduling.cover_needed`, from the outbox event, by the
+   worker as the system) for the holders of `scheduling.rota.manage` at the shift's home, who are
+   told at once; it is due `scheduling.cover_task_lead_minutes` before the shift starts (at once,
+   and urgent, when that has passed), escalates as any permission-routed task (to the holders of
+   its permission, else a manager elsewhere), names the shift only, and is cancelled ("cover no
+   longer needed") when its cover need resolves. Only the holders of `scheduling.rota.manage` at
+   the home and its assignee see it (with the rota, its shift would say who is away), and nobody
+   closes it by hand while the need is open and the shift has not started. One task per need
+   (`task_cover_need_key`); nothing is raised for a resolved need or a shift already started.
+8. **No rostering onto an absence** (HZ-124). Putting a member on a shift on a day they have an
+   approved or recorded absence is refused (`member_absent`).
+
+### Permissions
+
+| Action | Permission |
+| --- | --- |
+| Ask for own leave; read and cancel own absences | `scheduling.timesheet.self` |
+| Record a sickness or leave for a member; read absences at a home | `scheduling.rota.manage` there |
+| Approve or decline leave (never own) | `scheduling.rota.approve` there |
+| Add and open fit notes; record return to work; the Bradford factor; SSP working | `workforce.hr_document.read` there |
+
+### API, audit and outbox
+
+`/v1/absences` (list by home or member, ask, record), `/v1/absences/{id}` (read),
+`/{id}/decision`, `/{id}/cancel`, `/{id}/end` (a sickness's last day), `/{id}/fit-notes` (upload
+the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNoteId}/content`,
+`/{id}/return-to-work`, `/{id}/bradford-exclusion`, `/v1/members/{id}/bradford`, `POST /{id}/ssp` (the earnings in the body, never the address). Audit:
+`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
+`workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
+`workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
+a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (cover need, shift, absence, location; consumed by the worker).
+
+### Test list
+
+- Domain: `packages/domain/src/scheduling/absence.test.ts` (table-driven: decisions never by the
+  member; state moves; days of an absence; fit note needed after the self-certification days, the
+  days uncovered; periods of incapacity at the minimum length and linked within the link weeks;
+  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs).
+- Database: `packages/db/test/absence.test.ts` (cross-tenant denial on all four tables; a member
+  sees only their own; a rota manager reads but never a fit note or return to work; decisions only
+  by an approver, never the member; state moves; fit notes and return to work append-only).
+- API: `apps/api/test/absence.test.ts` (ask and approve with cover needs raised; decline and cancel
+  resolving them; recording a sickness; fit note upload and open audited; return to work; the
+  Bradford factor with its working; SSP working; assigning onto an absence refused; the rota check
+  counting a cover need as open with a warning).
+
+## 18. Pay calculation runs (slice 36; SCHED-005, SCHED-006, SCHED-007)
+
+Master prompt section 12.3 (pay rules, NMW per pay reference period, holiday accrual, SSP) and
+section 18 (reproducible pay). The slice 6 rules (section 12, rules 4b) applied to approved time
+(section 16) and recorded absence (section 17). Pay does not touch care, so no new clinical
+hazard: HZ-011 (one organisation's records never reach another) applies, and the clinical safety
+review confirms the boundary. Human actions H-1100 to H-1109. The
+payroll export file is slice 76 (only its port is here); the screens are slice 60.
+
+### Schema (migration 0116)
+
+| Table | Kind | Columns | Retention class |
+| --- | --- | --- | --- |
+| `pay_rule_set` | versioned; mutable while `draft`, fixed once `approved` | `name`, `version`, `effective_from`, `role_rates` (pence an hour by role key), `enhancements` (kind, `percent` or `flat_per_hour`, value), `stack_enhancements`, `sleep_in_flat_pence`, `mileage_pence_per_mile`, `on_call_flat_pence`, `night_start_minute`, `night_end_minute`, `extra_bank_holidays` (days paid as bank holidays besides the nation's own), `overtime_after_minutes` (per pay period), `rolled_up_holiday`, `status`, `approved_by`, `approved_at` | `rota_and_timesheet` (a run cites it) |
+| `pay_profile` | mutable, versioned, one per member | `member_id`, `frequency` (`weekly`, `monthly`), `role_key`, `apprenticeship_started_on`, `irregular_hours`, `leave_year_start`, `qualifying_weekdays` (ISO weekdays), `ssp_average_weekly_earnings_pence`, `state_pension_age_on` | `staff_file` |
+| `pay_run` | mutable while `draft`; fixed once `locked` | `frequency`, `period_start`, `period_end`, `kind` (`regular`, `correction`), `corrects_run_id`, `rule_set_id`, `nation`, `rate_rows` (the rate table rows used), `calculation` (a counter), `calculated_at`, `calculated_by`, `status` (`draft`, `locked`), `locked_by`, `locked_at` | `rota_and_timesheet` |
+| `pay_run_line` | append-only, one per member per calculation | `run_id`, `calculation`, `member_id`, the figures (pence and minutes), `nmw_band`, `ae_category`, `working` (lines in words), `inputs` (the canonical inputs), `input_hash` | `rota_and_timesheet` |
+| `pay_run_exception` | one per finding per calculation; open until overridden | `run_id`, `calculation`, `member_id`, `kind`, `ref` (an opaque id), `status` (`open`, `overridden`), `override_reason`, `overridden_by`, `overridden_at` | `rota_and_timesheet` |
+
+No figure in a pay rule set is statutory: they are the organisation's own rates. Statutory figures
+(NMW, holiday accrual, SSP, auto-enrolment, AWR) come only from the rate table, and a run stores
+the rows it used, so it reproduces whatever the table says later.
+
+### Rules
+
+1. **Rule sets**: a draft is written by a holder of `scheduling.pay.manage`; it is approved by a
+   holder of `scheduling.pay.approve` who neither wrote nor last changed it, and is then fixed. A
+   change is a new version. A run uses the approved version in force on the period's first day.
+2. **Pay profiles**: each member who is paid has one (frequency, role, qualifying days, the
+   inputs the statutory rules need). The date of birth comes from the staff file. Bank workers
+   are paid in the run; agency workers are paid by their agency, so their line pays nothing and
+   shows their AWR clock (rule 7) and hours, for checking the agency's invoice.
+3. **What a run counts** (`payRunLine`): only approved, current timesheet entries (section 16 rule
+   6) that start in the period, and recorded or approved sickness (section 17). A draft entry in
+   the period is an `unapproved_timesheet` exception. Paid time is work, training, on-call at the
+   workplace and travel between assignments, less breaks; each stretch is split at UK midnight and
+   at the rule set's night window, and gets the night, weekend (Saturday or Sunday, UK date) and
+   bank holiday enhancements that apply (the nation's bank holidays from the calendar, plus the rule
+   set's extra days); an entry belongs to the period it starts in, so a night across the period's
+   end is paid, and counted for the minimum wage, whole in that run; minutes past `overtime_after_minutes` in the period get
+   the overtime enhancement. A sleep-in pays the flat allowance, on-call away the on-call
+   allowance, travel entries their mileage. Gross pay is the slice 6 rule (`grossPay`).
+4. **Minimum wage** (slice 6 rule 2): the hours that count are `nmwMinutesIn` over the period
+   (sleep-ins with their awake times, travel between assignments); the band from the date of birth
+   on the period's first day. A shortfall is added as its own top-up line and raises a
+   `below_nmw` exception, so the run is looked at before anyone is paid.
+5. **Holiday** (slice 6 rule 3): for an irregular-hours or part-year worker whose leave year began
+   on or after 1 April 2024, the accrual on the hours paid, and rolled-up holiday pay as its own
+   line when the rule set uses it (on basic pay, premiums and the sleep-in allowance; never
+   mileage). The yearly ledger (28 days, rounding) is H-1103.
+6. **SSP** (slice 6 rule 4): qualifying days of sickness in the period that fall in a period of
+   incapacity for work (section 17 rule 6), less days the member worked; the days already paid in
+   that period of incapacity before this pay period count towards the limit. A day is worked if any
+   approved entry touches it (a night counts on both dates, and one from the previous period too).
+   SSP's rate is the one in force on each sick day (it changes on 6 April), so days at different
+   rates are worked out apart. With no average weekly earnings on the profile, an
+   `ssp_earnings_missing` exception; with no qualifying days, `no_qualifying_days`.
+7. **AWR** (slice 6 rule 6): for an agency worker, the clock from their bookings (section 15), shown
+   on their line; qualifying is said, never acted on.
+8. **Auto-enrolment** (slice 6 rule 7): the category from age, state pension age and earnings
+   (gross less mileage) for a weekly or monthly period, and qualifying earnings; a flag only.
+9. **Exceptions**: `unapproved_timesheet`, `no_pay_profile`, `no_role_rate`, `no_date_of_birth`,
+   `below_nmw`, `ssp_earnings_missing`, `no_qualifying_days`, `rate_missing` (a missing rate-table
+   figure only; any other fault fails the calculation). Each blocks locking until the cause is put
+   right and the run recalculated, or a holder of `scheduling.pay.approve` overrides it with a
+   reason (never their own line's). An override carries to the next calculation only while the
+   line's input hash is unchanged; the hash covers the inputs and the rates they were worked at,
+   so a change in the rate table reopens it.
+10. **Reproducible**: each line stores its canonical inputs and their SHA-256, and the run the rate
+    rows; recalculating a line from what is stored gives the same figures (`verify`).
+11. **Draft, check and lock**: a holder of `scheduling.pay.manage` drafts and calculates; a holder
+    of `scheduling.pay.approve` who neither created nor last calculated the run checks it and locks
+    it, with no open exception. A locked run, its lines and exceptions never change.
+12. **Corrections**: a correction run for a locked run's period recalculates it from today's
+    approved time; each line shows the difference from the locked run it corrects (or that run's
+    latest locked correction). A locked run is never edited. One open correction per run.
+13. **Organisation-wide**: pay is the employer's, so the pay permissions count only when held for
+    the whole organisation (a tenant-wide role or one with no location scope, such as Finance), as
+    the API and the database both check (`app.holds_pay_permission`); a location's manager sees no
+    pay, even holding the pay permissions there. Both permissions need MFA (pay holds the staff
+    file's date of birth and sickness dates). A member reads their own locked lines.
+14. **Export port**: a locked run's lines are offered to the payroll export (slice 76) through the
+    `scheduling.pay_run_locked` outbox event and the `PayrollExport` port; nothing is sent here.
+
+### Permissions
+
+| Permission | Allows | Held by (built-in roles) | Scope |
+| --- | --- | --- | --- |
+| `scheduling.pay.manage` | Write pay rule sets and profiles; draft and calculate runs | Owner, Finance (Registered Manager and deputy only with a tenant-wide grant) | Organisation |
+| `scheduling.pay.approve` | Approve rule sets; check and lock runs; override exceptions | Owner, Finance | Organisation |
+
+### API, audit and outbox
+
+| Route | What |
+| --- | --- |
+| `GET`, `POST /v1/pay-rule-sets`; `PATCH /v1/pay-rule-sets/{id}`; `POST .../approve` | Rule sets |
+| `GET`, `PUT /v1/members/{id}/pay-profile` | A member's pay profile |
+| `GET`, `POST /v1/pay-runs`; `GET /v1/pay-runs/{id}` | Runs with their lines and exceptions |
+| `POST /v1/pay-runs/{id}/calculate` | Calculate (or recalculate) a draft |
+| `POST /v1/pay-run-exceptions/{id}/override` | Override with a reason |
+| `POST /v1/pay-runs/{id}/lock` | Check and lock |
+| `POST /v1/pay-runs/{id}/corrections` | A correction run |
+| `GET /v1/pay-runs/{id}/lines/{lineId}/verify` | Recalculate a line from its stored inputs |
+| `GET /v1/me/pay-lines` | Own lines in locked runs (`workforce.self.read` or `scheduling.timesheet.self`) |
+
+Audit events carry ids only (never figures): `scheduling.pay_rule_set.created`, `.changed`,
+`.approved`; `scheduling.pay_profile.changed`, `.viewed`; `scheduling.pay_run.created`,
+`.calculated`, `.viewed`, `.locked`; `scheduling.pay_exception.overridden`. Outbox:
+`scheduling.pay_run_locked` (run, period, kind) for the export (slice 76).
+
+### Test list
+
+- Domain, table-driven: splitting at midnight and the night window, weekend and bank holiday,
+  overtime past the threshold, breaks; NMW top-up and exception; holiday accrual and rolled-up pay;
+  SSP days less days worked and days already paid; auto-enrolment flags; agency lines; each
+  exception; corrections' difference; the same inputs give the same hash; no literal figures.
+- Database: cross-tenant denial for all five tables; a location manager sees no pay; a rule set
+  approved by its author is refused; a locked run, its lines and exceptions never change; lines
+  and exceptions append-only; one regular run per period; one open correction.
+- API: a run from approved time only; a draft timesheet blocks; override with a reason, never on
+  one's own line; lock by a second person only; a correction shows the difference; verify
+  reproduces; the member reads their own locked line.
+
+## 19. Lone-worker safety (slice 46; SCHED-012)
 
 Staff who work alone (domiciliary visits, night shifts) check in on a schedule. A missed check-in,
 a call for help or a duress check-in raises an alarm to the organisation's named on-call route
@@ -1253,7 +1312,7 @@ HZ-125; employee-monitoring DPIA (H-527); human actions H-1030 to H-1039. The we
 slice 61 and the mobile app slice 71. No rota or shift table exists yet (slice 21), so a session
 stands alone: the worker starts it.
 
-### 14.1 Schema (migration 0113)
+### 19.1 Schema (migration 0113)
 
 | Table | Kind | What it holds |
 | --- | --- | --- |
@@ -1269,7 +1328,7 @@ their own session and events; alarms are inserted and resolved only by the syste
 tenant scope), and acknowledged only by a monitor who is not the worker. History in
 `record_version` is redacted (no worker, note or outcome). Records stay on the server for now.
 
-### 14.2 Permissions and figures
+### 19.2 Permissions and figures
 
 | Permission | Who has it by default | What it allows |
 | --- | --- | --- |
@@ -1282,7 +1341,7 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
 `lone_worker.realert_minutes`, `lone_worker.offline_flag_minutes`, `lone_worker.session_max_hours`,
 `lone_worker.location_days`, and the existing `sync.clock_drift_flag_minutes`.
 
-### 14.3 Rules
+### 19.3 Rules
 
 1. **Off until the route is named.** A session starts only when the organisation has saved a
    valid route under the chain key `scheduling.lone_worker.alarm`: step 1 the on-call person or
@@ -1334,7 +1393,7 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
 10. **Never held up.** The sweep runs each session and alarm in its own savepoint: one that fails
    is audited and the others go on.
 
-### 14.4 The offline rule
+### 19.4 The offline rule
 
 The server decides only from check-ins it has received, by the time the worker made them:
 
@@ -1352,7 +1411,7 @@ The server decides only from check-ins it has received, by the time the worker m
   check-in from an offline device", flagged, and everyone alerted is told the worker was safe at
   that time, not now. If the worker is overdue again by now, the alarm stays open.
 
-### 14.5 Location evidence (H-527)
+### 19.5 Location evidence (H-527)
 
 Off by default (`scheduling.lone_worker.location`, a location-level flag). When on, the device may
 attach one point to the event it sends (check-in, help, duress, finish); nothing is collected
@@ -1361,7 +1420,7 @@ erases each point (coordinates cleared, the row kept as proof of the erasure) af
 `lone_worker.location_days`, on the database's clock. Never used to judge performance or
 timekeeping (R22).
 
-### 14.6 API, audit and outbox
+### 19.6 API, audit and outbox
 
 | Route | Permission | Notes |
 | --- | --- | --- |
@@ -1380,14 +1439,14 @@ alarms not yet raised, resolutions after late check-ins, re-alerts and location 
 events: `scheduling.lone_worker.alarm_raised`, `scheduling.lone_worker.alarm_resolved`.
 Notifications carry no personal data.
 
-### 14.7 Retention and data protection
+### 19.7 Retention and data protection
 
 `lone_worker` (3 years from the session's finish) for sessions, events and alarms; location points
 are not retained beyond `lone_worker.location_days`. Records of processing B3; data standards
 "Lone-worker safety". The DPO confirms the employee-monitoring DPIA covers it before it is switched
 on (H-1033).
 
-### 14.8a Web screens (slice 61)
+### 19.8a Web screens (slice 61)
 
 `/lone-working` in the navigation, for holders of any of the three permissions
 (`loneWorkerNavShown`). Every rule stays in the API; the pages order and word what it returns.
@@ -1436,7 +1495,7 @@ on (H-1033).
   first, no Registered Manager later, minutes out of order and a step reaching people only inside
   Harbour (`readRoute`); the API checks every role and person again.
 
-### 14.8 Test list
+### 19.8 Test list
 
 - Domain, table-driven: session checks, event acceptance offline and late, next due, status, the
   offline rule end to end, resolution, acknowledgement, re-alert, route checks, figures present.
@@ -1444,6 +1503,92 @@ on (H-1033).
   only by the system, duress never readable by the worker, location erasure only at its date.
 - API: off until the route, the escalation order, re-alert, offline late check-in, safe then is
   not safe now, duress, help after finishing, location evidence.
+- Web (slice 61): `apps/web/src/lib/lone-worker.test.ts` (the board's order with duress first,
+  status words, duress never named on the worker's screen, the start, acknowledge and route forms'
+  refusals); `apps/web/e2e/lone-working.spec.ts` (route, start, check in, help, the board and
+  acknowledging, with axe).
+
+## 20. Staff wellbeing and voice (slice 44; SCHED-011)
+
+Pulse surveys, recognition notes and wellbeing check-ins (master prompt 12.3, "Staff wellbeing and
+voice"; CQC Well-led, workforce wellbeing). The organisation hears its staff without being able to
+single anyone out. A survey's results show only when enough people answered. A survey response
+cannot be traced to the person who gave it. A check-in is the member's own until they choose to
+share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decision about a member
+(UK GDPR Article 22 does not arise). Exit interviews, turnover by team and the speak-up link to slice
+24 are later work (H-1083).
+
+### Schema
+
+- `pulse_survey`: `location_id` (the home whose staff it asks; null for the whole organisation),
+  `title`, `questions` (jsonb array of `{ id, kind: "scale" | "free_text", text }`), `opens_on`,
+  `closes_on`, `state` (`draft`, `open`, `closed`), `created_by`, and the mutable columns.
+- `pulse_survey_participation`: `(tenant_id, survey_id, member_id)` and nothing else: no time and
+  no link to a response. It stops a second response and lets a member see that they took part.
+- `pulse_survey_response`: `id` (a random UUID, never time-ordered), `tenant_id`, `survey_id`,
+  `submitted_week` (the Monday of the UK week it came in) and `answers` (jsonb object keyed by
+  question id: a whole number from 1 to 5 for a scale, text up to 2,000 characters for free text).
+  It has no member, no creator, no exact time, no version history and no audit row that names it.
+  The application role cannot read or write it directly. A response first waits in
+  `pulse_survey_response_pending` and moves here, in a shuffled order, in the transaction that closes
+  the survey (`app.release_pulse_responses`), so no response shares a transaction with the
+  participation it came with. Both tables are reached only through definer functions owned by the
+  NOLOGIN role `harbour_wellbeing_owner`: `app.submit_pulse_response`, the release, and
+  `app.pulse_survey_results`.
+- `recognition`: `from_member_id`, `to_member_id`, `location_id` (the recipient's home), `message`
+  (up to 500 characters), `created_at`. Append-only.
+- `wellbeing_check_in`: `member_id`, `location_id` (the member's home), `mood` (1 to 5, the member's
+  own word for how they are), `note` (optional, up to 1,000 characters), `shared_at` (null unless
+  the member shares it), `created_at`. Only `shared_at` ever changes, and only the member changes it.
+
+### Rules
+
+1. **Survey life** (`checkSurveyMove`). A survey moves draft, then open, then closed, never back. Its
+   questions and dates are fixed once it opens. It has 1 to 20 questions with distinct ids and
+   non-empty text, and it closes on or after the day it opens (`checkSurveyDefinition`).
+2. **Who answers** (`app.submit_pulse_response`). A member holding `scheduling.wellbeing.self`
+   answers an open survey, between its dates, once. They must be on a staff profile made before the
+   survey opened, by an account also made before then (at its home, for a home's survey; neither
+   creation date can be changed), and never its writer or a holder of
+   `scheduling.wellbeing.manage` there, who could otherwise make up respondents or take away their
+   own answers. Each answer is checked against
+   the survey's questions (`checkResponse`). At least one question must be answered.
+3. **No link to the member**. The response row holds no member and no exact time: the week
+   only: the week the survey closed, the same for every response. Its id is random. The participation row holds no time and a random id.
+   Nothing is audited as an answer arrives. When the survey closes, one audit event
+   `scheduling.pulse_survey.responded` is written for each response, naming the survey only, so the
+   audit never shows answers arriving. Its actor is anonymous:
+   no member, no sign-in, no roles, no address, no device, no request id. A request log shows only
+   that a member took part, which the participation row already records; it never holds an answer.
+4. **Minimum group size**. The size is `wellbeing.survey_min_group_size` from the rate
+   table. An organisation may raise it and never lower it: the larger of the global row and its
+   own applies. Results show only once the survey has closed, so a manager cannot watch answers
+   arrive one at a time. They show only when at least that many people answered (`resultsVisible`).
+   Each question shows only when at least that many answered it. A survey whose last day has passed
+   is closed within the hour by the worker as the system (`closeEndedSurveysJob`), which may do
+   nothing else to it. Below the size, the results say
+   "Fewer than N people answered" and give no count, average, spread or text. There is no breakdown,
+   filter or export of responses: a home that wants its own results runs its own survey.
+   Free-text answers come in alphabetical order, never the order they arrived. A scale's counts
+   show all or none: when any point was chosen by fewer than the size, every count is hidden, zeros
+   too, since a hidden count could otherwise be worked out from the number who answered
+   (`suppressCounts`). Comparing two overlapping surveys of
+   the same people can still narrow down answers; that remains a risk the DPIA records (R28).
+5. **Recognition**. A member holding `scheduling.wellbeing.self` thanks a colleague, never
+   themselves. The note is seen by its sender, its recipient and the holders of
+   `scheduling.wellbeing.manage` at the recipient's home. It is append-only and is never part of a
+   performance record.
+6. **Check-ins are the member's**. A member holding `scheduling.wellbeing.self` records
+   their own check-ins and sees them. A manager (`scheduling.wellbeing.manage` at the member's home)
+   sees a check-in only while it is shared. The member may share or stop sharing at any time;
+   stopping hides it again. A check-in is never a referral or a judgement. The screen points to the
+   organisation's own support (its employee assistance details) and to emergency help, set by the
+   organisation (H-1084).
+
+### Permissions
+
+| Action | Permission |
+| --- | --- |
 | Answer a survey; thank a colleague; own check-ins | `scheduling.wellbeing.self` (any role in force) |
 | Write, open and close surveys; read results; read recognition and shared check-ins at a home | `scheduling.wellbeing.manage` at the home (organisation-wide for an organisation survey) |
 
@@ -1525,226 +1670,3 @@ survey closes, with an anonymous actor and the survey only. Results views are au
 - API (`wellbeing.test.ts`): the whole flow with the anonymous audit actor. The response leaves no
   trace naming the member. Results hidden below the size and shown at it, with free text sorted.
   Recognition and check-in visibility. Another organisation's ids not found.
-
-## 17. Absence and leave (slice 40; SCHED-010)
-
-Master prompt section 12.3 (absence and leave: requests and approvals, the Bradford factor,
-return to work, fit notes, SSP) with the slice 6 pay rules (section 4b rules 4 and 8). Hazards
-HZ-123 (an absence must never silently empty a shift the staffing comparison counts) and HZ-124
-(nobody is put on a shift on a day they are absent). Statutory family leave is recorded as a
-kind of leave here; its pay (SMP and the other family payments) and the screens follow. Human
-actions H-970 to H-979.
-
-### Schema (migration 0107)
-
-| Table | Kind | Columns | Retention class |
-| --- | --- | --- | --- |
-| `pay_rule_set` | versioned; mutable while `draft`, fixed once `approved` | `name`, `version`, `effective_from`, `role_rates` (pence an hour by role key), `enhancements` (kind, `percent` or `flat_per_hour`, value), `stack_enhancements`, `sleep_in_flat_pence`, `mileage_pence_per_mile`, `on_call_flat_pence`, `night_start_minute`, `night_end_minute`, `extra_bank_holidays` (days paid as bank holidays besides the nation's own), `overtime_after_minutes` (per pay period), `rolled_up_holiday`, `status`, `approved_by`, `approved_at` | `rota_and_timesheet` (a run cites it) |
-| `pay_profile` | mutable, versioned, one per member | `member_id`, `frequency` (`weekly`, `monthly`), `role_key`, `apprenticeship_started_on`, `irregular_hours`, `leave_year_start`, `qualifying_weekdays` (ISO weekdays), `ssp_average_weekly_earnings_pence`, `state_pension_age_on` | `staff_file` |
-| `pay_run` | mutable while `draft`; fixed once `locked` | `frequency`, `period_start`, `period_end`, `kind` (`regular`, `correction`), `corrects_run_id`, `rule_set_id`, `nation`, `rate_rows` (the rate table rows used), `calculation` (a counter), `calculated_at`, `calculated_by`, `status` (`draft`, `locked`), `locked_by`, `locked_at` | `rota_and_timesheet` |
-| `pay_run_line` | append-only, one per member per calculation | `run_id`, `calculation`, `member_id`, the figures (pence and minutes), `nmw_band`, `ae_category`, `working` (lines in words), `inputs` (the canonical inputs), `input_hash` | `rota_and_timesheet` |
-| `pay_run_exception` | one per finding per calculation; open until overridden | `run_id`, `calculation`, `member_id`, `kind`, `ref` (an opaque id), `status` (`open`, `overridden`), `override_reason`, `overridden_by`, `overridden_at` | `rota_and_timesheet` |
-
-Row-level security: an absence is read by its member (their own, through any role with
-`scheduling.timesheet.self`), by holders of `scheduling.rota.manage` or `.approve` at its location,
-and by the system context for the export; written by its member (a request, a cancellation of
-their own request) or a rota manager there. A fit note and a return to work record are health
-data: read and written only by holders of `workforce.hr_document.read` at the location (and read by
-the member themselves), never by a rota manager without it; a fit note's document is never readable
-by the member it is about through HR rights (`app.absence_member`). Earlier versions of an absence
-(which may hold the Bradford exclusion reason) are read only with HR rights at its home. Leaving a
-sickness out of the Bradford factor needs HR rights at the home and is never for one's own; a
-decision's reason never changes without the decision. Guards: an absence keeps its member,
-location and kind; a decision is made by a holder of `scheduling.rota.approve` there, never the
-member (`absence_decider_is_member`); `requested` moves to `approved`, `declined` or `cancelled`,
-`recorded` (a sickness, or leave a manager records) to `cancelled`, nothing back. A cover need is
-raised only by the decision or recording that caused it, in the same transaction, through
-`app.raise_cover_need` (definer rights to see the assignment at any home; it checks the caller holds
-`.approve` or `.manage` at the absence's home, the absence takes the member away and the assignment
-is theirs), which also marks a published shift as changed since publication; whoever raised a need
-reads it.
-
-### Rules
-
-1. **Requests and approvals.** A member asks for leave for themselves at a home where they hold a
-   role (`requested`); a holder of `scheduling.rota.approve` there approves or declines it, never
-   their own, a decline with a reason. A rota manager records a sickness or leave for a member
-   (`recorded`). The member cancels their own request before it is decided; a manager cancels an
-   approved or recorded absence with a reason.
-2. **Kinds** (`ABSENCE_KINDS`): `annual_leave`, `sickness`, `compassionate`, `carers_leave`,
-   `parental_leave`, `maternity`, `paternity`, `adoption`, `unpaid`, `other`. Only `sickness` takes
-   self-certification, fit notes, return to work, SSP and the Bradford factor; only the leave kinds
-   are requested.
-3. **Self-certification and fit notes.** A sickness of up to `ssp.self_certification_days`
-   calendar days is covered by the member's own statement (`self_certified_at`); a longer one needs
-   a fit note for the days after (`fitNoteNeeded`): the absence says which days are not covered.
-   A fit note is an uploaded document (HR-only, retention `sickness_absence`) with its dates,
-   whether the member is not fit or may be fit, and which adjustments are ticked; the condition is
-   never typed into Harbour and never in an audit event or a log.
-4. **Return to work.** One record per sickness after it ends, by a holder of
-   `workforce.hr_document.read`: when, who held it, whether the member is fit for their usual
-   duties and which adjustments were agreed, and notes. Audited with ids only.
-5. **Bradford factor** (section 4b rule 8, `bradfordFactor`). Over `absence.bradford.window_weeks`
-   (the rate table), from the member's sickness days (recorded or approved, not cancelled), with
-   the spells, the days, the score, the window and the working shown. It is never compared with a
-   trigger, never raises a task and never changes anything (H-583); absences that must not count
-   against a member (pregnancy-related, disability-related) are left out by the manager in words
-   (`excluded` with a reason), never by a rule.
-6. **SSP** (section 4b rule 4, `sickPay`). A period of incapacity for work is at least
-   `ssp.piw_min_days` consecutive calendar days of sickness; periods no more than
-   `ssp.piw_link_weeks` weeks apart link, so their paid days count towards the limit
-   (`periodsOfIncapacity`). The HR user gives the average weekly earnings from payroll and the
-   member's qualifying days; Harbour returns the working from the slice 6 rule. Nothing is paid or
-   stored by Harbour; the result is advice for payroll with its input hash. No figure is a literal.
-7. **Cover** (HZ-123). When an absence is approved or recorded, every live assignment of the
-   member on a shift that overlaps the absence's days at any location gets a cover need in the same
-   transaction. The rota keeps the assignment (it never silently empties), shows it as needing
-   cover, and the check counts it as open with a warning naming the cover needs; publishing then
-   needs the period acknowledged as for any shortfall. A cover need resolves when the assignment is
-   removed (someone else can then be put on) or the absence is cancelled or declined.
-8. **No rostering onto an absence** (HZ-124). Putting a member on a shift on a day they have an
-   approved or recorded absence is refused (`member_absent`).
-
-### Permissions
-
-| Action | Permission |
-| --- | --- |
-| Ask for own leave; read and cancel own absences | `scheduling.timesheet.self` |
-| Record a sickness or leave for a member; read absences at a home | `scheduling.rota.manage` there |
-| Approve or decline leave (never own) | `scheduling.rota.approve` there |
-| Add and open fit notes; record return to work; the Bradford factor; SSP working | `workforce.hr_document.read` there |
-
-### API, audit and outbox
-
-`/v1/absences` (list by home or member, ask, record), `/v1/absences/{id}` (read),
-`/{id}/decision`, `/{id}/cancel`, `/{id}/end` (a sickness's last day), `/{id}/fit-notes` (upload
-the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNoteId}/content`,
-`/{id}/return-to-work`, `/{id}/bradford-exclusion`, `/v1/members/{id}/bradford`, `POST /{id}/ssp` (the earnings in the body, never the address). Audit:
-`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
-`workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
-`workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
-a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (shift, absence).
-
-- Domain: `packages/domain/src/scheduling/absence.test.ts` (table-driven: decisions never by the
-  member; state moves; days of an absence; fit note needed after the self-certification days, the
-  days uncovered; periods of incapacity at the minimum length and linked within the link weeks;
-  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs).
-- Database: `packages/db/test/absence.test.ts` (cross-tenant denial on all four tables; a member
-  sees only their own; a rota manager reads but never a fit note or return to work; decisions only
-  by an approver, never the member; state moves; fit notes and return to work append-only).
-- API: `apps/api/test/absence.test.ts` (ask and approve with cover needs raised; decline and cancel
-  resolving them; recording a sickness; fit note upload and open audited; return to work; the
-  Bradford factor with its working; SSP working; assigning onto an absence refused; the rota check
-  counting a cover need as open with a warning).
-
-## 18. Pay calculation runs (slice 36; SCHED-005, SCHED-006, SCHED-007)
-
-Master prompt section 12.3 (pay rules, NMW per pay reference period, holiday accrual, SSP) and
-section 18 (reproducible pay). The slice 6 rules (section 12, rules 4b) applied to approved time
-(section 16) and recorded absence (section 17). Pay does not touch care, so no new clinical
-hazard: HZ-011 (one organisation's records never reach another) applies, and the clinical safety
-review confirms the boundary. Human actions H-1100 to H-1109. The
-payroll export file is slice 76 (only its port is here); the screens are slice 60.
-
-### Schema (migration 0116)
-
-No figure in a pay rule set is statutory: they are the organisation's own rates. Statutory figures
-(NMW, holiday accrual, SSP, auto-enrolment, AWR) come only from the rate table, and a run stores
-the rows it used, so it reproduces whatever the table says later.
-
-1. **Rule sets**: a draft is written by a holder of `scheduling.pay.manage`; it is approved by a
-   holder of `scheduling.pay.approve` who neither wrote nor last changed it, and is then fixed. A
-   change is a new version. A run uses the approved version in force on the period's first day.
-2. **Pay profiles**: each member who is paid has one (frequency, role, qualifying days, the
-   inputs the statutory rules need). The date of birth comes from the staff file. Bank workers
-   are paid in the run; agency workers are paid by their agency, so their line pays nothing and
-   shows their AWR clock (rule 7) and hours, for checking the agency's invoice.
-3. **What a run counts** (`payRunLine`): only approved, current timesheet entries (section 16 rule
-   6) that start in the period, and recorded or approved sickness (section 17). A draft entry in
-   the period is an `unapproved_timesheet` exception. Paid time is work, training, on-call at the
-   workplace and travel between assignments, less breaks; each stretch is split at UK midnight and
-   at the rule set's night window, and gets the night, weekend (Saturday or Sunday, UK date) and
-   bank holiday enhancements that apply (the nation's bank holidays from the calendar, plus the rule
-   set's extra days); an entry belongs to the period it starts in, so a night across the period's
-   end is paid, and counted for the minimum wage, whole in that run; minutes past `overtime_after_minutes` in the period get
-   the overtime enhancement. A sleep-in pays the flat allowance, on-call away the on-call
-   allowance, travel entries their mileage. Gross pay is the slice 6 rule (`grossPay`).
-4. **Minimum wage** (slice 6 rule 2): the hours that count are `nmwMinutesIn` over the period
-   (sleep-ins with their awake times, travel between assignments); the band from the date of birth
-   on the period's first day. A shortfall is added as its own top-up line and raises a
-   `below_nmw` exception, so the run is looked at before anyone is paid.
-5. **Holiday** (slice 6 rule 3): for an irregular-hours or part-year worker whose leave year began
-   on or after 1 April 2024, the accrual on the hours paid, and rolled-up holiday pay as its own
-   line when the rule set uses it (on basic pay, premiums and the sleep-in allowance; never
-   mileage). The yearly ledger (28 days, rounding) is H-1103.
-6. **SSP** (slice 6 rule 4): qualifying days of sickness in the period that fall in a period of
-   incapacity for work (section 17 rule 6), less days the member worked; the days already paid in
-   that period of incapacity before this pay period count towards the limit. A day is worked if any
-   approved entry touches it (a night counts on both dates, and one from the previous period too).
-   SSP's rate is the one in force on each sick day (it changes on 6 April), so days at different
-   rates are worked out apart. With no average weekly earnings on the profile, an
-   `ssp_earnings_missing` exception; with no qualifying days, `no_qualifying_days`.
-7. **AWR** (slice 6 rule 6): for an agency worker, the clock from their bookings (section 15), shown
-   on their line; qualifying is said, never acted on.
-8. **Auto-enrolment** (slice 6 rule 7): the category from age, state pension age and earnings
-   (gross less mileage) for a weekly or monthly period, and qualifying earnings; a flag only.
-9. **Exceptions**: `unapproved_timesheet`, `no_pay_profile`, `no_role_rate`, `no_date_of_birth`,
-   `below_nmw`, `ssp_earnings_missing`, `no_qualifying_days`, `rate_missing` (a missing rate-table
-   figure only; any other fault fails the calculation). Each blocks locking until the cause is put
-   right and the run recalculated, or a holder of `scheduling.pay.approve` overrides it with a
-   reason (never their own line's). An override carries to the next calculation only while the
-   line's input hash is unchanged; the hash covers the inputs and the rates they were worked at,
-   so a change in the rate table reopens it.
-10. **Reproducible**: each line stores its canonical inputs and their SHA-256, and the run the rate
-    rows; recalculating a line from what is stored gives the same figures (`verify`).
-11. **Draft, check and lock**: a holder of `scheduling.pay.manage` drafts and calculates; a holder
-    of `scheduling.pay.approve` who neither created nor last calculated the run checks it and locks
-    it, with no open exception. A locked run, its lines and exceptions never change.
-12. **Corrections**: a correction run for a locked run's period recalculates it from today's
-    approved time; each line shows the difference from the locked run it corrects (or that run's
-    latest locked correction). A locked run is never edited. One open correction per run.
-13. **Organisation-wide**: pay is the employer's, so the pay permissions count only when held for
-    the whole organisation (a tenant-wide role or one with no location scope, such as Finance), as
-    the API and the database both check (`app.holds_pay_permission`); a location's manager sees no
-    pay, even holding the pay permissions there. Both permissions need MFA (pay holds the staff
-    file's date of birth and sickness dates). A member reads their own locked lines.
-14. **Export port**: a locked run's lines are offered to the payroll export (slice 76) through the
-    `scheduling.pay_run_locked` outbox event and the `PayrollExport` port; nothing is sent here.
-
-| Permission | Allows | Held by (built-in roles) | Scope |
-| --- | --- | --- | --- |
-| `scheduling.pay.manage` | Write pay rule sets and profiles; draft and calculate runs | Owner, Finance (Registered Manager and deputy only with a tenant-wide grant) | Organisation |
-| `scheduling.pay.approve` | Approve rule sets; check and lock runs; override exceptions | Owner, Finance | Organisation |
-
-| Route | What |
-| --- | --- |
-| `GET`, `POST /v1/pay-rule-sets`; `PATCH /v1/pay-rule-sets/{id}`; `POST .../approve` | Rule sets |
-| `GET`, `PUT /v1/members/{id}/pay-profile` | A member's pay profile |
-| `GET`, `POST /v1/pay-runs`; `GET /v1/pay-runs/{id}` | Runs with their lines and exceptions |
-| `POST /v1/pay-runs/{id}/calculate` | Calculate (or recalculate) a draft |
-| `POST /v1/pay-run-exceptions/{id}/override` | Override with a reason |
-| `POST /v1/pay-runs/{id}/lock` | Check and lock |
-| `POST /v1/pay-runs/{id}/corrections` | A correction run |
-| `GET /v1/pay-runs/{id}/lines/{lineId}/verify` | Recalculate a line from its stored inputs |
-| `GET /v1/me/pay-lines` | Own lines in locked runs (`workforce.self.read` or `scheduling.timesheet.self`) |
-
-Audit events carry ids only (never figures): `scheduling.pay_rule_set.created`, `.changed`,
-`.approved`; `scheduling.pay_profile.changed`, `.viewed`; `scheduling.pay_run.created`,
-`.calculated`, `.viewed`, `.locked`; `scheduling.pay_exception.overridden`. Outbox:
-`scheduling.pay_run_locked` (run, period, kind) for the export (slice 76).
-
-- Domain, table-driven: splitting at midnight and the night window, weekend and bank holiday,
-  overtime past the threshold, breaks; NMW top-up and exception; holiday accrual and rolled-up pay;
-  SSP days less days worked and days already paid; auto-enrolment flags; agency lines; each
-  exception; corrections' difference; the same inputs give the same hash; no literal figures.
-- Database: cross-tenant denial for all five tables; a location manager sees no pay; a rule set
-  approved by its author is refused; a locked run, its lines and exceptions never change; lines
-  and exceptions append-only; one regular run per period; one open correction.
-- API: a run from approved time only; a draft timesheet blocks; override with a reason, never on
-  one's own line; lock by a second person only; a correction shows the difference; verify
-  reproduces; the member reads their own locked line.
-
-- Web (slice 61): `apps/web/src/lib/lone-worker.test.ts` (the board's order with duress first,
-  status words, duress never named on the worker's screen, the start, acknowledge and route forms'
-  refusals); `apps/web/e2e/lone-working.spec.ts` (route, start, check in, help, the board and
-  acknowledging, with axe).

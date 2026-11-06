@@ -2,7 +2,7 @@
 status: proposed
 date: 2026-10-31
 decision-makers: Claude Code (lead engineer), taking the Phase 2 plan's default; security reviews it, the CSO and a pharmacist confirm the clinical points (H-650 to H-653), Brian the licence and the account (H-510, H-511)
-consulted: master prompt sections 5.2, 5.3, 10.2, 15.3, 17.1 and 19; docs/plans/phase-2.md (ADR table, slices 10, 68 and 75); docs/specs/integrations.md section 11; docs/specs/medicines.md rules 1 and 2; docs/compliance/medical-device-boundary.md; ADR-0002, ADR-0070
+consulted: master prompt sections 5.2, 5.3, 10.2, 15.3, 17.1 and 19; docs/plans/phase-2.md (ADR table, slices 10, 68 and 75); docs/specs/integrations.md section 12; docs/specs/medicines.md rules 1 and 2; docs/compliance/medical-device-boundary.md; ADR-0002, ADR-0070
 informed: everyone working in this repository
 ---
 
@@ -143,7 +143,7 @@ it ourselves lets the database enforce whole-or-nothing, never-backwards and not
 
 ## More information
 
-[integrations.md](../specs/integrations.md) section 11 (schema, rules, API, tests);
+[integrations.md](../specs/integrations.md) section 12 (schema, rules, API, tests);
 [hazard log](../clinical-safety/hazard-log.md) HZ-113; [medical-device
 boundary](../compliance/medical-device-boundary.md) (dm+d reference data);
 [human actions](../plans/human-actions.md) H-510, H-511 and H-650 to H-659. Revisit when slice 75

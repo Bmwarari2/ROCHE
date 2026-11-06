@@ -30,7 +30,7 @@ import {
 } from "./dmd-release";
 
 /**
- * dm+d reference data rules (integrations.md section 11 rules 2 to 7; ADR-0080; HZ-113), table
+ * dm+d reference data rules (integrations.md section 12 rules 2 to 7; ADR-0080; HZ-113), table
  * driven: the checks a release passes before anything is written, the order releases load in, the
  * out-of-date warning, GTINs and the search a person types.
  */

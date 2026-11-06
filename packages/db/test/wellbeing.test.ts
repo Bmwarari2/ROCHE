@@ -6,7 +6,7 @@ import { createTestDatabase, type TestDatabase, withAdminClient } from "./suppor
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Staff wellbeing and voice in the database (scheduling.md section 16; migration 0115; SCHED-011).
+ * Staff wellbeing and voice in the database (scheduling.md section 20; migration 0115; SCHED-011).
  * Covered here:
  * - cross-tenant denial;
  * - the anonymous response table is closed to the application role and holds no member;

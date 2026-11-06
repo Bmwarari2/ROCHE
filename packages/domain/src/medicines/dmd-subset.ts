@@ -1,5 +1,5 @@
 /**
- * The dm+d subset a device holds (integrations.md section 11 rule 9; ADR-0080; HZ-113). A phone or
+ * The dm+d subset a device holds (integrations.md section 12 rule 9; ADR-0080; HZ-113). A phone or
  * tablet at the point of care holds only the dm+d rows its location's MARs need, never the whole
  * dictionary: each product named on a MAR entry, the products that replaced it, the packs that
  * could be in the person's hand and the barcodes printed on them, and the lookups those rows name.

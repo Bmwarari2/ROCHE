@@ -29,7 +29,7 @@ import { dateBoxesOf } from "@/lib/uk-time";
 import { MAX_QUESTIONS, MOODS, readAnswers, readSurvey, SCALE_POINTS } from "@/lib/wellbeing";
 
 /**
- * Staff wellbeing forms (scheduling.md section 16). Each checks what it can before sending and
+ * Staff wellbeing forms (scheduling.md section 20). Each checks what it can before sending and
  * shows the API's refusal in words. Nothing here scores or judges anyone.
  */
 

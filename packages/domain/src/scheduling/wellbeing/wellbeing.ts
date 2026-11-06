@@ -8,7 +8,7 @@ import { ukIsoDate } from "../../shared/working-days";
 import { DAYS_PER_WEEK, plusDays } from "../intervals";
 
 /**
- * Staff wellbeing and voice (scheduling.md section 16; SCHED-011). These rules cover pulse
+ * Staff wellbeing and voice (scheduling.md section 20; SCHED-011). These rules cover pulse
  * surveys and who may see their results, and recognition and check-in checks. They are pure. The
  * minimum group size comes from the rate table (`wellbeing.survey_min_group_size`). The limits
  * here are form sizes, not working time or pay figures, so this folder sits outside the scheduling

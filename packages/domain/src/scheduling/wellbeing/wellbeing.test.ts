@@ -21,7 +21,7 @@ import {
   ukWeekStart,
 } from "./wellbeing";
 
-/** Staff wellbeing and voice (scheduling.md section 16; SCHED-011), table-driven. */
+/** Staff wellbeing and voice (scheduling.md section 20; SCHED-011), table-driven. */
 
 const q = (
   id: string,

@@ -140,7 +140,7 @@ CREATE INDEX "dmd_vmp_vtm" ON "dmd_vmp" USING btree ("vtm_id");--> statement-bre
 CREATE INDEX "dmd_vmp_search_name" ON "dmd_vmp" USING gin ("search_name");--> statement-breakpoint
 CREATE INDEX "dmd_vmpp_vmp" ON "dmd_vmpp" USING btree ("vmp_id");--> statement-breakpoint
 
--- dm+d reference data (integrations.md section 11; INTG-006, MEDS-001; ADR-0080; HZ-113). Runs as
+-- dm+d reference data (integrations.md section 12; INTG-006, MEDS-001; ADR-0080; HZ-113). Runs as
 -- harbour_owner. Global reference tables with no tenant, like bank_holiday (migration 0015) and the
 -- framework tables (0076): forced row-level security with a read policy for every role. The
 -- application, the worker and the sync role read them; only harbour_dmd_loader (NOLOGIN) writes,
@@ -282,7 +282,7 @@ REVOKE ALL ON app.database_environment FROM PUBLIC;
 GRANT SELECT ON app.database_environment TO harbour_dmd_loader, harbour_worker;
 --> statement-breakpoint
 
--- The loader's functions (integrations.md section 11 rules 1 to 4). The worker or the owner calls
+-- The loader's functions (integrations.md section 12 rules 1 to 4). The worker or the owner calls
 -- them in one transaction: begin (under an advisory lock: one load at a time; refuses the invented
 -- fixture outside a dev or test database, a release dated ahead of today or before the one in use;
 -- a release already loaded under the same name is not loaded again), load the rows file by file in

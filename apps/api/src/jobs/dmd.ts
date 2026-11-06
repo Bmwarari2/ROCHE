@@ -39,7 +39,7 @@ export const DMD_EVENTS = {
 } as const;
 
 /**
- * The dm+d release job (integrations.md section 11; ADR-0080): asks the source for its latest
+ * The dm+d release job (integrations.md section 12; ADR-0080): asks the source for its latest
  * release and loads it as the worker, through the loader's functions. Loading a release already in
  * use changes nothing, so the job may run as often as it likes. It runs within its limits (files,
  * bytes, time), reading each file in chunks and yielding between them, on its own queue that holds

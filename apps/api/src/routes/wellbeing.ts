@@ -60,7 +60,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * Staff wellbeing and voice (scheduling.md section 16; SCHED-011). Covers pulse surveys, anonymous
+ * Staff wellbeing and voice (scheduling.md section 20; SCHED-011). Covers pulse surveys, anonymous
  * responses, results above the minimum group size, recognition and wellbeing check-ins. The
  * database holds the same rules again (migration 0115). Responses are reached only through its
  * two definer functions. Audit events carry ids only, never an answer, a message, a mood or a

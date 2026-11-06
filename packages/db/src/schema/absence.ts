@@ -126,7 +126,7 @@ export const absence = pgTable(
     ),
     check("absence_self_certified", sql`self_certified_at IS NULL OR kind = 'sickness'`),
     // Statutory leave is never declined; carer's and unpaid parental leave may only be postponed
-    // (H-970; scheduling.md section 15 rule 1).
+    // (H-970; scheduling.md section 17 rule 1).
     check(
       "absence_statutory",
       sql`(state <> 'declined' OR kind NOT IN (${sqlList(STATUTORY_LEAVE_CODES)}))

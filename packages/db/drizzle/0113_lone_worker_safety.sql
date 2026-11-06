@@ -121,7 +121,7 @@ CREATE INDEX "lone_worker_session_open_idx" ON "lone_worker_session" USING btree
 --> statement-breakpoint
 
 -- Security (ADR-0002, one self-contained file as since migration 0054). Runs as harbour_owner.
--- Lone-worker safety (SCHED-012, scheduling.md section 14, HZ-125): a worker reads and writes
+-- Lone-worker safety (SCHED-012, scheduling.md section 19, HZ-125): a worker reads and writes
 -- their own sessions; holders of scheduling.lone_worker.monitor read the sessions at the
 -- locations where they hold it and acknowledge alarms there; the worker sweep (no user, tenant
 -- scope: app.is_system()) raises alarms and deletes expired location evidence. Nothing else
@@ -259,7 +259,7 @@ CREATE TRIGGER append_only_truncate BEFORE TRUNCATE ON public.lone_worker_event
 -- alarm nor raise one in someone else's name. Acknowledged by a monitor at the location who is
 -- not the worker (a check constraint also refuses the worker).
 -- The worker never reads a duress alarm about themself: whoever is standing over them could see
--- it (scheduling.md section 14.3).
+-- it (scheduling.md section 19.3).
 CREATE POLICY lone_worker_alarm_read ON public.lone_worker_alarm AS RESTRICTIVE FOR SELECT
   TO harbour_app, harbour_owner
   USING (app.is_system()

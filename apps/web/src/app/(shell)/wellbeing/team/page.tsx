@@ -12,7 +12,7 @@ import { wellbeingAccess } from "@/lib/wellbeing";
 export const metadata: Metadata = { title: t("scheduling.wellbeing.team.title") };
 
 /**
- * What a home's staff share (scheduling.md section 16 rules 5 and 6): thanks to members at the
+ * What a home's staff share (scheduling.md section 20 rules 5 and 6): thanks to members at the
  * home, and the check-ins members chose to share, only while shared. Never a score, a ranking or a
  * referral. Viewing is audited by the API.
  */

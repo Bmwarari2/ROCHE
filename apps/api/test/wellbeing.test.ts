@@ -7,7 +7,7 @@ import { createLogger } from "../src/logger";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
- * Staff wellbeing and voice through the API (scheduling.md section 16; SCHED-011). It covers:
+ * Staff wellbeing and voice through the API (scheduling.md section 20; SCHED-011). It covers:
  * - a manager writes and opens a pulse survey;
  * - members answer it once, anonymously: the audit names no one and no response leaves;
  * - results show only once the survey has closed and the minimum group size answered;

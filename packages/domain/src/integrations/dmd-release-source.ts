@@ -1,5 +1,5 @@
 /**
- * The dm+d release source port (integrations.md section 11; INTG-006; ADR-0080). The worker asks
+ * The dm+d release source port (integrations.md section 12; INTG-006; ADR-0080). The worker asks
  * the source for the latest release and loads it through the release loader (slice 10). Slice 75
  * builds the TRUD adapter (download with credentials from the secret store, checksum, monthly
  * schedule, failure alert); until then the mock serves the invented fixture release, and in

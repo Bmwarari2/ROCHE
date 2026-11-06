@@ -24,7 +24,7 @@ export const metadata: Metadata = { title: t("scheduling.wellbeing.surveys.title
 const DONE = ["written", "open", "close"] as const;
 
 /**
- * A staff survey for its manager (scheduling.md section 16 rules 1 and 4): its questions, opening
+ * A staff survey for its manager (scheduling.md section 20 rules 1 and 4): its questions, opening
  * and closing it, and, once closed, its results: only when enough people answered, each question
  * only when enough answered it, a scale's counts all or none, free text in alphabetical order.
  * There is no breakdown, filter or export.

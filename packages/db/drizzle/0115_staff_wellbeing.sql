@@ -109,7 +109,7 @@ CREATE INDEX "wellbeing_check_in_member_idx" ON "wellbeing_check_in" USING btree
 CREATE INDEX "wellbeing_check_in_location_idx" ON "wellbeing_check_in" USING btree ("tenant_id","location_id","created_at");
 --> statement-breakpoint
 
--- Staff wellbeing and voice (scheduling.md section 16; SCHED-011). Every table has forced RLS and
+-- Staff wellbeing and voice (scheduling.md section 20; SCHED-011). Every table has forced RLS and
 -- the tenant policy (ADR-0002). A survey response is anonymous (rule 3): the application role has
 -- no grant and no policy on it, and reaches it only through app.submit_pulse_response and
 -- app.pulse_survey_results, which never return a single response and show results only once the

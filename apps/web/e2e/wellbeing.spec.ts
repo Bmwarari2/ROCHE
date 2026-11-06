@@ -2,7 +2,7 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectAccessible, signIn } from "./support";
 
 /**
- * Phase 2 slice 61: the staff wellbeing screens (SCHED-011; scheduling.md section 16) against the
+ * Phase 2 slice 61: the staff wellbeing screens (SCHED-011; scheduling.md section 20) against the
  * demo tenant.
  * - The manager (scheduling.wellbeing.manage) writes a survey for Harbour House and opens it.
  * - The carer (scheduling.wellbeing.self) answers it anonymously, keeps a private check-in, then

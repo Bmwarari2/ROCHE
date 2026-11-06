@@ -5706,7 +5706,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.pulse_survey": {
     context: "scheduling",
     description:
-      "Staff pulse surveys: the home they ask (or the whole organisation), the questions and dates (scheduling.md section 16).",
+      "Staff pulse surveys: the home they ask (or the whole organisation), the questions and dates (scheduling.md section 20).",
     treatment: "tenant_rows",
     retention: "staff_wellbeing",
     personal: false,
@@ -5741,7 +5741,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.pulse_survey_participation": {
     context: "scheduling",
     description:
-      "That a member took part in a survey (no time and no link to what they answered; scheduling.md section 16 rule 3).",
+      "That a member took part in a survey (no time and no link to what they answered; scheduling.md section 20 rule 3).",
     treatment: "tenant_rows",
     retention: "staff_wellbeing",
     personal: true,
@@ -5759,7 +5759,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "staff_wellbeing",
     personal: false,
     reasonNotExported:
-      "Anonymous answers waiting apart until their survey closes, when they move to the survey's responses (scheduling.md section 16 rule 3); they leave Harbour only as a closed survey's results above the minimum group size.",
+      "Anonymous answers waiting apart until their survey closes, when they move to the survey's responses (scheduling.md section 20 rule 3); they leave Harbour only as a closed survey's results above the minimum group size.",
     columns: {},
   },
   "public.pulse_survey_response": {
@@ -5769,13 +5769,13 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "staff_wellbeing",
     personal: false,
     reasonNotExported:
-      "Anonymous answers leave Harbour only as a closed survey's results above the minimum group size (scheduling.md section 16 rule 4), so no small group can be picked out of an export.",
+      "Anonymous answers leave Harbour only as a closed survey's results above the minimum group size (scheduling.md section 20 rule 4), so no small group can be picked out of an export.",
     columns: {},
   },
   "public.recognition": {
     context: "scheduling",
     description:
-      "Thanks from one member of staff to another (append-only; scheduling.md section 16 rule 5).",
+      "Thanks from one member of staff to another (append-only; scheduling.md section 20 rule 5).",
     treatment: "tenant_rows",
     retention: "staff_wellbeing",
     personal: true,
@@ -5792,7 +5792,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.wellbeing_check_in": {
     context: "scheduling",
     description:
-      "A member's own wellbeing check-ins, seen by a manager only while shared (scheduling.md section 16 rule 6; possibly health data). The organisation's export holds only those shared; a member's private check-ins reach them through a subject access request.",
+      "A member's own wellbeing check-ins, seen by a manager only while shared (scheduling.md section 20 rule 6; possibly health data). The organisation's export holds only those shared; a member's private check-ins reach them through a subject access request.",
     treatment: "tenant_rows",
     retention: "staff_wellbeing",
     personal: true,
@@ -7186,7 +7186,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.absence": {
     context: "scheduling",
     description:
-      "Absences and leave (scheduling.md section 15; SCHED-010): leave asked for and decided, and sickness or leave recorded. Never a diagnosis.",
+      "Absences and leave (scheduling.md section 17; SCHED-010): leave asked for and decided, and sickness or leave recorded. Never a diagnosis.",
     treatment: "tenant_rows",
     retention: "sickness_absence",
     personal: true,
@@ -7571,7 +7571,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.lone_worker_session": {
     context: "scheduling",
     description:
-      "Each lone-working session a member of staff started: where, what kind of work, when it started and was planned to end, the check-in interval and when it finished (scheduling.md section 14).",
+      "Each lone-working session a member of staff started: where, what kind of work, when it started and was planned to end, the check-in interval and when it finished (scheduling.md section 19).",
     treatment: "tenant_rows",
     retention: "lone_worker",
     personal: true,
