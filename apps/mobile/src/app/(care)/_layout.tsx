@@ -8,6 +8,7 @@ import Settings from "lucide-react-native/icons/settings";
 import Users from "lucide-react-native/icons/users";
 import { useSession } from "../../app-state/session";
 import { t } from "../../i18n/t";
+import { useDmdSubsetRefresh } from "../../medicines/use-dmd-subset";
 
 /** Who takes part in the handover, as the API and the handover streams decide (care.md rule 14). */
 const HANDOVER_PERMISSION = "care.handover.manage";
@@ -23,6 +24,8 @@ const SHIFTS_PERMISSIONS = ["scheduling.timesheet.self", "scheduling.lone_worker
  */
 export default function CareLayout() {
   const theme = useTheme();
+  // The dm+d rows the MARs need, kept fresh while connected (slice 68).
+  useDmdSubsetRefresh();
   const { me } = useSession();
   const handover = (me?.permissions ?? []).includes(HANDOVER_PERMISSION);
   const shifts = SHIFTS_PERMISSIONS.some((p) => (me?.permissions ?? []).includes(p));

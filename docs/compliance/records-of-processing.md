@@ -196,8 +196,7 @@ the flags the rules set, corrections with their reason), the witness's second si
 dosing records for variable doses (the doses for each day from the clinic's letter, and their
 second check). Reasons and notes may describe the person's condition or name others present.
 Retention class `mar_chart`. Escalations become tasks for the nurse in charge, titled in words
-that name no medicine. No new recipient or sub-processor; administrations are not yet sent to
-devices (the round stream is a contract until slice 68).
+that name no medicine. No new recipient or sub-processor; administrations reach devices from slice 68 (below).
 
 Controlled drugs register (Phase 2 slice 34, migration 0128): B1 now also covers each person's
 register pages (drug, form and strength) and entries (receipts, administrations, returns,
@@ -206,6 +205,16 @@ any reason), witnesses' signed assertions and stock counts. A count that does no
 a medication incident (B1's incident record), whose words name no drug or count. Retention class
 `controlled_drugs_register` (2 years from the page's last entry; entries recording an
 administration keep the longer `mar_chart` period). No new recipient or sub-processor.
+
+Medicines on the phone (Phase 2 slice 68, migration 0149; ADR-0130): B1 now also covers copies,
+on the phones of members who give medicines (`medicines.emar.administer`), of the MAR entry
+versions not replaced or withdrawn of the people in their scope (assigned people, or every live
+person at the homes it reaches), with schedule times, dosing records and covert administration
+records, and the administrations recorded in the last two to three days; and each member's own
+medicines competence sign-offs and withdrawals (B3) on their own phone. In the encrypted device
+database (SQLCipher), removed when the person leaves the member's scope, at sign-out, wipe or hold.
+The dm+d subset on the phone is national reference data, not personal data. No new recipient or
+sub-processor.
 
 Rounds and conflict review (Phase 2 slice 48, migration 0134): B1 now also covers a second record
 of a dose uploaded from a device after one was held (the record as the device sent it, who sent

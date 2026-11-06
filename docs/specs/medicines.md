@@ -1062,24 +1062,26 @@ a register.
 - `GET /v1/people/{id}/medicine-round?at=`: the doses due around a time with their state
   (`scheduledDoseState`), notices, and each when-required entry's status (`prnStatus`).
 
-### 13.8 Sync stream contract (slices 68 and 69)
+### 13.8 Medicines on the phone (slice 68; ADR-0130)
 
-The round reaches devices through a stream specified here as a contract only. It is not in
-`sync-config.yaml` until slice 68, and a test fails if a medicines table appears there before the
-stream's isolation tests exist.
-- **Stream `location_medicines_round`**: for members holding `medicines.emar.administer` at a
-  location, the live people there.
-  - Their checked or not-yet-checked entry versions in force or starting within the cycle, with
-    their schedule times.
-  - Dosing records covering the next 7 UK days.
-  - Administrations in the last 48 hours (for intervals, the 24-hour maximum and the last given).
-  - The member's own competence reading.
-- **Rules**: the same person scope as the care streams (replication bypasses RLS, so the stream
-  query carries the scope itself); no stopped or withdrawn versions after their end; no documents.
-- **Uploads**: decided with slices 68 and 69 (H-1164): a record made offline is recorded after the
-  event, so it is checked at its drift-corrected time, idempotent by id, and a refusal comes back
-  to the device as a conflict for the nurse in charge (slice 70). Today the API takes a request's
-  own time only through the given-before-recorded route.
+Built in slice 68 (migration 0149), for members holding `medicines.emar.administer`, in the two
+person scopes of the care streams (replication bypasses RLS, so the stream queries carry the scope;
+`medicines-streams.test.ts` proves it):
+- **`*_medicines`** (priority 1, with the allergy streams, HZ-002): MAR entry versions not
+  replaced, withdrawn or removed, a stopped one included (the phone judges the stop's time), with
+  their schedule times, dosing records and covert records.
+- **`*_medicine_administrations`**: administrations recorded on a day of `meds_recent_days` (today
+  and the two UTC days before, minted by the API): the last 48 hours at least, for intervals, the
+  24-hour maximum and the last given.
+- **`my_medicines_competence`**: the member's own medicines competence sign-offs and withdrawals.
+- **dm+d**: `GET /v1/medicines/device-subset` (integrations.md section 12 rule 9), fetched on
+  connecting and at most hourly after and replaced whole on the phone.
+- Token claims `meds_location_ids`, `meds_assigned` and `meds_recent_days`; none reach a device
+  without them (fails closed). No document, reconciliation, error, review, stock or controlled drug
+  register row syncs.
+- **Uploads**: decided with slice 69 (H-1164): a record made offline is recorded after the event,
+  so it is checked at its drift-corrected time, idempotent by id, and a refusal comes back to the
+  device as a conflict for the nurse in charge (slice 70).
 
 ### 13.9 Audit and outbox
 
@@ -1796,7 +1798,7 @@ policy; the person's scope on the three about a person; the home's scope on prot
 (`capture_version`) on the two mutable tables; append-only triggers and no UPDATE or DELETE grant
 on the other two; no DELETE on any. `medication_administration` gains `covert` (default false:
 expand only) and four flags. Retention `mar_chart`. Sample data removal lists the new person tables.
-Not sent to devices yet (the round stream is a contract until slice 68).
+Sent to devices from slice 68 (section 13.8).
 
 ### 15.6 Test list
 
