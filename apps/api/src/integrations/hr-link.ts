@@ -553,9 +553,9 @@ async function applyLeaving(
       changed = true;
     }
   } else if (known.deletedAt !== null) {
-    // A member reinstated after a withdrawn leaving, whom Thapsus-HR now gives a leaving again:
-    // the leaving is re-armed with the date given now, so the leaver sweep ends access once the
-    // day is over (app.end_relinked_leaver_access; HZ-133), and a manager is told at once.
+    // A leaving withdrawn before access ended (batch 3c: never after), which Thapsus-HR now gives
+    // again: the leaving is re-armed with the date given now, so the leaver sweep ends access once
+    // the day is over (HZ-133), and a manager is told at once.
     await tx
       .update(leaverRecord)
       .set({ leavingOn, deletedAt: null, staffFileRetainUntil: keep, updatedBy: null })

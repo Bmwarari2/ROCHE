@@ -153,8 +153,8 @@ describe("hazard HZ-123 an open-ended Thapsus-HR absence keeps blocking (migrati
   });
 });
 
-describe("hazard HZ-133 ending a reinstated leaver's access is the sync's alone (migration 0142)", () => {
-  it("refuses a person, and answers false for someone with no ended leaving", async () => {
+describe("hazard HZ-133 no one reaches the relink path once leaving is final (migrations 0142 and 0144)", () => {
+  it("refuses a person and the sync alike", async () => {
     const profile = await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
       c.query<{ id: string }>(
         "INSERT INTO staff_profile (tenant_user_id, job_title) VALUES ($1, 'Care worker') RETURNING id",
@@ -164,10 +164,9 @@ describe("hazard HZ-133 ending a reinstated leaver's access is the sync's alone 
     const id = profile.rows[0]?.id;
     await expect(
       asManager((c) => c.query("SELECT app.end_relinked_leaver_access($1::uuid)", [id])),
-    ).rejects.toThrow(/relinked_leaver_not_allowed/);
-    const done = await asSystem((c) =>
-      c.query<{ ended: boolean }>("SELECT app.end_relinked_leaver_access($1::uuid) AS ended", [id]),
-    );
-    expect(done.rows[0]?.ended).toBe(false);
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asSystem((c) => c.query("SELECT app.end_relinked_leaver_access($1::uuid)", [id])),
+    ).rejects.toThrow(/permission denied/);
   });
 });

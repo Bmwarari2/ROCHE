@@ -74,3 +74,13 @@ LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
     'pre_admission_assessment'
   ]::text[]
 $$;
+--> statement-breakpoint
+-- The HR link (batch 3c security review): a withdrawal is refused once access has ended (migration
+-- 0129 makes leaving final), so no reinstated leaver remains for 0142's relink path. The app may no
+-- longer run it, and the leaver sweep does not call it. Both 0142 definer functions take pg_temp
+-- last, as 0129's do.
+REVOKE EXECUTE ON FUNCTION app.end_relinked_leaver_access(uuid) FROM harbour_app;
+--> statement-breakpoint
+ALTER FUNCTION app.end_relinked_leaver_access(uuid) SET search_path = pg_catalog, public, pg_temp;
+--> statement-breakpoint
+ALTER FUNCTION app.raise_hr_cover_need(uuid, uuid) SET search_path = pg_catalog, public, pg_temp;

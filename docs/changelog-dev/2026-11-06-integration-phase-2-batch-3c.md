@@ -46,6 +46,11 @@ rework's, on `app.change_membership`.
 Until that lands, Thapsus-HR can show a person active while Harbour shows them left. That is the
 fail-safe direction (no access is given back); HZ-133 records it, with a test.
 
+Since nothing reinstates a leaver now, 0142's relink path (`app.end_relinked_leaver_access`, which
+took neither 0129's membership lock nor the link condition) has no caller: 0144 revokes it from the
+app role and the leaver sweep no longer calls it; 0144 also pins `pg_temp` last on 0142's two
+definer functions (security review). The member lifecycle rework brings back whatever it needs.
+
 ## Tests
 
 - Lint and typecheck clean; database tests 1520 of 1520 on a private Postgres; the HR link, PRN
@@ -55,9 +60,12 @@ fail-safe direction (no access is given back); HZ-133 records it, with a test.
 
 - `MEDICINES_OUTPUT_HISTORY_DAYS` (optional, default 35) still needs a line in `.env.example`: this
   session's permissions do not reach that file.
-- `endRelinkedLeaversAccess` (`apps/api/src/services/leavers.ts`) ends access for a reinstated
-  member whose leaving Thapsus-HR sends again. Nothing reinstates a leaver until the member
-  lifecycle rework, so it is idle until then; keep it for that slice.
+- Security review (non-blocking, open): the HR webhook's per-tenant throttle is charged before the
+  signature is checked, and `clientIp` trusts the leftmost `X-Forwarded-For`, so an unsigned flood
+  could use up a tenant's bucket (the 5-minute reconciliation bounds the harm). Charge the tenant
+  bucket only for signed requests and take the address from the trusted proxy hop.
+- Deploy 0143 and 0144 together: 0143's sample removal list is short (72 tables) until 0144 restates
+  the union.
 - `medicines.md` still has two sections 14, four sections 15 and two sections 16; renumber in one
   docs pass with their references.
 - Accessibility review (non-blocking): no Playwright journey or page-level axe scan yet for the HR
