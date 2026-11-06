@@ -74,24 +74,36 @@ locals {
   worker_events = {
     escalation_unrouted_daily = {
       event       = "escalation.unrouted.daily"
+      queue       = ""
       period      = 3600
       description = "Escalations with nobody to route them to (HZ-073). Any line alerts, over an hour, so each daily run alerts again."
     }
     worker_job_failed = {
       event       = "worker.job.failed"
+      queue       = ""
       period      = 900
       description = "One or more worker jobs failed in 15 minutes."
     }
     export_foreign_rows = {
       event       = "security.export.foreign_rows"
+      queue       = ""
       period      = 900
       description = "An export met rows of another organisation (HZ-070)."
+    }
+    # A location's nightly downtime pack that could not be built (operations.md rule 8; HZ-021):
+    # its own alert, at any one line in an hour, so Thapsus's on-call is told the same day rather
+    # than finding it in the worker logs (recommended answer to H-214; docs/runbooks/on-call.md).
+    downtime_pack_failed = {
+      event       = "worker.job.failed"
+      queue       = "downtime-packs"
+      period      = 3600
+      description = "A location's nightly downtime pack could not be built (HZ-021): staff may have no pack in date in an outage. Act the same day."
     }
   }
 
   log_metric_filters = {
     for k, v in local.worker_events :
-    k => "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${var.worker_service_name}\" AND jsonPayload.event=\"${v.event}\""
+    k => "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${var.worker_service_name}\" AND jsonPayload.event=\"${v.event}\"${v.queue == "" ? "" : " AND jsonPayload.queue=\"${v.queue}\""}"
   }
 }
 

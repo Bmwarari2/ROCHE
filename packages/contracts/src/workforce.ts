@@ -24,8 +24,13 @@ export const ComplianceItemKind = z
     "health_fitness",
     "right_to_work",
     "professional_registration",
+    "driving_for_work",
   ])
-  .meta({ id: "ComplianceItemKind", description: "A Schedule 3 pre-employment requirement" });
+  .meta({
+    id: "ComplianceItemKind",
+    description:
+      "A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)",
+  });
 export type ComplianceItemKind = z.infer<typeof ComplianceItemKind>;
 
 export const RegistrationBody = z
@@ -107,12 +112,34 @@ const RightToWorkDetail = z.object({
     )
     .max(40),
 });
-const RegistrationDetail = z.object({
-  kind: z.literal("professional_registration"),
-  body: RegistrationBody,
-  pin: z.string().regex(/^[0-9A-Z]{4,12}$/, "The PIN in capitals and digits"),
-  renewalDueOn: isoDate,
-  revalidationDueOn: isoDate.nullable(),
+const RegistrationDetail = z
+  .object({
+    kind: z.literal("professional_registration"),
+    body: RegistrationBody,
+    pin: z.string().regex(/^[0-9A-Z]{4,12}$/, "The PIN in capitals and digits"),
+    renewalDueOn: isoDate,
+    revalidationDueOn: isoDate.nullable(),
+    /**
+     * The part of the NMC register (H-835); only the nurse part counts as a registered nurse on
+     * duty. Required for an NMC registration; null for other registers.
+     */
+    nmcPart: z.enum(["nurse", "midwife", "nursing_associate"]).nullable().optional(),
+  })
+  .refine((d) => d.body !== "nmc" || (d.nmcPart ?? null) !== null, {
+    message: "Choose the part of the NMC register.",
+    path: ["nmcPart"],
+  });
+const DrivingDetail = z.object({
+  kind: z.literal("driving_for_work"),
+  /** When the licence was checked with the DVLA; never the licence number or the check code. */
+  licenceCheckedOn: isoDate,
+  /** The categories the licence holds, as the DVLA shows them (for example B). */
+  categories: z
+    .array(z.string().regex(/^[A-Z][A-Z0-9+]{0,3}$/))
+    .min(1)
+    .max(20),
+  /** The last day business-use insurance covers. */
+  insuranceExpiresOn: isoDate,
 });
 
 export const ComplianceDetail = z
@@ -126,6 +153,7 @@ export const ComplianceDetail = z
     HealthDetail,
     RightToWorkDetail,
     RegistrationDetail,
+    DrivingDetail,
   ])
   .meta({ id: "ComplianceDetail", description: "What a compliance item keeps, by its kind" });
 export type ComplianceDetail = z.infer<typeof ComplianceDetail>;
@@ -145,6 +173,8 @@ export const ComplianceNote = z
       "registration_lapsed",
       "health_not_declared_fit",
       "references_none",
+      "driving_not_current",
+      "nmc_part_missing",
     ]),
     reason: z.string().optional(),
     dueOn: isoDate.optional(),
@@ -398,8 +428,31 @@ export const SupervisionKind = z
   .enum(["supervision", "appraisal", "spot_check"])
   .meta({ id: "SupervisionKind" });
 
+/**
+ * What was discussed and the actions agreed (slice 57; H-692's default, ADR-0114). Read only by
+ * supervision holders and the member it is about; never in an audit event or an outbox payload.
+ */
+export const SupervisionNote = z
+  .object({
+    discussion: z.string().trim().min(10).max(4000),
+    actions: z.string().trim().min(2).max(2000).nullable(),
+  })
+  .meta({ id: "SupervisionNote" });
+
+/** Add the note to a supervision that has none, or correct the one in force. */
+export const SaveSupervisionNote = SupervisionNote.meta({ id: "SaveSupervisionNote" });
+
+export const SupervisionNoteView = SupervisionNote.extend({
+  writtenBy: StaffName.nullable(),
+  writtenOn: isoDate,
+}).meta({ id: "SupervisionNoteView" });
+
 export const CreateSupervisionRecord = z
-  .object({ kind: SupervisionKind, heldOn: isoDate })
+  .object({
+    kind: SupervisionKind,
+    heldOn: isoDate,
+    note: SupervisionNote.nullable().default(null),
+  })
   .meta({ id: "CreateSupervisionRecord" });
 export type CreateSupervisionRecord = z.infer<typeof CreateSupervisionRecord>;
 
@@ -409,6 +462,10 @@ export const SupervisionRecordItem = z
     kind: SupervisionKind,
     heldOn: isoDate,
     heldBy: StaffName.nullable(),
+    /** The note in force: null when none was written, or when the caller may not read notes. */
+    note: SupervisionNoteView.nullable(),
+    /** Earlier notes it corrected, newest first: shown struck through. */
+    earlierNotes: z.array(SupervisionNoteView),
   })
   .meta({ id: "SupervisionRecordItem" });
 
@@ -430,12 +487,28 @@ const revalidationFields = {
   reflectiveDiscussion: z.boolean(),
   healthAndCharacter: z.boolean(),
   professionalIndemnity: z.boolean(),
-  confirmation: z.boolean(),
 };
 
+/**
+ * The counts and declarations, written by HR (`workforce.training.manage`) or by the nurse
+ * themselves (`PUT /v1/me/revalidation`; H-693). Never the confirmation, which only the confirmer
+ * records, nor the review. The nurse may send it for review with `submit`.
+ */
 export const PutRevalidationEvidence = z
-  .object({ expectedVersion: version.optional(), ...revalidationFields })
+  .object({
+    expectedVersion: version.optional(),
+    ...revalidationFields,
+    submit: z.boolean().optional(),
+  })
   .meta({ id: "PutRevalidationEvidence" });
+
+export const ReviewRevalidation = z
+  .object({ expectedVersion: version, cycleDueOn: isoDate })
+  .meta({ id: "ReviewRevalidation" });
+
+export const ConfirmRevalidation = z
+  .object({ expectedVersion: version, cycleDueOn: isoDate, confirmedOn: isoDate })
+  .meta({ id: "ConfirmRevalidation" });
 export type PutRevalidationEvidence = z.infer<typeof PutRevalidationEvidence>;
 
 export const RevalidationView = z
@@ -443,11 +516,48 @@ export const RevalidationView = z
     id: uuid,
     version: z.number().int(),
     ...revalidationFields,
+    confirmation: z.boolean(),
+    reviewState: z.enum(["draft", "submitted", "reviewed"]),
+    reviewedBy: StaffName.nullable(),
+    confirmedBy: StaffName.nullable(),
+    confirmedOn: isoDate.nullable(),
     daysLeft: z.number().int(),
     outstanding: z.array(z.string()),
     ready: z.boolean(),
   })
   .meta({ id: "RevalidationView" });
+
+/** One member's row on the organisation's training matrix (slice 57). */
+export const TrainingMatrixMember = z
+  .object({
+    member: StaffName,
+    /** Their roles in force, by key (a tenant role by its own key). */
+    roles: z.array(z.string()),
+    /** Where their roles are held; empty for an organisation-wide role. */
+    locationIds: z.array(uuid),
+    /** Each topic their roles need, with its state today. */
+    cells: z.array(TrainingMatrixRow),
+  })
+  .meta({ id: "TrainingMatrixMember" });
+
+export const TrainingMatrix = z
+  .object({
+    asOf: isoDate,
+    /** The topics any member shown needs, in the catalogue's order. */
+    topics: z.array(TrainingTopic),
+    members: z.array(TrainingMatrixMember),
+    /** True when more members match than the most returned at once. */
+    truncated: z.boolean(),
+  })
+  .meta({ id: "TrainingMatrix" });
+export type TrainingMatrix = z.infer<typeof TrainingMatrix>;
+
+export const TrainingMatrixQuery = z.object({
+  locationId: uuid.optional(),
+  roleKey: z.string().trim().min(1).max(80).optional(),
+  /** Only members with a topic missing, lapsed or due soon. */
+  attention: z.enum(["true", "false"]).optional(),
+});
 
 export const DevelopmentRecord = z
   .object({

@@ -4,6 +4,7 @@ import {
   CONTENT_KEY_MAX,
   CONTENT_NOTES,
   contentFields,
+  deathFactsToRecord,
   doneToShow,
   followUpDoneToShow,
   incidentManageView,
@@ -81,6 +82,61 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
       review: "under_review",
       close: { kind: "form" },
     });
+  });
+
+  it.each([
+    ["the emergency services not known yet", { emergencyServicesCalled: null, gpContacted: true }],
+    ["the GP not known yet", { emergencyServicesCalled: false, gpContacted: null }],
+  ])("hazard HZ-090 says to record %s before closing (H-264)", (_label, answers) => {
+    const view = incidentManageView({ ...incident(), ...answers }, manager, null);
+    expect(view?.close).toMatchObject({ kind: "blocked", contactsNotKnown: true });
+    expect(t("safety.manage.close.contacts")).toMatch(/emergency services .* GP/);
+  });
+
+  const death = (answers: { learningDisability: boolean | null; autistic: boolean | null }) => ({
+    id: "0194d000-0000-7000-8000-00000000b001",
+    kind: "service_user",
+    role: "affected",
+    personId: "0194d000-0000-7000-8600-000000000003",
+    died: true,
+    ...answers,
+  });
+
+  it.each([
+    ["the learning disability not known yet", { learningDisability: null, autistic: false }],
+    ["autism not known yet", { learningDisability: false, autistic: null }],
+  ])("hazard HZ-013 says to record %s after a death before closing (H-482)", (_label, answers) => {
+    const withDeath = {
+      ...incident(),
+      emergencyServicesCalled: true,
+      gpContacted: true,
+      people: [death(answers)] as never,
+    };
+    expect(deathFactsToRecord(withDeath)).toHaveLength(1);
+    expect(incidentManageView(withDeath, manager, null)?.close).toMatchObject({
+      kind: "blocked",
+      deathFactsNotKnown: true,
+    });
+  });
+
+  it("hazard HZ-013 asks nothing more once both answers are recorded, or for someone who did not die", () => {
+    const answered = {
+      ...incident(),
+      people: [death({ learningDisability: false, autistic: true })],
+    };
+    expect(deathFactsToRecord(answered as never)).toEqual([]);
+    const living = {
+      ...incident(),
+      people: [{ ...death({ learningDisability: null, autistic: null }), died: false }],
+    };
+    expect(deathFactsToRecord(living as never)).toEqual([]);
+  });
+
+  it("hazard HZ-091 offers no close form when the reader cannot see everyone on the incident, a death they cannot see included", () => {
+    // People outside the reader's scope make the incident restricted: the page offers neither
+    // review nor close, so it never offers a close the API would refuse for a hidden death.
+    const hidden = { ...incident({ restricted: true }), people: [] as never };
+    expect(incidentManageView(hidden, manager, null)).toBeNull();
   });
 
   it("offers sending it back to open while under review", () => {

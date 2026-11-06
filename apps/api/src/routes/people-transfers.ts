@@ -19,6 +19,7 @@ import {
 import {
   checkTransferPackHandover,
   type HospitalTransferPack,
+  missingToAcknowledge,
   type TransferPackResult,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -655,8 +656,10 @@ export const peopleTransfersRouter = createRouter()
             `${check.message} To acknowledge: ${listed.join(", ")}.`,
           );
         }
+        // A missing About Me alone prints "not recorded" but needs no acknowledgement (H-27).
         const needsAck =
-          row.missingCritical.length > 0 || (pack.attention ?? []).some((a) => a.acknowledge);
+          missingToAcknowledge(row.missingCritical).length > 0 ||
+          (pack.attention ?? []).some((a) => a.acknowledge);
         const [updated] = await tx
           .update(hospitalTransfer)
           .set({
@@ -796,6 +799,13 @@ export const peopleTransfersRouter = createRouter()
               resourceId: transferId,
               reason: refused,
             });
+          }
+          // The medicines check is done by completing the reconciliation, never ticked by hand,
+          // so a return cannot read as reconciled while the chart is unreconciled (HZ-005).
+          if (checkKey === "medicines_reconciled") {
+            throw problems.invalid(
+              "This check is done by completing the medicines reconciliation for this return.",
+            );
           }
           checks[checkKey] = { ...check, doneBy: access.tenantUserId, doneAt: now.toISOString() };
           const [updated] = await tx

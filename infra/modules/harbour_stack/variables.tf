@@ -38,6 +38,18 @@ variable "dns_zone_name" {
   default     = null
 }
 
+variable "elearning_domain_name" {
+  description = "Registrable domain for the e-learning content origin (ADR-0093), never domain_name or under it; null leaves courses unlaunched."
+  type        = string
+  default     = null
+}
+
+variable "elearning_dns_zone_name" {
+  description = "Cloud DNS zone in this project that holds elearning_domain_name (null: its records are listed in manual_elearning_dns_records for the domain's own DNS)."
+  type        = string
+  default     = null
+}
+
 variable "create_dns_zone" {
   description = "Create the Cloud DNS zone named dns_zone_name (false: it exists already)."
   type        = bool

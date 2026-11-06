@@ -9,6 +9,7 @@ import {
 import {
   type CertificateKind,
   certificateStatus,
+  type DsptOutcome,
   dsptStatus,
   fromUkWallClock,
   QUALITY_PHASE_2_RATE_KEYS,
@@ -79,7 +80,7 @@ export async function dataSecurityStatuses(tx: Transaction, tenantId: string, no
     submissions.map((s) => ({
       financialYear: s.financialYear,
       submittedOn: s.submittedOn,
-      outcome: s.outcome as "standards_met" | "approaching_standards" | "standards_not_met",
+      outcome: s.outcome as DsptOutcome,
     })),
     on,
     rates,

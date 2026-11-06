@@ -1,0 +1,446 @@
+import { randomUUID } from "node:crypto";
+import { DEMO } from "@harbour/db/seed";
+import { ukIsoDate } from "@harbour/domain";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SyncTokenSigner } from "../src/sync/token";
+import { createHarness, type Harness } from "./support/harness";
+
+/**
+ * Bank and agency workers through the API (scheduling.md section 15; SCHED-009; ADR-0088; hazards
+ * HZ-124 and HZ-011): agencies; registering a worker and the agency's confirmation; booking an open
+ * shift under the rostering rule, with the cost; induction; feedback and do not rebook; the AWR
+ * clock; cost per agency; and the access window: an agency member reaches nothing outside a booked
+ * shift and their own shifts during it.
+ */
+
+let h: Harness;
+const as = (who: string, path: string, init: { method?: string; body?: unknown } = {}) =>
+  h.request(path, { ...init, token: h.tokens[who], tenant: DEMO.tenantId });
+
+async function sql<T = Record<string, unknown>>(text: string, params: unknown[] = []) {
+  const client = await h.db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    const { rows } = await client.query(text, params);
+    await client.query("COMMIT");
+    return rows as T[];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+const LOC = DEMO.locationId;
+const today = () => ukIsoDate(new Date());
+const inDays = (n: number) => {
+  const d = new Date(`${today()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+let ash: string;
+let agencyId: string;
+let workerId: string;
+let workerVersion: number;
+let rotaId: string;
+
+interface Booking {
+  id: string;
+  version: number;
+  costPence: number;
+  inductionDue: boolean;
+  status: string;
+}
+
+/** An open shift on the rota from `startHours` to `endHours` from now (made directly). */
+async function openShift(startHours: number, endHours: number) {
+  const [row] = await sql<{ id: string; version: number }>(
+    `INSERT INTO shift (rota_id, location_id, label, kind, starts_at, ends_at, break_minutes)
+     VALUES ($1, $2, 'Agency cover', 'work', now() + make_interval(hours => $3::int),
+       now() + make_interval(hours => $4::int), 30) RETURNING id, version`,
+    [rotaId, LOC, startHours, endHours],
+  );
+  return row as { id: string; version: number };
+}
+
+const myShifts = () =>
+  h.request(`/v1/me/shifts?from=${inDays(-1)}&to=${inDays(1)}`, {
+    token: h.tokens.agency,
+    tenant: DEMO.tenantId,
+  });
+
+beforeAll(async () => {
+  h = await createHarness();
+  const [member] = await sql<{ id: string }>(
+    "SELECT id FROM tenant_user WHERE email = 'agency@example.invalid'",
+  );
+  ash = member?.id as string;
+  await sql(
+    `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+     SELECT $1, id, $2 FROM role WHERE key = 'agency_worker' LIMIT 1`,
+    [ash, LOC],
+  );
+  const made = await as("manager", `/v1/locations/${LOC}/rotas`, {
+    method: "POST",
+    body: { startsOn: inDays(-1), endsOn: inDays(1) },
+  });
+  rotaId = ((await made.json()) as { id: string }).id;
+});
+afterAll(async () => {
+  await h?.close();
+});
+
+describe("agencies and workers", () => {
+  it("adds an agency, and refuses a care worker", async () => {
+    const body = {
+      name: "Example Staffing",
+      contactEmail: "bookings@example.invalid",
+      defaultChargePencePerHour: 2500,
+    };
+    expect((await as("carer", "/v1/agencies", { method: "POST", body })).status).toBe(403);
+    const made = await as("manager", "/v1/agencies", { method: "POST", body });
+    expect(made.status).toBe(201);
+    agencyId = ((await made.json()) as { id: string }).id;
+  });
+
+  it("refuses registration to a member without the rota and member permissions", async () => {
+    const response = await as("nurse", "/v1/agency-workers", {
+      method: "POST",
+      body: { tenantUserId: ash, kind: "agency", agencyId, roleTitle: "Care assistant" },
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it("refuses to register a member who holds another role", async () => {
+    const response = await as("owner", "/v1/agency-workers", {
+      method: "POST",
+      body: { tenantUserId: DEMO.users.carer.id, kind: "agency", agencyId, roleTitle: "Carer" },
+    });
+    expect(response.status).toBe(422);
+  });
+
+  it("hazard HZ-011 an agency member reaches nothing before they are booked", async () => {
+    const register = await as("owner", "/v1/agency-workers", {
+      method: "POST",
+      body: { tenantUserId: ash, kind: "agency", agencyId, roleTitle: "Care assistant" },
+    });
+    expect(register.status).toBe(201);
+    const worker = (await register.json()) as { id: string; version: number };
+    workerId = worker.id;
+    workerVersion = worker.version;
+    expect((await myShifts()).status).toBe(403);
+  });
+});
+
+describe("hazard HZ-124 booking applies the rostering rule", () => {
+  it("hazard HZ-124 refuses an agency worker with nothing confirmed, never overridable", async () => {
+    const shift = await openShift(-1, 4);
+    const response = await as("manager", `/v1/shifts/${shift.id}/booking`, {
+      method: "POST",
+      body: { workerId: ash, version: shift.version },
+    });
+    expect(response.status).toBe(422);
+    expect(((await response.json()) as { code: string }).code).toBe("right_to_work");
+    await sql("UPDATE shift SET deleted_at = now(), cancel_reason = 'Test' WHERE id = $1", [
+      shift.id,
+    ]);
+  });
+
+  it("hazard HZ-124 refuses a confirmation dated after today", async () => {
+    const response = await as("manager", `/v1/agency-workers/${workerId}/confirmation`, {
+      method: "PUT",
+      body: {
+        version: workerVersion,
+        dbsConfirmedOn: inDays(3),
+        dbsEnhancedBarred: true,
+        rightToWorkConfirmedOn: inDays(-30),
+        rightToWorkExpiresOn: null,
+        registrationBody: null,
+        registrationValidUntil: null,
+      },
+    });
+    expect(response.status).toBe(422);
+  });
+
+  it("records the agency's confirmation in the recorder's name", async () => {
+    const response = await as("manager", `/v1/agency-workers/${workerId}/confirmation`, {
+      method: "PUT",
+      body: {
+        version: workerVersion,
+        dbsConfirmedOn: inDays(-30),
+        dbsEnhancedBarred: true,
+        rightToWorkConfirmedOn: inDays(-30),
+        rightToWorkExpiresOn: null,
+        registrationBody: null,
+        registrationValidUntil: null,
+      },
+    });
+    expect(response.status).toBe(200);
+    const worker = (await response.json()) as { confirmation: { confirmedBy: string } };
+    expect(worker.confirmation.confirmedBy).toBe(DEMO.users.manager.id);
+  });
+
+  let booking: Booking;
+  it("hazard HZ-011 books an open shift with its cost, and opens the worker's access for it", async () => {
+    const shift = await openShift(-1, 4);
+    const response = await as("manager", `/v1/shifts/${shift.id}/booking`, {
+      method: "POST",
+      body: { workerId: ash, version: shift.version, bookingRef: "EX-1001" },
+    });
+    expect(response.status).toBe(201);
+    booking = (await response.json()) as Booking;
+    expect(booking.costPence).toBe(Math.round(((5 * 60 - 30) * 2500) / 60));
+    expect(booking.inductionDue).toBe(true);
+    const mine = await myShifts();
+    expect(mine.status).toBe(200);
+    // Not yet published: the worker does not see it among their shifts.
+    expect(((await mine.json()) as { items: unknown[] }).items).toHaveLength(0);
+  });
+
+  it("hazard HZ-011 refuses putting a bank or agency worker on a shift without booking them", async () => {
+    const shift = await openShift(8, 12);
+    const response = await as("manager", `/v1/shifts/${shift.id}/assignment`, {
+      method: "POST",
+      body: { workerId: ash, version: shift.version },
+    });
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { code: string }).code).toBe("book_instead");
+    await sql("UPDATE shift SET deleted_at = now(), cancel_reason = 'Test' WHERE id = $1", [
+      shift.id,
+    ]);
+  });
+
+  it("caps a bank or agency member's sync token at the end of their window", async () => {
+    const signer = new SyncTokenSigner("test-key");
+    const now = new Date("2026-11-02T12:00:00Z");
+    const { expiresAt } = await signer.sign(
+      {
+        sub: ash,
+        tenant_id: DEMO.tenantId,
+        location_ids: [],
+        people_location_ids: [],
+        care_location_ids: [],
+        entries_location_ids: [],
+        people_assigned: false,
+        care_assigned: false,
+        entries_assigned: false,
+        handover_location_ids: [],
+        handover_assigned: false,
+        entries_write_location_ids: [],
+        entries_write_assigned: false,
+        offline_days: [],
+      } as unknown as Parameters<SyncTokenSigner["sign"]>[0],
+      now,
+      new Date("2026-11-02T12:01:00Z"),
+    );
+    expect(expiresAt.toISOString()).toBe("2026-11-02T12:01:00.000Z");
+  });
+
+  it("refuses a second booking on a shift that is no longer open", async () => {
+    const [row] = await sql<{ shift_id: string; version: number }>(
+      "SELECT b.shift_id, s.version FROM agency_booking b JOIN shift s ON s.id = b.shift_id WHERE b.id = $1",
+      [booking.id],
+    );
+    const response = await as("manager", `/v1/shifts/${row?.shift_id}/booking`, {
+      method: "POST",
+      body: { workerId: ash, version: row?.version },
+    });
+    expect(response.status).toBe(409);
+  });
+
+  it("records an induction, and refuses one with no items", async () => {
+    const bad = await as("manager", `/v1/agency-workers/${workerId}/inductions`, {
+      method: "POST",
+      body: { locationId: LOC, inductedOn: today(), items: [] },
+    });
+    expect(bad.status).toBe(422);
+    const made = await as("manager", `/v1/agency-workers/${workerId}/inductions`, {
+      method: "POST",
+      body: { locationId: LOC, inductedOn: today(), items: ["fire_exits", "emergency_procedures"] },
+    });
+    expect(made.status).toBe(201);
+  });
+
+  it("shows the AWR clock with the weeks counted and the method", async () => {
+    const response = await as("manager", `/v1/agency-workers/${workerId}/awr`);
+    expect(response.status).toBe(200);
+    const clock = (await response.json()) as {
+      qualifyingWeeks: number;
+      qualifyingWeeksNeeded: number;
+      method: string[];
+    };
+    expect(clock.qualifyingWeeks).toBe(1);
+    expect(clock.qualifyingWeeksNeeded).toBeGreaterThan(1);
+    expect(clock.method.join(" ")).toMatch(/regulation 7/);
+  });
+
+  it("hazard HZ-073 warns on the rota and the handover while a booked agency worker on shift has nobody assigned", async () => {
+    const check = await as("manager", `/v1/rotas/${rotaId}/check`);
+    expect(check.status).toBe(200);
+    const body = (await check.json()) as { peopleUnassigned: string[]; hasWarnings: boolean };
+    expect(body.peopleUnassigned).toHaveLength(1);
+    expect(body.hasWarnings).toBe(true);
+    const compiled = await as("manager", `/v1/locations/${LOC}/handovers`, {
+      method: "POST",
+      body: {},
+    });
+    expect([200, 201]).toContain(compiled.status);
+    const handover = (await compiled.json()) as { agencyWithoutPeople: { memberId: string }[] };
+    expect(handover.agencyWithoutPeople.map((x) => x.memberId)).toEqual([ash]);
+    const [person] = await sql<{ id: string }>(
+      "SELECT id FROM person WHERE location_id = $1 LIMIT 1",
+      [LOC],
+    );
+    await sql("INSERT INTO person_assignment (tenant_user_id, person_id) VALUES ($1, $2)", [
+      ash,
+      person?.id,
+    ]);
+    const after = (await (await as("manager", `/v1/rotas/${rotaId}/check`)).json()) as {
+      peopleUnassigned: string[];
+    };
+    expect(after.peopleUnassigned).toEqual([]);
+  });
+
+  it("hazard HZ-006 accepts an agency worker's offline entry from a booked window, refuses one from outside", async () => {
+    const upload = (recordedAt: string) =>
+      h.request("/v1/sync/upload", {
+        method: "POST",
+        token: h.tokens.agency,
+        tenant: DEMO.tenantId,
+        body: {
+          operations: [{ op: "PUT", table: "care_note", id: randomUUID(), recordedAt }],
+        },
+      });
+    const inside = await upload(new Date(Date.now() - 30 * 60_000).toISOString());
+    expect(inside.status).toBe(200);
+    // Past the booking check; refused only because no table is writable from a device yet.
+    expect(((await inside.json()) as { rejected: { code: string }[] }).rejected[0]?.code).toBe(
+      "table_not_writable",
+    );
+    const outside = await upload(new Date(Date.now() - 30 * 3_600_000).toISOString());
+    expect(((await outside.json()) as { rejected: { code: string }[] }).rejected[0]?.code).toBe(
+      "outside_booking",
+    );
+  });
+
+  it("records reasons and a role change on the AWR clock, in Great Britain's rules (H-924)", async () => {
+    const reason = await as("manager", `/v1/agency-workers/${workerId}/awr-records`, {
+      method: "POST",
+      body: { kind: "break_reason", fromOn: inDays(1), toOn: inDays(14), reason: "jury_service" },
+    });
+    expect(reason.status).toBe(201);
+    const made = (await reason.json()) as { id: string };
+    const role = await as("manager", `/v1/agency-workers/${workerId}/awr-records`, {
+      method: "POST",
+      body: { kind: "role_change", notifiedOn: today() },
+    });
+    expect(role.status).toBe(201);
+    const withdraw = await as("manager", `/v1/agency-workers/${workerId}/awr-records`, {
+      method: "POST",
+      body: { kind: "withdrawal", withdrawsId: made.id },
+    });
+    expect(withdraw.status).toBe(201);
+    const again = await as("manager", `/v1/agency-workers/${workerId}/awr-records`, {
+      method: "POST",
+      body: { kind: "withdrawal", withdrawsId: made.id },
+    });
+    expect(again.status).toBe(409);
+    const list = (await (
+      await as("manager", `/v1/agency-workers/${workerId}/awr-records`)
+    ).json()) as {
+      items: { id: string; withdrawn: boolean }[];
+    };
+    expect(list.items.find((i) => i.id === made.id)?.withdrawn).toBe(true);
+    const clock = (await (await as("manager", `/v1/agency-workers/${workerId}/awr`)).json()) as {
+      jurisdiction: string;
+      method: string[];
+    };
+    expect(clock.jurisdiction).toBe("great_britain");
+    expect(clock.method.join(" ")).toMatch(/Great Britain/);
+  });
+
+  it("totals the cost per agency at the location", async () => {
+    const response = await as(
+      "manager",
+      `/v1/locations/${LOC}/agency-costs?from=${inDays(-1)}&to=${inDays(1)}`,
+    );
+    expect(response.status).toBe(200);
+    const cost = (await response.json()) as { totalPence: number; items: { agencyId: string }[] };
+    expect(cost.totalPence).toBe(booking.costPence);
+    expect(cost.items[0]?.agencyId).toBe(agencyId);
+  });
+
+  it("hazard HZ-011 closes the worker's access when the booking is cancelled", async () => {
+    const response = await as("manager", `/v1/agency-bookings/${booking.id}/cancel`, {
+      method: "POST",
+      body: { version: booking.version, reason: "Cover found in house" },
+    });
+    expect(response.status).toBe(200);
+    expect((await myShifts()).status).toBe(403);
+  });
+
+  it("hazard HZ-124 sends a safeguarding concern to the Registered Manager as an urgent task", async () => {
+    const missing = await as("manager", `/v1/agency-workers/${workerId}/feedback`, {
+      method: "POST",
+      body: { bookingId: booking.id, kind: "concern", notes: "Rough handling seen at 07:00" },
+    });
+    expect(missing.status).toBe(422);
+    const raised = await as("manager", `/v1/agency-workers/${workerId}/feedback`, {
+      method: "POST",
+      body: {
+        bookingId: booking.id,
+        kind: "concern",
+        notes: "Rough handling seen at 07:00",
+        safeguarding: true,
+      },
+    });
+    expect(raised.status).toBe(201);
+    const tasks = await sql<{ priority: string; assignee_role_key: string }>(
+      "SELECT priority, assignee_role_key FROM task WHERE kind = 'scheduling.agency_safeguarding_concern'",
+    );
+    expect(tasks).toEqual([{ priority: "urgent", assignee_role_key: "registered_manager" }]);
+  });
+
+  it("hazard HZ-124 cancels future bookings after do-not-rebook feedback, and refuses the next booking", async () => {
+    const future = await openShift(6, 12);
+    const booked = await as("manager", `/v1/shifts/${future.id}/booking`, {
+      method: "POST",
+      body: { workerId: ash, version: future.version },
+    });
+    expect(booked.status).toBe(201);
+    const futureBooking = (await booked.json()) as Booking & { concernsRecorded: number };
+    expect(futureBooking.concernsRecorded).toBe(1);
+    const feedback = await as("manager", `/v1/agency-workers/${workerId}/feedback`, {
+      method: "POST",
+      body: {
+        bookingId: booking.id,
+        kind: "do_not_rebook",
+        notes: "Left the floor without handing over",
+        safeguarding: false,
+      },
+    });
+    expect(feedback.status).toBe(201);
+    const [after] = await sql<{ status: string }>(
+      "SELECT status FROM agency_booking WHERE id = $1",
+      [futureBooking.id],
+    );
+    expect(after?.status).toBe("cancelled");
+    const audits = await sql<{ detail: string }>(
+      "SELECT row_to_json(a)::text AS detail FROM audit_event a WHERE action = 'scheduling.agency_feedback.recorded'",
+    );
+    expect(audits[0]?.detail).not.toContain("handing over");
+    const shift = await openShift(13, 18);
+    const response = await as("manager", `/v1/shifts/${shift.id}/booking`, {
+      method: "POST",
+      body: { workerId: ash, version: shift.version },
+    });
+    expect(response.status).toBe(422);
+    expect(((await response.json()) as { code: string }).code).toBe("do_not_book");
+  });
+});

@@ -28,7 +28,51 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "off",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      // The 360 px checks belong to the project below.
+      testIgnore: ["responsive.spec.ts"],
+    },
+    {
+      // Responsive web down to 360 px (MOB-013, WCAG 1.4.10): a phone-sized Chromium window with
+      // touch, running the smoke journeys, a sample journey from each module and the screen-by-
+      // screen overflow, target and axe checks in responsive.spec.ts.
+      name: "mobile-360",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 360, height: 740 },
+        deviceScaleFactor: 2,
+        hasTouch: true,
+      },
+      testMatch: [
+        "responsive.spec.ts",
+        "smoke.spec.ts",
+        "care-record.spec.ts",
+        "round.spec.ts",
+        // Not handover.spec.ts: it acknowledges the shift's handover, which the desktop project
+        // has already done against the same database; responsive.spec.ts covers its screens.
+        "incidents.spec.ts",
+        "tasks.spec.ts",
+        "documents.spec.ts",
+        "search.spec.ts",
+        "team.spec.ts",
+      ],
+    },
+    {
+      // WCAG 1.4.10 measures reflow at 320 CSS px (docs/compliance/accessibility-checklist.md):
+      // the screen-by-screen checks again at that width.
+      name: "mobile-320",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 320, height: 640 },
+        deviceScaleFactor: 2,
+        hasTouch: true,
+      },
+      testMatch: ["responsive.spec.ts"],
+    },
+  ],
   webServer: [
     {
       command: "node dist/server.js",
@@ -46,7 +90,13 @@ export default defineConfig({
       url: `${WEB_URL}/api/health`,
       reuseExistingServer: !CI,
       timeout: 120_000,
-      env: { API_URL, PUBLIC_WEB_URL: WEB_URL, NEXT_TELEMETRY_DISABLED: "1" },
+      // The e-learning content origin: the same server under another host name (ADR-0093).
+      env: {
+        API_URL,
+        PUBLIC_WEB_URL: WEB_URL,
+        ELEARNING_ORIGIN: process.env.ELEARNING_ORIGIN ?? "http://127.0.0.1:3000",
+        NEXT_TELEMETRY_DISABLED: "1",
+      },
       stdout: "ignore",
       stderr: "pipe",
     },

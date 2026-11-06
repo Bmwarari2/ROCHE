@@ -1,10 +1,15 @@
 import {
+  ConfirmRevalidation,
   CreateCompetenceSignOff,
   CreateSupervisionRecord,
   CreateTrainingRecord,
   DevelopmentRecord,
   PutRevalidationEvidence,
   PutTrainingRequirement,
+  ReviewRevalidation,
+  SaveSupervisionNote,
+  TrainingMatrix,
+  TrainingMatrixQuery,
   TrainingRequirementItem,
   TrainingRequirementList,
   UpdateTrainingRecord,
@@ -14,6 +19,7 @@ import {
   competenceSignOff,
   competenceWithdrawal,
   revalidationEvidence,
+  supervisionNote,
   supervisionRecord,
   type Transaction,
   trainingRecord,
@@ -21,7 +27,7 @@ import {
 } from "@harbour/db";
 import { competenceRefreshMonths, competenceValidUntil, ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -33,7 +39,12 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
-import { developmentRecord, endDevelopmentReminders, memberNation } from "../services/development";
+import {
+  developmentRecord,
+  endDevelopmentReminders,
+  memberNation,
+  trainingMatrixFor,
+} from "../services/development";
 import { workforceRates } from "../services/staff-files";
 import {
   conflictResponse,
@@ -62,18 +73,95 @@ const SELF = "workforce.self.read";
 const SOURCE = "development";
 const A = {
   viewed: "workforce.development.viewed",
+  matrix: "workforce.training_matrix.viewed",
   requirement: "workforce.training_requirement.saved",
   trained: "workforce.training.recorded",
   corrected: "workforce.training.corrected",
   signedOff: "workforce.competence.signed_off",
   withdrawn: "workforce.competence.withdrawn",
   supervised: "workforce.supervision.recorded",
+  noted: "workforce.supervision_note.saved",
   revalidation: "workforce.revalidation.recorded",
+  reviewed: "workforce.revalidation.reviewed",
+  confirmed: "workforce.revalidation.confirmed",
 } as const;
+
+/**
+ * Writes a cycle's counts and declarations, by HR for someone else or by the nurse for
+ * themselves (H-693): never the confirmation, never once reviewed (the database refuses both
+ * too). `submit` sends it for review.
+ */
+async function putRevalidation(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  memberId: string,
+  input: PutRevalidationEvidence,
+): Promise<void> {
+  const { expectedVersion, submit, ...body } = input;
+  await change(c, access, A.revalidation, memberId, async (tx) => {
+    const [existing] = await tx
+      .select({
+        id: revalidationEvidence.id,
+        version: revalidationEvidence.version,
+        reviewState: revalidationEvidence.reviewState,
+      })
+      .from(revalidationEvidence)
+      .where(
+        and(
+          eq(revalidationEvidence.workerId, memberId),
+          eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
+        ),
+      );
+    const set = { ...body, ...(submit ? { reviewState: "submitted" } : {}) };
+    let id: string | undefined;
+    if (existing) {
+      if (expectedVersion !== existing.version) {
+        throw refused(problems.conflict(), A.revalidation, existing.id, "version_conflict");
+      }
+      if (existing.reviewState === "reviewed") {
+        throw refused(
+          new HttpProblem(
+            409,
+            "revalidation_reviewed",
+            "This evidence has been reviewed, so it can no longer be changed.",
+          ),
+          A.revalidation,
+          existing.id,
+          "reviewed",
+        );
+      }
+      const [row] = await tx
+        .update(revalidationEvidence)
+        .set(set)
+        .where(
+          and(
+            eq(revalidationEvidence.id, existing.id),
+            eq(revalidationEvidence.version, existing.version),
+          ),
+        )
+        .returning({ id: revalidationEvidence.id });
+      id = row?.id;
+    } else {
+      const [row] = await tx
+        .insert(revalidationEvidence)
+        .values({ workerId: memberId, ...set })
+        .returning({ id: revalidationEvidence.id });
+      id = row?.id;
+    }
+    if (!id) throw refused(problems.conflict(), A.revalidation, memberId, "version_conflict");
+    await audit(c, tx, access, {
+      action: A.revalidation,
+      resourceType: "revalidation_evidence",
+      resourceId: id,
+      scopeExtra: { memberId, own: memberId === access.tenantUserId, submitted: submit === true },
+    });
+  });
+}
 
 const MemberParam = z.object({ memberId: z.uuid() });
 const RecordParam = z.object({ memberId: z.uuid(), recordId: z.uuid() });
 const SignOffParam = z.object({ memberId: z.uuid(), signOffId: z.uuid() });
+const SupervisionParam = z.object({ memberId: z.uuid(), supervisionId: z.uuid() });
 
 const refused = (problem: HttpProblem, action: string, id: string | null, reason: string) =>
   new AuditedRefusal(problem, {
@@ -179,6 +267,47 @@ export const developmentRouter = createRouter()
           .orderBy(asc(trainingRequirement.roleKey), asc(trainingRequirement.topic)),
       );
       return c.json({ items: rows.map(requirementItem) }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/workforce/training-matrix",
+      tags: ["workforce"],
+      summary: "The organisation's training matrix",
+      description:
+        "workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. Every member of staff whose roles need training, by name and job title, with each required topic's state today (valid, due soon, expired or missing), by the rules of the member's record. Filter by location (roles held there), role key, or attention (only members with a topic not valid). At most 2,000 members; truncated says when more match. Audited without names.",
+      security,
+      request: { query: TrainingMatrixQuery },
+      responses: { 200: jsonBody(TrainingMatrix, "The matrix"), ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requireAnyPermission(c, [
+        TRAINING,
+        OBSERVE,
+        SUPERVISION,
+        STAFF_FILE_READ,
+      ]);
+      const query = c.req.valid("query");
+      const matrix = await withTenant(c, async (tx) => {
+        const found = await trainingMatrixFor(tx, access.tenantId, new Date(), {
+          ...(query.locationId ? { locationId: query.locationId } : {}),
+          ...(query.roleKey ? { roleKey: query.roleKey } : {}),
+          attention: query.attention === "true",
+        });
+        if (!found) throw problems.forbidden();
+        await audit(c, tx, access, {
+          action: A.matrix,
+          resourceType: SOURCE,
+          scopeExtra: {
+            locationId: query.locationId ?? null,
+            roleKey: query.roleKey ?? null,
+            members: found.members.length,
+          },
+        });
+        return found;
+      });
+      return c.json(matrix, 200);
     },
   )
   .openapi(
@@ -476,7 +605,7 @@ export const developmentRouter = createRouter()
       tags: ["workforce"],
       summary: "Record a supervision, appraisal or spot check",
       description:
-        "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.",
+        "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. An optional note (what was discussed and the actions agreed; H-692's default, ADR-0114) is read only by supervision holders and the member. Audited without the note.",
       security,
       request: {
         params: MemberParam,
@@ -500,11 +629,92 @@ export const developmentRouter = createRouter()
             heldBy: access.tenantUserId,
           })
           .returning({ id: supervisionRecord.id });
+        if (row && body.note) {
+          await tx.insert(supervisionNote).values({
+            supervisionId: row.id,
+            workerId: memberId,
+            discussion: body.note.discussion,
+            actions: body.note.actions,
+            writtenBy: access.tenantUserId,
+          });
+        }
         await audit(c, tx, access, {
           action: A.supervised,
           resourceType: "supervision_record",
           resourceId: row?.id ?? memberId,
-          scopeExtra: { memberId, kind: body.kind },
+          // Whether a note was written, never what it says.
+          scopeExtra: { memberId, kind: body.kind, note: body.note !== null },
+        });
+      });
+      return c.json(await recordFor(c, access, memberId), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes",
+      tags: ["workforce"],
+      summary: "Add or correct a supervision's note",
+      description:
+        "workforce.supervision.manage, by whoever held the supervision, never for oneself. Adds the note when there is none, or a correction superseding the note in force (append-only; the earlier note is kept and shown struck through; H-692's default, ADR-0114). Audited without the note.",
+      security,
+      request: {
+        params: SupervisionParam,
+        body: { content: { "application/json": { schema: SaveSupervisionNote } } },
+      },
+      responses: developmentResponses,
+    }),
+    async (c) => {
+      const access = await requirePermission(c, SUPERVISION);
+      const { memberId, supervisionId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      await change(c, access, A.noted, supervisionId, async (tx) => {
+        if (memberId === access.tenantUserId) throw own(A.noted, memberId);
+        const [held] = await tx
+          .select({ heldBy: supervisionRecord.heldBy })
+          .from(supervisionRecord)
+          .where(
+            and(
+              eq(supervisionRecord.id, supervisionId),
+              eq(supervisionRecord.workerId, memberId),
+              isNull(supervisionRecord.deletedAt),
+            ),
+          );
+        if (!held) throw refused(problems.notFound(), A.noted, supervisionId, "not_found");
+        if (held.heldBy !== access.tenantUserId) {
+          throw refused(
+            new HttpProblem(
+              403,
+              "not_your_supervision",
+              "Only the person who held it writes or corrects its note.",
+            ),
+            A.noted,
+            supervisionId,
+            "not_held_by_caller",
+          );
+        }
+        const existing = await tx
+          .select({ id: supervisionNote.id, supersedesId: supervisionNote.supersedesId })
+          .from(supervisionNote)
+          .where(eq(supervisionNote.supervisionId, supervisionId));
+        const superseded = new Set(
+          existing.flatMap((n) => (n.supersedesId ? [n.supersedesId] : [])),
+        );
+        const current = existing.find((n) => !superseded.has(n.id)) ?? null;
+        await tx.insert(supervisionNote).values({
+          supervisionId,
+          workerId: memberId,
+          discussion: body.discussion,
+          actions: body.actions,
+          supersedesId: current?.id ?? null,
+          writtenBy: access.tenantUserId,
+        });
+        await audit(c, tx, access, {
+          action: A.noted,
+          resourceType: "supervision_record",
+          resourceId: supervisionId,
+          // Whether it corrected a note, never what either says.
+          scopeExtra: { memberId, corrected: current !== null },
         });
       });
       return c.json(await recordFor(c, access, memberId), 200);
@@ -517,7 +727,7 @@ export const developmentRouter = createRouter()
       tags: ["workforce"],
       summary: "Record revalidation evidence for a cycle",
       description:
-        "workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Audited.",
+        "workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Never the confirmation (POST .../revalidation/confirmation) and never once reviewed. Audited.",
       security,
       request: {
         params: MemberParam,
@@ -528,46 +738,118 @@ export const developmentRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, TRAINING);
       const { memberId } = c.req.valid("param");
-      const { expectedVersion, ...body } = c.req.valid("json");
-      await change(c, access, A.revalidation, memberId, async (tx) => {
-        if (memberId === access.tenantUserId) throw own(A.revalidation, memberId);
-        const [existing] = await tx
-          .select({ id: revalidationEvidence.id, version: revalidationEvidence.version })
-          .from(revalidationEvidence)
+      if (memberId === access.tenantUserId) throw own(A.revalidation, memberId);
+      await putRevalidation(c, access, memberId, c.req.valid("json"));
+      return c.json(await recordFor(c, access, memberId), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "put",
+      path: "/v1/me/revalidation",
+      tags: ["workforce"],
+      summary: "Record your own revalidation evidence",
+      description:
+        "workforce.self.read. A registered nurse enters their own counts and declarations (never the reflective text), and may send them for HR to review with `submit` (H-693). Never the confirmation, never once reviewed. The nurse stays responsible for revalidating with the NMC. Audited.",
+      security,
+      request: { body: { content: { "application/json": { schema: PutRevalidationEvidence } } } },
+      responses: developmentResponses,
+    }),
+    async (c) => {
+      const access = await requirePermission(c, SELF);
+      await putRevalidation(c, access, access.tenantUserId, c.req.valid("json"));
+      return c.json(await recordFor(c, access, access.tenantUserId), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/workforce/members/{memberId}/revalidation/review",
+      tags: ["workforce"],
+      summary: "Mark revalidation evidence as reviewed",
+      description:
+        "workforce.training.manage, never for oneself, against expectedVersion. The counts are then fixed; only the confirmation may follow (H-693). Audited.",
+      security,
+      request: {
+        params: MemberParam,
+        body: { content: { "application/json": { schema: ReviewRevalidation } } },
+      },
+      responses: developmentResponses,
+    }),
+    async (c) => {
+      const access = await requirePermission(c, TRAINING);
+      const { memberId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      if (memberId === access.tenantUserId) throw own(A.reviewed, memberId);
+      await change(c, access, A.reviewed, memberId, async (tx) => {
+        const [row] = await tx
+          .update(revalidationEvidence)
+          .set({ reviewState: "reviewed", reviewedBy: access.tenantUserId, reviewedAt: new Date() })
           .where(
             and(
               eq(revalidationEvidence.workerId, memberId),
               eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
+              eq(revalidationEvidence.version, body.expectedVersion),
+              sql`${revalidationEvidence.reviewState} <> 'reviewed'`,
             ),
-          );
-        let id: string | undefined;
-        if (existing) {
-          if (expectedVersion !== existing.version) {
-            throw refused(problems.conflict(), A.revalidation, existing.id, "version_conflict");
-          }
-          const [row] = await tx
-            .update(revalidationEvidence)
-            .set(body)
-            .where(
-              and(
-                eq(revalidationEvidence.id, existing.id),
-                eq(revalidationEvidence.version, existing.version),
-              ),
-            )
-            .returning({ id: revalidationEvidence.id });
-          id = row?.id;
-        } else {
-          const [row] = await tx
-            .insert(revalidationEvidence)
-            .values({ workerId: memberId, ...body })
-            .returning({ id: revalidationEvidence.id });
-          id = row?.id;
-        }
-        if (!id) throw refused(problems.conflict(), A.revalidation, memberId, "version_conflict");
+          )
+          .returning({ id: revalidationEvidence.id });
+        if (!row) throw refused(problems.conflict(), A.reviewed, memberId, "version_conflict");
         await audit(c, tx, access, {
-          action: A.revalidation,
+          action: A.reviewed,
           resourceType: "revalidation_evidence",
-          resourceId: id,
+          resourceId: row.id,
+          scopeExtra: { memberId },
+        });
+      });
+      return c.json(await recordFor(c, access, memberId), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/workforce/members/{memberId}/revalidation/confirmation",
+      tags: ["workforce"],
+      summary: "Record that you confirmed a nurse's revalidation",
+      description:
+        "The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Harbour only tracks it: the nurse revalidates with the NMC. Audited.",
+      security,
+      request: {
+        params: MemberParam,
+        body: { content: { "application/json": { schema: ConfirmRevalidation } } },
+      },
+      responses: developmentResponses,
+    }),
+    async (c) => {
+      const access = await requireAnyPermission(c, [TRAINING, SUPERVISION]);
+      const { memberId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      if (memberId === access.tenantUserId) throw own(A.confirmed, memberId);
+      notFuture(body.confirmedOn, A.confirmed, memberId);
+      await change(c, access, A.confirmed, memberId, async (tx) => {
+        const [row] = await tx
+          .update(revalidationEvidence)
+          .set({
+            confirmation: true,
+            confirmedBy: access.tenantUserId,
+            confirmedOn: body.confirmedOn,
+          })
+          .where(
+            and(
+              eq(revalidationEvidence.workerId, memberId),
+              eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
+              eq(revalidationEvidence.version, body.expectedVersion),
+              eq(revalidationEvidence.confirmation, false),
+              // The confirmation follows HR's review (security review, finding 1).
+              eq(revalidationEvidence.reviewState, "reviewed"),
+            ),
+          )
+          .returning({ id: revalidationEvidence.id });
+        if (!row) throw refused(problems.conflict(), A.confirmed, memberId, "version_conflict");
+        await audit(c, tx, access, {
+          action: A.confirmed,
+          resourceType: "revalidation_evidence",
+          resourceId: row.id,
           scopeExtra: { memberId },
         });
       });

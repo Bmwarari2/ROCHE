@@ -39,8 +39,44 @@ describe("Care mode screens", () => {
       "risks.tsx",
     ]);
     for (const { file, source } of screens) {
-      const header = source.includes("<CarePersonHeader") || source.includes("<FormScreen");
+      const header =
+        source.includes("<CarePersonHeader") ||
+        source.includes("<FormScreen") ||
+        source.includes("<PersonRecord");
       expect(header, file).toBe(true);
+    }
+  });
+
+  // MOB-013, HZ-001: a record drawn beside a list on a tablet is the same record, header first.
+  it("hazard HZ-001 a record beside a list on a tablet keeps the point-of-care header", async () => {
+    const fsName = "node:fs";
+    const fs = (await import(/* @vite-ignore */ fsName)) as Fs;
+    const read = (path: string) =>
+      fs.readFileSync(decodeURIComponent(new URL(path, import.meta.url).pathname), "utf8");
+    const record = read("../components/PersonRecord.tsx");
+    expect(record).toContain("<CarePersonHeader personId={id} />");
+    // The header comes before anything that can be pressed in the record.
+    expect(record.indexOf("<CarePersonHeader")).toBeLessThan(record.indexOf("<Button"));
+    for (const screen of ["../app/(care)/people/index.tsx", "../app/(care)/round/index.tsx"]) {
+      const source = read(screen);
+      expect(source, screen).toContain("<SplitView");
+      expect(source, screen).toContain("<PersonRecord");
+      expect(source, screen).toContain('t("mobile.split.recordOf"');
+      // Each choice draws a fresh record, so nothing of the previous person is left behind.
+      expect(source, screen).toMatch(/<PersonRecord\s+key=/);
+      expect(source, screen).toContain("useRecordScreenProtection(");
+    }
+    // Screens opened from a record beside the round stay on the round's stack, in one push, so
+    // saving returns to the round (#73 clinical review M3: never two pushes across tabs).
+    const round = read("../app/(care)/round/index.tsx");
+    // The route's own template literal, spelt here as plain text.
+    const routeTo = (stack: string) => `pathname: \`/${stack}/[personId]/$\{screen}\``;
+    expect(round).toContain(routeTo("round"));
+    expect(round).not.toContain(routeTo("people"));
+    for (const form of ["note", "chart", "body-map", "care-plan", "risks"]) {
+      expect(read(`../app/(care)/round/[personId]/${form}.tsx`), form).toContain(
+        `export { default } from "../../people/[personId]/${form}";`,
+      );
     }
   });
 

@@ -5,6 +5,7 @@ import {
   escalationChain,
   notification,
   notificationDelivery,
+  pulseSurvey,
   type Transaction,
   taskSeries,
   tenantUser,
@@ -19,9 +20,12 @@ import {
   EXPORT_ARCHIVE_FILE,
   exportStoragePrefix,
   nextEscalationAt,
+  type TenantKeyPort,
+  ukIsoDate,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
+import type { DataKeyCache } from "../integrations/envelope";
 import {
   type HrLinkServices,
   hrConnection,
@@ -29,6 +33,7 @@ import {
   pullSafely,
 } from "../integrations/hr-link";
 import type { Logger } from "../logger";
+import { raiseCoverTask } from "../services/absence";
 import { tellAboutBreachNotice } from "../services/breach-notices";
 import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
@@ -55,6 +60,7 @@ import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../service
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
 import { endLeaversAccess } from "../services/leavers";
+import { LONE_WORKER_UNROUTED_ACTION, sweepLoneWorkers } from "../services/lone-worker";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
@@ -71,6 +77,8 @@ import {
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
+import { completeShred, SHRED_APPROVED_EVENT } from "../services/shred";
+import { SPEAK_UP_UNROUTED_ACTION } from "../services/speak-up-alerts";
 import { raiseStaffFileReminders } from "../services/staff-files";
 import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import { tellAboutNotice } from "../services/sub-processors";
@@ -89,6 +97,8 @@ import { errorCode, WORKER_JOB_FAILED_EVENT } from "./run-job";
  * application role inside that tenant's row-level security context.
  */
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface TaskDeps {
   readonly workerPool: pg.Pool;
   readonly appDb: Database;
@@ -99,7 +109,15 @@ export interface TaskDeps {
   readonly storage?: DocumentStoragePort;
   /** The Thapsus-HR link's adapter; absent in jobs that never touch it. */
   readonly hrLink?: HrLinkServices;
+  /** Organisation keys, to complete an approved crypto-shred (PLAT-012, ADR-0109). */
+  readonly tenantKeys?: TenantKeyPort;
+  readonly dataKeyCache?: DataKeyCache;
+  /** `backupDays(config)`, stated on shred certificates. */
+  readonly backupDays?: number;
 }
+
+/** The queue named in `worker.job.failed` when an approved shred could not be completed. */
+export const SHRED_QUEUE = "tenant-shred";
 
 /** The queue named in `worker.job.failed` when a destroyed document's bytes could not be deleted. */
 export const DOCUMENT_DESTRUCTION_QUEUE = "document-destruction";
@@ -368,7 +386,8 @@ export function retryUnroutedTasks(deps: TaskDeps, now = new Date()): Promise<nu
  * The audit actions that mean no one could be told about safety work (ADR-0071 review rounds 2 to
  * 4): an overdue task, a sync task, an escalation chain step, an urgent refused-entry review, an
  * urgent result alert, a break-glass alert, an overdue statutory notification, an overdue
- * safeguarding referral and an incident the duty of candour holds open.
+ * safeguarding referral, an incident the duty of candour holds open and a speak-up concern with no
+ * lead.
  */
 export const UNROUTED_ACTIONS = [
   TASK_ESCALATION_UNROUTED_ACTION,
@@ -382,6 +401,10 @@ export const UNROUTED_ACTIONS = [
   // An incident the duty of candour holds open, with no one who manages incidents there to tell
   // (#120 review round 4, M2).
   CANDOUR_BLOCKED_UNROUTED_ACTION,
+  // A lone-worker alarm step, or the whole route, that reached nobody but the worker (HZ-125).
+  LONE_WORKER_UNROUTED_ACTION,
+  // A speak-up concern with no active Freedom to Speak Up lead to tell (HZ-131).
+  SPEAK_UP_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */
@@ -613,6 +636,19 @@ export async function escalateSafeguardingReferrals(
 }
 
 /**
+ * Lone-worker safety (SCHED-012, HZ-125), every minute: reminders, alarms past the grace period,
+ * help and duress alarms the API did not raise, re-alerts until acknowledged, resolutions after
+ * late check-ins, and erasing location evidence at its date.
+ */
+export async function sweepLoneWorkersJob(deps: TaskDeps, now = new Date()): Promise<number> {
+  const acted = await eachTenant(deps, "lone-worker-sweep", (tx, tenantId) =>
+    sweepLoneWorkers(tx, tenantId, now),
+  );
+  if (acted > 0) deps.logger.info({ acted }, "lone-worker alarms raised or re-sent");
+  return acted;
+}
+
+/**
  * Incidents the duty of candour has held open for longer than the organisation's period
  * (`candour.close_blocked_days`): one urgent task each for the Registered Manager, on its own
  * escalation ladder, every day until nothing holds it (#120 review rounds 2 and 3; HZ-013).
@@ -746,6 +782,40 @@ export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()):
  * Staged imports past `expires_at` (platform.md rule 25): each is expired as the system, which
  * deletes its staged rows in the same transaction; audited with the row count.
  */
+/**
+ * Staff pulse surveys past their last day (scheduling.md section 20 rule 4; security review round 2
+ * of slice 44): each open survey whose closing date has passed is closed as the system, which
+ * releases its waiting responses in the same transaction; audited with no member and no count.
+ */
+export async function closeEndedSurveysJob(deps: TaskDeps, now = new Date()): Promise<number> {
+  const today = ukIsoDate(now);
+  const closed = await eachTenant(deps, "pulse-survey-close", async (tx, tenantId) => {
+    const rows = await tx
+      .update(pulseSurvey)
+      .set({ state: "closed" })
+      .where(
+        and(
+          eq(pulseSurvey.state, "open"),
+          isNull(pulseSurvey.deletedAt),
+          lt(pulseSurvey.closesOn, today),
+        ),
+      )
+      .returning({ id: pulseSurvey.id });
+    for (const r of rows) {
+      await tx.insert(auditEvent).values({
+        tenantId,
+        action: "scheduling.pulse_survey.closed",
+        resourceType: "pulse_survey",
+        resourceId: r.id,
+        scope: { by: "system", reason: "closing_date_passed" },
+      });
+    }
+    return rows.length;
+  });
+  if (closed > 0) deps.logger.info({ closed }, "pulse surveys closed");
+  return closed;
+}
+
 export async function expireImportsJob(deps: TaskDeps): Promise<number> {
   const expired = await eachTenant(deps, "import-expiry", (tx, tenantId) =>
     expireImportBatches(tx, tenantId),
@@ -844,6 +914,34 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   // writes `worker.job.failed` (queue `document-destruction`, opaque ids), which the operator's
   // alarm watches, and throws, so the relay backs off and tries again (security review, 31
   // October 2026).
+  const completeApprovedShred: OutboxHandler = async (event) => {
+    try {
+      if (!deps.tenantKeys) throw new Error("The worker has no organisation keys.");
+      const approverId = (event.payload as { approverId?: unknown } | null)?.approverId;
+      if (typeof approverId !== "string") throw new Error("The shred event names no approver.");
+      await completeShred(
+        {
+          appDb: deps.appDb,
+          tenantKeys: deps.tenantKeys,
+          ...(deps.dataKeyCache ? { dataKeyCache: deps.dataKeyCache } : {}),
+          backupDays: deps.backupDays ?? 7,
+        },
+        { tenantId: event.tenantId, requestId: event.aggregateId, approverId },
+      );
+    } catch (error) {
+      deps.logger.error(
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: SHRED_QUEUE,
+          tenantId: event.tenantId,
+          outboxEventId: event.id,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
+      );
+      throw error;
+    }
+  };
   const deleteDestroyedDocument: OutboxHandler = async (event) => {
     try {
       if (!deps.storage) throw new Error("The worker has no document storage.");
@@ -875,6 +973,7 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
     ["platform.export.downloaded", deleteArchive],
     ["platform.export.revoked", deleteArchive],
     ["platform.document.destroyed", deleteDestroyedDocument],
+    [SHRED_APPROVED_EVENT, completeApprovedShred],
     [
       "people.person.died",
       async (event) => {
@@ -928,6 +1027,17 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       );
     });
   }
+  // A shift an absence left needing cover (scheduling.md section 17 rule 7; HZ-123): a task for
+  // the rota managers at the shift's home. A failure throws, so the relay retries; the task is
+  // raised once per need.
+  handlers.set("scheduling.cover_needed", async (event) => {
+    const coverNeedId = (event.payload as { coverNeedId?: unknown } | null)?.coverNeedId;
+    // A malformed event is dropped, never retried for ever (security review, finding 5).
+    if (typeof coverNeedId !== "string" || !UUID_PATTERN.test(coverNeedId)) return;
+    await inTenant(event.tenantId, (tx) =>
+      raiseCoverTask(tx, event.tenantId, coverNeedId, new Date()),
+    );
+  });
   // Thapsus's breach notices (platform.md rule 24): the lead and owners are told; a failure throws,
   // so the relay retries, and the dedupe key tells no one twice.
   handlers.set("platform.breach.processor_notice_sent", async (event) => {

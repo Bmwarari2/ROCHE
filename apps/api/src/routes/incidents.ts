@@ -884,7 +884,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Close an incident (someone other than the person who raised it)",
       description:
-        "Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
+        "Refused while a notification is a draft or ready, a classifier question is open, whether the emergency services were called or the GP contacted is not known yet (H-264), someone who died has no learning disability or autism answer (H-482), the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
       security,
       request: {
         params: IncidentParam,

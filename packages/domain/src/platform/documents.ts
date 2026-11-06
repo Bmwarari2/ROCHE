@@ -10,6 +10,7 @@ export const DOCUMENT_CONTENT_TYPES = [
   "image/png",
   "image/webp",
   "application/pdf",
+  "application/zip",
 ] as const;
 export type DocumentContentType = (typeof DOCUMENT_CONTENT_TYPES)[number];
 
@@ -102,10 +103,26 @@ export const DOCUMENT_CATEGORIES = {
     retentionClass: "staff_file",
     inline: false,
   },
+  /**
+   * An e-learning package (workforce.md section 14; ADR-0093): uploaded only through the
+   * e-learning route, which checks the archive entry by entry; never served by the general
+   * document routes, and its files only on the content origin.
+   */
+  elearning_package: {
+    label: "E-learning package (SCORM or xAPI)",
+    contentTypes: ["application/zip"],
+    maxBytes: 100 * MB,
+    personRequired: false,
+    retentionClass: "organisation_document",
+    inline: false,
+  },
 } as const satisfies Record<string, DocumentCategory>;
 
-/** The categories the general document routes serve: everything but HR-only staff documents. */
-export type GeneralDocumentCategory = Exclude<DocumentCategoryKey, "staff_hr_document">;
+/** The categories the general document routes serve: not HR-only staff documents or e-learning packages. */
+export type GeneralDocumentCategory = Exclude<
+  DocumentCategoryKey,
+  "staff_hr_document" | "elearning_package"
+>;
 
 export type DocumentCategoryKey = keyof typeof DOCUMENT_CATEGORIES;
 
@@ -130,6 +147,7 @@ export function sniffContentType(bytes: Uint8Array): DocumentContentType | null 
     return "image/webp";
   }
   if (bytes.length >= 5 && starts(0x25, 0x50, 0x44, 0x46, 0x2d)) return "application/pdf";
+  if (bytes.length >= 4 && starts(0x50, 0x4b, 0x03, 0x04)) return "application/zip";
   return null;
 }
 
@@ -161,6 +179,7 @@ function describeType(type: DocumentContentType): string {
     "image/png": "PNG",
     "image/webp": "WebP",
     "application/pdf": "PDF",
+    "application/zip": "ZIP",
   }[type];
 }
 

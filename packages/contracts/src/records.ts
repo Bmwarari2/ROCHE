@@ -15,6 +15,7 @@ export const DocumentCategoryKey = z
     "organisation_document",
     "organisation_logo",
     "staff_hr_document",
+    "elearning_package",
   ])
   .meta({ id: "DocumentCategoryKey" });
 export type DocumentCategoryKey = z.infer<typeof DocumentCategoryKey>;
@@ -149,12 +150,25 @@ export type DestroyDocuments = z.infer<typeof DestroyDocuments>;
 export const DestructionCertificateItem = z
   .object({
     id: uuid,
+    tenantId: uuid,
+    subjectIds: z.array(uuid),
+    retentionRule: z.record(z.string(), z.unknown()),
     recordClass: z.string(),
     subjectType: z.string(),
     recordCount: z.number().int(),
     reason: z.string(),
     method: z.string(),
     executedAt: isoDateTime,
+    /** SHA-256 (hex) of the canonical certificate body that was signed (PLAT-012, ADR-0109). */
+    bodySha256: z.string().nullable(),
+    signature: z.string().nullable(),
+    signatureKey: z.string().nullable(),
+    signatureAlgorithm: z.string().nullable(),
+    keyVersions: z.array(z.object({ name: z.string(), destroyAt: isoDateTime })),
+    keysDestroyedAt: isoDateTime.nullable(),
+    backupsExpireAt: isoDateTime.nullable(),
+    requestedBy: uuid.nullable(),
+    approvedBy: uuid.nullable(),
   })
   .meta({ id: "DestructionCertificateItem" });
 export type DestructionCertificateItem = z.infer<typeof DestructionCertificateItem>;
@@ -163,6 +177,59 @@ export const DestructionCertificateList = z
   .object({ items: z.array(DestructionCertificateItem) })
   .meta({ id: "DestructionCertificateList" });
 export type DestructionCertificateList = z.infer<typeof DestructionCertificateList>;
+
+export const ShredRequestItem = z
+  .object({
+    id: uuid,
+    status: z.enum(["pending", "shredding", "approved", "cancelled"]),
+    reason: z.string(),
+    exportId: uuid,
+    requestedBy: uuid,
+    requestedAt: isoDateTime,
+    decidedBy: uuid.nullable(),
+    decidedAt: isoDateTime.nullable(),
+    certificateId: uuid.nullable(),
+  })
+  .meta({ id: "ShredRequestItem", description: "A whole-organisation shred request (PLAT-012)" });
+export type ShredRequestItem = z.infer<typeof ShredRequestItem>;
+
+export const ShredRequestList = z
+  .object({ items: z.array(ShredRequestItem) })
+  .meta({ id: "ShredRequestList" });
+export type ShredRequestList = z.infer<typeof ShredRequestList>;
+
+export const CreateShredRequest = z
+  .object({
+    /** Opaque wording: no names of people (it is kept on the certificate for good). */
+    reason: z.string().max(1000),
+    /** The organisation's full export, downloaded within 30 days, that this shred follows. */
+    exportId: uuid,
+  })
+  .strict()
+  .meta({ id: "CreateShredRequest" });
+export type CreateShredRequest = z.infer<typeof CreateShredRequest>;
+
+export const ShredApproved = z
+  .object({ request: ShredRequestItem, certificate: DestructionCertificateItem.nullable() })
+  .meta({
+    id: "ShredApproved",
+    description:
+      "certificate is null while the keys are still being destroyed (status shredding): the worker completes it",
+  });
+export type ShredApproved = z.infer<typeof ShredApproved>;
+
+export const CertificateVerification = z
+  .object({
+    /** null for a certificate issued before signing began (migration 0117). */
+    valid: z.boolean().nullable(),
+    /** The exact canonical body that was signed, for checking with the published public key. */
+    body: z.string(),
+    signature: z.string().nullable(),
+    signatureKey: z.string().nullable(),
+    signatureAlgorithm: z.string().nullable(),
+  })
+  .meta({ id: "CertificateVerification" });
+export type CertificateVerification = z.infer<typeof CertificateVerification>;
 
 export const DestructionResult = z
   .object({ certificates: z.array(DestructionCertificateItem), skipped: z.array(uuid) })

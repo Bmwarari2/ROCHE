@@ -9600,6 +9600,390 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/retention/shred-requests": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whole-organisation shred requests */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Requests */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredRequestList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Ask for the organisation's records to be crypto-shredded
+     * @description Needs a fresh step-up, a reason of at least 20 characters (no names: it is kept on the certificate) and the organisation's full export, downloaded within 30 days. Refused while any legal hold is active or another request is open. A different member approves it within 7 days.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateShredRequest"];
+        };
+      };
+      responses: {
+        /** @description Requested */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredRequestItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/retention/shred-requests/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve a shred: the organisation's keys are scheduled for destruction
+     * @description A different member from the requester, with a fresh step-up, within 7 days of the request, while the requester can still manage retention, the export is still recent and no legal hold is active. The approval is recorded first (status shredding); then every version of the organisation's key is scheduled for destruction and a signed certificate is issued (status approved, 200). If the keys cannot be reached now, 202 says the worker will complete it. Afterwards stored documents, exports and DSAR bundles can no longer be read (410 shredded) and cannot be restored once the delay ends.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Shredded, with its certificate */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredApproved"];
+          };
+        };
+        /** @description Approved; the worker is completing the shred */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredApproved"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/retention/shred-requests/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a pending shred request
+     * @description The requester may cancel their own pending request; any other holder may withdraw one more than 7 days old. An approved request (shredding or approved) cannot be cancelled.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Cancelled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredRequestItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/destruction-certificates/{id}/verification": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Check a destruction certificate's signature
+     * @description Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Harbour's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Checked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CertificateVerification"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people/{id}/notes": {
     parameters: {
       query?: never;
@@ -14496,7 +14880,7 @@ export interface paths {
     put?: never;
     /**
      * Close an incident (someone other than the person who raised it)
-     * @description Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).
+     * @description Refused while a notification is a draft or ready, a classifier question is open, whether the emergency services were called or the GP contacted is not known yet (H-264), someone who died has no learning disability or autism answer (H-482), the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).
      */
     post: {
       parameters: {
@@ -17635,7 +18019,7 @@ export interface paths {
     };
     /**
      * What reconciling the outage needs: the counts, possible duplicates and blockers
-     * @description Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts only.
+     * @description Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts, and for each entry to review its person (named only when you can see them), kind and time (H-267); never an entry's text or values.
      */
     get: {
       parameters: {
@@ -22607,7 +22991,7 @@ export interface paths {
         header?: never;
         path: {
           id: string;
-          /** @description A Schedule 3 pre-employment requirement */
+          /** @description A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work) */
           kind: components["schemas"]["ComplianceItemKind"];
         };
         cookie?: never;
@@ -22793,7 +23177,7 @@ export interface paths {
         header?: never;
         path: {
           id: string;
-          /** @description A Schedule 3 pre-employment requirement */
+          /** @description A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work) */
           kind: components["schemas"]["ComplianceItemKind"];
         };
         cookie?: never;
@@ -27834,6 +28218,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/training-matrix": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's training matrix
+     * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. Every member of staff whose roles need training, by name and job title, with each required topic's state today (valid, due soon, expired or missing), by the rules of the member's record. Filter by location (roles held there), role key, or attention (only members with a topic not valid). At most 2,000 members; truncated says when more match. Audited without names.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          roleKey?: string;
+          attention?: "true" | "false";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The matrix */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TrainingMatrix"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/members/{memberId}/development": {
     parameters: {
       query?: never;
@@ -28293,7 +28747,7 @@ export interface paths {
     put?: never;
     /**
      * Record a supervision, appraisal or spot check
-     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.
+     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. An optional note (what was discussed and the actions agreed; H-692's default, ADR-0114) is read only by supervision holders and the member. Audited without the note.
      */
     post: {
       parameters: {
@@ -28372,6 +28826,97 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add or correct a supervision's note
+     * @description workforce.supervision.manage, by whoever held the supervision, never for oneself. Adds the note when there is none, or a correction superseding the note in force (append-only; the earlier note is kept and shown struck through; H-692's default, ADR-0114). Audited without the note.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+          supervisionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveSupervisionNote"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/members/{memberId}/revalidation": {
     parameters: {
       query?: never;
@@ -28382,7 +28927,7 @@ export interface paths {
     get?: never;
     /**
      * Record revalidation evidence for a cycle
-     * @description workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Audited.
+     * @description workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Never the confirmation (POST .../revalidation/confirmation) and never once reviewed. Audited.
      */
     put: {
       parameters: {
@@ -28456,6 +29001,274 @@ export interface paths {
       };
     };
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/revalidation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record your own revalidation evidence
+     * @description workforce.self.read. A registered nurse enters their own counts and declarations (never the reflective text), and may send them for HR to review with `submit` (H-693). Never the confirmation, never once reviewed. The nurse stays responsible for revalidating with the NMC. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PutRevalidationEvidence"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/revalidation/review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mark revalidation evidence as reviewed
+     * @description workforce.training.manage, never for oneself, against expectedVersion. The counts are then fixed; only the confirmation may follow (H-693). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReviewRevalidation"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/revalidation/confirmation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record that you confirmed a nurse's revalidation
+     * @description The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Harbour only tracks it: the nurse revalidates with the NMC. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ConfirmRevalidation"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -28771,6 +29584,535 @@ export interface paths {
     };
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/elearning/courses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * E-learning courses
+     * @description workforce.self.read or workforce.training.manage. The organisation's active courses (training leads also see retired ones), each with the reader's own latest attempt.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Courses */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningCourseList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add an e-learning course from a package
+     * @description workforce.training.manage. A SCORM 1.2, SCORM 2004 or xAPI zip of at most 100 MB. Every entry is checked before anything is unpacked (no path leaving the package, no links, no encrypted entries, only allowlisted file types, at most 5,000 files and 500 MB unpacked, no entry unpacking more than 100 times its size), the launch page is found from the manifest, and the archive is scanned for malware and kept in the document store. Audited.
+     */
+    post: {
+      parameters: {
+        query: {
+          title: string;
+          topic: string;
+          tier?: number;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/zip": string;
+          "application/octet-stream": string;
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningCourse"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/elearning/courses/{id}/retire": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Retire an e-learning course
+     * @description workforce.training.manage. Staff are no longer offered it; attempts and training records are kept. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Retired */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningCourse"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/elearning/courses/{id}/attempts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Attempts at an e-learning course
+     * @description workforce.training.manage. Every member's attempts, newest first.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Attempts */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningAttemptList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Start or resume my attempt
+     * @description workforce.self.read. Resumes the member's attempt in progress, or starts one, and gives a launch token for the content origin (signed, for this attempt only, expiring). Audited when an attempt starts.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Ready to launch */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningLaunch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/elearning/attempts/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Save what the runtime reported
+     * @description workforce.self.read, the member's own attempt. The SCORM data model elements the runtime committed (allowlisted, bounded); the attempt's status only moves forward, and a completion or pass becomes a training record once. Not for xAPI courses (their statements settle them).
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ElearningCommit"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningAttempt"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/e/launch/{token}/files/{path}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A file of a launched course (content origin only)
+     * @description No session: the launch token names one attempt. `path` is the file's path inside the package, URL-encoded as one segment. Only the package's own files of allowlisted types are served, never a folder; the web tier serves them only on the content origin, with its own Content-Security-Policy.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          token: string;
+          path: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The file */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/octet-stream": string;
+          };
+        };
+        /** @description No such file, or the link has ended */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/e/launch/{token}/statements": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Keep a launched course's xAPI statements (content origin only)
+     * @description No session: the launch token names one attempt. One statement or up to 50, each at most 16 KB, kept as sent (once per statement id); a completed, passed or failed verb settles an xAPI course's attempt, and a completion or pass becomes a training record once. Returns the statement ids, as an xAPI learning record store does.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          token: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      responses: {
+        /** @description Kept */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": string[];
+          };
+        };
+        /** @description Not statements Harbour can keep */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description The link has ended */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -30468,7 +31810,7 @@ export interface paths {
     put?: never;
     /**
      * A short-lived token for the PowerSync service, scoped to tenant and assignments
-     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.
      */
     post: {
       parameters: {
@@ -38801,6 +40143,1536 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/quality/dashboard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The quality indicators for one location and period, each with its working
+     * @description `quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. `from` and `to` are whole calendar months that have ended, at most 12 (422 `period_not_months`, `period_not_ended`, `period_too_long`). A source Harbour does not record yet, a period before the location started recording in Harbour or with a downtime still to reconcile gives `no_data` with its reason and no working. A small count (`quality.indicator.min_group_size`) is withheld with its value, but keeps its status against the target. Audited (`quality.dashboard.viewed`).
+     */
+    get: {
+      parameters: {
+        query: {
+          locationId: string;
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The dashboard */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["QualityDashboard"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/indicator-targets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's indicator targets
+     * @description `quality.audit.manage`. The organisation defaults and, with `locationId`, that location's own targets; without it, the targets of every location the reader holds the permission at.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Targets */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["QualityIndicatorTargetList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set a target for an indicator
+     * @description `quality.audit.manage` at the location, or across the organisation for the default (`locationId` null). Green and amber in the indicator's direction (422 `wrong_order`), percentages 0 to 100 (422 `percent_range`); a location's target no looser than the organisation default unless set by an organisation-wide holder (422 `looser_than_organisation`). `expectedVersion` null adds a target (409 `already_set` when one is live); otherwise the live target's version (409 when stale). Audited (`quality.indicator_target.set`).
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SetQualityIndicatorTarget"];
+        };
+      };
+      responses: {
+        /** @description The target */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["QualityIndicatorTargetOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/indicator-targets/{id}/clear": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Clear a target
+     * @description `quality.audit.manage` where the target applies. The indicator is then rated against the organisation default, or not at all. Audited (`quality.indicator_target.cleared`).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ClearQualityIndicatorTarget"];
+        };
+      };
+      responses: {
+        /** @description Cleared */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** Format: uuid */
+              id: string;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/pir": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The Provider Information Return prefill for one location
+     * @description `quality.audit.manage` at the location. The last 12 whole calendar months. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Harbour, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).
+     */
+    get: {
+      parameters: {
+        query: {
+          locationId: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The prefill */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PirPrefill"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/products": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Search dm+d for a product to transcribe
+     * @description Products whose dm+d name holds every word searched for, with the routes and dose units dm+d permits for each (at most 20). Read from slice 10's dm+d reference tables when a release is loaded (VMPs only, never an invalid or superseded product); with none loaded, the invented fixture outside production and nothing in production (`loaded` false). Not audited: no person is read.
+     */
+    get: {
+      parameters: {
+        query: {
+          q: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Products */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineProducts"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The person's medicines record: entries in force or scheduled, and reconciliations due
+     * @description Each medicine's version in force now, or the first scheduled to start, with its status in words and whether a dose may be given; the admissions and returns from hospital not yet reconciled. Audited by the person's id.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicinesRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Transcribe a new MAR entry from its source document
+     * @description A dm+d product, a route and units dm+d gives, a schedule or a when-required dose, the prescriber and the source document. It is not yet checked until a second person checks it. One entry per dm+d product (rule 6). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["TranscribeMedicine"];
+        };
+      };
+      responses: {
+        /** @description Transcribed */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineEntry"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Every version of a medicine, with its check, stop, replacement and withdrawal
+     * @description Audited by the entry's id.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The versions */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineHistory"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/mar": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The MAR for a cycle: every regular dose with its day name and clock-change flags
+     * @description The cycle runs `medicines.ordering_cycle_days` days (rate table) from `cycleStart`. Times before an entry was recorded are shown as not due. Audited by the person's id.
+     */
+    get: {
+      parameters: {
+        query: {
+          cycleStart: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The MAR */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MarChart"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Change a medicine: a new version, not yet checked
+     * @description The same dm+d product; now or later, while a version is in force; never part-way through a day with doses (except a correction after a check found a difference). `expectedVersion` is the latest version read. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeMedicine"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineChanged"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the second check of an entry against its source document
+     * @description By someone other than the transcriber, with current medicines competence (read on the server from the workforce port, never from the request). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CheckMedicine"];
+        };
+      };
+      responses: {
+        /** @description Checked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineEntry"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/stop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Stop a medicine now or later, with the reason and the document that says so
+     * @description Doses before the stop stay. `expectedVersion` is the latest version read. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StopMedicine"];
+        };
+      };
+      responses: {
+        /** @description Stopped */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineChanged"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start a medicines reconciliation for an admission, transfer, return from hospital or change
+     * @description Records the entries to decide on now (`entriesToReconcile`, from dates, never by state). One open reconciliation per person. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StartReconciliation"];
+        };
+      };
+      responses: {
+        /** @description Started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A reconciliation with its sources, lines and decisions
+     * @description Audited by its id.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The reconciliation */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}/sources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a source document to an open reconciliation
+     * @description Append-only. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AddReconciliationSource"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}/items": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a line from a source, as written, with its dm+d product and what it says
+     * @description Append-only. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AddReconciliationItem"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}/decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Replace the decisions made so far on an open reconciliation
+     * @description Each decision names an entry the reconciliation decides on or a line from its sources. The rules are tried when it completes. Audited with counts.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PutReconciliationDecisions"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Complete a reconciliation and apply its plan in one transaction
+     * @description Runs `completeReconciliation` (every entry and line decided, supported by its lines, the MAR rules tried, allergies compared, the person involved, the completer's competence from the workforce port) and, when it passes, records every continue, change, stop and start, at the time of completion. Completes the return from hospital's medicines check. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CompleteReconciliation"];
+        };
+      };
+      responses: {
+        /** @description Completed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sub-processors": {
     parameters: {
       query?: never;
@@ -41796,6 +44668,957 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/pulse-surveys": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Staff pulse surveys
+     * @description `view=answer` (default, scheduling.wellbeing.self): the open surveys the member may answer, with whether they already have. `view=manage` (scheduling.wellbeing.manage): every survey at the homes the reader manages.
+     */
+    get: {
+      parameters: {
+        query?: {
+          view?: "answer" | "manage";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Surveys */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PulseSurveyList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Write a pulse survey (a draft)
+     * @description scheduling.wellbeing.manage at the home, or across the organisation for an organisation survey (locationId null). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewPulseSurvey"];
+        };
+      };
+      responses: {
+        /** @description Written */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PulseSurveyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pulse-surveys/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change a draft survey
+     * @description scheduling.wellbeing.manage where it applies, against `version`. A survey is fixed once it opens. Audited.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EditPulseSurvey"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PulseSurveyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/pulse-surveys/{id}/open": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Open a draft survey
+     * @description scheduling.wellbeing.manage where it applies, against `version`. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["MovePulseSurvey"];
+        };
+      };
+      responses: {
+        /** @description Opened */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PulseSurveyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pulse-surveys/{id}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Close an open survey
+     * @description scheduling.wellbeing.manage where it applies, against `version`. Results show only once it has closed. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["MovePulseSurvey"];
+        };
+      };
+      responses: {
+        /** @description Closed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PulseSurveyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pulse-surveys/{id}/responses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Answer a survey, anonymously
+     * @description scheduling.wellbeing.self, once, while the survey is open, for a member on a staff file at its home from before it opened, never its writer or its home's survey managers. The response keeps no member and no time but the UK week, waits apart until the survey closes and nothing comes back. Each response is audited when the survey closes, with an anonymous actor, naming the survey only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PulseResponse"];
+        };
+      };
+      responses: {
+        /** @description Answered */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pulse-surveys/{id}/results": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A survey's results, above the minimum group size
+     * @description scheduling.wellbeing.manage where it applies. Only once closed and only when at least the minimum group size (`wellbeing.survey_min_group_size`) answered; each question only when that many answered it. Never a count below the size, never a single response. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Results */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PulseSurveyResults"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/recognition": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Thanks between colleagues
+     * @description `mine=received` or `mine=sent` (scheduling.wellbeing.self): the member's own. `locationId` (scheduling.wellbeing.manage there): the thanks to members at that home. Audited for a manager's view.
+     */
+    get: {
+      parameters: {
+        query?: {
+          mine?: "received" | "sent";
+          locationId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Thanks */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RecognitionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Thank a colleague
+     * @description scheduling.wellbeing.self. Never oneself; the colleague must work at the home named. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewRecognition"];
+        };
+      };
+      responses: {
+        /** @description Given */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RecognitionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/recognition/colleagues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Colleagues one may thank at a home
+     * @description scheduling.wellbeing.self, at a home where the member works: the active members who work there, by name, never the member themself. Refused with the same words wherever the member does not work, so it never says who works where.
+     */
+    get: {
+      parameters: {
+        query: {
+          locationId: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Colleagues */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RecognitionColleagues"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/wellbeing-check-ins": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Wellbeing check-ins
+     * @description Without `locationId` (scheduling.wellbeing.self): the member's own. With it (scheduling.wellbeing.manage there): only the check-ins members at that home share, the view audited with their ids.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Check-ins */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CheckInList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record your own check-in
+     * @description scheduling.wellbeing.self, at a home where the member works. Private unless `share` is true. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewCheckIn"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CheckInItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/wellbeing-check-ins/{id}/sharing": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Share a check-in with your manager, or stop sharing it
+     * @description scheduling.wellbeing.self, the member's own check-in only. Stopping hides it from managers again. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ShareCheckIn"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CheckInItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/locations/{id}/shift-templates": {
     parameters: {
       query?: never;
@@ -42742,6 +46565,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/rota-workers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Who may be put on a shift at a location
+     * @description scheduling.rota.manage reaching the location: the active members with a role in force there or across the organisation, by name, with their job title (the rota builder's picker). Whether each may work a given shift is the eligibility route's answer. No address, no sign-in, no staff file detail. Audited (scheduling.rota_workers.listed) with the count.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Members */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaWorkerList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/shifts/{id}/eligibility": {
     parameters: {
       query?: never;
@@ -43240,6 +47140,5268 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/agencies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Agencies */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Agencies */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Add an agency */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The agency */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAgency"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agencies/{id}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Archive an agency
+     * @description Existing bookings stay; no new ones.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version, with why */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ArchiveAgency"];
+        };
+      };
+      responses: {
+        /** @description Archived */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Bank and agency workers */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Workers */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyWorkerList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Register a bank or agency worker
+     * @description A member who holds no role but agency_worker. Registering flags them as agency or bank: from then their access comes only from booked shifts (ADR-0088).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The worker */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RegisterAgencyWorker"];
+        };
+      };
+      responses: {
+        /** @description Registered */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyWorkerItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/confirmation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record the agency's confirmation of a worker's checks
+     * @description From the agency's written confirmation (DBS, right to work, registration), recorded in the recorder's own name, never by the worker. Agency workers only: a bank worker's checks are in their staff file.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AgencyConfirmation"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyWorkerItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/shifts/{id}/booking": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Book a bank or agency worker onto an open shift
+     * @description Applies the rostering rule as assigning does (the agency's confirmation for agency workers, the staff file for bank workers, the competence port, every UK date the shift touches); an override needs scheduling.rota.approve and the blocker keys shown. Never for a right to work, a member not active or one marked do not book. Records the cost and opens the worker's access window for the shift (ADR-0088).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Who, against the shift's version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["BookShift"];
+        };
+      };
+      responses: {
+        /** @description Booked */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyBookingItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-bookings/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a booking
+     * @description With a reason: the worker comes off the shift, which is open again, and their access window for it closes at once (ADR-0088). Recorded for notice once published.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version, with why */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CancelBooking"];
+        };
+      };
+      responses: {
+        /** @description Cancelled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyBookingItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/awr-records": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An agency worker's AWR records */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The records, oldest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AwrRecordList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a reason, a role change or a withdrawal on the AWR clock
+     * @description H-924: a coded reason for days without a booking (AWR reg 7(8)), a substantively different role with the date the worker was told in writing (reg 7(3)), or the withdrawal of an earlier record. Append-only; never by the worker.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The record */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordAwrRecord"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AwrRecordItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/awr": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An agency worker's AWR clock
+     * @description Agency Workers Regulations 2010 reg 7 (Great Britain), from the worker's confirmed bookings with this organisation at every location and the recorded reasons for weeks without one and role changes (H-924): the weeks counted and the week equal basic terms apply from.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The clock */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AwrClockItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/inductions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record an induction at a location
+     * @description By a member who is not the worker, with the location's checklist items covered.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The induction */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordInduction"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InductionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/feedback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Feedback on a worker
+     * @description Only where the reader builds the rota; newest first.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Feedback */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyFeedbackList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record feedback after a booking
+     * @description Positive, a concern, or do not rebook (which marks the worker not to be booked again). Never by the worker about themselves.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The feedback */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordAgencyFeedback"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyFeedbackItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/agency-costs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Bank and agency cost at a location
+     * @description Confirmed bookings of shifts starting between two UK dates, per agency.
+     */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Cost */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyCostList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Absences and leave a member may see
+     * @description scheduling.timesheet.self (one's own), scheduling.rota.manage or .approve (those at the homes they reach; row-level security decides). Filter by home, member and dates; newest first, up to 500. Fit note coverage only for holders of workforce.hr_document.read.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          memberId?: string;
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Absences */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Ask for one's own leave, or record a sickness or leave for a member
+     * @description Without memberId (or one's own): scheduling.timesheet.self, at a home where the member holds a role; leave kinds only (state requested). With another member: scheduling.rota.manage at the home (state recorded), which raises a cover need on each of the member's rostered shifts it touches (HZ-123). Audited (scheduling.absence.requested or .recorded) with the kind and dates.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewAbsence"];
+        };
+      };
+      responses: {
+        /** @description Stored */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * One absence; with its fit notes and return to work for HR
+     * @description As the list. Fit notes, the return to work record and the Bradford exclusion reason only for holders of workforce.hr_document.read. Audited (scheduling.absence.viewed) for a sickness.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/decision": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve, decline or postpone a leave request
+     * @description scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DecideAbsence"];
+        };
+      };
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel an absence
+     * @description The member cancels their own request before it is decided (scheduling.timesheet.self); a rota manager or approver at the home cancels an approved or recorded absence with a reason. Its open cover needs are resolved (absence_ended). Audited (scheduling.absence.cancelled), never the reason.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CancelAbsence"];
+        };
+      };
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/end": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a sickness's last day
+     * @description scheduling.rota.manage at the home, for an open sickness (approved or recorded). Cover needs on shifts after the last day are resolved. Audited (scheduling.absence.ended) with the date.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndAbsence"];
+        };
+      };
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/bradford-exclusion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Leave a sickness out of the Bradford factor, or put it back
+     * @description workforce.hr_document.read and scheduling.rota.manage at the home: a reason (pregnancy-related, disability-related) leaves it out; null puts it back. Audited (scheduling.absence.bradford_excluded), never the reason.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ExcludeFromBradford"];
+        };
+      };
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/fit-notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a fit note to a sickness (the body is the file)
+     * @description workforce.hr_document.read at the home, never for one's own absence. The document is checked by its contents, scanned and kept as an HR-only staff document with retention sickness_absence; the dates, fitness and ticked adjustments are stored beside it, never the condition. Audited (workforce.fit_note.added) with ids and dates only.
+     */
+    post: {
+      parameters: {
+        query: {
+          issuedOn: string;
+          coversFrom: string;
+          coversTo: string;
+          fitness: "not_fit" | "may_be_fit";
+          phasedReturn?: "true" | "false";
+          amendedDuties?: "true" | "false";
+          alteredHours?: "true" | "false";
+          workplaceAdaptations?: "true" | "false";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "image/jpeg": string;
+          "image/png": string;
+          "image/webp": string;
+          "application/pdf": string;
+          "application/octet-stream": string;
+        };
+      };
+      responses: {
+        /** @description Stored */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FitNoteItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The file is too large */
+        413: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/fit-notes/{fitNoteId}/content": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Open a fit note (audited)
+     * @description workforce.hr_document.read at the home, never one's own (as every HR-only document). Every open is audited as workforce.fit_note.viewed.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          fitNoteId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The fit note */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "image/jpeg": string;
+            "image/png": string;
+            "image/webp": string;
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/return-to-work": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the return to work conversation after a sickness
+     * @description workforce.hr_document.read at the home, by someone other than the member, once the sickness has ended; one per absence (409 return_to_work_recorded). Audited (workforce.return_to_work.recorded) with ids and whether fit, never the notes.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewReturnToWork"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ReturnToWorkItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{id}/bradford": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's Bradford factor, with its working
+     * @description workforce.hr_document.read reaching a home where the member has an absence (or across the organisation). Over absence.bradford.window_weeks (the rate table) from the member's sickness days, not cancelled and not left out; days the member was not rostered between two absences join them into one spell. Shown with its working and a notice; never compared with a trigger and never acted on (H-583). Audited (workforce.bradford.viewed) with the member id.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The working */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BradfordResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/ssp": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * The SSP working for a sickness, for payroll
+     * @description workforce.hr_document.read at the home. From the member's sicknesses: the period of incapacity this one belongs to (ssp.piw_min_days, linked within ssp.piw_link_weeks), the qualifying days already paid in it, and the slice 6 rule (ssp.weekly, ssp.earnings_percentage, ssp.waiting_days, ssp.max_weeks) with the earnings and qualifying days given. Advice only: nothing is paid or stored. Audited (scheduling.ssp.calculated) with the absence id, never the earnings.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SspQuery"];
+        };
+      };
+      responses: {
+        /** @description The working */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SspResultItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/clock-events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Clock in, out or a break
+     * @description Always for oneself. Keeps the device's and the server's time and flags a late upload or a device clock ahead (HZ-010). A staff member needs scheduling.timesheet.self; a bank or agency member a confirmed booking of the shift, and a late upload after their window closes is accepted inside the booked window, flagged, never dropped (ADR-0088). Clocking in to a shift applies the rostering rule on the day and, for bank and agency workers, needs an induction at the location: refused online (422), flagged with an urgent task when uploaded late. A clock-out makes a draft timesheet entry. Idempotent by the client's id.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The event */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordClockEvent"];
+        };
+      };
+      responses: {
+        /** @description Already recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockEventItem"];
+          };
+        };
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockEventItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/timesheets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** My timesheet entries */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Entries */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/clock-setting": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Clock evidence at a location */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The setting */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockSettingItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set clock evidence at a location
+     * @description Location or NFC evidence is employee monitoring: it needs dpiaApproved, confirming the employee-monitoring DPIA is approved (H-527). Never a position: only whether the phone was at the location or read the location's tag.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The setting */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeClockSetting"];
+        };
+      };
+      responses: {
+        /** @description Set */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockSettingItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/timesheets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Timesheet entries at a location */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Entries */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Enter time by hand
+     * @description A draft for someone else, never oneself.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The entry */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateTimesheetEntry"];
+        };
+      };
+      responses: {
+        /** @description Made */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/timesheet-entries/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change a draft entry
+     * @description Never one's own; an approved entry is corrected instead.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeTimesheetEntry"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/timesheet-entries/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve an entry
+     * @description By a holder of scheduling.rota.approve at the location, never the worker. Runs the working time check for the worker and stores the result (advice; a breach or conditional finding raises a task, never blocks).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ApproveTimesheetEntry"];
+        };
+      };
+      responses: {
+        /** @description Approved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApprovedTimesheet"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/timesheet-entries/{id}/corrections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Correct an approved entry
+     * @description A new draft superseding it, with a reason; once approved, the original is struck through. One open correction at a time; never one's own.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The correction */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CorrectTimesheetEntry"];
+        };
+      };
+      responses: {
+        /** @description Made */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/timesheet-entries/{id}/awake-periods": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a time awake on a sleep-in
+     * @description On a sleep-in draft, inside it; never one's own.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The period */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordAwakePeriod"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/clock-exceptions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Clock exceptions at a location
+     * @description Flagged clock events, and drafts waiting for approval, between two UK dates.
+     */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Exceptions */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockExceptionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{id}/working-time-opt-outs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's opt-outs on file
+     * @description The member's own, or an approver's view; audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Opt-outs */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OptOutList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record an opt-out from the signed agreement
+     * @description By a holder of scheduling.rota.approve, never the worker (reg 4(1), 5).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The agreement */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordOptOut"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OptOutItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{id}/working-time": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's stored working time results
+     * @description Newest first; the member's own, or an approver's view.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Results */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WorkingTimeResultList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/dmd/products": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Search dm+d products
+     * @description Any of medicines.record.manage, medicines.emar.administer or medicines.stock.manage. VMPs and AMPs in the release in use whose names start with each word typed (`par 500`), or the product with a dm+d code; invalid products, and products dm+d has given a new identifier, only with `includeInvalid` or by their code, and then marked; shortest names first, at most 25. Names only: ingredients are never searched. A mistyped code is refused (422), never matched to a near one.
+     */
+    get: {
+      parameters: {
+        query: {
+          q: string;
+          includeInvalid?: "true" | "false";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Matching products */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdSearchResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/dmd/products/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A dm+d product with its units, forms, routes and packs
+     * @description Any medicines permission. A VMP with its AMPs and packs, or an AMP with its VMP and packs; the dose units dm+d gives for it (the unit dose, its form size's unit and the strength units); invalid and superseded products marked.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The product */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdProductDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/dmd/gtin/{gtin}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The packs a barcode's GTIN names
+     * @description Any medicines permission. A GTIN of 8, 12, 13 or 14 digits, read as GTIN-14; a wrong check digit is refused (422) rather than looked up. Only mappings in force on today's UK date and present in the release in use match; withdrawn and ended ones never do. More than one pack means the screen asks the person to choose. No match is 404.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          gtin: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The packs */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdGtinMatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/dmd/releases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The dm+d release history
+     * @description Any medicines permission. Every release loaded, refused or failed, newest first, with what each load changed and the problems that refused it; and the release in use with whether it is out of date.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The release history */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdReleaseHistory"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/route": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The on-call route for lone-worker alarms (H-539)
+     * @description Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached. Holders of scheduling.lone_worker.check_in, .monitor or .manage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The route */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerRoute"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Name the on-call route for lone-worker alarms (H-539)
+     * @description scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SetLoneWorkerRoute"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerRoute"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start a lone-working session
+     * @description scheduling.lone_worker.check_in, for oneself, at a location where one works. Refused in words while the organisation has named no valid on-call route (the feature is off). The check-in interval and length are within the organisation's figures. The client's id makes a retry return the first session. One open session per worker. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StartLoneWorkerSession"];
+        };
+      };
+      responses: {
+        /** @description Already started with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerMine"];
+          };
+        };
+        /** @description Started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerMine"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/sessions/mine": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Your open lone-working session
+     * @description scheduling.lone_worker.check_in. The open session with when the next check-in is due. A duress check-in reads as an ordinary check-in here, and a duress or help alarm is never shown.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Yours */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerMine"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/sessions/{id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Check in, ask for help, raise duress or finish
+     * @description scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the organisation's flag is on. Audited (duress as an event like any other).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordLoneWorkerEvent"];
+        };
+      };
+      responses: {
+        /** @description Already recorded with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerEventResult"];
+          };
+        };
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerEventResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/board": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Lone workers now
+     * @description scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, other than one's own, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Board */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerBoard"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/alarms": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Lone-worker alarms
+     * @description scheduling.lone_worker.monitor. Alarms at the locations where one holds it, newest first, open ones only unless a state is asked for. Each says why it was raised and its state in words, the last check-in and the latest location evidence while it is kept. Audited.
+     */
+    get: {
+      parameters: {
+        query?: {
+          state?: components["schemas"]["LoneWorkerAlarmState"];
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Alarms */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LoneWorkerAlarmList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/lone-worker/alarms/{id}/acknowledge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Acknowledge a lone-worker alarm
+     * @description scheduling.lone_worker.monitor where the alarm is, by someone other than the worker, with what was done. This, not reading a notification, is what stops the alarm: it acknowledges every notification about it and ends its escalation. Anything but safe confirmed suggests an incident, which can be linked here. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AcknowledgeLoneWorkerAlarm"];
+        };
+      };
+      responses: {
+        /** @description Acknowledged */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AcknowledgedLoneWorkerAlarm"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-rule-sets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Pay rule sets */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Rule sets */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRuleSetList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Write a draft pay rule set
+     * @description The organisation's own rates (never statutory figures, which come from the rate table). One draft at a time; approved by someone who neither wrote nor changed it.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The rule set */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreatePayRuleSet"];
+        };
+      };
+      responses: {
+        /** @description Drafted */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRuleSetItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-rule-sets/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Change a draft pay rule set */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The rule set */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangePayRuleSet"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRuleSetItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/pay-rule-sets/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve a pay rule set
+     * @description By a holder of scheduling.pay.approve who neither wrote nor changed it.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ApprovePayRuleSet"];
+        };
+      };
+      responses: {
+        /** @description Approved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRuleSetItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{id}/pay-profile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's pay profile
+     * @description Pay holders across the organisation, or the member themselves.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The profile */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayProfileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set a member's pay profile
+     * @description Never one's own. Earnings for SSP are in the body, never the address.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The profile */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PutPayProfile"];
+        };
+      };
+      responses: {
+        /** @description Set */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayProfileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Pay runs */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Runs */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Draft a pay run for a period
+     * @description Uses the approved rule set in force on the period's first day. One regular run a period.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The period */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreatePayRun"];
+        };
+      };
+      responses: {
+        /** @description Drafted */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A pay run with its lines and exceptions */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The run */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}/calculate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Calculate a draft pay run
+     * @description From approved timesheets and recorded sickness only, with the slice 6 rules and the rate table's figures for the period (stored with the run). Each line keeps its working and canonical inputs; exceptions block locking.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PayRunVersion"];
+        };
+      };
+      responses: {
+        /** @description Calculated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-run-exceptions/{id}/override": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Override a pay run exception with a reason
+     * @description By a holder of scheduling.pay.approve, never on their own line.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The reason */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["OverridePayException"];
+        };
+      };
+      responses: {
+        /** @description Overridden */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunExceptionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}/lock": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Check and lock a pay run
+     * @description By a holder of scheduling.pay.approve who neither created nor calculated it, with no open exception. A locked run never changes; it is offered to the payroll export (slice 76).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PayRunVersion"];
+        };
+      };
+      responses: {
+        /** @description Locked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}/corrections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start a correction of a locked pay run
+     * @description A new draft for the same period; each line shows its difference from the locked run it corrects. One open correction at a time.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Drafted */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}/lines/{lineId}/verify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Recalculate a line from its stored inputs
+     * @description From the line's canonical inputs and the run's stored rate rows: the same figures and hash, or the figures that differ.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          lineId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The check */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayLineVerification"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/pay-lines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** My lines in locked pay runs */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Lines */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MyPayLines"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -43381,7 +52543,8 @@ export interface components {
       | "person_document"
       | "organisation_document"
       | "organisation_logo"
-      | "staff_hr_document";
+      | "staff_hr_document"
+      | "elearning_package";
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {
@@ -45095,6 +54258,8 @@ export interface components {
       /** Format: uuid */
       assigneeTenantUserId: string | null;
       assigneeStaff: components["schemas"]["StaffName"];
+      assigneeRoleKey: string | null;
+      requiredPermission: string;
       /** Format: date-time */
       dueAt: string;
       /** Format: date-time */
@@ -45714,6 +54879,12 @@ export interface components {
     DestructionCertificateItem: {
       /** Format: uuid */
       id: string;
+      /** Format: uuid */
+      tenantId: string;
+      subjectIds: string[];
+      retentionRule: {
+        [key: string]: unknown;
+      };
       recordClass: string;
       subjectType: string;
       recordCount: number;
@@ -45721,6 +54892,23 @@ export interface components {
       method: string;
       /** Format: date-time */
       executedAt: string;
+      bodySha256: string | null;
+      signature: string | null;
+      signatureKey: string | null;
+      signatureAlgorithm: string | null;
+      keyVersions: {
+        name: string;
+        /** Format: date-time */
+        destroyAt: string;
+      }[];
+      /** Format: date-time */
+      keysDestroyedAt: string | null;
+      /** Format: date-time */
+      backupsExpireAt: string | null;
+      /** Format: uuid */
+      requestedBy: string | null;
+      /** Format: uuid */
+      approvedBy: string | null;
     };
     /** @description Certificates per record class; skipped ids were held, not yet due or not found */
     DestructionResult: {
@@ -45730,6 +54918,47 @@ export interface components {
     DestroyDocuments: {
       documentIds: string[];
       reason: string;
+    };
+    ShredRequestList: {
+      items: components["schemas"]["ShredRequestItem"][];
+    };
+    /** @description A whole-organisation shred request (PLAT-012) */
+    ShredRequestItem: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      status: "pending" | "shredding" | "approved" | "cancelled";
+      reason: string;
+      /** Format: uuid */
+      exportId: string;
+      /** Format: uuid */
+      requestedBy: string;
+      /** Format: date-time */
+      requestedAt: string;
+      /** Format: uuid */
+      decidedBy: string | null;
+      /** Format: date-time */
+      decidedAt: string | null;
+      /** Format: uuid */
+      certificateId: string | null;
+    };
+    CreateShredRequest: {
+      reason: string;
+      /** Format: uuid */
+      exportId: string;
+    };
+    /** @description certificate is null while the keys are still being destroyed (status shredding): the worker completes it */
+    ShredApproved: {
+      request: components["schemas"]["ShredRequestItem"];
+      certificate: components["schemas"]["DestructionCertificateItem"] &
+        (Record<string, never> | null);
+    };
+    CertificateVerification: {
+      valid: boolean | null;
+      body: string;
+      signature: string | null;
+      signatureKey: string | null;
+      signatureAlgorithm: string | null;
     };
     CareNoteItem: {
       /** Format: uuid */
@@ -47179,6 +56408,8 @@ export interface components {
       /** Format: uuid */
       assigneeTenantUserId: string | null;
       assigneeStaff: components["schemas"]["StaffName"];
+      assigneeRoleKey: string | null;
+      requiredPermission: string;
       /** Format: date-time */
       dueAt: string;
       /** Format: date-time */
@@ -47253,6 +56484,8 @@ export interface components {
       pending: string[];
       staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
+      /** Format: date-time */
+      acknowledgementDueAt: string | null;
     };
     HandoverDetail: {
       /** Format: uuid */
@@ -47274,6 +56507,14 @@ export interface components {
       pending: string[];
       staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
+      /** Format: date-time */
+      acknowledgementDueAt: string | null;
+      agencyWithoutPeople: {
+        /** Format: uuid */
+        memberId: string;
+        /** Format: uuid */
+        shiftId: string;
+      }[];
       items: components["schemas"]["HandoverItem"][];
       notes: components["schemas"]["HandoverNoteItem"][];
       acknowledgements: components["schemas"]["HandoverAcknowledgementItem"][];
@@ -48180,9 +57421,9 @@ export interface components {
       description: string;
       immediateActions?: string;
       /** @default false */
-      emergencyServicesCalled: boolean;
+      emergencyServicesCalled: boolean | null;
       /** @default false */
-      gpContacted: boolean;
+      gpContacted: boolean | null;
       contactNotes?: string;
       familyInformed?: components["schemas"]["FamilyInformed"];
       /** @default [] */
@@ -48253,8 +57494,8 @@ export interface components {
       immediateActions?: string | null;
       /** Format: date-time */
       foundAt?: string | null;
-      emergencyServicesCalled?: boolean;
-      gpContacted?: boolean;
+      emergencyServicesCalled?: boolean | null;
+      gpContacted?: boolean | null;
       contactNotes?: string | null;
       familyInformed?: components["schemas"]["FamilyInformed"];
       people?: components["schemas"]["IncidentPersonInput"][];
@@ -49169,8 +58410,26 @@ export interface components {
       digitalEntriesInWindow: number;
       duplicateGroups: string[][];
       outsideWindowEntryIds: string[];
+      reviewEntries: components["schemas"]["ReconcileEntry"][];
       enteredByYou: boolean;
       blockers: string[];
+    };
+    ReconcileEntry: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      person: {
+        givenName: string;
+        familyName: string;
+        preferredName: string | null;
+      } | null;
+      kind: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** @enum {string} */
+      source: "back_entry" | "digital";
+      paperReference: string | null;
     };
     ReconcileOutage: {
       /** @description What was checked */
@@ -50246,7 +59505,7 @@ export interface components {
       dueSoon: components["schemas"]["ComplianceItemKind"][];
     };
     /**
-     * @description A Schedule 3 pre-employment requirement
+     * @description A Schedule 3 pre-employment requirement, or a check a role may need beyond it (driving for work)
      * @enum {string}
      */
     ComplianceItemKind:
@@ -50258,7 +59517,8 @@ export interface components {
       | "employment_history"
       | "health_fitness"
       | "right_to_work"
-      | "professional_registration";
+      | "professional_registration"
+      | "driving_for_work";
     StaffFileItem: {
       /** Format: uuid */
       id: string;
@@ -50399,6 +59659,17 @@ export interface components {
           renewalDueOn: string;
           /** Format: date */
           revalidationDueOn: string | null;
+          /** @enum {string|null} */
+          nmcPart?: "nurse" | "midwife" | "nursing_associate" | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "driving_for_work";
+          /** Format: date */
+          licenceCheckedOn: string;
+          categories: string[];
+          /** Format: date */
+          insuranceExpiresOn: string;
         }
       | null;
     /** @description Why an item is not satisfied, or what it must say */
@@ -50416,7 +59687,9 @@ export interface components {
         | "employment_gaps"
         | "registration_lapsed"
         | "health_not_declared_fit"
-        | "references_none";
+        | "references_none"
+        | "driving_not_current"
+        | "nmc_part_missing";
       reason?: string;
       /** Format: date */
       dueOn?: string;
@@ -51589,6 +60862,27 @@ export interface components {
       | "dementia_awareness"
       | "fluids_and_nutrition"
       | "oliver_mcgowan";
+    TrainingMatrix: {
+      /** Format: date */
+      asOf: string;
+      topics: components["schemas"]["TrainingTopic"][];
+      members: components["schemas"]["TrainingMatrixMember"][];
+      truncated: boolean;
+    };
+    TrainingMatrixMember: {
+      member: components["schemas"]["StaffName"];
+      roles: string[];
+      locationIds: string[];
+      cells: components["schemas"]["TrainingMatrixRow"][];
+    };
+    TrainingMatrixRow: {
+      topic: components["schemas"]["TrainingTopic"];
+      tier: 1 | 2 | null;
+      /** @enum {string} */
+      status: "valid" | "due_soon" | "expired" | "missing";
+      /** Format: date */
+      validUntil: string | null;
+    };
     PutTrainingRequirement: {
       expectedVersion?: number;
       roleKey: string;
@@ -51609,14 +60903,6 @@ export interface components {
       nextSupervision: components["schemas"]["NextMeetingItem"];
       nextAppraisal: components["schemas"]["NextMeetingItem"];
       revalidation: components["schemas"]["RevalidationView"];
-    };
-    TrainingMatrixRow: {
-      topic: components["schemas"]["TrainingTopic"];
-      tier: 1 | 2 | null;
-      /** @enum {string} */
-      status: "valid" | "due_soon" | "expired" | "missing";
-      /** Format: date */
-      validUntil: string | null;
     };
     TrainingRecordItem: {
       /** Format: uuid */
@@ -51671,9 +60957,18 @@ export interface components {
       /** Format: date */
       heldOn: string;
       heldBy: components["schemas"]["StaffName"];
+      note: components["schemas"]["SupervisionNoteView"];
+      earlierNotes: components["schemas"]["SupervisionNoteView"][];
     };
     /** @enum {string} */
     SupervisionKind: "supervision" | "appraisal" | "spot_check";
+    SupervisionNoteView: {
+      discussion: string;
+      actions: string | null;
+      writtenBy: components["schemas"]["StaffName"];
+      /** Format: date */
+      writtenOn: string;
+    } | null;
     NextMeetingItem: {
       /** @enum {string} */
       kind: "supervision" | "appraisal";
@@ -51697,6 +60992,12 @@ export interface components {
       healthAndCharacter: boolean;
       professionalIndemnity: boolean;
       confirmation: boolean;
+      /** @enum {string} */
+      reviewState: "draft" | "submitted" | "reviewed";
+      reviewedBy: components["schemas"]["StaffName"];
+      confirmedBy: components["schemas"]["StaffName"];
+      /** Format: date */
+      confirmedOn: string | null;
       daysLeft: number;
       outstanding: string[];
       ready: boolean;
@@ -51732,6 +61033,16 @@ export interface components {
       kind: components["schemas"]["SupervisionKind"];
       /** Format: date */
       heldOn: string;
+      note?: components["schemas"]["SupervisionNote"];
+    };
+    /** @default null */
+    SupervisionNote: {
+      discussion: string;
+      actions: string | null;
+    } | null;
+    SaveSupervisionNote: {
+      discussion: string;
+      actions: string | null;
     };
     PutRevalidationEvidence: {
       expectedVersion?: number;
@@ -51745,7 +61056,19 @@ export interface components {
       reflectiveDiscussion: boolean;
       healthAndCharacter: boolean;
       professionalIndemnity: boolean;
-      confirmation: boolean;
+      submit?: boolean;
+    };
+    ReviewRevalidation: {
+      expectedVersion: number;
+      /** Format: date */
+      cycleDueOn: string;
+    };
+    ConfirmRevalidation: {
+      expectedVersion: number;
+      /** Format: date */
+      cycleDueOn: string;
+      /** Format: date */
+      confirmedOn: string;
     };
     /** @description Whether the email with the code was sent */
     EvidenceLinkCodeSent: {
@@ -51757,6 +61080,73 @@ export interface components {
     EvidenceLinkVerify: {
       token: string;
       code: string;
+    };
+    ElearningCourseList: {
+      items: components["schemas"]["ElearningCourse"][];
+    };
+    ElearningCourse: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      title: string;
+      topic: string;
+      tier: number | null;
+      standard: components["schemas"]["ElearningStandard"];
+      /** @enum {string} */
+      status: "active" | "retired";
+      fileCount: number;
+      myAttempt: {
+        /** Format: uuid */
+        id: string;
+        status: components["schemas"]["ElearningAttemptStatus"];
+        score: number | null;
+      } | null;
+    };
+    /** @enum {string} */
+    ElearningStandard: "scorm_1_2" | "scorm_2004" | "xapi";
+    /** @enum {string} */
+    ElearningAttemptStatus: "in_progress" | "completed" | "passed" | "failed";
+    ElearningAttemptList: {
+      items: components["schemas"]["ElearningAttempt"][];
+    };
+    ElearningAttempt: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      courseId: string;
+      /** Format: uuid */
+      workerId: string;
+      status: components["schemas"]["ElearningAttemptStatus"];
+      score: number | null;
+      totalSeconds: number;
+      /** Format: date-time */
+      finishedAt: string | null;
+      /** Format: uuid */
+      trainingRecordId: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    ElearningLaunch: {
+      /** Format: uuid */
+      attemptId: string;
+      /** Format: uuid */
+      courseId: string;
+      title: string;
+      standard: components["schemas"]["ElearningStandard"];
+      status: components["schemas"]["ElearningAttemptStatus"];
+      token: string;
+      launchPath: string;
+      launchQuery: string;
+      location: string | null;
+      suspendData: string | null;
+      /** @enum {string} */
+      entry: "ab-initio" | "resume";
+    };
+    ElearningCommit: {
+      cmi: {
+        [key: string]: string;
+      };
+      finished: boolean;
     };
     MergeFieldList: {
       items: components["schemas"]["MergeFieldItem"][];
@@ -52099,6 +61489,8 @@ export interface components {
       };
       /** Format: date-time */
       deviceSentAt?: string;
+      /** Format: date-time */
+      recordedAt?: string;
     };
     SyncDiscardResult: {
       /** Format: uuid */
@@ -53238,7 +62630,11 @@ export interface components {
       version: number;
     };
     /** @enum {string} */
-    DsptOutcome: "standards_met" | "approaching_standards" | "standards_not_met";
+    DsptOutcome:
+      | "standards_exceeded"
+      | "standards_met"
+      | "approaching_standards"
+      | "standards_not_met";
     RecordDsptSubmission: {
       financialYear: string;
       /** Format: date */
@@ -53742,6 +63138,661 @@ export interface components {
       reportOn: string;
       /** Format: date */
       respondedOn?: string | null;
+    };
+    QualityDashboard: {
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      generatedAt: string;
+      period: {
+        /** Format: date */
+        from: string;
+        /** Format: date */
+        to: string;
+      };
+      minGroupSize: number;
+      indicators: components["schemas"]["QualityIndicatorOut"][];
+    };
+    QualityIndicatorOut: {
+      key: components["schemas"]["QualityIndicatorKey"];
+      title: string;
+      unit: string;
+      /** @enum {string} */
+      direction: "lower_is_better" | "higher_is_better";
+      multiplier: number;
+      method: string;
+      source: string | null;
+      numerator: number | null;
+      denominator: number | null;
+      period: {
+        /** Format: date */
+        from: string;
+        /** Format: date */
+        to: string;
+      };
+      value: number | null;
+      display: number | null;
+      status: components["schemas"]["QualityIndicatorStatus"];
+      reasonCode: components["schemas"]["QualityNoDataReason"];
+      reason: string | null;
+      target: {
+        green: number;
+        amber: number;
+        /** @enum {string} */
+        level: "location" | "organisation";
+        organisationDefault: {
+          green: number;
+          amber: number;
+        } | null;
+      } | null;
+    };
+    /** @enum {string} */
+    QualityIndicatorKey:
+      | "falls"
+      | "pressure_ulcers"
+      | "medication_errors"
+      | "missed_visits"
+      | "overdue_reviews"
+      | "training_compliance"
+      | "agency_hours"
+      | "complaints"
+      | "staff_turnover"
+      | "incident_response";
+    /** @enum {string} */
+    QualityIndicatorStatus: "green" | "amber" | "red" | "no_data";
+    /** @enum {string|null} */
+    QualityNoDataReason:
+      | "unknown_indicator"
+      | "no_value"
+      | "no_denominator"
+      | "incomplete_data"
+      | "no_target"
+      | "source_not_built"
+      | "small_number"
+      | null;
+    QualityIndicatorTargetList: {
+      items: components["schemas"]["QualityIndicatorTargetOut"][];
+    };
+    QualityIndicatorTargetOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string | null;
+      indicatorKey: components["schemas"]["QualityIndicatorKey"];
+      green: number;
+      amber: number;
+      version: number;
+    };
+    SetQualityIndicatorTarget: {
+      /** Format: uuid */
+      locationId: string | null;
+      indicatorKey: components["schemas"]["QualityIndicatorKey"];
+      green: number;
+      amber: number;
+      expectedVersion: number | null;
+    };
+    ClearQualityIndicatorTarget: {
+      expectedVersion: number;
+    };
+    PirPrefill: {
+      /** Format: uuid */
+      locationId: string;
+      questionSet: {
+        regulator: string;
+        name: string;
+        version: string;
+        confirmed: boolean;
+      };
+      period: {
+        /** Format: date */
+        from: string;
+        /** Format: date */
+        to: string;
+      };
+      /** Format: date */
+      asOf: string;
+      items: components["schemas"]["PirPrefillItem"][];
+    };
+    PirPrefillItem: {
+      key: string;
+      area: components["schemas"]["PirQuestionArea"];
+      label: string;
+      /** @enum {string} */
+      unit: "count" | "percent" | "hours" | "yes_no";
+      source: string;
+      /** @enum {string} */
+      status: "prefilled" | "to_complete";
+      value: number | boolean | null;
+      /** Format: date */
+      asOf: string | null;
+      records: number | null;
+      /** @enum {string|null} */
+      reasonCode: "not_built" | "no_value" | "small_number" | null;
+      reason: string | null;
+    };
+    /** @enum {string} */
+    PirQuestionArea: "safe" | "effective" | "caring" | "responsive" | "well-led";
+    MedicineProducts: {
+      loaded: boolean;
+      items: {
+        vmpId: string;
+        name: string;
+        permittedRoutes: components["schemas"]["DmdRoute"][];
+        permittedDoseUnits: components["schemas"]["DoseUnit"][];
+      }[];
+    };
+    DmdRoute: {
+      code: string;
+      name: string;
+    };
+    DoseUnit: {
+      code: string;
+      name: string;
+    };
+    MedicinesRecord: {
+      entries: components["schemas"]["MedicineEntry"][];
+      outstandingReconciliations: components["schemas"]["OutstandingReconciliation"][];
+      /** Format: uuid */
+      openReconciliationId: string | null;
+    };
+    MedicineEntry: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      medicineId: string;
+      /** Format: uuid */
+      personId: string;
+      version: number;
+      /** Format: uuid */
+      replacesId: string | null;
+      /** @enum {string} */
+      state:
+        | "not_yet_checked"
+        | "checked"
+        | "difference_found"
+        | "stopped"
+        | "replaced"
+        | "withdrawn";
+      /** @enum {string} */
+      origin: "transcribed" | "reconciliation" | "import";
+      product: components["schemas"]["DmdProductRef"];
+      route: components["schemas"]["DmdRoute"];
+      directions: components["schemas"]["MarDirections"];
+      directionsInWords: string;
+      indication: string | null;
+      specialInstructions: string | null;
+      prescriber: string;
+      /** Format: date-time */
+      startsAt: string;
+      /** Format: date-time */
+      stopsAt: string | null;
+      /** Format: date */
+      reviewOn: string | null;
+      source: components["schemas"]["MarSourceDocument"];
+      transcribed: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      };
+      secondCheck: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        /** @enum {string} */
+        outcome: "matches_source" | "differs_from_source";
+        difference: string | null;
+      } | null;
+      stop: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        /** Format: date-time */
+        effectiveAt: string;
+        reason: string;
+        source: components["schemas"]["MarSourceDocument"];
+      } | null;
+      /** Format: uuid */
+      replacedById: string | null;
+      /** Format: date-time */
+      replacedFrom: string | null;
+      reanchor: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        reason: string;
+      } | null;
+      withdrawn: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        reason: string;
+      } | null;
+      status: {
+        words: string;
+        mayGive: boolean;
+        notice: string | null;
+      };
+    };
+    DmdProductRef: {
+      vmpId: string;
+      /** @default null */
+      ampId: string | null;
+      name: string;
+    };
+    MarDirections:
+      | {
+          /** @enum {string} */
+          kind: "regular";
+          schedule: {
+            pattern: components["schemas"]["SchedulePattern"];
+            times: {
+              time: string;
+              dose: components["schemas"]["Dose"];
+            }[];
+          };
+        }
+      | {
+          /** @enum {string} */
+          kind: "when_required";
+          dose: components["schemas"]["Dose"];
+        };
+    SchedulePattern:
+      | {
+          /** @enum {string} */
+          kind: "every_day";
+        }
+      | {
+          /** @enum {string} */
+          kind: "every_n_days";
+          intervalDays: number;
+          /** Format: date */
+          anchorOn: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "weekly";
+          weekdays: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
+          intervalWeeks: number;
+          /** Format: date */
+          anchorOn: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "monthly";
+          dayOfMonth: number;
+        };
+    Dose:
+      | {
+          /** @enum {string} */
+          kind: "amount";
+          quantity: number;
+          unit: components["schemas"]["DoseUnit"];
+        }
+      | {
+          /** @enum {string} */
+          kind: "range";
+          from: number;
+          to: number;
+          unit: components["schemas"]["DoseUnit"];
+        }
+      | {
+          /** @enum {string} */
+          kind: "variable";
+          unit: components["schemas"]["DoseUnit"];
+        };
+    MarSourceDocument: {
+      kind: components["schemas"]["MarSourceKind"];
+      reference: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      documentId: string | null;
+    };
+    /** @enum {string} */
+    MarSourceKind:
+      | "prescription"
+      | "pharmacy_label"
+      | "pharmacy_mar"
+      | "discharge_letter"
+      | "transfer_letter"
+      | "gp_record"
+      | "clinic_letter"
+      | "prescriber_instruction"
+      | "previous_mar";
+    OutstandingReconciliation: {
+      /** @enum {string} */
+      kind: "admission" | "transfer" | "return_from_hospital";
+      /** Format: uuid */
+      eventId: string;
+      /** Format: date-time */
+      at: string;
+      notice: string;
+    };
+    MedicineHistory: {
+      versions: components["schemas"]["MedicineEntry"][];
+    };
+    MarChart: {
+      cycle: {
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string;
+        days: number;
+      };
+      clockChanges: {
+        /** Format: date */
+        date: string;
+        /** @enum {string} */
+        change: "forward" | "back";
+      }[];
+      doses: components["schemas"]["MarDose"][];
+    };
+    MarDose: {
+      /** Format: uuid */
+      medicineEntryId: string;
+      /** Format: date-time */
+      dueAt: string;
+      /** Format: date */
+      date: string;
+      time: string;
+      dayName: string | null;
+      doseInWords: string;
+      /** @enum {string|null} */
+      clockChange: "time_skipped" | "time_repeated" | null;
+      sameInstantAs: string | null;
+      lastDayOfShorterMonth: boolean;
+      notDue: boolean;
+      entryStatus: {
+        words: string;
+        mayGive: boolean;
+        notice: string | null;
+      };
+    };
+    TranscribeMedicine: {
+      product: components["schemas"]["DmdProductRef"];
+      route: components["schemas"]["DmdRoute"];
+      directions: components["schemas"]["MarDirections"];
+      /** @default null */
+      indication: string | null;
+      /** @default null */
+      specialInstructions: string | null;
+      prescriber: string;
+      /** Format: date-time */
+      startsAt: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      stopsAt: string | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      reviewOn: string | null;
+      source: components["schemas"]["MarSourceDocument"];
+      /** @default null */
+      reanchorReason: string | null;
+      /** @default null */
+      earlierDosesDueReason: string | null;
+    };
+    MedicineChanged: {
+      entry: components["schemas"]["MedicineEntry"];
+      withdrawn: string[];
+    };
+    ChangeMedicine: {
+      product: components["schemas"]["DmdProductRef"];
+      route: components["schemas"]["DmdRoute"];
+      directions: components["schemas"]["MarDirections"];
+      /** @default null */
+      indication: string | null;
+      /** @default null */
+      specialInstructions: string | null;
+      prescriber: string;
+      /** Format: date-time */
+      startsAt: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      stopsAt: string | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      reviewOn: string | null;
+      source: components["schemas"]["MarSourceDocument"];
+      expectedVersion: number;
+      /** @default null */
+      reanchorReason: string | null;
+      /** @default null */
+      withdrawLaterReason: string | null;
+    };
+    CheckMedicine: {
+      /** @enum {string} */
+      outcome: "matches_source" | "differs_from_source";
+      /** @default null */
+      difference: string | null;
+      /** @enum {boolean} */
+      comparedWithSource: true;
+    };
+    StopMedicine: {
+      /** Format: date-time */
+      effectiveAt: string;
+      reason: string;
+      source: components["schemas"]["MarSourceDocument"];
+      expectedVersion: number;
+      /** @default null */
+      withdrawLaterReason: string | null;
+    };
+    MedicineReconciliation: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      trigger: components["schemas"]["ReconciliationTrigger"];
+      /** Format: uuid */
+      eventId: string | null;
+      /** Format: date-time */
+      triggeredAt: string;
+      /** @enum {string} */
+      status: "open" | "completed";
+      started: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      };
+      completed: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      } | null;
+      entriesAtStart: {
+        /** Format: uuid */
+        entryId: string;
+        version: number;
+      }[];
+      sources: {
+        kind: components["schemas"]["MarSourceKind"] | "person_or_family";
+        reference: string;
+        /** Format: uuid */
+        documentId: string | null;
+        /** Format: date-time */
+        receivedAt: string;
+        currentBecause: string | null;
+        /** Format: uuid */
+        id: string;
+      }[];
+      items: {
+        /** Format: uuid */
+        id: string;
+        /** Format: uuid */
+        sourceId: string;
+        asWritten: string;
+        product: components["schemas"]["DmdProductRef"] & (Record<string, never> | null);
+        /** @enum {string} */
+        says: "start" | "continue" | "change" | "stop" | "unclear";
+      }[];
+      entryDecisions: components["schemas"]["EntryDecision"][];
+      itemDecisions: components["schemas"]["ItemDecision"][];
+      version: number;
+    };
+    /** @enum {string} */
+    ReconciliationTrigger: "admission" | "transfer" | "return_from_hospital" | "change";
+    EntryDecision:
+      | {
+          /** @enum {string} */
+          kind: "continue";
+          /** Format: uuid */
+          entryId: string;
+          itemIds: string[];
+          /** @default null */
+          note: string | null;
+          /** @default null */
+          confirmedWith: string | null;
+          /** @default null */
+          scheduledStillStands: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "change";
+          /** Format: uuid */
+          entryId: string;
+          itemIds: string[];
+          draft: components["schemas"]["ReconciliationDraftInput"];
+          /** @default null */
+          reanchorReason: string | null;
+          /** @default null */
+          withdrawLaterReason: string | null;
+          /** @default null */
+          scheduledStillStands: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "stop";
+          /** Format: uuid */
+          entryId: string;
+          itemIds: string[];
+          reason: string;
+          /** @default null */
+          withdrawLaterReason: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "query";
+          /** Format: uuid */
+          entryId: string;
+          question: string;
+        };
+    ReconciliationDraftInput: {
+      product: components["schemas"]["DmdProductRef"];
+      route: components["schemas"]["DmdRoute"];
+      directions: components["schemas"]["MarDirections"];
+      /** @default null */
+      indication: string | null;
+      /** @default null */
+      specialInstructions: string | null;
+      prescriber: string;
+      /** Format: date-time */
+      startsAt: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      stopsAt: string | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      reviewOn: string | null;
+    };
+    ItemDecision:
+      | {
+          /** @enum {string} */
+          kind: "start";
+          /** Format: uuid */
+          itemId: string;
+          draft: components["schemas"]["ReconciliationDraftInput"];
+          /** @default null */
+          reanchorReason: string | null;
+          /** @default null */
+          earlierDosesDueReason: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "not_started";
+          /** Format: uuid */
+          itemId: string;
+          reason: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "query";
+          /** Format: uuid */
+          itemId: string;
+          question: string;
+        };
+    StartReconciliation: {
+      trigger: components["schemas"]["ReconciliationTrigger"];
+      /**
+       * Format: uuid
+       * @default null
+       */
+      eventId: string | null;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      triggeredAt: string | null;
+    };
+    AddReconciliationSource: {
+      kind: components["schemas"]["MarSourceKind"] | "person_or_family";
+      reference: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      documentId: string | null;
+      /** Format: date-time */
+      receivedAt: string;
+      /** @default null */
+      currentBecause: string | null;
+    };
+    AddReconciliationItem: {
+      /** Format: uuid */
+      sourceId: string;
+      asWritten: string;
+      product?: components["schemas"]["DmdProductRef"] & (Record<string, never> | null);
+      /** @enum {string} */
+      says: "start" | "continue" | "change" | "stop" | "unclear";
+    };
+    PutReconciliationDecisions: {
+      expectedVersion: number;
+      entryDecisions: components["schemas"]["EntryDecision"][];
+      itemDecisions: components["schemas"]["ItemDecision"][];
+    };
+    CompleteReconciliation: {
+      expectedVersion: number;
+      allergiesCompared: boolean;
+      personInvolvement:
+        | {
+            /** @enum {boolean} */
+            involved: true;
+          }
+        | {
+            /** @enum {boolean} */
+            involved: false;
+            reason: string;
+          };
+      /** @default null */
+      noDischargeLetterReason: string | null;
     };
     SubProcessorOverview: {
       noticeDays: number;
@@ -54504,6 +64555,145 @@ export interface components {
       }[];
       method: string[];
     };
+    PulseSurveyList: {
+      items: components["schemas"]["PulseSurveyItem"][];
+    };
+    PulseSurveyItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string | null;
+      title: string;
+      questions: components["schemas"]["SurveyQuestion"][];
+      /** Format: date */
+      opensOn: string;
+      /** Format: date */
+      closesOn: string;
+      state: components["schemas"]["PulseSurveyState"];
+      /** Format: date-time */
+      openedAt: string | null;
+      /** Format: date-time */
+      closedAt: string | null;
+      answered: boolean | null;
+      version: number;
+    };
+    /** @description A scale (1 to 5) or a free-text question */
+    SurveyQuestion: {
+      id: string;
+      /** @enum {string} */
+      kind: "scale" | "free_text";
+      text: string;
+    };
+    /** @enum {string} */
+    PulseSurveyState: "draft" | "open" | "closed";
+    NewPulseSurvey: {
+      /** Format: uuid */
+      locationId: string | null;
+      title: string;
+      questions: components["schemas"]["SurveyQuestion"][];
+      /** Format: date */
+      opensOn: string;
+      /** Format: date */
+      closesOn: string;
+    };
+    EditPulseSurvey: {
+      title: string;
+      questions: components["schemas"]["SurveyQuestion"][];
+      /** Format: date */
+      opensOn: string;
+      /** Format: date */
+      closesOn: string;
+      version: number;
+    };
+    MovePulseSurvey: {
+      version: number;
+    };
+    PulseResponse: {
+      answers: {
+        [key: string]: number | string;
+      };
+    };
+    PulseSurveyResults: {
+      visible: boolean;
+      /** @enum {string} */
+      reason?: "still_open" | "too_few" | "no_size";
+      minGroupSize: number | null;
+      respondents?: number;
+      questions?: components["schemas"]["PulseQuestionResult"][];
+      message: string;
+    };
+    PulseQuestionResult: {
+      id: string;
+      /** @enum {string} */
+      kind: "scale" | "free_text";
+      text: string;
+      visible: boolean;
+      answered?: number;
+      counts?: (number | null)[];
+      texts?: string[];
+    };
+    RecognitionList: {
+      items: components["schemas"]["RecognitionItem"][];
+    };
+    RecognitionItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      fromMemberId: string;
+      /** Format: uuid */
+      toMemberId: string;
+      fromName: string | null;
+      toName: string | null;
+      /** Format: uuid */
+      locationId: string;
+      message: string;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    RecognitionColleagues: {
+      items: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+      }[];
+    };
+    NewRecognition: {
+      /** Format: uuid */
+      toMemberId: string;
+      /** Format: uuid */
+      locationId: string;
+      message: string;
+    };
+    CheckInList: {
+      items: components["schemas"]["CheckInItem"][];
+      support: string;
+    };
+    CheckInItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      memberId: string;
+      memberName: string | null;
+      /** Format: uuid */
+      locationId: string;
+      mood: number;
+      note: string | null;
+      /** Format: date-time */
+      sharedAt: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    NewCheckIn: {
+      /** Format: uuid */
+      locationId: string;
+      mood: number;
+      note: string | null;
+      /** @default false */
+      share: boolean;
+    };
+    ShareCheckIn: {
+      shared: boolean;
+    };
     ShiftTemplateList: {
       items: components["schemas"]["ShiftTemplateItem"][];
     };
@@ -54537,8 +64727,7 @@ export interface components {
       requiredSkills: components["schemas"]["StaffingSkill"][];
       /** @default false */
       supervised: boolean;
-      /** @default true */
-      countsAsCare: boolean;
+      countsAsCare?: boolean;
     };
     ArchiveRotaItem: {
       version: number;
@@ -54655,6 +64844,7 @@ export interface components {
       /** Format: date-time */
       publishedAt: string | null;
       overridden: string[];
+      coverNeeded: boolean;
     } | null;
     CreateRota: {
       /** Format: date */
@@ -54690,12 +64880,19 @@ export interface components {
           requiredSkills: components["schemas"]["StaffingSkill"][];
           /** @default false */
           supervised: boolean;
-          /** @default true */
-          countsAsCare: boolean;
+          countsAsCare?: boolean;
         };
     CancelShift: {
       version: number;
       reason: string;
+    };
+    RotaWorkerList: {
+      items: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+        jobTitle: string | null;
+      }[];
     };
     EligibilityItem: {
       /** Format: uuid */
@@ -54784,6 +64981,9 @@ export interface components {
         covered: boolean;
       }[];
       openShiftIds: string[];
+      inductionsDue: string[];
+      coverNeededAssignmentIds: string[];
+      peopleUnassigned: string[];
       hasWarnings: boolean;
       periodsToAcknowledge: string[];
       blockedAssignmentIds: string[];
@@ -54853,6 +65053,1381 @@ export interface components {
         breakMinutes: number;
         /** Format: date-time */
         changedAfterPublishAt: string | null;
+      }[];
+    };
+    AgencyList: {
+      items: components["schemas"]["AgencyItem"][];
+    };
+    AgencyItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      name: string;
+      contactEmail: string | null;
+      frameworkRef: string | null;
+      defaultChargePencePerHour: number | null;
+      archived: boolean;
+    };
+    CreateAgency: {
+      name: string;
+      /**
+       * Format: email
+       * @default null
+       */
+      contactEmail: string | null;
+      /** @default null */
+      frameworkRef: string | null;
+      /** @default null */
+      defaultChargePencePerHour: number | null;
+    };
+    ArchiveAgency: {
+      version: number;
+      reason: string;
+    };
+    AgencyWorkerList: {
+      items: components["schemas"]["AgencyWorkerItem"][];
+    };
+    AgencyWorkerItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      member: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+        jobTitle: string | null;
+      };
+      kind: components["schemas"]["AgencyWorkerKind"];
+      /** Format: uuid */
+      agencyId: string | null;
+      roleTitle: string;
+      confirmation: {
+        /** Format: date */
+        dbsConfirmedOn: string | null;
+        dbsEnhancedBarred: boolean;
+        /** Format: date */
+        rightToWorkConfirmedOn: string | null;
+        /** Format: date */
+        rightToWorkExpiresOn: string | null;
+        registrationBody: string | null;
+        /** Format: date */
+        registrationValidUntil: string | null;
+        /** Format: uuid */
+        confirmedBy: string | null;
+      } | null;
+      doNotBook: boolean;
+      bookingsCancelled: number;
+    };
+    /** @enum {string} */
+    AgencyWorkerKind: "agency" | "bank";
+    RegisterAgencyWorker: {
+      /** Format: uuid */
+      tenantUserId: string;
+      kind: components["schemas"]["AgencyWorkerKind"];
+      /**
+       * Format: uuid
+       * @default null
+       */
+      agencyId: string | null;
+      roleTitle: string;
+    };
+    AgencyConfirmation: {
+      version: number;
+      /** Format: date */
+      dbsConfirmedOn: string | null;
+      dbsEnhancedBarred: boolean;
+      /** Format: date */
+      rightToWorkConfirmedOn: string | null;
+      /** Format: date */
+      rightToWorkExpiresOn: string | null;
+      /** @enum {string|null} */
+      registrationBody: "nmc" | "hcpc" | "swe" | "gmc" | null;
+      /** Format: date */
+      registrationValidUntil: string | null;
+    };
+    AgencyBookingItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      shiftId: string;
+      /** Format: uuid */
+      assignmentId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: uuid */
+      agencyId: string | null;
+      kind: components["schemas"]["AgencyWorkerKind"];
+      bookingRef: string | null;
+      chargePencePerHour: number;
+      costPence: number;
+      /** @enum {string} */
+      status: "confirmed" | "cancelled";
+      inductionDue: boolean;
+      concernsRecorded: number;
+    };
+    BookShift: {
+      /** Format: uuid */
+      workerId: string;
+      version: number;
+      chargePencePerHour?: number;
+      /** @default null */
+      bookingRef: string | null;
+      override?: {
+        justification: string;
+        blockerKeys: string[];
+      };
+    };
+    CancelBooking: {
+      version: number;
+      reason: string;
+    };
+    AwrRecordList: {
+      items: components["schemas"]["AwrRecordItem"][];
+    };
+    AwrRecordItem: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      kind: "break_reason" | "role_change" | "withdrawal";
+      /** Format: date */
+      fromOn: string | null;
+      /** Format: date */
+      toOn: string | null;
+      reason: components["schemas"]["AwrBreakReasonCode"];
+      /** Format: date */
+      notifiedOn: string | null;
+      /** Format: uuid */
+      withdrawsId: string | null;
+      withdrawn: boolean;
+      note: string | null;
+      /** Format: uuid */
+      createdBy: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    /** @enum {string|null} */
+    AwrBreakReasonCode:
+      | "sickness"
+      | "jury_service"
+      | "protected_leave"
+      | "annual_leave"
+      | "shutdown"
+      | "industrial_action"
+      | null;
+    RecordAwrRecord:
+      | {
+          /** @enum {string} */
+          kind: "break_reason";
+          /** Format: date */
+          fromOn: string;
+          /** Format: date */
+          toOn: string;
+          reason: components["schemas"]["AwrBreakReasonCode"];
+          /** @default null */
+          note: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "role_change";
+          /** Format: date */
+          notifiedOn: string;
+          /** @default null */
+          note: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "withdrawal";
+          /** Format: uuid */
+          withdrawsId: string;
+          /** @default null */
+          note: string | null;
+        };
+    AwrClockItem: {
+      /** Format: uuid */
+      workerId: string;
+      qualifyingWeeks: number;
+      qualifyingWeeksNeeded: number;
+      /** Format: date */
+      qualifiedFromWeek: string | null;
+      weeksWithoutReason: number;
+      /** @enum {string} */
+      jurisdiction: "great_britain";
+      resets: {
+        /** Format: date */
+        week: string;
+        /** @enum {string} */
+        reason: "break" | "new_role";
+      }[];
+      method: string[];
+    };
+    InductionItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      inductedOn: string;
+      items: string[];
+      /** Format: uuid */
+      inductedBy: string | null;
+    };
+    RecordInduction: {
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      inductedOn: string;
+      items: string[];
+    };
+    AgencyFeedbackList: {
+      items: components["schemas"]["AgencyFeedbackItem"][];
+    };
+    AgencyFeedbackItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: uuid */
+      bookingId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** @enum {string} */
+      kind: "positive" | "concern" | "do_not_rebook";
+      notes: string;
+      /** Format: uuid */
+      createdBy: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    RecordAgencyFeedback: {
+      /** Format: uuid */
+      bookingId: string;
+      /** @enum {string} */
+      kind: "positive" | "concern" | "do_not_rebook";
+      notes: string;
+      safeguarding?: boolean;
+    };
+    AgencyCostList: {
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      from: string;
+      /** Format: date */
+      to: string;
+      items: {
+        /** Format: uuid */
+        agencyId: string | null;
+        kind: components["schemas"]["AgencyWorkerKind"];
+        bookings: number;
+        costPence: number;
+      }[];
+      totalPence: number;
+    };
+    AbsenceList: {
+      items: components["schemas"]["AbsenceItem"][];
+      truncated: boolean;
+    };
+    AbsenceItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      member: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+      };
+      /** Format: uuid */
+      locationId: string;
+      kind: components["schemas"]["AbsenceKind"];
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      state: components["schemas"]["AbsenceState"];
+      /** Format: uuid */
+      decidedBy: string | null;
+      /** Format: date-time */
+      decidedAt: string | null;
+      decisionReason: string | null;
+      /** Format: date-time */
+      selfCertifiedAt: string | null;
+      bradfordExcluded: boolean;
+      coverNeeded: number;
+      fitNoteUncoveredDays: string[] | null;
+    };
+    /** @enum {string} */
+    AbsenceKind:
+      | "annual_leave"
+      | "sickness"
+      | "compassionate"
+      | "carers_leave"
+      | "parental_leave"
+      | "maternity"
+      | "paternity"
+      | "adoption"
+      | "parental_bereavement"
+      | "unpaid"
+      | "other";
+    /** @enum {string} */
+    AbsenceState: "requested" | "approved" | "declined" | "postponed" | "cancelled" | "recorded";
+    NewAbsence: {
+      /** Format: uuid */
+      memberId?: string;
+      /** Format: uuid */
+      locationId: string;
+      kind: components["schemas"]["AbsenceKind"];
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      /** @default false */
+      selfCertified: boolean;
+    };
+    AbsenceDetail: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      member: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+      };
+      /** Format: uuid */
+      locationId: string;
+      kind: components["schemas"]["AbsenceKind"];
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      state: components["schemas"]["AbsenceState"];
+      /** Format: uuid */
+      decidedBy: string | null;
+      /** Format: date-time */
+      decidedAt: string | null;
+      decisionReason: string | null;
+      /** Format: date-time */
+      selfCertifiedAt: string | null;
+      bradfordExcluded: boolean;
+      coverNeeded: number;
+      fitNoteUncoveredDays: string[] | null;
+      carersLeave: {
+        takenDays: number;
+        allowanceDays: number | null;
+        overAllowance: boolean;
+      } | null;
+      fitNotes: components["schemas"]["FitNoteItem"][] | null;
+      returnToWork: components["schemas"]["ReturnToWorkItem"];
+      bradfordExcludedReason: string | null;
+    };
+    FitNoteItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      absenceId: string;
+      /** Format: uuid */
+      documentId: string;
+      /** Format: date */
+      issuedOn: string;
+      /** Format: date */
+      coversFrom: string;
+      /** Format: date */
+      coversTo: string;
+      /** @enum {string} */
+      fitness: "not_fit" | "may_be_fit";
+      phasedReturn: boolean;
+      amendedDuties: boolean;
+      alteredHours: boolean;
+      workplaceAdaptations: boolean;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    ReturnToWorkItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      absenceId: string;
+      /** Format: date */
+      heldOn: string;
+      /** Format: uuid */
+      heldBy: string;
+      fitForUsualDuties: boolean;
+      phasedReturn: boolean;
+      amendedDuties: boolean;
+      alteredHours: boolean;
+      workplaceAdaptations: boolean;
+      notes: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    } | null;
+    DecideAbsence: {
+      version: number;
+      /** @enum {string} */
+      decision: "approve" | "decline" | "postpone";
+      reason?: string;
+    };
+    CancelAbsence: {
+      version: number;
+      reason?: string;
+    };
+    EndAbsence: {
+      version: number;
+      /** Format: date */
+      endsOn: string;
+    };
+    /** @description A reason leaves it out; null puts it back */
+    ExcludeFromBradford: {
+      version: number;
+      reason: string | null;
+    };
+    NewReturnToWork: {
+      /** Format: date */
+      heldOn: string;
+      fitForUsualDuties: boolean;
+      /** @default false */
+      phasedReturn: boolean;
+      /** @default false */
+      amendedDuties: boolean;
+      /** @default false */
+      alteredHours: boolean;
+      /** @default false */
+      workplaceAdaptations: boolean;
+      notes?: string;
+    };
+    BradfordResult: {
+      /** Format: uuid */
+      memberId: string;
+      spells: number;
+      days: number;
+      score: number;
+      /** Format: date */
+      windowStart: string;
+      /** Format: date */
+      windowEnd: string;
+      windowWeeks: number;
+      excludedAbsences: number;
+      working: string[];
+      notice: string;
+    };
+    SspResultItem: {
+      /** Format: uuid */
+      absenceId: string;
+      applies: boolean;
+      /** @enum {string|null} */
+      reason: "no_rate_for_nation" | "not_a_period_of_incapacity" | null;
+      periodOfIncapacity: {
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string;
+        linkedAbsences: number;
+      } | null;
+      weeklyPence: number | null;
+      daysPaid: number | null;
+      payPence: number | null;
+      daysLeft: number | null;
+      working: {
+        step: string;
+        pence: number | null;
+      }[];
+      inputHash: string | null;
+      notice: string;
+    };
+    SspQuery: {
+      averageWeeklyEarningsPence: number;
+      qualifyingWeekdays: number[];
+    };
+    ClockEventItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workerId: string;
+      kind: components["schemas"]["ClockKind"];
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      shiftId: string | null;
+      /** Format: date-time */
+      deviceTime: string;
+      /** Format: date-time */
+      recordedAt: string;
+      evidence: components["schemas"]["ClockEvidence"];
+      flags: string[];
+      /** Format: uuid */
+      timesheetEntryId: string | null;
+    };
+    /** @enum {string} */
+    ClockKind: "in" | "out" | "break_start" | "break_end";
+    /** @enum {string} */
+    ClockEvidence: "none" | "at_location" | "nfc";
+    RecordClockEvent: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["ClockKind"];
+      /** Format: uuid */
+      locationId: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      shiftId: string | null;
+      /** Format: date-time */
+      deviceTime: string;
+      /** @default null */
+      deviceId: string | null;
+      evidence?: components["schemas"]["ClockEvidence"];
+      /** @default null */
+      nfcTagRef: string | null;
+    };
+    TimesheetList: {
+      items: components["schemas"]["TimesheetEntryItem"][];
+    };
+    TimesheetEntryItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      workerId: string;
+      workerName: string | null;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      shiftId: string | null;
+      kind: components["schemas"]["TimesheetKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      endedAt: string;
+      breaks: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+      travel: components["schemas"]["TravelKind"];
+      mileageTenths: number | null;
+      /** @enum {string} */
+      source: "clock" | "manual";
+      /** @enum {string} */
+      status: "draft" | "approved";
+      /** Format: uuid */
+      approvedBy: string | null;
+      /** Format: date-time */
+      approvedAt: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      workedMinutes: number;
+      problems: string[];
+      awakePeriods: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+    };
+    /** @enum {string} */
+    TimesheetKind:
+      | "work"
+      | "sleep_in"
+      | "on_call_at_workplace"
+      | "on_call_away"
+      | "training"
+      | "travel";
+    /** @enum {string|null} */
+    TravelKind:
+      | "between_assignments"
+      | "home_to_first_assignment"
+      | "last_assignment_to_home"
+      | "commute_to_fixed_workplace"
+      | null;
+    ClockSettingItem: {
+      /** Format: uuid */
+      locationId: string;
+      version: number | null;
+      evidence: components["schemas"]["ClockEvidence"];
+      nfcTagRefs: string[];
+    };
+    ChangeClockSetting: {
+      version: number | null;
+      evidence: components["schemas"]["ClockEvidence"];
+      /** @default [] */
+      nfcTagRefs: string[];
+      /** @default false */
+      dpiaApproved: boolean;
+    };
+    CreateTimesheetEntry: {
+      /** Format: uuid */
+      workerId: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      shiftId: string | null;
+      kind: components["schemas"]["TimesheetKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      endedAt: string;
+      /** @default [] */
+      breaks: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+      travel?: components["schemas"]["TravelKind"];
+      /** @default null */
+      mileageTenths: number | null;
+    };
+    ChangeTimesheetEntry: {
+      version: number;
+      kind: components["schemas"]["TimesheetKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      endedAt: string;
+      /** @default [] */
+      breaks: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+      travel?: components["schemas"]["TravelKind"];
+      /** @default null */
+      mileageTenths: number | null;
+    };
+    ApprovedTimesheet: {
+      entry: components["schemas"]["TimesheetEntryItem"];
+      workingTime: {
+        /** Format: uuid */
+        resultId: string;
+        breaches: number;
+        conditionals: number;
+        notes: string[];
+      };
+    };
+    ApproveTimesheetEntry: {
+      version: number;
+    };
+    CorrectTimesheetEntry: {
+      reason: string;
+      kind: components["schemas"]["TimesheetKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      endedAt: string;
+      /** @default [] */
+      breaks: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+      travel?: components["schemas"]["TravelKind"];
+      /** @default null */
+      mileageTenths: number | null;
+    };
+    RecordAwakePeriod: {
+      /** Format: date-time */
+      start: string;
+      /** Format: date-time */
+      end: string;
+    };
+    ClockExceptionList: {
+      events: components["schemas"]["ClockEventItem"][];
+      drafts: components["schemas"]["TimesheetEntryItem"][];
+    };
+    OptOutList: {
+      items: components["schemas"]["OptOutItem"][];
+    };
+    OptOutItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: date */
+      signedOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      noticeAmount: number | null;
+      /** @enum {string|null} */
+      noticeUnit: "days" | "months" | null;
+      /** Format: date */
+      noticeGivenOn: string | null;
+      /** Format: uuid */
+      recordedBy: string;
+    };
+    RecordOptOut: {
+      /** Format: date */
+      signedOn: string;
+      /**
+       * Format: date
+       * @default null
+       */
+      endsOn: string | null;
+      /** @default null */
+      noticeAmount: number | null;
+      /**
+       * @default null
+       * @enum {string|null}
+       */
+      noticeUnit: "days" | "months" | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      noticeGivenOn: string | null;
+    };
+    WorkingTimeResultList: {
+      memberName: string | null;
+      items: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date */
+        evaluateFrom: string;
+        /** Format: date */
+        evaluateTo: string;
+        breaches: number;
+        conditionals: number;
+        findings: {
+          [key: string]: unknown;
+        }[];
+        trigger: string;
+        /** Format: date-time */
+        createdAt: string;
+      }[];
+    };
+    DmdSearchResult: {
+      release: components["schemas"]["DmdReleaseStatus"];
+      query: {
+        /** @enum {string} */
+        kind: "text" | "code";
+        terms: string[];
+      };
+      items: components["schemas"]["DmdProductSummary"][];
+      truncated: boolean;
+    };
+    DmdReleaseStatus: {
+      name: string | null;
+      /** Format: date */
+      releasedOn: string | null;
+      /** Format: date-time */
+      loadedAt: string | null;
+      /** @enum {string} */
+      status: "current" | "out_of_date" | "none";
+      ageDays: number | null;
+      staleAfterDays: number;
+      message: string;
+    };
+    DmdProductSummary: {
+      id: string;
+      /** @enum {string} */
+      kind: "vmp" | "amp";
+      name: string;
+      vmpId: string;
+      vmpName: string;
+      form: components["schemas"]["DmdCoded"];
+      routes: components["schemas"]["DmdCoded"][];
+      controlledDrugCategory: components["schemas"]["DmdCoded"];
+      invalid: boolean;
+      supersededBy: string | null;
+    };
+    DmdCoded: {
+      code: string;
+      name: string;
+    } | null;
+    DmdProductDetail: {
+      release: components["schemas"]["DmdReleaseStatus"];
+      product: {
+        id: string;
+        /** @enum {string} */
+        kind: "vmp" | "amp";
+        name: string;
+        vmpId: string;
+        vmpName: string;
+        form: components["schemas"]["DmdCoded"];
+        routes: components["schemas"]["DmdCoded"][];
+        controlledDrugCategory: components["schemas"]["DmdCoded"];
+        invalid: boolean;
+        supersededBy: string | null;
+        abbreviatedName: string | null;
+        vtm: {
+          id: string;
+          name: string;
+          invalid: boolean;
+        } | null;
+        vmpInvalid: boolean;
+        doseUnits: components["schemas"]["DmdCoded"][];
+        unitDoseForm: {
+          size: string | null;
+          unit: components["schemas"]["DmdCoded"];
+        } | null;
+        licensedRoutes: components["schemas"]["DmdCoded"][];
+        amps: {
+          id: string;
+          name: string;
+          invalid: boolean;
+        }[];
+        packs: components["schemas"]["DmdPack"][];
+      };
+    };
+    DmdPack: {
+      id: string;
+      /** @enum {string} */
+      kind: "vmpp" | "ampp";
+      name: string;
+      vmppId: string;
+      ampId: string | null;
+      quantity: string | null;
+      quantityUnit: components["schemas"]["DmdCoded"];
+      legalCategory: components["schemas"]["DmdCoded"];
+      discontinued: boolean;
+      /** Format: date */
+      discontinuedOn: string | null;
+      invalid: boolean;
+      gtins: string[];
+    };
+    DmdGtinMatch: {
+      release: components["schemas"]["DmdReleaseStatus"];
+      gtin: string;
+      items: {
+        pack: components["schemas"]["DmdPack"];
+        amp: {
+          id: string;
+          name: string;
+          invalid: boolean;
+        };
+        vmp: {
+          id: string;
+          name: string;
+          invalid: boolean;
+        };
+        /** Format: date */
+        startDate: string;
+        /** Format: date */
+        endDate: string | null;
+      }[];
+    };
+    DmdReleaseHistory: {
+      release: components["schemas"]["DmdReleaseStatus"];
+      items: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+        /** Format: date */
+        releasedOn: string;
+        /** @enum {string} */
+        source: "nhsbsa_trud" | "fixture" | "manual";
+        /** @enum {string} */
+        status: "loaded" | "refused" | "failed";
+        /** Format: date-time */
+        startedAt: string;
+        /** Format: date-time */
+        finishedAt: string;
+        fileCounts: {
+          [key: string]: number;
+        };
+        changes: {
+          [key: string]: number;
+        };
+        problems: {
+          code: string;
+          file: string | null;
+          id: string | null;
+          message: string;
+        }[];
+        problemCount: number;
+      }[];
+    };
+    LoneWorkerRoute: {
+      on: boolean;
+      steps: components["schemas"]["LoneWorkerRouteStep"][];
+      problems: {
+        code: string;
+        message: string;
+      }[];
+      locationEvidence: boolean;
+      version: number | null;
+    };
+    LoneWorkerRouteStep: {
+      afterMinutes: number;
+      targetRoleKey?: string;
+      /** Format: uuid */
+      targetTenantUserId?: string;
+      channels: ("in_app" | "push" | "email" | "sms")[];
+    };
+    SetLoneWorkerRoute: {
+      steps: components["schemas"]["LoneWorkerRouteStep"][];
+      version: number | null;
+    };
+    LoneWorkerMine: {
+      session: components["schemas"]["LoneWorkerOwnSession"];
+      on: boolean;
+    };
+    LoneWorkerOwnSession: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      workKind: components["schemas"]["LoneWorkerWorkKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      plannedEndAt: string;
+      intervalMinutes: number;
+      /** Format: date-time */
+      finishedAt: string | null;
+      status: components["schemas"]["LoneWorkerSessionStatus"];
+      /** Format: date-time */
+      nextDueAt: string | null;
+      overdueAlarmOpen: boolean;
+      events: components["schemas"]["LoneWorkerOwnEvent"][];
+      version: number;
+    } | null;
+    /** @enum {string} */
+    LoneWorkerWorkKind: "domiciliary_visit" | "night_shift" | "other";
+    /** @enum {string} */
+    LoneWorkerSessionStatus: "ok" | "due" | "alarm" | "finished";
+    LoneWorkerOwnEvent: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["LoneWorkerEventKind"];
+      /** Format: date-time */
+      deviceAt: string;
+      /** Format: date-time */
+      receivedAt: string;
+      late: boolean;
+    };
+    /** @enum {string} */
+    LoneWorkerEventKind: "check_in" | "duress" | "help" | "finish";
+    StartLoneWorkerSession: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      workKind: components["schemas"]["LoneWorkerWorkKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      plannedEndAt: string;
+      intervalMinutes: number;
+    };
+    LoneWorkerEventResult: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["LoneWorkerEventKind"];
+      /** Format: date-time */
+      effectiveAt: string;
+      late: boolean;
+      /** Format: date-time */
+      nextDueAt: string | null;
+      message: string;
+    };
+    RecordLoneWorkerEvent: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["LoneWorkerEventKind"];
+      /** Format: date-time */
+      deviceAt: string;
+      location?: components["schemas"]["LoneWorkerLocationPoint"];
+    };
+    LoneWorkerLocationPoint: {
+      latitude: number;
+      longitude: number;
+      accuracyMetres: number | null;
+    } | null;
+    LoneWorkerBoard: {
+      items: components["schemas"]["LoneWorkerBoardItem"][];
+      on: boolean;
+    };
+    LoneWorkerBoardItem: {
+      /** Format: uuid */
+      sessionId: string;
+      /** Format: uuid */
+      workerTenantUserId: string;
+      workerName: string | null;
+      /** Format: uuid */
+      locationId: string;
+      workKind: components["schemas"]["LoneWorkerWorkKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      plannedEndAt: string;
+      intervalMinutes: number;
+      status: components["schemas"]["LoneWorkerSessionStatus"];
+      statusWords: string;
+      /** Format: date-time */
+      nextDueAt: string | null;
+      /** Format: date-time */
+      lastCheckInAt: string | null;
+      lastCheckInLate: boolean;
+      openAlarmIds: string[];
+    };
+    LoneWorkerAlarmList: {
+      items: components["schemas"]["LoneWorkerAlarmItem"][];
+    };
+    LoneWorkerAlarmItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      sessionId: string;
+      /** Format: uuid */
+      workerTenantUserId: string;
+      workerName: string | null;
+      /** Format: uuid */
+      locationId: string;
+      reason: components["schemas"]["LoneWorkerAlarmReason"];
+      reasonWords: string;
+      state: components["schemas"]["LoneWorkerAlarmState"];
+      stateWords: string;
+      /** Format: date-time */
+      dueAt: string | null;
+      /** Format: date-time */
+      raisedAt: string;
+      /** Format: date-time */
+      lastAlertedAt: string;
+      alertCount: number;
+      /** Format: date-time */
+      lastCheckInAt: string | null;
+      lastCheckInLate: boolean;
+      /** Format: date-time */
+      resolvedAt: string | null;
+      /** Format: uuid */
+      acknowledgedBy: string | null;
+      /** Format: date-time */
+      acknowledgedAt: string | null;
+      outcome: components["schemas"]["LoneWorkerOutcome"];
+      note: string | null;
+      /** Format: uuid */
+      incidentId: string | null;
+      location: {
+        latitude: number;
+        longitude: number;
+        accuracyMetres: number | null;
+        /** Format: date-time */
+        capturedAt: string;
+      } | null;
+      version: number;
+    };
+    /** @enum {string} */
+    LoneWorkerAlarmReason: "overdue" | "not_finished" | "duress" | "help";
+    /** @enum {string} */
+    LoneWorkerAlarmState:
+      | "open"
+      | "acknowledged"
+      | "resolved_by_check_in"
+      | "resolved_late_check_in"
+      | "resolved_by_finish";
+    /** @enum {string|null} */
+    LoneWorkerOutcome:
+      | "safe_confirmed"
+      | "help_sent"
+      | "emergency_services_called"
+      | "other"
+      | null;
+    AcknowledgedLoneWorkerAlarm: {
+      alarm: components["schemas"]["LoneWorkerAlarmItem"];
+      incidentSuggested: boolean;
+    };
+    AcknowledgeLoneWorkerAlarm: {
+      outcome: components["schemas"]["LoneWorkerOutcome"];
+      note: string;
+      /** Format: uuid */
+      incidentId?: string | null;
+      version: number;
+    };
+    PayRuleSetList: {
+      items: components["schemas"]["PayRuleSetItem"][];
+    };
+    PayRuleSetItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      versionNumber: number;
+      name: string;
+      /** Format: date */
+      effectiveFrom: string;
+      roleRates: {
+        [key: string]: number;
+      };
+      enhancements: components["schemas"]["PayEnhancement"][];
+      stackEnhancements: boolean;
+      sleepInFlatPence: number;
+      mileagePencePerMile: number;
+      onCallFlatPence: number;
+      nightStartMinute: number | null;
+      nightEndMinute: number | null;
+      extraBankHolidays: string[];
+      overtimeAfterMinutes: number | null;
+      rolledUpHoliday: boolean;
+      /** @enum {string} */
+      status: "draft" | "approved";
+      /** Format: uuid */
+      approvedBy: string | null;
+      /** Format: date-time */
+      approvedAt: string | null;
+    };
+    PayEnhancement: {
+      /** @enum {string} */
+      kind: "night" | "weekend" | "bank_holiday" | "overtime";
+      /** @enum {string} */
+      mode: "percent" | "flat_per_hour";
+      value: number;
+    };
+    CreatePayRuleSet: {
+      name: string;
+      /** Format: date */
+      effectiveFrom: string;
+      roleRates: {
+        [key: string]: number;
+      };
+      /** @default [] */
+      enhancements: components["schemas"]["PayEnhancement"][];
+      /** @default false */
+      stackEnhancements: boolean;
+      /** @default 0 */
+      sleepInFlatPence: number;
+      /** @default 0 */
+      mileagePencePerMile: number;
+      /** @default 0 */
+      onCallFlatPence: number;
+      /** @default null */
+      nightStartMinute: number | null;
+      /** @default null */
+      nightEndMinute: number | null;
+      /** @default [] */
+      extraBankHolidays: string[];
+      /** @default null */
+      overtimeAfterMinutes: number | null;
+      /** @default false */
+      rolledUpHoliday: boolean;
+    };
+    ChangePayRuleSet: {
+      version: number;
+      name: string;
+      /** Format: date */
+      effectiveFrom: string;
+      roleRates: {
+        [key: string]: number;
+      };
+      /** @default [] */
+      enhancements: components["schemas"]["PayEnhancement"][];
+      /** @default false */
+      stackEnhancements: boolean;
+      /** @default 0 */
+      sleepInFlatPence: number;
+      /** @default 0 */
+      mileagePencePerMile: number;
+      /** @default 0 */
+      onCallFlatPence: number;
+      /** @default null */
+      nightStartMinute: number | null;
+      /** @default null */
+      nightEndMinute: number | null;
+      /** @default [] */
+      extraBankHolidays: string[];
+      /** @default null */
+      overtimeAfterMinutes: number | null;
+      /** @default false */
+      rolledUpHoliday: boolean;
+    };
+    ApprovePayRuleSet: {
+      version: number;
+    };
+    PayProfileItem: {
+      /** Format: uuid */
+      memberId: string;
+      version: number | null;
+      frequency: components["schemas"]["PayFrequency"];
+      /** @enum {string} */
+      employment: "staff" | "bank" | "agency";
+      roleKey: string | null;
+      /** Format: date */
+      apprenticeshipStartedOn: string | null;
+      irregularHours: boolean;
+      /** Format: date */
+      leaveYearStart: string | null;
+      qualifyingWeekdays: number[];
+      sspAverageWeeklyEarningsPence: number | null;
+      /** Format: date */
+      statePensionAgeOn: string | null;
+    };
+    /** @enum {string|null} */
+    PayFrequency: "weekly" | "monthly" | null;
+    PutPayProfile: {
+      version: number | null;
+      frequency: components["schemas"]["PayFrequency"];
+      /**
+       * @default staff
+       * @enum {string}
+       */
+      employment: "staff" | "bank" | "agency";
+      /** @default null */
+      roleKey: string | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      apprenticeshipStartedOn: string | null;
+      /** @default false */
+      irregularHours: boolean;
+      /**
+       * Format: date
+       * @default null
+       */
+      leaveYearStart: string | null;
+      /** @default [] */
+      qualifyingWeekdays: number[];
+      /** @default null */
+      sspAverageWeeklyEarningsPence: number | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      statePensionAgeOn: string | null;
+    };
+    PayRunList: {
+      items: components["schemas"]["PayRunItem"][];
+    };
+    PayRunItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      frequency: components["schemas"]["PayFrequency"];
+      /** Format: date */
+      periodStart: string;
+      /** Format: date */
+      periodEnd: string;
+      /** @enum {string} */
+      kind: "regular" | "correction";
+      /** Format: uuid */
+      correctsRunId: string | null;
+      /** Format: uuid */
+      ruleSetId: string;
+      nation: string;
+      calculation: number;
+      /** Format: date-time */
+      calculatedAt: string | null;
+      /** Format: uuid */
+      calculatedBy: string | null;
+      /** @enum {string} */
+      status: "draft" | "locked";
+      /** Format: uuid */
+      lockedBy: string | null;
+      /** Format: date-time */
+      lockedAt: string | null;
+      /** Format: uuid */
+      createdBy: string | null;
+      openExceptions: number;
+    };
+    CreatePayRun: {
+      frequency: components["schemas"]["PayFrequency"];
+      /** Format: date */
+      periodStart: string;
+      /** Format: date */
+      periodEnd: string;
+    };
+    PayRunDetail: {
+      run: components["schemas"]["PayRunItem"];
+      lines: components["schemas"]["PayRunLineItem"][];
+      exceptions: components["schemas"]["PayRunExceptionItem"][];
+    };
+    PayRunLineItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      runId: string;
+      calculation: number;
+      /** Format: uuid */
+      memberId: string;
+      memberName: string | null;
+      paidMinutes: number;
+      nmwMinutes: number;
+      basicPence: number;
+      premiumPence: number;
+      sleepInPence: number;
+      onCallPence: number;
+      mileagePence: number;
+      nmwTopUpPence: number;
+      rolledUpHolidayPence: number;
+      sspPence: number;
+      totalPence: number;
+      differencePence: number | null;
+      holidayAccruedMinutes: number | null;
+      nmwBand: string | null;
+      aeCategory: string | null;
+      qualifyingEarningsPence: number | null;
+      working: components["schemas"]["PayWorkingLine"][];
+      inputHash: string;
+    };
+    PayWorkingLine: {
+      step: string;
+      pence: number | null;
+      rateKey: string | null;
+    };
+    PayRunExceptionItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      calculation: number;
+      /** Format: uuid */
+      memberId: string;
+      memberName: string | null;
+      kind: components["schemas"]["PayExceptionKind"];
+      /** Format: uuid */
+      ref: string | null;
+      message: string;
+      /** @enum {string} */
+      status: "open" | "overridden";
+      overrideReason: string | null;
+      /** Format: uuid */
+      overriddenBy: string | null;
+      /** Format: date-time */
+      overriddenAt: string | null;
+    };
+    /** @enum {string} */
+    PayExceptionKind:
+      | "unapproved_timesheet"
+      | "no_pay_profile"
+      | "no_role_rate"
+      | "no_date_of_birth"
+      | "below_nmw"
+      | "ssp_earnings_missing"
+      | "no_qualifying_days"
+      | "rate_missing";
+    PayRunVersion: {
+      version: number;
+    };
+    OverridePayException: {
+      version: number;
+      reason: string;
+    };
+    PayLineVerification: {
+      /** Format: uuid */
+      lineId: string;
+      reproduced: boolean;
+      storedHash: string;
+      recalculatedHash: string;
+      differences: string[];
+    };
+    MyPayLines: {
+      items: {
+        line: components["schemas"]["PayRunLineItem"];
+        /** Format: date */
+        periodStart: string;
+        /** Format: date */
+        periodEnd: string;
+        /** @enum {string} */
+        kind: "regular" | "correction";
+        /** Format: date-time */
+        lockedAt: string;
       }[];
     };
   };

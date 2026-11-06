@@ -281,3 +281,8 @@ export const StaffingRequirementList = z
     asAt: isoDateTime,
   })
   .meta({ id: "StaffingRequirementList" });
+
+export type DependencyScaleVersionItem = z.infer<typeof DependencyScaleVersionItem>;
+export type DependencyScaleItem = z.infer<typeof DependencyScaleItem>;
+export type DependencyRecordItem = z.infer<typeof DependencyRecordItem>;
+export type PersonDependency = z.infer<typeof PersonDependency>;

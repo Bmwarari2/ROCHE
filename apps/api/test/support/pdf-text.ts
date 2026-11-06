@@ -112,3 +112,35 @@ export function pdfText(bytes: Uint8Array): string {
     .map((lines) => lines.join("\n"))
     .join("\n");
 }
+
+/** Each drawn line of each page with where it starts, in points from the page's bottom left. */
+export function pdfPlacedLines(bytes: Uint8Array): { text: string; x: number; y: number }[][] {
+  const texts = pdfPages(bytes);
+  const all = objects(bytes);
+  const catalog = [...all.values()].find((o) => o.dict.includes("/Type /Catalog"));
+  const pagesId = catalog ? ref(catalog.dict, "Pages") : null;
+  const pagesDict = pagesId ? (all.get(pagesId)?.dict ?? "") : "";
+  const kids = pagesDict
+    .slice(pagesDict.indexOf("[") + 1, pagesDict.indexOf("]"))
+    .split(" R")
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => !Number.isNaN(n));
+  return kids.map((pageId, index) => {
+    const page = all.get(pageId)?.dict ?? "";
+    const contentId = ref(page, "Contents");
+    const content = contentId ? (all.get(contentId)?.stream?.toString("latin1") ?? "") : "";
+    const positions = content
+      .split("\n")
+      .filter((op) => op.startsWith("BT /"))
+      .map((op) => {
+        // BT /F1 10 Tf <x> <y> Td <hex> Tj ET
+        const parts = op.split(" ");
+        return { x: Number(parts[4]), y: Number(parts[5]) };
+      });
+    return (texts[index] ?? []).map((text, n) => ({
+      text,
+      x: positions[n]?.x ?? Number.NaN,
+      y: positions[n]?.y ?? Number.NaN,
+    }));
+  });
+}

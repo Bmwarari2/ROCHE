@@ -49,7 +49,10 @@ import { loadPerson } from "../services/people";
 import { rateNumber } from "../services/rates";
 import {
   acknowledgeSafeguardingAlerts,
+  alertSafeguardingRaised,
+  finishSafeguardingReferralTask,
   SAFEGUARDING_REFERRAL_RATE_KEY,
+  stopRaisedEscalation,
   tellManagersNotReferred,
 } from "../services/safeguarding";
 import { startWorkflow } from "../services/workflow";
@@ -413,6 +416,8 @@ export const safeguardingRouter = createRouter()
           resourceId: row.id,
           scope: { personId: row.personId, locationId: row.locationId },
         });
+        // HZ-126: the managers at the person's home are told at once, with a task to decide.
+        await alertSafeguardingRaised(tx, row, now);
         await publish(tx, {
           context: "safety",
           aggregateType: "safeguarding_concern",
@@ -524,6 +529,10 @@ export const safeguardingRouter = createRouter()
           resourceType: "safeguarding_concern",
           resourceId: row.id,
         });
+        // A manager other than the raiser has seen it: the raised alerts stop escalating.
+        if (row.state === "concern" && row.raisedBy !== access.tenantUserId) {
+          await stopRaisedEscalation(tx, row.id);
+        }
         return detail(tx, access, row, now);
       });
       return c.json(view, 200);
@@ -615,9 +624,14 @@ export const safeguardingRouter = createRouter()
                   protectiveMeasuresUpdatedAt: measuresText(body.protectiveMeasures) ? now : null,
                 }
               : {}),
+            // Changed measures need their outcome answered again, unless this update answers it
+            // (HZ-126 rule 3: an answer about the old measures never closes the new ones).
             ...(body.measuresOutcome !== undefined
               ? { measuresOutcome: body.measuresOutcome }
-              : {}),
+              : body.protectiveMeasures !== undefined &&
+                  measuresText(body.protectiveMeasures) !== row.protectiveMeasures
+                ? { measuresOutcome: null }
+                : {}),
           })
           .where(
             and(eq(safeguardingConcern.id, row.id), eq(safeguardingConcern.version, row.version)),
@@ -699,6 +713,7 @@ export const safeguardingRouter = createRouter()
         if (!saved) throw problems.conflict();
         if (to === "referred" || to === "no_referral") {
           await acknowledgeSafeguardingAlerts(tx, saved.id, now);
+          await finishSafeguardingReferralTask(tx, saved.id, now, to, access.tenantUserId);
         }
         // A decision not to refer is never one person's alone and unseen: the other managers of
         // the log at the person's home are told (clinical review round 1; a second person: H-599).

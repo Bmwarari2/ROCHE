@@ -1699,13 +1699,19 @@ describe("hazard HZ-023 the hospital transfer pack and the transfer", () => {
           c.query("UPDATE access_grant SET revoked_at = now() WHERE id = $1", [grant]),
         );
       }
-      // The nurse in charge records the clinical check.
+      // The nurse in charge records the clinical check; the medicines check is done only by
+      // completing the reconciliation (slice 16, HZ-121), so even the nurse cannot tick it.
       const medicines = await as("nurse", path("medicines_reconciled"), {
         method: "POST",
         body: { version: transfer.version },
       });
-      expect(medicines.status).toBe(200);
-      transfer = await json<HospitalTransferOut>(medicines);
+      expect(medicines.status).toBe(422);
+      const resuscitation = await as("nurse", path("resuscitation_rechecked"), {
+        method: "POST",
+        body: { version: transfer.version },
+      });
+      expect(resuscitation.status).toBe(200);
+      transfer = await json<HospitalTransferOut>(resuscitation);
     } finally {
       await asDemoTenant((c) =>
         c.query("UPDATE role_assignment SET deleted_at = now() WHERE id = $1", [assignment]),
@@ -3844,8 +3850,11 @@ describe("slice 8 review, round 4: rounds, assignments, exits and return checks"
       expect(await auditCount("people.hospital_transfer.return_check", transfer.id, "denied")).toBe(
         1,
       );
+      // The medicines check is done only by completing the reconciliation (slice 16, HZ-121).
       const medicines = await check("medicines_reconciled");
-      expect(medicines.status).toBe(200);
+      expect(medicines.status).toBe(422);
+      const allergies = await check("allergies_rechecked");
+      expect(allergies.status).toBe(200);
     } finally {
       await asDemoTenant((c) =>
         c.query("UPDATE access_grant SET revoked_at = now() WHERE id = $1", [grant]),

@@ -64,7 +64,8 @@ export type QualityIcon =
   | "clock"
   | "circle-alert"
   | "lock"
-  | "link";
+  | "link"
+  | "triangle-alert";
 
 /** A status said with an icon and a word, never colour alone. */
 export interface QualityChip {
@@ -370,13 +371,14 @@ export function readComposeForm(form: FormValues, t: Translator): ComposeRead {
 export function readEndReason(
   form: FormValues,
   t: Translator,
+  min: number = END_REASON_MIN,
 ):
   | { readonly ok: true; readonly reason: string }
   | { readonly ok: false; readonly errors: FieldErrors } {
   const reason = text(form, "reason");
-  return reason.length >= END_REASON_MIN && reason.length <= END_REASON_MAX
+  return reason.length >= min && reason.length <= END_REASON_MAX
     ? { ok: true, reason }
-    : { ok: false, errors: { reason: t("quality.reasonError", { min: END_REASON_MIN }) } };
+    : { ok: false, errors: { reason: t("quality.reasonError", { min }) } };
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -61,6 +61,11 @@ export interface Me {
   readonly tenantUserId: string | null;
   readonly locations: ReadonlyArray<{ readonly id: string; readonly name: string }>;
   readonly permissions: readonly string[];
+  /**
+   * The organisation's feature flags, as `/v1/me` evaluates them (only true or false values are
+   * kept); absent on an older cached answer. Care mode reads `care.mobile_care_mode` (H-381).
+   */
+  readonly flags?: Readonly<Record<string, boolean>>;
 }
 
 export interface AuthClient {
@@ -107,6 +112,13 @@ export function parseMe(value: unknown): Me {
       typeof value.tenantUserId === "string" && value.tenantUserId ? value.tenantUserId : null,
     locations: value.locations.map((l) => ({ id: l.id, name: l.name })),
     permissions: [...value.permissions],
+    flags: isRecord(value.flags)
+      ? Object.fromEntries(
+          Object.entries(value.flags).filter(
+            (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+          ),
+        )
+      : {},
   };
 }
 

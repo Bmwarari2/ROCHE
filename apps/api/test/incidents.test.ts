@@ -110,6 +110,8 @@ interface IncidentInput {
   readonly id?: string;
   readonly locationId?: string;
   readonly foundAt?: string;
+  readonly emergencyServicesCalled?: boolean | null;
+  readonly gpContacted?: boolean | null;
 }
 
 const affected = (n: number, extra: Record<string, unknown> = {}) => ({
@@ -502,6 +504,115 @@ describe("hazard HZ-027 the post-fall checklist", () => {
     const list = await json<TaskList>(await as("carer", `/v1/tasks?personId=${resident(1)}`));
     expect(list.items.some((t) => t.kind === "safety.post_fall_injury_check")).toBe(true);
     expect(incident.id).toBeTruthy();
+  });
+});
+
+describe("answers left as not known yet (H-264, H-482)", () => {
+  it("hazard HZ-090 keeps not known yet for the emergency services and the GP open, with an urgent task for the person in charge, until answered", async () => {
+    const incident = await created("carer", {
+      type: "near_miss",
+      people: [affected(3)],
+      emergencyServicesCalled: null,
+      gpContacted: null,
+    });
+    expect(incident).toMatchObject({ emergencyServicesCalled: null, gpContacted: null });
+    const open = (await incidentTasks(incident.id)).filter(
+      (t) => t.kind === "safety.record_contacts",
+    );
+    expect(open).toMatchObject([{ status: "open", priority: "urgent", person_id: null }]);
+    // It stays open: the incident cannot close while either is not known.
+    await answerEverything(incident.id);
+    const current = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`));
+    const closing = await as("manager", `/v1/incidents/${incident.id}/close`, {
+      method: "POST",
+      body: { reason: "Reviewed and closed.", version: current.version },
+    });
+    expect(closing.status).toBe(422);
+    expect(JSON.stringify(await closing.json())).toMatch(/still not known/);
+    const answered = await as("manager", `/v1/incidents/${incident.id}`, {
+      method: "PUT",
+      body: { emergencyServicesCalled: false, gpContacted: true, version: current.version },
+    });
+    expect(answered.status).toBe(200);
+    expect(await json<IncidentDetail>(answered)).toMatchObject({
+      emergencyServicesCalled: false,
+      gpContacted: true,
+    });
+    const done = (await incidentTasks(incident.id)).filter(
+      (t) => t.kind === "safety.record_contacts",
+    );
+    expect(done.map((t) => t.status)).toEqual(["done"]);
+  });
+
+  it("hazard HZ-090 raises no task when both are answered, an earlier client's yes or no included", async () => {
+    const incident = await created("carer", { type: "near_miss", people: [affected(3)] });
+    expect(incident).toMatchObject({ emergencyServicesCalled: false, gpContacted: false });
+    expect(
+      (await incidentTasks(incident.id)).some((t) => t.kind === "safety.record_contacts"),
+    ).toBe(false);
+  });
+
+  it("hazard HZ-013 asks the Registered Manager to record a learning disability and autism for a death left not known yet", async () => {
+    const incident = await created("manager", {
+      type: "injury",
+      people: [affected(3, { died: true })],
+    });
+    const raised = (await incidentTasks(incident.id)).filter(
+      (t) => t.kind === "safety.record_learning_disability_autism",
+    );
+    expect(raised).toMatchObject([{ status: "open", person_id: resident(3) }]);
+    // Closing waits for the answers, rather than ending the task unanswered.
+    await answerEverything(incident.id);
+    const before = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`));
+    const closing = await as("manager", `/v1/incidents/${incident.id}/close`, {
+      method: "POST",
+      body: { reason: "Reviewed and closed.", version: before.version },
+    });
+    expect(closing.status).toBe(422);
+    expect(JSON.stringify(await closing.json())).toMatch(/learning disability .* autistic/);
+    const person = incident.people[0];
+    expect(person).toBeDefined();
+    if (!person) return;
+    const answered = await as("manager", `/v1/incidents/${incident.id}`, {
+      method: "PUT",
+      body: {
+        people: [
+          {
+            id: person.id,
+            kind: "service_user",
+            role: "affected",
+            personId: resident(3),
+            died: true,
+            learningDisability: false,
+            autistic: false,
+          },
+        ],
+        version: (await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`)))
+          .version,
+      },
+    });
+    expect(answered.status).toBe(200);
+    const after = (await incidentTasks(incident.id)).filter(
+      (t) => t.kind === "safety.record_learning_disability_autism",
+    );
+    expect(after.map((t) => t.status)).toEqual(["done"]);
+    // The answers replaced only themselves: the person still died, with the same marks.
+    const stored = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`));
+    expect(stored.people[0]).toMatchObject({
+      died: true,
+      learningDisability: false,
+      autistic: false,
+    });
+    // Answered at once, no task.
+    const known = await created("manager", {
+      type: "injury",
+      people: [affected(3, { died: true, learningDisability: true, autistic: false })],
+    });
+    expect(
+      (await incidentTasks(known.id)).some(
+        (t) => t.kind === "safety.record_learning_disability_autism",
+      ),
+    ).toBe(false);
   });
 });
 

@@ -81,6 +81,9 @@ describe("the MAR cycle comes from the rate table", () => {
     );
   });
 
+  /** Numbers that only look like a rate figure: GS1 defines GTIN lengths (8, 12, 13 and 14). */
+  const NOT_RATE_FIGURES: Record<string, readonly string[]> = { "dmd-release.ts": ["12"] };
+
   it("holds no rate-table figure as a literal in the medicines rules", () => {
     const dir = fileURLToPath(new URL(".", import.meta.url));
     const rows = readRateTable();
@@ -99,6 +102,7 @@ describe("the MAR cycle comes from the rate table", () => {
     )) {
       const code = readFileSync(`${dir}${file}`, "utf8").replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "");
       for (const value of values) {
+        if (NOT_RATE_FIGURES[file]?.includes(value)) continue;
         expect(code, `${file}: ${value}`).not.toMatch(new RegExp(`\\b${value}\\b`));
       }
     }

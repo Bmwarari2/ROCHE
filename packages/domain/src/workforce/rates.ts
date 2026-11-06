@@ -23,6 +23,7 @@ export const WORKFORCE_RATE_KEYS = {
   nmcFeedbackCount: "nmc.revalidation.feedback_count",
   nmcReflectiveAccounts: "nmc.revalidation.reflective_accounts",
   dbsUpdateServiceCheckMonths: "dbs.update_service.check_interval_months",
+  drivingLicenceCheckMonths: "workforce.driving_licence_check_months",
   sponsorSalaryFloorYearly: "sponsor.salary_floor.care_worker",
   sponsorSalaryFloorHourly: "sponsor.salary_floor.care_worker_hourly",
   sponsorChangeReportWorkingDays: "sponsor.change_report_working_days",

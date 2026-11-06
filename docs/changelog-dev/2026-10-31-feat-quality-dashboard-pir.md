@@ -1,0 +1,145 @@
+# Quality dashboard and PIR prefill
+
+Branch `feat/quality-dashboard-pir` (Phase 2 slice 47 and slice 65 part 2: QUAL-005, QUAL-006),
+cut from `feat/web-policies-data-security`.
+
+## What changed
+
+- `GET /v1/quality/dashboard?locationId&from&to`: each of the ten indicators for one location and
+  period. Every figure carries its working: numerator, denominator, period, source and method,
+  with a status against the organisation's own target.
+  - Built today: falls, pressure ulcers and medication errors per 1,000 occupied bed-days,
+    overdue care plan and risk assessment reviews (as at today), and incidents reviewed in time.
+  - Missed visits, training compliance, agency hours, complaints and staff turnover show
+    "No data: Harbour does not record this yet".
+- Never rated (HZ-129):
+  - a source not built;
+  - a period that is unfinished or starts before the location used Harbour;
+  - no bed-days;
+  - no target (the value is shown, unrated);
+  - a small number: a count of 1 to 4 (`quality.indicator.min_group_size`) is withheld so no
+    one can be identified.
+- Targets: `GET` and `PUT /v1/quality/indicator-targets`, and `POST .../{id}/clear`. Each target
+  is an organisation default or a location's own, with the location's own winning. Green and
+  amber must be in the indicator's direction.
+- `GET /v1/quality/pir?locationId`: the last 12 months to yesterday. Each data point in the
+  question set is prefilled, or marked to complete with the reason. Nothing is submitted.
+- Migration 0108 adds:
+  - `quality_indicator_target`, with forced RLS, writes only where the member holds
+    `quality.audit.manage`, a history trigger and no delete;
+  - `app.quality_indicator_counts`, a security-definer function owned by the new no-login role
+    `harbour_quality_reader`. It checks the permission at the location itself and returns
+    numbers only ([ADR-0108](../decisions/0108-quality-indicator-counts.md)).
+- Domain: `dashboardIndicator`, `INDICATOR_SOURCES`, `targetFor`, `pirPrefill`,
+  `PIR_QUESTION_SET`, and the `source_not_built` and `small_number` reasons. New rate rows
+  `quality.indicator.min_group_size` and `quality.incident_review.target_days`.
+- HZ-129 added to the hazard log. quality.md section 22 covers rules 38 to 44, the permission
+  matrix and tests. The medical-device boundary and records of processing are updated.
+
+## Screens (slice 65 part 2)
+
+- `/quality/dashboard`:
+  - a location and whole-month picker;
+  - ten indicator cards, each with a status as an icon and a word, the figure, the reason when
+    there is no rating, and the working;
+  - a withheld count reads "Withheld: fewer than 5", never 0;
+  - the five indicators not built read "No data: Harbour does not record this yet".
+- `/quality/dashboard/targets`: set and clear the organisation's and a location's target.
+- `/quality/pir`:
+  - a plain statement that Harbour does not submit the return;
+  - one table per key question, each data point prefilled or "To complete" with the reason;
+  - a read-only text box of the figures to copy.
+- Sidebar entries "Quality dashboard" and "PIR figures" for holders of `quality.audit.manage`.
+- The API now gives each indicator's multiplier, so the screens write the method in their own
+  words. An incomplete period now says so before "nothing to measure".
+
+## Recommended answers applied (owner instruction, 31/10/2026; review at testing)
+
+- H-914: the read-and-sign declaration is now "I have read and understood this version and will
+  follow it" (`quality.policies.sign.confirm`). Tests: `policies.test.ts` and the policies journey.
+- H-917: "Standards exceeded" is a DSPT outcome. It is in the contract, the domain, the web form,
+  the export catalogue and the database check (widened in migration 0108). Tests: domain
+  `dsptStatus`, the database check, the API submission and the web reader.
+
+## Accessibility review of the screens (fixed)
+
+- Targets use the status words, never colour names.
+- The month picker:
+  - its months are a fieldset, with the hint linked to it;
+  - a problem keeps the reader's months, marks the select at fault and shows a linked summary.
+- Target forms and buttons name their indicator and place. The clear button says what the
+  indicator will then be rated against, and it is destructive and says "Clearing" while it works.
+- The PIR page:
+  - each key question is one region and one table;
+  - the location and months are a heading, and "PIR" is spelled out;
+  - a "Copy figures" button says "Figures copied";
+  - the copied text names the place and months, groups the figures by key question and gives
+    why each point is still to complete.
+- Plain wording:
+  - "divided by" and "multiplied by" for the working, not symbols;
+  - "less strict", not "looser";
+  - a reason for every "No rating".
+- Smaller fixes:
+  - the targets page and the dashboard fit at 320 px;
+  - a thousand written as "1,000" is read;
+  - each percentage over 100 is flagged;
+  - ICU fallbacks are neutral.
+- Left for later: after a save, focus goes to the page heading rather than the card (shared
+  `RecordedArrival`, as noted for slice 65 part 1).
+
+## Review fixes
+
+The security and clinical-safety reviews (before push) found no critical issues. The fixes:
+
+- **Periods (security M1).** A view is whole calendar months that have ended, at most twelve,
+  checked by the API and the function, so two views cannot be subtracted to single out a day.
+  The PIR uses the last 12 whole months.
+- **Small numbers.** An incomplete period shows no working. A small remainder is withheld as
+  well as a small count. A small count keeps its red, amber or green status (clinical finding
+  1, H-981). The PIR withholds a small number of records behind a yes.
+- **Coverage.** A location counts from the later of its creation and its first care note. A
+  downtime not yet reconciled makes the period incomplete. Each view says when it was counted.
+- **Counting.**
+  - Care plans follow the person's current location, and a person with no care plan review date
+    counts as overdue.
+  - Pressure ulcers count by each mark's latest version, so a mark corrected into a pressure
+    ulcer is counted.
+  - Bed-days leave out hospital stays and the days after a death.
+  - An incident counts as reviewed only when someone other than its raiser moves it on, in time
+    from the day it occurred, and it has not gone back to open.
+- **Targets.** Percentages are 0 to 100. A location's own target is no looser than the
+  organisation default unless set organisation-wide, and the default is shown beside it. An
+  unknown location gives a 422.
+- **Hardening.**
+  - A 10-second statement timeout.
+  - Bounded incident scans, and a cycle guard on mark chains.
+  - Indexes on mark corrections and incident workflows.
+  - Column-level grants on the role tables.
+- **Tests.** The clock change, acting-up grants, a role scoped to assigned people, and execute
+  rights for every login role.
+
+## Found, not fixed here
+
+- Plan slice 47 says "from events the source slices publish". No such events exist yet, so the
+  counts are read where the records are, through one definer function (ADR-0108). It is the
+  first function of its kind that reads several modules' tables.
+- Pressure ulcers present on admission cannot yet be told apart (H-983).
+- No per-member rate limit on the dashboard yet; the statement timeout bounds each view (H-989).
+- Entries held for review (late or back-entered) do not yet make a period incomplete (H-984).
+
+## Human actions logged
+
+- H-980 to H-989.
+
+## Tests
+
+- Domain: quality indicators and PIR, table-driven (`hazard HZ-129 ...`).
+- `packages/db/test/quality-indicators.test.ts` (23): targets by permission and location,
+  direction, one live target, no delete; counts by UK day, every incident at the location
+  whatever the reader may see, corrected and healed marks, bed-days, reviews, incident response,
+  numbers only, refusals, execute rights.
+- `apps/web/src/lib/quality-dashboard.test.ts` (21) and the journey
+  `apps/web/e2e/quality-dashboard-pir.spec.ts` (2, axe in light and dark themes).
+- `apps/api/test/quality-dashboard.test.ts` (18): permissions, period checks, not built and
+  incomplete never rated, small numbers withheld, targets with the location's own winning, audit,
+  and the PIR prefill.

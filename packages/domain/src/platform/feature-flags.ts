@@ -89,6 +89,13 @@ export const FLAGS = {
     defaultEnabled: true,
     licensed: false,
   },
+  // Lone-worker location (SCHED-012, H-527): evidence only, captured with a check-in, help or
+  // duress event and never as a track; off until the employee-monitoring DPIA allows it.
+  "scheduling.lone_worker.location": {
+    description: "Attach the device's location to lone-worker check-ins and alarms (evidence only)",
+    defaultEnabled: false,
+    licensed: false,
+  },
   // Validated tools whose terms of use in software are not yet confirmed (human action H-25,
   // care.md section 10): off for real tenants, switched on for the demo tenant by the seed.
   "care.tool.waterlow": {
@@ -101,7 +108,19 @@ export const FLAGS = {
     defaultEnabled: false,
     licensed: false,
   },
+  // Care mode on the phone (H-381): the mobile exclusion from the clinical safety case needs a
+  // control, not an instruction, so the phone's sign-in, sync and uploads are refused until the
+  // organisation switches it on, once a safety case covers the app. Organisation-wide only.
+  "care.mobile_care_mode": {
+    description:
+      "Care mode on the phone: sign-in, sync and uploads (off until a clinical safety case covers the app)",
+    defaultEnabled: false,
+    licensed: false,
+  },
 } as const satisfies Record<string, FlagDefinition>;
+
+/** The organisation-wide flag that lets phones use Care mode (H-381). */
+export const CARE_MODE_FLAG = "care.mobile_care_mode" satisfies FlagKey;
 
 export type FlagKey = keyof typeof FLAGS;
 

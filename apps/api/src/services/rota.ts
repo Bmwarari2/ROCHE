@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import type { RotaCheck, StaffingComparisonItem, WorkerWorkingTime } from "@harbour/contracts";
 import {
+  agencyWorker,
   complianceItem,
   location,
+  locationInduction,
   rosterOverride,
   type rota,
   shift,
@@ -12,6 +14,8 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
+  type AgencyConfirmation,
+  agencyRosterChecks,
   blockerKey,
   type Competence,
   checkWorkingTime,
@@ -40,6 +44,8 @@ import {
 } from "@harbour/domain";
 import type { z } from "@hono/zod-openapi";
 import { and, eq, gt, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { assignmentsAway } from "./absence";
+import { agencyWithoutPeople } from "./agency-window";
 import { competencePort } from "./competence-port";
 import { rateRows } from "./rates";
 import { profileFacts, storedItem, workforceRates } from "./staff-files";
@@ -69,7 +75,7 @@ export const BLOCKER_MESSAGES: Readonly<Record<RosterBlocker["kind"], string>> =
   registration: "Their professional registration is not current on the day.",
   competence: "They are not signed off as competent for this on the day.",
   not_active:
-    "They are not working for your organisation on the day (suspended, left or not yet started). This cannot be overridden.",
+    "They are not working for your organisation on the day (suspended, left, not yet started, or marked not to be booked). This cannot be overridden.",
 };
 
 export function blockerItems(blockers: readonly RosterBlocker[]) {
@@ -95,11 +101,12 @@ async function staffFileChecks(
   day: string,
   shiftLocationId: string,
 ) {
-  const { profile, items, member } = await withSystemRights(tx, async () => {
+  const { profile, items, member, agencyRow } = await withSystemRights(tx, async () => {
     const [m] = await tx
       .select({ status: tenantUser.status })
       .from(tenantUser)
       .where(eq(tenantUser.id, workerId));
+    const [w] = await tx.select().from(agencyWorker).where(eq(agencyWorker.tenantUserId, workerId));
     const [p] = await tx
       .select()
       .from(staffProfile)
@@ -110,27 +117,57 @@ async function staffFileChecks(
           .from(complianceItem)
           .where(and(eq(complianceItem.staffProfileId, p.id), isNull(complianceItem.deletedAt)))
       : [];
-    return { profile: p ?? null, items: rows, member: m ?? null };
+    return { profile: p ?? null, items: rows, member: m ?? null, agencyRow: w ?? null };
   });
+  // A bank or agency worker marked do not book is not working for the organisation (clinical
+  // safety review of slice 27, H1): never rostered, never overridden.
+  const membership: Membership = {
+    status: agencyRow?.doNotBook
+      ? "suspended"
+      : ((member?.status ?? "left") as Membership["status"]),
+    leftOn: profile?.leftOn ?? null,
+    startsOn: profile?.startsOn ?? null,
+  };
+  // An agency worker's checks are the agency's written confirmation (scheduling.md section 15
+  // rule 1); a bank worker's, like any member's, come from the staff file.
+  if (agencyRow?.kind === "agency") {
+    return {
+      // The agency's DBS confirmation is all the organisation has: never overridden (H3).
+      strictDbs: true,
+      registrationBody: agencyRow.registrationBody,
+      checks: agencyRosterChecks(
+        {
+          dbsConfirmedOn: agencyRow.dbsConfirmedOn,
+          dbsEnhancedBarred: agencyRow.dbsEnhancedBarred,
+          rightToWorkConfirmedOn: agencyRow.rightToWorkConfirmedOn,
+          rightToWorkExpiresOn: agencyRow.rightToWorkExpiresOn,
+          registrationBody: agencyRow.registrationBody as AgencyConfirmation["registrationBody"],
+          registrationValidUntil: agencyRow.registrationValidUntil,
+        },
+        day,
+        membership,
+      ),
+    };
+  }
   const nation = await nationOfLocation(tx, shiftLocationId);
   const rates = await workforceRates(tx, tenantId, nation, day);
   return {
-    profile,
+    strictDbs: false,
+    registrationBody: profile?.registrationBody ?? null,
     checks: rosterChecks(
       profile ? profileFacts(profile) : null,
       items.map((i) => storedItem(i)),
       day,
       rates,
-      {
-        status: (member?.status ?? "left") as Membership["status"],
-        leftOn: profile?.leftOn ?? null,
-        startsOn: profile?.startsOn ?? null,
-      },
+      membership,
     ),
   };
 }
 
-async function nationOfLocation(tx: Transaction, locationId: string | null): Promise<Nation> {
+export async function nationOfLocation(
+  tx: Transaction,
+  locationId: string | null,
+): Promise<Nation> {
   if (!locationId) return "england";
   const [row] = await withSystemRights(tx, () =>
     tx.select({ nation: location.nation }).from(location).where(eq(location.id, locationId)),
@@ -160,8 +197,15 @@ export async function shiftEligibility(
   const end = lastInstant(row.endsAt);
   if (ukIsoDate(end) !== ukIsoDate(row.startsAt)) instants.push(end);
   const perDay: RosterBlocker[][] = [];
+  let strictDbs = false;
   for (const at of instants) {
-    const { checks } = await staffFileChecks(tx, tenantId, workerId, ukIsoDate(at), row.locationId);
+    const { checks, strictDbs: strict } = await staffFileChecks(
+      tx,
+      tenantId,
+      workerId,
+      ukIsoDate(at),
+      row.locationId,
+    );
     const competences = [];
     for (const competence of row.requiredCompetences.filter(isCompetence)) {
       competences.push({
@@ -169,16 +213,19 @@ export async function shiftEligibility(
         gate: await competencePort(tx, workerId, competence, at, now),
       });
     }
+    strictDbs ||= strict;
     perDay.push([...rosterBlockers({ ...checks, competences, shiftSupervised: row.supervised })]);
   }
-  return combinedRosterDecision(perDay, override, MIN_OVERRIDE_JUSTIFICATION);
+  return combinedRosterDecision(perDay, override, MIN_OVERRIDE_JUSTIFICATION, (b) =>
+    strictDbs ? b.kind === "dbs" || b.kind === "dbs_supervised_only" : false,
+  );
 }
 
 /**
- * The dependency-scale skills a member holds for a whole shift: a registered nurse when their role
- * is on the NMC register and the registration is current, medicines and moving and handling from
- * the competence port, each on every UK date the shift touches. Nothing yet records who may drive
- * (H-835) or which part of the NMC register a nurse is on (H-835), so nobody counts as a driver.
+ * The dependency-scale skills a member holds for a whole shift, on every UK date it touches: a
+ * registered nurse only for a current registration on the nurse part of the NMC register (a
+ * nursing associate never counts; H-835), a driver only while a verified driving-for-work check is
+ * current (H-835), and medicines and moving and handling from the competence port.
  */
 export async function workerSkills(
   tx: Transaction,
@@ -189,8 +236,9 @@ export async function workerSkills(
 ): Promise<StaffingSkill[]> {
   const instants = [row.startsAt, lastInstant(row.endsAt)];
   let nurse = true;
+  let driver = true;
   for (const at of instants) {
-    const { profile, checks } = await staffFileChecks(
+    const { registrationBody, checks } = await staffFileChecks(
       tx,
       tenantId,
       workerId,
@@ -198,9 +246,11 @@ export async function workerSkills(
       row.locationId,
     );
     nurse &&=
-      profile?.registrationBody === "nmc" &&
+      registrationBody === "nmc" &&
       checks.registrationCurrent === true &&
+      checks.registeredNurse &&
       checks.memberActive;
+    driver &&= checks.driver && checks.memberActive;
   }
   const held = async (c: Competence) => {
     for (const at of instants) {
@@ -210,6 +260,7 @@ export async function workerSkills(
   };
   const skills: StaffingSkill[] = [];
   if (nurse) skills.push("registered_nurse");
+  if (driver) skills.push("driver");
   if (await held("medicines_administration")) skills.push("medicines_competent");
   if (await held("moving_and_handling_hoist")) skills.push("moving_and_handling");
   return skills;
@@ -380,10 +431,21 @@ export async function rotaShifts(tx: Transaction, rotaId: string) {
     overridden.set(o.assignmentId, [...(overridden.get(o.assignmentId) ?? []), ...o.keys]);
   }
   shifts.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || (a.id < b.id ? -1 : 1));
+  // HZ-123: an assignment whose member is away on the shift needs cover (section 17 rule 7).
+  const away = await assignmentsAway(
+    tx,
+    assignments.flatMap((a) => {
+      const s = shifts.find((x) => x.id === a.shiftId);
+      return s
+        ? [{ assignmentId: a.id, workerId: a.workerId, startsAt: s.startsAt, endsAt: s.endsAt }]
+        : [];
+    }),
+  );
   return {
     shifts,
     assignmentOf: (shiftId: string) => assignments.find((a) => a.shiftId === shiftId) ?? null,
     overriddenOf: (assignmentId: string) => [...new Set(overridden.get(assignmentId) ?? [])].sort(),
+    coverNeededOf: (assignmentId: string) => away.has(assignmentId),
   };
 }
 
@@ -402,7 +464,7 @@ export async function rotaCheck(
   rotaRow: RotaRow,
   now: Date = new Date(),
 ): Promise<z.infer<typeof RotaCheck>> {
-  const { shifts, assignmentOf, overriddenOf } = await rotaShifts(tx, rotaRow.id);
+  const { shifts, assignmentOf, overriddenOf, coverNeededOf } = await rotaShifts(tx, rotaRow.id);
   const rotaShiftIds = new Set(shifts.map((s) => s.id));
 
   // Eligibility again for every assignment (HZ-124: a check can lapse after assigning).
@@ -465,7 +527,35 @@ export async function rotaCheck(
       a: neighbourAssignments.find((x) => x.shiftId === s.id) ?? null,
     })),
   ];
+  // Neighbours' members away on their shift need cover too.
+  const neighbourAway = await assignmentsAway(
+    tx,
+    neighbourAssignments.flatMap((a) => {
+      const n = neighbours.find((x) => x.id === a.shiftId);
+      return n
+        ? [{ assignmentId: a.id, workerId: a.workerId, startsAt: n.startsAt, endsAt: n.endsAt }]
+        : [];
+    }),
+  );
+  const coverNeeded = (a: { readonly id: string }) =>
+    coverNeededOf(a.id) || neighbourAway.has(a.id);
+  const coverShiftIds = new Set<string>();
   for (const { s, a } of all) {
+    // A member away on the shift is not on the floor: the shift counts as open (HZ-123).
+    if (a && coverNeeded(a)) {
+      coverShiftIds.add(s.id);
+      rostered.push({
+        id: s.id,
+        kind: s.kind as ShiftKind,
+        start: s.startsAt,
+        end: s.endsAt,
+        breakMinutes: s.breakMinutes,
+        countsAsCare: s.countsAsCare,
+        workerId: null,
+        workerSkills: [],
+      });
+      continue;
+    }
     rostered.push({
       id: s.id,
       kind: s.kind as ShiftKind,
@@ -501,9 +591,15 @@ export async function rotaCheck(
       const comparison = compareStaffing(requirement, provided);
       // The rota's own warnings on the period: never a plain "met" while one stands (M1).
       const own: string[] = [];
-      if (provided.openShiftIds.length > 0) {
+      const coverHere = provided.openShiftIds.filter((id) => coverShiftIds.has(id)).length;
+      if (coverHere > 0) {
         own.push(
-          `${provided.openShiftIds.length} care shift(s) in this period have nobody on them and are not counted.`,
+          `${coverHere} shift(s) in this period need cover: the member rostered is absent, so they are not counted.`,
+        );
+      }
+      if (provided.openShiftIds.length - coverHere > 0) {
+        own.push(
+          `${provided.openShiftIds.length - coverHere} care shift(s) in this period have nobody on them and are not counted.`,
         );
       }
       const overriddenHere = provided.shiftIds.filter((id) => overriddenShiftIds.has(id)).length;
@@ -551,6 +647,52 @@ export async function rotaCheck(
   for (const w of workers) workingTime.push(await workingTimeFor(tx, w, rotaRow, rotaShiftIds));
 
   const openShiftIds = shifts.filter((s) => !assignmentOf(s.id)).map((s) => s.id);
+  // Bank and agency workers with no induction at the location (scheduling.md section 15 rule 5).
+  const assigned = shifts
+    .map((s) => assignmentOf(s.id))
+    .filter((a): a is AssignmentRow => a !== null);
+  const agencyMembers =
+    assigned.length === 0
+      ? []
+      : await withSystemRights(tx, () =>
+          tx
+            .select({ id: agencyWorker.tenantUserId })
+            .from(agencyWorker)
+            .where(
+              inArray(agencyWorker.tenantUserId, [...new Set(assigned.map((a) => a.workerId))]),
+            ),
+        );
+  const inducted =
+    agencyMembers.length === 0
+      ? []
+      : await tx
+          .select({ workerId: locationInduction.workerId })
+          .from(locationInduction)
+          .where(
+            and(
+              eq(locationInduction.locationId, rotaRow.locationId),
+              inArray(
+                locationInduction.workerId,
+                agencyMembers.map((m) => m.id),
+              ),
+            ),
+          );
+  const inductionsDue = assigned
+    .filter(
+      (a) =>
+        agencyMembers.some((m) => m.id === a.workerId) &&
+        !inducted.some((i) => i.workerId === a.workerId),
+    )
+    .map((a) => a.id);
+  const coverNeededAssignmentIds = shifts.flatMap((s) => {
+    const a = assignmentOf(s.id);
+    return a && coverNeededOf(a.id) ? [a.id] : [];
+  });
+  // H-927: a booked bank or agency worker on a shift running now with nobody assigned (HZ-073).
+  const rotaShiftSet = new Set(shifts.map((s) => s.id));
+  const peopleUnassigned = (await agencyWithoutPeople(tx, rotaRow.locationId, now, now, now))
+    .filter((x) => rotaShiftSet.has(x.shiftId))
+    .map((x) => x.assignmentId);
   const blockedAssignmentIds = eligibility.filter((e) => !e.covered).map((e) => e.assignmentId);
   const periodsToAcknowledge = staffing
     .filter((p) => p.status === "below" || p.status === "incomplete" || p.status === "no_scale")
@@ -559,6 +701,9 @@ export async function rotaCheck(
     staffing.some((s) => s.status !== "met") ||
     workingTime.some((w) => w.status === "cannot_check" || w.findings.length > 0) ||
     openShiftIds.length > 0 ||
+    inductionsDue.length > 0 ||
+    coverNeededAssignmentIds.length > 0 ||
+    peopleUnassigned.length > 0 ||
     eligibility.some((e) => !e.allowed);
   const digest = createHash("sha256")
     .update(
@@ -578,6 +723,9 @@ export async function rotaCheck(
           s.warnings,
         ]),
         periodsToAcknowledge,
+        inductionsDue,
+        coverNeededAssignmentIds,
+        peopleUnassigned,
         workingTime,
       }),
     )
@@ -591,6 +739,9 @@ export async function rotaCheck(
     workingTime,
     eligibility,
     openShiftIds,
+    inductionsDue,
+    coverNeededAssignmentIds,
+    peopleUnassigned,
     hasWarnings,
     periodsToAcknowledge,
     blockedAssignmentIds,

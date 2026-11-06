@@ -169,6 +169,32 @@ export const CorrectOutage = z
   })
   .meta({ id: "CorrectOutage" });
 
+/**
+ * One entry to review before reconciling (H-267, HZ-092): who it is about, what kind of record and
+ * when, so the reviewer can find it, with no text or values of the entry. `person` is null when the
+ * reader cannot see that person (counted in the organisation's view, rule 14): the web then says
+ * so and offers no link.
+ */
+export const ReconcileEntry = z
+  .object({
+    id: uuid,
+    personId: uuid,
+    person: z
+      .object({
+        givenName: z.string(),
+        familyName: z.string(),
+        preferredName: z.string().nullable(),
+      })
+      .nullable(),
+    /** The record's kind: `care_note`, `observation.<chart>`, `body_map_mark`, `activity_record`, `visit_log`. */
+    kind: z.string(),
+    occurredAt: isoDateTime,
+    source: z.enum(["back_entry", "digital"]),
+    paperReference: z.string().nullable(),
+  })
+  .meta({ id: "ReconcileEntry" });
+export type ReconcileEntry = z.infer<typeof ReconcileEntry>;
+
 export const OutageReconciliation = z
   .object({
     outage: OutageItem,
@@ -182,6 +208,8 @@ export const OutageReconciliation = z
     duplicateGroups: z.array(z.array(uuid)),
     /** Back-entries outside the window with no reason for it; review each before reconciling. */
     outsideWindowEntryIds: z.array(uuid),
+    /** Every entry in `duplicateGroups` and `outsideWindowEntryIds`, with its person, kind and time. */
+    reviewEntries: z.array(ReconcileEntry),
     /** Whether you entered or sent any of its paper records, so cannot reconcile it (H-203). */
     enteredByYou: z.boolean(),
     /** What stops reconciling now, in words; empty when only the statement is needed. */

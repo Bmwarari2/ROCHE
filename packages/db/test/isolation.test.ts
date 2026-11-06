@@ -66,7 +66,13 @@ describe("hazard HZ-011 tenant isolation for harbour_app", () => {
   });
 
   it("reads no row of the tables it may not read at all, and only those are unreadable", async () => {
-    expect(unreadableTables).toEqual(["equality_monitoring"]);
+    // Equality monitoring, and anonymous survey responses released and waiting (scheduling.md
+    // section 16 rule 3), reached only through their definer functions.
+    expect(unreadableTables).toEqual([
+      "equality_monitoring",
+      "pulse_survey_response",
+      "pulse_survey_response_pending",
+    ]);
     for (const table of unreadableTables) {
       await expect(
         inContext(app(), ctx(TENANT_A, ids.a.manager, "tenant"), (c) =>

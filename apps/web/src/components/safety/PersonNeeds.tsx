@@ -12,7 +12,7 @@ export type PersonNeedsOf = Pick<PersonSummary, "communicationNeeds" | "communic
  */
 export function PersonNeeds({ person }: { readonly person: PersonNeedsOf }) {
   return (
-    <dl className="m-0 flex flex-wrap items-start gap-x-2 gap-y-1">
+    <dl className="m-0 flex max-w-full flex-wrap items-start gap-x-2 gap-y-1 [&>dd]:min-w-0 [&>dd]:max-w-full">
       <dt className="text-body-dense font-semibold">{t("people.header.communicationNeeds")}</dt>
       <dd className="m-0">
         <CommunicationStatus

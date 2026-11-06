@@ -71,6 +71,7 @@ const registration = (renewalDueOn: string): ComplianceDetail => ({
   pin: "12A3456E",
   renewalDueOn,
   revalidationDueOn: renewalDueOn,
+  nmcPart: "nurse",
 });
 
 const view = (stored: StoredComplianceItem, profile = carer) =>
@@ -243,6 +244,18 @@ describe("Staff file items (workforce.md section 2a)", () => {
       ["references_none"],
     ],
     ["a current registration", item(registration("2027-03-31")), true, []],
+    [
+      "hazard HZ-123 an NMC registration without its register part says so (H-835)",
+      item({
+        ...(registration("2027-03-31") as Extract<
+          ComplianceDetail,
+          { kind: "professional_registration" }
+        >),
+        nmcPart: null,
+      }),
+      true,
+      ["nmc_part_missing"],
+    ],
     [
       "a registration past its renewal",
       item(registration("2026-10-30")),

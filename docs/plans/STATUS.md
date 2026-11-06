@@ -4,11 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 1% done** (2 of 233 register rows `done`; 95 `partial`, 136 `todo`). Rows become `done`
-**Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
-**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
-**Overall: 0% done** (0 of 233 register rows `done`; 80 `partial`, 153 `todo`). Rows become `done`
-only when they link spec, code, tests and user documentation; no user guides exist yet.
+**Overall: 1% done** (3 of 234 register rows `done`; 103 `partial`, 128 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 
@@ -16,7 +12,6 @@ screens (#128, `docs/user-guides/`).
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
-| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, in clinical review |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, cleared by the sixth clinical review; slice 3 (administration, PRN, competence and CD rules, MEDS-002, 003, 005 and 013 domain only; ADR-0082; HZ-116, HZ-119) pushed on `feat/meds-domain-administration`, stacked on #135 |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
@@ -43,7 +38,9 @@ cancelled by the runner. Re-run that job, then merge.
 in one integration batch: the Drizzle migrator skips a migration whose journal time is older than
 the newest one applied. Never edit a migration that is on `main`.
 
-- **Batch 3a** (merge first):
+- **Batch 3a** (merge first): built on `integration/phase-2-batch-3a` (06/11/2026) with every
+  branch below, 0118 last, and main at 5dec5f37; see
+  [the batch's log entry](../changelog-dev/2026-11-06-integration-phase-2-batch-3a.md).
   - 0104 `feat/sched-bank-agency`
   - 0107 `feat/sched-absence-leave`
   - 0108 `feat/quality-dashboard-pir`
@@ -56,8 +53,7 @@ the newest one applied. Never edit a migration that is on `main`.
   - 0115 `feat/sched-wellbeing`
   - 0116 `feat/sched-pay-runs`
   - 0117 `feat/platform-crypto-shred`
-  - 0118 `fix/recommended-answers-care`. Not ready: the clinical re-review fixes are part done
-    (commit 8ff73957 lists what is left).
+  - 0118 `fix/recommended-answers-care` (ready at 2c981215, merged last)
   - Branches with no migration:
     - `feat/web-rota`
     - `feat/web-pay-time`
@@ -138,6 +134,26 @@ H-09, H-105, H-521, H-522, H-535, H-569, H-663, H-664, H-781 and H-829.
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
+recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
+H-213, H-214, H-262, H-264 (migration 0118), H-267, H-269, H-270, H-381, H-410, H-420, H-481,
+H-482, H-543, H-551 and H-595. Left open, each with a note in
+[human-actions.md](human-actions.md):
+- H-125: the native module binding the database key to the device passcode (iOS
+  `SecAccessControl` with `.userPresence`, Android Keystore with device-credential
+  authentication); the interim rule (Care mode enrols only devices with strong biometrics) is built.
+- H-228: the print test of the letterhead and window address on real DL and C5 envelopes.
+- H-268: back-entry from paper on the incident and assessment APIs and their web forms (needs
+  `outage_id`, the paper time and reference on `incident` and `assessment`: a migration, the
+  back-entry checks in both routes and the paper record choice on both forms).
+- H-306: judging a task move's permission at the time of care waits for the phone to send that
+  time (H-309, whose default keeps the check at upload).
+- **Release blocker (H-595)**: HZ-126 is now rated Catastrophic, residual 4 until H-599 is settled;
+  under the clinical risk management plan a residual of 4 blocks a production release that relies
+  on the safeguarding log (on `main` since slice 13), so it is not used by a live tenant until then.
+- The ratings applied here (H-543, H-595, H-267) are recommended ratings, not the CSO's; the CSO
+  rates them, and signs safety case v0.1 (H-381), at the testing phase.
+
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or
 security change rather than a web one:
@@ -190,6 +206,15 @@ maintenance rule; the Cloud SQL edition (PITR window); the certificate pin set (
 pack codes without email (ADR-0050). The owner also accepted the default of every open decision he
 owns; the rows with no default stay open in human-actions.md.
 
+**Pushed on 01/11/2026, not merged: slice 52, the medicines record screens**
+(`feat/web-medicines-record`, cut from `feat/meds-record-schema` and merging after it; MEDS-001 web,
+MEDS-006 partly). The person record's Medicines tab: the entries with their state as an icon and a
+word, one entry with its versions (withdrawn struck through), transcription from a dm+d search, the
+second check by another person, stopping with a reason and a source, and reconciliation from sources
+and lines to each person's decision and completion; the person and their allergies beside every
+form. A dm+d product search on the API's port (`GET /v1/medicines/products`). Self-administration is
+not in slice 16's API (H-1281). Open: H-1280 to H-1287.
+
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
 
@@ -228,6 +253,13 @@ file at midday; #130 workflow approvals and SLA states across modules (PLAT-011)
 field reaches the address before hydration (`apps/web/src/forms.test.ts`); #136 Phase 2 slice 5
 (Working Time rules); #139 Phase 2 slice 80 (Cyber Essentials and ISO 27001 mapping); #141
 `fromUkWallClock` refuses a time that does not exist instead of recursing.
+
+**Pushed on 31/10/2026, not merged:** `feat/platform-crypto-shred` (PLAT-012 stays `partial`).
+Every stored object is now envelope-encrypted under one Cloud KMS key per organisation, a
+whole-organisation shred needs two people, and destruction certificates are signed (ADR-0109,
+migration 0117, human actions H-1110 to H-1118). It is cut from `feat/api-google-cloud-adapters`
+and merges after it. Still to do on PLAT-012: the shred screens in `apps/web`, and certificates as
+signed PDFs (retention-and-deletion.md section 5).
 
 **Paused at 15:10 on 31/10/2026** for the account's usage limit; every builder was asked to push
 its work in progress (`wip(...)` commits) and stop. Resume by reading this section.

@@ -223,11 +223,22 @@ export const HandoverSummary = z
      * they can see (an acknowledgement before the shift ended does not count); null when limited.
      */
     unacknowledged: z.boolean().nullable(),
+    /**
+     * When the incoming shift's acknowledgement is late: the shift's end plus
+     * `handover.acknowledgement_grace_minutes`, the time the nurse in charge is alerted (H-410);
+     * null when the figure cannot be read, so nothing is called overdue on a guess.
+     */
+    acknowledgementDueAt: isoDateTime.nullable(),
   })
   .meta({ id: "HandoverSummary" });
 export type HandoverSummary = z.infer<typeof HandoverSummary>;
 
 export const HandoverDetail = HandoverSummary.extend({
+  /**
+   * Booked bank or agency workers on this shift now with nobody assigned to them (H-927; HZ-073):
+   * the nurse in charge assigns people so they can see allergies and care plans. Ids only.
+   */
+  agencyWithoutPeople: z.array(z.object({ memberId: uuid, shiftId: uuid })),
   /** The items the reader may see, in the order they were compiled and added. */
   items: z.array(HandoverItem),
   notes: z.array(HandoverNoteItem),

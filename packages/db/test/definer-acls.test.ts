@@ -17,7 +17,35 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.admit_handed_over_entry(uuid, uuid, uuid, uuid, text, uuid, timestamp with time zone, integer)":
     ["harbour_app"],
   "app.auth_user_has_membership(text)": ["harbour_invitation_owner"],
+  // The agency access window (ADR-0088, migration 0104), read by row-level security.
+  // The agency window binds the definer owners that read role rows too (migration 0118).
+  "app.agency_access_open(uuid, uuid)": [
+    "harbour_app",
+    "harbour_import_owner",
+    "harbour_invitation_owner",
+    "harbour_quality_reader",
+    "harbour_sample_owner",
+    "harbour_silo_owner",
+    "harbour_wellbeing_owner",
+  ],
+  "app.member_is_agency(uuid)": [
+    "harbour_app",
+    "harbour_import_owner",
+    "harbour_invitation_owner",
+    "harbour_quality_reader",
+    "harbour_sample_owner",
+    "harbour_silo_owner",
+    "harbour_wellbeing_owner",
+  ],
+  // Whose working time an approver reads (migration 0109).
+  "app.reads_worker_time(uuid)": ["harbour_app"],
+  // A pay run's state for its lines' policies (migration 0116).
+  "app.has_locked_pay_line(uuid)": ["harbour_app"],
+  "app.pay_run_calculation(uuid)": ["harbour_app"],
+  "app.pay_run_status(uuid)": ["harbour_app"],
   "app.claim_invitation(text)": ["harbour_app"],
+  "app.pulse_survey_results(uuid)": ["harbour_app"],
+  "app.submit_pulse_response(uuid, jsonb)": ["harbour_app"],
   "app.evidence_pack_link_for_token(text)": ["harbour_app"],
   "app.family_can_see(uuid, text, text, timestamp with time zone)": [
     "harbour_app",
@@ -25,11 +53,15 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   ],
   "app.family_item_shown(uuid)": ["harbour_app", "harbour_owner"],
   "app.invitation_for_token(text)": ["harbour_app"],
+  "app.works_at(uuid, uuid)": ["harbour_app", "harbour_owner"],
   "app.invite_first_owner(uuid, text)": ["harbour_operator"],
   "app.memberships_for_auth_user(text)": ["harbour_app"],
   "app.provision_tenant(jsonb, jsonb, jsonb)": ["harbour_operator"],
   "app.record_invitation_sign_in(text, text)": ["harbour_app"],
   "app.seed_discard_reasons(uuid)": [],
+  // Supervision notes (slice 57, migration 0114): read rule of supervision_note.
+  "app.supervises_member(uuid)": ["harbour_app"],
+  "app.supervision_in_force(uuid)": ["harbour_app"],
   // The round gate data (migration 0071): called only by its own definer trigger functions.
   "app.refresh_earlier_plan(uuid, uuid[])": [],
   "app.task_from_earlier_plan(uuid, uuid)": [],
@@ -54,8 +86,14 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Processor breach notices (slice 20, migration 0082).
   "app.send_processor_breach_notice(uuid, uuid, text, text, integer, integer, text, text, text, text, text)":
     ["harbour_operator"],
+  // The quality dashboard's counts (slice 47, migration 0108): the API, for a member holding
+  // quality.audit.manage at the location, which the function checks itself.
+  "app.quality_indicator_counts(uuid, date, date, integer)": ["harbour_app"],
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
+  // Cover needs at any home of the organisation (HZ-123, migration 0107).
+  "app.raise_cover_need(uuid, uuid)": ["harbour_app"],
+  "app.absence_member(uuid)": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
   // Import wizard (Phase 2 slice 26, migration 0088).
   "app.undo_import_batch(uuid, text)": ["harbour_app"],
@@ -68,6 +106,15 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.sso_sign_in_facts(text, text)": ["harbour_app"],
   "app.link_sso_member(text, text)": ["harbour_app"],
   "app.sso_key_ref(text)": ["harbour_app"],
+  // The dm+d release loader (Phase 2 slice 10, migration 0110, ADR-0080): the worker's job and a
+  // manual run by the owner; never the application.
+  "app.dmd_begin_release(text, date, text, text, jsonb)": ["harbour_owner", "harbour_worker"],
+  "app.dmd_load_rows(uuid, text, jsonb)": ["harbour_owner", "harbour_worker"],
+  "app.dmd_finish_release(uuid)": ["harbour_owner", "harbour_worker"],
+  "app.dmd_record_refusal(text, date, text, text, text, jsonb, jsonb, integer)": [
+    "harbour_owner",
+    "harbour_worker",
+  ],
 };
 
 let db: TestDatabase;

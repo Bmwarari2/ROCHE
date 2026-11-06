@@ -36,8 +36,12 @@ const ShiftShapeFields = {
   requiredCompetences: z.array(Competence).max(8).default([]),
   requiredSkills: z.array(StaffingSkill).max(4).default([]),
   supervised: z.boolean().default(false),
-  /** The organisation counts it as care on the floor (false for housekeeping, kitchen, office). */
-  countsAsCare: z.boolean().default(true),
+  /**
+   * The organisation counts it as care on the floor (false for housekeeping, kitchen, office).
+   * Left out, it is true, except for a supervised or shadowing shift, which counts only when the
+   * organisation chooses (H-830).
+   */
+  countsAsCare: z.boolean().optional(),
 };
 
 export const CreateShiftTemplate = z
@@ -122,6 +126,11 @@ export const AssignmentItem = z
     publishedAt: isoDateTime.nullable(),
     /** The blockers a manager's override covered, as `blockerKey`s; empty when none. */
     overridden: z.array(z.string()),
+    /**
+     * HZ-123: the member is away (an approved or recorded absence) on the shift, so it needs
+     * cover and the staffing comparison does not count them. Never says why.
+     */
+    coverNeeded: z.boolean(),
   })
   .meta({ id: "AssignmentItem" });
 
@@ -330,6 +339,15 @@ export const RotaCheck = z
       }),
     ),
     openShiftIds: z.array(uuid),
+    /** Assignments of bank or agency workers with no induction recorded at the location. */
+    inductionsDue: z.array(uuid),
+    /** HZ-123: assignments whose member is away on the shift: counted as open, with a warning. */
+    coverNeededAssignmentIds: z.array(uuid),
+    /**
+     * Assignments of booked bank or agency workers on a shift running now with nobody assigned to
+     * them (H-927; HZ-073): assign people so they can see allergies and care plans.
+     */
+    peopleUnassigned: z.array(uuid),
     /** True when any comparison is not `met` or any working time finding stands. */
     hasWarnings: z.boolean(),
     /**
@@ -372,3 +390,23 @@ export const MyShiftList = z
     ),
   })
   .meta({ id: "MyShiftList" });
+
+/** Who may be put on a shift at a location: active members with a role there or organisation-wide. */
+export const RotaWorkerList = z
+  .object({ items: z.array(StaffMember) })
+  .meta({ id: "RotaWorkerList" });
+
+export type ShiftKind = z.infer<typeof ShiftKind>;
+export type ShiftTemplateItem = z.infer<typeof ShiftTemplateItem>;
+export type ShiftPatternItem = z.infer<typeof ShiftPatternItem>;
+export type ShiftItem = z.infer<typeof ShiftItem>;
+export type RotaItem = z.infer<typeof RotaItem>;
+export type RotaSummary = z.infer<typeof RotaSummary>;
+export type RosterBlockerItem = z.infer<typeof RosterBlockerItem>;
+export type EligibilityItem = z.infer<typeof EligibilityItem>;
+export type AssignmentResult = z.infer<typeof AssignmentResult>;
+export type WorkerWorkingTime = z.infer<typeof WorkerWorkingTime>;
+export type StaffingComparisonItem = z.infer<typeof StaffingComparisonItem>;
+export type RotaCheck = z.infer<typeof RotaCheck>;
+export type MyShiftList = z.infer<typeof MyShiftList>;
+export type RotaWorkerList = z.infer<typeof RotaWorkerList>;

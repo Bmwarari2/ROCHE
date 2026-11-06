@@ -45,8 +45,9 @@ import {
   useScopeOf,
   withTenant,
 } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
+import { backupDays, certificateItem, issueCertificate } from "../services/certificates";
 import {
   activeHolds,
   careEndedOn,
@@ -60,6 +61,7 @@ import {
   toDocumentItems,
 } from "../services/documents";
 import { policyDocumentUse } from "../services/policies";
+import { shredStarted } from "../services/shred";
 import {
   conflictResponse,
   createRouter,
@@ -257,6 +259,10 @@ export const documentsRouter = createRouter()
       // HR-only staff documents go only through the staff file (workforce.md section 5).
       if (q.category === "staff_hr_document") {
         throw problems.invalid("Add HR-only staff documents from the worker's staff file.");
+      }
+      // E-learning packages go only through the e-learning route, which checks the archive.
+      if (q.category === "elearning_package") {
+        throw problems.invalid("Add e-learning packages from the e-learning courses page.");
       }
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
       // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
@@ -691,6 +697,16 @@ export const documentsRouter = createRouter()
       }
       const row = await withTenant(c, async (tx) => {
         await lockRetention(tx, access.tenantId);
+        // Once a shred is approved its keys are being, or have been, destroyed: a hold placed now
+        // would hold nothing and hide that (security review of PLAT-012, H1).
+        if (await shredStarted(tx)) {
+          throw new HttpProblem(
+            409,
+            "shred_under_way",
+            "The hold was not placed.",
+            "This organisation's records have been approved for destruction.",
+          );
+        }
         const [placed] = await tx
           .insert(legalHold)
           .values({
@@ -857,7 +873,7 @@ export const documentsRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, RETENTION_PERMISSION);
       const req = c.req.valid("json");
-      const { storage, logger } = c.get("services");
+      const { storage, logger, tenantKeys, config } = c.get("services");
       const { result, stored } = await withTenant(c, async (tx) => {
         const now = new Date();
         // A hold placed before this point is committed and read below; one placed after waits
@@ -888,20 +904,19 @@ export const documentsRouter = createRouter()
             )
             .returning({ id: document.id });
           if (updated.length === 0) continue;
-          const [certificate] = await tx
-            .insert(destructionCertificate)
-            .values({
-              recordClass,
-              subjectType: "document",
-              subjectIds: updated.map((d) => d.id),
-              recordCount: updated.length,
-              retentionRule: docs[0]?.rule ?? {},
-              reason: req.reason,
-              method: `storage_delete_all_versions:${storage.provider}`,
-              executedAt: now,
-            })
-            .returning();
-          if (!certificate) throw problems.conflict();
+          // Signed (PLAT-012, ADR-0109): the body's hash and the certificate key's signature.
+          const certificate = await issueCertificate(tx, tenantKeys, {
+            tenantId: access.tenantId,
+            recordClass,
+            subjectType: "document",
+            subjectIds: updated.map((d) => d.id),
+            recordCount: updated.length,
+            retentionRule: docs[0]?.rule ?? {},
+            reason: req.reason,
+            method: `storage_delete_all_versions:${storage.provider}`,
+            executedAt: now,
+            backupDays: backupDays(config),
+          });
           certificates.push(certificate);
           // The bytes are deleted only once this commits; the event retries the deletion until
           // it succeeds (outboxHandlers in jobs/tasks.ts), so none outlive a failed attempt.
@@ -958,20 +973,8 @@ export const documentsRouter = createRouter()
  * review, 31 October 2026). Releasing a hold needs no lock: a destruction that misses a release
  * only skips a document it could have destroyed.
  */
-async function lockRetention(tx: Transaction, tenantId: string): Promise<void> {
+export async function lockRetention(tx: Transaction, tenantId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`retention:${tenantId}`}))`);
-}
-
-function certificateItem(cert: typeof destructionCertificate.$inferSelect) {
-  return {
-    id: cert.id,
-    recordClass: cert.recordClass,
-    subjectType: cert.subjectType,
-    recordCount: cert.recordCount,
-    reason: cert.reason,
-    method: cert.method,
-    executedAt: cert.executedAt.toISOString(),
-  };
 }
 
 function holdItem(row: typeof legalHold.$inferSelect) {

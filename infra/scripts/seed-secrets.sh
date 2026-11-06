@@ -157,7 +157,7 @@ seed() {
       local role="${name#db-}"
       seed_role "${role%-*}"
       ;;
-    api-auth-secret | api-evidence-link-secret | api-speak-up-throttle-secret)
+    api-auth-secret | api-evidence-link-secret | api-elearning-launch-secret | api-speak-up-throttle-secret)
       openssl rand -base64 48 | tr -d '\n' >"${WORKDIR}/value"
       put_file "${name}" "${WORKDIR}/value"
       ;;

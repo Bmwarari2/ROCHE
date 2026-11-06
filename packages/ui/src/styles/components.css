@@ -85,11 +85,24 @@
     text-align: center;
     text-decoration: none;
     white-space: nowrap;
+    /* Never wider than the column it sits in (WCAG 1.4.10 reflow at 360 px). */
+    max-width: 100%;
     cursor: pointer;
     transition:
       background-color var(--motion-duration-fast) var(--motion-easing),
       border-color var(--motion-duration-fast) var(--motion-easing),
       color var(--motion-duration-fast) var(--motion-easing);
+  }
+
+  /* Phones: a long label wraps inside the button rather than pushing the page sideways. */
+  @media (max-width: 734px) {
+    .hb-button {
+      white-space: normal;
+      /* Breaks only a word longer than the line, so a button never shrinks to a letter a line. */
+      overflow-wrap: break-word;
+      /* A wrapped label in a full pill would run into its curved ends. */
+      border-radius: var(--corner-input);
+    }
   }
 
   .hb-button:hover {
@@ -236,10 +249,34 @@
     object-fit: contain;
   }
 
-  /* On phones the logo gives way, so the switchers and account menu keep their room. */
+  /* On phones the logo gives way, so the switchers and account menu keep their room. With the
+     phone's "Menu" at the start of the bar, the product name gives way too: Home is in the menu
+     (MOB-013). The bar grows with large text rather than clip it (WCAG 1.4.4). */
   @media (max-width: 734px) {
     .hb-appbar__logo {
       display: none;
+    }
+
+    .hb-appbar {
+      height: auto;
+      min-height: var(--nav-height);
+    }
+
+    .hb-appbar__inner {
+      min-height: var(--nav-height);
+      gap: 4px;
+      padding-inline: 12px;
+    }
+
+    .hb-appbar__leading + .hb-appbar__brand {
+      display: none;
+    }
+
+    /* The names shorten to an ellipsis, never below a 44 px target. */
+    .hb-appbar__context,
+    .hb-appbar__switcher {
+      min-width: var(--touch-target);
+      padding-inline: 6px;
     }
   }
 
@@ -320,7 +357,8 @@
 
     .hb-appbar__context,
     .hb-appbar__switcher {
-      font-size: 14px;
+      /* 15 px on phones: never below the phone minimum (section 8). */
+      font-size: var(--type-callout-size);
     }
 
     .hb-appbar__context-icon {
@@ -375,6 +413,71 @@
     .hb-account-menu__name {
       display: none;
     }
+  }
+
+  /* Phone navigation (NavMenu): the app bar's "Menu" button and the sheet of modules. The
+     button shows at 734 px and below only, where the sidebar is hidden (MOB-013). */
+  .hb-appbar__leading {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+  }
+
+  .hb-navmenu {
+    display: none;
+  }
+
+  @media (max-width: 734px) {
+    .hb-navmenu {
+      display: flex;
+    }
+  }
+
+  .hb-navmenu__button {
+    min-height: var(--touch-target);
+    padding-inline: 12px;
+  }
+
+  .hb-navmenu__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hb-navmenu__link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: var(--touch-target);
+    padding: 0 12px;
+    border-radius: 10px;
+    color: var(--text);
+    font-size: var(--nav-text-size-drawer);
+    text-decoration: none;
+  }
+
+  .hb-navmenu__link:hover {
+    background-color: var(--bg-secondary);
+  }
+
+  /* The current module: a tint and bold words, as in the sidebar (never colour alone). */
+  .hb-navmenu__link[aria-current="page"] {
+    background-color: color-mix(in srgb, var(--accent) 14%, transparent);
+    font-weight: 600;
+  }
+
+  .hb-navmenu__icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+  }
+
+  .hb-navmenu__label {
+    flex: 1;
+    overflow-wrap: break-word;
   }
 
   /* Menus (the app bar switchers and the account menu) */
@@ -494,14 +597,16 @@
   }
 
   .hb-sidebar--collapsed {
-    width: calc(var(--touch-target) + 24px);
+    /* The target, the padding on both sides and the hairline border: links stay 44 px wide. */
+    width: calc(var(--touch-target) + 24px + var(--hairline));
   }
 
   /* `hb-sidebar--narrow-auto`: until the app has chosen (before hydration), a narrow screen shows
      icons only, as the app will once it runs. */
   @media (max-width: 734px) {
     .hb-sidebar--narrow-auto {
-      width: calc(var(--touch-target) + 24px);
+      /* The target, the padding on both sides and the hairline border: links stay 44 px wide. */
+      width: calc(var(--touch-target) + 24px + var(--hairline));
     }
 
     .hb-sidebar--narrow-auto .hb-sidebar__link,
@@ -545,6 +650,7 @@
     align-items: center;
     gap: 12px;
     width: 100%;
+    min-width: var(--touch-target);
     min-height: var(--touch-target);
     padding: 0 12px;
     border: 0;
@@ -804,6 +910,18 @@
     font-weight: 600;
   }
 
+  /* Phones and touch screens: a link in a cell (a person's name, a record) is a 44 px target
+     (section 8) without making the row taller: the padding grows the hit area, the negative
+     margin gives the space back, and the link still wraps with the text around it. */
+  @media (max-width: 734px), (pointer: coarse) {
+    .hb-table__td a {
+      display: inline-block;
+      min-width: var(--touch-target);
+      padding-block: 12px;
+      margin-block: -12px;
+    }
+  }
+
   .hb-table__row:last-child > .hb-table__td {
     border-bottom: 0;
   }
@@ -874,6 +992,7 @@
 
   .hb-card__header {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
@@ -883,10 +1002,12 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-width: 0;
   }
 
   .hb-card__title {
     margin: 0;
+    overflow-wrap: break-word;
     font-size: var(--type-intro-size);
     font-weight: 600;
     line-height: 1.19;
@@ -899,9 +1020,13 @@
     font-size: var(--type-callout-size);
   }
 
+  /* The actions keep to one row beside the heading while there is room, and wrap below it on a
+     phone (WCAG 1.4.10). */
   .hb-card__actions {
     display: flex;
+    flex-wrap: wrap;
     flex-shrink: 0;
+    max-width: 100%;
     align-items: center;
     gap: 8px;
   }
@@ -1160,8 +1285,11 @@
     font-size: var(--type-callout-size);
   }
 
+  /* Options wrap to a second row rather than pushing a phone's page sideways (WCAG 1.4.10). */
   .hb-segmented__track {
     display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
     gap: 2px;
     padding: 2px;
     border: var(--hairline) solid var(--border);
@@ -1303,6 +1431,14 @@
     border-radius: var(--corner-card);
     background-color: var(--card);
     color: var(--text);
+  }
+
+  /* Phones: cards and stepped forms give their padding back to the content (MOB-013). */
+  @media (max-width: 734px) {
+    .hb-card,
+    .hb-stepper {
+      padding: 16px;
+    }
   }
 
   .hb-stepper__header {
@@ -2153,11 +2289,13 @@
     opacity: 0.45;
   }
 
+  /* The whole card is the target; the control itself is 24 px as well, so it meets WCAG 2.5.8 on
+     its own when cards stack close together on a phone. */
   .hb-choice__input {
     flex: none;
-    width: 20px;
-    height: 20px;
-    margin: 2px 0 0;
+    width: 24px;
+    height: 24px;
+    margin: 0;
     accent-color: var(--accent);
   }
 
@@ -2201,8 +2339,8 @@
 
   .hb-check__input {
     flex: none;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     margin: 0;
     accent-color: var(--accent);
     cursor: pointer;

@@ -120,7 +120,15 @@ are policy defaults (marked to verify), never statutory.
    (`kioskDowntimePackUnlock`); every print or open is queued as an audit event with ids only and
    uploaded when online (`kioskPrintAuditEvent`); it is evicted when the device key is revoked and
    when its `downtime_pack` retention ends (`kioskDowntimeCacheDisposition`). Where the printed pack
-   is kept and who prints it is a deployer control in the business continuity plan.
+   is kept and who prints it is a deployer control in the business continuity plan, set as
+   recommended for H-214 (31/10/2026, reviewed at the testing phase): packs print single-sided
+   (double-sided puts two people's pages on one sheet); one printed pack per location is kept in a
+   named, secure place every shift knows (for example the nurses' station), and the superseded one
+   is shredded; the plan names who prints the new pack each day (by default the nurse in charge of
+   the night shift); the Registered Manager receives `operations.downtime_pack_missing` with a
+   named deputy as cover; and Thapsus's on-call is alerted by monitoring when the nightly job fails
+   for a location (`<prefix>-downtime-pack-failed`, docs/runbooks/on-call.md; with Grafana Cloud,
+   H-12), rather than finding it in the worker logs.
 9. **Declaring an outage** (`checkOutageDeclaration`). A kind and a description of at least
    `MIN_OUTAGE_DESCRIPTION_LENGTH` characters. The start may be before the declaration and an outage
    may be declared after it ended (with its end), so that back-entries have a window; a declaration
@@ -432,7 +440,11 @@ Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`)
   against the per-member limit before the pack is read; it is audited as printed only once the PDF
   is drawn; HEAD on the pack routes is refused (405). Photos are not printed (H-211): every
   person's page says to confirm who they are with a colleague who knows them, and the front sheet
-  says photos are not printed. When an ADRT is held, the resuscitation section prints "ADRT also
+  says photos are not printed. While the location's paper MAR and PEEP places are unconfirmed, the
+  front sheet also says so once, first among the safety-critical warnings ("Where the paper MAR and
+  the PEEPs are kept is not confirmed in Harbour: ask the nurse in charge before you need them.";
+  read from the location when the pack is printed, since a change to the places builds the pack
+  again; recommended answer to H-213, 31/10/2026). When an ADRT is held, the resuscitation section prints "ADRT also
   held: read it before any decision about resuscitation", and with no ReSPECT or DNACPR it never
   reads "not recorded" (HZ-015; wording H-212). Header times carry BST or GMT on the day the clocks
   change (HZ-009). "1 person" is singular.
@@ -590,7 +602,11 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
   entered or sent a paper record is told another manager must reconcile. Entries are listed by a
   short reference (the last 8 characters of the id), which every record list shows beside
   "Entered from a paper record"; the screen says to look in each person's record at the location
-  (#62 review round 1; HZ-092).
+  (#62 review round 1; HZ-092). Under each box the screen now lists every entry with its person,
+  kind of record, time and how it was recorded, linked to the person's notes, charts, body map or
+  activities, from the reconciliation's `reviewEntries` (named only when the reader can see the
+  person, never an entry's text; recommended answer to H-267, 31/10/2026), so reconciling may go
+  live.
 - Actions are offered for the permission held where the viewer works; `/v1/me` has no
   per-location `reaching` yet, so the API's refusal is the final word (STATUS item 21).
 - Not yet: the places form (no read route with the location's version) and the back-entry

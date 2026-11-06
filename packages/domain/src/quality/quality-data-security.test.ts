@@ -61,6 +61,13 @@ describe("data security evidence (quality.md 17.3 rules 29 to 31; QUAL-012)", ()
       "submitted",
       true,
     ],
+    [
+      "submitted with standards exceeded (H-917), not flagged",
+      "2026-06-01",
+      [submitted("2024/25"), submitted("2025/26", "standards_exceeded")],
+      "submitted",
+      false,
+    ],
     ["past the deadline without a submission", addDays(deadlineIn(2026), 1), [], "overdue", false],
     [
       "past the deadline, last year's submitted",

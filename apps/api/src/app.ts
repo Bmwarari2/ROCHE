@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createDatabase, createPool } from "@harbour/db";
+import { DOCUMENT_CATEGORIES, XAPI_STATEMENT_MAX_BYTES } from "@harbour/domain";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
@@ -16,9 +17,13 @@ import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import { TenantKeysShredded } from "./integrations/envelope";
 import { createHrLinkServices } from "./integrations/hr-link";
+import { createMedicinesPorts } from "./integrations/medicines-ports";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
+import { absencesRouter } from "./routes/absences";
+import { agencyRouter } from "./routes/agency";
 import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { breakGlassSearchRouter } from "./routes/break-glass-search";
@@ -37,6 +42,7 @@ import { disclosuresRouter } from "./routes/disclosures";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
 import { dsarRouter } from "./routes/dsar";
+import { elearningLaunchRouter, elearningRouter } from "./routes/elearning";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
@@ -51,8 +57,11 @@ import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { invitationsRouter } from "./routes/invitations";
 import { letterTemplatesRouter } from "./routes/letter-templates";
 import { lettersRouter } from "./routes/letters";
+import { loneWorkerRouter } from "./routes/lone-worker";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { medicinesRouter } from "./routes/medicines";
+import { medicinesDmdRouter } from "./routes/medicines-dmd";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
 import { onboardingRouter } from "./routes/onboarding";
@@ -64,6 +73,7 @@ import { operatorInvitationsRouter } from "./routes/operator-invitations";
 import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
 import { outbreaksRouter } from "./routes/outbreaks";
+import { payRouter } from "./routes/pay";
 import { peopleRouter } from "./routes/people";
 import { peopleDetailsRouter } from "./routes/people-details";
 import { peopleEnquiriesRouter } from "./routes/people-enquiries";
@@ -83,6 +93,7 @@ import {
 import { platformImportsRouter } from "./routes/platform-imports";
 import { policiesRouter } from "./routes/policies";
 import { qualityAuditsRouter } from "./routes/quality-audits";
+import { qualityDashboardRouter } from "./routes/quality-dashboard";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { recruitmentRouter } from "./routes/recruitment";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
@@ -93,6 +104,7 @@ import { sampleDataRouter } from "./routes/sample-data";
 import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { shredRouter } from "./routes/shred";
 import { speakUpRouter } from "./routes/speak-up";
 import { ldssRouter, sponsorshipRouter, staffPrivacyRouter } from "./routes/sponsorship";
 import { ssoRouter } from "./routes/sso";
@@ -102,6 +114,8 @@ import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
+import { timeAttendanceRouter } from "./routes/time-attendance";
+import { wellbeingRouter } from "./routes/wellbeing";
 import { workflowsRouter } from "./routes/workflows";
 import {
   createOidcDiscovery,
@@ -113,6 +127,10 @@ import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
+/** An e-learning package's limit (the `elearning_package` category). */
+const ELEARNING_PACKAGE_MAX_BYTES = DOCUMENT_CATEGORIES.elearning_package.maxBytes;
+/** A batch of xAPI statements: 50 of 16 KB, plus headroom. */
+const ELEARNING_STATEMENTS_MAX_BYTES = 50 * XAPI_STATEMENT_MAX_BYTES + 64 * 1024;
 /** Largest import upload (CSV text or JSON rows) accepted (platform.md rule 19). */
 export const IMPORT_MAX_BODY_BYTES = 12 * 1024 * 1024;
 /** Largest body any /v1/sync route accepts (security review round 4, M4). */
@@ -205,6 +223,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       mocks,
       smtp: config.smtp,
     }),
+    medicines: createMedicinesPorts(config.medicinesFixtures),
     mockEmail: mocks.email,
     hrLink: createHrLinkServices({
       production: config.NODE_ENV === "production",
@@ -293,6 +312,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     "/v1/documents/*",
     "/v1/people/:id/photo",
     "/v1/workforce/staff-files/:id/items/:kind/documents",
+    "/v1/absences/:id/fit-notes",
   ]) {
     app.use(
       path,
@@ -303,6 +323,19 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // E-learning packages (ADR-0093): the category's 100 MB plus headroom, refused before it is read.
+  app.use(
+    "/v1/workforce/elearning/courses",
+    bodyLimit({
+      maxSize: ELEARNING_PACKAGE_MAX_BYTES + 64 * 1024,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The package is too large.")),
+    }),
+  );
+  // The e-learning launch routes take no session; statements are small JSON (50 of 16 KB at most).
+  app.use("/e/*", capped(ELEARNING_STATEMENTS_MAX_BYTES));
+  // A commit carries the allowlisted data model only (suspend data at most 64,000 characters).
+  app.use("/v1/workforce/elearning/attempts/*", capped(128 * 1024));
   // An import upload is CSV text or JSON rows, capped before it is read (platform.md rule 19).
   app.use(
     "/v1/imports",
@@ -377,6 +410,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", speakUpRouter);
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
+  app.route("/", shredRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);
@@ -405,6 +439,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", inductionRouter);
   app.route("/", developmentRouter);
   app.route("/", evidenceLinkRouter);
+  app.route("/", elearningRouter);
+  app.route("/", elearningLaunchRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
   app.route("/", feedPublishRouter);
@@ -427,6 +463,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dataSecurityRouter);
   app.route("/", dsarRouter);
   app.route("/", disclosuresRouter);
+  app.route("/", qualityDashboardRouter);
+  app.route("/", medicinesRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
@@ -436,7 +474,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorBreachNoticesRouter);
   app.route("/", peopleDetailsRouter);
   app.route("/", schedulingDependencyRouter);
+  app.route("/", wellbeingRouter);
   app.route("/", rotaRouter);
+  app.route("/", agencyRouter);
+  app.route("/", absencesRouter);
+  app.route("/", timeAttendanceRouter);
+  app.route("/", medicinesDmdRouter);
+  app.route("/", loneWorkerRouter);
+  app.route("/", absencesRouter);
+  app.route("/", payRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
@@ -462,6 +508,14 @@ export function createApp(config: Config, logger: Logger): AppHandle {
 
   app.notFound((c) => problemResponse(c, problems.notFound(), c.get("requestId")));
   app.onError((error, c) => {
+    // A read or write of an organisation whose keys were shredded (PLAT-012, ADR-0109).
+    if (error instanceof TenantKeysShredded) {
+      return problemResponse(
+        c,
+        new HttpProblem(410, "shredded", "This organisation's records have been destroyed."),
+        c.get("requestId"),
+      );
+    }
     if (error instanceof HttpProblem) {
       const response = problemResponse(c, error, c.get("requestId"));
       if (error instanceof QuotaExceeded) {

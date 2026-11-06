@@ -12,6 +12,8 @@
  * Pure apart from the injected store and random source, so it is unit-tested.
  */
 
+import { t } from "../i18n/t";
+
 export const DB_KEY_ITEM = "harbour.db-key.v1";
 export const DB_ID_ITEM = "harbour.db-id.v1";
 export const DB_KEY_PROTECTION_ITEM = "harbour.db-key-protection.v1";
@@ -82,12 +84,30 @@ function parseProtection(value: string | null): KeyProtection | null {
  * Reads the key (prompting for biometrics) or, if there is none or it was invalidated (for example
  * because biometric enrolment changed), creates a new one.
  */
+/**
+ * Care mode on a live organisation needs strong biometrics until the key can be bound to the
+ * device passcode (H-125, MASVS-STORAGE): without them the key is readable whenever the device is
+ * unlocked. A passcode-only device is refused when its key would be made (enrolment), before
+ * anything is written; a key made earlier stays usable, so nothing already on the phone is lost.
+ */
+export class StrongBiometricsRequiredError extends Error {
+  constructor() {
+    super(t("mobile.unlock.strongBiometricsRequired"));
+    this.name = "StrongBiometricsRequiredError";
+  }
+}
+
 export async function loadOrCreateDatabaseKey(deps: {
   readonly store: SecretStore;
   readonly randomBytes: (length: number) => Uint8Array;
   readonly options: KeyOptions;
   /** Protection to use when a new key is created. */
   readonly preferredProtection: KeyProtection;
+  /**
+   * False to refuse making a new passcode-only key (H-125): Care mode on a live organisation
+   * enrols only devices with strong biometrics. True (the default) for the demonstration build.
+   */
+  readonly allowNewPasscodeKey?: boolean;
 }): Promise<LoadKeyResult> {
   const { store, options } = deps;
   const previousId = await store.getItem(DB_ID_ITEM, options.plainOptions);
@@ -107,6 +127,9 @@ export async function loadOrCreateDatabaseKey(deps: {
   }
 
   const protection = deps.preferredProtection;
+  if (protection === "passcode" && deps.allowNewPasscodeKey === false) {
+    throw new StrongBiometricsRequiredError();
+  }
   const hex = bytesToHex(deps.randomBytes(32));
   const id = bytesToHex(deps.randomBytes(8));
   if (!isValidKeyHex(hex)) throw new Error("Random source did not return 32 bytes");

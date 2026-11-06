@@ -38,12 +38,15 @@ export * from "./comms/notify-rates";
 export * from "./comms/template-style";
 export * from "./comms/templates";
 export * from "./comms/visit-booking";
+export * from "./integrations/dmd-release-source";
 export * from "./integrations/ports";
 export * from "./integrations/thapsus-hr";
 export * from "./medicines/administration";
 export * from "./medicines/competence";
 export * from "./medicines/controlled-drugs";
 export * from "./medicines/dmd";
+export * from "./medicines/dmd-release";
+export * from "./medicines/dmd-subset";
 export * from "./medicines/dose";
 export * from "./medicines/dosing-record";
 export * from "./medicines/intervals";
@@ -72,6 +75,7 @@ export * from "./people/transfer-pack";
 export * from "./platform/access";
 export * from "./platform/branding";
 export * from "./platform/breach-notice";
+export * from "./platform/crypto-shred";
 export * from "./platform/data-rights";
 export * from "./platform/documents";
 export * from "./platform/dpia";
@@ -129,9 +133,12 @@ export * from "./safety/questions";
 export * from "./safety/rates";
 export * from "./safety/safeguarding";
 export * from "./safety/whistleblowing";
+export * from "./scheduling/absence";
+export * from "./scheduling/agency";
 export * from "./scheduling/agreements";
 export * from "./scheduling/classification";
 export * from "./scheduling/dependency";
+export * from "./scheduling/lone-worker";
 // The rule-group functions take periods prepared inside the module; callers use checkWorkingTime.
 export {
   type NightAverageWindow,
@@ -141,7 +148,9 @@ export {
 export * from "./scheduling/pay";
 export * from "./scheduling/rates";
 export * from "./scheduling/rota";
+export * from "./scheduling/time-attendance";
 export * from "./scheduling/weekly-average";
+export * from "./scheduling/wellbeing";
 export * from "./scheduling/working-time";
 export * from "./scheduling/working-time-types";
 export { youngWorkerUntil } from "./scheduling/young-workers";

@@ -101,3 +101,30 @@ variable "log_sample_rate" {
   type    = number
   default = 1
 }
+
+variable "learn" {
+  description = <<-EOT
+    The e-learning content origin (ADR-0093), or null when courses do not launch. `hostname` is on
+    another registrable domain (`domain`) from domain_name, with its own certificate. Only paths under
+    `path_prefix` reach `backend` (a key of backends); everything else on that host is a fixed 404.
+    Responses carry no referrer and no powerful-feature permissions, and no X-Frame-Options is added:
+    the app frames the runtime page, whose own frame-ancestors decides who may.
+  EOT
+  type = object({
+    hostname    = string
+    domain      = string
+    backend     = string
+    path_prefix = string
+  })
+  default = null
+
+  validation {
+    condition     = var.learn == null ? true : startswith(var.learn.path_prefix, "/") && endswith(var.learn.path_prefix, "/")
+    error_message = "learn.path_prefix must start and end with a slash, for example /learn/."
+  }
+
+  validation {
+    condition     = var.learn == null ? true : endswith(var.learn.hostname, ".${var.learn.domain}")
+    error_message = "learn.hostname must be a host under learn.domain."
+  }
+}

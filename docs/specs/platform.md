@@ -851,6 +851,80 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (`POST /v1/documents?title=`, ADR-0031), which reaches the API's access logs; move them to
   headers or a metadata part, as the web route already does.
 
+### Crypto-shredding (PLAT-012, ADR-0109)
+
+Envelope encryption and per-organisation shredding ([ADR-0109](../decisions/0109-per-organisation-crypto-shredding.md);
+[retention-and-deletion.md](../compliance/retention-and-deletion.md) sections 4 and 5).
+
+**Rules**
+
+1. Every stored object (document, export archive, DSAR bundle) is encrypted before it reaches
+   storage, with a fresh 256-bit key wrapped by the organisation's own key (Cloud KMS in
+   production, a local provider in development and tests). The format is
+   `apps/api/src/integrations/envelope.ts`: AES-256-GCM in 64 KiB segments, the header (magic,
+   version, nonce prefix, wrapped key) and the storage key authenticated with every segment. A
+   tampered, truncated, reordered or moved object is refused. The bucket's CMEK stays underneath.
+2. An organisation's key wraps only with that organisation's id as authenticated data, so a key
+   wrapped for one organisation never unwraps for another.
+3. A whole-organisation shred is requested by a tenant-wide member with
+   `platform.retention.manage` (step-up), with a reason of at least 20 characters (no names: it
+   stays on the certificate) and the organisation's full export, downloaded within 30 days (the
+   shred destroys the export too). A **different** member with the same permission (step-up)
+   approves it within 7 days of the request, while the requester is still an active member holding
+   the permission and the export is still recent. One request may be open (pending or shredding)
+   at a time; any active legal hold refuses both the request and the approval. The requester may
+   cancel a pending request; any holder may withdraw one more than 7 days old. The database
+   refuses the same person as requester and approver, and a late approval.
+4. Approval is committed first (status `shredding`, audited, an outbox event published, under the
+   retention lock); from then on it cannot be cancelled and no legal hold can be placed
+   (`409 shred_under_way`). Then every version of the organisation's key is scheduled for
+   destruction and the signed certificate issued (status `approved`). If that cannot finish at
+   once, the approval answers `202` and the worker completes it from the outbox. Reads and writes
+   of the organisation's objects fail (`410 shredded`) at once in the approving process and within
+   30 seconds everywhere else (the data-key cache); the key material is destroyed when the delay
+   ends (30 days in Cloud KMS, recorded on the certificate) and cannot be restored after.
+5. Every destruction certificate (the existing per-document ones and the shred's) carries its body's
+   SHA-256 and a signature by Harbour's certificate key, with the key and algorithm inside the
+   signed body; the shred's also names both people, the export, the key versions and their destroy
+   times. Each states when database backups no longer hold deleted rows (the longer of the
+   point-in-time recovery window and the backup retention). Certificates hold opaque ids only.
+6. Database rows: soft delete, then hard delete with a certificate; no field-level encryption
+   (ADR-0109, "Database rows").
+
+**API** (additive): `GET /v1/retention/shred-requests`, `POST /v1/retention/shred-requests`,
+`POST /v1/retention/shred-requests/{id}/approve` (200 with the certificate, or 202 while the worker
+completes it), `POST /v1/retention/shred-requests/{id}/cancel`, all `platform.retention.manage`
+with step-up and tenant-wide; `GET /v1/destruction-certificates/{id}/verification` (the signed body
+and whether it verifies). Audited as `platform.retention.shred_requested`,
+`platform.retention.shred_approved`, `platform.retention.shred_completed` (with the certificate
+id), `platform.retention.shred_cancelled` and `platform.destruction_certificate.verify`, refusals
+too.
+
+**Schema** (migration 0117): `tenant_shred_request` (forced RLS, tenant-wide holders of
+`platform.retention.manage` only, one open request, insert and decide policies, a guard trigger,
+foreign keys to the export and the certificate, no DELETE); `destruction_certificate` gains
+`body_sha256`, `signature`, `signature_key`, `signature_algorithm`, `key_versions`,
+`keys_destroyed_at`, `backups_expire_at`, `requested_by` and `approved_by` (nullable, so existing
+rows stand), and an insert policy: tenant-wide holders of the permission only, naming themselves as
+approver.
+
+**Permission matrix**
+
+| Action | Permission |
+| --- | --- |
+| Read shred requests, certificates and their verification | `platform.retention.manage` |
+| Request, approve (a different person) or cancel (the requester, or anyone once lapsed) a shred | `platform.retention.manage`, step-up, tenant-wide |
+
+**Tests (written first)**: `packages/domain/src/platform/crypto-shred.test.ts` (request and
+approval rules, expiry and the export, table-driven; canonical certificate body);
+`apps/api/src/integrations/envelope.test.ts` (round trips, segments, tampering, truncation, moved
+objects, wrong organisation, streamed refusal before any byte, the cache after a shred);
+`apps/api/src/integrations/tenant-keys.test.ts` (local provider and Cloud KMS double: wrap, unwrap,
+shred, signature); `apps/api/test/crypto-shred.test.ts` (two-person and step-up, holds, expiry,
+requester eligibility, reads fail after a shred, certificate contents and signature, a signing
+failure completed by the worker); `packages/db/test/crypto-shred.test.ts` (isolation, the
+same-person check, the state guard, expiry, no DELETE, certificate insert policy).
+
 ## Statutory figures (PLAT-021)
 
 - `rate_table` seeded from [rates.md](rates.md), `retention_class` from
@@ -888,6 +962,13 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
   silence, are kept for `FLAGSMITH_CACHE_SECONDS`; unreachable (`FLAGSMITH_TIMEOUT_MS`), every flag
   falls back to the catalogue and the API logs `flags.remote_unavailable` with no ids. A provider
   error answers the organisation's own rows, then the catalogue default (#39 review L1).
+- `care.mobile_care_mode` (recommended answer to H-381, 31/10/2026): Care mode on the phone, off by
+  default and organisation-wide (a location row does not switch it on; never set by Flagsmith).
+  While it is off the phone refuses Care mode sign-in unless it holds unsent entries, and the API
+  refuses the sync token, the batch upload and a phone's entry uploads with 403 `care_mode_off`
+  (`refuseCareModeOff`), which the phone reads as access withdrawn, holding unsent entries; a
+  manager's hand-over of held entries is not refused. The demo tenant has it on. The organisation
+  switches it on only once a clinical safety case covers the app.
 - Later: per-role flags, the clinical routes through the provider, billing visibility (Phase 6).
 
 ## Localisation (PLAT-017)
@@ -1534,7 +1615,12 @@ change in `record_version` and the audit trail.
     routes (401 `sso_session_ended`). An idle session is ended at its next request, so nothing it
     does in between keeps it alive, and switching the flag back on revives none. The flag is
     changed outside the API (Flagsmith or the `feature_flag` table), so no write path deletes the
-    rows at that moment. The operator console refuses any SSO session.
+    rows at that moment. The operator console refuses any SSO session. Sync tokens are separate:
+    one issued while the flag was on stays valid until it expires, at most 15 minutes later
+    (`SYNC_TOKEN_TTL_SECONDS`, packages/sync/src/streams/index.ts), because PowerSync checks the
+    token's signature and expiry, not the flag; the next token is refused with the session.
+    Which organisation a session is from is read from the session Better Auth resolved, never
+    from a second read of its row, so a request racing its end is still taken as SSO.
 25. Wrong Harbour codes are throttled per member across all sessions as well as per session, the
     sign-in's own code step included (HZ-112): the member's attempts are counted in Postgres; after
     five in an hour each waits a minute, then four, then 15 (the cap), and at most ten are checked

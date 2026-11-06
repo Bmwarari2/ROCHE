@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
-import { addDemoPasskey, demoPerson, expectAccessible, signIn } from "./support";
+import {
+  addDemoPasskey,
+  closeModules,
+  demoPerson,
+  expectAccessible,
+  openModules,
+  signIn,
+} from "./support";
 
 /**
  * Tasks (PLAT-011; hazards HZ-004, HZ-006, HZ-008) against the demo tenant, as the Registered
@@ -147,10 +154,7 @@ test("hazards HZ-004 and HZ-006 a review task shows the entries to review, and a
 
 test("the manager creates a task, starts it and marks it done", async ({ page }) => {
   await page.goto("/");
-  await page
-    .getByRole("navigation", { name: "Modules" })
-    .getByRole("link", { name: "Tasks" })
-    .click();
+  await (await openModules(page)).getByRole("link", { name: "Tasks" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Tasks" })).toBeVisible();
   // Team tasks first: reviews go to a role, not a person (HZ-006).
   await expect(page.getByRole("link", { name: "Team tasks" })).toHaveAttribute(
@@ -257,10 +261,11 @@ test("a family member is offered neither tasks nor documents", async ({ page }) 
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
   // A family member's home is their updates.
   await page.waitForURL((url) => url.pathname === "/updates");
-  const nav = page.getByRole("navigation", { name: "Modules" });
+  const nav = await openModules(page);
   await expect(nav.getByRole("link", { name: "Updates" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Tasks" })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Documents" })).toHaveCount(0);
+  await closeModules(page);
   await page.goto("/tasks");
   await expect(main(page)).toContainText("You do not have access to this");
 });

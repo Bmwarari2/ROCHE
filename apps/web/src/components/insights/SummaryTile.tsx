@@ -44,7 +44,14 @@ export function SummaryTile({ tile }: { readonly tile: TileSummary }) {
   }
   if (tile.current) details.push(t("dashboard.tile.handover.current", { state: tile.current }));
   const earliest = formatDateTime(tile.earliestDue);
-  if (earliest) details.push(t("dashboard.tile.notifications.earliest", { dateTime: earliest }));
+  if (earliest) {
+    // A "without delay" notification in the law's words, as on the incident page (H-410).
+    details.push(
+      tile.earliestWithoutDelay
+        ? t("dashboard.tile.notifications.earliestWithoutDelay", { dateTime: earliest })
+        : t("dashboard.tile.notifications.earliest", { dateTime: earliest }),
+    );
+  }
   if (tile.id === "dols" && tile.count !== null) details.push(t("dashboard.tile.dols.description"));
   return (
     <Tile

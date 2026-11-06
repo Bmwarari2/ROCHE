@@ -15,7 +15,7 @@ export function CommunicationFlag({
 }) {
   if (needs.length === 0) return null;
   return (
-    <span className="inline-flex flex-col items-start gap-1">
+    <span className="inline-flex max-w-full flex-col items-start gap-1">
       <span className="hb-status-chip hb-status-chip--info">
         <MessageSquareText
           size={14}
@@ -26,7 +26,9 @@ export function CommunicationFlag({
         <span className="hb-status-chip__label">{label}</span>
       </span>
       {compact ? (
-        <span className="text-body-dense text-text-secondary">{needs.join("; ")}</span>
+        <span className="max-w-full text-body-dense text-text-secondary [overflow-wrap:break-word]">
+          {needs.join("; ")}
+        </span>
       ) : null}
     </span>
   );

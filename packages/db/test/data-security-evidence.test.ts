@@ -210,5 +210,18 @@ describe("hazard HZ-011 data security evidence (migration 0094)", () => {
       "INSERT INTO dspt_submission (financial_year, submitted_on, outcome) VALUES ('2025/26', '2026-06-20', 'standards_met')";
     await asDpo((c) => c.query(submit));
     await expect(asDpo((c) => c.query(submit))).rejects.toThrow(/dspt_submission_year_key/);
+    // Earlier toolkit years published "standards exceeded" (H-917); nothing else is an outcome.
+    await asDpo((c) =>
+      c.query(
+        "INSERT INTO dspt_submission (financial_year, submitted_on, outcome) VALUES ('2024/25', '2025-06-20', 'standards_exceeded')",
+      ),
+    );
+    await expect(
+      asDpo((c) =>
+        c.query(
+          "INSERT INTO dspt_submission (financial_year, submitted_on, outcome) VALUES ('2023/24', '2024-06-20', 'outstanding')",
+        ),
+      ),
+    ).rejects.toThrow(/dspt_submission_outcome/);
   });
 });

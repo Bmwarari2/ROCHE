@@ -14,6 +14,14 @@ const GCP_PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 const KMS_KEY = new RegExp(
   `^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/locations/(${GCP_REGIONS.join("|")})/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}$`,
 );
+/** A key ring in an allowed region: projects/<p>/locations/<region>/keyRings/<r>. */
+const KMS_KEY_RING = new RegExp(
+  `^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/locations/(${GCP_REGIONS.join("|")})/keyRings/[A-Za-z0-9_-]{1,63}$`,
+);
+/** An asymmetric key version in an allowed region (the certificate signing key). */
+const KMS_KEY_VERSION = new RegExp(
+  `^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/locations/(${GCP_REGIONS.join("|")})/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[0-9]{1,10}$`,
+);
 /** Bucket names as Cloud Storage takes them (no dotted, domain-named buckets). */
 const BUCKET = /^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$/;
 
@@ -64,6 +72,19 @@ const Env = z.object({
    * image carries no docs, so a test checks the named report exists rather than the server.
    */
   SAFETY_CASE_VERSION: z.string().trim().min(1).max(40).default("v0.0"),
+  /**
+   * The dm+d release loader's limits (ADR-0080): files and bytes in one release, read before any
+   * file is, and minutes a whole load may take. Technical bounds for a real release (H-654), not
+   * statutory figures.
+   */
+  DMD_RELEASE_MAX_FILES: z.coerce.number().int().min(7).max(1000).default(64),
+  DMD_RELEASE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024 * 1024)
+    .max(16 * 1024 ** 3)
+    .default(2 * 1024 ** 3),
+  DMD_LOAD_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(240).default(60),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
@@ -94,6 +115,18 @@ const Env = z.object({
     .string()
     .min(32)
     .default("local-development-evidence-link-secret-0123456789"),
+  /**
+   * The key that signs e-learning launch tokens (ADR-0093): the content origin presents one for
+   * one attempt, so it reads that course's files and sends that attempt's statements, nothing
+   * else. From Secrets Manager in deployed environments; the local default is refused in
+   * production.
+   */
+  ELEARNING_LAUNCH_SECRET: z
+    .string()
+    .min(32)
+    .default("local-development-elearning-launch-secret-0123456789"),
+  /** How long a launch token lasts (an attempt can be resumed with a new one). */
+  ELEARNING_LAUNCH_MINUTES: z.coerce.number().int().positive().max(480).default(120),
   /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
@@ -131,6 +164,28 @@ const Env = z.object({
   GCS_EXPORTS_BUCKET: z.string().regex(BUCKET).optional(),
   /** The customer-managed Cloud KMS key both buckets encrypt with, in europe-west2. */
   GCS_KMS_KEY: z.string().regex(KMS_KEY).optional(),
+  /**
+   * Organisation keys for envelope encryption and crypto-shredding (ADR-0109): Cloud KMS in
+   * production (one key per organisation in TENANT_KMS_KEY_RING), local files in development and
+   * an in-memory provider in tests. CERTIFICATE_SIGNING_KEY signs destruction certificates.
+   */
+  TENANT_KEY_PROVIDER: z.enum(["local", "cloudkms"]).default("local"),
+  TENANT_KMS_KEY_RING: z.string().regex(KMS_KEY_RING).optional(),
+  CERTIFICATE_SIGNING_KEY: z.string().regex(KMS_KEY_VERSION).optional(),
+  /** Local keys (development): `.data/keys` when unset; tests keep keys in memory. */
+  LOCAL_KEYS_DIR: z.string().optional(),
+  /**
+   * Objects stored before envelope encryption are read as they are only when this is `on`, which
+   * production refuses (H-1115). Off by default, so a deployed environment never serves them.
+   */
+  DOCUMENTS_LEGACY_PLAINTEXT: z.enum(["on", "off"]).default("off"),
+  /**
+   * The database's point-in-time recovery window and its longest backup retention, in days:
+   * certificates state that backups no longer hold deleted rows after the longer of the two.
+   * Both are required in production (H-1114); elsewhere each counts as 7.
+   */
+  DATABASE_PITR_DAYS: z.coerce.number().int().min(1).max(35).optional(),
+  DATABASE_BACKUP_RETENTION_DAYS: z.coerce.number().int().min(0).max(3650).optional(),
   /**
    * The SMTP relay for email (the `smtp` provider of comms.email). Unset in production, email is not
    * configured and every send fails clearly; elsewhere it defaults to Mailpit (docker-compose.yml).
@@ -188,6 +243,13 @@ const Env = z.object({
    * invented; unset, it is off in production (real organisations) and on elsewhere.
    */
   IMPORT_TEST_NHS_NUMBERS: z.enum(["off", "on"]).optional(),
+  /**
+   * Whether the medicines ports use the invented dm+d subset and the fixed competence map
+   * (slice 16 security review): "on" for development, test and demonstration environments;
+   * unset, on outside production. Production refuses "on", so real people's medicines are never
+   * checked against invented reference data; it fails closed until slices 10 and 17 land.
+   */
+  MEDICINES_FIXTURES: z.enum(["off", "on"]).optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -210,6 +272,8 @@ export type Config = z.infer<typeof Env> & {
   /** `IMPORT_TEST_NHS_NUMBERS`, defaulted by environment: off in production unless set. */
   readonly importTestNhsNumbers: boolean;
   readonly ssoTestIdpOrigins: readonly string[];
+  /** `MEDICINES_FIXTURES`, defaulted by environment: never on in production. */
+  readonly medicinesFixtures: boolean;
 };
 
 const DATABASE_URL_KEYS = [
@@ -248,6 +312,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.EVIDENCE_LINK_SECRET.startsWith("local-development")) {
       throw new Error("EVIDENCE_LINK_SECRET must be set in production");
     }
+    if (parsed.ELEARNING_LAUNCH_SECRET.startsWith("local-development")) {
+      throw new Error("ELEARNING_LAUNCH_SECRET must be set in production");
+    }
     if (parsed.SPEAK_UP_THROTTLE_SECRET.startsWith("local-development")) {
       throw new Error("SPEAK_UP_THROTTLE_SECRET must be set in production");
     }
@@ -270,6 +337,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       "GCS_KMS_KEY",
     ] as const) {
       if (!parsed[key]) throw new Error(`${key} must be set in production`);
+    }
+    if (parsed.TENANT_KEY_PROVIDER !== "cloudkms") {
+      throw new Error("TENANT_KEY_PROVIDER must be cloudkms in production");
+    }
+    for (const key of [
+      "TENANT_KMS_KEY_RING",
+      "CERTIFICATE_SIGNING_KEY",
+      "DATABASE_PITR_DAYS",
+      "DATABASE_BACKUP_RETENTION_DAYS",
+    ] as const) {
+      if (parsed[key] === undefined) throw new Error(`${key} must be set in production`);
+    }
+    if (parsed.DOCUMENTS_LEGACY_PLAINTEXT === "on") {
+      throw new Error("DOCUMENTS_LEGACY_PLAINTEXT cannot be on in production");
     }
     if (parsed.GCS_DOCUMENTS_BUCKET === parsed.GCS_EXPORTS_BUCKET) {
       throw new Error("GCS_EXPORTS_BUCKET must not be the documents bucket in production");
@@ -301,6 +382,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
     }
+    // Invented dm+d and competence never stand in for the real sources (HZ-001, HZ-121).
+    if (parsed.MEDICINES_FIXTURES === "on") {
+      throw new Error("MEDICINES_FIXTURES cannot be on in production");
+    }
     // Signing a browser out mid-entry loses the form (HZ-111): off until its controls exist.
     if (parsed.SESSION_IDLE_TIMEOUT === "on") {
       throw new Error("SESSION_IDLE_TIMEOUT cannot be on in production until HZ-111 is controlled");
@@ -325,6 +410,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       (parsed.IMPORT_TEST_NHS_NUMBERS ?? (parsed.NODE_ENV === "production" ? "off" : "on")) ===
       "on",
     ssoTestIdpOrigins: list(parsed.SSO_TEST_IDP_ORIGINS),
+    medicinesFixtures:
+      (parsed.MEDICINES_FIXTURES ?? (parsed.NODE_ENV === "production" ? "off" : "on")) === "on",
   };
 }
 

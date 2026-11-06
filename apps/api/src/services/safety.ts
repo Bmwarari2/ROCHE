@@ -610,10 +610,35 @@ interface TaskSpec {
   readonly urgent: boolean;
 }
 
+/**
+ * Questions the reporter left open, answered later from the record (not classifier tasks): whether
+ * the emergency services were called and the GP contacted (H-264, HZ-090), and, for a person we
+ * support who died, whether they had a learning disability or were autistic, so LeDeR is decided
+ * from an answer (H-482, HZ-013).
+ */
+export type OpenAnswerTaskKind = "record_contacts" | "record_learning_disability_autism";
+
+/** Task kinds marked done, not cancelled, once what they ask is answered. */
+const ANSWERED_KINDS: ReadonlySet<string> = new Set([
+  "safety.answer_classifier_questions",
+  "safety.record_contacts",
+  "safety.record_learning_disability_autism",
+]);
+
 /** Generic titles only: the person is a reference on the task, never text in it. */
 export const SAFETY_TASKS: Readonly<
-  Record<ClassifierTaskKind | "post_fall_observation", TaskSpec>
+  Record<ClassifierTaskKind | OpenAnswerTaskKind | "post_fall_observation", TaskSpec>
 > = {
+  record_contacts: {
+    title: "Find out whether the emergency services were called and the GP contacted",
+    permission: "safety.incident.manage",
+    urgent: true,
+  },
+  record_learning_disability_autism: {
+    title: "Record whether the person had a learning disability or was autistic",
+    permission: "safety.incident.manage",
+    urgent: false,
+  },
   post_fall_injury_check: {
     title: "Check for injury after a fall",
     permission: "care.note.write",
@@ -760,6 +785,25 @@ function desiredTasks(loaded: LoadedIncident, result: ClassifierResult): Desired
       }
     }
   }
+  // Answers left as "Not known yet" stay open with a task until they are recorded (H-264, H-482).
+  if (loaded.row.emergencyServicesCalled === null || loaded.row.gpContacted === null) {
+    desired.push({ kind: "record_contacts", personId: null, dueAt: null, until: null });
+  }
+  for (const p of loaded.people) {
+    if (
+      p.kind === "service_user" &&
+      p.died &&
+      p.personId &&
+      (p.learningDisability === null || p.autistic === null)
+    ) {
+      desired.push({
+        kind: "record_learning_disability_autism",
+        personId: p.personId,
+        dueAt: null,
+        until: null,
+      });
+    }
+  }
   return desired;
 }
 
@@ -797,7 +841,7 @@ async function reconcileTasks(
   for (const t of existing) {
     if (t.status !== "open" && t.status !== "in_progress") continue;
     if (wanted.has(keyOf(t))) continue;
-    const answered = t.kind === "safety.answer_classifier_questions";
+    const answered = ANSWERED_KINDS.has(t.kind);
     await tx
       .update(task)
       .set(
@@ -806,7 +850,10 @@ async function reconcileTasks(
               status: "done",
               completedAt: now,
               completedBy: actorTenantUserId,
-              statusReason: "Every notification question is answered",
+              statusReason:
+                t.kind === "safety.answer_classifier_questions"
+                  ? "Every notification question is answered"
+                  : "The question is answered on the incident",
             }
           : {
               status: "cancelled",
@@ -1366,14 +1413,24 @@ export interface IncidentCloseRead {
   readonly notifications: readonly { kind: string; status: NotificationStatus }[];
   readonly candourState: string | null;
   readonly candour: CandourCloseFacts;
+  /** The emergency services or GP answer is still "Not known yet" (H-264, HZ-090). */
+  readonly contactsNotKnown: boolean;
+  /**
+   * Someone we support who died has no learning disability or autism answer yet (H-482, HZ-013):
+   * closing waits for it, so the question never ends unanswered with the incident.
+   */
+  readonly deathFactsNotKnown: boolean;
 }
 
-type CloseSource = Pick<typeof incident.$inferSelect, "id" | "classifierResult">;
+type CloseSource = Pick<
+  typeof incident.$inferSelect,
+  "id" | "classifierResult" | "emergencyServicesCalled" | "gpContacted"
+>;
 
 /**
  * Everything closing each incident checks (`incidentCloseProblems`), read with tenant-wide scope so
  * notifications and people the closer cannot see still count: the notifications, the candour
- * record's stage, and the duty of candour facts. Three reads however many incidents, for the
+ * record's stage, the duty of candour facts, and answers still "Not known yet" (H-264, H-482). Three reads however many incidents, for the
  * approvals list and the stuck-candour job as for the close route.
  */
 export async function incidentCloseViews(
@@ -1418,11 +1475,27 @@ export async function incidentCloseViews(
           isNull(incidentPerson.deletedAt),
         ),
       );
+    // People we support who died without both learning disability and autism answers (H-482).
+    const deaths = await tx
+      .select({ incidentId: incidentPerson.incidentId })
+      .from(incidentPerson)
+      .where(
+        and(
+          inArray(incidentPerson.incidentId, ids),
+          eq(incidentPerson.kind, "service_user"),
+          eq(incidentPerson.died, true),
+          isNotNull(incidentPerson.personId),
+          or(isNull(incidentPerson.learningDisability), isNull(incidentPerson.autistic)),
+          isNull(incidentPerson.deletedAt),
+        ),
+      );
     for (const row of rows) {
       const mine = notifications.filter((n) => n.incidentId === row.id);
       const record = records.find((r) => r.incidentId === row.id);
       const stored = row.classifierResult as { outputs?: { kind: string }[] } | null;
       views.set(row.id, {
+        contactsNotKnown: row.emergencyServicesCalled === null || row.gpContacted === null,
+        deathFactsNotKnown: deaths.some((d) => d.incidentId === row.id),
         notifications: mine.map((n) => ({
           kind: n.kind,
           status: n.status as NotificationStatus,

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { demoPerson, expectAccessible, signIn } from "./support";
+import { demoPerson, expectAccessible, openModules, signIn } from "./support";
 
 /**
  * Slice 5 web part 2: the round view (care.md rule 8; CARE-013; hazards HZ-001, HZ-003) against
@@ -46,10 +46,7 @@ test("hazard HZ-003 the nurse works through Ben's tasks on the round, every stat
   await setTask(page, walk);
 
   await page.goto("/");
-  await page
-    .getByRole("navigation", { name: "Modules" })
-    .getByRole("link", { name: "Round" })
-    .click();
+  await (await openModules(page)).getByRole("link", { name: "Round" }).click();
   await page.waitForURL((url) => url.pathname.startsWith("/round"));
   await page.goto(`/round/${DEMO_LOCATION}`);
   await expect(page.getByRole("heading", { level: 1, name: "Round" })).toBeVisible();

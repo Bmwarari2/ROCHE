@@ -322,7 +322,19 @@ describe("hazard HZ-124 overrides of the rostering rule in the database", () => 
       ["dbs:no_certificate", "right_to_work:none"],
     ]) {
       await expect(asNorth((c) => override(c, { keys }))).rejects.toThrow(
-        /roster_override_blockers/,
+        /roster_override_blockers|roster_override_never_allowed/,
+      );
+    }
+  });
+
+  it("hazard HZ-124 never overrides no DBS certificate or a lapsed registration (H-830)", async () => {
+    for (const keys of [
+      ["dbs:no_certificate"],
+      ["registration"],
+      ["registration", "dbs_supervised_only"],
+    ]) {
+      await expect(asNorth((c) => override(c, { keys }))).rejects.toThrow(
+        /roster_override_never_allowed/,
       );
     }
   });
@@ -332,7 +344,7 @@ describe("hazard HZ-124 overrides of the rostering rule in the database", () => 
       asNorth((c) =>
         c.query(
           `INSERT INTO roster_override (assignment_id, location_id, worker_id, blocker_keys, justification)
-           VALUES ($1, $2, $3, '{registration}', 'Added after the assignment was made')`,
+           VALUES ($1, $2, $3, '{dbs_supervised_only}', 'Added after the assignment was made')`,
           [ASSIGNMENT, a.locationNorth, a.carer],
         ),
       ),
@@ -382,7 +394,7 @@ describe("hazard HZ-124 overrides of the rostering rule in the database", () => 
         );
         await c.query(
           `INSERT INTO roster_override (assignment_id, location_id, worker_id, blocker_keys, justification)
-           VALUES ($1, $2, $3, '{registration}', 'Covering my own shift tonight')`,
+           VALUES ($1, $2, $3, '{dbs_supervised_only}', 'Covering my own shift tonight')`,
           ["0199f300-0000-7000-8000-0000000000d2", a.locationNorth, a.northManager],
         );
       }),

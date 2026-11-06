@@ -41,3 +41,8 @@ output "secret_names" {
 output "nat_addresses" {
   value = module.stack.nat_addresses
 }
+
+output "manual_elearning_dns_records" {
+  description = "DNS records to create by hand in the e-learning content domain (ADR-0093)."
+  value       = module.stack.manual_elearning_dns_records
+}

@@ -5,22 +5,32 @@ import {
   type AccountMenuItem,
   AppBar,
   type AppBarSwitcher,
+  NavMenu,
   Sidebar,
   type SidebarItem,
   type SwitcherOption,
 } from "@harbour/ui";
 import {
   Archive,
+  Banknote,
   Bell,
   BookCheck,
+  BookOpen,
+  CalendarClock,
+  CalendarDays,
+  CalendarOff,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
   FileLock,
   FileSearch,
+  FileSpreadsheet,
   FileText,
   FileUp,
   FolderLock,
+  Gauge,
+  GraduationCap,
+  HeartHandshake,
   House,
   ListChecks,
   ListTodo,
@@ -31,18 +41,22 @@ import {
   MessageSquare,
   Newspaper,
   Palette,
+  Scale,
   ScrollText,
   Search,
   ShieldAlert,
   ShieldCheck,
   Stamp,
+  Timer,
   TriangleAlert,
   UserPlus,
+  UserRoundCheck,
   Users,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 import { switchLocation, switchOrganisation } from "@/app/actions/context";
 import { signOutAndForget } from "@/lib/sign-out";
 
@@ -71,6 +85,11 @@ export interface ShellFrameLabels {
   readonly incidents?: string | undefined;
   /** Shown only to holders of safety.safeguarding.manage (SAFE-006). */
   readonly safeguarding?: string | undefined;
+  /**
+   * For those who may raise a safeguarding concern but do not run the log (HZ-126): straight to
+   * raising one. The log links to it for those who run it.
+   */
+  readonly raiseSafeguarding?: string | undefined;
   /** Shown only to holders of safety.complaint.manage (SAFE-011). */
   readonly complaints?: string | undefined;
   /** Shown to every member of staff (SAFE-012), never in a family member's portal session. */
@@ -79,6 +98,10 @@ export interface ShellFrameLabels {
   readonly approvals?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
   readonly downtime?: string | undefined;
+  /** Shown only to people who check in alone, watch lone workers or name the on-call route. */
+  readonly loneWorking?: string | undefined;
+  /** Shown only to people who answer staff surveys or run them (scheduling.wellbeing.*). */
+  readonly wellbeing?: string | undefined;
   /** Shown only in a family member's portal session (comms.feed.read). */
   readonly updates?: string | undefined;
   /** Shown only to people who may search (platform.search.use). */
@@ -93,17 +116,40 @@ export interface ShellFrameLabels {
   readonly framework?: string | undefined;
   /** Shown only to holders of quality.audit.manage (QUAL-004). */
   readonly audits?: string | undefined;
+  /** The policy library: every member reads it and signs what they must (QUAL-008). */
+  readonly policies?: string | undefined;
+  /** Shown only to holders of quality.dsar.manage (QUAL-012). */
+  readonly dataSecurity?: string | undefined;
+  /** Shown only to holders of quality.audit.manage (QUAL-005). */
+  readonly qualityDashboard?: string | undefined;
+  /** Shown only to holders of quality.audit.manage (QUAL-006). */
+  readonly pir?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown to staff (not family portal sessions): their tasks and the team's (PLAT-011). */
   readonly tasks?: string | undefined;
   /** Shown to staff: the organisation's documents (PLAT-009). */
   readonly documents?: string | undefined;
+  /** Shown to holders of the workforce read permissions: the training matrix (slice 57). */
+  readonly training?: string | undefined;
+  /** Shown to staff who record their own time (scheduling.timesheet.self): clock and timesheet. */
+  readonly myTime?: string | undefined;
+  /** Shown with my time: one's own pay lines from locked runs. */
+  readonly myPay?: string | undefined;
+  /** Shown to rota managers and approvers: timesheet approval at the home. */
+  readonly timesheets?: string | undefined;
+  /** Shown to staff and rota managers: leave requests, decisions and cover needed. */
+  readonly absences?: string | undefined;
+  /** Shown only to pay managers and approvers (scheduling.pay.manage or .approve). */
+  readonly pay?: string | undefined;
   /** Shown only to people who manage records retention (platform.retention.manage). */
   readonly retention?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataImport?: string | undefined;
+  readonly rota?: string | undefined;
+  readonly myShifts?: string | undefined;
+  readonly dependency?: string | undefined;
   readonly dataProtection?: string | undefined;
   readonly dataRights?: string | undefined;
   /** The branding settings (PLAT-002), for platform.tenant.manage. */
@@ -111,12 +157,17 @@ export interface ShellFrameLabels {
   /** Shown only to people who read the weekly break-glass report (platform.audit.read). */
   readonly breakGlassReport?: string | undefined;
   readonly onboarding?: string | undefined;
+  /** Shown to staff and training leads: e-learning courses (ADR-0093). */
+  readonly elearning?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
   readonly settings: string;
   /** Accessible name of the account menu button, for example "Your account: Ada Example". */
   readonly accountMenu: string;
+  /** The phone navigation's button word ("Menu") and its close button's name. */
+  readonly menu: string;
+  readonly closeMenu: string;
   readonly security: string;
   readonly signOut: string;
 }
@@ -141,6 +192,9 @@ export interface ShellFrameProps {
 function currentSection(pathname: string): string {
   if (pathname.startsWith("/people")) return "people";
   if (pathname.startsWith("/handover")) return "handover";
+  if (pathname.startsWith("/rota")) return "rota";
+  if (pathname.startsWith("/my-shifts")) return "my-shifts";
+  if (pathname.startsWith("/settings/dependency")) return "dependency";
   if (pathname.startsWith("/round")) return "round";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
@@ -151,12 +205,21 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/speak-up")) return "speak-up";
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
+  if (pathname.startsWith("/lone-working")) return "loneWorking";
+  if (pathname.startsWith("/wellbeing")) return "wellbeing";
   if (pathname.startsWith("/approvals")) return "approvals";
   if (pathname.startsWith("/letters")) return "letters";
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/documents")) return "documents";
+  if (pathname.startsWith("/training")) return "training";
+  if (pathname.startsWith("/my-time")) return "my-time";
+  if (pathname.startsWith("/my-pay")) return "my-pay";
+  if (pathname.startsWith("/timesheets")) return "timesheets";
+  if (pathname.startsWith("/absences")) return "absences";
+  if (pathname === "/pay" || pathname.startsWith("/pay/")) return "pay";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
+  if (pathname.startsWith("/training/elearning")) return "elearning";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/import")) return "import";
@@ -188,16 +251,10 @@ export function ShellFrame({
   const pathname = usePathname();
   const router = useRouter();
   const [, startTransition] = useTransition();
-  // Null until the browser has said whether this is a phone: the sidebar then collapses by CSS on a
-  // narrow screen, so the first paint never lays out the full-width sidebar there.
-  const [collapsed, setCollapsed] = useState<boolean | null>(null);
+  // The sidebar shows above 734 px only; phones get the app bar's "Menu" (NavMenu), so the page
+  // keeps its whole width (MOB-013, WCAG 1.4.10). The CSS hides it before the app runs.
+  const [collapsed, setCollapsed] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-
-  // Icons only on phones, so the content keeps the width (the labels stay as tooltips).
-  useEffect(() => {
-    const query = window.matchMedia("(max-width: 734px)");
-    setCollapsed(query.matches);
-  }, []);
 
   const tenantSwitcher: AppBarSwitcher = {
     label: labels.organisation,
@@ -268,6 +325,19 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.rota
+      ? [{ id: "rota", label: labels.rota, href: "/rota", icon: <CalendarDays {...icon} /> }]
+      : []),
+    ...(labels.myShifts
+      ? [
+          {
+            id: "my-shifts",
+            label: labels.myShifts,
+            href: "/my-shifts",
+            icon: <CalendarClock {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.incidents
       ? [
           {
@@ -287,7 +357,16 @@ export function ShellFrame({
             icon: <ShieldAlert {...icon} />,
           },
         ]
-      : []),
+      : labels.raiseSafeguarding
+        ? [
+            {
+              id: "safeguarding",
+              label: labels.raiseSafeguarding,
+              href: "/safeguarding/new",
+              icon: <ShieldAlert {...icon} />,
+            },
+          ]
+        : []),
     ...(labels.complaints
       ? [
           {
@@ -328,6 +407,26 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.loneWorking
+      ? [
+          {
+            id: "loneWorking",
+            label: labels.loneWorking,
+            href: "/lone-working",
+            icon: <UserRoundCheck {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.wellbeing
+      ? [
+          {
+            id: "wellbeing",
+            label: labels.wellbeing,
+            href: "/wellbeing",
+            icon: <HeartHandshake {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.updates
       ? [{ id: "updates", label: labels.updates, href: "/updates", icon: <Newspaper {...icon} /> }]
       : []),
@@ -343,6 +442,45 @@ export function ShellFrame({
             icon: <FileText {...icon} />,
           },
         ]
+      : []),
+    ...(labels.training
+      ? [
+          {
+            id: "training",
+            label: labels.training,
+            href: "/training",
+            icon: <GraduationCap {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.myTime
+      ? [{ id: "my-time", label: labels.myTime, href: "/my-time", icon: <Timer {...icon} /> }]
+      : []),
+    ...(labels.myPay
+      ? [{ id: "my-pay", label: labels.myPay, href: "/my-pay", icon: <Wallet {...icon} /> }]
+      : []),
+    ...(labels.timesheets
+      ? [
+          {
+            id: "timesheets",
+            label: labels.timesheets,
+            href: "/timesheets",
+            icon: <CalendarClock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.absences
+      ? [
+          {
+            id: "absences",
+            label: labels.absences,
+            href: "/absences",
+            icon: <CalendarOff {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.pay
+      ? [{ id: "pay", label: labels.pay, href: "/pay", icon: <Banknote {...icon} /> }]
       : []),
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
@@ -367,6 +505,16 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.elearning
+      ? [
+          {
+            id: "elearning",
+            label: labels.elearning,
+            href: "/training/elearning",
+            icon: <GraduationCap {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.framework
       ? [
           {
@@ -387,6 +535,46 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.policies
+      ? [
+          {
+            id: "policies",
+            label: labels.policies,
+            href: "/policies",
+            icon: <BookOpen {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataSecurity
+      ? [
+          {
+            id: "data-security",
+            label: labels.dataSecurity,
+            href: "/quality/data-security",
+            icon: <ShieldCheck {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.qualityDashboard
+      ? [
+          {
+            id: "quality-dashboard",
+            label: labels.qualityDashboard,
+            href: "/quality/dashboard",
+            icon: <Gauge {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.pir
+      ? [
+          {
+            id: "pir",
+            label: labels.pir,
+            href: "/quality/pir",
+            icon: <FileSpreadsheet {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.team
       ? [
           {
@@ -394,6 +582,16 @@ export function ShellFrame({
             label: labels.team,
             href: "/settings/team",
             icon: <UserPlus {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dependency
+      ? [
+          {
+            id: "dependency",
+            label: labels.dependency,
+            href: "/settings/dependency",
+            icon: <Scale {...icon} />,
           },
         ]
       : []),
@@ -523,6 +721,16 @@ export function ShellFrame({
         {...(locationSwitcher ? { location: locationSwitcher } : {})}
         skipLinkLabel={labels.skipLink}
         linkComponent={Link}
+        leading={
+          <NavMenu
+            items={items}
+            currentId={currentSection(pathname)}
+            label={labels.navigation}
+            buttonLabel={labels.menu}
+            closeLabel={labels.closeMenu}
+            linkComponent={Link}
+          />
+        }
         actions={
           <AccountMenu
             userName={user.name}
@@ -538,14 +746,13 @@ export function ShellFrame({
         }
       />
       <div className="flex flex-1">
-        <div className="sticky top-nav h-[calc(100dvh-var(--nav-height))] shrink-0 self-start">
+        <div className="sticky top-nav h-[calc(100dvh-var(--nav-height))] shrink-0 self-start max-sm:hidden">
           <Sidebar
             items={items}
             currentId={currentSection(pathname)}
             label={labels.navigation}
-            collapsed={collapsed ?? false}
+            collapsed={collapsed}
             onCollapsedChange={setCollapsed}
-            {...(collapsed === null ? { className: "hb-sidebar--narrow-auto" } : {})}
             linkComponent={Link}
           />
         </div>

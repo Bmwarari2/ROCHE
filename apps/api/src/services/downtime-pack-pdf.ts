@@ -34,6 +34,14 @@ interface StoredContent {
   readonly pages: readonly Json<DowntimePersonPage>[];
   readonly warnings: readonly DowntimeWarning[];
 }
+
+/**
+ * Said once on the front sheet, first among the safety-critical warnings, while the paper MAR and
+ * PEEP places are unconfirmed: it is the page the nurse in charge reads first in an outage (H-213,
+ * HZ-021). Each person's page still says "where it is kept is not set in Harbour".
+ */
+export const PLACES_NOT_CONFIRMED =
+  "Where the paper MAR and the PEEPs are kept is not confirmed in Harbour: ask the nurse in charge before you need them.";
 type Json<T> = T extends Date
   ? string
   : T extends readonly (infer U)[]
@@ -190,8 +198,15 @@ function personLines(page: Json<DowntimePersonPage>): PdfLine[] {
 export function renderDowntimePackPdf(
   content: StoredContent,
   header: readonly string[],
+  /**
+   * Whether the location's paper MAR and PEEP places are confirmed (`downtime_places_confirmed_at`
+   * set). A change to the places builds the pack again, so the pages agree with it unless that
+   * build failed, which the header then says. Unconfirmed when not given (H-213).
+   */
+  options: { readonly placesConfirmed: boolean } = { placesConfirmed: false },
 ): Uint8Array {
   const names = new Map(content.pages.map((p) => [p.personId, printedName(p)]));
+  const placesWarning = !options.placesConfirmed;
   const front: PdfLine[] = [
     { text: `Downtime pack: ${content.locationName}`, bold: true, size: 14 },
     {
@@ -203,12 +218,13 @@ export function renderDowntimePackPdf(
     },
     {
       text:
-        content.warnings.length === 0
+        content.warnings.length === 0 && !placesWarning
           ? "No warnings."
           : "Check these first (safety-critical first):",
       bold: true,
       gapBefore: 8,
     },
+    ...(placesWarning ? [{ text: PLACES_NOT_CONFIRMED, bold: true }] : []),
     ...content.warnings.map((w) => ({
       text: `${names.get(w.personId) ?? "Someone on this pack"}: ${w.message}`,
     })),

@@ -165,6 +165,25 @@ export function iddsiProblem(
     : null;
 }
 
+/**
+ * The words when the prescribed IDDSI level changed between the time food or a drink was given and
+ * the time the entry reached Harbour (`flags.iddsiChangedSince`, H-166, HZ-016): the entry was
+ * judged against the level in force then, and this says what the level is now. Null otherwise.
+ */
+export function iddsiChangedSince(
+  item: Pick<ObservationItem, "chart" | "flags">,
+  t: Translator,
+): string | null {
+  const changed = item.flags.iddsiChangedSince;
+  if (!isRecord(changed)) return null;
+  const kind = item.chart === "food" ? "food" : "drink";
+  const level = (v: unknown) => (typeof v === "string" && v ? v : null);
+  return t("care.charts.iddsiChangedSince", {
+    given: iddsiLabel(kind, level(changed.prescribedThen), t),
+    now: iddsiLabel(kind, level(changed.prescribedNow), t),
+  });
+}
+
 export type IddsiProblemMessage =
   | "care.charts.iddsiKeptNoLevel"
   | "care.charts.iddsiKeptUnsafeDrink"
