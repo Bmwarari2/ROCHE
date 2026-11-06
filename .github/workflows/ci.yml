@@ -131,6 +131,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - name: Markdown links resolve
         run: node scripts/check-markdown-links.mjs
+      # Trivy's --ignore-unfixed hides an unfixed advisory whatever its exp: date, and pnpm's
+      # ignoreGhsas never expires, so this fails once an exception's review date has passed, or
+      # when the exceptions record, ignoreGhsas and .trivyignore list different advisories.
+      - name: Vulnerability exceptions are in date and listed alike
+        run: |
+          pnpm test:scripts
+          pnpm check:vulnerability-exceptions
       # Types
       - name: Types
         if: env.CODE == 'true'

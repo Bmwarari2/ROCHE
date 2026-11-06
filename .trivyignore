@@ -1,6 +1,14 @@
-# Trivy ignores, read by the CI Trivy step (.github/workflows/ci.yml). Each entry is a recorded
-# exception in docs/compliance/vulnerability-exceptions.md and expires on its review date, after
-# which the scan fails again until the exception is reviewed. Trivy may report either id.
+# Trivy ignores for the filesystem scan (.github/workflows/ci.yml; the image scan reads
+# .trivyignore-images). Each entry is a recorded exception in
+# docs/compliance/vulnerability-exceptions.md and expires on its review date. --ignore-unfixed hides
+# advisories with no fix whatever their date, so scripts/check-vulnerability-exceptions.mjs fails
+# CI once a review date has passed, or when this file, the record and pnpm's ignoreGhsas differ.
+# Trivy may report either id.
+
+# braces 3.0.3 via react-native > ... > metro > micromatch (build tool only; no fix published).
+# Trivy reports no fixed version, so --ignore-unfixed hides it; listed so that the three lists of
+# exceptions stay the same (scripts/check-vulnerability-exceptions.mjs)
+GHSA-vfj7-8cjw-p6xm exp:2026-11-11
 
 # decode-uri-component 0.2.2 via expo-router > query-string@7 (mobile only). The code is patched
 # (patches/decode-uri-component@0.2.2.patch); Trivy still matches 0.2.2 by its version (H-397)

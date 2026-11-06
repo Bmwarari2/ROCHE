@@ -26,7 +26,9 @@
     "changeset": "changeset",
     "prepare": "husky",
     "db:bootstrap": "pnpm --filter @harbour/db bootstrap",
-    "check:links": "node scripts/check-markdown-links.mjs"
+    "check:links": "node scripts/check-markdown-links.mjs",
+    "check:vulnerability-exceptions": "node scripts/check-vulnerability-exceptions.mjs",
+    "test:scripts": "node --test \"scripts/*.test.mjs\""
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
