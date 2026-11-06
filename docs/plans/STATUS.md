@@ -85,7 +85,9 @@ Follow-ups:
 - #33 is Phase 19, "Partner workforce link", on `phase-19-partner-link`. The plan is ADR-0238. Built so far:
   - part A (sub-processors, flag, payroll goldens, an additions-only OpenAPI check; ADR-0240);
   - part B (partner connections and partner-managed shifts and clock events; migrations 0052 and 0053; ADR-0243);
-  - part C (events, partner pay items, pay-rate read) as far as it got. Read the branch's PROGRESS.md notes and any `wip/phase-19-part-c` branch.
+  - part C, unfinished:
+    - On the phase branch (f7c6aaa6): 19.13 (existing webhooks unchanged) is ticked. The 19.5 events and their tests are done; `docs/api.md` and ADR-0244 are still to write.
+    - On `wip/phase-19-part-c` (08a44fd2), unfinished: 19.6 partner pay items (migration 0054) and 19.7 pay-rate read. Left: one failing Xero mapping test; integration, isolation and residency tests; regenerating OpenAPI and the SDK; the 16.2 sweep; docs; ADR-0244, which must record that pay periods are read with `time:read` because no existing scope may grant `payroll.read`.
 - #34 moves Lighthouse to its own CI job on a 4-core runner (ADR-0239, ADR-0241), because the private repository's 2-core runners fail the gate. The owner must create the runner and set `LIGHTHOUSE_RUNNER` (its HUMAN_TODO §14) before #34 and #33 can go green.
 - #33 also needs visual baselines for `/trust/subprocessors` and `/app/settings/partners`. Take them from CI's actual screenshots (artifact `verify-logs`, `apps/web/e2e/.results`) after checking each image, because no Docker is available in cloud sessions.
 - Free numbers there: ADR-0245 (0244 is part C's if it used it) and HUMAN_TODO §16 (§15 may be part C's).
