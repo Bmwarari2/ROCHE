@@ -1,8 +1,10 @@
 # Harbour API, worker and migrate task (one image; the command chooses the process).
 # Build from the repository root: docker build -f apps/api/Dockerfile -t harbour/api .
 # Runtime contract: infra/README.md ("Runtime contract for application images").
+# The base image is pinned by digest in both stages, so every build starts from the same image and
+# a new one arrives as a Renovate pull request, which the image scan in ci.yml checks.
 
-FROM node:22-bookworm-slim AS build
+FROM node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS build
 WORKDIR /repo
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true HUSKY=0
 RUN corepack enable
@@ -16,7 +18,11 @@ RUN pnpm install --frozen-lockfile --filter @harbour/api... \
 # (/secrets/cloudsql/server-ca.pem) and sets NODE_EXTRA_CA_CERTS to it. Without that variable, Node
 # trusts only its own CAs, so a verifying connection to Cloud SQL fails rather than trusting
 # anything else.
-FROM node:22-bookworm-slim AS runtime
+FROM node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS runtime
+# The runtime never runs npm, npx or corepack. Removing them takes their bundled dependencies, and the
+# advisories the image scan reports in them, out of the production image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 ENV NODE_ENV=production \
     NODE_OPTIONS=--enable-source-maps
 WORKDIR /app

@@ -83,6 +83,8 @@ step "Licences" node scripts/check-licences.mjs
 step "Docs gate" env GITHUB_EVENT_PATH="$EVENT" BASE_SHA="$BASE" HEAD_SHA="$HEAD_SHA" node scripts/check-docs-gate.mjs
 step "Medicines tests" env BASE_SHA="$BASE" HEAD_SHA="$HEAD_SHA" node scripts/check-medicines-tests.mjs
 step "Markdown links" node scripts/check-markdown-links.mjs
+step "Script tests" pnpm test:scripts
+step "Vulnerability exceptions" node scripts/check-vulnerability-exceptions.mjs
 # Types
 step "Typecheck" pnpm turbo run typecheck
 # Unit, domain and RLS isolation tests
