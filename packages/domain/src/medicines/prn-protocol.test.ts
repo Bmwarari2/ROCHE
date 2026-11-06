@@ -75,6 +75,7 @@ describe("hazard HZ-117 a PRN protocol for a when-required medicine (slice 28)",
   it.each([
     [{ state: "stopped", directions: "when_required" }, "medicine_stopped"],
     [{ state: "replaced", directions: "when_required" }, "medicine_stopped"],
+    [{ state: "withdrawn", directions: "when_required" }, "medicine_stopped"],
     [{ state: "checked", directions: "regular" }, "not_when_required_now"],
     [{ state: "checked", directions: "when_required" }, "in_use"],
   ] as const)("reads the entry: %o is %s", (entry, state) => {
@@ -228,7 +229,7 @@ describe("hazard HZ-117 which protocol was in force when a dose was given (slice
     recordedAt,
     agreedFrom: new Date("2026-10-01T00:00:00Z"),
     withdrawnAt: new Date("2026-11-06T09:00:00Z"),
-    reviewOn: "2026-11-05",
+    reviews: [{ from: recordedAt, reviewOn: "2026-11-05" }],
   };
   it.each([
     ["before it was recorded, though agreed earlier", "2026-11-05T11:59:00Z", "none"],
@@ -238,6 +239,19 @@ describe("hazard HZ-117 which protocol was in force when a dose was given (slice
     ["once withdrawn", "2026-11-06T09:00:00Z", "none"],
   ])("is %s", (_name, when, expected) => {
     expect(protocolInForce([p], new Date(when))).toBe(expected);
+  });
+
+  it("keeps a dose given while overdue as overdue after a review recorded later", () => {
+    const reviewed = {
+      ...p,
+      withdrawnAt: null,
+      reviews: [
+        { from: recordedAt, reviewOn: "2026-11-05" },
+        { from: new Date("2026-11-07T10:00:00Z"), reviewOn: "2027-02-01" },
+      ],
+    };
+    expect(protocolInForce([reviewed], new Date("2026-11-06T08:00:00Z"))).toBe("review_overdue");
+    expect(protocolInForce([reviewed], new Date("2026-11-07T11:00:00Z"))).toBe("current");
   });
 });
 

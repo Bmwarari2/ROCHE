@@ -1005,7 +1005,8 @@ The **PRN frequency report** (`GET /v1/locations/{id}/medicines/prn-frequency`) 
 person and when-required medicine in a period (UK dates, inclusive, at most
 `medicines.prn_report.max_days`, H-1385): doses given or taken (latest records only; a record a
 correction replaced never counts), UK calendar days with doses, the most on one calendar day (UK time, not the prescriber's rolling
-24 hours), doses given with no protocol in force, doses given under a protocol past its review,
+24 hours), doses given with no protocol in force, doses given under a protocol past the review date in force at the time (from the protocol's
+version history, so a review recorded later never rewrites what was overdue),
 outcomes by kind and those outstanding. A protocol is in force from when it was recorded (or the
 agreement date, if later: a date typed in never covers earlier doses) until the instant it was
 withdrawn. A medicine is psychotropic when the

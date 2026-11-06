@@ -21,6 +21,7 @@ import {
   person,
   prnOutcome,
   prnProtocol,
+  recordVersion,
   type Transaction,
 } from "@harbour/db";
 import {
@@ -1005,6 +1006,8 @@ async function reportLines(
   const list = await psychotropicList(tx);
   const protocols = await tx
     .select({
+      id: prnProtocol.id,
+      version: prnProtocol.version,
       medicineId: prnProtocol.medicineId,
       agreedOn: prnProtocol.agreedOn,
       withdrawnOn: prnProtocol.withdrawnOn,
@@ -1014,6 +1017,35 @@ async function reportLines(
     })
     .from(prnProtocol)
     .where(and(inArray(prnProtocol.personId, [...personIds]), isNull(prnProtocol.deletedAt)));
+  // Every earlier version's review date, with the instant it took effect (record_version keeps the
+  // row as it was, valid from its own updated_at).
+  const history = new Map<string, { from: Date; reviewOn: string }[]>();
+  if (protocols.length > 0) {
+    const versions = await tx
+      .select({
+        recordId: recordVersion.recordId,
+        validFrom: recordVersion.validFrom,
+        data: recordVersion.data,
+      })
+      .from(recordVersion)
+      .where(
+        and(
+          eq(recordVersion.tableName, "prn_protocol"),
+          inArray(
+            recordVersion.recordId,
+            protocols.map((p) => p.id),
+          ),
+        ),
+      );
+    for (const v of versions) {
+      const reviewOn = (v.data as { review_on?: string }).review_on;
+      if (!reviewOn) continue;
+      history.set(v.recordId, [
+        ...(history.get(v.recordId) ?? []),
+        { from: v.validFrom, reviewOn },
+      ]);
+    }
+  }
   const outcomes = latestOutcomes(
     kept.length === 0
       ? []
@@ -1044,7 +1076,10 @@ async function reportLines(
             agreedFrom: ukDayBounds(p.agreedOn).startsAt,
             // A withdrawn protocol is closed, so its last change is the withdrawal.
             withdrawnAt: p.withdrawnOn === null ? null : p.updatedAt,
-            reviewOn: p.reviewOn,
+            reviews: [
+              ...(history.get(p.id) ?? []),
+              { from: p.version === 1 ? p.createdAt : p.updatedAt, reviewOn: p.reviewOn },
+            ],
           })),
         d.givenAt,
       ),

@@ -111,7 +111,8 @@ export function prnProtocolStatus(
 ): PrnProtocolStatus {
   if (protocol.withdrawnOn !== null && protocol.withdrawnOn <= today) return "withdrawn";
   if (entry) {
-    if (entry.state === "stopped" || entry.state === "replaced") return "medicine_stopped";
+    if (entry.state === "stopped" || entry.state === "replaced" || entry.state === "withdrawn")
+      return "medicine_stopped";
     if (entry.directions !== "when_required") return "not_when_required_now";
   }
   return today > protocol.reviewOn ? "review_overdue" : "in_use";
@@ -277,7 +278,11 @@ export function protocolInForce(
     readonly recordedAt: Date;
     readonly agreedFrom: Date;
     readonly withdrawnAt: Date | null;
-    readonly reviewOn: string;
+    /**
+     * Each version's review date with the instant it took effect, so a review recorded late never
+     * rewrites what was overdue at the time (clinical review, 06/11/2026).
+     */
+    readonly reviews: readonly { readonly from: Date; readonly reviewOn: string }[];
   }[],
   at: Date,
 ): "current" | "review_overdue" | "none" {
@@ -287,5 +292,13 @@ export function protocolInForce(
       (p.withdrawnAt === null || at.getTime() < p.withdrawnAt.getTime()),
   );
   if (!found) return "none";
-  return ukIsoDate(at) > found.reviewOn ? "review_overdue" : "current";
+  const review = [...found.reviews]
+    .filter((v) => v.from.getTime() <= at.getTime())
+    .sort((a, b) => b.from.getTime() - a.from.getTime())[0];
+  // Before the first version's own time (a dose at the instant it was recorded), the first version.
+  const reviewOn =
+    review?.reviewOn ??
+    [...found.reviews].sort((a, b) => a.from.getTime() - b.from.getTime())[0]?.reviewOn;
+  if (reviewOn === undefined) return "current";
+  return ukIsoDate(at) > reviewOn ? "review_overdue" : "current";
 }

@@ -22,7 +22,7 @@ testing-phase review.
 
 - Clinical: a protocol is in force from when it was recorded until the instant it was withdrawn,
   so a backdated agreement covers no earlier dose; doses under a protocol past its review are
-  counted apart; a protocol's status reads the latest entry (stopped, no longer when required);
+  counted apart, by the review date in force at the time (from `record_version`); a protocol's status reads the latest entry (stopped, no longer when required);
   a test that a changed prescription is what the protocol shows; outstanding outcomes have no
   time window; calendar-day counts tested on both clock changes and labelled as calendar days.
 - Security: no blocker. For the integrator: migrations 0142 (slice 38) and 0143 both redefine
