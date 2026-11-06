@@ -12,6 +12,7 @@ export * from "./integrations";
 export * from "./invitations";
 export * from "./mca";
 export * from "./medicines";
+export * from "./medicines-prn";
 export * from "./onboarding";
 export * from "./operations";
 export * from "./operator";

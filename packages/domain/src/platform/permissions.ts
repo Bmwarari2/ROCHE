@@ -180,6 +180,10 @@ export const PERMISSIONS = {
     description: "Manage stock, ordering and disposal",
     careRecord: true,
   },
+  "medicines.list.manage": {
+    description: "Manage the organisation's medicine lists, such as the psychotropic list",
+    careRecord: true,
+  },
   "medicines.override.approve": {
     description: "Approve overrides such as expired competence",
     careRecord: true,
