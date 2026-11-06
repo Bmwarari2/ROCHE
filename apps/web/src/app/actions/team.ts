@@ -81,7 +81,7 @@ type MembershipChange =
       readonly reasonCode: string;
       readonly confirmEntriesWaiting: boolean;
     }
-  | { readonly kind: "end"; readonly reasonCode: string };
+  | { readonly kind: "end"; readonly reasonCode: string; readonly deviceCheck?: string };
 
 /**
  * Suspends or ends a membership (H-566). The API checks `platform.user.manage`, step-up, its
@@ -105,7 +105,12 @@ export async function changeMembership(
           })
         : await api.POST("/v1/members/{tenantUserId}/end", {
             params,
-            body: { reasonCode: change.reasonCode as EndMember["reasonCode"] },
+            body: {
+              reasonCode: change.reasonCode as EndMember["reasonCode"],
+              ...(change.deviceCheck
+                ? { deviceCheck: change.deviceCheck as NonNullable<EndMember["deviceCheck"]> }
+                : {}),
+            },
           });
     if (!response.ok) return teamProblem(error);
     revalidatePath("/settings/team", "layout");

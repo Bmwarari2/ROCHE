@@ -201,7 +201,13 @@ await work(QUEUES.downtimePacks, async () => {
 await work(QUEUES.invitations, async () => {
   await sweepInvitations({ workerPool, appPool, authPool, logger });
   // Sign-ins whose account deletion request can now complete (H-566): counts only.
-  const erased = await sweepSignInErasures({ workerPool, appPool, appDb: deps.appDb, authPool });
+  const erased = await sweepSignInErasures({
+    workerPool,
+    appPool,
+    appDb: deps.appDb,
+    authPool,
+    logger,
+  });
   if (erased > 0) logger.info({ event: "member.sign_in_erasure.sweep", erased }, "sign-ins erased");
 });
 

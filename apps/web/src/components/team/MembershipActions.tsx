@@ -8,7 +8,7 @@ import { changeMembership } from "@/app/actions/team";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { t } from "@/lib/i18n";
 import type { ActionResult } from "@/lib/outcome";
-import { membershipReasons } from "@/lib/team";
+import { deviceChecks, membershipReasons } from "@/lib/team";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
 
@@ -22,16 +22,19 @@ export function MembershipAction({
   memberId,
   name,
   entriesWaiting,
+  devicesUsed,
 }: {
   readonly kind: "suspend" | "end";
   readonly memberId: string;
   readonly name: string;
   readonly entriesWaiting: number;
+  /** Devices the member used for Care mode: ending asks how they were checked. */
+  readonly devicesUsed: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
-  const [errors, setErrors] = useState<{ reason?: string; confirm?: string }>({});
+  const [errors, setErrors] = useState<{ reason?: string; confirm?: string; check?: string }>({});
   const [pending, startTransition] = useTransition();
   // Entries the phone reported after this page was drawn: the API asks for the confirmation.
   const [lateWaiting, setLateWaiting] = useState(false);
@@ -39,19 +42,22 @@ export function MembershipAction({
   const id = (field: string) => `membership-${kind}-${field}`;
   const askConfirm = kind === "suspend" && (entriesWaiting > 0 || lateWaiting);
   const app = t("app.name");
+  const askCheck = kind === "end" && devicesUsed > 0;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const reasonCode = String(form.get("reasonCode") ?? "");
     const confirmed = form.get("confirmEntriesWaiting") === "on";
+    const deviceCheck = String(form.get("deviceCheck") ?? "");
     const next = {
       ...(reasonCode === "" ? { reason: t("team.lifecycle.reasonRequired", { kind }) } : {}),
       ...(askConfirm && !confirmed ? { confirm: t("team.suspend.confirmRequired") } : {}),
+      ...(askCheck && deviceCheck === "" ? { check: t("team.end.deviceCheckRequired") } : {}),
     };
     setErrors(next);
-    if (next.reason || next.confirm) {
-      const first = next.reason ? id("reason") : id("confirm");
+    if (next.reason || next.confirm || next.check) {
+      const first = next.reason ? id("reason") : next.confirm ? id("confirm") : id("check");
       requestAnimationFrame(() => document.getElementById(first)?.focus());
       return;
     }
@@ -60,7 +66,7 @@ export function MembershipAction({
         memberId,
         kind === "suspend"
           ? { kind, reasonCode, confirmEntriesWaiting: confirmed }
-          : { kind, reasonCode },
+          : { kind, reasonCode, ...(askCheck ? { deviceCheck } : {}) },
       );
       setResult(outcome);
       if (!outcome.ok && outcome.code === "entries_waiting") {
@@ -121,6 +127,18 @@ export function MembershipAction({
           options={membershipReasons(kind, t)}
           {...(errors.reason ? { error: errors.reason } : {})}
         />
+        {askCheck ? (
+          <SelectField
+            id={id("check")}
+            name="deviceCheck"
+            label={t("team.end.deviceCheck")}
+            hint={t("team.end.deviceCheckHint")}
+            emptyOption={t("team.end.deviceCheckEmpty")}
+            required
+            options={deviceChecks(t)}
+            {...(errors.check ? { error: errors.check } : {})}
+          />
+        ) : null}
         {askConfirm ? (
           <Checkbox
             id={id("confirm")}

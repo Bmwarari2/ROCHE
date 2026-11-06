@@ -111,7 +111,7 @@ docs/specs/retention.md). So:
 3. The manager decides with the member and the data protection lead and ends the account's access:
    by suspending the membership, then ending it (`POST /v1/members/{tenantUserId}/suspend` and
    `/end`; [platform.md](../specs/platform.md), Member lifecycle, H-566). Once the person has no
-   invited or active membership anywhere, their sign-in identity (email, password hash, passkeys,
+   invited, active or suspended membership anywhere, their sign-in identity (email, password hash, passkeys,
    TOTP secret, sessions) is erased and the request closes with its outcome. **The request itself
    deletes nothing, and care records are never deleted this way**: the member row, name and job
    title stay so the records they made remain attributable.

@@ -45,8 +45,12 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.end_leaver_access(uuid)": ["harbour_app"],
   // The member lifecycle (migration 0144, H-566).
   "app.change_member_status(uuid, text)": ["harbour_app"],
-  "app.memberships_of_sign_in(text)": ["harbour_app", "harbour_worker"],
-  "app.sign_ins_due_for_erasure()": ["harbour_app", "harbour_worker"],
+  "app.request_sign_in_erasure()": ["harbour_app"],
+  "app.mark_sign_in_erased(uuid, text, boolean)": ["harbour_app"],
+  "app.sign_in_due_for_erasure(text)": ["harbour_app"],
+  "app.memberships_of_sign_in(text)": ["harbour_app"],
+  "app.other_membership_states(text, uuid)": ["harbour_app"],
+  "app.sign_ins_due_for_erasure()": ["harbour_worker"],
   "app.sweep_expired_invitations()": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins()": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).

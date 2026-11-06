@@ -6,6 +6,7 @@ import {
   ageSession,
   createHarness,
   type Harness,
+  LODGE,
   markSessionsVerified,
   OTHER,
   PASSWORD,
@@ -75,8 +76,27 @@ const post = (token: string, path: string, body: Record<string, unknown>, tenant
   h.request(path, { method: "POST", token, tenant, body });
 const suspend = (token: string, member: string, body: Record<string, unknown> = {}) =>
   post(token, `/v1/members/${member}/suspend`, { reasonCode: "leaving", ...body });
-const end = (token: string, member: string) =>
-  post(token, `/v1/members/${member}/end`, { reasonCode: "left_employment" });
+const end = (token: string, member: string, deviceCheck?: string) =>
+  post(token, `/v1/members/${member}/end`, {
+    reasonCode: "left_employment",
+    ...(deviceCheck ? { deviceCheck } : {}),
+  });
+const report = (token: string, device: string, held: number, owner?: string) =>
+  h.request("/v1/sync/device-report", {
+    method: "POST",
+    token,
+    tenant: DEMO.tenantId,
+    headers: { [DEVICE_HEADER]: device },
+    body: {
+      unsent: 0,
+      refused: 0,
+      held,
+      blocked: 0,
+      oldestAgeSeconds: null,
+      reportedAt: new Date().toISOString(),
+      ...(owner ? { ownerTenantUserId: owner } : {}),
+    },
+  });
 const lifecycle = (token: string, member: string) =>
   h.request(`/v1/members/${member}/lifecycle`, { token, tenant: DEMO.tenantId });
 const audits = (action: string, member: string, outcome = "success") =>
@@ -212,7 +232,16 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
       [device],
     );
 
-    const ended = await end(manager, DEMO.users.carer.id);
+    // Their phone cannot report again: the manager says how its contents were checked.
+    const unchecked = await end(manager, DEMO.users.carer.id);
+    expect(unchecked.status).toBe(409);
+    expect((await json<{ code: string }>(unchecked)).code).toBe("devices_unchecked");
+    expect(await audits("platform.member.ended", DEMO.users.carer.id, "denied")).toMatchObject([
+      { reason: "entries_to_hand_over" },
+      { reason: "devices_unchecked" },
+    ]);
+
+    const ended = await end(manager, DEMO.users.carer.id, "device_returned_checked");
     expect(ended.status).toBe(200);
     expect(await json(ended)).toMatchObject({
       state: "left",
@@ -257,12 +286,14 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
       [DEMO.users.carer.id],
     );
     expect(request).toEqual({ status: "done", status_reason: "sign_in_erased" });
-    expect(await audits("platform.member.ended", DEMO.users.carer.id)).toHaveLength(1);
+    expect(await audits("platform.member.ended", DEMO.users.carer.id)).toMatchObject([
+      { reason: "left_employment", scope: { deviceCheck: "device_returned_checked" } },
+    ]);
     expect(await audits("platform.member.sign_in_erased", DEMO.users.carer.id)).toHaveLength(1);
     expect(await signIn(DEMO.users.carer.email)).toBe("");
 
     // Idempotent: ending again changes nothing.
-    const replayEnd = await end(manager, DEMO.users.carer.id);
+    const replayEnd = await end(manager, DEMO.users.carer.id, "device_returned_checked");
     expect(replayEnd.status).toBe(200);
     expect(await json(replayEnd)).toMatchObject({ state: "left", replay: true, signIn: "erased" });
     expect(await audits("platform.member.sign_in_erased", DEMO.users.carer.id)).toHaveLength(1);
@@ -315,6 +346,11 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
     };
     // Erasure happens only once no membership anywhere is active.
     expect(await sweepSignInErasures(sweep)).toBe(0);
+    // A suspension there still holds the sign-in (security review H1, clinical review M3).
+    await inTenant(OTHER.tenantId, "UPDATE tenant_user SET status = 'suspended' WHERE id = $1", [
+      OTHER.agencyId,
+    ]);
+    expect(await sweepSignInErasures(sweep)).toBe(0);
     await inTenant(OTHER.tenantId, "UPDATE tenant_user SET status = 'left' WHERE id = $1", [
       OTHER.agencyId,
     ]);
@@ -332,12 +368,40 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
     expect(other).toEqual({ auth_user_id: null, display_name: "Agency Ash" });
   });
 
+  it("counts and chases only the member's own entries on a shared device (clinical review M1)", async () => {
+    const shared = "0199d000-0000-4000-8000-0000000e0567";
+    const quality = await report(h.tokens.quality ?? "", shared, 0);
+    expect(quality.status, await quality.clone().text()).toBeLessThan(300);
+    const owner = await signIn(DEMO.users.owner.email);
+    // The owner's own entries, held on the device the quality lead also used (a report binds).
+    await report(owner, shared, 0, DEMO.users.owner.id);
+    const colleague = await report(owner, shared, 3, DEMO.users.owner.id);
+    expect(colleague.status, await colleague.clone().text()).toBeLessThan(300);
+    const suspended = await suspend(owner, LODGE.qualityLeadId);
+    expect(suspended.status, await suspended.clone().text()).toBe(200);
+    expect(await json(suspended)).toMatchObject({ entriesWaiting: 0 });
+    const moved = await asDemo(
+      "SELECT 1 FROM audit_event WHERE action = 'sync.device_hold.moved' AND scope ->> 'deviceId' = $1",
+      [shared],
+    );
+    expect(moved).toHaveLength(0);
+    // The nurse's held entries are not the quality lead's: ending is not held up by them.
+    const ended = await end(owner, LODGE.qualityLeadId, "device_returned_checked");
+    expect(ended.status).toBe(200);
+  });
+
   it("shows a member's status to a manager it reaches, with no address", async () => {
     const owner = await signIn(DEMO.users.owner.email);
     const response = await lifecycle(owner, DEMO.users.nurse.id);
     expect(response.status).toBe(200);
     const body = await json<Record<string, unknown>>(response);
-    expect(body).toMatchObject({ state: "active", signIn: "kept", deletionRequestOpen: false });
+    expect(body).toMatchObject({
+      state: "active",
+      signIn: "kept",
+      deletionRequestOpen: false,
+      devicesUsed: 0,
+      lastReportedAt: null,
+    });
     expect(JSON.stringify(body)).not.toContain("@");
   });
 });

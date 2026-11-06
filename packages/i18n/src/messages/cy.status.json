@@ -4323,6 +4323,13 @@
     "team.lifecycle.pending",
     "team.suspend.confirmWaitingLate",
     "team.suspend.confirmWaitingHint",
-    "team.member.pageTitle"
+    "team.member.pageTitle",
+    "team.lifecycle.devices",
+    "team.lifecycle.lastReported",
+    "team.end.deviceCheck",
+    "team.end.deviceCheckHint",
+    "team.end.deviceCheckEmpty",
+    "team.end.deviceCheckRequired",
+    "team.end.deviceCheckOption"
   ]
 }

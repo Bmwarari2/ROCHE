@@ -2,6 +2,7 @@ import {
   type AssignableRole,
   CreateMember,
   type InvitationSummary,
+  MEMBER_DEVICE_CHECKS,
   MEMBER_END_REASONS,
   MEMBER_SUSPEND_REASONS,
   type MemberLifecycle,
@@ -94,6 +95,14 @@ export function membershipReasons(
         value: reason,
         label: t("team.end.reasonOption", { reason }),
       }));
+}
+
+/** How a manager checked the devices a member used, with their words (H-566, clinical review B1). */
+export function deviceChecks(t: Translator): { readonly value: string; readonly label: string }[] {
+  return MEMBER_DEVICE_CHECKS.map((check) => ({
+    value: check,
+    label: t("team.end.deviceCheckOption", { check }),
+  }));
 }
 
 /**
@@ -196,6 +205,7 @@ const REFUSALS = new Set([
   "membership_state",
   "entries_waiting",
   "entries_to_hand_over",
+  "devices_unchecked",
 ]);
 
 /** The words for a team refusal, or null for one the shared problem words cover. */

@@ -118,13 +118,27 @@ describe("suspending and ending a membership (migration 0144)", () => {
     expect(roles.rowCount).toBe(0);
   });
 
-  it("keeps an ended membership ended, whoever writes", async () => {
+  it("keeps an ended membership ended, whoever writes, and lets the application write no state", async () => {
     await expect(
-      as(
-        TENANT_A,
-        a.manager,
-      )((c) => c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [SOLO])),
+      owner(TENANT_A, (c) =>
+        c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [SOLO]),
+      ),
     ).rejects.toThrow(/stays ended/);
+    for (const column of [
+      "status = 'suspended'",
+      "auth_user_id = NULL",
+      "sign_in_erasure_requested_at = now()",
+      "sign_in_erased_at = now()",
+      "status_changed_at = now()",
+    ]) {
+      await expect(
+        as(
+          TENANT_A,
+          a.manager,
+        )((c) => c.query(`UPDATE tenant_user SET ${column} WHERE id = $1`, [a.carer])),
+        column,
+      ).rejects.toThrow(/permission denied/);
+    }
   });
 
   it("keeps the organisation's last active member who manages users", async () => {
@@ -161,47 +175,107 @@ describe("suspending and ending a membership (migration 0144)", () => {
   });
 });
 
+const dueOne = (id: string) =>
+  app()
+    .query<{ due: boolean }>("SELECT app.sign_in_due_for_erasure($1) AS due", [id])
+    .then((r) => r.rows[0]?.due);
+
 describe("sign-ins due for erasure (migration 0144)", () => {
-  it("lists a sign-in that asked, once no membership anywhere is invited or active", async () => {
-    expect(await due()).not.toContain("auth-a-solo");
-    await owner(TENANT_A, (c) =>
-      c.query("UPDATE tenant_user SET sign_in_erasure_requested_at = now() WHERE id = $1", [SOLO]),
-    );
-    expect(await due()).toContain("auth-a-solo");
+  it("records only the member's own request", async () => {
+    await as(TENANT_A, SOLO)((c) => c.query("SELECT app.request_sign_in_erasure()"));
+    const [row] = (
+      await owner(TENANT_A, (c) =>
+        c.query<{ asked: Date | null }>(
+          "SELECT sign_in_erasure_requested_at AS asked FROM tenant_user WHERE id = $1",
+          [SOLO],
+        ),
+      )
+    ).rows;
+    expect(row?.asked).not.toBeNull();
   });
 
-  it("keeps a sign-in still active in another organisation", async () => {
+  it("lists a sign-in that asked once that membership has ended and none is held elsewhere", async () => {
+    expect(await due()).toContain("auth-a-solo");
+    expect(await dueOne("auth-a-solo")).toBe(true);
+  });
+
+  it("never lists a member who asked but is only suspended (security review H1)", async () => {
+    await owner(TENANT_A, (c) =>
+      c.query(
+        `INSERT INTO tenant_user (auth_user_id, display_name, email, status, sign_in_erasure_requested_at)
+         VALUES ('auth-a-paused', 'Pip Example', 'pip@example.invalid', 'suspended', now())`,
+      ),
+    );
+    expect(await due()).not.toContain("auth-a-paused");
+  });
+
+  it("keeps a sign-in still active, or suspended, in another organisation", async () => {
     await owner(TENANT_A, (c) =>
       c.query(
         "UPDATE tenant_user SET status = 'left', sign_in_erasure_requested_at = now() WHERE id = $1",
         [a.carer],
       ),
     );
-    expect(await due()).not.toContain(AUTH_USER_SHARED);
-    const memberships = await app().query<{ tenant_id: string; status: string }>(
-      "SELECT tenant_id, status FROM app.memberships_of_sign_in($1)",
-      [AUTH_USER_SHARED],
+    expect(await dueOne(AUTH_USER_SHARED)).toBe(false);
+    const states = await app().query<{ s: string }>(
+      "SELECT s FROM app.other_membership_states($1, $2) AS s",
+      [AUTH_USER_SHARED, TENANT_A],
     );
-    expect(memberships.rows.map((r) => [r.tenant_id, r.status]).sort()).toEqual(
-      [
-        [TENANT_A, "left"],
-        [TENANT_B, "active"],
-      ].sort(),
+    expect(states.rows.map((r) => r.s)).toEqual(["active"]);
+    // Not listed for erasure, so the memberships are not given out either.
+    const listed = await app().query("SELECT * FROM app.memberships_of_sign_in($1)", [
+      AUTH_USER_SHARED,
+    ]);
+    expect(listed.rowCount).toBe(0);
+    await owner(TENANT_B, (c) =>
+      c.query("UPDATE tenant_user SET status = 'suspended' WHERE auth_user_id = $1", [
+        AUTH_USER_SHARED,
+      ]),
     );
+    expect(await dueOne(AUTH_USER_SHARED)).toBe(false);
+    await owner(TENANT_B, (c) =>
+      c.query("UPDATE tenant_user SET status = 'left' WHERE auth_user_id = $1", [AUTH_USER_SHARED]),
+    );
+    expect(await dueOne(AUTH_USER_SHARED)).toBe(true);
   });
 
-  it("takes no sign-in again once erased", async () => {
-    await owner(TENANT_A, (c) =>
-      c.query(
-        "UPDATE tenant_user SET auth_user_id = NULL, sign_in_erased_at = now() WHERE id = $1",
-        [SOLO],
-      ),
+  it("marks, then unlinks, only as the system, and finishes an erasure begun", async () => {
+    await expect(
+      as(
+        TENANT_A,
+        a.manager,
+      )((c) => c.query("SELECT app.mark_sign_in_erased($1, 'auth-a-solo', false)", [SOLO])),
+    ).rejects.toThrow(/Only the system/);
+    const system = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      inContext(app(), ctx(TENANT_A, null, "tenant"), fn);
+    await system((c) =>
+      c.query("SELECT app.mark_sign_in_erased($1, 'auth-a-solo', false)", [SOLO]),
     );
+    // A run stopped here is still due, though the request is no longer what makes it so.
+    expect(await dueOne("auth-a-solo")).toBe(true);
+    await system((c) => c.query("SELECT app.mark_sign_in_erased($1, 'auth-a-solo', true)", [SOLO]));
     expect(await due()).not.toContain("auth-a-solo");
+    const [row] = (
+      await owner(TENANT_A, (c) =>
+        c.query<{ email: string; display_name: string }>(
+          "SELECT email, display_name FROM tenant_user WHERE id = $1",
+          [SOLO],
+        ),
+      )
+    ).rows;
+    expect(row).toEqual({ email: `${SOLO}@erased.invalid`, display_name: "Sol Example" });
+  });
+
+  it("takes no sign-in again once erased, and keeps the record of it", async () => {
     await expect(
       owner(TENANT_A, (c) =>
         c.query("UPDATE tenant_user SET auth_user_id = 'auth-again' WHERE id = $1", [SOLO]),
       ),
     ).rejects.toThrow(/takes no sign-in again/);
+    await expect(
+      owner(TENANT_A, (c) =>
+        c.query("UPDATE tenant_user SET sign_in_erased_at = NULL WHERE id = $1", [SOLO]),
+      ),
+    ).rejects.toThrow(/record of an erased sign-in/);
   });
 });

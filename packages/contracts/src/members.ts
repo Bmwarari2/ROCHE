@@ -106,8 +106,22 @@ export const SuspendMember = z
   .meta({ id: "SuspendMember" });
 export type SuspendMember = z.infer<typeof SuspendMember>;
 
+/**
+ * How the manager checked the devices the member used for Care mode (clinical review of H-566, B1):
+ * a suspended member's phone cannot report again, so entries written after its last report are
+ * known only to someone holding it. Needed to end a membership whose member used any device.
+ */
+export const MEMBER_DEVICE_CHECKS = [
+  "device_returned_checked",
+  "device_lost_incident_raised",
+] as const;
+export type MemberDeviceCheck = (typeof MEMBER_DEVICE_CHECKS)[number];
+
 export const EndMember = z
-  .object({ reasonCode: z.enum(MEMBER_END_REASONS) })
+  .object({
+    reasonCode: z.enum(MEMBER_END_REASONS),
+    deviceCheck: z.enum(MEMBER_DEVICE_CHECKS).optional(),
+  })
   .meta({ id: "EndMember" });
 export type EndMember = z.infer<typeof EndMember>;
 
@@ -164,10 +178,14 @@ export const MemberLifecycle = z
     deletionRequestOpen: z.boolean(),
     signIn: SignInState,
     signInErasedAt: isoDateTime.nullable(),
-    /** Entries the member's devices last reported waiting. */
+    /** Entries the member's devices last reported waiting that are theirs. */
     entriesWaiting: z.number().int().min(0),
     /** Entries the member owns on devices whose hold is still open: ending waits for them. */
     entriesToHandOver: z.number().int().min(0),
+    /** Devices the member used for Care mode: ending needs a device check when any. */
+    devicesUsed: z.number().int().min(0),
+    /** When any of those devices last reported its unsent work, if one ever did. */
+    lastReportedAt: isoDateTime.nullable(),
   })
   .meta({ id: "MemberLifecycle" });
 export type MemberLifecycle = z.infer<typeof MemberLifecycle>;

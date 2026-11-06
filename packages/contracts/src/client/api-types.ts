@@ -1346,7 +1346,7 @@ export interface paths {
     };
     /**
      * A member's membership and sign-in status
-     * @description The membership's state (invited, active, suspended or ended), when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, and the entries their devices last reported waiting and those still to hand over (platform.user.manage, for a member it reaches; anyone else reads as not found, audited by opaque id). No address or sign-in detail.
+     * @description The membership's state (invited, active, suspended or ended), when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, the entries their devices last reported waiting as theirs and those still to hand over, how many devices they used and when one last reported (platform.user.manage, for a member it reaches; anyone else reads as not found, audited by opaque id). No address or sign-in detail.
      */
     get: {
       parameters: {
@@ -1425,7 +1425,7 @@ export interface paths {
     put?: never;
     /**
      * Suspend a membership
-     * @description Suspends an active membership (platform.user.manage, step-up, a coded reason; audited). The member can no longer reach this organisation, and Care mode on their phone ends. Every session of their sign-in ends too, unless they still work for another organisation, where they keep working. When their devices last reported entries waiting, the suspension needs confirmEntriesWaiting (409 entries_waiting otherwise); those entries stay on the device, protected, and their hold falls due at once for a manager to hand over. Not your own membership (409 own_membership), never the last active member who manages users (409 last_user_manager), only an active one (409 membership_state). A second request changes nothing (replay).
+     * @description Suspends an active membership (platform.user.manage, step-up, a coded reason; audited). The member can no longer reach this organisation, and Care mode on their phone ends. Every session of their sign-in ends too, unless they still work for another organisation, where they keep working. When their devices last reported entries of theirs waiting, the suspension needs confirmEntriesWaiting (409 entries_waiting otherwise); those entries stay on the device, protected, and their hold falls due at once for a manager to hand over. Not your own membership (409 own_membership), never the last active member who manages users (409 last_user_manager), only an active one (409 membership_state). A second request changes nothing (replay).
      */
     post: {
       parameters: {
@@ -1515,7 +1515,7 @@ export interface paths {
     put?: never;
     /**
      * End a membership
-     * @description Ends a suspended membership (platform.user.manage, step-up, a coded reason; audited): their roles and grants end; the member row, display name and job title stay so care records remain attributable. Refused while entries the member owns are still held on a device (409 entries_to_hand_over), for an active one (409 membership_state) and for your own (409 own_membership). When the member asked for their account to be deleted, the request closes: their sign-in is erased once no membership anywhere is invited or active, else kept for the other organisation and erased when that ends. A second request changes nothing (replay).
+     * @description Ends a suspended membership (platform.user.manage, step-up, a coded reason; audited): their roles and grants end; the member row, display name and job title stay so care records remain attributable. Refused while entries the member owns are still held on a device (409 entries_to_hand_over), when they used any device for Care mode and deviceCheck does not say how its contents were checked (409 devices_unchecked), for an active one (409 membership_state) and for your own (409 own_membership). When the member asked for their account to be deleted, the request closes: their sign-in is erased once no membership anywhere is invited, active or suspended, else kept for the other organisation and erased when that ends. A second request changes nothing (replay).
      */
     post: {
       parameters: {
@@ -42693,6 +42693,9 @@ export interface components {
       signInErasedAt: string | null;
       entriesWaiting: number;
       entriesToHandOver: number;
+      devicesUsed: number;
+      /** Format: date-time */
+      lastReportedAt: string | null;
     };
     /** @enum {string} */
     MembershipState: "invited" | "active" | "suspended" | "left";
@@ -42729,6 +42732,8 @@ export interface components {
         | "contract_ended"
         | "dismissed"
         | "other";
+      /** @enum {string} */
+      deviceCheck?: "device_returned_checked" | "device_lost_incident_raised";
     };
     PersonList: {
       items: components["schemas"]["PersonSummary"][];

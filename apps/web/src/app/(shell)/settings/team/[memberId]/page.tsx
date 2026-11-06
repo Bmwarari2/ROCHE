@@ -131,6 +131,14 @@ export default async function MemberInvitationsPage({
               })}
             </p>
           ) : null}
+          {lifecycle.state !== "left" ? (
+            <p className="m-0">{t("team.lifecycle.devices", { count: lifecycle.devicesUsed })}</p>
+          ) : null}
+          {lifecycle.state !== "left" && lifecycle.lastReportedAt ? (
+            <p className="m-0">
+              {t("team.lifecycle.lastReported", { dateTime: when(lifecycle.lastReportedAt) })}
+            </p>
+          ) : null}
           {lifecycle.state === "active" && lifecycle.entriesWaiting > 0 ? (
             <p className="m-0">
               {t("team.lifecycle.waiting", { count: lifecycle.entriesWaiting })}
@@ -152,6 +160,7 @@ export default async function MemberInvitationsPage({
                 memberId={memberId}
                 name={lifecycle.displayName}
                 entriesWaiting={lifecycle.entriesWaiting}
+                devicesUsed={lifecycle.devicesUsed}
               />
             </div>
           ) : null}
