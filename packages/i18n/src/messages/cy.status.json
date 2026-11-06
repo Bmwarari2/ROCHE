@@ -5837,6 +5837,8 @@
     "safety.incident.deathFactsIntro",
     "rota.hrLink.staleTitle",
     "rota.hrLink.staleBody",
-    "rota.hrLink.neverBody"
+    "rota.hrLink.neverBody",
+    "rota.hrLink.uncheckedBody",
+    "rota.hrLink.lastUpdated"
   ]
 }

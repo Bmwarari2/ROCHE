@@ -21,7 +21,7 @@ Behind `integrations.thapsus_hr`, off by default. Harbour keeps the rota.
   events, so a delivery sweep over `hr_delivery` sends published shift assignments at mapped homes
   (once, again on change, a cancellation when removed) and clock events in and out. It runs on each
   sync and when a rota is published. Allow-listed fields only; refusals are raised.
-- **Staleness note** on the rota builder and the staffing check, in words with the time and an
+- **Staleness note** on the rota builder, the staffing check, the home's rotas, absences and tasks, in words with the time and an
   icon, for anyone who reads the rota. The older of the employee and absence syncs counts. The sync
   runs every 5 minutes.
 - Migration 0142: `absence.source` and `hr_id` with their policies and guard;
@@ -29,8 +29,40 @@ Behind `integrations.thapsus_hr`, off by default. Harbour keeps the rota.
 - HZ-133 controls and tests, records of processing, data standards, and H-1345's recommended
   answers (one person confirms a match, with step-up).
 
+## Reviews
+
+- Accessibility reviewer, request changes:
+  - the note is now part of the page with no live region (`Banner` gained `announce={false}`);
+  - its time is a `<time>` element;
+  - it shows when the check fails;
+  - the wording is clearer.
+- Security reviewer, request changes:
+  - the UK check now runs before any absence or delivery, one run per organisation at a time;
+  - a re-sent leaving after a withdrawal ends access (`app.end_relinked_leaver_access` in the leaver
+    sweep);
+  - delivery keys are derived from the record and payload and written before the call;
+  - a refusal is not retried;
+  - the role sent is the job title;
+  - the withdraw route works only on the link's leavings and only when Thapsus-HR positively shows
+    none, with user management across the organisation, a row lock and restored roles keeping their
+    end;
+  - people get a coded refusal on Thapsus-HR copies;
+  - the cover-need function checks the shift's dates.
+- Clinical safety reviewer, request changes:
+  - malformed records never free a copy, and drift is guarded;
+  - open-ended absences block until ended;
+  - unknown types are raised;
+  - absences for unconfirmed members are raised;
+  - absence sync failures are audited, published and alerted after 3;
+  - the note shows after a disconnect while copies remain, and on the home's rotas, absences and tasks;
+  - `delivery_refused` goes to rota managers.
+
 ## Left
 
 - Reading shifts back from Thapsus-HR to detect edits made there needs its partner-managed records
   (K2, Phase 19); until then Harbour's copy is the only one and is re-sent when it changes.
 - Pay units and rates (slice 89) and the screens and owner guide (slice 90).
+- A Playwright journey with axe over the note on the rota pages needs a way to seed a stale link in
+  the end-to-end environment (no database access there today); the component is checked with axe
+  in jsdom.
+- Mobile shift screens do not show the note yet.

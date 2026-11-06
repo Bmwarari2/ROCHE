@@ -115,7 +115,9 @@ export const absence = pgTable(
     check("absence_state", sql`state IN (${sqlList(ABSENCE_STATE_CODES)})`),
     check(
       "absence_dates",
-      sql`(ends_on IS NULL OR ends_on >= starts_on) AND (ends_on IS NOT NULL OR kind = 'sickness')`,
+      // A Thapsus-HR copy may be open-ended whatever its type: it blocks until Thapsus-HR ends it
+      // (migration 0142; HZ-123).
+      sql`(ends_on IS NULL OR ends_on >= starts_on) AND (ends_on IS NOT NULL OR kind = 'sickness' OR source = 'thapsus_hr')`,
     ),
     check(
       "absence_decision",

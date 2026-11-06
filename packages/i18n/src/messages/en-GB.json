@@ -5835,6 +5835,8 @@
   "medicines.rec.saveDecisionAbout": "Save the decision about {product}",
   "medicines.rec.entryLine": "{route}. {directions}",
   "rota.hrLink.staleTitle": "Staff data from the HR platform may be out of date",
-  "rota.hrLink.staleBody": "{app} last had leave, sickness and staff changes from the HR platform at {time}. Absences it already has still stop people being rostered. Check the HR platform before you rely on who is available.",
-  "rota.hrLink.neverBody": "{app} has not had leave, sickness and staff changes from the HR platform yet. Check the HR platform before you rely on who is available."
+  "rota.hrLink.staleBody": "{app} last had leave, sickness and staff changes from the HR platform on {date} at {time}. It still keeps people off the rota for absences it already knows about. Check the HR platform before you rely on who is available.",
+  "rota.hrLink.neverBody": "{app} has not had leave, sickness and staff changes from the HR platform yet. Check the HR platform before you rely on who is available.",
+  "rota.hrLink.uncheckedBody": "{app} could not check when it last had staff changes from the HR platform. Check the HR platform before you rely on who is available.",
+  "rota.hrLink.lastUpdated": "Last updated"
 }

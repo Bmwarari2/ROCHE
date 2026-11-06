@@ -75,6 +75,11 @@ beforeAll(async () => {
     "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) SELECT $1, id, $2 FROM role WHERE key = 'care_worker'",
     [LEAVER_MEMBER, DEMO.locationId],
   );
+  // An acting-up role due to end in a month: it keeps that end if access comes back (HZ-124).
+  await owner(
+    "INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_to) SELECT $1, id, $2, now() + interval '30 days' FROM role WHERE key = 'team_leader'",
+    [LEAVER_MEMBER, DEMO.locationId],
+  );
   await owner(
     `INSERT INTO staff_profile (id, tenant_user_id, job_title, date_of_birth, starts_on) VALUES
        ($1, $3, 'Care worker', '1990-01-02', '2024-01-08'),
@@ -177,7 +182,10 @@ describe("hazard HZ-133 a wrong leaving date is withdrawn by a person, never whi
     const filesOnly = await withdraw(LEAVER, "nurse");
     expect(filesOnly.status).toBe(403);
     expect(await codeOf(filesOnly)).toBe("hr_link_needs_user_manager");
-    const r = await withdraw(LEAVER);
+    // The Registered Manager manages members at their home only: across the organisation, the owner.
+    const home = await withdraw(LEAVER);
+    expect(await codeOf(home)).toBe("hr_link_needs_user_manager");
+    const r = await withdraw(LEAVER, "owner");
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ withdrawn: true, accessRestored: true });
     const [after] = await owner<{ status: string }>(
@@ -190,6 +198,11 @@ describe("hazard HZ-133 a wrong leaving date is withdrawn by a person, never whi
       [LEAVER_MEMBER],
     );
     expect(roles).toHaveLength(1);
+    const boxed = await owner<{ ends: boolean }>(
+      "SELECT valid_to > now() + interval '29 days' AS ends FROM role_assignment ra JOIN role r ON r.id = ra.role_id WHERE ra.tenant_user_id = $1 AND r.key = 'team_leader' AND ra.reason = 'Leaving withdrawn'",
+      [LEAVER_MEMBER],
+    );
+    expect(boxed).toEqual([{ ends: true }]);
     const audit = await owner<{ reason: string }>(
       "SELECT reason FROM audit_event WHERE action = 'integrations.hr_link.leaving_withdrawn' AND resource_id = $1",
       [LEAVER],
@@ -197,7 +210,7 @@ describe("hazard HZ-133 a wrong leaving date is withdrawn by a person, never whi
     expect(audit).toEqual([{ reason: "date_entered_in_error" }]);
   });
 
-  it("raises a leaving sent again for a reinstated member, urgently and once", async () => {
+  it("ends access again when Thapsus-HR gives a reinstated member a real leaving, and says so once", async () => {
     const entry = mock.employeesById.get("emp_leaver") as unknown as Record<string, unknown>;
     entry.leavingDate = ukDay(-1);
     await sync();
@@ -206,6 +219,51 @@ describe("hazard HZ-133 a wrong leaving date is withdrawn by a person, never whi
       "SELECT priority FROM task WHERE kind = 'integrations.hr_link.leaving_resent' AND status = 'open'",
     );
     expect(tasks).toEqual([{ priority: "urgent" }]);
+    const [member] = await owner<{ status: string }>(
+      "SELECT status FROM tenant_user WHERE id = $1",
+      [LEAVER_MEMBER],
+    );
+    expect(member?.status).toBe("left");
+    const live = await owner(
+      "SELECT 1 FROM role_assignment WHERE tenant_user_id = $1 AND (valid_to IS NULL OR valid_to > now()) AND deleted_at IS NULL",
+      [LEAVER_MEMBER],
+    );
+    expect(live).toHaveLength(0);
+  });
+
+  it("refuses when Thapsus-HR can no longer find the employee: the leaving stays", async () => {
+    const entry = mock.employeesById.get("emp_stayer") as unknown as Record<string, unknown>;
+    entry.leavingDate = ukDay(4);
+    await sync();
+    const saved = mock.employeesById.get("emp_stayer");
+    mock.employeesById.delete("emp_stayer");
+    try {
+      const r = await withdraw(STAYER);
+      expect(r.status).toBe(409);
+      expect(await codeOf(r)).toBe("hr_link_leaving_still_sent");
+    } finally {
+      if (saved) mock.employeesById.set("emp_stayer", saved);
+    }
+  });
+
+  it("never withdraws a leaving recorded here rather than from Thapsus-HR", async () => {
+    const MANUAL = "0199f200-0000-7000-8000-000000000003";
+    const MANUAL_MEMBER = "0199f200-0000-7000-8000-000000000013";
+    await owner(
+      "INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, 'Mel Manual', 'mel.manual@example.invalid', 'active')",
+      [MANUAL_MEMBER],
+    );
+    await owner(
+      "INSERT INTO staff_profile (id, tenant_user_id, job_title, starts_on) VALUES ($1, $2, 'Care worker', '2024-01-08')",
+      [MANUAL, MANUAL_MEMBER],
+    );
+    await owner(
+      "INSERT INTO leaver_record (staff_profile_id, leaving_on, reason, created_by) VALUES ($1, $2, 'dismissal', $3)",
+      [MANUAL, ukDay(-1), DEMO.users.manager.id],
+    );
+    const r = await withdraw(MANUAL);
+    expect(r.status).toBe(409);
+    expect(await codeOf(r)).toBe("hr_link_leaving_not_from_link");
   });
 });
 

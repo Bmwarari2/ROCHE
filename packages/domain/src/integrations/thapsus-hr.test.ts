@@ -10,6 +10,7 @@ import {
   type HrAbsenceCopy,
   type HrEmployee,
   type HrOwners,
+  hrAbsenceTypeKnown,
   hrClockEventOf,
   hrShiftOf,
   hrStaleness,
@@ -529,10 +530,16 @@ describe("hazard HZ-133 an absence from Thapsus-HR becomes a read-only copy that
       { action: "create", kind: "sickness", startsOn: "2026-12-01", endsOn: null },
     ],
     [
-      "leave with no end counts as its first day",
+      "leave with no end blocks until it is ended",
       null,
       hr({ endsOn: null }),
-      { action: "create", kind: "annual_leave", startsOn: "2026-12-01", endsOn: "2026-12-01" },
+      { action: "create", kind: "annual_leave", startsOn: "2026-12-01", endsOn: null },
+    ],
+    [
+      "other with no end blocks until it is ended",
+      null,
+      hr({ type: "other", endsOn: null }),
+      { action: "create", kind: "other", startsOn: "2026-12-01", endsOn: null },
     ],
     ["a request does not block yet", null, hr({ status: "requested" }), { action: "none" }],
     ["a cancellation with no copy", null, hr({ status: "cancelled" }), { action: "none" }],
@@ -616,5 +623,21 @@ describe("hazard HZ-133 shifts and clock events go out with their listed fields 
     });
     expect(event !== null).toBe(sent);
     if (event) expect(outboundProblems("clock_event", event)).toEqual([]);
+  });
+});
+
+describe("hazard HZ-123 an absence type this product does not know still blocks, and is told", () => {
+  it.each([
+    ["sickness", true],
+    ["Sick_Leave", true],
+    ["illness", true],
+    ["annual_leave", true],
+    ["holiday", true],
+    ["other", true],
+    ["suspension", false],
+    ["maternity", false],
+    ["", false],
+  ])("%s is known: %s", (type, known) => {
+    expect(hrAbsenceTypeKnown({ type })).toBe(known);
   });
 });

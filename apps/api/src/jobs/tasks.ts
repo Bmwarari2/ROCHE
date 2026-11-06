@@ -561,7 +561,7 @@ export async function syncHrLinks(deps: TaskDeps, now = new Date()): Promise<num
     if (!port) return 0;
     const out = await pullSafely(tx, tenantId, port, link.settings, now);
     // Absences in and the rota out, once people are linked (section 11.2; slice 88).
-    await syncRotaSafely(tx, tenantId, port, now);
+    await syncRotaSafely(tx, tenantId, port, link.settings, now);
     return out.linked;
   });
   if (linked > 0) deps.logger.info({ linked }, "HR link employees linked");
@@ -1044,7 +1044,12 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       const link = await hrConnection(tx);
       if (link?.status !== "connected") return;
       const port = services.port(event.tenantId, link.settings);
-      if (port) await syncRotaSafely(tx, event.tenantId, port, new Date());
+      // Only the rota goes out here; absences come in on the scheduled sync.
+      if (port) {
+        await syncRotaSafely(tx, event.tenantId, port, link.settings, new Date(), {
+          absences: false,
+        });
+      }
     });
   });
   handlers.set("scheduling.cover_needed", async (event) => {

@@ -12,6 +12,12 @@ ALTER TABLE "absence" ADD CONSTRAINT "absence_source" CHECK (source IN ('harbour
           AND state IN ('recorded', 'cancelled') AND decided_by IS NULL AND self_certified_at IS NULL
           AND bradford_excluded_reason IS NULL)));
 --> statement-breakpoint
+-- A Thapsus-HR copy may be open-ended whatever its type, so open-ended leave or other absence
+-- keeps blocking until Thapsus-HR ends it (HZ-123); this product's own absences are unchanged.
+ALTER TABLE "absence" DROP CONSTRAINT "absence_dates";
+--> statement-breakpoint
+ALTER TABLE "absence" ADD CONSTRAINT "absence_dates" CHECK ((ends_on IS NULL OR ends_on >= starts_on) AND (ends_on IS NOT NULL OR kind = 'sickness' OR source = 'thapsus_hr'));
+--> statement-breakpoint
 CREATE UNIQUE INDEX "absence_hr_key" ON "absence" USING btree ("tenant_id","hr_id") WHERE hr_id IS NOT NULL AND state <> 'cancelled';
 --> statement-breakpoint
 ALTER TABLE "hr_delivery" ADD COLUMN "payload_sha256" text;
@@ -86,13 +92,20 @@ BEGIN
   IF NOT FOUND OR sa.worker_id <> a.member_id THEN
     RAISE EXCEPTION 'cover_need_not_allowed' USING ERRCODE = 'insufficient_privilege';
   END IF;
+  -- Only a live shift that touches the absence's UK days (a day either side for night shifts).
+  IF NOT EXISTS (SELECT 1 FROM public.shift s
+      WHERE s.tenant_id = a.tenant_id AND s.id = sa.shift_id AND s.deleted_at IS NULL
+        AND s.ends_at >= (a.starts_on - 1)::timestamptz
+        AND (a.ends_on IS NULL OR s.starts_at < (a.ends_on + 2)::timestamptz)) THEN
+    RAISE EXCEPTION 'cover_need_not_allowed' USING ERRCODE = 'insufficient_privilege';
+  END IF;
   made := app.uuid_v7();
   INSERT INTO public.shift_cover_need (id, tenant_id, shift_id, assignment_id, absence_id, location_id, created_by)
     VALUES (made, a.tenant_id, sa.shift_id, sa.id, a.id, sa.location_id, NULL)
     ON CONFLICT DO NOTHING;
   GET DIAGNOSTICS raised = ROW_COUNT;
   IF raised = 0 THEN
-    made := NULL;
+    RETURN NULL;
   END IF;
   UPDATE public.shift SET changed_after_publish_at = now()
     WHERE tenant_id = a.tenant_id AND id = sa.shift_id AND published_at IS NOT NULL;
@@ -137,3 +150,59 @@ CREATE POLICY cover_update ON public.shift_cover_need AS RESTRICTIVE FOR UPDATE
       WHERE a.tenant_id = shift_cover_need.tenant_id AND a.id = shift_cover_need.absence_id
         AND a.source = 'thapsus_hr')))
   WITH CHECK (app.current_user_id() IS NOT NULL OR app.is_system());
+
+--> statement-breakpoint
+-- Rule 8 after a withdrawn leaving (HZ-133): a member reinstated after a wrong leaving date was
+-- withdrawn, whom Thapsus-HR then gives a real leaving date, loses access at the end of that day
+-- like any leaver. The leaver guard keeps an ended access ended, so app.end_leaver_access never
+-- acts on that leaving again; this ends it for the link's sync alone (no member), on a live
+-- leaving whose day is over and whose member is active, as app.end_leaver_access does, keeping
+-- the organisation's last member who manages users. Returns whether it ended access.
+CREATE OR REPLACE FUNCTION app.end_relinked_leaver_access(p_profile_id uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE
+  v_worker uuid := app.staff_profile_worker(p_profile_id);
+BEGIN
+  IF NOT app.is_system() OR v_worker IS NULL THEN
+    RAISE EXCEPTION 'relinked_leaver_not_allowed' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.leaver_record l
+      WHERE l.tenant_id = app.current_tenant_id() AND l.staff_profile_id = p_profile_id
+        AND l.deleted_at IS NULL AND l.access_removed_at IS NOT NULL
+        AND l.leaving_on < (now() AT TIME ZONE 'Europe/London')::date)
+     OR NOT EXISTS (SELECT 1 FROM public.tenant_user u
+      WHERE u.tenant_id = app.current_tenant_id() AND u.id = v_worker AND u.status <> 'left') THEN
+    RETURN false;
+  END IF;
+  IF EXISTS (
+       SELECT 1 FROM public.role_assignment ra
+         JOIN public.role r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id
+        WHERE ra.tenant_id = app.current_tenant_id() AND ra.tenant_user_id = v_worker
+          AND ra.deleted_at IS NULL AND (ra.valid_to IS NULL OR ra.valid_to > now())
+          AND 'platform.user.manage' = ANY (r.permissions))
+     AND NOT EXISTS (
+       SELECT 1 FROM public.role_assignment ra
+         JOIN public.role r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id
+         JOIN public.tenant_user u ON u.tenant_id = ra.tenant_id AND u.id = ra.tenant_user_id
+        WHERE ra.tenant_id = app.current_tenant_id() AND ra.tenant_user_id <> v_worker
+          AND u.status = 'active' AND u.deleted_at IS NULL
+          AND ra.deleted_at IS NULL AND (ra.valid_to IS NULL OR ra.valid_to > now())
+          AND 'platform.user.manage' = ANY (r.permissions)) THEN
+    RAISE EXCEPTION 'The organisation''s last member who manages users keeps their access'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  UPDATE public.tenant_user SET status = 'left'
+   WHERE tenant_id = app.current_tenant_id() AND id = v_worker AND status <> 'left';
+  UPDATE public.role_assignment SET valid_to = now()
+   WHERE tenant_id = app.current_tenant_id() AND tenant_user_id = v_worker
+     AND deleted_at IS NULL AND (valid_to IS NULL OR valid_to > now());
+  UPDATE public.access_grant SET revoked_at = now()
+   WHERE tenant_id = app.current_tenant_id() AND tenant_user_id = v_worker
+     AND revoked_at IS NULL;
+  RETURN true;
+END
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.end_relinked_leaver_access(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.end_relinked_leaver_access(uuid) TO harbour_app;

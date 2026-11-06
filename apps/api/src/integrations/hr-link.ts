@@ -271,9 +271,21 @@ export const HR_ALERTS = {
     title: "Give a home to a staff member whose absence the HR platform sent",
     urgent: true,
   },
+  absence_record_failed: {
+    title: "Check absences the HR platform link could not apply",
+    urgent: true,
+  },
+  absence_type_unknown: { title: "Check an absence type the HR platform sent", urgent: false },
+  absence_unconfirmed: {
+    title: "Confirm a staff match: the HR platform sent an absence for them",
+    urgent: true,
+  },
+  sync_failing: { title: "The HR platform link keeps failing to sync", urgent: true },
   delivery_refused: {
     title: "Check a shift or clock event the HR platform refused",
     urgent: false,
+    // Thapsus-HR's refusal is the rota manager's to resolve (rule 14).
+    permission: "scheduling.rota.manage",
   },
 } as const;
 export type HrAlert = keyof typeof HR_ALERTS;
@@ -289,6 +301,8 @@ export async function raiseHrAlert(
   sourceType: string,
   sourceId: string,
   now: Date,
+  /** Opaque references for the reviewer (Thapsus-HR identifiers), kept with each update. */
+  refs?: readonly string[],
 ): Promise<boolean> {
   const kind = `integrations.hr_link.${alert}`;
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`${kind}:${sourceId}`}))`);
@@ -304,10 +318,17 @@ export async function raiseHrAlert(
       ),
     );
   if (open) {
-    const details = (open.details ?? {}) as { seen?: number };
+    const details = (open.details ?? {}) as { seen?: number; refs?: string[] };
+    const merged = [...new Set([...(details.refs ?? []), ...(refs ?? [])])].slice(0, 50);
     await tx
       .update(task)
-      .set({ details: { seen: (details.seen ?? 1) + 1, lastSeenAt: now.toISOString() } })
+      .set({
+        details: {
+          seen: (details.seen ?? 1) + 1,
+          lastSeenAt: now.toISOString(),
+          ...(merged.length > 0 ? { refs: merged } : {}),
+        },
+      })
       .where(eq(task.id, open.id));
     return false;
   }
@@ -315,14 +336,18 @@ export async function raiseHrAlert(
   await tx.insert(task).values({
     kind,
     title: spec.title,
-    requiredPermission: "integrations.hr_link.review",
+    requiredPermission: "permission" in spec ? spec.permission : "integrations.hr_link.review",
     sourceType,
     sourceId,
     locationId: null,
     assigneeRoleKey: "registered_manager",
     dueAt: new Date(now.getTime() + (spec.urgent ? 4 : 72) * 3_600_000),
     priority: spec.urgent ? "urgent" : "routine",
-    details: { seen: 1, lastSeenAt: now.toISOString() },
+    details: {
+      seen: 1,
+      lastSeenAt: now.toISOString(),
+      ...(refs && refs.length > 0 ? { refs: [...refs].slice(0, 50) } : {}),
+    },
     createdBy: null,
     updatedBy: null,
   });
@@ -357,7 +382,23 @@ export async function recordSync(
           }
         : { lastAttemptAt: now, lastGoodSyncAt: now, lastErrorCode: null, failures: 0 },
     });
+  if (!errorCode) return;
+  // Repeated failures alert a person (rule 6), once, until the sync recovers.
+  const [state] = await tx
+    .select({ failures: hrSyncState.failures })
+    .from(hrSyncState)
+    .where(eq(hrSyncState.kind, kind));
+  const [connection] = await tx
+    .select({ id: integrationConnection.id })
+    .from(integrationConnection)
+    .where(eq(integrationConnection.port, HR_LINK_PORT));
+  if (connection && (state?.failures ?? 0) >= HR_SYNC_FAILURES_ALERT) {
+    await raiseHrAlert(tx, "sync_failing", "integration_connection", connection.id, now, [kind]);
+  }
 }
+
+/** Failures in a row before a person is told the link keeps failing (rule 6). */
+export const HR_SYNC_FAILURES_ALERT = 3;
 
 /**
  * Staff files not yet linked, with what matching may use (never a name; rule 3). Members who have
@@ -486,7 +527,13 @@ async function applyLeaving(
     }
   } else if (known.deletedAt !== null) {
     // A member reinstated after a withdrawn leaving, whom Thapsus-HR now gives a leaving again:
-    // the ended leaving cannot be ended twice, so a manager records it, urgently (HZ-133).
+    // the leaving is re-armed with the date given now, so the leaver sweep ends access once the
+    // day is over (app.end_relinked_leaver_access; HZ-133), and a manager is told at once.
+    await tx
+      .update(leaverRecord)
+      .set({ leavingOn, deletedAt: null, staffFileRetainUntil: keep, updatedBy: null })
+      .where(eq(leaverRecord.id, known.id));
+    changed = true;
     if (await raiseHrAlert(tx, "leaving_resent", "staff_profile", staffProfileId, new Date())) {
       await audit(
         tx,

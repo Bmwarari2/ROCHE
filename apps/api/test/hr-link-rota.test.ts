@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { DEMO } from "@harbour/db/seed";
 import { OUTBOUND_FIELDS } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { deliveryKey } from "../src/integrations/hr-rota";
 import { MockThapsusHr } from "../src/integrations/thapsus-hr";
 import { outboxHandlers } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
@@ -131,6 +132,7 @@ describe("hazard HZ-133 shifts go out with their listed fields only, once, and a
     expect(shifts).toHaveLength(1);
     const body = shifts[0]?.body as Record<string, unknown>;
     expect(Object.keys(body).sort()).toEqual([...OUTBOUND_FIELDS.shift].sort());
+    expect(body.role).toBe("Care worker");
     expect(body).toMatchObject({
       harbourRef: assignmentId,
       employeeId: "emp_carer",
@@ -205,7 +207,7 @@ describe("hazard HZ-123 an absence from Thapsus-HR blocks the rota and raises co
       status: "approved",
       reason: "Not to be copied",
       fitNote: "Not to be copied",
-    });
+    } as never);
     const r = await sync();
     expect(r.absences).toMatchObject({ copied: 1, coverNeeds: 1 });
     const rows = await sql<{ kind: string; state: string; source: string; member_id: string }>(
@@ -230,10 +232,11 @@ describe("hazard HZ-123 an absence from Thapsus-HR blocks the rota and raises co
       "SELECT id, version FROM absence WHERE hr_id = 'abs_1'",
     );
     const r = await send("POST", `/v1/absences/${row?.id}/cancel`, "manager", {
-      expectedVersion: row?.version,
+      version: row?.version,
       reason: "Recorded twice by mistake",
     });
-    expect([403, 404, 409, 422]).toContain(r.status);
+    expect(r.status).toBe(409);
+    expect(((await r.json()) as { code: string }).code).toBe("managed_in_thapsus_hr");
     const [after] = await sql<{ state: string }>("SELECT state FROM absence WHERE hr_id = 'abs_1'");
     expect(after?.state).toBe("recorded");
   });
@@ -276,5 +279,126 @@ describe("hazard HZ-133 rota readers see when the HR platform's data is out of d
       "linked",
       "stale",
     ]);
+  });
+});
+
+describe("hazard HZ-133 nothing goes to or comes from a workspace no longer in the UK (rule 1)", () => {
+  it("sends no shift and takes no absence while the workspace says it is elsewhere", async () => {
+    const workspace = mock.workspaceInfo as { homeRegion: string };
+    workspace.homeRegion = "eu";
+    await sql("UPDATE shift SET break_minutes = 15 WHERE id = $1", [shiftId]);
+    const before = mock.writes.length;
+    try {
+      const r = await sync();
+      expect(r.deliveries).toBeNull();
+      expect(r.absences).toBeNull();
+      expect(mock.writes.length).toBe(before);
+    } finally {
+      workspace.homeRegion = "uk";
+    }
+  });
+});
+
+describe("hazard HZ-123 absences that keep blocking whatever goes wrong (rule 10)", () => {
+  it("keeps open-ended leave blocking until Thapsus-HR ends it", async () => {
+    mock.absencesList.push({
+      id: "abs_open",
+      employeeId: "emp_carer",
+      type: "leave",
+      startsOn: inDays(6),
+      status: "approved",
+    } as never);
+    await sync();
+    const [row] = await sql<{ ends_on: string | null; state: string }>(
+      "SELECT ends_on, state FROM absence WHERE hr_id = 'abs_open' AND state <> 'cancelled'",
+    );
+    expect(row).toEqual({ ends_on: null, state: "recorded" });
+  });
+
+  it("never frees a member because a later version of their absence could not be read", async () => {
+    const entry = mock.absencesList.find((a) => a.id === "abs_open") as Record<string, unknown>;
+    entry.endsOn = inDays(2); // before its start: not readable
+    try {
+      const r = await sync();
+      expect(r.absences).toMatchObject({ cancelled: 0, error: "record_failed" });
+      const [row] = await sql<{ state: string }>(
+        "SELECT state FROM absence WHERE hr_id = 'abs_open' AND state <> 'cancelled'",
+      );
+      expect(row?.state).toBe("recorded");
+      const tasks = await sql(
+        "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.absence_record_failed' AND status = 'open'",
+      );
+      expect(tasks).toHaveLength(1);
+    } finally {
+      delete entry.endsOn;
+    }
+  });
+
+  it("copies an absence of a type it does not know, still blocking, and says so", async () => {
+    mock.absencesList.push({
+      id: "abs_unknown",
+      employeeId: "emp_carer",
+      type: "suspension",
+      startsOn: inDays(20),
+      endsOn: inDays(22),
+      status: "approved",
+    } as never);
+    await sync();
+    const [row] = await sql<{ kind: string }>(
+      "SELECT kind FROM absence WHERE hr_id = 'abs_unknown' AND state = 'recorded'",
+    );
+    expect(row?.kind).toBe("other");
+    const tasks = await sql(
+      "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.absence_type_unknown' AND status = 'open'",
+    );
+    expect(tasks).toHaveLength(1);
+  });
+
+  it("raises an approved absence for someone whose match is not confirmed, never copying it", async () => {
+    mock.employeesById.set("emp_unmatched", {
+      id: "emp_unmatched",
+      employeeNumber: null,
+      workEmail: "nobody@example.invalid",
+      dateOfBirth: "1970-01-01",
+      givenName: "Ada",
+      familyName: "Example",
+      leavingDate: null,
+    } as never);
+    mock.absencesList.push({
+      id: "abs_unconfirmed",
+      employeeId: "emp_unmatched",
+      type: "sickness",
+      startsOn: inDays(3),
+      status: "approved",
+    } as never);
+    await sync();
+    expect(await sql("SELECT 1 FROM absence WHERE hr_id = 'abs_unconfirmed'")).toHaveLength(0);
+    const tasks = await sql(
+      "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.absence_unconfirmed' AND status = 'open'",
+    );
+    expect(tasks).toHaveLength(1);
+  });
+});
+
+describe("hazard HZ-133 a retry is the same request (rule 5)", () => {
+  it("gives the same key for the same record and payload, and another for a change", () => {
+    const a = deliveryKey("shift", "ref-1", "a".repeat(64));
+    expect(deliveryKey("shift", "ref-1", "a".repeat(64))).toBe(a);
+    expect(deliveryKey("shift", "ref-1", "b".repeat(64))).not.toBe(a);
+    expect(deliveryKey("clock_event", "ref-1", "a".repeat(64))).not.toBe(a);
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+});
+
+describe("hazard HZ-133 the rota still says so when the link stops but its absences remain (rule 9)", () => {
+  it("shows the note after a disconnect while copies still shape the rota", async () => {
+    expect((await send("DELETE", "/v1/integrations/hr-link", "manager")).status).toBe(204);
+    const r = (await (
+      await send("GET", "/v1/integrations/hr-link/staleness", "manager")
+    ).json()) as {
+      linked: boolean;
+      stale: boolean;
+    };
+    expect(r).toMatchObject({ linked: true, stale: true });
   });
 });

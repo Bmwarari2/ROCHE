@@ -131,3 +131,43 @@ describe("hazard HZ-123 the sync's cover needs are its own (migration 0142)", ()
     ).rejects.toThrow(/cover_need_not_allowed/);
   });
 });
+
+describe("hazard HZ-123 an open-ended Thapsus-HR absence keeps blocking (migration 0142)", () => {
+  it("lets the sync copy open-ended leave or other, and keeps this product's own rule", async () => {
+    await asSystem((c) =>
+      c.query(
+        `INSERT INTO absence (member_id, location_id, kind, starts_on, state, source, hr_id)
+         VALUES ($1, $2, 'other', '2026-12-20', 'recorded', 'thapsus_hr', 'abs_open')`,
+        [a.carer, a.locationNorth],
+      ),
+    );
+    await expect(
+      asManager((c) =>
+        c.query(
+          `INSERT INTO absence (member_id, location_id, kind, starts_on, state)
+           VALUES ($1, $2, 'other', '2026-12-20', 'recorded')`,
+          [a.carer, a.locationNorth],
+        ),
+      ),
+    ).rejects.toThrow(/absence_dates/);
+  });
+});
+
+describe("hazard HZ-133 ending a reinstated leaver's access is the sync's alone (migration 0142)", () => {
+  it("refuses a person, and answers false for someone with no ended leaving", async () => {
+    const profile = await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
+      c.query<{ id: string }>(
+        "INSERT INTO staff_profile (tenant_user_id, job_title) VALUES ($1, 'Care worker') RETURNING id",
+        [a.carer],
+      ),
+    );
+    const id = profile.rows[0]?.id;
+    await expect(
+      asManager((c) => c.query("SELECT app.end_relinked_leaver_access($1::uuid)", [id])),
+    ).rejects.toThrow(/relinked_leaver_not_allowed/);
+    const done = await asSystem((c) =>
+      c.query<{ ended: boolean }>("SELECT app.end_relinked_leaver_access($1::uuid) AS ended", [id]),
+    );
+    expect(done.rows[0]?.ended).toBe(false);
+  });
+});

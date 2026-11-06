@@ -300,7 +300,21 @@ const ABSENCE_TYPES: Readonly<Record<string, HrAbsenceType>> = {
   holiday: "leave",
   sickness: "sickness",
   sick: "sickness",
+  sick_leave: "sickness",
+  sickness_absence: "sickness",
+  illness: "sickness",
+  annual: "leave",
+  vacation: "leave",
 };
+
+/**
+ * Whether Thapsus-HR's absence type is one this product knows. An unknown type still blocks the
+ * rota (as other), and a person is told so they can check it (HZ-123).
+ */
+export function hrAbsenceTypeKnown(raw: Readonly<Record<string, unknown>>): boolean {
+  const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "";
+  return type === "other" || Object.hasOwn(ABSENCE_TYPES, type);
+}
 
 /**
  * An absence as it may enter Harbour: identifier, employee, type, dates and status only. Reasons,
@@ -630,14 +644,14 @@ export type HrAbsencePlan =
  * What to do with this product's copy when Thapsus-HR reports an absence (rule 10; HZ-123,
  * HZ-133). Only an approved absence blocks rostering; a request or a cancellation removes an
  * active copy. A copy's kind and start never change in place (the absence table keeps them), so a
- * change to either replaces it. Leave with no end date counts as its first day only, as the
- * absence table allows an open end for sickness alone.
+ * change to either replaces it. An absence with no end date blocks until Thapsus-HR ends it,
+ * whatever its type (migration 0142).
  */
 export function planHrAbsence(known: HrAbsenceCopy | null, incoming: HrAbsence): HrAbsencePlan {
   const active = known !== null && !known.cancelled;
   if (incoming.status !== "approved") return active ? { action: "cancel" } : { action: "none" };
   const kind = HR_ABSENCE_KIND[incoming.type];
-  const endsOn = incoming.endsOn ?? (kind === "sickness" ? null : incoming.startsOn);
+  const endsOn = incoming.endsOn;
   if (!active) return { action: "create", kind, startsOn: incoming.startsOn, endsOn };
   if (known.kind !== kind || known.startsOn !== incoming.startsOn) {
     return { action: "replace", kind, startsOn: incoming.startsOn, endsOn };

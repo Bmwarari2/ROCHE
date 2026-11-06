@@ -15,13 +15,13 @@ type State = {
   lastGoodSyncAt: string | null;
   limitMinutes: number;
 };
-const apiWith = (data: State | undefined) =>
+const apiWith = (data: State | undefined, status = data ? 200 : 403) =>
   ({
-    GET: async () => ({ data, response: new Response(null, { status: data ? 200 : 403 }) }),
+    GET: async () => ({ data, response: new Response(null, { status }) }),
   }) as never;
 
-async function render(data: State | undefined) {
-  const element = await HrLinkStaleness({ api: apiWith(data) });
+async function render(data: State | undefined, status?: number) {
+  const element = await HrLinkStaleness({ api: apiWith(data, status) });
   document.body.innerHTML = `<main><h1>Rota</h1>${element ? renderToStaticMarkup(element) : ""}</main>`;
   return document.body;
 }
@@ -35,7 +35,7 @@ async function violations() {
 }
 
 describe("hazard HZ-133 the rota says when the HR platform's data is out of date (rule 9)", () => {
-  it("says so in words, with the time, as an alert with an icon", async () => {
+  it("says so in words, with the time and an icon, as part of the page (no live region)", async () => {
     const body = await render({
       linked: true,
       stale: true,
@@ -46,8 +46,9 @@ describe("hazard HZ-133 the rota says when the HR platform's data is out of date
     expect(text).toContain("Staff data from the HR platform may be out of date");
     expect(text).toContain("06/11/2026");
     expect(text).toContain("Harbour last had leave, sickness and staff changes");
-    expect(body.querySelector("[role=alert]")).not.toBeNull();
+    expect(body.querySelector("[role=alert]")).toBeNull();
     expect(body.querySelector("svg")).not.toBeNull();
+    expect(body.querySelector("time")?.getAttribute("datetime")).toBe("2026-11-06T09:30:00Z");
     expect(await violations()).toEqual([]);
   });
 
@@ -67,9 +68,15 @@ describe("hazard HZ-133 the rota says when the HR platform's data is out of date
       "the data is fresh",
       { linked: true, stale: false, lastGoodSyncAt: "2026-11-06T09:30:00Z", limitMinutes: 15 },
     ],
-    ["the note cannot be read", undefined],
+    ["there is no link to read (403)", undefined],
   ] as const)("shows nothing when %s", async (_, data) => {
     const body = await render(data);
-    expect(body.querySelector("[role=alert]")).toBeNull();
+    expect(body.textContent).not.toContain("may be out of date");
+  });
+
+  it("shows the note when the check itself fails, since the data may be least reliable then", async () => {
+    const body = await render(undefined, 503);
+    expect(body.textContent).toContain("could not check when it last had staff changes");
+    expect(await violations()).toEqual([]);
   });
 });

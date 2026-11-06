@@ -50,7 +50,7 @@ import {
   starterFor,
   ukRefusal,
 } from "../integrations/hr-link";
-import { syncRotaSafely } from "../integrations/hr-rota";
+import { activeHrAbsenceCopies, syncRotaSafely } from "../integrations/hr-rota";
 import { receiveInbound } from "../integrations/inbound";
 import { SECRET_REF_SHAPE, secretRefProblem } from "../integrations/secret-ref";
 import { publish } from "../outbox";
@@ -278,7 +278,7 @@ function pullAsSystem(
     const now = new Date();
     const people = await pullSafely(tx, tenantId, port, settings, now);
     // Absences in and the rota out, once people are linked (slice 88).
-    return { ...people, ...(await syncRotaSafely(tx, tenantId, port, now)) };
+    return { ...people, ...(await syncRotaSafely(tx, tenantId, port, settings, now)) };
   });
 }
 
@@ -308,9 +308,22 @@ export const hrLinkRouter = createRouter()
           lastGoodSyncAt: null,
           limitMinutes: HR_STALENESS_DEFAULT_MINUTES,
         };
-        if (!(await hrLinkEnabled(tx))) return none;
         const link = await hrConnection(tx);
-        if (link?.status !== "connected") return none;
+        if (!(await hrLinkEnabled(tx)) || link?.status !== "connected") {
+          // The link stopped, but copies of its absences still shape the rota: they are no
+          // longer kept up to date, so the rota says so (rule 9).
+          const copies = await withSystemRights(tx, () => activeHrAbsenceCopies(tx));
+          if (copies === 0) return none;
+          const state = link
+            ? await withSystemRights(tx, () => hrLinkStaleness(tx, link.settings, new Date()))
+            : null;
+          return {
+            linked: true,
+            stale: true,
+            lastGoodSyncAt: state?.lastGoodSyncAt ?? null,
+            limitMinutes: link?.settings.stalenessMinutes ?? HR_STALENESS_DEFAULT_MINUTES,
+          };
+        }
         // The sync position is the link's; a rota reader learns only the time and the verdict.
         const state = await withSystemRights(tx, () =>
           hrLinkStaleness(tx, link.settings, new Date()),
