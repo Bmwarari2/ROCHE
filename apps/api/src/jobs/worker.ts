@@ -2,16 +2,56 @@ import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
 import { realPeopleEnvironment } from "../integrations/dmd";
-import { assertStorageReady, createDocumentServices, createExportStorage } from "../integrations/documents";
+import {
+  assertStorageReady,
+  createDocumentServices,
+  createExportStorage,
+} from "../integrations/documents";
 import { createHrLinkServices } from "../integrations/hr-link";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { backupDays } from "../services/certificates";
 import { sweepInvitations } from "../services/invitations";
+import { configureMedicinesOutputs } from "../services/medicines-outputs";
 import { checkDmdFreshness, RETIRED_DMD_QUEUE } from "./dmd";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
-import { buildDowntimePacks, closeEndedSurveysJob, compileHandovers, detectOutbreaks, endExpiredAssignments, escalateOutstandingDoses, escalateSafeguardingReferrals, escalateStatementsOfPurpose, escalateStatutoryNotifications, escalateTasks, expireImportsJob, generatePlanTaskSeries, materialiseTaskSeries, outboxHandlers, processDeliveries, promptMedicineOrders, raiseCandourBlocked, raiseCareReviews, raiseHerbertProfileReviews, raiseReviews, relayOutbox, remindDataSecurityRenewals, remindDevelopmentExpiry, remindDolsExpiry, remindPolicies, remindStaffFileExpiry, reportBreakGlass, reportUnroutedDaily, retryUnroutedTasks, runEscalations, sweepEvidenceBundlesJob, sweepLeaverAccess, sweepLoneWorkersJob, syncHrLinks } from "./tasks";
+import {
+  buildDowntimePacks,
+  closeEndedSurveysJob,
+  compileHandovers,
+  detectOutbreaks,
+  endExpiredAssignments,
+  escalateOutstandingDoses,
+  escalateSafeguardingReferrals,
+  escalateStatementsOfPurpose,
+  escalateStatutoryNotifications,
+  escalateTasks,
+  expireImportsJob,
+  generatePlanTaskSeries,
+  materialiseTaskSeries,
+  outboxHandlers,
+  processDeliveries,
+  promptMedicineOrders,
+  raiseCandourBlocked,
+  raiseCareReviews,
+  raiseHerbertProfileReviews,
+  raiseReviews,
+  relayOutbox,
+  remindDataSecurityRenewals,
+  remindDevelopmentExpiry,
+  remindDolsExpiry,
+  remindPolicies,
+  remindStaffFileExpiry,
+  reportBreakGlass,
+  reportUnroutedDaily,
+  retryUnroutedTasks,
+  runEscalations,
+  sweepEvidenceBundlesJob,
+  sweepLeaverAccess,
+  sweepLoneWorkersJob,
+  syncHrLinks,
+} from "./tasks";
 
 /**
  * Worker process: pg-boss queues and schedules (at-least-once delivery, idempotent handlers).
@@ -21,6 +61,7 @@ const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL);
 // Both buckets checked before the worker deletes or writes anything (#164 security review, L1).
 await assertStorageReady(config);
+configureMedicinesOutputs({ historyDays: config.MEDICINES_OUTPUT_HISTORY_DAYS });
 const workerPool = createPool(
   config.DATABASE_WORKER_URL,
   { max: 4 },

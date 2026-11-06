@@ -130,7 +130,7 @@ export const CarePlanActionItem = z
     /** The action of the earlier version this one was copied from, if any. */
     basedOnActionId: uuid.nullable(),
     /**
-     * Shown with the action: "Not a round: see the medicines record" for a medicines action,
+     * Shown with the action: "Not a round: medicines rounds are on the eMAR" for a medicines action,
      * which never generates rounds (HZ-003); null otherwise.
      */
     notice: z.string().nullable(),

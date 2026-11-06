@@ -5304,7 +5304,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       person_id: { description: "The person the item is about (person.id), if any." },
       source_type: {
         description:
-          "The table of the record: task, observation, incident, body_map_mark, care_note or notification.",
+          "The table of the record: task, observation, incident, body_map_mark, care_note, notification or medication_administration (a refused dose, from slice 49).",
       },
       source_id: { description: "The record's id in that table." },
       at: { description: "When it happened, or when the task fell due (instant, UTC)." },

@@ -64615,7 +64615,8 @@ export interface components {
           | "resuscitation_review_overdue"
           | "medicines_need_checking"
           | "photo_not_printable"
-          | "allergy_confirmation_not_recorded";
+          | "allergy_confirmation_not_recorded"
+          | "medicines_emar_unreadable";
         message: string;
         acknowledge: boolean;
         /** Format: date */
@@ -67667,7 +67668,8 @@ export interface components {
       | "incident"
       | "body_map_mark"
       | "care_note"
-      | "notification";
+      | "notification"
+      | "medication_administration";
     HandoverNoteItem: {
       /** Format: uuid */
       id: string;

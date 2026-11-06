@@ -1903,3 +1903,69 @@ yet (slice 68).
   list, one open per medicine, a taken place, changes with the version read; outstanding outcomes,
   refusals in words, idempotent resend, correction; the report's counts, filter, period cap and
   permission.
+
+
+## 16. Medicines in the Phase 1 outputs (slice 49, API)
+
+MEDS-001 and MEDS-002, with HZ-003, HZ-021 and HZ-023. Migration 0145 (a refused dose as a
+handover source; the pack's build snapshot); the packs' JSON content gains fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice` in
+`packages/domain/src/medicines/outputs.ts`.
+
+- **Every printed or exported medicines list** opens with when it was read from the eMAR and "This
+  is not the live record: check the eMAR, or the paper MAR in use, before giving or holding any
+  medicine" (UK date, 24-hour time and zone). Each line is the record as read; the lists never say
+  what to give or hold (medical-device boundary).
+- **Downtime pack (HZ-021, H-102)**: for each person with entries on the eMAR, `medicines_due` lists
+  the scheduled doses from when the pack is built to the end of its validity (the rate
+  `downtime_pack.valid_hours`), using the round's rules, so a dose since the same UK time the day
+  before that is still open is included. Each dose has dose, route, due time, time-critical and
+  `due`, `given` or `not_given` (only `due` is kept). A dose still open from before is
+  `outstanding: true`, listed first and printed "No outcome recorded when the list was made: …, was due …".
+  A dose of an entry that may not be given now (a check that found a difference) is `onHold: true`
+  and prints "On hold on the eMAR, not to be given: …". The entry's notice (not yet checked, a
+  variable dose, a change tomorrow) is `notice` and prints on the next line. When-required medicines
+  carry dose, route, indication and when last given; one on hold is listed as "On hold on the eMAR,
+  not to be given: when required: …" with its notice, never left off. `producedAt` is when the eMAR was read. An empty
+  list prints "No dose is due on the eMAR while this pack is in use, and no when-required medicine is
+  on it."
+  - Someone with no eMAR entries keeps where the paper MAR is kept.
+  - Someone whose eMAR cannot be read (each person in a savepoint) gets the section state
+    `unreadable`: "Medicines could not be read from the eMAR when this pack was made. Use the eMAR,
+    or <the paper MAR place> if it is in use." It also gets a `medicines_unreadable` warning. The
+    person ids are logged and audited (`medicinesUnreadable`), the nightly build raises the job
+    alarm, and the pack is built again on the next read.
+  - The medicines rates are read once per pack. Each person's administration records are read for
+    `MEDICINES_OUTPUT_HISTORY_DAYS` (configuration, default 35), with the latest given record of each
+    medicine version before that, uncorrected, so "last given" never goes missing
+    (`recentAdministrations`).
+  - A medicines change, a dosing record or an administration for anyone on the pack makes it stale
+    when it is next read online. Besides the record times, the pack keeps the database snapshot it
+    was built from (`buildSnapshot`): a row written by a transaction that snapshot could not see (one
+    that began before the build and committed after it) also makes it stale, so the printed "as at"
+    is never later than the data it covers. A printed or cached copy is not updated (residual risk:
+    H-102).
+- **Transfer pack (HZ-023, H-82)**: for a person with entries on the eMAR, `medicines` has `source:
+  "emar"`, `producedAt` and each entry in force (not withdrawn, not yet started, replaced, stopped or
+  ended). Each item has:
+  - name, dose (each distinct scheduled dose, joined), route, and how often in words or "When
+    required";
+  - `lastGivenAt`: the latest given, self-administered or given-by-family record across the entry's
+    versions;
+  - `status`: the home's record for a hospital reader, never an instruction. Examples: "On hold on
+    the home's eMAR: check found a difference.", "Recorded on the home's eMAR as not yet checked.",
+    "Variable dose: the dose for each day is on the home's dosing record. Ask the home." It is null
+    when checked.
+
+  The PDF adds "Last given: …" or "not recorded on the eMAR", and the status as its own line. An empty
+  list still reads not recorded. Someone with no entries keeps the pre-admission list, marked as
+  needing checking against the MAR. If the eMAR cannot be read, the pre-admission list is used and
+  the first page carries `medicines_emar_unreadable` ("The care home's electronic medicines record
+  could not be read …"), logged and audited by person id.
+- **Handover and care plans (HZ-003, H-151)**: outstanding doses (`medicines.dose.outstanding`) and
+  a person whose doses could not be worked out (`medicines.dose.check_failed`) reach the shift
+  handover as their tasks. A dose refused on the eMAR (the record that stands; a corrected one is
+  not) reaches it as a `refusal` item, source `medication_administration`, summary
+  `handover.summary.refusal` with `chart: medicine` ("Refused: a medicine"); a refusal recorded late
+  is added to a locked handover by the sweep. A care plan medicines action still never generates
+  tasks; its notice reads "Not a round: medicines rounds are on the eMAR". Not yet: a medicine not
+  available raises no stock task on this base (slice 42's hook; for the batch).

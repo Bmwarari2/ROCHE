@@ -185,6 +185,12 @@ and API routes (suspend, end, erase the sign-in), held in the database by migrat
 (`app.change_membership`, a restrictive policy and a guard trigger on `tenant_user`, the last user
 manager kept); its web screens and a reinstate route are still to build.
 
+**Phase 2 slice 49, medicines in the Phase 1 outputs** (`feat/meds-phase1-outputs`, MEDS-001 and
+MEDS-002, from slice 48; no migration): the downtime pack's doses due and the transfer pack's
+medicines come from the eMAR, each saying when it was read and that it is not the live record;
+outstanding and refused doses reach the handover (migration 0145). Left: the not-available stock
+task needs slice 42's hook (TODO for the batch).
+
 **Phase 2 slice 48, rounds, escalation and conflict review** (`feat/meds-rounds`, MEDS-002, from
 slice 34 with #162's final head (559440bb) merged in): migration 0134 adds
 `medication_administration_conflict`. The API gives the round for a location by time slot (late

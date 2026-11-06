@@ -142,6 +142,7 @@ export function itemSourceHref(
     case "notification":
       return "/notifications";
     case "task":
+    case "medication_administration":
       return person;
     default:
       return null;

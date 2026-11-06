@@ -144,6 +144,7 @@ import { timeAttendanceRouter } from "./routes/time-attendance";
 import { vettingRouter } from "./routes/vetting";
 import { wellbeingRouter } from "./routes/wellbeing";
 import { workflowsRouter } from "./routes/workflows";
+import { configureMedicinesOutputs } from "./services/medicines-outputs";
 import {
   createOidcDiscovery,
   createSsoHooks,
@@ -209,6 +210,7 @@ export interface AppHandle {
 }
 
 export function createApp(config: Config, logger: Logger): AppHandle {
+  configureMedicinesOutputs({ historyDays: config.MEDICINES_OUTPUT_HISTORY_DAYS });
   const appPool = createPool(config.DATABASE_APP_URL, {}, idleErrorLogger(logger, "app"));
   const authPool = createPool(
     config.DATABASE_AUTH_URL,
