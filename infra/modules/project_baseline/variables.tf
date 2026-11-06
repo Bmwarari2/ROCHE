@@ -24,6 +24,8 @@ variable "services" {
     "cloudkms.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "compute.googleapis.com",
+    # Artifact Registry scans every image it receives for known vulnerabilities (H-1170).
+    "containerscanning.googleapis.com",
     "dns.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",

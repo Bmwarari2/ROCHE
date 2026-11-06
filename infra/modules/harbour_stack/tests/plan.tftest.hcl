@@ -102,6 +102,16 @@ run "dev_defaults" {
   }
 }
 
+# Artifact Registry scans every image it receives (H-1170), beside the CI image scan.
+run "images_scanned" {
+  command = plan
+
+  assert {
+    condition     = contains(module.project.services, "containerscanning.googleapis.com")
+    error_message = "Container scanning must be on, so Artifact Registry scans every image it receives."
+  }
+}
+
 # Every resource that stores or processes data is in europe-west2.
 run "everything_in_london" {
   command = plan

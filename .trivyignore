@@ -5,7 +5,27 @@
 # decode-uri-component 0.2.2 via expo-router > query-string@7 (mobile only; sign-off H-397)
 CVE-2026-118664 exp:2026-11-30
 GHSA-qr28-fpjm-wq7f exp:2026-11-30
+CVE-2026-45822 exp:2026-11-30
+GHSA-vcc3-ghjq-m6fr exp:2026-11-30
 
 # zod 3.25.76 via expo > @expo/cli (build tool only; zod 4 is pinned to 4.6.6 by pnpm.overrides)
 CVE-2023-54404 exp:2026-11-30
 GHSA-mrhx-c7xc-m3w5 exp:2026-11-30
+
+# extract-zip 2.0.1 via @lhci/cli > lighthouse > puppeteer-core > @puppeteer/browsers (web
+# devDependency, CI only; no fixed version published)
+CVE-2026-56876 exp:2026-11-14
+GHSA-jmr9-qjv8-65gv exp:2026-11-14
+CVE-2026-19693 exp:2026-11-14
+GHSA-7pqw-9j4j-h8q3 exp:2026-11-14
+
+# deepmerge 4.3.1 via expo > @expo/config (build tool merging our own app config; no fix)
+CVE-2026-93753 exp:2026-11-30
+GHSA-gcqx-w48m-w2h4 exp:2026-11-30
+
+# minimatch 3.1.5, 5.1.9 and 10.2.6, and glob 13.0.6, via @expo/cli, @lhci/cli and
+# openapi-typescript (build tools on our own glob patterns); glob 14.0.2 is under two weeks old
+CVE-2026-118764 exp:2026-11-14
+GHSA-g3hv-75wg-m249 exp:2026-11-14
+CVE-2026-118773 exp:2026-11-14
+GHSA-3g3m-2fjr-6pw4 exp:2026-11-14

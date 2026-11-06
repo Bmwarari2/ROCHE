@@ -30,6 +30,6 @@
     "react-native": "0.86.3",
     "react-native-svg": "15.15.4",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }
