@@ -209,6 +209,22 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
     });
   });
 
+  it("hazard HZ-116 refuses the slice 54 reads to members without the permission or the page (slice 54)", async () => {
+    // The quality lead holds neither medicines.cd.witness nor a recording permission.
+    expect((await send("quality", `/v1/controlled-drugs/pages/${pageId}/recorders`)).status).toBe(
+      403,
+    );
+    expect(
+      (await send("quality", `/v1/controlled-drugs/pages/${pageId}/witness-assertions`)).status,
+    ).toBe(403);
+    // A page that does not exist, or that the caller's scope cannot see, is not found.
+    const other = randomUUID();
+    expect((await send("carer", `/v1/controlled-drugs/pages/${other}/recorders`)).status).toBe(404);
+    expect(
+      (await send("manager", `/v1/controlled-drugs/pages/${other}/witness-assertions`)).status,
+    ).toBe(404);
+  });
+
   it("names everyone who signed the page, for the screens and the print (slice 54)", async () => {
     const page = await json<{ people: { id: string; name: string }[] }>(
       await send("manager", `/v1/controlled-drugs/pages/${pageId}`),
@@ -442,6 +458,12 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
         ).rows,
     );
     expect(incidents).toEqual([{ type: "medication", person_ids: [ADA] }]);
+    // The page keeps saying so for everyone who reads it later, and in print (slice 54).
+    const page = await json<{ stockChecks: { id: string; incidentRaised: boolean }[] }>(
+      await send("manager", `/v1/controlled-drugs/pages/${pageId}`),
+    );
+    expect(page.stockChecks.find((s) => s.id === out.stockCheck.id)?.incidentRaised).toBe(true);
+    expect(page.stockChecks.some((s) => !s.incidentRaised)).toBe(true);
   });
 
   it("hazard HZ-011 lists the person's pages, and audits by id, never the drug or the count", async () => {

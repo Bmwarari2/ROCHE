@@ -1,5 +1,6 @@
 "use server";
 
+import { AssertWitness, RecordCdEntry, RecordStockCheck } from "@harbour/contracts";
 import type { components } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
@@ -47,6 +48,8 @@ async function send<T>(
 }
 
 const notFound = () => refused(t("errors.notFound"), "not_found");
+/** Server actions are public endpoints: a body that is not the contract's shape is never sent. */
+const malformed = () => refused(t("cd.form.malformed"));
 const ids = (...values: string[]) => values.every(isUuid);
 
 /** Opens (or finds) the register page for a medicine on the MAR. */
@@ -70,6 +73,7 @@ export async function signAsWitness(
   body: Schemas["AssertWitness"],
 ): Promise<ActionResult<Schemas["WitnessAssertion"] | null>> {
   if (!ids(personId, pageId, body.recorderId)) return notFound();
+  if (!AssertWitness.safeParse(body).success) return malformed();
   return send(personId, pageId, (api) =>
     api.POST("/v1/controlled-drugs/pages/{pageId}/witness-assertions", {
       params: { path: { pageId } },
@@ -85,6 +89,7 @@ export async function recordCdEntry(
   body: Schemas["RecordCdEntry"],
 ): Promise<ActionResult<unknown>> {
   if (!ids(personId, pageId)) return notFound();
+  if (!RecordCdEntry.safeParse(body).success) return malformed();
   return send(personId, pageId, (api) =>
     api.POST("/v1/controlled-drugs/pages/{pageId}/entries", { params: { path: { pageId } }, body }),
   );
@@ -97,6 +102,7 @@ export async function recordStockCheck(
   body: Schemas["RecordStockCheck"],
 ): Promise<ActionResult<Schemas["StockCheckRecorded"] | null>> {
   if (!ids(personId, pageId)) return notFound();
+  if (!RecordStockCheck.safeParse(body).success) return malformed();
   return send(personId, pageId, (api) =>
     api.POST("/v1/controlled-drugs/pages/{pageId}/stock-checks", {
       params: { path: { pageId } },

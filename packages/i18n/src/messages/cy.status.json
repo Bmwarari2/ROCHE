@@ -3529,6 +3529,12 @@
     "cd.check.submit",
     "cd.check.line",
     "cd.check.reasonGiven",
-    "cd.done"
+    "cd.done",
+    "cd.entry.noWitnessRecorded",
+    "cd.entry.correctsMissing",
+    "cd.entry.correctedByMissing",
+    "cd.check.result",
+    "cd.check.incidentRaised",
+    "cd.form.malformed"
   ]
 }

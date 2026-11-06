@@ -56,15 +56,16 @@ describe("movements and results, each as an icon and a word", () => {
     expect(chip.icon).toBeTruthy();
   });
 
-  it("shows a count's result in the API's words, balanced or not", () => {
-    expect(stockCheckChip({ difference: 0, resultInWords: "Balanced" })).toMatchObject({
+  it("shows a count's result as an icon and words, balanced or not", () => {
+    expect(stockCheckChip({ difference: 0 }, "tablet", t)).toMatchObject({
       status: "done",
       label: "Balanced",
     });
-    expect(stockCheckChip({ difference: -2, resultInWords: "2 tablets short" })).toMatchObject({
+    expect(stockCheckChip({ difference: -2 }, "tablet", t)).toMatchObject({
       status: "overdue",
-      label: "2 tablets short",
+      label: "Short by 2 tablet",
     });
+    expect(stockCheckChip({ difference: 0.5 }, "ml", t).label).toBe("Over by 0.5 ml");
   });
 
   it("says a count is overdue once its due time has passed", () => {

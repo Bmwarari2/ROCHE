@@ -162,7 +162,7 @@ export function WitnessForm({
         name="quantity"
         label={t("cd.witness.quantity", { unit })}
         hint={t("cd.witness.quantityHint")}
-        inputMode="decimal"
+        inputMode="text"
         autoComplete="off"
         error={errorFor(result, "quantity")}
       />
@@ -218,8 +218,20 @@ function WitnessChoice({
   ];
   return (
     <>
-      {waiting.length === 0 ? (
-        <p className="m-0" id={id}>
+      {options.length === 0 ? (
+        // Nothing to choose: this paragraph takes the error summary's link and shows the error.
+        <div
+          id={id}
+          tabIndex={-1}
+          className={`hb-field ${errorFor(result, "witness") ? "hb-field--invalid" : ""}`}
+        >
+          <p className="m-0">{t("cd.form.noSignatures")}</p>
+          {errorFor(result, "witness") ? (
+            <p className="hb-field__error">{errorFor(result, "witness")}</p>
+          ) : null}
+        </div>
+      ) : waiting.length === 0 ? (
+        <p className="m-0" id={id ? `${id}-none` : undefined}>
           {t("cd.form.noSignatures")}
         </p>
       ) : null}
@@ -410,7 +422,7 @@ export function CorrectionForm({
           name="quantity"
           label={t("cd.correct.quantity", { unit })}
           hint={t("cd.correct.quantityHint")}
-          inputMode="decimal"
+          inputMode="text"
           autoComplete="off"
           error={errorFor(result, "quantity")}
         />

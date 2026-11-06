@@ -126,6 +126,12 @@ test("hazard HZ-115 hazard HZ-116 a witnessed receipt, a correction and a count 
   await count.getByRole("button", { name: "Record the count" }).click();
   await expect(status(manager, /a medication incident has been raised/)).toBeVisible();
   await expect(region(manager, "Stock counts")).toContainText(`Cupboard found empty, run ${RUN}`);
+  // After a reload, and for anyone reading later, the count still says an incident was raised.
+  await manager.goto(url);
+  const counted = region(manager, "Stock counts")
+    .getByRole("listitem")
+    .filter({ hasText: `Cupboard found empty, run ${RUN}` });
+  await expect(counted).toContainText("Medication incident raised");
   await bothThemes(manager, "count that does not match");
 
   // The print view: every entry with its signatures and corrections.
@@ -136,6 +142,7 @@ test("hazard HZ-115 hazard HZ-116 a witnessed receipt, a correction and a count 
   ).toBeVisible();
   await expect(manager.getByRole("main")).toContainText(`Delivery ${RUN}`);
   await expect(manager.getByRole("main")).toContainText(`Corrects entry ${seq}: a detail`);
+  await expect(manager.getByRole("main")).toContainText("Medication incident raised");
   await bothThemes(manager, "print view");
   await owner.context().close();
   await manager.context().close();

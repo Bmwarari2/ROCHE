@@ -52,6 +52,31 @@ Branch `feat/web-cd-register`, from `feat/meds-cd-register` (slice 34). MEDS-005
 - No new personal data fields: staff names already held are shown to members who can read the
   register (H-1330).
 
+## Review fixes (06/11/2026)
+
+- Clinical safety:
+  - Each count that does not match now shows "Medication incident raised" on the page and in
+    print. This comes from a new `incidentRaised` field on the stock check.
+  - The recorders list now includes members who can only count the stock.
+  - A correction whose entry is missing says so; it no longer shows "entry 0".
+- Security:
+  - The two new reads are audited (`medicines.cd.recorders_viewed`,
+    `medicines.cd.assertions_viewed`).
+  - New tests: 403 without the permission, and 404 for a page the caller cannot see.
+  - The waiting signature's movement now has the contract's type instead of a cast.
+  - The server actions check each body against the contract before sending it.
+- Accessibility:
+  - The witness choice no longer duplicates an id, and shows its error inline when there is
+    nothing to choose.
+  - The print view shows the person's communication needs.
+  - Signed quantities use a text keypad, so a minus can be typed.
+  - Lists keep `role="list"`.
+  - Clearer hint text, the unit on the expected count, and "No witness recorded" when no reason
+    was given.
+  - Count results are i18n strings.
+- Left for later: a competence check before listing recorders (names only; low).
+  `@harbour/db/seed` is still imported by the medicines ports (H-1333).
+
 ## Human actions
 
 H-1330 to H-1334.

@@ -372,7 +372,7 @@ export const controlledDrugsRouter = createRouter()
       tags,
       summary: "Who a witness may sign for on this page",
       description:
-        "Members who may record controlled drugs at the person's home (medicines.cd.administer there), never the witness themselves, by name: for choosing whom they watched (ADR-0084 on the web; slice 54). Not audited: no register content is read.",
+        "Members who may record controlled drugs or count the stock at the person's home (medicines.cd.administer or medicines.stock.manage there), never the witness themselves, by name: for choosing whom they watched (ADR-0084 on the web; slice 54). Audited as a view of the page.",
       security,
       request: { params: PageParam },
       responses: {
@@ -391,10 +391,25 @@ export const controlledDrugsRouter = createRouter()
           .where(eq(controlledDrugPage.id, pageId));
         if (!page) throw problems.notFound();
         const person = await loadPerson(tx, page.personId);
+        await audit(c, tx, access, {
+          action: "medicines.cd.recorders_viewed",
+          resourceType: "controlled_drug_page",
+          resourceId: pageId,
+          scope: { personId: page.personId },
+        });
         return withTenantWideScope(tx, async () => {
-          const ids = (
-            await permissionHolders(tx, ADMINISTER, person.locationId, new Date())
-          ).filter((id) => id !== access.tenantUserId);
+          const now = new Date();
+          // Sequential: one transaction runs one query at a time.
+          const administer = await permissionHolders(tx, ADMINISTER, person.locationId, now);
+          const counters = await permissionHolders(
+            tx,
+            "medicines.stock.manage",
+            person.locationId,
+            now,
+          );
+          const ids = [...new Set([...administer, ...counters])].filter(
+            (id) => id !== access.tenantUserId,
+          );
           if (ids.length === 0) return [];
           const rows = await tx
             .select({ id: tenantUser.id, name: tenantUser.displayName })
@@ -428,10 +443,16 @@ export const controlledDrugsRouter = createRouter()
       const now = new Date();
       const assertions = await withTenant(c, async (tx) => {
         const [page] = await tx
-          .select({ id: controlledDrugPage.id })
+          .select({ id: controlledDrugPage.id, personId: controlledDrugPage.personId })
           .from(controlledDrugPage)
           .where(eq(controlledDrugPage.id, pageId));
         if (!page) throw problems.notFound();
+        await audit(c, tx, access, {
+          action: "medicines.cd.assertions_viewed",
+          resourceType: "controlled_drug_page",
+          resourceId: pageId,
+          scope: { personId: page.personId },
+        });
         const rows = await tx
           .select({
             id: controlledDrugWitnessAssertion.id,
@@ -453,7 +474,9 @@ export const controlledDrugsRouter = createRouter()
           .orderBy(desc(controlledDrugWitnessAssertion.assertedAt));
         return rows.map((r) => ({
           id: r.id,
-          movement: r.movement as "receipt",
+          movement: r.movement as z.infer<
+            typeof CdWaitingAssertions
+          >["assertions"][number]["movement"],
           quantity: Number(r.quantity),
           witnessName: r.witnessName,
           expiresAt: r.expiresAt.toISOString(),

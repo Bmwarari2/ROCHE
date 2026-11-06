@@ -3486,7 +3486,7 @@
   "cd.form.quantity": "How much, in {unit}",
   "cd.form.quantityError": "Enter the amount as a number above 0, with no more than 3 decimal places.",
   "cd.form.occurredAt": "When it happened",
-  "cd.form.occurredHint": "Leave empty for now.",
+  "cd.form.occurredHint": "Leave empty if it has just happened.",
   "cd.form.occurredSubject": "when it happened",
   "cd.form.counterparty": "From or to",
   "cd.form.counterpartyHint": "For example the pharmacy's name.",
@@ -3526,7 +3526,13 @@
   "cd.check.reason": "If it does not match, why",
   "cd.check.reasonHint": "Needed when the count does not match the register.",
   "cd.check.submit": "Record the count",
-  "cd.check.line": "Counted {counted, number} {unit}, register said {expected, number}. Counted by {by}. Witness: {witness}.",
+  "cd.check.line": "Counted {counted, number} {unit}, register said {expected, number} {unit}. Counted by {by}. Witness: {witness}.",
   "cd.check.reasonGiven": "Why: {reason}",
-  "cd.done": "{done, select, opened {Register page open.} witnessed {Signed as witness. The person you watched can use it until {until}.} recorded {Recorded on the register.} corrected {Correction recorded under the entry it corrects.} counted {Count recorded. It matches the register.} countedIncident {Count recorded. It does not match the register, so a medication incident has been raised.} other {Saved.}}"
+  "cd.done": "{done, select, opened {Register page open.} witnessed {Signed as witness. The person you watched can use it until {until}.} recorded {Recorded on the register.} corrected {Correction recorded under the entry it corrects.} counted {Count recorded. It matches the register.} countedIncident {Count recorded. It does not match the register, so a medication incident has been raised.} other {Saved.}}",
+  "cd.entry.noWitnessRecorded": "No witness recorded",
+  "cd.entry.correctsMissing": "Corrects an entry that is not on this page: {what, select, quantity {the quantity} other {a detail}}",
+  "cd.entry.correctedByMissing": "Corrected by an entry that is not on this page",
+  "cd.check.result": "{kind, select, balanced {Balanced} short {Short by {amount, number} {unit}} other {Over by {amount, number} {unit}}}",
+  "cd.check.incidentRaised": "Medication incident raised",
+  "cd.form.malformed": "This could not be sent as it stands. Check the form and try again."
 }

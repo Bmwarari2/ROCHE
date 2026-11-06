@@ -66,7 +66,8 @@ async function ControlledDrugsTab({ params }: { readonly params: Params }) {
             title={t("cd.empty")}
           />
         ) : (
-          <ul className="m-0 flex list-none flex-col gap-4 p-0">
+          // biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics under list-style none
+          <ul role="list" className="m-0 flex list-none flex-col gap-4 p-0">
             {data.pages.map((p) => {
               const overdue = countOverdue(p.nextStockCheckDueAt);
               const last = p.lastStockCheck;
@@ -85,7 +86,7 @@ async function ControlledDrugsTab({ params }: { readonly params: Params }) {
                   </p>
                   <p className="m-0 flex flex-wrap items-center gap-2">
                     {last ? (
-                      <StatusChip {...stockCheckChip(last)} />
+                      <StatusChip {...stockCheckChip(last, p.unit.name, t)} />
                     ) : (
                       <StatusChip status="notRecorded" label={t("cd.neverCounted")} />
                     )}

@@ -99,6 +99,8 @@ export const StockCheckOut = z
     difference: z.number(),
     /** "Balanced", or how many over or short, in words; never colour alone. */
     resultInWords: z.string(),
+    /** A count that does not balance raised a medication incident when it was recorded (HZ-115). */
+    incidentRaised: z.boolean(),
     reason: z.string().nullable(),
     checked: Actor,
     witnessId: uuid.nullable(),

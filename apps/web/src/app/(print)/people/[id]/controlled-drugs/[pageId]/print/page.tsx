@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { NoAccess } from "@/components/care/NoAccess";
 import { PrintButton } from "@/components/cd/PrintButton";
 import { RegisterEntries, StockChecks } from "@/components/cd/Register";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { cdPageHref, cdShown } from "@/lib/controlled-drugs";
@@ -60,6 +61,7 @@ export default async function PrintCdPage({
             nhs: formatNhsNumber(person.nhsNumber) ?? t("cd.print.noNhs"),
           })}
         </p>
+        <PersonNeeds person={person} />
         <p className="m-0">{t("cd.print.unit", { unit: page.unit.name })}</p>
         <p className="m-0 font-semibold">
           {t("cd.balance", { balance: page.balance, unit: page.unit.name })}

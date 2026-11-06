@@ -83,14 +83,24 @@ export function flagChip(
   return { status: "due", icon: Flag, label: t("cd.flag", { flag }) };
 }
 
-/** A stock check's result: balanced, or not, as an icon and the API's words. */
-export function stockCheckChip(check: {
-  readonly difference: number;
-  readonly resultInWords: string;
-}): { readonly status: StatusChipStatus; readonly icon: LucideIcon; readonly label: string } {
-  return check.difference === 0
-    ? { status: "done", icon: CircleCheck, label: check.resultInWords }
-    : { status: "overdue", icon: TriangleAlert, label: check.resultInWords };
+/**
+ * A stock check's result as an icon and words (through i18n, so Welsh can follow): balanced, or
+ * short or over by how much, from the API's difference. Nothing is worked out here but the sign.
+ */
+export function stockCheckChip(
+  check: { readonly difference: number },
+  unit: string,
+  t: Translator,
+): { readonly status: StatusChipStatus; readonly icon: LucideIcon; readonly label: string } {
+  const d = check.difference;
+  const label = t("cd.check.result", {
+    kind: d === 0 ? "balanced" : d < 0 ? "short" : "over",
+    amount: Math.abs(d),
+    unit,
+  });
+  return d === 0
+    ? { status: "done", icon: CircleCheck, label }
+    : { status: "overdue", icon: TriangleAlert, label };
 }
 
 /** Whether the next count is overdue now (from the API's due time). */

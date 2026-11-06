@@ -28249,7 +28249,7 @@ export interface paths {
     };
     /**
      * Who a witness may sign for on this page
-     * @description Members who may record controlled drugs at the person's home (medicines.cd.administer there), never the witness themselves, by name: for choosing whom they watched (ADR-0084 on the web; slice 54). Not audited: no register content is read.
+     * @description Members who may record controlled drugs or count the stock at the person's home (medicines.cd.administer or medicines.stock.manage there), never the witness themselves, by name: for choosing whom they watched (ADR-0084 on the web; slice 54). Audited as a view of the page.
      */
     get: {
       parameters: {
@@ -40317,6 +40317,7 @@ export interface components {
       expected: number;
       difference: number;
       resultInWords: string;
+      incidentRaised: boolean;
       reason: string | null;
       checked: {
         /** Format: uuid */
