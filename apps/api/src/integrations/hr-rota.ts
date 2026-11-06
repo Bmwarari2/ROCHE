@@ -423,7 +423,6 @@ async function deliver(
   now: Date,
   send: (key: string) => Promise<HrResult<{ readonly id: string }>>,
 ): Promise<"sent" | "skipped" | "refused" | "failed" | "rate_limited"> {
-  const key = deliveryKey(kind, harbourRef, digest);
   const [known] = await tx
     .select()
     .from(hrDelivery)
@@ -435,6 +434,15 @@ async function deliver(
   ) {
     return "skipped";
   }
+  // A retry of the same attempt keeps its key; a new attempt (a change, or a return to an earlier
+  // payload) gets a key of its own, from the row's version, so Thapsus-HR never replays an older
+  // answer (rule 5).
+  const key =
+    known &&
+    known.payloadSha256 === digest &&
+    (known.state === "pending" || known.state === "failed")
+      ? known.idempotencyKey
+      : deliveryKey(kind, harbourRef, `${digest}:${known?.version ?? 0}`);
   // Pending first, with what is about to be sent (the key and digest), before any call.
   const goodBefore = known?.state === "sent" ? known : null;
   if (known) {
@@ -484,10 +492,7 @@ async function deliver(
       // digest out so the retry goes again with the same key.
       ...(goodBefore
         ? { payloadSha256: refused ? digest : goodBefore.payloadSha256 }
-        : {
-            state: refused ? "refused" : "failed",
-            ...(refused ? {} : { payloadSha256: null }),
-          }),
+        : { state: refused ? "refused" : "failed" }),
       lastErrorCode: result.error,
       attempts,
       updatedBy: null,

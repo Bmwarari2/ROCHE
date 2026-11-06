@@ -157,6 +157,26 @@ describe("hazard HZ-133 shifts go out with their listed fields only, once, and a
     ]);
   });
 
+  it("sends a shift that goes back to an earlier version with a new key, never a replay", async () => {
+    const keys = () =>
+      sql<{ idempotency_key: string }>(
+        "SELECT idempotency_key FROM hr_delivery WHERE kind = 'shift' AND harbour_ref = $1",
+        [assignmentId],
+      );
+    await sql("UPDATE shift SET break_minutes = 20 WHERE id = $1", [shiftId]);
+    await sync();
+    const first = (await keys())[0]?.idempotency_key;
+    await sql("UPDATE shift SET break_minutes = 25 WHERE id = $1", [shiftId]);
+    await sync();
+    await sql("UPDATE shift SET break_minutes = 20 WHERE id = $1", [shiftId]);
+    const before = mock.writes.length;
+    await sync();
+    expect((await keys())[0]?.idempotency_key).not.toBe(first);
+    expect(mock.writes.length).toBe(before + 1);
+    const last = mock.writes.at(-1)?.body as { breakMinutes: number };
+    expect(last.breakMinutes).toBe(20);
+  });
+
   it("is sent when the rota is published, without waiting for the sync", async () => {
     await sql("UPDATE shift SET break_minutes = 60 WHERE id = $1", [shiftId]);
     const before = mock.writes.length;

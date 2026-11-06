@@ -45,7 +45,9 @@ describe("hazard HZ-133 the rota says when the HR platform's data is out of date
     const text = body.textContent ?? "";
     expect(text).toContain("Staff data from the HR platform may be out of date");
     expect(text).toContain("06/11/2026");
-    expect(text).toContain("Harbour last had leave, sickness and staff changes");
+    expect(text).toContain(
+      "Harbour has not had leave, sickness and staff changes from the HR platform since the time below",
+    );
     expect(body.querySelector("[role=alert]")).toBeNull();
     expect(body.querySelector("svg")).not.toBeNull();
     expect(body.querySelector("time")?.getAttribute("datetime")).toBe("2026-11-06T09:30:00Z");
@@ -78,5 +80,17 @@ describe("hazard HZ-133 the rota says when the HR platform's data is out of date
     const body = await render(undefined, 503);
     expect(body.textContent).toContain("could not check when it last had staff changes");
     expect(await violations()).toEqual([]);
+  });
+
+  it.each([
+    ["a summer evening (BST)", "2026-07-01T23:30:00Z", "02/07/2026"],
+    ["the night the clocks go back", "2026-10-25T00:30:00Z", "25/10/2026"],
+    ["the night the clocks go forward", "2026-03-29T01:30:00Z", "29/03/2026"],
+  ])("says the time once, in UK time, on %s", async (_, at, day) => {
+    const body = await render({ linked: true, stale: true, lastGoodSyncAt: at, limitMinutes: 15 });
+    const time = body.querySelector("time");
+    expect(time?.getAttribute("datetime")).toBe(at);
+    expect(time?.textContent).toContain(day);
+    expect((body.textContent ?? "").match(/\d{2}\/\d{2}\/\d{4}/g)).toHaveLength(1);
   });
 });

@@ -1,6 +1,6 @@
 import { Banner } from "@harbour/ui";
 import type { tenantApi } from "@/lib/api";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
 /**
@@ -21,11 +21,8 @@ export async function HrLinkStaleness({ api }: { api: Awaited<ReturnType<typeof 
   const description = !state
     ? t("rota.hrLink.uncheckedBody", { app: t("app.name") })
     : at
-      ? t("rota.hrLink.staleBody", {
-          app: t("app.name"),
-          date: formatDate(at.slice(0, 10)) ?? "",
-          time: (formatDateTime(at) ?? "").slice(-5),
-        })
+      ? // The time is said once, in UK time, in the detail line below (one conversion).
+        t("rota.hrLink.staleBody", { app: t("app.name") })
       : t("rota.hrLink.neverBody", { app: t("app.name") });
   return (
     <Banner
