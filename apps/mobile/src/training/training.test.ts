@@ -25,6 +25,7 @@ import {
   offlineRuntimeMain,
   parseRuntimeMessage,
   type RuntimeWindow,
+  withOfflinePolicy,
 } from "./offline-runtime";
 import { courseItems } from "./view";
 
@@ -464,5 +465,58 @@ describe("the security review of slice 72", () => {
     ["https://tracker.example.invalid/", false],
   ])("opens %s inside the course's folder: %s", (url, inside) => {
     expect(isInsideFolder(url, "file:///data/app/elearning/t/c")).toBe(inside);
+  });
+});
+
+describe("the security re-check of slice 72", () => {
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}">`;
+
+  it.each([
+    [
+      "a head",
+      "<html><head><title>x</title></head></html>",
+      `<html><head>${meta}<title>x</title></head></html>`,
+    ],
+    [
+      "a head with attributes",
+      '<HEAD lang="en"><script src="a.js"></script>',
+      `<HEAD lang="en">${meta}<script src="a.js"></script>`,
+    ],
+    ["no head", "<html><body>x</body></html>", `<html><head>${meta}</head><body>x</body></html>`],
+    ["neither", "<p>x</p>", `<head>${meta}</head><p>x</p>`],
+  ])("writes the offline policy first into a page with %s", (_case, html, kept) => {
+    expect(withOfflinePolicy(html)).toBe(kept);
+  });
+
+  it("refuses, from the bridge, an element the API does not keep, or a value past its length", () => {
+    const commit = (cmi: Record<string, string>) =>
+      parseRuntimeMessage(
+        JSON.stringify({
+          protocol: "harbour.elearning.offline.v1",
+          type: "commit",
+          cmi,
+          finished: false,
+        }),
+      );
+    expect(commit({ "cmi.core.lesson_status": "passed" })).not.toBeNull();
+    expect(commit({ "cmi.comments": "x" })).toBeNull();
+    expect(commit({ "cmi.core.lesson_location": "x".repeat(256) })).toBeNull();
+  });
+
+  it("refuses, from the bridge, a statement over 16 KB", () => {
+    const big = {
+      id: "s1",
+      verb: { id: "http://adlnet.gov/expapi/verbs/completed" },
+      pad: "x".repeat(17 * 1024),
+    };
+    expect(
+      parseRuntimeMessage(
+        JSON.stringify({
+          protocol: "harbour.elearning.offline.v1",
+          type: "statements",
+          statements: [big],
+        }),
+      ),
+    ).toBeNull();
   });
 });

@@ -1013,12 +1013,15 @@ in [ADR-0093](../decisions/0093-elearning-runtime.md).
    2004 APIs as on the content origin, keeping only `CMI_ELEMENTS`, and, for xAPI, the course's
    record store pointed at an address that never leaves the phone (`OFFLINE_LRS`), its statements
    caught there. The course may open only its own files: a page outside the course's folder is
-   stopped and said (`isInsideFolder`, dot segments and escapes resolved). Before anything loads,
-   the runtime puts a content security policy on the page (`OFFLINE_CSP`: the package's own files
-   and inline code only, `connect-src 'none'`, no forms), refuses `fetch` and `XMLHttpRequest` to
-   the network, and stops beacons, WebSockets and server-sent events. A platform-level block, which
-   would also cover frames inside the page, is H-1366. The course is told the attempt's id and the
-   member's first name only.
+   stopped and said (`isInsideFolder`, dot segments and escapes resolved). Every page of the
+   package is written with a content security policy first in its `<head>` when it downloads
+   (`withOfflinePolicy`, `OFFLINE_CSP`: the package's own files and inline code only,
+   `connect-src 'none'`, no forms), and the runtime refuses `fetch` and `XMLHttpRequest` to the
+   network and stops beacons, WebSockets and server-sent events on the page. This has not yet been
+   tried on a device's WebView; a frame the page makes from nothing (`about:blank`) is outside it,
+   and a platform-level block is H-1366. Bridge messages carry only the elements the API keeps,
+   within their lengths, and statements of at most 16 KB. The course is told the attempt's id and
+   the member's first name only.
 3. **Queued and sent.** The attempt is started on the phone by its own UUID, and each commit and
    batch of statements is queued in `elearning_outbox` (insert-only) with a client UUID, each
    statement given an id when the course left it out. Commits are merged and queued at most every

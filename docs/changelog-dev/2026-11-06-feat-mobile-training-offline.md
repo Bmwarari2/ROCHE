@@ -28,7 +28,13 @@ Branch `feat/mobile-training-offline`, slice 72 (no PR yet), on `feat/work-elear
   active course, throttled per member first; a stricter folder check; course files removed on
   wipe and hold.
 
+## Review round 2
+
+- Security: the offline policy written into each page's head at download, not only by script;
+  bridge messages limited to the elements the API keeps and statements to 16 KB.
+- Accessibility: approved, on condition that the Maestro journey passes once on Android.
+
 ## What is next
 
-- Try real packages on a device; place Training beside Shifts when slice 71 is merged (H-1365);
+- Run the Maestro journey on Android and try real packages in a device's WebView (H-1366); place Training beside Shifts when slice 71 is merged (H-1365);
   Welsh strings.

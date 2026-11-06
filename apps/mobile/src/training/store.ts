@@ -8,6 +8,7 @@
 import { Directory, File, Paths } from "expo-file-system";
 import { TENANT_HEADER } from "../sync/session-signals";
 import { type OfflineManifest, safeSegments } from "./offline-plan";
+import { isPage, withOfflinePolicy } from "./offline-runtime";
 
 export function courseFolder(tenantId: string, courseId: string): Directory {
   return new Directory(Paths.document, "elearning", tenantId, courseId);
@@ -51,6 +52,8 @@ export async function downloadCourse(input: {
         idempotent: true,
       });
       if (saved.size !== f.size) throw new Error("size");
+      // Each page carries the offline policy in its head from the first byte (review M1).
+      if (isPage(f.path)) saved.write(withOfflinePolicy(await saved.text()));
       done += 1;
       input.onProgress(done, manifest.files.length);
     }

@@ -11,6 +11,8 @@
  * what the WebView runs (`offlineRuntimeSource`).
  */
 
+import { CMI_ELEMENTS, XAPI_STATEMENT_MAX_BYTES } from "@harbour/domain";
+
 /** Where an offline xAPI course sends its statements: caught on the phone, never fetched. */
 export const OFFLINE_LRS = "https://lrs.offline.invalid/xapi/";
 export const RUNTIME_PROTOCOL = "harbour.elearning.offline.v1";
@@ -364,6 +366,12 @@ export function offlineLaunchQuery(
   return `?${params.toString()}`;
 }
 
+/** Every data model element the API keeps, with its longest value (`CMI_ELEMENTS`). */
+const KEPT_LENGTHS: Readonly<Record<string, number>> = {
+  ...CMI_ELEMENTS.scorm_1_2,
+  ...CMI_ELEMENTS.scorm_2004,
+};
+
 export type RuntimeMessage =
   | {
       readonly type: "commit";
@@ -387,9 +395,11 @@ export function parseRuntimeMessage(data: string): RuntimeMessage | null {
     if (typeof msg.finished !== "boolean" || typeof msg.cmi !== "object" || msg.cmi === null) {
       return null;
     }
+    // Only what the API keeps, within its lengths, whatever calls the bridge (review M2).
     const cmi: Record<string, string> = {};
     for (const [k, v] of Object.entries(msg.cmi as Record<string, unknown>)) {
-      if (typeof v !== "string" || k.length > 200 || v.length > 64000) return null;
+      const max = KEPT_LENGTHS[k];
+      if (typeof v !== "string" || max === undefined || v.length > max) return null;
       cmi[k] = v;
     }
     return { type: "commit", cmi, finished: msg.finished };
@@ -399,7 +409,38 @@ export function parseRuntimeMessage(data: string): RuntimeMessage | null {
       (s): s is Record<string, unknown> => typeof s === "object" && s !== null && !Array.isArray(s),
     );
     if (list.length === 0 || list.length > 50 || list.length !== msg.statements.length) return null;
+    // Each statement at most what the API keeps (16 KB), so none is queued only to be refused.
+    if (
+      list.some(
+        (s) => new TextEncoder().encode(JSON.stringify(s)).length > XAPI_STATEMENT_MAX_BYTES,
+      )
+    ) {
+      return null;
+    }
     return { type: "statements", statements: list };
   }
   return null;
 }
+
+/**
+ * A package's page as the phone keeps it: the offline policy (`OFFLINE_CSP`) written into its
+ * `<head>` before anything else, at download, so it holds from the first byte the page loads,
+ * whatever the platform does with injected script (security review of slice 72, M1).
+ */
+export function withOfflinePolicy(html: string): string {
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}">`;
+  const head = /<head(\s[^>]*)?>/i.exec(html);
+  if (head)
+    return (
+      html.slice(0, head.index + head[0].length) + meta + html.slice(head.index + head[0].length)
+    );
+  const root = /<html(\s[^>]*)?>/i.exec(html);
+  if (root) {
+    const at = root.index + root[0].length;
+    return `${html.slice(0, at)}<head>${meta}</head>${html.slice(at)}`;
+  }
+  return `<head>${meta}</head>${html}`;
+}
+
+/** Whether a package file is a page the policy is written into. */
+export const isPage = (path: string) => /\.html?$/i.test(path);
