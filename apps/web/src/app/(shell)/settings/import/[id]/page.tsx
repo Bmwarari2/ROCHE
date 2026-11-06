@@ -80,7 +80,10 @@ export default async function ImportBatchPage({
           {batch.committedAt ? (
             <p className="m-0 text-body-dense">
               {t("import.batch.committed", {
-                records: batch.records ?? 0,
+                what: t("import.recordsAdded", {
+                  type: batch.recordType,
+                  records: batch.records ?? 0,
+                }),
                 dateTime: when(batch.committedAt),
               })}
             </p>

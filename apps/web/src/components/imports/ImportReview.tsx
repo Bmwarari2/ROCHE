@@ -7,7 +7,15 @@ import type {
   ImportRecordType,
 } from "@harbour/contracts";
 import { Button, Card, Checkbox, Sheet, SheetClose } from "@harbour/ui";
-import { CircleAlert, ListChecks, Trash2, TriangleAlert, Undo2, Upload } from "lucide-react";
+import {
+  CircleAlert,
+  CircleCheck,
+  ListChecks,
+  Trash2,
+  TriangleAlert,
+  Undo2,
+  Upload,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState, useTransition } from "react";
@@ -127,7 +135,7 @@ function Report({
       </p>
       <section aria-labelledby={`${idPrefix}-what`} className="flex flex-col gap-2">
         <h3 id={`${idPrefix}-what`} className="m-0 text-body font-semibold">
-          {t("import.report.whatHappens")}
+          {t("import.report.whatHappens", { type: recordType })}
         </h3>
         <ul className="m-0 flex max-w-prose flex-col gap-2 pl-5">
           {report.whatHappens.map((words) => (
@@ -135,6 +143,25 @@ function Report({
           ))}
         </ul>
       </section>
+      {report.rowOutcomes && report.rowOutcomes.length > 0 ? (
+        <section aria-labelledby={`${idPrefix}-rows`} className="flex flex-col gap-2">
+          <h3 id={`${idPrefix}-rows`} className="m-0 text-body font-semibold">
+            {t("import.report.rowsTitle")}
+          </h3>
+          <ul className="m-0 flex flex-col gap-1 p-0">
+            {report.rowOutcomes.map((r) => (
+              <li key={r.row} className="flex items-center gap-2">
+                {r.outcome === "creates" ? (
+                  <CircleCheck {...icon} className="shrink-0" />
+                ) : (
+                  <CircleAlert {...icon} className="shrink-0" />
+                )}
+                {t("import.report.row", { row: r.row, outcome: r.outcome })}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {report.errors.length > 0 ? (
         <section aria-labelledby={`${idPrefix}-errors`} className="flex flex-col gap-2">
           <h3 id={`${idPrefix}-errors`} className="m-0 text-body font-semibold">
@@ -191,29 +218,39 @@ function Report({
         </fieldset>
       ) : null}
       {report.recordMatchesCapped ? <p className="m-0">{t("import.report.capped")}</p> : null}
-      <section aria-labelledby={`${idPrefix}-allergy`} className="flex flex-col gap-2">
-        <h3 id={`${idPrefix}-allergy`} className="m-0 text-body font-semibold">
-          {t("import.report.allergyTitle")}
-        </h3>
-        <p className="m-0 max-w-prose">{t("import.report.allergyAbout")}</p>
-        <ul className="m-0 flex flex-col gap-1 pl-5">
-          <Rows kind="nka" rows={report.noKnownAllergiesStatedRows} />
-          <Rows kind="has" rows={report.hasAllergiesStatedRows} />
-          <Rows kind="blank" rows={report.allergyStatusNotStatedRows} />
-        </ul>
-      </section>
+      {recordType !== "people" ? null : (
+        <section aria-labelledby={`${idPrefix}-allergy`} className="flex flex-col gap-2">
+          <h3 id={`${idPrefix}-allergy`} className="m-0 text-body font-semibold">
+            {t("import.report.allergyTitle")}
+          </h3>
+          <p className="m-0 max-w-prose">{t("import.report.allergyAbout")}</p>
+          <ul className="m-0 flex flex-col gap-1 pl-5">
+            <Rows kind="nka" rows={report.noKnownAllergiesStatedRows} />
+            <Rows kind="has" rows={report.hasAllergiesStatedRows} />
+            <Rows kind="blank" rows={report.allergyStatusNotStatedRows} />
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
 
 /** After the commit: the allergy status checks it raised, each person and task linked (HZ-007). */
-export function CommitDone({ result }: { readonly result: ImportCommitResult }) {
+export function CommitDone({
+  result,
+  recordType,
+}: {
+  readonly result: ImportCommitResult;
+  readonly recordType: ImportRecordType;
+}) {
   return (
-    <Card as="section" title={t("import.commit.doneTitle")} headingLevel={2}>
+    <Card as="section" title={t("import.commit.doneTitle", { type: recordType })} headingLevel={2}>
       <div className="flex flex-col gap-3">
         <p className="m-0 flex items-center gap-2">
           <ListChecks {...icon} className="shrink-0" />
-          {t("import.commit.done", { records: result.records })}
+          {t("import.commit.done", {
+            what: t("import.recordsAdded", { type: recordType, records: result.records }),
+          })}
         </p>
         {result.allergyStatusToConfirm.length > 0 ? (
           <section aria-labelledby="import-allergy-tasks" className="flex flex-col gap-2">
@@ -260,7 +297,7 @@ export function ImportSteps({ batch }: { readonly batch: ImportBatch }) {
 
   // Kept across the refresh after committing (the page renders this component in every state), so
   // the allergy status checks stay listed once the batch reads as committed.
-  if (committed) return <CommitDone result={committed} />;
+  if (committed) return <CommitDone result={committed} recordType={batch.recordType} />;
   if (batch.status !== "staged") return null;
 
   const runCheck = () =>

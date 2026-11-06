@@ -21,7 +21,8 @@ import {
 import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
-const RECORD_TYPE = "people" as const;
+const RECORD_TYPES = ["people", "medicines", "care_plans", "staff_files"] as const;
+type RecordType = (typeof RECORD_TYPES)[number];
 
 interface ReadFile {
   readonly csv: string;
@@ -41,6 +42,7 @@ type UploadAnswer =
 
 /** Sends the file, the home and the mapping to this site's upload route (never a server action). */
 async function sendUpload(body: {
+  recordType: RecordType;
   locationId: string;
   csv: string;
   mapping: Record<string, string | null>;
@@ -48,7 +50,7 @@ async function sendUpload(body: {
   try {
     const response = await fetch(IMPORT_UPLOAD_PATH, {
       method: "POST",
-      body: JSON.stringify({ recordType: RECORD_TYPE, ...body }),
+      body: JSON.stringify(body),
       headers: { "content-type": "application/json" },
       credentials: "same-origin",
     });
@@ -69,7 +71,8 @@ export function ImportUpload({
 }: {
   readonly locations: readonly { readonly id: string; readonly name: string }[];
 }) {
-  const ids = useFieldIds(["locationId", "file", "mapping"]);
+  const ids = useFieldIds(["recordType", "locationId", "file", "mapping"]);
+  const [recordType, setRecordType] = useState<RecordType>("people");
   const router = useRouter();
   const [file, setFile] = useState<ReadFile | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
@@ -79,7 +82,7 @@ export function ImportUpload({
   const [fileError, setFileError] = useState<string | null>(null);
   const [columnErrors, setColumnErrors] = useState<Readonly<Record<number, string>>>({});
   const [pending, startTransition] = useTransition();
-  const fields = importFieldOptions(RECORD_TYPE);
+  const fields = importFieldOptions(recordType);
   const options = [
     { value: LEAVE_OUT, label: t("import.mapping.leaveOut") },
     ...fields.map((f) => ({
@@ -106,7 +109,7 @@ export function ImportUpload({
       return;
     }
     setFile({ csv, header: read.header, rows: read.rows, preview: read.preview });
-    setChosen(suggestMapping(read.header, RECORD_TYPE));
+    setChosen(suggestMapping(read.header, recordType));
   };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -116,7 +119,7 @@ export function ImportUpload({
     const errors: Record<string, string> = {};
     if (!locationId) errors.locationId = t("import.upload.chooseHome");
     if (!file) errors.file = fileError ?? t("import.upload.fileRequired");
-    const check = file ? checkMapping(file.header, chosen, RECORD_TYPE, t) : null;
+    const check = file ? checkMapping(file.header, chosen, recordType, t) : null;
     setColumnErrors(Object.fromEntries((check?.problems ?? []).map((p) => [p.column, p.message])));
     if (check && (check.problems.length > 0 || check.missing.length > 0)) {
       errors.mapping = [
@@ -128,7 +131,12 @@ export function ImportUpload({
     }
     if (Object.keys(errors).length > 0 || !file || !check) return setResult(fieldErrors(errors));
     startTransition(async () => {
-      const answer = await sendUpload({ locationId, csv: file.csv, mapping: check.mapping });
+      const answer = await sendUpload({
+        recordType,
+        locationId,
+        csv: file.csv,
+        mapping: check.mapping,
+      });
       setResult(answer.ok ? { ok: true, data: null } : answer);
       if (answer.ok) {
         router.push(`${importPage(answer.data.id)}?done=uploaded&at=${Date.now()}`);
@@ -139,10 +147,28 @@ export function ImportUpload({
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <SelectField
+        id={ids.recordType}
+        name="recordType"
+        label={t("import.upload.recordType")}
+        hint={t("import.upload.recordTypeHint")}
+        options={RECORD_TYPES.map((type) => ({
+          value: type,
+          label: t("import.recordType", { type }),
+        }))}
+        value={recordType}
+        onChange={(e) => {
+          const next = e.currentTarget.value as RecordType;
+          setRecordType(next);
+          setResult(null);
+          setColumnErrors({});
+          if (file) setChosen(suggestMapping(file.header, next));
+        }}
+      />
+      <SelectField
         id={ids.locationId}
         name="locationId"
         label={t("import.upload.home")}
-        hint={t("import.upload.homeHint")}
+        hint={t("import.upload.homeHint", { type: recordType })}
         emptyOption={t("import.upload.chooseHome")}
         options={locations.map((l) => ({ value: l.id, label: l.name }))}
         required
