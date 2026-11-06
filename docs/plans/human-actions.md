@@ -612,6 +612,24 @@ H-920 to H-929 the lead assigned.
 
 Logged by slice 40 (SCHED-010, [scheduling.md](../specs/scheduling.md) section 15) on 31 October 2026.
 
+## Phase 2: time and attendance (slice 30)
+
+Logged by slice 30 (time and attendance and working-time records, [scheduling.md](../specs/scheduling.md)
+section 16) on 31 October 2026, from the block H-990 to H-999 the lead assigned.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-990 | Approve the employee-monitoring DPIA wording for clock evidence (H-527) before any location turns on `at_location` or `nfc`, and decide whether the confirmation should link the in-app DPIA register; built: off by default, turning it on asks the approver to confirm the DPIA is approved (audited), the API keeps only the evidence the setting asks for and NFC tags as short codes from the location's list; never a position or track | DPO | `clock_setting`; `PUT /v1/locations/{id}/clock-setting` | Clock evidence in a real tenant | open |
+| H-991 | Decide whether a separate `scheduling.working_time.manage` permission (scheduling.md section 3) should hold opt-outs and the working-time setting; built: `scheduling.rota.approve` records opt-outs | Brian with the DPO | `working_time_opt_out` policies | Opt-outs by HR without rota approval | open |
+| H-992 | Build the working-time setting per location (derogations, agreements, night time, weekly rest basis), exceptions for young workers, confirmed compensatory rest and who is a designated night worker (scheduling.md section 2; built: no one is, so night-work limits are never evaluated and fatigue findings are under-reported); until then the check uses the default setting and a finding raises a review task, one open per worker | Brian with an employment adviser (H-529) | `DEFAULT_WORKING_TIME_SETTING`; `working_time_result` | Conditional findings resolved in a real tenant | open |
+| H-993 | Decide the window around a shift in which a clock-in counts for it (built: any time; a clock-in long before the shift is accepted for it), whether early or late clock-ins are exceptions, and the longest delay after which a late upload is refused (built: for bank and agency members, the H-921 upload grace period; for staff, none, each late event flagged and its draft approved only by someone else) | Brian with a Registered Manager | `POST /v1/me/clock-events` | Exceptions for early and late clocking | open |
+| H-994 | Decide whether a missed clock-out raises a task at the shift's end plus a grace period (built: no clock-out leaves no draft; the manager enters the time by hand) | Brian with a Registered Manager | rule 4 | Missed clock-out alerts | open |
+| H-995 | Confirm, for the HZ-124 and HZ-010 ratings: a clock-in the rule on the day blocks is refused while its shift has not ended whatever the device's time, and kept, flagged and raised once it has (the server cannot tell an offline clock-in from a device clock set back, so for those the control is the urgent task); late uploads for a shift, booking or permission removed since are kept, flagged and raised; a refused online clock-in tells the person in charge (HZ-123); the phone shows a refused upload (slice 71) | CSO | rule 3; `clockInProblems` | HZ-124 rating | open |
+| H-996 | Decide how excluded days (statutory leave, sickness, family leave) reach the working time check once absence is recorded (slice 40); built: none excluded, which can over-state the weekly average | Brian | `storeWorkingTimeResult` | Accurate 48-hour averages | open |
+| H-997 | Decide whether awake periods on a sleep-in are recorded by the worker on the phone (slice 71) or only by a manager (built) | Brian with a Registered Manager | `POST /v1/timesheet-entries/{id}/awake-periods` | Sleep-in pay (slice 36) | open |
+| H-998 | Confirm the privacy notice tells staff about clock events, flags and stored working time results (WORK-011) | DPO | records of processing (slice 30) | Time and attendance in a real tenant | open |
+| H-999 | Decide whether payroll exports (slice 76) use only approved entries not superseded (built: `scheduling.timesheet_approved` on the outbox for each approval) and how corrections after an export reach payroll | Brian | ADR-0097 | Payroll corrections | open |
+
 ## Phase 2: deaths and missing persons (slice 37)
 
 Logged by slice 37 (`feat/safety-deaths-missing`, migration 0099) on 31 October 2026, from its block
