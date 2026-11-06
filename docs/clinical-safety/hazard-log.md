@@ -77,6 +77,7 @@
 | [HZ-127](#hz-127-a-missing-persons-escalation-delayed-or-the-herbert-protocol-profile-out-of-date) | A missing person's escalation delayed, or the Herbert Protocol profile out of date | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 7, 37, 63) |
 | [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
 | [HZ-130](#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person) | Imported records mis-mapped, duplicated or attached to the wrong person | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-543 and H-680) | Open | None (Phase 2) | Phase 2 (slices 26, 51, 67, 79) |
+| [HZ-133](#hz-133-staff-data-from-the-hr-platform-out-of-date-matched-to-the-wrong-person-or-changed-outside-its-owner) | Staff data from the HR platform out of date, matched to the wrong person, or changed outside its owner | Major / Medium / 3 (engineering proposal) | Major / Low / 3 (engineering proposal; the CSO rates it, H-1345) | Open | None (Phase 2) | Phase 2 (slices 86 to 90) |
 
 Eighteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-112 until its mobile control is built, HZ-119 until its override report is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -3534,6 +3535,51 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | `packages/db/test/deaths-missing.test.ts`: `hazard HZ-127 the missing person episode and the Herbert Protocol profile (migration 0099)` (each step once, one open episode per person, the timeline append-only, a closed episode closed, the profile's required parts and reviewer, never outside scope or the organisation) | Passing (Phase 2 slice 37) |
 | `apps/api/test/deaths-missing.test.ts`: `hazard HZ-127 opening an episode starts the police call clock as an urgent task the task engine escalates`, `hazard HZ-127 the police call needs its reference, prompts the CQC notification and ends the police call task`, `hazard HZ-127 closes only once found, checked and debriefed; the welfare check and debrief need a manager` and `hazard HZ-127 is prefilled from the record, saved with what the police need first, and its review raised when out of date` | Passing (Phase 2 slice 37) |
 | Web screens (slice 63) | Planned |
+
+---
+
+## HZ-133 Staff data from the HR platform out of date, matched to the wrong person, or changed outside its owner
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-133 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `integrations` module (lead engineer) |
+| Source | [ADR-0126](../decisions/0126-thapsus-hr-link.md); [integrations.md](../specs/integrations.md) section 11 (INTG-014); [phase-2.md](../plans/phase-2.md) slices 86 to 90 |
+
+**Description**: a provider that links Harbour to Thapsus-HR rosters and pays staff from data that crosses between the two systems. The copy Harbour holds may be out of date (a leaver still rostered, sickness not yet seen), attached to the wrong member, changed in the system that does not own it, or paid twice through both routes to payroll.
+
+**Causes**: a sync that has failed or stalled; a match made on a name or on a shared or mistyped email; an edit in the non-owning system; a leaving date that never arrives because syncs fail; a pay route changed part-way through a pay period; a workspace outside the UK; more data crossing than a flow needs.
+
+**Effects**: a shift covered on paper by someone who has left, is off sick or is not the person the rota shows, leaving a home short-staffed (with HZ-123 and HZ-124); a leaver keeping access to care records; staff paid twice or not at all; personal data shared beyond what the flow needs.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3** (engineering proposal; the CSO rates it, H-1345).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | One owner for each kind of staff data; the other system's copy is read-only and reconciliation puts back the owner's version; care-specific records and clocking cannot be moved to Thapsus-HR (`editRefusal`, `ownersProblems`; rule 2) | Domain rule, slice 86; enforced in slices 87 to 89 |
+| Design | Matching by employee number, then by work email with date of birth; never by name; a disagreeing, ambiguous or already linked match goes to review, and an unconfirmed person is neither rostered from Thapsus-HR data nor sent to it (`matchEmployee`; rule 3) | Domain rule, slice 86; review queue slice 87 |
+| Design | The link only with a UK workspace on the UK host over HTTPS, checked on connecting and before every sync; otherwise nothing is sent (`connectionRefusal`; rule 1) | Domain rule, slice 86 |
+| Design | Staleness said in words with the time when the last good sync is past the tenant's limit (15 minutes by default, at most 60; H-1344); absences already known still block rostering (`hrStaleness`, `stalenessLimitProblem`; rule 9) | Domain rule, slice 86; screens slice 88 and 90 |
+| Design | A known leaving date ends sign-in at the end of that day in UK time, whatever later syncs do (`leaverSignInEndsAt`, `leaverMaySignIn`; rule 8) | Domain rule, slice 86; applied in slice 88 |
+| Design | Harbour's payroll export is off while the route to payroll is Thapsus-HR's, and a route change takes effect only from the next pay period (`payrollExportAllowed`; rule 12) | Domain rule, slice 86; slice 76 export checks it |
+| Design | Only each flow's listed fields cross; nothing about people receiving care; sickness as dates and type only (`OUTBOUND_FIELDS`, `outboundExtraFields`, `inboundAbsence`; rules 4 and 10) | Domain rule, slice 86 |
+| Design | **Open control** (slice 88): incoming shifts when Thapsus-HR owns the rota are checked against competence, required checks and the staffing need, with an alert to the rota manager (rule 13; HZ-123, HZ-124) | Planned, slice 88 |
+| Test | See Verification | Phase 2 |
+| Training and user documentation | The link's owner guide: what each system owns, the staleness notice, the review queue | Slice 90 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (engineering proposal), because rostering still depends on data a person enters in another system; the CSO rates it before a linked tenant goes live (H-1345).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/integrations/thapsus-hr.test.ts`: `hazard HZ-133 one owner for each kind of staff data (rule 2)`, `hazard HZ-133 the link is refused outside the UK (rule 1)`, `hazard HZ-133 matching never relies on a name (rule 3)`, `hazard HZ-133 only allowed fields cross (rules 4 and 10)`, `hazard HZ-133 staleness is said, at the limit and one minute past (rule 9)`, `hazard HZ-133 a leaver's sign-in ends with their leaving day, whatever later syncs do (rule 8)`, `hazard HZ-133 nobody is paid twice (rule 12)` | Passing (Phase 2 slice 86) |
+| `apps/api/src/integrations/thapsus-hr.test.ts`: the Thapsus-HR port contract against the mock pinned to commit d9888cef (idempotent writes, the UK workspace, planned Phase 19 capabilities) | Passing (Phase 2 slice 86) |
+| `apps/api`: `hazard HZ-133 reconciliation puts back the owner's version`, `hazard HZ-133 an unconfirmed match is neither rostered nor sent` | Planned (slices 87 and 88) |
 
 ---
 

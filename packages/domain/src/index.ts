@@ -39,6 +39,7 @@ export * from "./comms/template-style";
 export * from "./comms/templates";
 export * from "./comms/visit-booking";
 export * from "./integrations/ports";
+export * from "./integrations/thapsus-hr";
 export * from "./medicines/administration";
 export * from "./medicines/competence";
 export * from "./medicines/controlled-drugs";
