@@ -43,29 +43,34 @@ Thapsus-HR's pay items (K4) and pay read (K5) are planned in its Phase 19 and no
 
 Chosen option: **A**.
 
-1. **Route.** The link's settings hold the route to payroll (Harbour's export by default) and at
-   most one change waiting, which takes effect from the first day of a later pay period than any
-   run. A move to Thapsus-HR needs a fresh step-up, both pay capabilities available, pay rates
-   and periods owned by Thapsus-HR and timesheets by Harbour, and must start on one of its pay
-   periods. With the link disconnected or its flag off, every period pays through Harbour's
-   export, as before.
+1. **Route.** Each pay run's route is fixed when it is drafted and never changes; a correction
+   takes its original's (enforced in the database). The link's settings hold the route for periods
+   with no run yet (Harbour's export by default) and at most one change waiting, from the first
+   day of a later pay period than any run. A move to Thapsus-HR needs a fresh step-up, both pay
+   capabilities available, pay rates and periods owned by Thapsus-HR and timesheets by Harbour,
+   and must start on one of its pay periods. A run drafted with the link disconnected or its flag
+   off pays through Harbour's export; a run whose route is Thapsus-HR is never locked while the
+   link cannot take pay (it never falls back to the export).
 2. **Periods and rates.** Read once a day (and on a manual sync), checked at the boundary and
    written by the sync alone (migration 0151). A pay period whose dates change is raised, never
    moved. Only the employee, the hourly rate in whole pence and its effective date are kept.
 3. **Pay runs.** A run for a period paid through Thapsus-HR must match one of its pay periods
-   exactly. Its calculation uses each member's Thapsus-HR rate on the period's first day for the
-   minimum wage check; a member with no rate gets the existing "no role rate" exception, which
-   blocks the lock.
+   exactly. Its calculation uses the lowest of each member's Thapsus-HR rates in force during the
+   period for the minimum wage check, and is refused when rates were not read in the last two
+   days; a member with no rate gets the "no role rate" exception, which cannot be overridden for
+   such a run.
 4. **Units.** Hours split exactly as the pay line splits them (by night, weekend, bank holiday and
    overtime), plus sleep-ins, on-call periods away and miles. They go out per employee and pay
    code, summed and rounded to 2 places.
-5. **Lock.** Before locking, every member with units must be matched and every unit kind must
-   have a pay code; otherwise the lock is refused, naming what is missing. On lock the units are
-   kept (append-only) and Harbour's export is not offered.
-6. **Sending.** The latest locked run of each period (a correction carries the whole period)
-   replaces that period's items in Thapsus-HR, through the delivery log with its idempotency key.
-   A refusal goes to pay approvers; a pay code removed after the lock stops the period and is
-   raised.
+5. **Lock.** The units are those of the calculation the second person checked (its stored
+   inputs, never live timesheets). Before locking, every member with units must be matched and
+   every unit kind must have a pay code (mapped by a pay approver); otherwise the lock is refused,
+   naming what is missing. On lock the units and their pay codes are kept (append-only) and
+   Harbour's export is not offered.
+6. **Sending.** The latest locked run of each period (a correction carries the whole period,
+   and one with no units empties it) replaces that period's items in Thapsus-HR with the pay
+   codes kept at lock, through the delivery log with its idempotency key. A refusal, a member no
+   longer matched, and locked pay unsent when the link is disconnected go to pay approvers.
 
 ### Consequences
 

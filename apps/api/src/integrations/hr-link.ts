@@ -331,6 +331,17 @@ export const HR_ALERTS = {
   pay_record_failed: {
     title: "Check pay periods or rates the HR platform link could not apply",
     urgent: true,
+    permission: "scheduling.pay.approve",
+  },
+  pay_member_unlinked: {
+    title: "Pay waits for the HR platform: confirm a staff match",
+    urgent: true,
+    permission: "scheduling.pay.approve",
+  },
+  pay_units_unsent: {
+    title: "Locked pay has not reached the HR platform",
+    urgent: true,
+    permission: "scheduling.pay.approve",
   },
   pay_units_refused: {
     title: "Check pay units the HR platform refused",

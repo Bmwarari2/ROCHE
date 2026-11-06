@@ -53,11 +53,12 @@ import {
   leaversNotEnded,
   ownersOrProblem,
   pullSafely,
+  raiseHrAlert,
   signatureRefusal,
   starterFor,
   ukRefusal,
 } from "../integrations/hr-link";
-import { storedHrPayPeriods } from "../integrations/hr-pay";
+import { storedHrPayPeriods, unsentPayPeriods } from "../integrations/hr-pay";
 import { activeHrAbsenceCopies, lockRota, syncRotaSafely } from "../integrations/hr-rota";
 import { receiveInbound } from "../integrations/inbound";
 import { SECRET_REF_SHAPE, secretRefProblem } from "../integrations/secret-ref";
@@ -320,8 +321,25 @@ async function payChangeOf(
   body: z.infer<typeof Change>,
 ): Promise<HrPaySettings> {
   const now = link.settings.pay;
+  // While pay goes, or will go, through Thapsus-HR, its owners stay as that needs (rule 12).
+  const viaHr =
+    now.route === "thapsus_hr" ||
+    now.pendingRoute === "thapsus_hr" ||
+    body.payRoute?.route === "thapsus_hr";
+  if (
+    viaHr &&
+    (owners.timesheets_and_pay_units !== "harbour" || owners.pay_rates_and_periods !== "thapsus_hr")
+  ) {
+    throw new HttpProblem(
+      409,
+      "hr_link_pay_owners",
+      "Pay goes to the HR platform only while timesheets are this product's and pay rates and periods are the HR platform's.",
+    );
+  }
   if (body.payCodes === undefined && body.payRoute === undefined) return now;
   if (!access.stepUpFresh) throw stepUpRefusal(access);
+  // Pay codes decide what payroll pays: a pay approver's to set, not the link manager's alone.
+  if (body.payCodes !== undefined) await requirePermission(c, "scheduling.pay.approve");
   const codes = body.payCodes ?? now.codes;
   if (!body.payRoute) return { ...now, codes };
   const [latest] = await withSystemRights(tx, () =>
@@ -348,16 +366,6 @@ async function payChangeOf(
         409,
         "hr_link_pay_not_available",
         "The HR platform cannot take pay from this product yet. Keep using the payroll export.",
-      );
-    }
-    if (
-      owners.timesheets_and_pay_units !== "harbour" ||
-      owners.pay_rates_and_periods !== "thapsus_hr"
-    ) {
-      throw new HttpProblem(
-        409,
-        "hr_link_pay_owners",
-        "Pay goes to the HR platform only while timesheets are this product's and pay rates and periods are the HR platform's.",
       );
     }
     const periods = await withSystemRights(tx, () => storedHrPayPeriods(tx));
@@ -690,6 +698,19 @@ export const hrLinkRouter = createRouter()
           .update(integrationConnection)
           .set({ status: "disconnected" })
           .where(eq(integrationConnection.id, link.id));
+        // Locked pay that has not reached Thapsus-HR waits for the link: pay approvers are told,
+        // so nobody is left unpaid unnoticed (HZ-140).
+        await withSystemRights(tx, async () => {
+          if ((await unsentPayPeriods(tx)) > 0) {
+            await raiseHrAlert(
+              tx,
+              "pay_units_unsent",
+              "integration_connection",
+              link.id,
+              new Date(),
+            );
+          }
+        });
         await auditInTx(tx, access, {
           action: "integrations.hr_link.disconnect",
           resourceType: "integration_connection",

@@ -42,13 +42,18 @@ CREATE TABLE "hr_pay_unit" (
 	"member_id" uuid NOT NULL,
 	"unit_kind" text NOT NULL,
 	"quantity" numeric(10, 2) NOT NULL,
+	"pay_code" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	CONSTRAINT "hr_pay_unit_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "hr_pay_unit_kind_key" UNIQUE("tenant_id","run_id","member_id","unit_kind"),
 	CONSTRAINT "hr_pay_unit_values" CHECK (unit_kind ~ '^(hours(_(bank_holiday|night|overtime|weekend))*|sleep_in|on_call|mileage)$'
-        AND quantity > 0)
+        AND quantity > 0 AND pay_code ~ '^[A-Za-z0-9_.-]{1,32}$')
 );
+--> statement-breakpoint
+ALTER TABLE "pay_run" ADD COLUMN "pay_route" text;
+--> statement-breakpoint
+ALTER TABLE "pay_run" ADD CONSTRAINT "pay_run_pay_route" CHECK (pay_route IS NULL OR pay_route IN ('harbour_export', 'thapsus_hr'));
 --> statement-breakpoint
 ALTER TABLE "hr_pay_rate" ADD CONSTRAINT "hr_pay_rate_staff_profile_fk" FOREIGN KEY ("tenant_id","staff_profile_id") REFERENCES "public"."staff_profile"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hr_pay_unit" ADD CONSTRAINT "hr_pay_unit_run_fk" FOREIGN KEY ("tenant_id","run_id") REFERENCES "public"."pay_run"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -130,3 +135,29 @@ CREATE POLICY record_version_hr_pay ON public.record_version AS RESTRICTIVE FOR 
 GRANT SELECT, INSERT, UPDATE ON public.hr_pay_period, public.hr_pay_rate TO harbour_app;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON public.hr_pay_unit TO harbour_app;
+--> statement-breakpoint
+-- A run's route to payroll is fixed when it is drafted and never changes (rule 12; HZ-140); a
+-- correction takes the route of the run it corrects.
+CREATE OR REPLACE FUNCTION app.pay_run_route_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE v_route text;
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.pay_route IS DISTINCT FROM OLD.pay_route THEN
+      RAISE EXCEPTION 'pay_run_route_fixed' USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF NEW.kind = 'correction' THEN
+    SELECT r.pay_route INTO v_route FROM public.pay_run r
+     WHERE r.tenant_id = NEW.tenant_id AND r.id = NEW.corrects_run_id;
+    IF NEW.pay_route IS DISTINCT FROM v_route THEN
+      RAISE EXCEPTION 'pay_run_route_of_original' USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER pay_run_route_guard BEFORE INSERT OR UPDATE ON public.pay_run
+  FOR EACH ROW EXECUTE FUNCTION app.pay_run_route_guard();

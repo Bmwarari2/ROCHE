@@ -157,6 +157,12 @@ export const payRun = pgTable(
     calculation: integer("calculation").notNull().default(0),
     calculatedAt: timestamp("calculated_at", { withTimezone: true }),
     calculatedBy: uuid("calculated_by"),
+    /**
+     * The route to payroll for this run, fixed when it is drafted (a correction takes its
+     * original's): `harbour_export` or `thapsus_hr` (integrations.md rule 12; slice 89). Null
+     * for runs drafted before slice 89, which pay through Harbour's export.
+     */
+    payRoute: text("pay_route"),
     status: text("status").notNull().default("draft"),
     lockedBy: uuid("locked_by"),
     lockedAt: timestamp("locked_at", { withTimezone: true }),
@@ -188,6 +194,10 @@ export const payRun = pgTable(
       sql`(kind = 'correction') = (corrects_run_id IS NOT NULL) AND kind IN ('regular', 'correction')`,
     ),
     check("pay_run_period", sql`period_end >= period_start AND period_end - period_start <= 30`),
+    check(
+      "pay_run_pay_route",
+      sql`pay_route IS NULL OR pay_route IN ('harbour_export', 'thapsus_hr')`,
+    ),
     check("pay_run_status", sql`status IN ('draft', 'locked')`),
     check("pay_run_nation", sql`nation IN ('england', 'wales', 'scotland', 'northern_ireland')`),
     check(

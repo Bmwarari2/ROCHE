@@ -92,6 +92,8 @@ export const hrPayUnit = pgTable(
     memberId: uuid("member_id").notNull(),
     unitKind: text("unit_kind").notNull(),
     quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+    /** The tenant's pay code for the kind when the run was locked: what is sent, unchanged. */
+    payCode: text("pay_code").notNull(),
     ...createdColumns(),
   },
   (t) => [
@@ -116,7 +118,7 @@ export const hrPayUnit = pgTable(
     check(
       "hr_pay_unit_values",
       sql`unit_kind ~ '^(hours(_(bank_holiday|night|overtime|weekend))*|sleep_in|on_call|mileage)$'
-        AND quantity > 0`,
+        AND quantity > 0 AND pay_code ~ '^[A-Za-z0-9_.-]{1,32}$'`,
     ),
   ],
 );

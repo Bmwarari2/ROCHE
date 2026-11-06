@@ -4,6 +4,7 @@ import {
   hrPayUnits,
   inboundPayPeriod,
   inboundRate,
+  lowestRateIn,
   matchesHrPayPeriod,
   payCodesProblem,
   rateOn,
@@ -69,7 +70,25 @@ describe("hazard HZ-140 the rate on a day is the latest that took effect by then
   });
 });
 
-describe("hazard HZ-133 a pay run uses Thapsus-HR's pay period exactly (rule 11)", () => {
+describe("hazard HZ-140 the minimum wage is checked against the lowest rate in force in the period", () => {
+  const r = (pence: number, from: string) => ({
+    employeeId: "e",
+    hourlyPence: pence,
+    effectiveFrom: from,
+  });
+  it.each([
+    ["one rate all period", [r(1_300, "2026-04-01")], 1_300],
+    ["a cut part-way through", [r(1_300, "2026-04-01"), r(1_250, "2026-11-10")], 1_250],
+    ["a rise part-way through", [r(1_300, "2026-04-01"), r(1_400, "2026-11-10")], 1_300],
+    ["a starter whose rate begins during it", [r(1_280, "2026-11-04")], 1_280],
+    ["a rate only after it", [r(1_300, "2026-12-01")], null],
+    ["no rate", [], null],
+  ] as const)("%s", (_name, rates, pence) => {
+    expect(lowestRateIn([...rates], "2026-11-02", "2026-11-15")?.hourlyPence ?? null).toBe(pence);
+  });
+});
+
+describe("hazard HZ-140 a pay run uses Thapsus-HR's pay period exactly (rule 11)", () => {
   const periods = [
     { id: "pp_1", frequency: "monthly", startsOn: "2026-11-01", endsOn: "2026-11-30" },
   ] as const;

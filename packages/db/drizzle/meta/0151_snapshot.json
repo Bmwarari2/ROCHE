@@ -17148,6 +17148,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "pay_code": {
+          "name": "pay_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -17258,7 +17264,7 @@
       "checkConstraints": {
         "hr_pay_unit_values": {
           "name": "hr_pay_unit_values",
-          "value": "unit_kind ~ '^(hours(_(bank_holiday|night|overtime|weekend))*|sleep_in|on_call|mileage)$'\n        AND quantity > 0"
+          "value": "unit_kind ~ '^(hours(_(bank_holiday|night|overtime|weekend))*|sleep_in|on_call|mileage)$'\n        AND quantity > 0 AND pay_code ~ '^[A-Za-z0-9_.-]{1,32}$'"
         }
       },
       "isRLSEnabled": false
@@ -26708,6 +26714,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "pay_route": {
+          "name": "pay_route",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -26907,6 +26919,10 @@
         "pay_run_period": {
           "name": "pay_run_period",
           "value": "period_end >= period_start AND period_end - period_start <= 30"
+        },
+        "pay_run_pay_route": {
+          "name": "pay_run_pay_route",
+          "value": "pay_route IS NULL OR pay_route IN ('harbour_export', 'thapsus_hr')"
         },
         "pay_run_status": {
           "name": "pay_run_status",

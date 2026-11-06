@@ -24,6 +24,19 @@ INTG-014, SCHED-005, SCHED-008; [ADR-0131](../decisions/0131-pay-through-thapsus
 - Docs: ADR-0131, integrations.md section 11.5, HZ-140, records of processing, data standards,
   feature register, H-1441 to H-1444.
 
+## Reviews
+
+- Security reviewer, request changes (fixed): units from the checked calculation's stored inputs;
+  pay codes kept on each unit at lock and mapped only by a pay approver; each run's route fixed
+  when drafted, corrections inheriting it (database trigger), and a run never falling back to the
+  export when the link is down; owners checked on every change while pay goes through Thapsus-HR;
+  read size capped; the pay-record alert limited to pay approvers.
+- Clinical safety reviewer, request changes (fixed): the same route and units fixes; no rate
+  cannot be overridden for such a run; the lowest rate in force during the period; calculation
+  refused on rates over two days old; alerts for a member unmatched after lock and for locked pay
+  left unsent on disconnecting; HZ-140 re-rated on the plan's matrix (2, target 1) with a test for
+  each code control; H-1441 and H-1442 updated.
+
 ## Checks
 
 See the branch's head commit message for the suites run on a private Postgres.
@@ -32,5 +45,8 @@ See the branch's head commit message for the suites run on a private Postgres.
 
 - Pay through Thapsus-HR goes live only when Thapsus-HR publishes K4 and K5 and the mock is
   re-pinned (H-1443).
-- Rates are read daily, not yet on `employee.changed`.
+- Rates are read daily, not yet on `employee.changed`; Thapsus-HR periods and rates it stops
+  listing are kept, not retired.
+- The lock reads the link's settings without locking its row; each run's fixed route makes this
+  safe for routing, and a concurrent pay code change applies only to the next lock.
 - Screens for the route to payroll and the pay codes (slice 90).

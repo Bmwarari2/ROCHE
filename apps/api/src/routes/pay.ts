@@ -27,6 +27,7 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
+  lowestRateIn,
   PAY_EXCEPTION_MESSAGES,
   type PayExceptionKind,
   type PayLineInput,
@@ -35,7 +36,6 @@ import {
   payLineInputFromJson,
   payUnits,
   type RateRow,
-  rateOn,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
@@ -52,6 +52,7 @@ import { HttpProblem, problems } from "../http/problem";
 import {
   hrPayPeriodOf,
   hrRatesByMember,
+  hrRatesFresh,
   keepLockUnits,
   type PayPath,
   payPathFor,
@@ -403,39 +404,26 @@ const routeUnknown = () =>
   );
 
 /**
- * For a period paid through Thapsus-HR, each member's basic rate is Thapsus-HR's on the period's
- * first day (rule 11), for the minimum wage check; a member with none gets no role rate, which
- * stops the run for a person (HZ-140).
+ * For a period paid through Thapsus-HR, each member's basic rate is the lowest of Thapsus-HR's in
+ * force during the period (rule 11), for the minimum wage check; a member with none gets no role
+ * rate, which stops the run until the rate is put right in Thapsus-HR (never overridden; HZ-140).
  */
 async function withHrRates(
   tx: Transaction,
   periodStart: string,
+  periodEnd: string,
   inputs: readonly PayLineInput[],
 ): Promise<PayLineInput[]> {
   const rates = await withSystemRights(tx, () => hrRatesByMember(tx));
   return inputs.map((input) => {
     const role = input.profile?.roleKey;
     if (!role) return input;
-    const rate = rateOn(rates.get(input.memberId) ?? [], periodStart);
+    const rate = lowestRateIn(rates.get(input.memberId) ?? [], periodStart, periodEnd);
     const roleRates = { ...input.ruleSet.roleRates };
     if (rate) roleRates[role] = rate.hourlyPence;
     else delete roleRates[role];
     return { ...input, ruleSet: { ...input.ruleSet, roleRates } };
   });
-}
-
-/** The line inputs of a run, with the rule set it was calculated with (for the lock's units). */
-async function inputsOfRun(tx: Transaction, r: RunRow, tenantId: string): Promise<PayLineInput[]> {
-  const [setRow] = await tx.select().from(payRuleSet).where(eq(payRuleSet.id, r.ruleSetId));
-  if (!setRow) throw new Error("rule set not found");
-  const nation: Nation = await nationOfTenant(tx);
-  const rows = await payRateRows(tx);
-  const rates = payRatesOrNull(rows, nation, r.periodStart, tenantId);
-  const lastDay = new Date(Date.parse(`${r.periodEnd}T12:00:00Z`) + 2 * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
-  const holidays = await bankHolidaysIn(tx, nation, r.periodStart, lastDay);
-  return lineInputs(tx, r, ruleSetFull(setRow, holidays), rows, nation, tenantId, rates);
 }
 
 export const payRouter = createRouter()
@@ -828,6 +816,8 @@ export const payRouter = createRouter()
               periodEnd: body.periodEnd,
               ruleSetId: set.id,
               nation: await nationOfTenant(tx),
+              // Fixed for the period from now on (rule 12; HZ-140).
+              payRoute: path.route,
             })
             .returning();
           if (!made) throw new Error("pay run not stored");
@@ -917,11 +907,17 @@ export const payRouter = createRouter()
           .slice(0, 10);
         const holidays = await bankHolidaysIn(tx, nation, r.periodStart, lastDay);
         const set = ruleSetFull(setRow, holidays);
-        const path = await payPath(tx, r.periodStart);
-        if (path.route === null) throw routeUnknown();
         const base = await lineInputs(tx, r, set, rows, nation, access.tenantId, rates);
-        const inputs =
-          path.route === "thapsus_hr" ? await withHrRates(tx, r.periodStart, base) : base;
+        // The run's own route, fixed when it was drafted (rule 12).
+        const viaHr = r.payRoute === "thapsus_hr";
+        if (viaHr && !(await withSystemRights(tx, () => hrRatesFresh(tx, new Date())))) {
+          throw new HttpProblem(
+            409,
+            "hr_rates_out_of_date",
+            "Pay rates from the HR platform have not been read in the last two days. Sync the link, then calculate.",
+          );
+        }
+        const inputs = viaHr ? await withHrRates(tx, r.periodStart, r.periodEnd, base) : base;
         const [next] = await tx
           .update(payRun)
           .set({
@@ -1041,6 +1037,15 @@ export const payRouter = createRouter()
             "Only an open exception of a draft run's latest calculation can be overridden.",
           );
         }
+        // A period paid through Thapsus-HR has no rate to fall back on: a missing one is put right
+        // in Thapsus-HR, never overridden (rule 11; HZ-140).
+        if (r.payRoute === "thapsus_hr" && e.kind === "no_role_rate") {
+          throw new HttpProblem(
+            409,
+            "hr_rate_not_overridden",
+            "This person has no rate in the HR platform for this period. Add it there and read it again, then recalculate.",
+          );
+        }
         const [saved] = await tx
           .update(payRunException)
           .set({
@@ -1115,13 +1120,34 @@ export const payRouter = createRouter()
         }
         // A period paid through Thapsus-HR: its units must be able to reach payroll whole before
         // the run is locked (rules 11 and 12; HZ-140).
-        const path = await payPath(tx, r.periodStart);
-        if (path.route === null) throw routeUnknown();
-        let toKeep: { periodRowId: string; units: Map<string, PayUnitTotal[]> } | null = null;
-        if (path.route === "thapsus_hr") {
-          const inputs = await inputsOfRun(tx, r, access.tenantId);
-          const units = new Map(inputs.map((i) => [i.memberId, payUnits(i)]));
-          const plan = await withSystemRights(tx, () => planLockUnits(tx, path.link, r, units));
+        // The run's own route, fixed when it was drafted (rule 12); runs drafted before slice 89
+        // pay through Harbour's export.
+        const route = r.payRoute ?? "harbour_export";
+        let toKeep: {
+          periodRowId: string;
+          units: Map<string, PayUnitTotal[]>;
+          codes: Readonly<Record<string, string>>;
+        } | null = null;
+        if (route === "thapsus_hr") {
+          const path = await payPath(tx, r.periodStart);
+          const link = path.link;
+          const port = link ? c.get("services").hrLink.port(access.tenantId, link.settings) : null;
+          if (!link || port?.capabilities().partner_pay_items !== "available") {
+            throw new HttpProblem(
+              409,
+              "hr_link_unavailable_for_pay",
+              "This period is paid through the HR platform, which cannot take pay just now. Nothing is locked; try again when the link is back.",
+            );
+          }
+          // The units of the calculation the checker sees, never rebuilt from live timesheets.
+          const lines = await tx
+            .select({ memberId: payRunLine.memberId, inputs: payRunLine.inputs })
+            .from(payRunLine)
+            .where(and(eq(payRunLine.runId, r.id), eq(payRunLine.calculation, r.calculation)));
+          const units = new Map(
+            lines.map((l) => [l.memberId, payUnits(payLineInputFromJson(l.inputs))]),
+          );
+          const plan = await withSystemRights(tx, () => planLockUnits(tx, link, r, units));
           if (plan.problem === "no_hr_pay_period") {
             throw new HttpProblem(
               409,
@@ -1143,7 +1169,7 @@ export const payRouter = createRouter()
               `Map a pay code for ${plan.kinds.join(", ")} in the HR platform link before locking.`,
             );
           }
-          toKeep = { periodRowId: plan.periodRowId, units };
+          toKeep = { periodRowId: plan.periodRowId, units, codes: plan.codes };
         }
         const [saved] = await tx
           .update(payRun)
@@ -1170,18 +1196,20 @@ export const payRouter = createRouter()
         });
         const kept = toKeep;
         if (kept) {
-          await withSystemRights(tx, () => keepLockUnits(tx, id, kept.periodRowId, kept.units));
+          await withSystemRights(tx, () =>
+            keepLockUnits(tx, id, kept.periodRowId, kept.units, kept.codes),
+          );
         }
         await audit(c, tx, access, {
           ...what,
           resourceId: id,
-          scope: { payRoute: path.route },
+          scope: { payRoute: route },
         });
         return {
           item: await runItem(tx, saved),
           lineIds: lines.map((l) => l.id),
           run: saved,
-          exportAllowed: path.route === "harbour_export",
+          exportAllowed: route === "harbour_export",
         };
       });
       // Never offered to Harbour's export when the period goes to Thapsus-HR (rule 12).
@@ -1242,6 +1270,8 @@ export const payRouter = createRouter()
               correctsRunId: r.id,
               ruleSetId: set?.id ?? r.ruleSetId,
               nation: r.nation,
+              // A correction pays the way its original did (rule 12; HZ-140).
+              payRoute: r.payRoute,
             })
             .returning();
           if (!made) throw new Error("pay run not stored");

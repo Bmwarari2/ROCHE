@@ -206,26 +206,30 @@ the ratchet test checks. The rota managers holding `read` are care coordinators;
 How slice 89 applies rules 11 and 12 ([ADR-0131](../decisions/0131-pay-through-thapsus-hr.md);
 migration 0151; HZ-133, HZ-140). Built against the mock with Thapsus-HR's Phase 19 pay items (K4)
 and pay read (K5) switched on; at the pinned commit both answer `planned`, so nothing goes live:
-- **One route per pay period.** The link's settings hold the route to payroll (Harbour's export
-  by default) and at most one change waiting. A change takes effect from the first day of a later
-  pay period than any pay run, with a fresh step-up. A move to Thapsus-HR also needs both pay
-  capabilities available, pay rates and periods owned by Thapsus-HR and timesheets by Harbour,
-  and a start on one of its pay periods. With the link disconnected or its flag off, every period
-  pays through Harbour's export.
+- **One route per pay period.** Each pay run's route is fixed when it is drafted; a correction
+  takes its original's. The link's settings hold the route for periods with no run yet (Harbour's
+  export by default) and at most one change waiting, from the first day of a later pay period
+  than any run, with a fresh step-up. A move to Thapsus-HR also needs both pay capabilities
+  available, pay rates and periods owned by Thapsus-HR and timesheets by Harbour, and a start on
+  one of its pay periods. A run drafted with the link disconnected or off pays through Harbour's
+  export; a run whose route is Thapsus-HR is not locked while the link cannot take pay.
 - **Pay periods and rates in.** Read once a day and on a manual sync, checked at the boundary and
   written by the sync alone (`hr_pay_period`, `hr_pay_rate`). A pay period whose dates change is
   raised, never moved. Only the employee, the hourly rate in whole pence and its effective date
   are kept; rates are read by pay holders only.
 - **Pay runs.** A run for a period paid through Thapsus-HR must be one of its pay periods
-  exactly. The minimum wage check uses each member's Thapsus-HR rate on the period's first day; a
-  member with none gets the "no role rate" exception, which blocks the lock.
+  exactly. The minimum wage check uses the lowest of each member's Thapsus-HR rates in force
+  during the period, and calculation is refused when rates are more than two days old; a member
+  with none gets the "no role rate" exception, which cannot be overridden for such a run.
 - **Units by pay code out.** Hours split as the pay line splits them (by night, weekend, bank
   holiday and overtime), sleep-ins, on-call periods away and miles; per employee and pay code,
-  summed, to 2 places. Before a run is locked every member with units must be matched and every
-  unit kind mapped to a pay code, or the lock is refused naming what is missing. On lock the units
+  summed, to 2 places, from the calculation the second person checked. Before a run is locked
+  every member with units must be matched and every unit kind mapped to a pay code (by a pay
+  approver), or the lock is refused naming what is missing. On lock the units and their pay codes
   are kept unchanged (`hr_pay_unit`) and Harbour's export is not offered. The latest locked run of
   each period (a correction carries the whole period) replaces that period's items in Thapsus-HR,
-  through the delivery log; a refusal goes to pay approvers.
+  through the delivery log; a refusal, a member no longer matched and pay left unsent on
+  disconnecting go to pay approvers.
 
 ### 11.6 API and events
 

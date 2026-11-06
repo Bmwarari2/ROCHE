@@ -40,8 +40,8 @@ let profile = "";
 
 const unit = (c: pg.PoolClient, run: string, kind = "hours") =>
   c.query(
-    `INSERT INTO hr_pay_unit (run_id, hr_pay_period_id, member_id, unit_kind, quantity)
-     VALUES ($1, $2, $3, $4, 37.5)`,
+    `INSERT INTO hr_pay_unit (run_id, hr_pay_period_id, member_id, unit_kind, quantity, pay_code)
+     VALUES ($1, $2, $3, $4, 37.5, 'BASIC')`,
     [run, period, a.carer, kind],
   );
 
@@ -180,6 +180,23 @@ describe("hazard HZ-140 Thapsus-HR's pay periods and rates are the sync's copies
     for (const t of ["hr_pay_period", "hr_pay_rate", "hr_pay_unit"]) {
       expect(await asOtherTenant((c) => count(c, `SELECT count(*) AS n FROM ${t}`))).toBe(0);
     }
+  });
+});
+
+describe("hazard HZ-140 a pay run's route to payroll is fixed, and a correction takes its original's (rule 12)", () => {
+  it("refuses changing a run's route, and a correction with another route", async () => {
+    await expect(
+      asOwner((c) => c.query("UPDATE pay_run SET pay_route = 'thapsus_hr' WHERE id = $1", [DRAFT])),
+    ).rejects.toThrow(/pay_run_route_fixed/);
+    await expect(
+      asFinance((c) =>
+        c.query(
+          `INSERT INTO pay_run (frequency, period_start, period_end, rule_set_id, nation, kind, corrects_run_id, pay_route)
+           VALUES ('weekly', '2026-11-02', '2026-11-08', $1, 'england', 'correction', $2, 'thapsus_hr')`,
+          [SET, RUN],
+        ),
+      ),
+    ).rejects.toThrow(/pay_run_route_of_original/);
   });
 });
 

@@ -74,6 +74,22 @@ export function rateOn(rates: readonly HrRate[], day: string): HrRate | null {
   return best;
 }
 
+/**
+ * The lowest rate in force on any day of a period, for the minimum wage check (rule 11; HZ-140):
+ * the rate on its first day and any that took effect during it, so a cut part-way through is never
+ * missed; for a starter whose rate begins during the period, the lowest of those. Null when no rate
+ * had taken effect by the period's last day.
+ */
+export function lowestRateIn(rates: readonly HrRate[], start: string, end: string): HrRate | null {
+  const inForce = [
+    rateOn(rates, start),
+    ...rates.filter((r) => r.effectiveFrom > start && r.effectiveFrom <= end),
+  ];
+  let low: HrRate | null = null;
+  for (const r of inForce) if (r && (low === null || r.hourlyPence < low.hourlyPence)) low = r;
+  return low;
+}
+
 /** A pay run's period matches a Thapsus-HR pay period exactly (dates and frequency). */
 export function matchesHrPayPeriod(
   run: { readonly frequency: string; readonly periodStart: string; readonly periodEnd: string },
