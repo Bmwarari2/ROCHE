@@ -4,6 +4,8 @@ import {
   DEFAULT_HR_OWNERS,
   editRefusal,
   effectiveLeavingDate,
+  employeeDrift,
+  HR_WEBHOOK_REPLAY_SECONDS,
   type HrEmployee,
   type HrOwners,
   hrStaleness,
@@ -20,6 +22,7 @@ import {
   payUnitsToHrAllowed,
   type StaffCandidate,
   stalenessLimitProblem,
+  webhookTimestampProblem,
 } from "./thapsus-hr";
 
 const at = (iso: string) => new Date(iso);
@@ -37,7 +40,7 @@ describe("hazard HZ-133 one owner for each kind of staff data (rule 2)", () => {
     expect(editRefusal(DEFAULT_HR_OWNERS, kind, editor)).toBe(want);
   });
 
-  it("refuses moving care-specific records, clocking or (until slice 88) the rota to Thapsus-HR", () => {
+  it("refuses moving care-specific records, clocking or the rota to Thapsus-HR", () => {
     const owners: HrOwners = {
       ...DEFAULT_HR_OWNERS,
       recruitment_and_vetting: "thapsus_hr",
@@ -442,5 +445,48 @@ describe("hazard HZ-133 nobody is paid twice (rule 12)", () => {
     ["an earlier period", "2026-10-01", "2026-11-01", "not_a_later_period"],
   ])("a route change from %s", (_name, from, currentPeriodStart, want) => {
     expect(payRouteChangeProblem({ from, currentPeriodStart })).toBe(want);
+  });
+});
+
+describe("hazard HZ-133 a webhook outside the replay window is refused", () => {
+  const now = new Date("2026-11-06T12:00:00Z");
+  const at = Math.floor(now.getTime() / 1000);
+  it.each([
+    [at, null],
+    [at - HR_WEBHOOK_REPLAY_SECONDS, null],
+    [at - HR_WEBHOOK_REPLAY_SECONDS - 1, "too_old"],
+    [at + HR_WEBHOOK_REPLAY_SECONDS, null],
+    [at + HR_WEBHOOK_REPLAY_SECONDS + 1, "in_future"],
+    [0, "invalid"],
+    [-5, "invalid"],
+    [at + 0.5, "invalid"],
+    [Number.NaN, "invalid"],
+  ])("signed at %s gives %s", (sent, expected) => {
+    expect(webhookTimestampProblem(sent, now)).toBe(expected);
+  });
+});
+
+describe("hazard HZ-133 reconciliation finds where Harbour's copy drifted from the owner (rule 2)", () => {
+  const employee = (over: Partial<HrEmployee> = {}): HrEmployee => ({
+    id: "emp_1",
+    employeeNumber: "E1",
+    workEmail: "ada@example.invalid",
+    dateOfBirth: "1990-01-01",
+    givenName: "Ada",
+    familyName: "Example",
+    ...over,
+  });
+  const copy = { jobTitle: "Care worker", startsOn: "2026-01-05" };
+  it.each([
+    ["nothing sent", {}, []],
+    ["the same values", { jobTitle: "Care worker", startDate: "2026-01-05" }, []],
+    ["a new job title", { jobTitle: "Senior care worker" }, ["job_title"]],
+    ["a new start date", { startDate: "2026-02-01" }, ["start_date"]],
+    ["both", { jobTitle: "Nurse", startDate: "2026-02-01" }, ["job_title", "start_date"]],
+    ["a start date that is not a real day", { startDate: "2026-02-30" }, []],
+    ["a job title too short to be one", { jobTitle: "x" }, []],
+    ["a null job title", { jobTitle: null }, []],
+  ] as const)("%s", (_, over, expected) => {
+    expect(employeeDrift(copy, employee(over))).toEqual(expected);
   });
 });

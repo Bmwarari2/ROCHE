@@ -22,6 +22,12 @@ import {
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
+import {
+  type HrLinkServices,
+  hrConnection,
+  hrLinkEnabled,
+  pullSafely,
+} from "../integrations/hr-link";
 import type { Logger } from "../logger";
 import { tellAboutBreachNotice } from "../services/breach-notices";
 import {
@@ -91,6 +97,8 @@ export interface TaskDeps {
   readonly exportStorage?: DocumentStoragePort;
   /** The documents bucket, for the bytes of documents destroyed past retention. */
   readonly storage?: DocumentStoragePort;
+  /** The Thapsus-HR link's adapter; absent in jobs that never touch it. */
+  readonly hrLink?: HrLinkServices;
 }
 
 /** The queue named in `worker.job.failed` when a destroyed document's bytes could not be deleted. */
@@ -510,6 +518,28 @@ export async function sweepLeaverAccess(deps: TaskDeps, now = new Date()): Promi
   );
   if (ended > 0) deps.logger.info({ ended }, "leavers' access ended");
   return ended;
+}
+
+/**
+ * The Thapsus-HR link's reconciliation (integrations.md section 11.2; rules 1, 2, 3 and 8): for each
+ * organisation with the link on and connected, pulls every employee, links, records leaving dates
+ * and puts back the owner's version of drifted fields; a failure is recorded and the last good
+ * sync stays as it was, so rotas say the data is out of date (rule 9). Returns employees linked.
+ */
+export async function syncHrLinks(deps: TaskDeps, now = new Date()): Promise<number> {
+  const services = deps.hrLink;
+  if (!services) return 0;
+  const linked = await eachTenant(deps, "hr-link-sync", async (tx, tenantId) => {
+    if (!(await hrLinkEnabled(tx))) return 0;
+    const link = await hrConnection(tx);
+    if (link?.status !== "connected") return 0;
+    const port = services.port(tenantId, link.settings);
+    if (!port) return 0;
+    const out = await pullSafely(tx, tenantId, port, link.settings, now);
+    return out.linked;
+  });
+  if (linked > 0) deps.logger.info({ linked }, "HR link employees linked");
+  return linked;
 }
 
 /**

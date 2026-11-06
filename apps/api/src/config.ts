@@ -117,6 +117,14 @@ const Env = z.object({
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
   /** The Google Cloud project the buckets belong to. Credentials come from the runtime's identity. */
   GCP_PROJECT_ID: z.string().regex(GCP_PROJECT).optional(),
+  /**
+   * Thapsus's own domain: the HR link always uses `https://api.uk.<domain>` (integrations.md
+   * section 11, rule 1). Set per environment, never by a tenant; without it there is no link.
+   */
+  THAPSUS_HR_DOMAIN: z
+    .string()
+    .regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/)
+    .optional(),
   GCS_DOCUMENTS_BUCKET: z.string().regex(BUCKET).optional(),
   /** The full export's archives (PLAT-015): the exports bucket (CMEK, lifecycle expiry). */
   LOCAL_EXPORTS_DIR: z.string().default(".data/exports"),

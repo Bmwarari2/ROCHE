@@ -23,6 +23,7 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { hrManagedFields } from "../integrations/hr-link";
 import {
   contentHeaders,
   destroyingOnFailure,
@@ -47,6 +48,7 @@ import {
   storedItem,
   workforceRates,
 } from "../services/staff-files";
+import { withSystemRights } from "../services/system-rights";
 import { fileBody, fileResponse } from "./documents";
 import {
   conflictResponse,
@@ -359,6 +361,37 @@ export const staffFilesRouter = createRouter()
           version: body.expectedVersion,
           notOwnOf: access.tenantUserId,
         });
+        // Rule 2 of the Thapsus-HR link (HZ-133): fields Thapsus-HR owns are changed there, never
+        // here, and a leaving it gave is never moved later or cleared here. Asked with the system's
+        // rights, as a manager need not see the link itself.
+        const managed = await withSystemRights(tx, () => hrManagedFields(tx, id));
+        if (managed.size > 0) {
+          const [now] = await tx
+            .select({
+              jobTitle: staffProfile.jobTitle,
+              startsOn: staffProfile.startsOn,
+              leftOn: staffProfile.leftOn,
+            })
+            .from(staffProfile)
+            .where(eq(staffProfile.id, id));
+          const later = now?.leftOn != null && (body.leftOn == null || body.leftOn > now.leftOn);
+          if (
+            (managed.has("job_title") && body.jobTitle !== now?.jobTitle) ||
+            (managed.has("start_date") && (body.startsOn ?? null) !== (now?.startsOn ?? null)) ||
+            (managed.has("leaving_date") && later)
+          ) {
+            throw refused(
+              new HttpProblem(
+                409,
+                "managed_in_thapsus_hr",
+                "Managed in Thapsus-HR. Change it there; this file follows at the next sync.",
+              ),
+              A.updated,
+              id,
+              "managed_in_thapsus_hr",
+            );
+          }
+        }
         const [row] = await tx
           .update(staffProfile)
           .set({

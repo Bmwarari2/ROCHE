@@ -11,6 +11,7 @@ export * from "./disclosure";
 export * from "./dpia";
 export * from "./enums";
 export * from "./exports";
+export * from "./hr-link";
 export * from "./imports";
 export * from "./induction";
 export * from "./integrations";

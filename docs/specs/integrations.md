@@ -111,7 +111,7 @@ A tenant without the link keeps every Harbour module as it is.
 | Approved units by pay code | Harbour to Thapsus-HR | Timesheet approved; pay period closed | Not available: a pay inputs route and scope needed |
 | Hourly rates and pay periods | Thapsus-HR to Harbour | Daily, and on `employee.changed` | Not available: a narrow pay read needed |
 
-### 11.3 Schema (slice 87, migration 0139)
+### 11.3 Schema (slice 87, migration 0140)
 
 Every table has `tenant_id`, forced RLS and a policy:
 - **The connection** is a row in `integration_connection` with:
@@ -120,9 +120,16 @@ Every table has `tenant_id`, forced RLS and a policy:
   - the Secret Manager reference for the OAuth2 client;
   - the owners for each kind of data;
   - the staleness limit, the status, the time of the last good sync and `expected_version`.
+  - Its port is `integrations.hr_link`. Thapsus's domain is this environment's configuration
+    (`THAPSUS_HR_DOMAIN`), never a tenant's input: the adapter refuses a row for any other domain.
+    A database check refuses a row whose home region is not `uk` or whose address is not
+    `https://api.uk.` on a domain, and only holders of `integrations.hr_link.manage`, or the sync,
+    write it.
 - **`hr_person_link`** joins Harbour's staff member to the Thapsus-HR employee identifier and
-  employee number. It records how the match was made (`employee_number`, `email_and_birth_date` or
-  `manual`), who confirmed it and when. Each side is unique, so nobody is linked twice.
+  employee number. It records how the match was made (`employee_number`, `email_and_birth_date`, `manual`,
+  or `starter` for a starter Harbour created), who confirmed it and when, and the earliest leaving
+  date Thapsus-HR gave. Each side is unique, so nobody is linked twice. It holds identifiers only:
+  no name, email or date of birth from Thapsus-HR.
 - **`hr_location_link`** joins a Harbour location to a Thapsus-HR location.
 - **`hr_sync_state`** holds, for each kind of data, the cursor, the last good sync and the last
   error code.
@@ -140,8 +147,9 @@ Every table has `tenant_id`, forced RLS and a policy:
 | `integrations.hr_link.review` | Confirm or reject matches; clear quarantined items | owner, registered_manager, deputy_manager, hr |
 | `integrations.hr_link.read` | See sync health, staleness and drift | the roles above, and rota managers |
 
-New permissions reach existing tenants' built-in roles through a backfill in migration 0139, which
-the ratchet test checks.
+New permissions reach existing tenants' built-in roles through a backfill in migration 0140, which
+the ratchet test checks. The rota managers holding `read` are care coordinators; deputies hold
+`review` and `read`.
 
 ### 11.5 Rules that are easy to get wrong
 
@@ -182,9 +190,9 @@ the ratchet test checks.
     - Harbour reads the hourly rate only for its minimum wage check per pay reference period.
 12. **No double payment.** When Thapsus-HR owns the route to payroll, Harbour's payroll export
     (slice 76) is off for the tenant. Changing it takes effect from the next pay period.
-13. **Thapsus-HR as rota owner.** If a tenant makes Thapsus-HR the rota owner, Harbour checks every
-    incoming shift against competence, required checks and the tenant's staffing need, and alerts
-    the rota manager (HZ-123, HZ-124).
+13. **The rota stays with Harbour.** Care shifts and the rota are a fixed Harbour owner (confirmed
+    06/11/2026), so every shift passes Harbour's competence, required check, staffing and Working
+    Time checks (HZ-123, HZ-124); Thapsus-HR shows the rota read-only.
 14. **Thapsus-HR's rules stand.** For example, Thapsus-HR refuses overlapping shifts for one
     employee. Harbour treats such a refusal as a delivery error for the rota manager to review. It
     is never a reason to change Thapsus-HR's behaviour for its other customers (section 11.9).
@@ -202,8 +210,44 @@ Harbour routes (OpenAPI):
   `POST .../matches/{id}/reject`.
 - `GET /v1/integrations/hr-link/deliveries`
 
-The inbound receiver is `POST /v1/integrations/inbound/thapsus-hr`:
-- it checks the `Thapsus-Signature` HMAC and a replay window;
+Slice 87 also has `POST /v1/integrations/hr-link/sync` (pull and reconcile now),
+`GET /v1/integrations/hr-link/locations`, `PUT /v1/integrations/hr-link/locations/{locationId}` and
+`POST /v1/integrations/hr-link/starters/{staffProfileId}` (a starter hired here, created once). The
+worker reconciles every linked organisation every 10 minutes, inside the default staleness limit,
+so a staleness limit below 10 minutes is refused.
+
+How slice 87 applies the rules:
+- **Matching (rule 3).** Staff who have left are not candidates. Harbour holds no employee number of
+  its own, so automatic links are by work email with date of birth until a link records one.
+  Confirming a match needs a fresh step-up and a staff file the reviewer can see; when Thapsus-HR
+  already gave a leaving date, only someone who manages that staff file confirms. The queue shows
+  employees with a leaving date first.
+- **Leavers (rule 8).** A leaving date is written as the staff file's leaving and left-on date, only
+  ever earlier; a withdrawn leaving is put back; a date that is not a real day counts as today and
+  raises `integrations.hr_link.leaving_date_invalid`. Each pull and webhook ends a passed leaving at
+  once; the hourly sweep is the fallback. The status says how many leavers' access could not be
+  ended automatically.
+- **Owners (rule 2).** While the link is connected, the staff file refuses changes to the job title
+  and start date of a linked member ("Managed in Thapsus-HR"), and never moves a leaving date later
+  or clears it. Reconciliation puts back the job title; a start date only when it stays on the same
+  side of today, otherwise the drift is raised for review.
+- **Sync health (rules 6 and 9).** Each employee is applied in its own savepoint; a failure is
+  audited and raised without holding back the rest. A page cap or a repeated cursor is
+  `incomplete`, never a good sync. Linked employees Thapsus-HR stops listing raise
+  `integrations.hr_link.employee_missing`. Staleness is still reported after a disconnect.
+- **Starters.** Only a staff file the caller can see, never their own, and not already linked; a
+  repeat answers as the first delivery did.
+
+The inbound receiver is `POST /p/integrations/thapsus-hr/{organisation id}`. It is under `/p/`, as
+other routes reached with no session are, with their body cap; each organisation has its own URL
+and signing secret (the connection's Secret Manager reference):
+- it checks the `Thapsus-Signature` HMAC (`t=<seconds>,v1=<hex>` over `t.body`) and a 5-minute
+  replay window, and drops an event identifier it has already seen;
+- it is throttled per client address and per organisation before any query, and costs the same
+  HMAC work whether or not the organisation has a link;
+- a refusal gets one generic answer and keeps only an audit event;
+- when the named employee cannot be fetched it keeps nothing and answers 503, so Thapsus-HR sends
+  it again;
 - payloads are validated with Zod and quarantined on failure;
 - payloads carry identifiers only, so Harbour fetches each record.
 
@@ -216,7 +260,7 @@ Outbox events consumed:
 Events emitted:
 - `integrations.hr_link.person_linked`;
 - `integrations.hr_link.sync_failed`;
-- `integrations.hr_link.stale`;
+- `integrations.hr_link.stale` (slice 88, with the rota's notice);
 - `integrations.hr_link.drift_detected`.
 
 Every write that the sync makes is an audit event with the actor `integration:thapsus_hr` and
@@ -228,7 +272,7 @@ The phone never talks to Thapsus-HR. Clock events reach Harbour first through sy
 forwarded from there. The rota on the device shows the staleness notice from its last sync.
 
 HZ-133 is the hazard: staff data from the HR platform out of date, matched to the wrong person, or
-changed outside its owner. Its controls are rules 2, 3, 8, 9 and 13 above. Its tests are named
+changed outside its owner. Its controls are rules 1, 2, 3, 8, 9 and 13 above. Its tests are named
 after the hazard. HZ-123 and HZ-124 gain linked-tenant tests in slice 88.
 
 ### 11.8 Data protection

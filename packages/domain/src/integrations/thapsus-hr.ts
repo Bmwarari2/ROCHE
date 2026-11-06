@@ -51,8 +51,8 @@ export const FIXED_HR_OWNERS: Readonly<Partial<Record<HrDataKind, HrSystem>>> = 
   recruitment_and_vetting: "harbour",
   training_and_competence: "harbour",
   clocking: "harbour",
-  // Until slice 88 checks incoming shifts against competence, checks and staffing (rule 13; HZ-123,
-  // HZ-124), Thapsus-HR may not own the rota.
+  // Harbour keeps care shifts and the rota (ADR-0126; confirmed 06/11/2026): Thapsus-HR shows them
+  // read-only, so safe staffing, competence and Working Time are always checked (HZ-123, HZ-124).
   care_shifts: "harbour",
 };
 
@@ -120,6 +120,11 @@ export interface HrEmployee {
   readonly dateOfBirth: string | null;
   readonly givenName: string;
   readonly familyName: string;
+  /** Fields Thapsus-HR owns that Harbour copies (section 11.8); absent when not sent. */
+  readonly jobTitle?: string | null;
+  readonly startDate?: string | null;
+  readonly leavingDate?: string | null;
+  readonly locationId?: string | null;
 }
 
 export interface StaffCandidate {
@@ -526,4 +531,56 @@ export interface ThapsusHrPort {
   ): Promise<HrResult<{ readonly accepted: number }>>;
   rates(employeeIds: readonly string[]): Promise<HrResult<readonly HrRate[]>>;
   health(): Promise<HealthResult>;
+}
+
+/** The employee webhooks Thapsus-HR sends at the pinned commit (identifiers only; section 11.2). */
+export const HR_WEBHOOK_EVENTS = [
+  "employee.created",
+  "employee.changed",
+  "employee.transferred",
+  "employee.terminated",
+] as const;
+export type HrWebhookEvent = (typeof HR_WEBHOOK_EVENTS)[number];
+
+/** How far a webhook's signed time may be from now, either way, before it is refused as a replay. */
+export const HR_WEBHOOK_REPLAY_SECONDS = 300;
+
+/**
+ * Why a webhook's signed time (Unix seconds) is refused, or null: not a whole number of seconds,
+ * older than the replay window, or further ahead than it.
+ */
+export function webhookTimestampProblem(
+  sentAtSeconds: number,
+  now: Date,
+): "invalid" | "too_old" | "in_future" | null {
+  if (!Number.isSafeInteger(sentAtSeconds) || sentAtSeconds <= 0) return "invalid";
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  if (nowSeconds - sentAtSeconds > HR_WEBHOOK_REPLAY_SECONDS) return "too_old";
+  if (sentAtSeconds - nowSeconds > HR_WEBHOOK_REPLAY_SECONDS) return "in_future";
+  return null;
+}
+
+/** Harbour's copy of the fields Thapsus-HR owns in the staff file. */
+export interface StaffFileCopy {
+  readonly jobTitle: string | null;
+  readonly startsOn: string | null;
+}
+
+export type DriftField = "job_title" | "start_date";
+
+/**
+ * The owned fields where Harbour's copy differs from Thapsus-HR's (rule 2): only fields Thapsus-HR
+ * sent, and a start date only when it is a real day. Reconciliation puts back Thapsus-HR's value.
+ */
+export function employeeDrift(copy: StaffFileCopy, employee: HrEmployee): DriftField[] {
+  const drift: DriftField[] = [];
+  const title = typeof employee.jobTitle === "string" ? employee.jobTitle.trim() : "";
+  if (title.length >= 2 && title.length <= 120 && title !== (copy.jobTitle ?? "").trim()) {
+    drift.push("job_title");
+  }
+  const start = employee.startDate;
+  if (typeof start === "string" && realDay(start) && start !== copy.startsOn) {
+    drift.push("start_date");
+  }
+  return drift;
 }

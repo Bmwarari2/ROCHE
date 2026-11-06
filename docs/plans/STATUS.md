@@ -124,8 +124,11 @@ Phases 3 to 7 are not started.
 
 **Added to the plan on 01/11/2026**: the Thapsus-HR link (INTG-014, ADR-0126), so a provider using
 both products shares rota, time, pay and staff records without exports. It is Phase 2 slices 86 to 90
-on `docs/plan-thapsus-hr-link`, and takes migration 0139 (0140 if needed), H-1340 to H-1345, HZ-133
-and DPIA risk R30.
+on `docs/plan-thapsus-hr-link`, and takes migration 0140 (0139 went to slice 71), H-1340 to H-1345,
+HZ-133 and DPIA risk R30. Slice 86 (port, mock, rules) is on `feat/integrations-hr-link-port`;
+slice 87 (connection, people, locations, the signed webhook, reconciliation; migration 0140) is on
+`feat/integrations-hr-link-connection`, branched from it. Next: slice 88 (absences and the rota's
+staleness notice). Harbour keeps the rota (confirmed 06/11/2026).
 
 **Next free numbers**: migration 0141, human actions block H-1350, hazard HZ-134, ADR-0127.
 

@@ -1035,6 +1035,21 @@ sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, t
 | `ldss_claim.course_title`, `completed_on`, `claimed_amount` | Skills for Care LDSS (England) | Plain text, 2 to 200; `YYYY-MM-DD`; pounds as claimed | Harbour holds no funding figure (H-903) |
 | `ldss_claim.status`, `reference`, `submitted_on`, `paid_on`, `reason` | Harbour | `planned`, `submitted`, `paid`, `rejected`, `withdrawn`; plain text | Submitted needs a reference and date; paid a date; rejected or withdrawn a reason |
 
+## Integrations: Thapsus-HR link (Phase 2, slice 87)
+
+Fields for [integrations.md](integrations.md#11-thapsus-hr-link-intg-014) section 11 (migration
+0140). Identifiers only: Thapsus-HR's names, emails and dates of birth are read to match and never
+stored. Exported in the full tenant export with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `hr_person_link.hr_employee_id`, `employee_number` | Thapsus-HR (the employee's identifier and number) | `^[A-Za-z0-9_-]{1,64}$`; `^[A-Za-z0-9_/-]{1,40}$` | One link per Thapsus-HR employee; one linked employee per staff file |
+| `hr_person_link.state`, `match_method`, `review_reason` | Harbour | `linked`, `review`, `rejected`; `employee_number`, `email_and_birth_date`, `manual`, `starter`; `conflict`, `ambiguous`, `already_linked`, `no_match` | Never matched by name (rule 3); `manual` needs who confirmed it and when |
+| `hr_person_link.leaving_on` | Thapsus-HR | `YYYY-MM-DD` | The earliest leaving date given; never moved later (rule 8) |
+| `hr_location_link.hr_location_id` | Thapsus-HR | `^[A-Za-z0-9_-]{1,64}$` | One each way |
+| `hr_sync_state.kind`, `last_error_code` | Harbour | `employees`, `locations`, `absences`, `rates`; `^[a-z_]{1,40}$` | An opaque code, never a message |
+| `hr_delivery.kind`, `state` | Harbour | `starter`, `shift`, `clock_event`, `pay_units`; `pending`, `sent`, `failed`, `refused` | The idempotency key is a UUID; sent only with Thapsus-HR's identifier |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

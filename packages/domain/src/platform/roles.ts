@@ -136,7 +136,10 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
         p !== "platform.dpia.prepare" &&
         p !== "quality.statement_of_purpose.approve" &&
         // The DBS risk assessment is the Registered Manager's (workforce.md rule 3).
-        p !== "workforce.dbs_risk_assessment.sign",
+        p !== "workforce.dbs_risk_assessment.sign" &&
+        // Connecting the HR platform and choosing owners is the manager's or HR's
+        // (integrations.md section 11.4); a deputy reviews matches.
+        p !== "integrations.hr_link.manage",
     ),
   },
   {
@@ -209,6 +212,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "scheduling.rota.read",
       "scheduling.rota.manage",
       "scheduling.visit.manage",
+      "integrations.hr_link.read",
       "people.assignment.manage",
       "safety.incident.report",
       "safety.incident.read",
@@ -323,6 +327,9 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.training.manage",
       "workforce.supervision.manage",
       "workforce.competence.observe",
+      "integrations.hr_link.manage",
+      "integrations.hr_link.review",
+      "integrations.hr_link.read",
       "insights.dashboard.read",
       "platform.search.use",
     ],

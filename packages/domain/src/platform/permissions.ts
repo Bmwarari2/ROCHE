@@ -367,6 +367,18 @@ export const PERMISSIONS = {
   "insights.group.read": { description: "Read consolidated reporting across a group" },
   // integrations
   "integrations.connection.manage": { description: "Configure integrations and API clients" },
+  // The Thapsus-HR link (integrations.md section 11.4; ADR-0126)
+  "integrations.hr_link.manage": {
+    description:
+      "Connect or disconnect the HR platform, choose data owners, map locations and rotate its secret",
+    stepUp: true,
+  },
+  "integrations.hr_link.review": {
+    description: "Confirm or reject staff matches with the HR platform and clear quarantined items",
+  },
+  "integrations.hr_link.read": {
+    description: "See the HR platform link's sync health, staleness and drift",
+  },
   // ai
   "ai.copilot.use": { description: "Use the AI management copilot (advisory only)" },
   "ai.copilot.manage": { description: "Configure the AI module and provider" },

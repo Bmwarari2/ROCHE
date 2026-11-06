@@ -73,6 +73,12 @@ export const FLAGS = {
     defaultEnabled: false,
     licensed: false,
   },
+  "integrations.thapsus_hr": {
+    description:
+      "Link to the provider's Thapsus-HR tenant for staff records, leave, rota, clocking and pay units (ADR-0126)",
+    defaultEnabled: false,
+    licensed: false,
+  },
   "locale.welsh": {
     description: "Welsh language interface and Active Offer",
     defaultEnabled: false,
