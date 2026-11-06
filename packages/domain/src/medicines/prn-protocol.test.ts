@@ -7,6 +7,7 @@ import {
   type PrnReportDose,
   prnFrequency,
   prnProtocolStatus,
+  protocolInForce,
 } from "./prn-protocol";
 
 /** Figures as a tenant's rate table would give them; never a literal default in the rules. */
@@ -72,6 +73,17 @@ describe("hazard HZ-117 a PRN protocol for a when-required medicine (slice 28)",
   });
 
   it.each([
+    [{ state: "stopped", directions: "when_required" }, "medicine_stopped"],
+    [{ state: "replaced", directions: "when_required" }, "medicine_stopped"],
+    [{ state: "checked", directions: "regular" }, "not_when_required_now"],
+    [{ state: "checked", directions: "when_required" }, "in_use"],
+  ] as const)("reads the entry: %o is %s", (entry, state) => {
+    expect(prnProtocolStatus({ withdrawnOn: null, reviewOn: "2027-01-01" }, today, entry)).toBe(
+      state,
+    );
+  });
+
+  it.each([
     [{ withdrawnOn: null, reviewOn: today }, "in_use"],
     [{ withdrawnOn: null, reviewOn: "2026-11-05" }, "review_overdue"],
     [{ withdrawnOn: today, reviewOn: "2027-01-01" }, "withdrawn"],
@@ -125,7 +137,7 @@ describe("hazard HZ-117 the PRN frequency report counts, never judges (slice 28)
     medicineId: "m1",
     at: at("2026-10-24T10:00:00Z"),
     psychotropic: true,
-    underProtocol: true,
+    protocol: "current",
     outcome: "effective",
     outcomeDue: true,
   };
@@ -135,7 +147,7 @@ describe("hazard HZ-117 the PRN frequency report counts, never judges (slice 28)
       base,
       { ...base, at: at("2026-10-24T22:30:00Z"), outcome: null },
       // BST ends at 01:00 UTC on 25/10/2026, so 23:30 UTC on the 24th is 00:30 on the 25th, UK time.
-      { ...base, at: at("2026-10-24T23:30:00Z"), outcome: "not_effective", underProtocol: false },
+      { ...base, at: at("2026-10-24T23:30:00Z"), outcome: "not_effective", protocol: "none" },
       { ...base, medicineId: "m2", psychotropic: false, outcome: null, outcomeDue: false },
     ]);
     expect(lines).toEqual([
@@ -147,6 +159,7 @@ describe("hazard HZ-117 the PRN frequency report counts, never judges (slice 28)
         daysWithDoses: 2,
         mostInOneDay: 2,
         withoutProtocol: 1,
+        underOverdueProtocol: 0,
         outcomes: {
           effective: 1,
           partly_effective: 0,
@@ -164,6 +177,7 @@ describe("hazard HZ-117 the PRN frequency report counts, never judges (slice 28)
         daysWithDoses: 1,
         mostInOneDay: 1,
         withoutProtocol: 0,
+        underOverdueProtocol: 0,
         outcomes: {
           effective: 0,
           partly_effective: 0,
@@ -176,8 +190,54 @@ describe("hazard HZ-117 the PRN frequency report counts, never judges (slice 28)
     ]);
   });
 
+  it.each([
+    // 25/10/2026, the 25-hour day: 00:30 UTC is 01:30 BST and 01:30 UTC is 01:30 GMT, one UK day.
+    [
+      "the day the clocks go back",
+      ["2026-10-25T00:30:00Z", "2026-10-25T01:30:00Z", "2026-10-25T23:30:00Z"],
+      1,
+      3,
+    ],
+    // 29/03/2026, the 23-hour day: 23:30 UTC on the 29th is 00:30 BST on the 30th.
+    [
+      "the day the clocks go forward",
+      ["2026-03-29T00:30:00Z", "2026-03-29T01:30:00Z", "2026-03-29T23:30:00Z"],
+      2,
+      2,
+    ],
+  ])("counts UK calendar days on %s", (_name, times, days, most) => {
+    const [line] = prnFrequency(times.map((t) => ({ ...base, at: at(t) })));
+    expect(line?.daysWithDoses).toBe(days);
+    expect(line?.mostInOneDay).toBe(most);
+  });
+
+  it("counts a dose given under a protocol past its review apart", () => {
+    const [line] = prnFrequency([base, { ...base, protocol: "review_overdue" }]);
+    expect(line?.underOverdueProtocol).toBe(1);
+    expect(line?.withoutProtocol).toBe(0);
+  });
+
   it("is empty with no doses", () => {
     expect(prnFrequency([])).toEqual([]);
+  });
+});
+
+describe("hazard HZ-117 which protocol was in force when a dose was given (slice 28)", () => {
+  const recordedAt = new Date("2026-11-05T12:00:00Z");
+  const p = {
+    recordedAt,
+    agreedFrom: new Date("2026-10-01T00:00:00Z"),
+    withdrawnAt: new Date("2026-11-06T09:00:00Z"),
+    reviewOn: "2026-11-05",
+  };
+  it.each([
+    ["before it was recorded, though agreed earlier", "2026-11-05T11:59:00Z", "none"],
+    ["once recorded, before its review date passed", "2026-11-05T12:00:00Z", "current"],
+    ["after its review date, still in force", "2026-11-06T08:00:00Z", "review_overdue"],
+    ["earlier on the day it was withdrawn", "2026-11-06T08:59:00Z", "review_overdue"],
+    ["once withdrawn", "2026-11-06T09:00:00Z", "none"],
+  ])("is %s", (_name, when, expected) => {
+    expect(protocolInForce([p], new Date(when))).toBe(expected);
   });
 });
 

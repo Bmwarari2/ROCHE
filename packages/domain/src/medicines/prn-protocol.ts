@@ -92,19 +92,37 @@ export function checkPrnProtocol(
   return problems;
 }
 
-export type PrnProtocolStatus = "in_use" | "review_overdue" | "withdrawn";
+export type PrnProtocolStatus =
+  | "in_use"
+  | "review_overdue"
+  | "medicine_stopped"
+  | "not_when_required_now"
+  | "withdrawn";
 
+/**
+ * A protocol's state on a UK date, read with the latest version of its entry: a protocol for a
+ * medicine since stopped, or no longer prescribed when required, is not in use whatever its dates
+ * (the prescription is the source; HZ-117).
+ */
 export function prnProtocolStatus(
   protocol: { readonly withdrawnOn: string | null; readonly reviewOn: string },
   today: string,
+  entry: { readonly state: string; readonly directions: string } | null = null,
 ): PrnProtocolStatus {
   if (protocol.withdrawnOn !== null && protocol.withdrawnOn <= today) return "withdrawn";
+  if (entry) {
+    if (entry.state === "stopped" || entry.state === "replaced") return "medicine_stopped";
+    if (entry.directions !== "when_required") return "not_when_required_now";
+  }
   return today > protocol.reviewOn ? "review_overdue" : "in_use";
 }
 
 export const PRN_PROTOCOL_STATUS_WORDS: Record<PrnProtocolStatus, string> = {
   in_use: "Protocol in use",
   review_overdue: "Protocol review overdue",
+  medicine_stopped: "The medicine has been stopped: this protocol is not in use",
+  not_when_required_now:
+    "The medicine is no longer prescribed when required: review or withdraw this protocol",
   withdrawn: "Protocol withdrawn",
 };
 
@@ -164,8 +182,12 @@ export interface PrnReportDose {
   readonly at: Date;
   /** Psychotropic by the entry's tag or the tenant's list. */
   readonly psychotropic: boolean;
-  /** A protocol for the medicine was in use when it was given. */
-  readonly underProtocol: boolean;
+  /**
+   * The protocol in force when it was given: `current`, `review_overdue` (in force but past its
+   * review date), or `none`. In force from when it was recorded (never earlier, whatever date was
+   * typed) until it was withdrawn.
+   */
+  readonly protocol: "current" | "review_overdue" | "none";
   readonly outcome: PrnOutcome | null;
   /** The outcome's check time has passed. */
   readonly outcomeDue: boolean;
@@ -178,9 +200,11 @@ export interface PrnReportLine {
   readonly doses: number;
   /** Distinct UK days with a dose. */
   readonly daysWithDoses: number;
-  /** The most doses on one UK day. */
+  /** The most doses on one calendar day, UK time (not the prescriber's rolling 24 hours). */
   readonly mostInOneDay: number;
   readonly withoutProtocol: number;
+  /** Given under a protocol past its review date. */
+  readonly underOverdueProtocol: number;
   readonly outcomes: Readonly<Record<PrnOutcome, number>>;
   /** Due and not recorded. */
   readonly outcomesOutstanding: number;
@@ -213,7 +237,8 @@ export function prnFrequency(doses: readonly PrnReportDose[]): PrnReportLine[] {
         doses: g.length,
         daysWithDoses: perDay.size,
         mostInOneDay: Math.max(...perDay.values()),
-        withoutProtocol: g.filter((d) => !d.underProtocol).length,
+        withoutProtocol: g.filter((d) => d.protocol === "none").length,
+        underOverdueProtocol: g.filter((d) => d.protocol === "review_overdue").length,
         outcomes,
         outcomesOutstanding: g.filter((d) => d.outcome === null && d.outcomeDue).length,
       };
@@ -240,4 +265,27 @@ export function checkMedicineListItem(
 ): MedicineListProblem[] {
   if (!/^[0-9]{6,18}$/.test(vmpId)) return ["not_a_product"];
   return listed.has(vmpId) ? ["already_listed"] : [];
+}
+
+/**
+ * Which protocol was in force at an instant: from when it was recorded (or the agreement date,
+ * if later) until it was withdrawn. A date typed in can never make earlier doses count as under a
+ * protocol (clinical review, 06/11/2026).
+ */
+export function protocolInForce(
+  protocols: readonly {
+    readonly recordedAt: Date;
+    readonly agreedFrom: Date;
+    readonly withdrawnAt: Date | null;
+    readonly reviewOn: string;
+  }[],
+  at: Date,
+): "current" | "review_overdue" | "none" {
+  const found = protocols.find(
+    (p) =>
+      Math.max(p.recordedAt.getTime(), p.agreedFrom.getTime()) <= at.getTime() &&
+      (p.withdrawnAt === null || at.getTime() < p.withdrawnAt.getTime()),
+  );
+  if (!found) return "none";
+  return ukIsoDate(at) > found.reviewOn ? "review_overdue" : "current";
 }

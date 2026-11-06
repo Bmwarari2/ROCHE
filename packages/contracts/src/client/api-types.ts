@@ -40510,7 +40510,12 @@ export interface components {
       withdrawnReason: string | null;
       changeReason: string | null;
       /** @enum {string} */
-      status: "in_use" | "review_overdue" | "withdrawn";
+      status:
+        | "in_use"
+        | "review_overdue"
+        | "medicine_stopped"
+        | "not_when_required_now"
+        | "withdrawn";
       statusWords: string;
       version: number;
     };
@@ -40624,6 +40629,7 @@ export interface components {
         daysWithDoses: number;
         mostInOneDay: number;
         withoutProtocol: number;
+        underOverdueProtocol: number;
         outcomes: {
           effective?: number;
           partly_effective?: number;

@@ -90,7 +90,13 @@ export const PrnProtocolOut = z
     withdrawnOn: isoDate.nullable(),
     withdrawnReason: z.string().nullable(),
     changeReason: z.string().nullable(),
-    status: z.enum(["in_use", "review_overdue", "withdrawn"]),
+    status: z.enum([
+      "in_use",
+      "review_overdue",
+      "medicine_stopped",
+      "not_when_required_now",
+      "withdrawn",
+    ]),
     statusWords: z.string(),
     version,
   })
@@ -164,8 +170,11 @@ export const PrnFrequencyReport = z
         psychotropic: z.boolean(),
         doses: z.number().int(),
         daysWithDoses: z.number().int(),
+        /** The most on one calendar day, UK time: not the prescriber's rolling 24 hours. */
         mostInOneDay: z.number().int(),
         withoutProtocol: z.number().int(),
+        /** Given under a protocol past its review date. */
+        underOverdueProtocol: z.number().int(),
         outcomes: z.record(PrnOutcomeValue, z.number().int()),
         outcomesOutstanding: z.number().int(),
       }),

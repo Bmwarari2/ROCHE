@@ -981,8 +981,9 @@ within `medicines.prn_protocol.review_max_days` (H-1382). One open protocol per 
 The **dose, the most in 24 hours and the minimum interval stay the prescriber's**, on the entry
 (migration 0123, rule 13): a protocol shows them from the latest version of the entry and never
 holds a second copy, so a changed prescription is always what staff see (H-1381). Changing a
-protocol needs a new reason; a withdrawn protocol is closed. Statuses: in use, review overdue,
-withdrawn.
+protocol needs a new reason; a withdrawn protocol is closed. Statuses, read with the latest
+version of the entry: in use, review overdue, medicine stopped (the entry is stopped or replaced
+with nothing current), no longer prescribed when required, withdrawn.
 
 ### 16.2 Outcomes
 
@@ -991,7 +992,7 @@ client UUID): it helped, it helped a little, it did not help, the person was asl
 tell; a note; when it was seen (after the dose, never in the future). One outcome per dose; a
 correction names the outcome it corrects, with a reason. Doses whose outcome is due
 (`medicines.prn.outcome_check_minutes` after the dose, `prnOutcomeDueAt`) and not recorded are
-listed for the person (H-1383).
+listed for the person, however long ago (H-1383).
 
 ### 16.3 The organisation's medicine lists and the PRN frequency report
 
@@ -1003,8 +1004,11 @@ the psychotropic count (H-1384).
 The **PRN frequency report** (`GET /v1/locations/{id}/medicines/prn-frequency`) counts, for each
 person and when-required medicine in a period (UK dates, inclusive, at most
 `medicines.prn_report.max_days`, H-1385): doses given or taken (latest records only; a record a
-correction replaced never counts), UK days with doses, the most on one day, doses given with no
-protocol in use, outcomes by kind and those outstanding. A medicine is psychotropic when the
+correction replaced never counts), UK calendar days with doses, the most on one calendar day (UK time, not the prescriber's rolling
+24 hours), doses given with no protocol in force, doses given under a protocol past its review,
+outcomes by kind and those outstanding. A protocol is in force from when it was recorded (or the
+agreement date, if later: a date typed in never covers earlier doses) until the instant it was
+withdrawn. A medicine is psychotropic when the
 dose's own entry version is tagged so or its product is on the organisation's psychotropic list;
 the report can show those alone. It always carries the note that it is a count for the
 prescriber and pharmacist, never a judgement (H-1386). People are counted at their current home.

@@ -32126,6 +32126,8 @@
             "enum": [
               "in_use",
               "review_overdue",
+              "medicine_stopped",
+              "not_when_required_now",
               "withdrawn"
             ]
           },
@@ -32585,6 +32587,9 @@
                 "withoutProtocol": {
                   "type": "integer"
                 },
+                "underOverdueProtocol": {
+                  "type": "integer"
+                },
                 "outcomes": {
                   "type": "object",
                   "properties": {
@@ -32619,6 +32624,7 @@
                 "daysWithDoses",
                 "mostInOneDay",
                 "withoutProtocol",
+                "underOverdueProtocol",
                 "outcomes",
                 "outcomesOutstanding"
               ]

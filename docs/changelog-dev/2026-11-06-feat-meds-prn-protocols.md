@@ -17,3 +17,15 @@ testing-phase review.
   (record, correct, outstanding) and the PRN frequency report. OpenAPI and client regenerated;
   export catalogue, retention, records of processing, data standards, the medical-device boundary
   note, feature register and STATUS updated.
+
+## Review fixes (06/11/2026)
+
+- Clinical: a protocol is in force from when it was recorded until the instant it was withdrawn,
+  so a backdated agreement covers no earlier dose; doses under a protocol past its review are
+  counted apart; a protocol's status reads the latest entry (stopped, no longer when required);
+  a test that a changed prescription is what the protocol shows; outstanding outcomes have no
+  time window; calendar-day counts tested on both clock changes and labelled as calendar days.
+- Security: no blocker. For the integrator: migrations 0142 (slice 38) and 0143 both redefine
+  `app.sample_removal_tables()`; the one that runs last must list the union of both (slice 38's
+  three tables and `prn_outcome`, `prn_protocol`, children before parents). Withdrawal records
+  its own change reason; the report's corrections query is bounded to the period's doses.

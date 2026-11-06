@@ -43,6 +43,7 @@ import {
   prnFrequency,
   prnOutcomeDueAt,
   prnProtocolStatus,
+  protocolInForce,
   scopeFor,
   scopeReachesLocation,
   ukDayBounds,
@@ -185,7 +186,11 @@ function protocolOut(
   list: ReadonlySet<string>,
   today: string,
 ): z.infer<typeof PrnProtocolOut> {
-  const status = prnProtocolStatus(r, today);
+  const status = prnProtocolStatus(
+    r,
+    today,
+    entry ? { state: entry.state, directions: entry.directions.kind } : null,
+  );
   const prn = entry?.directions.kind === "when_required" ? entry.directions : null;
   return {
     id: r.id,
@@ -683,7 +688,11 @@ export const prnProtocolsRouter = createRouter()
           () =>
             tx
               .update(prnProtocol)
-              .set({ withdrawnOn: today, withdrawnReason: body.reason, changeReason: body.reason })
+              .set({
+                withdrawnOn: today,
+                withdrawnReason: body.reason,
+                changeReason: `Withdrawn: ${body.reason}`,
+              })
               .where(and(eq(prnProtocol.id, id), eq(prnProtocol.version, body.version)))
               .returning(),
           "Read the protocol again and resend.",
@@ -824,11 +833,7 @@ export const prnProtocolsRouter = createRouter()
           .select()
           .from(medicationAdministration)
           .where(
-            and(
-              eq(medicationAdministration.personId, id),
-              isNull(medicationAdministration.dueAt),
-              gte(medicationAdministration.givenAt, new Date(now.getTime() - 7 * 86_400_000)),
-            ),
+            and(eq(medicationAdministration.personId, id), isNull(medicationAdministration.dueAt)),
           )
           .orderBy(medicationAdministration.givenAt);
         const replaced = superseded(doses);
@@ -964,10 +969,18 @@ async function reportLines(
       ),
     );
   // A record superseded by a correction never counts, wherever the correction falls.
-  const corrections = await tx
-    .select({ supersedesId: medicationAdministration.supersedesId })
-    .from(medicationAdministration)
-    .where(inArray(medicationAdministration.personId, [...personIds]));
+  const corrections =
+    doses.length === 0
+      ? []
+      : await tx
+          .select({ supersedesId: medicationAdministration.supersedesId })
+          .from(medicationAdministration)
+          .where(
+            inArray(
+              medicationAdministration.supersedesId,
+              doses.map((d) => d.id),
+            ),
+          );
   const replaced = superseded(corrections);
   const kept = doses.filter(
     (d) =>
@@ -995,6 +1008,9 @@ async function reportLines(
       medicineId: prnProtocol.medicineId,
       agreedOn: prnProtocol.agreedOn,
       withdrawnOn: prnProtocol.withdrawnOn,
+      reviewOn: prnProtocol.reviewOn,
+      createdAt: prnProtocol.createdAt,
+      updatedAt: prnProtocol.updatedAt,
     })
     .from(prnProtocol)
     .where(and(inArray(prnProtocol.personId, [...personIds]), isNull(prnProtocol.deletedAt)));
@@ -1013,7 +1029,6 @@ async function reportLines(
   );
   const reportDoses: PrnReportDose[] = kept.map((d) => {
     const e = byId.get(d.medicationId);
-    const day = ukIsoDate(d.givenAt);
     const medicineId = e?.medicineId ?? d.medicationId;
     return {
       personId: d.personId,
@@ -1021,11 +1036,17 @@ async function reportLines(
       at: d.givenAt,
       // Each dose is classed by the version it was given against, or the organisation's list.
       psychotropic: (e?.tags ?? []).includes("psychotropic") || (e ? list.has(e.vmpId) : false),
-      underProtocol: protocols.some(
-        (p) =>
-          p.medicineId === medicineId &&
-          p.agreedOn <= day &&
-          (p.withdrawnOn === null || p.withdrawnOn > day),
+      protocol: protocolInForce(
+        protocols
+          .filter((p) => p.medicineId === medicineId)
+          .map((p) => ({
+            recordedAt: p.createdAt,
+            agreedFrom: ukDayBounds(p.agreedOn).startsAt,
+            // A withdrawn protocol is closed, so its last change is the withdrawal.
+            withdrawnAt: p.withdrawnOn === null ? null : p.updatedAt,
+            reviewOn: p.reviewOn,
+          })),
+        d.givenAt,
       ),
       outcome: (outcomes.get(d.id)?.outcome as PrnOutcome | undefined) ?? null,
       outcomeDue:

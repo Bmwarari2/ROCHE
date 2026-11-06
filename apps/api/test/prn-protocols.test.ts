@@ -229,6 +229,32 @@ describe("hazard HZ-117 PRN protocols show the prescriber's limits and never cop
     );
     expect(list.items[0]?.triggers).toEqual(["No bowel movement for three days"]);
   });
+
+  it("hazard HZ-117 a changed prescription is what the protocol shows", async () => {
+    const v2 = await send("manager", `/v1/medicines/${entryId}/versions`, {
+      method: "POST",
+      body: {
+        product: PRODUCT,
+        route: ORAL,
+        prescriber: "Dr A Example",
+        startsAt: ukStartOfDay(ukDateOf(new Date(Date.now() + 86_400_000))).toISOString(),
+        source: { kind: "prescription", reference: "Prescription, Dr A Example, 06/11/2026" },
+        indication: "Constipation",
+        directions: {
+          kind: "when_required",
+          dose: { kind: "amount", quantity: 10, unit: ML },
+          maxQuantityPer24Hours: 30,
+        },
+        expectedVersion: 1,
+      },
+    });
+    expect(v2.status, await v2.clone().text()).toBe(201);
+    const list = await json<{
+      items: { limits: { maxPer24h: number | null; dose: string | null } }[];
+    }>(await send("carer", `/v1/people/${ADA}/prn-protocols`));
+    expect(list.items[0]?.limits.maxPer24h).toBe(30);
+    expect(list.items[0]?.limits.dose).toMatch(/^10/);
+  });
 });
 
 describe("hazard HZ-117 the outcome of a when-required dose is followed up (slice 28)", () => {
@@ -302,7 +328,17 @@ describe("hazard HZ-117 the PRN frequency report counts, never judges (slice 28)
   const report = (user: string, query: string) =>
     send(user, `/v1/locations/${LOC}/medicines/prn-frequency?${query}`);
 
-  it("counts doses, outcomes and psychotropic medicines, with its note", async () => {
+  it("counts doses, outcomes and psychotropic medicines, with its note; a backdated agreement covers no earlier dose", async () => {
+    const after = await send("manager", `/v1/people/${ADA}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: randomUUID(),
+        entryId,
+        outcome: "given",
+        amount: { quantity: 15, unitCode: ML.code },
+      },
+    });
+    expect(after.status, await after.clone().text()).toBe(201);
     const r = await report("manager", `from=${yesterday()}&to=${today()}&psychotropicOnly=true`);
     expect(r.status, await r.clone().text()).toBe(200);
     const out = await json<{
@@ -320,8 +356,9 @@ describe("hazard HZ-117 the PRN frequency report counts, never judges (slice 28)
     const ada = out.items.find((i) => i.personId === ADA);
     expect(ada?.medicineName).toMatch(/^Lactulose/);
     expect(ada?.psychotropic).toBe(true);
-    expect(ada?.doses).toBe(2);
-    expect(ada?.withoutProtocol).toBe(0);
+    expect(ada?.doses).toBe(3);
+    // The protocol was agreed "yesterday" but recorded after the first two doses.
+    expect(ada?.withoutProtocol).toBe(2);
     expect(ada?.outcomes.partly_effective).toBe(1);
     expect(ada?.outcomes.effective).toBe(0);
   });
