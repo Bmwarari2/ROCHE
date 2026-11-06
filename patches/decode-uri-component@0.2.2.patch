@@ -1,5 +1,5 @@
 diff --git a/index.js b/index.js
-index 24e7db0cc55aa22d0f98358b73298067deb33b52..8d96ab6fcb3e1d73825f87a42a9e08cbee8559e2 100644
+index 24e7db0cc55aa22d0f98358b73298067deb33b52..49883d08aad59bf4bce21fd116ad6abfc994e738 100644
 --- a/index.js
 +++ b/index.js
 @@ -1,80 +1,138 @@
@@ -127,7 +127,7 @@ index 24e7db0cc55aa22d0f98358b73298067deb33b52..8d96ab6fcb3e1d73825f87a42a9e08cb
 +
 +				// UTF-16 BOM byte pairs become two replacement characters.
 +				if (pair === '%FE%FF' || pair === '%FF%FE') {
-+					output += '��';
++					output += '\uFFFD\uFFFD';
 +					position += 6;
 +					continue;
 +				}
@@ -174,7 +174,7 @@ index 24e7db0cc55aa22d0f98358b73298067deb33b52..8d96ab6fcb3e1d73825f87a42a9e08cb
 +			// Missing continuation bytes or a decode failure: emit the first byte literally, and a
 +			// truncated `%C2` as a replacement character.
 +			var literal = input.slice(position, position + 3);
-+			output += literal === '%C2' ? '�' : literal;
++			output += literal === '%C2' ? '\uFFFD' : literal;
 +			position += 3;
 +		}
 +
