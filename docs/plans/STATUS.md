@@ -157,8 +157,10 @@ staleness notice). Harbour keeps the rota (confirmed 06/11/2026).
 **Next free numbers**: migration 0142, human actions block H-1350, hazard HZ-134, ADR-0127.
 
 **Human questions**: every open question takes its recommended answer until the testing-phase
-review ([recommended-answers.md](recommended-answers.md)). Ten Brian decisions still have no default:
-H-09, H-105, H-521, H-522, H-535, H-569, H-663, H-664, H-781 and H-829.
+review ([recommended-answers.md](recommended-answers.md)). The ten Brian decisions that had no default
+were answered on 06/11/2026 ([ADR-0132](../decisions/0132-owner-decisions-06-11.md)): SMS is deferred
+until after launch (H-09, H-105), and the other eight take their recommendation. Open clinical safety
+officer items are provisional owner-accepted recommendations, pending CSO review at the testing phase.
 
 ## Where to pick up (resumed 31/10/2026)
 

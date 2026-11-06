@@ -7,7 +7,7 @@
 | Standard | [DCB0129](https://adultsocialcare.standards.nhs.uk/published-standards/clinical-risk-management-its-application-in-the-manufacture-of-health-it-systems) |
 | Process | [clinical-risk-management-plan.md](clinical-risk-management-plan.md) (risk matrix in section 3.2, acceptability in 3.3) |
 | Opened | 11 October 2026, Phase 0, with the day-one hazards from master prompt section 5.2 and the rules in section 10.3 |
-| Clinical approval | Not yet reviewed. All ratings below are engineering proposals awaiting `[CSO name - human action]` |
+| Clinical approval | Not yet reviewed by a clinical safety officer. All ratings below are engineering proposals awaiting `[CSO name - human action]` (H-20). Since 06/11/2026 each proposed rating, control and acceptance stands as an owner-accepted recommendation, pending CSO review at the testing phase ([ADR-0132](../decisions/0132-owner-decisions-06-11.md)); none is a CSO acceptance, and no hazard is `controlled` until the CSO accepts it |
 
 ## How to read and maintain this log
 
