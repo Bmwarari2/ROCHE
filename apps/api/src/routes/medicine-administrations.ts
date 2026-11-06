@@ -82,7 +82,12 @@ import {
   supersededBy,
   witnessesFor,
 } from "../services/medicine-administrations";
-import { neverFailingTheDose, stockOnCorrection, stockOnDose } from "../services/medicine-stock";
+import {
+  neverFailingTheDose,
+  raiseOutOfStockTask,
+  stockOnCorrection,
+  stockOnDose,
+} from "../services/medicine-stock";
 import {
   guardConcurrent,
   lockPerson,
@@ -539,6 +544,11 @@ export const medicineAdministrationsRouter = createRouter()
           });
           // Slice 42's stock hook (medicines.md section 15 rule 3): a given dose moves the person's
           // stock of its product; a controlled drug's stock stays the register's.
+          await raiseOutOfStockTask(tx, {
+            record: stored,
+            vmpId: entry.product.vmpId,
+            locationId: facts.person.locationId,
+          });
           await neverFailingTheDose(
             tx,
             { personId, locationId: facts.person.locationId, sourceId: body.id },

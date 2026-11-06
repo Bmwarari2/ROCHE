@@ -23,6 +23,7 @@ let h: Harness;
 const ADA = "0194d000-0000-7000-8600-000000000001";
 const BEN = "0194d000-0000-7000-8600-000000000002";
 const CARL = "0194d000-0000-7000-8600-000000000003";
+const DORA = "0194d000-0000-7000-8600-000000000004";
 const LACTULOSE = {
   vmpId: "90000051000001100",
   ampId: null,
@@ -176,6 +177,38 @@ describe("hazard HZ-003 MEDS-008 a person's stock and slice 22's hook", () => {
     );
     expect(again.status, await again.clone().text()).toBe(201);
     expect(await balance(ADA, ITEM)).toBe(26);
+  });
+
+  it("takes stock for a dose first refused and then corrected to given", async () => {
+    const dora = await entryDueSoon(DORA);
+    const item = (
+      await json<Stock>(
+        await post("manager", `/v1/people/${DORA}/medicine-stock`, { medicationId: dora.entryId }),
+      )
+    ).item.id;
+    await post("manager", `/v1/medicine-stock/${item}/receipts`, { quantity: 10 });
+    const id = randomUUID();
+    const refused = await post("manager", `/v1/people/${DORA}/medicine-administrations`, {
+      id,
+      entryId: dora.entryId,
+      dueAt: dora.dueAt,
+      outcome: "refused",
+      reason: { code: "declined", note: null },
+    });
+    expect(refused.status, await refused.clone().text()).toBe(201);
+    expect(await balance(DORA, item)).toBe(10);
+    const given = await post("manager", `/v1/medicine-administrations/${id}/corrections`, {
+      id: randomUUID(),
+      correctionReason: "Taken after all, a few minutes later",
+      entryId: dora.entryId,
+      dueAt: dora.dueAt,
+      outcome: "given",
+      amount: { quantity: 2, unitCode: TABLET.code },
+      timingReason: "Given with breakfast",
+      givenAt: new Date().toISOString(),
+    });
+    expect(given.status, await given.clone().text()).toBe(201);
+    expect(await balance(DORA, item)).toBe(8);
   });
 
   it("moves nothing for a dose recorded before its item was opened, nor for its correction", async () => {

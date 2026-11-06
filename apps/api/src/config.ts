@@ -130,6 +130,11 @@ const Env = z.object({
    * (H-517, H-1321), so production accepts only `off`.
    */
   PHARMACY_ORDERS: z.enum(["off", "mock"]).default("off"),
+  /**
+   * The key for each person's pharmacy pseudonym (an HMAC of the organisation and person ids). The
+   * live client takes it from the managed secret store (H-1321); the local default is for the mock.
+   */
+  PHARMACY_REF_SECRET: z.string().min(16).default("local-development-pharmacy-ref"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });

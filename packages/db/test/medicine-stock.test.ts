@@ -114,8 +114,9 @@ beforeAll(async () => {
     );
     await c.query(
       `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
-       VALUES ($1, '0199f420-0000-7000-8000-000000000501', $2)`,
-      [a.carer, a.locationNorth],
+       VALUES ($1, '0199f420-0000-7000-8000-000000000501', $2),
+              ($3, '0199f420-0000-7000-8000-000000000501', $4)`,
+      [a.carer, a.locationNorth, a.northManager, a.locationSouth],
     );
   });
   await inContext(app(), manager, async (c) => {
@@ -250,7 +251,7 @@ describe("hazard HZ-132 MEDS-008 medicines stock in the database", () => {
     expect(await refused(manager, (c) => dispose(c, a.manager, null))).toMatch(
       /medicine_disposal_witness/,
     );
-    // A witness who could never confirm it (no medicines.stock.manage) is refused.
+    // A witness who could never confirm it (medicines.stock.manage only at South) is refused.
     expect(await refused(manager, (c) => dispose(c, a.northManager, null))).toBe(
       "medicine_disposal_witness_cannot",
     );

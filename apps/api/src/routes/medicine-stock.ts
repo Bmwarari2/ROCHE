@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 import {
   DisposalOut,
   MedicineOrderList,
@@ -626,7 +626,7 @@ export const medicineStockRouter = createRouter()
           // (security review M4; clinical review 6), checked again by the database.
           if (body.witnessId) {
             const held = await tx.execute<{ ok: boolean }>(
-              sql`SELECT app.member_holds_role_permission(${body.witnessId}::uuid, ${STOCK}) AS ok`,
+              sql`SELECT app.member_holds_role_permission_at(${body.witnessId}::uuid, ${STOCK}, ${person.locationId}::uuid) AS ok`,
             );
             if (held.rows[0]?.ok !== true) {
               throw new HttpProblem(
@@ -996,7 +996,11 @@ export const medicineStockRouter = createRouter()
                 cycleStartsOn: order.cycleStartsOn,
                 lines: lines.map((l) => ({
                   lineId: l.id,
-                  personRef: pharmacyPersonRef(access.tenantId, l.personId),
+                  personRef: pharmacyPersonRef(
+                    c.get("services").config.PHARMACY_REF_SECRET,
+                    access.tenantId,
+                    l.personId,
+                  ),
                   vmpId: l.vmpId,
                   quantity: num(l.quantity),
                   unitCode: l.unitCode,
@@ -1305,8 +1309,8 @@ async function cycleOut(tx: Transaction, access: TenantAccess, locationId: strin
  * The pharmacy's id for a person: a pseudonym stable within the organisation, never Harbour's own
  * id or a name (security review L5; H-1321).
  */
-function pharmacyPersonRef(tenantId: string, personId: string): string {
-  return createHash("sha256")
+function pharmacyPersonRef(secret: string, tenantId: string, personId: string): string {
+  return createHmac("sha256", secret)
     .update(`pharmacy:${tenantId}:${personId}`, "utf8")
     .digest("hex")
     .slice(0, 32);

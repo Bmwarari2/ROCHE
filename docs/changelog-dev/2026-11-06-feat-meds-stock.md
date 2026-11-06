@@ -54,6 +54,13 @@ HZ-003 (causes and controls). Human actions H-1320 to H-1329, each with a recomm
   - one open out-of-stock task per person and product, and one temperature task per storage;
   - the witness task closes only by the witness's confirmation;
   - test names match the hazards.
+- Second round:
+  - a witness must hold `medicines.stock.manage` at the person's home
+    (`app.member_holds_role_permission_at`);
+  - the pharmacy call has a timeout, and the person pseudonym is an HMAC;
+  - the out-of-stock task is raised outside the stock hook's savepoint;
+  - a correction moves stock by when the item was opened, so a dose first refused and then
+    corrected to given takes its amount.
 
 ## Not built
 

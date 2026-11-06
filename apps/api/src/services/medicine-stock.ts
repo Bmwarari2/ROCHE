@@ -1,6 +1,6 @@
 import {
   location,
-  type medicationAdministration,
+  medicationAdministration,
   medicineOrder,
   medicineOrderCycle,
   medicineStockItem,
@@ -153,9 +153,52 @@ const amountOf = (r: AdministrationRow) =>
     : null;
 
 /**
+ * Rule 3: "not available: out of stock" raises one urgent task per person and product (a further
+ * dose not available joins the open one, HZ-008). Raised outside the stock hook's savepoint, so a
+ * failure moving stock never takes it away (slice 42 clinical re-review 1).
+ */
+export async function raiseOutOfStockTask(
+  tx: Transaction,
+  input: {
+    readonly record: AdministrationRow;
+    readonly vmpId: string;
+    readonly locationId: string | null;
+  },
+): Promise<void> {
+  const reasonCode = (input.record.reasonCode ?? null) as string | null;
+  if (input.record.outcome !== "not_available" || reasonCode !== "out_of_stock") return;
+  const [open] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.kind, OUT_OF_STOCK_TASK),
+        eq(task.personId, input.record.personId),
+        inArray(task.status, ["open", "in_progress"]),
+        sql`${task.details}->>'vmpId' = ${input.vmpId}`,
+      ),
+    )
+    .limit(1);
+  if (open) return;
+  await tx.insert(task).values({
+    kind: OUT_OF_STOCK_TASK,
+    title: OUT_OF_STOCK_TASK_TITLE,
+    requiredPermission: "medicines.stock.manage",
+    personId: input.record.personId,
+    locationId: input.locationId,
+    sourceType: "medication_administration",
+    sourceId: input.record.id,
+    assigneeRoleKey: "clinical_lead",
+    dueAt: new Date(),
+    priority: "urgent",
+    details: { reason: "out_of_stock", vmpId: input.vmpId },
+  });
+}
+
+/**
  * Slice 22's hook (rule 3): a dose recorded as given moves the person's stock of its product, in
  * the same transaction. A controlled drug, no item or another unit moves nothing; nothing here
- * ever refuses the dose. "Not available: out of stock" raises a task to check the stock and order.
+ * ever refuses the dose.
  */
 export async function stockOnDose(
   tx: Transaction,
@@ -167,38 +210,6 @@ export async function stockOnDose(
     readonly recordedBy: string;
   },
 ): Promise<void> {
-  const reasonCode = (input.record.reasonCode ?? null) as string | null;
-  // One open task per person and product: a further dose not available joins it (HZ-008).
-  const [open] =
-    input.record.outcome === "not_available" && reasonCode === "out_of_stock"
-      ? await tx
-          .select({ id: task.id })
-          .from(task)
-          .where(
-            and(
-              eq(task.kind, OUT_OF_STOCK_TASK),
-              eq(task.personId, input.record.personId),
-              inArray(task.status, ["open", "in_progress"]),
-              sql`${task.details}->>'vmpId' = ${input.vmpId}`,
-            ),
-          )
-          .limit(1)
-      : [];
-  if (input.record.outcome === "not_available" && reasonCode === "out_of_stock" && !open) {
-    await tx.insert(task).values({
-      kind: OUT_OF_STOCK_TASK,
-      title: OUT_OF_STOCK_TASK_TITLE,
-      requiredPermission: "medicines.stock.manage",
-      personId: input.record.personId,
-      locationId: input.locationId,
-      sourceType: "medication_administration",
-      sourceId: input.record.id,
-      assigneeRoleKey: "clinical_lead",
-      dueAt: new Date(),
-      priority: "urgent",
-      details: { reason: "out_of_stock", vmpId: input.vmpId },
-    });
-  }
   if (input.isControlledDrug) return;
   const item = await itemFor(tx, input.record.personId, input.vmpId);
   const change = doseStockMove({
@@ -248,9 +259,14 @@ export async function stockOnCorrection(
           ),
         )
     : [];
-  // A dose recorded before the item was opened never moved stock: its corrections move none
-  // either (slice 42 clinical review 2).
-  if (moved.length === 0) return;
+  // A dose first recorded before the item was opened was never counted in it: its corrections
+  // move nothing either (slice 42 clinical review 2). One recorded after moves the difference,
+  // a dose first refused and then corrected to given included (clinical re-review 2).
+  const [first] = await tx
+    .select({ at: sql<Date>`min(${medicationAdministration.recordedAt})` })
+    .from(medicationAdministration)
+    .where(inArray(medicationAdministration.id, [...input.chainIds]));
+  if (first?.at && new Date(first.at) < item.openedAt) return;
   const alreadyMoved = moved.reduce((sum, m) => balanceAfter(sum, Number(m.change)), 0);
   const should =
     doseStockMove({

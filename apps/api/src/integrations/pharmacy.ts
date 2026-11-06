@@ -33,15 +33,27 @@ export class PharmacyUnavailable extends Error {
 }
 
 /** Sends through the port, with a reference of a safe shape, or refuses. */
+/** How long the pharmacy has to answer; the order's lock is held meanwhile (security re-review). */
+export const PHARMACY_TIMEOUT_MS = 15_000;
+
 export async function submitToPharmacy(
   port: PharmacyOrderPort,
   order: PharmacyOrder,
+  timeoutMs: number = PHARMACY_TIMEOUT_MS,
 ): Promise<string> {
   let reference: string;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    ({ reference } = await port.submit(order));
+    ({ reference } = await Promise.race([
+      port.submit(order),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+      }),
+    ]));
   } catch {
     throw new PharmacyUnavailable();
+  } finally {
+    clearTimeout(timer);
   }
   if (!/^[A-Za-z0-9-]{1,64}$/.test(reference)) throw new PharmacyUnavailable();
   return reference;

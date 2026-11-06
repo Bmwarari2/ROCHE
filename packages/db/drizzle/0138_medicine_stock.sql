@@ -311,6 +311,36 @@ CREATE TRIGGER medicine_stock_movement_insert BEFORE INSERT ON public.medicine_s
   FOR EACH ROW EXECUTE FUNCTION app.medicine_stock_movement_insert();
 --> statement-breakpoint
 
+-- Whether a member holds a permission through a role in force at a location (security review
+-- round 2): a witness who manages stock only at another home cannot confirm, so is never named.
+CREATE OR REPLACE FUNCTION app.member_holds_role_permission_at(p_member uuid, p_permission text,
+  p_location_id uuid) RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.tenant_user tu
+    JOIN public.role_assignment ra ON ra.tenant_id = tu.tenant_id AND ra.tenant_user_id = tu.id
+    JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
+    WHERE tu.tenant_id = app.current_tenant_id()
+      AND tu.id = p_member
+      AND tu.status = 'active'
+      AND tu.deleted_at IS NULL
+      AND ra.deleted_at IS NULL
+      AND r.deleted_at IS NULL
+      AND r.archived_at IS NULL
+      AND ra.valid_from <= now()
+      AND (ra.valid_to IS NULL OR ra.valid_to > now())
+      AND r.scope_kind::text IN ('tenant', 'location')
+      AND p_permission = ANY (r.permissions)
+      AND (ra.location_id = p_location_id
+        OR (ra.location_id IS NULL AND (r.scope_kind = 'tenant' OR ra.organisation_wide))))
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.member_holds_role_permission_at(uuid, text, uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.member_holds_role_permission_at(uuid, text, uuid) TO harbour_app;
+--> statement-breakpoint
+
 -- Rule 5: a disposal is recorded at the database's time; without a witness only where the
 -- organisation's policy allows; its witness confirms it themselves, once, and nothing else changes.
 CREATE OR REPLACE FUNCTION app.medicine_disposal_insert() RETURNS trigger
@@ -329,7 +359,8 @@ BEGIN
   SELECT p.location_id INTO NEW.location_id FROM public.person p
    WHERE p.tenant_id = NEW.tenant_id AND p.id = NEW.person_id;
   IF NEW.witness_id IS NOT NULL
-     AND NOT app.member_holds_role_permission(NEW.witness_id, 'medicines.stock.manage') THEN
+     AND NOT app.member_holds_role_permission_at(NEW.witness_id, 'medicines.stock.manage',
+       NEW.location_id) THEN
     RAISE EXCEPTION 'medicine_disposal_witness_cannot' USING ERRCODE = 'check_violation';
   END IF;
   IF NEW.no_witness_reason IS NOT NULL

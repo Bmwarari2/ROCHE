@@ -1149,20 +1149,23 @@ Harbour says so in those words (medical-device boundary).
    - With no item, or a different unit, no movement is written; the dose is never refused.
    - The hook runs in a savepoint: if moving the stock fails, it is undone, a routine count task
      asks the person in charge to check the stock, and the dose stands.
-   - "Not available: out of stock" raises one urgent task per person and product; further doses
-     not available join the open task.
+   - "Not available: out of stock" raises one urgent task per person and product, outside the
+     savepoint, so a stock failure never takes it away; further doses not available join the open
+     task.
    - A balance that goes below zero raises one routine task, "Medicines stock count needed", for
      the person in charge.
    - A correction writes the difference between what the chain now says left stock and what has
-     already left, as an `administration_correction`. A dose recorded before its item was opened
-     moved nothing, and its corrections move nothing either.
+     already left, as an `administration_correction`. A dose first recorded before its item was
+     opened was never counted in it, so its corrections move nothing; one recorded after moves the
+     difference (a dose first refused and then corrected to given takes its amount).
 4. **Counts.** A count that matches writes nothing but the audit. One that differs writes a
    `count_adjustment` to the count, with a reason.
 5. **Disposal, witnessed per the organisation's policy.** `medicines.disposal.witness_required` is
    1 by default; an organisation may set 0 in the rate table.
    - The recorder names a witness, who confirms the disposal themselves, from their own session.
      The witness is never the recorder, and must be an active member holding
-     `medicines.stock.manage`, so that they can confirm it (the database checks it too).
+     `medicines.stock.manage` at the person's home, so that they can confirm it (the database
+     checks it too).
    - Until it is confirmed, the disposal is `awaiting_witness`, and a routine task, assigned to
      the witness, asks them to confirm it. Only the confirmation closes the task.
    - Where the policy allows, the recorder may instead give why no one could witness it.
@@ -1179,9 +1182,10 @@ Harbour says so in those words (medical-device boundary).
    or `cancelled` while not yet received.
    - Lines change only while the order is a draft.
    - Submitting needs access to everyone at the home, so no line is left out unseen. The order
-     stays locked while the pharmacy is called, so it is never sent twice. The port receives the
-     order's id to treat as idempotent, and each person as a pseudonym stable within the
-     organisation, never Harbour's id or a name.
+     stays locked while the pharmacy is called, so it is never sent twice; the pharmacy has 15
+     seconds to answer. The port receives the order's id to treat as idempotent, and each person
+     as a keyed pseudonym (an HMAC with `PHARMACY_REF_SECRET`) stable within the organisation, never
+     Harbour's id or a name.
    - A receipt never fills more than a line asked for without saying so (an over-receipt is
      allowed, flagged).
 8. **Temperatures.** A reading is out of range below the minimum or above the maximum for its kind
