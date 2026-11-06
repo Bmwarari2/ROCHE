@@ -168,7 +168,23 @@ export async function stockOnDose(
   },
 ): Promise<void> {
   const reasonCode = (input.record.reasonCode ?? null) as string | null;
-  if (input.record.outcome === "not_available" && reasonCode === "out_of_stock") {
+  // One open task per person and product: a further dose not available joins it (HZ-008).
+  const [open] =
+    input.record.outcome === "not_available" && reasonCode === "out_of_stock"
+      ? await tx
+          .select({ id: task.id })
+          .from(task)
+          .where(
+            and(
+              eq(task.kind, OUT_OF_STOCK_TASK),
+              eq(task.personId, input.record.personId),
+              inArray(task.status, ["open", "in_progress"]),
+              sql`${task.details}->>'vmpId' = ${input.vmpId}`,
+            ),
+          )
+          .limit(1)
+      : [];
+  if (input.record.outcome === "not_available" && reasonCode === "out_of_stock" && !open) {
     await tx.insert(task).values({
       kind: OUT_OF_STOCK_TASK,
       title: OUT_OF_STOCK_TASK_TITLE,
@@ -180,7 +196,7 @@ export async function stockOnDose(
       assigneeRoleKey: "clinical_lead",
       dueAt: new Date(),
       priority: "urgent",
-      details: { reason: "out_of_stock" },
+      details: { reason: "out_of_stock", vmpId: input.vmpId },
     });
   }
   if (input.isControlledDrug) return;
@@ -232,6 +248,9 @@ export async function stockOnCorrection(
           ),
         )
     : [];
+  // A dose recorded before the item was opened never moved stock: its corrections move none
+  // either (slice 42 clinical review 2).
+  if (moved.length === 0) return;
   const alreadyMoved = moved.reduce((sum, m) => balanceAfter(sum, Number(m.change)), 0);
   const should =
     doseStockMove({
@@ -326,4 +345,39 @@ export async function raiseReorderPrompts(
     raised += 1;
   }
   return raised;
+}
+
+/**
+ * Runs a stock hook so it can never fail the dose it follows (HZ-003; slice 42 clinical review 1):
+ * in a savepoint; if it fails, the savepoint is undone, a routine count task asks the person in
+ * charge to check the stock, and the dose stands.
+ */
+export async function neverFailingTheDose(
+  tx: Transaction,
+  input: {
+    readonly personId: string;
+    readonly locationId: string | null;
+    readonly sourceId: string;
+  },
+  hook: (sp: Transaction) => Promise<void>,
+  onFailure: (error: unknown) => void,
+): Promise<void> {
+  try {
+    await tx.transaction(async (sp) => hook(sp as unknown as Transaction));
+  } catch (error) {
+    onFailure(error);
+    await tx.insert(task).values({
+      kind: STOCK_COUNT_TASK,
+      title: STOCK_COUNT_TASK_TITLE,
+      requiredPermission: "medicines.stock.manage",
+      personId: input.personId,
+      locationId: input.locationId,
+      sourceType: "medication_administration",
+      sourceId: input.sourceId,
+      assigneeRoleKey: "clinical_lead",
+      dueAt: new Date(),
+      priority: "routine",
+      details: { reason: "stock_not_moved" },
+    });
+  }
 }

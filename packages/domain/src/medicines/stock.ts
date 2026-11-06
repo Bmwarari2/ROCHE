@@ -14,7 +14,6 @@ export const STOCK_RATE_KEYS = {
   fridgeMinCelsius: "medicines.fridge_min_celsius",
   fridgeMaxCelsius: "medicines.fridge_max_celsius",
   roomMaxCelsius: "medicines.room_max_celsius",
-  temperatureAcknowledgeMinutes: "medicines.temperature.acknowledge_minutes",
   disposalWitnessRequired: "medicines.disposal.witness_required",
 } as const;
 

@@ -1147,18 +1147,24 @@ Harbour says so in those words (medical-device boundary).
    whose product has an item and is not a controlled drug, writes an `administration` movement
    for the amount given in the same transaction, when the amount's unit is the item's.
    - With no item, or a different unit, no movement is written; the dose is never refused.
+   - The hook runs in a savepoint: if moving the stock fails, it is undone, a routine count task
+     asks the person in charge to check the stock, and the dose stands.
+   - "Not available: out of stock" raises one urgent task per person and product; further doses
+     not available join the open task.
    - A balance that goes below zero raises one routine task, "Medicines stock count needed", for
      the person in charge.
    - A correction writes the difference between what the chain now says left stock and what has
-     already left, as an `administration_correction`.
+     already left, as an `administration_correction`. A dose recorded before its item was opened
+     moved nothing, and its corrections move nothing either.
 4. **Counts.** A count that matches writes nothing but the audit. One that differs writes a
    `count_adjustment` to the count, with a reason.
 5. **Disposal, witnessed per the organisation's policy.** `medicines.disposal.witness_required` is
    1 by default; an organisation may set 0 in the rate table.
    - The recorder names a witness, who confirms the disposal themselves, from their own session.
-     The witness is never the recorder.
-   - Until it is confirmed, the disposal is `awaiting_witness`, and a routine task asks the
-     witness, as the location's task, to confirm it.
+     The witness is never the recorder, and must be an active member holding
+     `medicines.stock.manage`, so that they can confirm it (the database checks it too).
+   - Until it is confirmed, the disposal is `awaiting_witness`, and a routine task, assigned to
+     the witness, asks them to confirm it. Only the confirmation closes the task.
    - Where the policy allows, the recorder may instead give why no one could witness it.
    - The stock leaves when the disposal is recorded.
    - The destruction of a controlled drug is the register's (section 14), never here.
@@ -1172,13 +1178,19 @@ Harbour says so in those words (medical-device boundary).
    port, which gives a reference), then `part_received` and `received` as receipts fill its lines;
    or `cancelled` while not yet received.
    - Lines change only while the order is a draft.
+   - Submitting needs access to everyone at the home, so no line is left out unseen. The order
+     stays locked while the pharmacy is called, so it is never sent twice. The port receives the
+     order's id to treat as idempotent, and each person as a pseudonym stable within the
+     organisation, never Harbour's id or a name.
    - A receipt never fills more than a line asked for without saying so (an over-receipt is
      allowed, flagged).
 8. **Temperatures.** A reading is out of range below the minimum or above the maximum for its kind
    of storage (a room has no minimum here), and the database decides it, from the rate table.
+   - A reading has at most one decimal place, so one at a range's edge is never rounded into it.
    - An out-of-range reading raises an urgent task for the person in charge (`clinical_lead`),
-     due `medicines.temperature.acknowledge_minutes` after the reading.
-   - The task engine escalates it when overdue (`task.overdue_escalation_minutes`), as any task.
+     due at once. The task engine escalates it `task.overdue_escalation_minutes` after the
+     reading if nobody has completed it.
+   - While that task is open, further readings out of range for the same storage join it.
    - Its words never say whether the medicines can be used: "Medicines storage out of range.
      Check the storage, and ask the pharmacist whether the medicines in it can still be used."
    - The task ends when someone completes it; readings are never edited.
@@ -1188,7 +1200,7 @@ Harbour says so in those words (medical-device boundary).
 | Action | Permission |
 | --- | --- |
 | Open an item; record a receipt, return, count or disposal; set a cycle; make, submit, cancel and receive orders; add storage | `medicines.stock.manage` |
-| Witness a disposal | `medicines.stock.manage` or `medicines.emar.administer`, never the recorder |
+| Witness a disposal | `medicines.stock.manage`, never the recorder |
 | Record a temperature reading | `medicines.stock.manage` or `medicines.emar.administer` |
 | Read stock and movements | `medicines.record.manage`, `medicines.emar.administer` or `medicines.stock.manage`, for people in scope |
 | Read orders, storage and readings | The same permissions, at locations in scope |

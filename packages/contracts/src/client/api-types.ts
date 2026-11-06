@@ -29032,7 +29032,7 @@ export interface paths {
     put?: never;
     /**
      * Confirm a disposal as its witness
-     * @description medicines.stock.manage or medicines.emar.administer, by the member named as the witness, from their own session, once. Ends the witness task. Audited.
+     * @description medicines.stock.manage, by the member named as the witness, from their own session, once. Only this ends the witness task. Audited.
      */
     post: {
       parameters: {
@@ -29934,7 +29934,7 @@ export interface paths {
     put?: never;
     /**
      * Record a temperature reading
-     * @description medicines.stock.manage or medicines.emar.administer. The range comes from the rate table for the storage's kind; the database decides whether the reading is out of range. One out of range raises an urgent task for the person in charge, due after medicines.temperature.acknowledge_minutes, escalated by the task engine when overdue; its words never say whether the medicines can be used. Audited.
+     * @description medicines.stock.manage or medicines.emar.administer. The range comes from the rate table for the storage's kind; the database decides whether the reading is out of range. At most one decimal place. One out of range raises an urgent task for the person in charge, due at once and escalated by the task engine after task.overdue_escalation_minutes; further readings out of range join the open task; its words never say whether the medicines can be used. Audited.
      */
     post: {
       parameters: {

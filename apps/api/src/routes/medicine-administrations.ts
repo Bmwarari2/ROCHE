@@ -82,7 +82,7 @@ import {
   supersededBy,
   witnessesFor,
 } from "../services/medicine-administrations";
-import { stockOnCorrection, stockOnDose } from "../services/medicine-stock";
+import { neverFailingTheDose, stockOnCorrection, stockOnDose } from "../services/medicine-stock";
 import {
   guardConcurrent,
   lockPerson,
@@ -539,13 +539,25 @@ export const medicineAdministrationsRouter = createRouter()
           });
           // Slice 42's stock hook (medicines.md section 15 rule 3): a given dose moves the person's
           // stock of its product; a controlled drug's stock stays the register's.
-          await stockOnDose(tx, {
-            record: stored,
-            vmpId: entry.product.vmpId,
-            isControlledDrug: isCd,
-            locationId: facts.person.locationId,
-            recordedBy: access.tenantUserId,
-          });
+          await neverFailingTheDose(
+            tx,
+            { personId, locationId: facts.person.locationId, sourceId: body.id },
+            (sp) =>
+              stockOnDose(sp, {
+                record: stored,
+                vmpId: entry.product.vmpId,
+                isControlledDrug: isCd,
+                locationId: facts.person.locationId,
+                recordedBy: access.tenantUserId,
+              }),
+            (error) =>
+              c
+                .get("services")
+                .logger.warn(
+                  { administrationId: body.id, code: (error as { code?: string }).code ?? null },
+                  "medicines stock not moved for a dose",
+                ),
+          );
           if (cd && body.amount) {
             await writeRegisterEntry(c, tx, access, deny, {
               id: cd.cdEntryId,
@@ -737,14 +749,26 @@ export const medicineAdministrationsRouter = createRouter()
             cdEntryId: cdMove?.id ?? original.cdEntryId,
             now,
           });
-          await stockOnCorrection(tx, {
-            record: stored,
-            chainIds: chainOf(original, facts.rows),
-            vmpId: entry.product.vmpId,
-            isControlledDrug: isCd,
-            locationId: facts.person.locationId,
-            recordedBy: access.tenantUserId,
-          });
+          await neverFailingTheDose(
+            tx,
+            { personId, locationId: facts.person.locationId, sourceId: body.id },
+            (sp) =>
+              stockOnCorrection(sp, {
+                record: stored,
+                chainIds: chainOf(original, facts.rows),
+                vmpId: entry.product.vmpId,
+                isControlledDrug: isCd,
+                locationId: facts.person.locationId,
+                recordedBy: access.tenantUserId,
+              }),
+            (error) =>
+              c
+                .get("services")
+                .logger.warn(
+                  { administrationId: body.id, code: (error as { code?: string }).code ?? null },
+                  "medicines stock not moved for a dose",
+                ),
+          );
           if (cdMove) {
             await writeRegisterEntry(c, tx, access, deny, {
               ...cdMove,

@@ -184,8 +184,8 @@ receipts, doses given, returns, disposals, corrections and count adjustments, wi
 who recorded each and why a count differed), disposals with their reason and witness, and the
 lines of a home's medicines orders (person, medicine, quantity). Temperature readings, storage and
 order headers name no person. A controlled drug's stock stays in its register and is not copied.
-Orders through the pharmacy port send each line's product, quantity and unit with an opaque person
-id, never a name; only a mock exists, and the pharmacy is assessed before it receives anything
+Orders through the pharmacy port send each line's product, quantity and unit with a person
+pseudonym stable within the organisation, never Harbour's id or a name; only a mock exists, and the pharmacy is assessed before it receives anything
 (H-517, H-1321). Retention class `mar_chart`; cycles and storage `tenant_configuration`.
 
 Notes:

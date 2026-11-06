@@ -11,7 +11,12 @@ const isoDate = z.iso.date();
 const isoDateTime = z.iso.datetime({ offset: true });
 const version = z.number().int().min(1);
 const quantity = z.number().min(0.001).max(1_000_000);
-const celsius = z.number().min(-50).max(60);
+/** One decimal place at most, so a reading at a range's edge is never rounded into it (HZ-132). */
+const celsius = z
+  .number()
+  .min(-50)
+  .max(60)
+  .refine((v) => Math.abs(v * 10 - Math.round(v * 10)) < 1e-6, "One decimal place at most");
 const note = z.string().trim().min(3).max(500);
 
 export const StockMovementOut = z

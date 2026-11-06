@@ -319,14 +319,22 @@ BEGIN
   IF NEW.recorded_by IS DISTINCT FROM app.current_user_id() THEN
     RAISE EXCEPTION 'medicine_disposal_recorder' USING ERRCODE = 'check_violation';
   END IF;
-  IF NEW.no_witness_reason IS NOT NULL
-     AND COALESCE(app.location_rate(NEW.location_id, 'medicines.disposal.witness_required', now()), 1) <> 0 THEN
-    RAISE EXCEPTION 'medicine_disposal_witness_required' USING ERRCODE = 'check_violation';
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM public.medicine_stock_item i
                  WHERE i.tenant_id = NEW.tenant_id AND i.id = NEW.item_id
                    AND i.person_id = NEW.person_id) THEN
     RAISE EXCEPTION 'medicine_disposal_item' USING ERRCODE = 'check_violation';
+  END IF;
+  -- The location is the person's (security review L7); the witness is an active member who holds
+  -- medicines.stock.manage, so the disposal can be confirmed (security review M4).
+  SELECT p.location_id INTO NEW.location_id FROM public.person p
+   WHERE p.tenant_id = NEW.tenant_id AND p.id = NEW.person_id;
+  IF NEW.witness_id IS NOT NULL
+     AND NOT app.member_holds_role_permission(NEW.witness_id, 'medicines.stock.manage') THEN
+    RAISE EXCEPTION 'medicine_disposal_witness_cannot' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.no_witness_reason IS NOT NULL
+     AND COALESCE(app.location_rate(NEW.location_id, 'medicines.disposal.witness_required', now()), 1) <> 0 THEN
+    RAISE EXCEPTION 'medicine_disposal_witness_required' USING ERRCODE = 'check_violation';
   END IF;
   NEW.recorded_at := now();
   NEW.witnessed_at := NULL;
@@ -505,9 +513,8 @@ ALTER TABLE public.medicine_stock_movement ADD CONSTRAINT medicine_stock_movemen
 ALTER TABLE public.medicine_stock_movement ADD CONSTRAINT medicine_stock_movement_order_line_fk
   FOREIGN KEY (tenant_id, order_line_id) REFERENCES public.medicine_order_line (tenant_id, id);
 --> statement-breakpoint
-ALTER TABLE public.medicine_temperature_reading ADD CONSTRAINT medicine_temperature_reading_task_fk
-  FOREIGN KEY (tenant_id, task_id) REFERENCES public.task (tenant_id, id);
---> statement-breakpoint
+-- A reading's task is checked by the reading's guard, not a foreign key, so removing sample data
+-- (which removes tasks) is never held up by a home's temperature log.
 
 -- Items, movements and readings are never edited; the mutable tables keep their history.
 DO $$
@@ -571,3 +578,6 @@ LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
     'pre_admission_assessment'
   ]::text[]
 $$;
+--> statement-breakpoint
+GRANT SELECT, DELETE ON public.medicine_stock_movement, public.medicine_disposal,
+  public.medicine_order_line, public.medicine_stock_item TO harbour_sample_owner;

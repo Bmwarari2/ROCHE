@@ -30,10 +30,30 @@ HZ-003 (causes and controls). Human actions H-1320 to H-1329, each with a recomm
   - The daily `medicines-reorder-prompts` job.
   - An out-of-range reading raises an urgent task that the task engine escalates when overdue.
   - The pharmacy port has a mock only (`PHARMACY_ORDERS`, off by default and in production).
-- **Rates:** `medicines.order.prompt_days_before`, `medicines.temperature.acknowledge_minutes`
-  and `medicines.disposal.witness_required`, to verify.
+- **Rates:** `medicines.order.prompt_days_before` and `medicines.disposal.witness_required`, to
+  verify.
 - **Docs:** the hazard log, records of processing (B1), data standards, the feature register
   (MEDS-008 partial) and human actions.
+
+## Review fixes
+
+- Security:
+  - the sample-data owner may delete the new person tables;
+  - a submission holds the order's lock while the pharmacy is called, and needs location-wide
+    access;
+  - the pharmacy gets a person pseudonym;
+  - a witness must hold `medicines.stock.manage`;
+  - a disposal's location is the person's;
+  - an over-receipt is flagged in the audit;
+  - cross-tenant tests cover all eight tables.
+- Clinical safety:
+  - the stock hook runs in a savepoint and never fails a dose;
+  - a dose recorded before its item moves nothing;
+  - readings have one decimal place at most;
+  - an out-of-range task is due at once and escalates after `task.overdue_escalation_minutes`;
+  - one open out-of-stock task per person and product, and one temperature task per storage;
+  - the witness task closes only by the witness's confirmation;
+  - test names match the hazards.
 
 ## Not built
 

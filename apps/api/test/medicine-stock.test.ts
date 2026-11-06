@@ -22,6 +22,13 @@ import { createHarness, type Harness } from "./support/harness";
 let h: Harness;
 const ADA = "0194d000-0000-7000-8600-000000000001";
 const BEN = "0194d000-0000-7000-8600-000000000002";
+const CARL = "0194d000-0000-7000-8600-000000000003";
+const LACTULOSE = {
+  vmpId: "90000051000001100",
+  ampId: null,
+  name: "Lactulose 3.35g/5ml oral solution",
+};
+const ML = { code: "258773002", name: "ml" };
 const PARACETAMOL = { vmpId: "90000011000001104", ampId: null, name: "Paracetamol 500mg tablets" };
 const ORAL = { code: "26643006", name: "Oral" };
 const TABLET = { code: "428673006", name: "tablet" };
@@ -64,6 +71,7 @@ async function asDemo<T>(fn: (c: import("pg").PoolClient) => Promise<T>): Promis
 async function entryDueSoon(
   personId: string,
   product: typeof PARACETAMOL = PARACETAMOL,
+  unit: typeof TABLET = TABLET,
 ): Promise<{ entryId: string; dueAt: string }> {
   const due = new Date(Date.now() + 3 * MINUTE);
   const r = await post("manager", `/v1/people/${personId}/medicines`, {
@@ -76,7 +84,7 @@ async function entryDueSoon(
       kind: "regular",
       schedule: {
         pattern: { kind: "every_day" },
-        times: [{ time: ukTime(due), dose: { kind: "amount", quantity: 2, unit: TABLET } }],
+        times: [{ time: ukTime(due), dose: { kind: "amount", quantity: 2, unit } }],
       },
     },
   });
@@ -149,17 +157,114 @@ describe("hazard HZ-003 MEDS-008 a person's stock and slice 22's hook", () => {
     });
     expect(corrected.status, await corrected.clone().text()).toBe(201);
     expect(await balance(ADA, ITEM)).toBe(28);
+    // A second correction of the chain, back to given: the difference again.
+    const firstCorrection = (await json<{ administration: { id: string } }>(corrected))
+      .administration.id;
+    const again = await post(
+      "manager",
+      `/v1/medicine-administrations/${firstCorrection}/corrections`,
+      {
+        id: randomUUID(),
+        correctionReason: "Given after all; recorded as refused in error",
+        entryId: ENTRY,
+        dueAt: DUE,
+        outcome: "given",
+        amount: { quantity: 2, unitCode: TABLET.code },
+        timingReason: "Given with breakfast",
+        givenAt: new Date().toISOString(),
+      },
+    );
+    expect(again.status, await again.clone().text()).toBe(201);
+    expect(await balance(ADA, ITEM)).toBe(26);
+  });
+
+  it("moves nothing for a dose recorded before its item was opened, nor for its correction", async () => {
+    const carl = await entryDueSoon(CARL);
+    const id = randomUUID();
+    const given = await post("manager", `/v1/people/${CARL}/medicine-administrations`, {
+      id,
+      entryId: carl.entryId,
+      dueAt: carl.dueAt,
+      outcome: "given",
+      amount: { quantity: 2, unitCode: TABLET.code },
+      timingReason: "Given with breakfast",
+    });
+    expect(given.status, await given.clone().text()).toBe(201);
+    const item = (
+      await json<Stock>(
+        await post("manager", `/v1/people/${CARL}/medicine-stock`, { medicationId: carl.entryId }),
+      )
+    ).item.id;
+    await post("manager", `/v1/medicine-stock/${item}/receipts`, { quantity: 10 });
+    const corrected = await post("manager", `/v1/medicine-administrations/${id}/corrections`, {
+      id: randomUUID(),
+      correctionReason: "Refused at the time, not given as recorded",
+      entryId: carl.entryId,
+      dueAt: carl.dueAt,
+      outcome: "refused",
+      reason: { code: "declined", note: null },
+      givenAt: new Date().toISOString(),
+    });
+    expect(corrected.status, await corrected.clone().text()).toBe(201);
+    expect(await balance(CARL, item)).toBe(10);
+  });
+
+  it("records the dose even when moving the stock fails, and asks for a count", async () => {
+    const lactulose = await entryDueSoon(CARL, LACTULOSE, ML);
+    const item = (
+      await json<Stock>(
+        await post("manager", `/v1/people/${CARL}/medicine-stock`, {
+          medicationId: lactulose.entryId,
+        }),
+      )
+    ).item.id;
+    // Test setup only: make every stock movement fail.
+    await withAdminClient(
+      (c) =>
+        c.query(`CREATE FUNCTION public.test_refuse() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'test_refused' USING ERRCODE = 'check_violation'; END $$;
+        CREATE TRIGGER test_refuse BEFORE INSERT ON public.medicine_stock_movement
+          FOR EACH ROW EXECUTE FUNCTION public.test_refuse();`),
+      h.db.name,
+    );
+    try {
+      const given = await post("manager", `/v1/people/${CARL}/medicine-administrations`, {
+        id: randomUUID(),
+        entryId: lactulose.entryId,
+        dueAt: lactulose.dueAt,
+        outcome: "given",
+        amount: { quantity: 2, unitCode: ML.code },
+        timingReason: "Given with breakfast",
+      });
+      expect(given.status, await given.clone().text()).toBe(201);
+    } finally {
+      await withAdminClient(
+        (c) =>
+          c.query(
+            "DROP TRIGGER test_refuse ON public.medicine_stock_movement; DROP FUNCTION public.test_refuse();",
+          ),
+        h.db.name,
+      );
+    }
+    expect(await balance(CARL, item)).toBe(0);
+    const tasks = await asDemo((c) =>
+      c.query(
+        "SELECT 1 FROM task WHERE kind = 'medicines.stock.count_needed' AND person_id = $1 AND details->>'reason' = 'stock_not_moved'",
+        [CARL],
+      ),
+    );
+    expect(tasks.rowCount).toBe(1);
   });
 
   it("adjusts a count that differs, with a reason, and never one that matches", async () => {
     expect(
-      (await post("manager", `/v1/medicine-stock/${ITEM}/counts`, { counted: 28 })).status,
+      (await post("manager", `/v1/medicine-stock/${ITEM}/counts`, { counted: 26 })).status,
     ).toBe(200);
     expect(
-      (await post("manager", `/v1/medicine-stock/${ITEM}/counts`, { counted: 27 })).status,
+      (await post("manager", `/v1/medicine-stock/${ITEM}/counts`, { counted: 25 })).status,
     ).toBe(422);
     const r = await post("manager", `/v1/medicine-stock/${ITEM}/counts`, {
-      counted: 27,
+      counted: 25,
       reason: "One tablet found damaged in the pack",
     });
     expect(r.status).toBe(200);
@@ -204,7 +309,7 @@ describe("hazard HZ-003 MEDS-008 a person's stock and slice 22's hook", () => {
   });
 });
 
-describe("hazard HZ-002 MEDS-008 disposal witnessed per the organisation's policy", () => {
+describe("MEDS-008 disposal witnessed per the organisation's policy", () => {
   it("needs a second member, who confirms it themselves, once", async () => {
     const path = `/v1/medicine-stock/${ITEM}/disposals`;
     const alone = await post("manager", path, {
@@ -222,22 +327,30 @@ describe("hazard HZ-002 MEDS-008 disposal witnessed per the organisation's polic
         })
       ).status,
     ).toBe(422);
-    const r = await post("manager", path, {
+    // A witness who could never confirm it (no medicines.stock.manage) is refused.
+    const cannot = await post("manager", path, {
       quantity: 1,
       reason: "dropped_or_spoilt",
       witnessId: DEMO.users.carer.id,
     });
+    expect(cannot.status).toBe(422);
+    expect((await json<{ code: string }>(cannot)).code).toBe("witness_cannot_confirm");
+    const r = await post("manager", path, {
+      quantity: 1,
+      reason: "dropped_or_spoilt",
+      witnessId: DEMO.users.owner.id,
+    });
     expect(r.status, await r.clone().text()).toBe(201);
     const disposal = (await json<{ disposal: { id: string; status: string } }>(r)).disposal;
     expect(disposal.status).toBe("awaiting_witness");
-    expect(await balance(ADA, ITEM)).toBe(26);
+    expect(await balance(ADA, ITEM)).toBe(24);
     expect(
       (await post("manager", `/v1/medicine-disposals/${disposal.id}/witness`, {})).status,
     ).toBe(403);
-    const witnessed = await post("carer", `/v1/medicine-disposals/${disposal.id}/witness`, {});
+    const witnessed = await post("owner", `/v1/medicine-disposals/${disposal.id}/witness`, {});
     expect(witnessed.status).toBe(200);
     expect((await json<{ status: string }>(witnessed)).status).toBe("witnessed");
-    expect((await post("carer", `/v1/medicine-disposals/${disposal.id}/witness`, {})).status).toBe(
+    expect((await post("owner", `/v1/medicine-disposals/${disposal.id}/witness`, {})).status).toBe(
       403,
     );
   });
@@ -283,7 +396,7 @@ describe("MEDS-008 the 28-day cycle, reorder prompts and orders", () => {
     );
     const sent = h.handle.pharmacyMock.received[0];
     expect(sent?.lines[0]).toMatchObject({
-      personRef: ADA,
+      personRef: expect.stringMatching(/^[0-9a-f]{32}$/),
       vmpId: PARACETAMOL.vmpId,
       quantity: 56,
     });
@@ -327,6 +440,12 @@ describe("hazard HZ-132 MEDS-008 storage temperatures", () => {
       reading: { outOfRange: boolean; lowCelsius: number; highCelsius: number };
     }>(await post("manager", `/v1/medicine-storage/${fridge.id}/readings`, { celsius: 5 }));
     expect(fine.reading).toMatchObject({ outOfRange: false, lowCelsius: 2, highCelsius: 8 });
+    // A reading at an edge is never rounded into range: more than one decimal place is refused.
+    for (const celsius of [1.95, 8.04]) {
+      expect(
+        (await post("manager", `/v1/medicine-storage/${fridge.id}/readings`, { celsius })).status,
+      ).toBe(422);
+    }
     const warm = await post("manager", `/v1/medicine-storage/${fridge.id}/readings`, {
       celsius: 5,
       maxCelsius: 9.5,
@@ -347,13 +466,35 @@ describe("hazard HZ-132 MEDS-008 storage temperatures", () => {
     ).rows;
     expect(raised?.title).toBe(TEMPERATURE_TASK_TITLE);
     expect(raised?.priority).toBe("urgent");
-    expect(new Date(raised?.due_at ?? 0).getTime()).toBeGreaterThan(Date.now() + 25 * MINUTE);
+    // Due at once, so the task engine escalates it task.overdue_escalation_minutes after the reading.
+    const due = new Date(raised?.due_at ?? 0).getTime();
+    expect(Math.abs(due - Date.now())).toBeLessThan(MINUTE);
+    // A second reading out of range joins the open task (HZ-008).
+    const again = await json<{ reading: { taskId: string } }>(
+      await post("manager", `/v1/medicine-storage/${fridge.id}/readings`, { celsius: 9 }),
+    );
+    expect(again.reading.taskId).toBe(out.reading.taskId);
+    const [rate] = (
+      await asDemo((c) =>
+        c.query<{ value: string }>(
+          "SELECT value FROM rate_table WHERE key = 'task.overdue_escalation_minutes' AND tenant_id IS NULL",
+        ),
+      )
+    ).rows;
+    const escalation = Number(rate?.value) * MINUTE;
     const deps = {
       workerPool: h.db.pool("harbour_worker"),
       appDb: createDatabase(h.db.pool("harbour_app")),
       logger: createLogger("silent"),
     };
-    await escalateTasks(deps, new Date(Date.now() + 4 * 3_600_000));
+    await escalateTasks(deps, new Date(due + escalation - MINUTE));
+    const before = await asDemo((c) =>
+      c.query<{ escalated_at: Date | null }>("SELECT escalated_at FROM task WHERE id = $1", [
+        out.reading.taskId,
+      ]),
+    );
+    expect(before.rows[0]?.escalated_at).toBeNull();
+    await escalateTasks(deps, new Date(due + escalation + MINUTE));
     const after = await asDemo((c) =>
       c.query<{ escalated_at: Date | null }>("SELECT escalated_at FROM task WHERE id = $1", [
         out.reading.taskId,

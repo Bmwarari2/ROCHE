@@ -512,6 +512,9 @@ export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = [
   // A return from hospital's medicines check is done by completing its reconciliation (slice 16;
   // HZ-005, HZ-121), so a return never reads as reconciled while the chart is not.
   "people.return_check.medicines_reconciled",
+  // A disposal's witness task is done only by the witness confirming it (medicines.md section 15
+  // rule 5), never marked done while the disposal is unwitnessed (slice 42 clinical review 6).
+  "medicines.disposal.witness",
 ];
 
 /** Whether a task's assignee completes it whatever they hold (a general task or an owner's). */

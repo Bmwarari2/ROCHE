@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   DisposalOut,
   MedicineOrderList,
@@ -52,7 +53,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, withAuditedRefusal } from "../http/audit";
 import {
@@ -96,7 +97,8 @@ const tags = ["medicines"];
 const STOCK = "medicines.stock.manage" as const;
 const ADMINISTER = "medicines.emar.administer" as const;
 const READERS = ["medicines.record.manage", ADMINISTER, STOCK] as const;
-const WITNESSES = [STOCK, ADMINISTER] as const;
+/** Who records a temperature reading. */
+const RECORDERS = [STOCK, ADMINISTER] as const;
 export const TEMPERATURE_TASK = "medicines.temperature.out_of_range";
 export const DISPOSAL_WITNESS_TASK = "medicines.disposal.witness";
 
@@ -128,6 +130,11 @@ const RAISED: Readonly<Record<string, HttpProblem>> = {
     422,
     "witness_required",
     "Your organisation's policy needs a witness for every disposal.",
+  ),
+  medicine_disposal_witness_cannot: new HttpProblem(
+    422,
+    "witness_cannot_confirm",
+    "Name a witness who manages medicines stock at this home.",
   ),
   medicine_disposal_witness: new HttpProblem(
     403,
@@ -333,6 +340,8 @@ async function moveStock(
     const item = await itemById(tx, itemId);
     const person = await loadPerson(tx, item.personId);
     let moved = null as Awaited<ReturnType<typeof writeMovement>> | null;
+    // Rule 7: a receipt beyond what its line asked for is allowed, and flagged in the audit.
+    let overReceipt = false;
     if (kind === "count") {
       const { balance } = await lockedBalance(tx, item.id);
       const adjust = countAdjustment(balance, body.counted ?? Number.NaN);
@@ -361,32 +370,42 @@ async function moveStock(
         recordedBy: access.tenantUserId,
         orderLineId: kind === "receipt" ? (body.orderLineId ?? null) : null,
       });
-      if (kind === "receipt" && body.orderLineId) await settleOrder(tx, body.orderLineId);
+      if (kind === "receipt" && body.orderLineId) {
+        overReceipt = await settleOrder(tx, body.orderLineId);
+      }
     }
     await audit(c, tx, access, {
       action,
       resourceType: "medicine_stock_item",
       resourceId: item.id,
-      scopeExtra: { personId: item.personId, movementId: moved?.id ?? null, matched: !moved },
+      scopeExtra: {
+        personId: item.personId,
+        movementId: moved?.id ?? null,
+        matched: !moved,
+        overReceipt,
+      },
     });
     return { item: await itemOut(tx, item), disposal: null };
   });
 }
 
-/** Rule 7: an order's status follows its receipts. */
-async function settleOrder(tx: Transaction, orderLineId: string): Promise<void> {
+/** Rule 7: an order's status follows its receipts; says whether the line is now over-received. */
+async function settleOrder(tx: Transaction, orderLineId: string): Promise<boolean> {
   const [line] = await tx
     .select({ orderId: medicineOrderLine.orderId })
     .from(medicineOrderLine)
     .where(eq(medicineOrderLine.id, orderLineId));
-  if (!line) return;
+  if (!line) return false;
   const [order] = await tx.select().from(medicineOrder).where(eq(medicineOrder.id, line.orderId));
-  if (!order) return;
+  if (!order) return false;
   const out = await orderOut(tx, order);
+  const filled = out.lines.find((l) => l.id === orderLineId);
+  const over = Boolean(filled && filled.received > filled.quantity);
   const status = orderStatusFromReceipts(out.lines);
   if (status !== order.status && canMoveOrder(order.status as OrderStatus, status)) {
     await tx.update(medicineOrder).set({ status }).where(eq(medicineOrder.id, order.id));
   }
+  return over;
 }
 
 export const medicineStockRouter = createRouter()
@@ -603,6 +622,20 @@ export const medicineStockRouter = createRouter()
                     : "Say why no one could witness it, in a sentence.",
             );
           }
+          // The witness must be able to confirm it: an active member holding medicines.stock.manage
+          // (security review M4; clinical review 6), checked again by the database.
+          if (body.witnessId) {
+            const held = await tx.execute<{ ok: boolean }>(
+              sql`SELECT app.member_holds_role_permission(${body.witnessId}::uuid, ${STOCK}) AS ok`,
+            );
+            if (held.rows[0]?.ok !== true) {
+              throw new HttpProblem(
+                422,
+                "witness_cannot_confirm",
+                "Name a witness who manages medicines stock at this home.",
+              );
+            }
+          }
           const [disposal] = await tx
             .insert(medicineDisposal)
             .values({
@@ -666,13 +699,13 @@ export const medicineStockRouter = createRouter()
       tags,
       summary: "Confirm a disposal as its witness",
       description:
-        "medicines.stock.manage or medicines.emar.administer, by the member named as the witness, from their own session, once. Ends the witness task. Audited.",
+        "medicines.stock.manage, by the member named as the witness, from their own session, once. Only this ends the witness task. Audited.",
       security,
       request: { params: IdParam },
       responses: ok(DisposalOut, "Witnessed"),
     }),
     async (c) => {
-      const access = await requireAnyPermission(c, [...WITNESSES]);
+      const access = await requirePermission(c, STOCK);
       const { id } = c.req.valid("param");
       const out = await change(
         c,
@@ -925,43 +958,18 @@ export const medicineStockRouter = createRouter()
           "Ordering through the pharmacy is not connected. Submit the order by hand.",
         );
       }
-      // The pharmacy is called first, outside the transaction; the order then records its reference.
-      let reference: string | null = null;
-      if (via === "pharmacy_port" && pharmacy) {
-        const draft = await withTenant(c, async (tx) => {
-          const [order] = await tx.select().from(medicineOrder).where(eq(medicineOrder.id, id));
-          if (!order) throw problems.notFound();
-          if (order.status !== "draft" || order.version !== version) throw problems.conflict();
-          const lines = await tx
-            .select({ id: medicineOrderLine.id, vmpId: medicineOrderLine.vmpId })
-            .from(medicineOrderLine)
-            .where(eq(medicineOrderLine.orderId, id));
-          return {
-            ...(await orderOut(tx, order)),
-            vmp: new Map(lines.map((l) => [l.id, l.vmpId])),
-          };
-        });
-        try {
-          reference = await submitToPharmacy(pharmacy, {
-            orderId: draft.id,
-            cycleStartsOn: draft.cycleStartsOn,
-            lines: draft.lines.map((l) => ({
-              lineId: l.id,
-              personRef: l.personId,
-              vmpId: draft.vmp.get(l.id) ?? "",
-              quantity: l.quantity,
-              unitCode: l.unitCode,
-            })),
-          });
-        } catch (error) {
-          if (!(error instanceof PharmacyUnavailable)) throw error;
-          throw new HttpProblem(
-            502,
-            "pharmacy_unavailable",
-            "The pharmacy did not take the order. Try again, or submit it by hand.",
-          );
-        }
+      // A submitter sees the whole order: an order is the location's, so a scope narrower than
+      // the location could send it without the lines they cannot see (security review M3).
+      if (!["tenant", "locations"].includes(access.context.scope)) {
+        throw new HttpProblem(
+          403,
+          "order_needs_location_scope",
+          "Submitting an order needs access to everyone at the home.",
+        );
       }
+      // One submission at a time: the order stays locked while the pharmacy is called, so two at
+      // once never send it twice (security review M2); the port also receives the order's id to
+      // treat as idempotent (H-1321).
       const out = await change(
         c,
         access,
@@ -969,6 +977,40 @@ export const medicineStockRouter = createRouter()
         "medicine_order",
         id,
         async (tx) => {
+          const [order] = await tx
+            .select()
+            .from(medicineOrder)
+            .where(eq(medicineOrder.id, id))
+            .for("update");
+          if (!order) throw problems.notFound();
+          if (order.status !== "draft" || order.version !== version) throw problems.conflict();
+          let reference: string | null = null;
+          if (via === "pharmacy_port" && pharmacy) {
+            const lines = await tx
+              .select()
+              .from(medicineOrderLine)
+              .where(and(eq(medicineOrderLine.orderId, id), isNull(medicineOrderLine.deletedAt)));
+            try {
+              reference = await submitToPharmacy(pharmacy, {
+                orderId: order.id,
+                cycleStartsOn: order.cycleStartsOn,
+                lines: lines.map((l) => ({
+                  lineId: l.id,
+                  personRef: pharmacyPersonRef(access.tenantId, l.personId),
+                  vmpId: l.vmpId,
+                  quantity: num(l.quantity),
+                  unitCode: l.unitCode,
+                })),
+              });
+            } catch (error) {
+              if (!(error instanceof PharmacyUnavailable)) throw error;
+              throw new HttpProblem(
+                502,
+                "pharmacy_unavailable",
+                "The pharmacy did not take the order. Try again, or submit it by hand.",
+              );
+            }
+          }
           const [row] = await tx
             .update(medicineOrder)
             .set({ status: "submitted", sentVia: via, pharmacyReference: reference })
@@ -1128,7 +1170,7 @@ export const medicineStockRouter = createRouter()
       tags,
       summary: "Record a temperature reading",
       description:
-        "medicines.stock.manage or medicines.emar.administer. The range comes from the rate table for the storage's kind; the database decides whether the reading is out of range. One out of range raises an urgent task for the person in charge, due after medicines.temperature.acknowledge_minutes, escalated by the task engine when overdue; its words never say whether the medicines can be used. Audited.",
+        "medicines.stock.manage or medicines.emar.administer. The range comes from the rate table for the storage's kind; the database decides whether the reading is out of range. At most one decimal place. One out of range raises an urgent task for the person in charge, due at once and escalated by the task engine after task.overdue_escalation_minutes; further readings out of range join the open task; its words never say whether the medicines can be used. Audited.",
       security,
       request: {
         params: IdParam,
@@ -1137,7 +1179,7 @@ export const medicineStockRouter = createRouter()
       responses: created(TemperatureReadingRecorded, "Recorded"),
     }),
     async (c) => {
-      const access = await requireAnyPermission(c, [...WITNESSES]);
+      const access = await requireAnyPermission(c, [...RECORDERS]);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const tenths = (v: number | null) => (v === null ? null : Math.round(v * 10));
@@ -1166,7 +1208,23 @@ export const medicineStockRouter = createRouter()
             storageRange(storage.kind as StorageKind, rates),
           );
           let taskId: string | null = null;
-          if (outOfRange) {
+          // One open task per fridge or room: a further reading out of range joins it (HZ-008).
+          const [open] = outOfRange
+            ? await tx
+                .select({ id: task.id })
+                .from(task)
+                .where(
+                  and(
+                    eq(task.kind, TEMPERATURE_TASK),
+                    eq(task.sourceType, "medicine_storage"),
+                    eq(task.sourceId, storage.id),
+                    inArray(task.status, ["open", "in_progress"]),
+                  ),
+                )
+                .limit(1)
+            : [];
+          if (open) taskId = open.id;
+          if (outOfRange && !open) {
             const [raised] = await tx
               .insert(task)
               .values({
@@ -1177,7 +1235,8 @@ export const medicineStockRouter = createRouter()
                 sourceType: "medicine_storage",
                 sourceId: storage.id,
                 assigneeRoleKey: "clinical_lead",
-                dueAt: new Date(now.getTime() + rates.temperatureAcknowledgeMinutes * 60_000),
+                // Due now: the task engine escalates it after task.overdue_escalation_minutes.
+                dueAt: now,
                 priority: "urgent",
                 details: { reason: "out_of_range", kind: storage.kind },
               })
@@ -1240,6 +1299,17 @@ async function cycleOut(tx: Transaction, access: TenantAccess, locationId: strin
       ? nextCycleStart(cycle.anchorOn, today, rates.orderingCycleDays)
       : null,
   };
+}
+
+/**
+ * The pharmacy's id for a person: a pseudonym stable within the organisation, never Harbour's own
+ * id or a name (security review L5; H-1321).
+ */
+function pharmacyPersonRef(tenantId: string, personId: string): string {
+  return createHash("sha256")
+    .update(`pharmacy:${tenantId}:${personId}`, "utf8")
+    .digest("hex")
+    .slice(0, 32);
 }
 
 /** The dose unit a person's entry is counted in. */

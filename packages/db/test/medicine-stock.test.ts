@@ -106,6 +106,18 @@ beforeAll(async () => {
        ON CONFLICT DO NOTHING`,
     ),
   );
+  // The care worker can witness disposals: medicines.stock.manage at North.
+  await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), async (c) => {
+    await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+         ('0199f420-0000-7000-8000-000000000501', 'stock', 'Stock', 'location', '{medicines.stock.manage}')`,
+    );
+    await c.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       VALUES ($1, '0199f420-0000-7000-8000-000000000501', $2)`,
+      [a.carer, a.locationNorth],
+    );
+  });
   await inContext(app(), manager, async (c) => {
     await med(c, ADA_MED, a.personAda, PARACETAMOL, null);
     await med(c, ADA_CD, a.personAda, MORPHINE, "2");
@@ -238,6 +250,10 @@ describe("hazard HZ-132 MEDS-008 medicines stock in the database", () => {
     expect(await refused(manager, (c) => dispose(c, a.manager, null))).toMatch(
       /medicine_disposal_witness/,
     );
+    // A witness who could never confirm it (no medicines.stock.manage) is refused.
+    expect(await refused(manager, (c) => dispose(c, a.northManager, null))).toBe(
+      "medicine_disposal_witness_cannot",
+    );
     const id = await inContext(
       app(),
       manager,
@@ -364,5 +380,22 @@ describe("hazard HZ-132 MEDS-008 medicines stock in the database", () => {
     expect((await seen(north)).items).toBe(1);
     expect((await seen(carer)).items).toBe(1);
     expect(await seen(other)).toEqual({ items: 0, storage: 0, orders: 0 });
+    const everyTable = await inContext(app(), other, async (c) => {
+      let total = 0;
+      for (const t of [
+        "medicine_stock_item",
+        "medicine_stock_movement",
+        "medicine_disposal",
+        "medicine_order_cycle",
+        "medicine_order",
+        "medicine_order_line",
+        "medicine_storage",
+        "medicine_temperature_reading",
+      ]) {
+        total += (await c.query(`SELECT 1 FROM ${t}`)).rowCount ?? 0;
+      }
+      return total;
+    });
+    expect(everyTable).toBe(0);
   });
 });

@@ -31,7 +31,7 @@ const RATES = {
   roomMaxCelsius: 25,
 };
 
-describe("hazard HZ-002 MEDS-008 rules 2 to 4 stock movements", () => {
+describe("hazard HZ-003 MEDS-008 rules 2 to 4 stock movements", () => {
   it.each<[StockMovement, number, number | string]>([
     ["receipt", 28, 28],
     ["carried_forward", 3.5, 3.5],
@@ -93,7 +93,7 @@ describe("hazard HZ-002 MEDS-008 rules 2 to 4 stock movements", () => {
   });
 });
 
-describe("hazard HZ-002 MEDS-008 rule 5 disposal witnesses", () => {
+describe("MEDS-008 rule 5 disposal witnesses", () => {
   it.each([
     ["a second member when required", true, "w", null, null],
     ["the recorder as their own witness", true, "r", null, "witness_is_recorder"],
@@ -113,7 +113,7 @@ describe("hazard HZ-002 MEDS-008 rule 5 disposal witnesses", () => {
   });
 });
 
-describe("MEDS-008 rule 6 the 28-day cycle and reorder prompts", () => {
+describe("hazard HZ-003 MEDS-008 rule 6 the 28-day cycle and reorder prompts", () => {
   it.each([
     ["before the anchor", "2026-11-02", "2026-10-20", "2026-11-02"],
     ["on the anchor", "2026-11-02", "2026-11-02", "2026-11-02"],
@@ -157,7 +157,7 @@ describe("MEDS-008 rule 7 order status", () => {
   });
 });
 
-describe("hazard HZ-002 MEDS-008 rule 8 storage temperatures", () => {
+describe("hazard HZ-132 MEDS-008 rule 8 storage temperatures", () => {
   const fridge = storageRange("fridge", RATES);
   const room = storageRange("room", RATES);
   it.each([
