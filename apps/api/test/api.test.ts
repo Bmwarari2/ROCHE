@@ -12,7 +12,12 @@ import type {
 } from "@harbour/contracts";
 import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
-import { offlineWindowDays, SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harbour/sync/streams";
+import {
+  offlineWindowDays,
+  SYNC_TOKEN_AUDIENCE,
+  SYNC_TOKEN_ISSUER,
+  shiftWindowDays,
+} from "@harbour/sync/streams";
 import { jwtVerify } from "jose";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AUTH_MAX_BODY_BYTES } from "../src/app";
@@ -591,6 +596,17 @@ describe("offline sync", () => {
     );
     const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
     expect(payload.offline_days).toEqual(offlineWindowDays(new Date(), Number(rate.value)));
+  });
+
+  // Scheduling.md section 18: the member's own shifts and clock events sync for these days only.
+  it("puts the shift days in the token for a member who clocks their own time", async () => {
+    const { token } = await json<SyncToken>(
+      await demo("carer", "/v1/sync/token", { method: "POST" }),
+    );
+    const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
+    const days = shiftWindowDays(new Date());
+    expect(payload.shift_days).toEqual(days);
+    expect(days).toHaveLength(11);
   });
 
   it("does not let a script with a normal session widen the offline window", async () => {
