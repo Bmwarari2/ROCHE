@@ -62,9 +62,10 @@ Behind `integrations.thapsus_hr`, off by default. Harbour keeps the rota.
     ends copies after a disconnect (H-1345 answers (6) and (8) updated);
   - copies already over no longer count towards the guard and go at once;
   - the note states the time once, in UK time, in its `<time>` line (also accessibility H1).
-- Security reviewer, second pass, approve; its N1 is fixed: the key is the payload since the last
-  good send, so a return to an earlier payload gets a new key and a retry of a failed or lost
-  attempt keeps its key.
+- Security reviewer, second pass, approve; its N1 is fixed: a retry of a failed or lost attempt
+  keeps its key, and every new attempt takes a key from the delivery row's version, so no two
+  attempts share a key, even after two lost answers and a return to the first change (a repeated
+  key would have had Thapsus-HR drop the change as a replay).
 - Security reviewer on the release route, request changes (fixed): ending every copy only once
   disconnected, never with the flag off while connected; the sync's lock is taken before the link
   is read; the reviewed ids, not a count; reasons fit the mode; the alert closes in both modes and

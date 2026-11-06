@@ -204,6 +204,39 @@ describe("hazard HZ-133 shifts go out with their listed fields only, once, and a
     expect(await key()).toBe(used[0]);
   });
 
+  it("never repeats a key after two lost answers and a return to the first change", async () => {
+    const upsert = mock.upsertShift.bind(mock);
+    const used: string[] = [];
+    // Thapsus-HR applies each change, but its answer is lost on the way back.
+    mock.upsertShift = async (s, k) => {
+      used.push(k);
+      await upsert(s, k);
+      return { ok: false, error: "unavailable" } as never;
+    };
+    try {
+      await sql("UPDATE shift SET break_minutes = 40 WHERE id = $1", [shiftId]);
+      await sync();
+      await sql("UPDATE shift SET break_minutes = 45 WHERE id = $1", [shiftId]);
+      await sync();
+    } finally {
+      mock.upsertShift = upsert;
+    }
+    await sql("UPDATE shift SET break_minutes = 40 WHERE id = $1", [shiftId]);
+    const before = mock.writes.length;
+    await sync();
+    const [row] = await sql<{ idempotency_key: string; state: string }>(
+      "SELECT idempotency_key, state FROM hr_delivery WHERE kind = 'shift' AND harbour_ref = $1",
+      [assignmentId],
+    );
+    expect(used).toHaveLength(2);
+    expect(used).not.toContain(row?.idempotency_key);
+    expect(row?.state).toBe("sent");
+    // Applied again, not answered from the replay store: Thapsus-HR now holds 40, not 45.
+    expect(mock.writes.length).toBe(before + 1);
+    const last = mock.writes.at(-1)?.body as { breakMinutes: number } | undefined;
+    expect(last?.breakMinutes).toBe(40);
+  });
+
   it("is sent when the rota is published, without waiting for the sync", async () => {
     await sql("UPDATE shift SET break_minutes = 60 WHERE id = $1", [shiftId]);
     const before = mock.writes.length;

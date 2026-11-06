@@ -81,7 +81,7 @@ export const hrLinkAbsencesRouter = createRouter().openapi(
     const services = c.get("services");
     const out = await withTenant(c, async (tx) => {
       // The lock first, so the link cannot be reconnected between this check and the release.
-      await withSystemRights(tx, () => lockRota(tx, access.tenantId));
+      await lockRota(tx, access.tenantId);
       const connection = await hrConnection(tx);
       const enabled = await hrLinkEnabled(tx);
       if (connection?.status === "connected" && !enabled) {

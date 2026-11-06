@@ -496,19 +496,27 @@ async function deliver(
   ) {
     return "skipped";
   }
-  // The key is the payload since the last good send: a retry of the same attempt (failed, lost
-  // answer or not) keeps its key, and a payload after another good send, even one seen before,
-  // gets a new one, so Thapsus-HR never replays an older answer (rule 5).
-  const key = deliveryKey(kind, harbourRef, `${digest}:${known?.sentAt?.toISOString() ?? ""}`);
+  // A retry of the same attempt (failed, or its answer lost) keeps its key. A new attempt takes a
+  // key from the row's version, which every attempt moves on, so no two attempts ever share a
+  // key, even after lost answers and a return to an earlier payload: Thapsus-HR never treats a
+  // change as a replay (rule 5).
+  const retry =
+    known &&
+    known.payloadSha256 === digest &&
+    (known.state === "pending" || known.state === "failed");
+  const key = retry
+    ? known.idempotencyKey
+    : deliveryKey(kind, harbourRef, `${digest}:${known?.version ?? 0}`);
   // Pending first, with what is about to be sent (the key and digest), before any call.
-  const goodBefore = known?.state === "sent" ? known : null;
   if (known) {
     await tx
       .update(hrDelivery)
+      // Thapsus-HR's id stays (it may hold the shift); the time of the last good send goes with it.
       .set({
         idempotencyKey: key,
         payloadSha256: digest,
-        ...(goodBefore ? {} : { state: "pending" }),
+        state: "pending",
+        sentAt: null,
         updatedBy: null,
       })
       .where(eq(hrDelivery.id, known.id));
@@ -545,11 +553,9 @@ async function deliver(
   await tx
     .update(hrDelivery)
     .set({
-      // A failed change after a good send keeps the good one's digest (so the change is sent
-      // again, with the same key while no other send succeeds); a refusal is not sent again.
-      ...(goodBefore
-        ? { payloadSha256: refused ? digest : goodBefore.payloadSha256 }
-        : { state: refused ? "refused" : "failed" }),
+      // A failure keeps its digest and key, so the retry is the same request; a refusal is not
+      // sent again.
+      state: refused ? "refused" : "failed",
       lastErrorCode: result.error,
       attempts,
       updatedBy: null,
@@ -674,10 +680,11 @@ export async function deliverRota(
       }
     } else {
       const [sent] = await tx
-        .select({ state: hrDelivery.state, digest: hrDelivery.payloadSha256 })
+        .select({ state: hrDelivery.state, hrId: hrDelivery.hrId })
         .from(hrDelivery)
         .where(and(eq(hrDelivery.kind, "shift"), eq(hrDelivery.harbourRef, a.id)));
-      if (sent?.state !== "sent" || sent.digest === CANCELLED) continue;
+      // Cancelled when Thapsus-HR may hold it: sent once, or an attempt whose answer was lost.
+      if (!sent || (sent.state === "refused" && !sent.hrId)) continue;
       if (await once("shift", a.id, CANCELLED, (key) => port.cancelShift(a.id, key), true)) {
         return { ...out, error: "rate_limited" };
       }
