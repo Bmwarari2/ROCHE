@@ -414,7 +414,7 @@ function message(code: ImportErrorCode, label: string): string {
     case "invalid_interval":
       return `${label} must be a whole number of minutes from 1 to 10,080 (7 days), or blank.`;
     case "max_per_24h_required":
-      return `Give the ${label.toLowerCase()} or the minimum minutes between doses for a when-required medicine, as the prescription says: it is never imported with neither.`;
+      return `A when-required medicine needs its ${label.toLowerCase()} (max_per_24h), as the prescription or PRN protocol states. If the source states none, ask the prescriber before importing it.`;
     case "max_per_24h_not_taken":
       return `A regular medicine has no ${label.toLowerCase()}: leave the column blank.`;
     case "stops_before_start":

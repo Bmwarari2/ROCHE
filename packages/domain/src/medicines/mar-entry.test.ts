@@ -151,7 +151,7 @@ describe("a MAR entry is a dm+d product with structured doses and its source doc
         directions: {
           kind: "when_required",
           dose: { kind: "amount", quantity: 10, unit: UNIT.ml },
-          maxQuantityPer24Hours: null,
+          maxQuantityPer24Hours: 40,
         },
         minimumIntervalMinutes: 240,
       },
@@ -211,7 +211,7 @@ describe("a MAR entry is a dm+d product with structured doses and its source doc
   });
 });
 
-describe("hazard HZ-004 a when-required entry states a minimum interval or a 24-hour maximum at transcription", () => {
+describe("hazard HZ-004 a when-required entry states its 24-hour maximum at transcription", () => {
   const noMax = { ...prn, maxQuantityPer24Hours: null };
   it.each<[string, Partial<MarEntryDraft>, MarEntryProblem[]]>([
     [
@@ -219,7 +219,12 @@ describe("hazard HZ-004 a when-required entry states a minimum interval or a 24-
       { directions: noMax },
       ["prn_limit_required"],
     ],
-    ["a minimum interval only", { directions: noMax, minimumIntervalMinutes: 240 }, []],
+    // An interval can be overridden with a reason and caps no daily total (batch 3b clinical review).
+    [
+      "a minimum interval only",
+      { directions: noMax, minimumIntervalMinutes: 240 },
+      ["prn_limit_required"],
+    ],
     ["a 24-hour maximum only", { directions: prn }, []],
     ["both", { directions: prn, minimumIntervalMinutes: 240 }, []],
     ["neither, for a regular medicine (its times are its limit)", {}, []],

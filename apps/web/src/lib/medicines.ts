@@ -197,15 +197,16 @@ export function readDraft(
   const kind = text(form, "directionsKind");
   if (kind === "when_required") {
     const dose = unit ? readDose(form, "prn-", doseKind, unit, errors, t) : null;
-    // Never recorded with neither a 24-hour maximum nor a minimum interval, as the domain's
-    // prn_limit_required (H-1066); an interval alone is allowed, as built (H-555).
+    // Never recorded without its 24-hour maximum, as the domain's prn_limit_required (H-1066, the
+    // safer reading until the CSO decides; batch 3b clinical review).
     const maxText = text(form, "prn-max");
-    const max = maxText === "" ? null : readQuantity(maxText);
-    if (maxText !== "" && max === null) errors["prn-max"] = t("medicines.form.prnMaxError");
-    else if (max === null && text(form, "minimumInterval") === "") {
-      errors["prn-max"] = t("medicines.form.prnLimitRequired");
+    const max = readQuantity(maxText);
+    if (max === null) {
+      errors["prn-max"] = t(
+        maxText === "" ? "medicines.form.prnLimitRequired" : "medicines.form.prnMaxError",
+      );
     }
-    if (dose && !errors["prn-max"]) {
+    if (dose && max !== null) {
       directions = { kind: "when_required", dose, maxQuantityPer24Hours: max };
     }
   } else if (kind === "regular") {

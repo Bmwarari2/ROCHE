@@ -65,8 +65,9 @@ export interface MarSourceDocument {
 /**
  * Regular times with a dose at each, or a when-required (PRN) medicine with its dose and the most
  * the prescription or PRN protocol allows in any 24 hours, in the dose's unit (null when the source
- * states none: the PRN status then says so, H-555). A when-required entry must carry a maximum in
- * 24 hours or a minimum interval (`prn_limit_required`, H-1066).
+ * states none: the PRN status then says so, H-555, for entries recorded before 0123). A new or
+ * changed when-required entry must carry its maximum in 24 hours (`prn_limit_required`; the safer
+ * reading of H-1066 until the CSO decides, batch 3b clinical review).
  */
 export type MarDirections =
   | { readonly kind: "regular"; readonly schedule: RegularSchedule }
@@ -242,17 +243,15 @@ export function checkMarEntryDraft(
       });
     }
   }
-  // A when-required medicine with neither limit would take a second dose a minute after the first:
-  // the source must state one, or the prescriber is asked before it is transcribed (H-1066).
-  if (
-    d.kind === "when_required" &&
-    d.maxQuantityPer24Hours === null &&
-    draft.minimumIntervalMinutes === null
-  ) {
+  // A when-required medicine needs its maximum in 24 hours, the one limit never overridden on the
+  // round. An interval alone can be overridden with a reason and caps no daily total, so a
+  // paracetamol-type entry given round the clock would pass (H-1066, batch 3b clinical review: the
+  // safer reading until the CSO decides). The figure comes from the source, never from Harbour.
+  if (d.kind === "when_required" && d.maxQuantityPer24Hours === null) {
     issues.push({
       problem: "prn_limit_required",
       message:
-        "A when-required medicine needs the least time between doses or the most allowed in 24 hours, as the prescription or PRN protocol states. If the source states neither, ask the prescriber before transcribing it.",
+        "A when-required medicine needs the most allowed in 24 hours, as the prescription or PRN protocol states. If the source states none, ask the prescriber before transcribing it.",
     });
   }
   if (

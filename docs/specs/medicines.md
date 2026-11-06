@@ -345,9 +345,11 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     `paracetamol`, `bisphosphonate`, `psychotropic`. Harbour offers a tag only when the tenant's
     own list for it holds the product's exact VMP; never by ingredient or name. An entry also
     carries the minimum interval the prescription or PRN protocol states, and a when-required entry
-    its maximum in 24 hours (the PRN status says when none is recorded). A when-required entry
-    with neither a minimum interval nor a maximum is refused at transcription
-    (`prn_limit_required`): the transcriber asks the prescriber (H-1066; #162 clinical review).
+    its maximum in 24 hours (the PRN status says when none is recorded, for entries from before
+    0123). A new or changed when-required entry without its maximum in 24 hours is refused at
+    transcription and import (`prn_limit_required`): the transcriber asks the prescriber. An
+    interval alone is refused too, since it can be overridden and caps no daily total (H-1066;
+    #162 and batch 3b clinical reviews).
 14. **Dose windows** (HZ-003, HZ-004, HZ-009; `timing.ts`). A scheduled dose's own window opens
     `medicines.dose_window.early_minutes` before its time and ends
     `medicines.dose_window.late_minutes` after; an entry tagged time-critical has the narrower
@@ -737,8 +739,8 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   for an early or late dose, and when an outstanding dose escalates.
 - H-555 (CSO with a pharmacist): the when-required rules: the rolling 24 hours containing the
   dose, no override over the maximum, an override reason inside the interval, the outcome check
-  after 60 minutes, and a when-required entry transcribed with no maximum recorded (now only with
-  a minimum interval, H-1066).
+  after 60 minutes, and a when-required entry transcribed with no maximum recorded (now refused,
+  H-1066).
 - H-1060 to H-1066 (CSO; #162 clinical review): whether a newer dosing record replaces older ones
   from its first date (default: the newest record covering the day decides); a member never signed
   off is never overridable (default built); how a dose taken over the maximum is recorded

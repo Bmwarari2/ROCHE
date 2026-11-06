@@ -156,12 +156,12 @@ describe("hazard HZ-005 a dose is sent as the number typed, never rounded", () =
     });
   });
 
-  // H-1066: a when-required medicine is never recorded with neither a 24-hour maximum nor a
-  // minimum interval, as the domain's prn_limit_required; an interval alone is allowed (H-555).
-  // The interval is whole minutes up to 7 days. Each error links to its field.
+  // H-1066: a when-required medicine is never recorded without its 24-hour maximum, as the domain's
+  // prn_limit_required (the safer reading until the CSO decides); the minimum interval is optional,
+  // whole minutes up to 7 days. Each error links to its field.
   it.each<[string, Record<string, string>, string | null]>([
     ["neither a maximum nor an interval", { "prn-max": "", minimumInterval: "" }, "prn-max"],
-    ["an interval and no maximum", { "prn-max": "", minimumInterval: "240" }, null],
+    ["an interval and no maximum", { "prn-max": "", minimumInterval: "240" }, "prn-max"],
     ["a zero maximum", { "prn-max": "0" }, "prn-max"],
     ["a maximum in words", { "prn-max": "eight" }, "prn-max"],
     ["a maximum and no interval", { "prn-max": "8", minimumInterval: "" }, null],
@@ -195,7 +195,7 @@ describe("hazard HZ-005 a dose is sent as the number typed, never rounded", () =
     }
   });
 
-  it("hazard HZ-004 refuses a when-required medicine with neither limit, in plain words", () => {
+  it("hazard HZ-004 refuses a when-required medicine with no 24-hour maximum, in plain words", () => {
     const read = readDraft(
       form({
         ...regular,
@@ -203,7 +203,7 @@ describe("hazard HZ-005 a dose is sent as the number typed, never rounded", () =
         doseKind: "amount",
         "prn-quantity": "1",
         "prn-max": "",
-        minimumInterval: "",
+        minimumInterval: "240",
       }),
       t,
       PARACETAMOL,
