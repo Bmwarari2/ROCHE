@@ -72,7 +72,7 @@ export function covertChip(record: Pick<CovertRecord, "status" | "statusWords">)
 } {
   return record.status === "current"
     ? { status: "done", icon: CircleCheck, label: record.statusWords }
-    : record.status === "not_started" || record.status === "ended"
+    : record.status === "ended"
       ? { status: "notApplicable", icon: CircleDashed, label: record.statusWords }
       : { status: "overdue", icon: TriangleAlert, label: record.statusWords };
 }
@@ -83,6 +83,41 @@ export function covertFor(
   records: readonly CovertRecord[],
 ): CovertRecord | null {
   return records.find((r) => r.medicineId === entry.medicineId && r.status !== "ended") ?? null;
+}
+
+/**
+ * Whether a dose on the round may be recorded on the web now: late or due, and not waiting for a
+ * conflict review. A dose already recorded, not yet due, or under review offers no form (HZ-004).
+ */
+export function mayRecordDose(dose: Pick<RoundDose, "state" | "reviewPending">): boolean {
+  return (dose.state === "late" || dose.state === "due") && !dose.reviewPending;
+}
+
+/**
+ * When a when-required medicine may next be given, as the API's figures say (HZ-004): not now once
+ * the 24-hour maximum has been given, whatever the interval; not before a time while the minimum
+ * interval runs; otherwise now, if needed. Never "now" with nothing remaining (clinical review B1).
+ */
+export function prnNext(
+  prn: Pick<RoundPrn, "remaining" | "nextAllowedAt">,
+):
+  | { readonly kind: "maximum_reached" }
+  | { readonly kind: "at"; readonly at: string }
+  | { readonly kind: "now" } {
+  if (prn.remaining !== null && prn.remaining <= 0) return { kind: "maximum_reached" };
+  if (prn.nextAllowedAt) return { kind: "at", at: prn.nextAllowedAt };
+  return { kind: "now" };
+}
+
+export type SelfAdministration = Schemas["PersonSelfAdministration"]["medicines"][number];
+
+/** Where self-administration stands for the entry's medicine, if it has been assessed (H-1354). */
+export function selfAdministrationFor(
+  entry: Pick<Entry, "medicineId">,
+  medicines: readonly SelfAdministration[],
+): SelfAdministration | null {
+  const found = medicines.find((m) => m.medicineId === entry.medicineId);
+  return found && found.status !== "not_assessed" ? found : null;
 }
 
 /**

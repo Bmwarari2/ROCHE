@@ -1826,53 +1826,68 @@ each person's home.
    round"): each person living there whom the reader may see, in the API's order (room, then name),
    with the point-of-care header. It lists their doses from two hours ago to two hours ahead, plus
    any earlier dose still late or due (the API's reach). Doses are late first, then due, not yet due
-   and recorded, with time-critical first in each. Each dose shows its state as an icon and a word,
-   the medicine, the dose and time, and "Time-critical" with an icon. An entry that may not be given
-   shows its words and notice. A dose recorded twice on different devices says it is waiting for
-   review. When-required medicines show when last given. A person whose round cannot be worked out
-   shows the API's words. Each person links to their own round.
-2. **A person's round** (`/people/{id}/medicines/round`, linked from the Medicines tab): the same
-   doses, each with:
-   - its notices and any clock change;
-   - the **covert record** beside the medicine (H-1354): its status as an icon and a word, how it is
-     given and the pharmacist's advice;
-   - "Record …" when it is late or due, not recorded and not waiting for review.
+   and recorded, with time-critical first in each. Each dose shows:
+   - its state as an icon and a word;
+   - "Time-critical" with an icon;
+   - the entry's status and notice, any clock change, the dose's notices, and any conflict review.
 
-   When-required medicines that may be given now show when last given (with "on a device that has
-   not synced yet" where that is so), the 24-hour total against the maximum, and when the next may be
-   given (HZ-117, HZ-004).
+   When-required medicines show when last given, when the next may be given, and their notices.
+   If people's names, photos and allergies cannot be read, no dose is listed and the page says so
+   (HZ-001). A person whose round cannot be worked out shows the API's words.
+2. **A person's round** (`/people/{id}/medicines/round`, linked from the Medicines tab) says when it
+   was worked out. Each dose shows the same as rule 1, and beside the medicine:
+   - the **covert record**: its status as an icon and a word (anything but current is a warning),
+     how it is given and the pharmacist's advice;
+   - the **self-administration level** where the medicine has been assessed (H-1354).
+
+   If the covert records cannot be read, the page says to check the paper record. "Record … due …"
+   is offered only for a dose late or due, not recorded and not waiting for review (HZ-004).
+
+   Each when-required medicine shows:
+   - when it was last given (and when that was on a device not yet synced);
+   - the 24-hour total against the maximum, as an amount in the entry's unit, never a count of
+     doses;
+   - when the next may be given: "Not now: the most allowed in 24 hours has been given" once the
+     maximum is reached, "Not before …" while the minimum interval runs, otherwise "Now, if needed"
+     (HZ-004).
 3. **Recording a dose** (`…/round/record?entry=&due=`) on its own page. The page shows:
-   - the medicine as the round gives it (product, dose, route, due time, time-critical, indication,
-     special instructions, the entry's status and notices, and the covert record);
+   - a notice that controlled drugs cannot be recorded here yet, and where to record them;
+   - the medicine as the round gives it (product, dose, route, due time, time-critical, any clock
+     change, indication, special instructions, the when-required figures, the entry's status and
+     notices, the covert record and the self-administration level);
    - above the form, the person's name, date of birth, NHS number, allergy status and every allergy,
      most severe first (`PersonCheck`; HZ-007). Harbour never matches them (ADR-0082).
 
    The form asks:
-   - what happened (given, refused, not given, withheld, not available, taken by the person
-     themselves, given by family);
+   - what happened ("Given" is not offered while the entry may not be given);
    - the reason, for an outcome that takes one: the domain's codes, with words for "other";
-   - the amount, for a dose taken. It is offered as prescribed when the prescription gives one
-     amount, in the entry's unit; a range or a variable dose is typed. A leading zero, zero or more
-     than three decimal places is refused at the field.
-   - "Given covertly", only for a dose given and only when the medicine has a covert record that is
-     not ended.
+   - the amount, for a dose taken, offered as prescribed when the prescription gives one amount, in
+     the entry's unit. A range or variable dose is typed; an unknown unit stops it with a notice.
+   - "Given covertly", for a dose given. Its hint differs when the medicine has no current covert
+     record: the API then records it with its flag and a task for the nurse in charge (HZ-026).
 
    Reasons the API may ask for (early or late, a different amount, before the minimum interval) are
-   optional fields. The API's refusals show in its words at their field (`administration_*` codes).
-   The record's id is made by the page, so a resend is the same record. The server's time is used.
-   After saving, the person's round opens and says "Dose recorded."
-4. A dose not on the round any more (recorded since, or the medicine changed) says so on the record
-   page and offers the way back; it cannot be recorded there.
-5. **Not in this slice**:
-   - recording a dose already given (`givenBeforeRecorded`), a controlled drug's witness, and
-     corrections: the record page records doses on the round now, and a controlled drug is refused
-     by the API in its words until the witness step joins the web round (follow-up);
-   - the PRN protocol's text and the outcome check (slice 28's API), which are not in this base;
+   optional fields. The server action sends only these fields, checked against the contract, so a
+   dose already given, another giver or a controlled drug's witness is never sent from the web.
+   The API's refusals show in its words at their field (`administration_*` codes). The record's id
+   is made by the page, so a resend is the same record. The server's time is used. After saving,
+   the person's round opens and focuses "Dose recorded".
+4. A dose not on the round any more, already recorded, not yet due or waiting for review says so on
+   the record page and offers the way back; no form is shown (HZ-004).
+5. **Clock changes** (HZ-009): a time the clocks skip says the dose is due an hour later, at its due
+   time; a repeated time says to give it once, at the first.
+6. **Not in this slice** (each a decision in H-1401 to H-1405):
+   - recording a dose already given, a controlled drug with its witness, and corrections on the web;
+   - the PRN protocol's text and the outcome check (slice 28's API, not in this base; HZ-117's entry
+     is on slice 28's branch);
    - barcode scanning and the offline round (slices 68 to 70).
 
 **Tests**:
-- `apps/web/src/lib/medicine-round.test.ts`: the state chips, the dose offered, the covert record
-  beside the medicine, the outcomes and reasons matching the domain's, and the form read into the
-  request with every refusal at its field;
-- `apps/web/e2e/medicine-round.spec.ts`: the home's round, the person's round, a when-required dose
-  given and a scheduled dose refused, with axe in light and dark, with and without errors.
+- `apps/web/src/lib/medicine-round.test.ts`: the state chips, the dose offered, the next-allowed
+  state (HZ-004), which doses may be recorded (HZ-004), the covert record and self-administration
+  level beside the medicine (HZ-026), the outcomes and reasons matching the domain's, and the form
+  read into the request with every refusal at its field;
+- `apps/web/e2e/medicine-round.spec.ts`: the Medicines tab link, the side navigation, the home's
+  round, the person's round, a when-required dose given by keyboard and a scheduled dose refused.
+  It checks the 24-hour total, the focus after an error and after saving, and that a recorded dose
+  offers no second record. Axe runs in light and dark at each step.

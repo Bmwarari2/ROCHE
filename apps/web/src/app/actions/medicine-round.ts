@@ -1,5 +1,6 @@
 "use server";
 
+import { RecordAdministration } from "@harbour/contracts";
 import type { components } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
@@ -36,11 +37,27 @@ export async function recordDose(
   if (!isUuid(personId) || !isUuid(body.id) || !isUuid(body.entryId)) {
     return refused(t("errors.notFound"), "not_found");
   }
+  // Only what the web form records: a dose on the round now, at the server's time, by the person
+  // signed in. A dose already given, a controlled drug's witness or another giver is not sent from
+  // here (security review of slice 53), whatever a crafted call holds.
+  const parsed = RecordAdministration.safeParse({
+    id: body.id,
+    entryId: body.entryId,
+    dueAt: body.dueAt,
+    outcome: body.outcome,
+    reason: body.reason,
+    amount: body.amount,
+    amountDifferenceReason: body.amountDifferenceReason,
+    timingReason: body.timingReason,
+    intervalOverrideReason: body.intervalOverrideReason,
+    covert: body.covert,
+  });
+  if (!parsed.success) return refused(t("errors.generic"), "invalid");
   try {
     const api = await tenantApi();
     const { error, response } = await api.POST("/v1/people/{id}/medicine-administrations", {
       params: { path: { id: personId } },
-      body,
+      body: parsed.data,
     });
     if (!response.ok) return { ok: false, ...administrationProblem(error) };
     revalidatePath(medicinesHref(personId), "layout");

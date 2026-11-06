@@ -7,13 +7,17 @@ import {
   covertFor,
   doseChip,
   type Entry,
+  mayRecordDose,
   OUTCOME_REASON_CODES,
   OUTCOMES,
   offeredAmount,
   prescribedDose,
+  prnNext,
   readAdministration,
   recordDoseHref,
   roundPeople,
+  type SelfAdministration,
+  selfAdministrationFor,
 } from "./medicine-round";
 
 /**
@@ -79,7 +83,7 @@ describe("the dose offered is the one prescribed for that time", () => {
   });
 });
 
-describe("hazard HZ-007 the covert record shown beside the medicine (H-1354)", () => {
+describe("hazard HZ-026 hazard HZ-007 the covert record shown beside the medicine (H-1354)", () => {
   const record = (status: CovertRecord["status"], medicineId = "m1") =>
     ({ medicineId, status, statusWords: `Words ${status}` }) as CovertRecord;
 
@@ -94,9 +98,69 @@ describe("hazard HZ-007 the covert record shown beside the medicine (H-1354)", (
     ["current", "done"],
     ["review_overdue", "overdue"],
     ["basis_changed", "overdue"],
-    ["not_started", "notApplicable"],
+    ["not_started", "overdue"],
+    ["ended", "notApplicable"],
   ] as const)("says %s in words with an icon", (status, chip) => {
     expect(covertChip(record(status))).toMatchObject({ status: chip, label: `Words ${status}` });
+  });
+});
+
+describe("hazard HZ-004 a when-required medicine never says now once the 24-hour maximum is given", () => {
+  it.each([
+    [
+      "the maximum given, the interval passed",
+      { remaining: 0, nextAllowedAt: null },
+      "maximum_reached",
+    ],
+    [
+      "the maximum given, the interval running",
+      { remaining: 0, nextAllowedAt: "2026-11-06T18:00:00Z" },
+      "maximum_reached",
+    ],
+    [
+      "some remaining, the interval running",
+      { remaining: 2, nextAllowedAt: "2026-11-06T18:00:00Z" },
+      "at",
+    ],
+    ["some remaining, the interval passed", { remaining: 2, nextAllowedAt: null }, "now"],
+    ["no maximum, the interval passed", { remaining: null, nextAllowedAt: null }, "now"],
+  ] as const)("%s", (_, prn, kind) => {
+    expect(prnNext(prn).kind).toBe(kind);
+  });
+});
+
+describe("hazard HZ-004 only a dose late or due, not recorded and not under review, may be recorded", () => {
+  it.each([
+    ["late", false, true],
+    ["due", false, true],
+    ["due", true, false],
+    ["not_yet_due", false, false],
+    ["recorded", false, false],
+  ] as const)("%s, under review %s", (state, reviewPending, may) => {
+    expect(mayRecordDose({ state, reviewPending })).toBe(may);
+  });
+});
+
+describe("the self-administration level beside the medicine (H-1354)", () => {
+  it("shows an assessed medicine and leaves out one not assessed", () => {
+    const items = [
+      {
+        medicineId: "m1",
+        name: "A",
+        status: "current",
+        level: "self_administers",
+        statusWords: "Current",
+      },
+      {
+        medicineId: "m2",
+        name: "B",
+        status: "not_assessed",
+        level: null,
+        statusWords: "Not assessed",
+      },
+    ] as unknown as SelfAdministration[];
+    expect(selfAdministrationFor({ medicineId: "m1" }, items)?.level).toBe("self_administers");
+    expect(selfAdministrationFor({ medicineId: "m2" }, items)).toBeNull();
   });
 });
 
@@ -109,7 +173,7 @@ describe("the outcomes and reasons match the domain's", () => {
   });
 });
 
-describe("hazard HZ-003 reading the record-a-dose form", () => {
+describe("hazard HZ-003 hazard HZ-026 reading the record-a-dose form", () => {
   it("reads a dose given, with the amount in the prescribed unit and the server's time", () => {
     const read = readAdministration(form({ outcome: "given", quantity: "2" }), t, context);
     expect(read).toEqual({

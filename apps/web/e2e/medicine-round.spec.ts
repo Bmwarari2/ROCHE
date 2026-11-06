@@ -97,7 +97,7 @@ async function transcribe(
   return product.name;
 }
 
-test("hazard HZ-007 hazard HZ-117 hazard HZ-003 the nurse records a when-required and a scheduled dose on the round", async ({
+test("hazard HZ-007 hazard HZ-004 hazard HZ-003 the nurse records a when-required and a scheduled dose on the round", async ({
   browser,
 }) => {
   test.setTimeout(300_000);
@@ -130,8 +130,18 @@ test("hazard HZ-007 hazard HZ-117 hazard HZ-003 the nurse records a when-require
   );
 
   const nurse = await signedIn(browser, "nurse@example.invalid");
-  // The home's round: each person by room, their doses and when-required medicines.
-  await nurse.goto(`/medicines-round/${DEMO_LOCATION}`);
+  // The medicines tab links the person's round.
+  await nurse.goto(`/people/${person}/medicines`);
+  await expect(main(nurse).getByRole("link", { name: "Open the medicines round" })).toBeVisible();
+  await bothThemes(nurse, "the medicines tab with the round link");
+
+  // The home's round, from the side navigation: each person by room, their doses and medicines.
+  await nurse.getByRole("navigation").getByRole("link", { name: "Medicines round" }).click();
+  await nurse.waitForURL(/\/medicines-round/);
+  if (!/\/medicines-round\/[0-9a-f-]{36}/.test(nurse.url())) {
+    await bothThemes(nurse, "choose the home for the medicines round");
+    await nurse.goto(`/medicines-round/${DEMO_LOCATION}`);
+  }
   await expect(
     main(nurse).getByRole("heading", { name: "Medicines round", level: 1 }),
   ).toBeVisible();
@@ -141,7 +151,8 @@ test("hazard HZ-007 hazard HZ-117 hazard HZ-003 the nurse records a when-require
   await nurse.goto(`/people/${person}/medicines/round`);
   const prn = main(nurse).getByRole("region", { name: "When-required medicines" });
   await expect(prn).toContainText(product);
-  await expect(prn).toContainText("not given on the eMAR yet");
+  await expect(prn).toContainText("Not given on the eMAR yet");
+  await expect(prn).toContainText("0 given of 4 at most, in tablet");
   await bothThemes(nurse, "the person's medicines round");
 
   // A when-required dose: the person and every allergy are beside the medicine.
@@ -154,16 +165,26 @@ test("hazard HZ-007 hazard HZ-117 hazard HZ-003 the nurse records a when-require
   await expect(form.getByRole("region", { name: "The medicine" })).toContainText("For: Pain");
   await form.getByRole("button", { name: "Record the dose" }).click();
   await expect(form.getByText("Choose what happened.").first()).toBeVisible();
+  await expect(main(nurse).getByRole("alert")).toBeFocused();
   await bothThemes(nurse, "record a dose with errors");
-  await form.getByRole("radio", { name: "Given", exact: true }).check();
+  // By keyboard: the outcome, then the amount offered as prescribed.
+  await form.getByRole("radio", { name: "Given", exact: true }).focus();
+  await nurse.keyboard.press("Space");
+  await expect(form.getByRole("radio", { name: "Given", exact: true })).toBeChecked();
   await expect(form.getByLabel("Amount given, in tablet")).toHaveValue("1");
+  await expect(
+    form.getByLabel("Given covertly, under the covert administration record"),
+  ).toBeVisible();
   await bothThemes(nurse, "record a dose");
-  await form.getByRole("button", { name: "Record the dose" }).click();
+  await form.getByRole("button", { name: "Record the dose" }).focus();
+  await nurse.keyboard.press("Enter");
   await nurse.waitForURL(/\/medicines\/round\?done=recorded/);
-  await expect(main(nurse).getByRole("status")).toContainText("Dose recorded.");
+  await expect(main(nurse).getByRole("status")).toContainText("Dose recorded");
+  await expect(main(nurse).getByRole("status")).toBeFocused();
   await expect(main(nurse).getByRole("region", { name: "When-required medicines" })).toContainText(
-    "Last given",
+    "1 given of 4 at most, in tablet",
   );
+  await bothThemes(nurse, "the round after a dose is recorded");
 
   // A scheduled dose due now, refused, with the reason.
   const doses = main(nurse).getByRole("region", { name: "Doses" });
@@ -172,10 +193,11 @@ test("hazard HZ-007 hazard HZ-117 hazard HZ-003 the nurse records a when-require
     .first()
     .click();
   await nurse.waitForURL(/\/medicines\/round\/record\?entry=.*&due=/);
+  const recordUrl = nurse.url();
   const scheduled = main(nurse).getByRole("region", { name: /^Record / });
   await scheduled.getByRole("radio", { name: "Refused", exact: true }).check();
   await scheduled
-    .getByLabel("Why", { exact: true })
+    .getByLabel("Reason", { exact: true })
     .selectOption({ label: "The person declined it" });
   await bothThemes(nurse, "record a refused dose");
   await scheduled.getByRole("button", { name: "Record the dose" }).click();
@@ -183,4 +205,14 @@ test("hazard HZ-007 hazard HZ-117 hazard HZ-003 the nurse records a when-require
   await expect(main(nurse).getByRole("region", { name: "Doses" })).toContainText(
     "Outcome recorded",
   );
+  // A dose already recorded offers no second record, from the round or its old address (HZ-004).
+  await expect(
+    main(nurse)
+      .getByRole("region", { name: "Doses" })
+      .getByRole("link", { name: /^Record / }),
+  ).toHaveCount(0);
+  await nurse.goto(recordUrl);
+  await expect(main(nurse).getByText(/This dose is not on the round now/)).toBeVisible();
+  await expect(main(nurse).getByRole("button", { name: "Record the dose" })).toHaveCount(0);
+  await bothThemes(nurse, "a dose no longer on the round");
 });

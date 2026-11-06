@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Card, StatusChip } from "@harbour/ui";
-import { EyeOff, TriangleAlert, Zap } from "lucide-react";
+import { Info, TriangleAlert, Zap } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -9,19 +9,28 @@ import { Notice } from "@/components/care/Notice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { PersonCheck } from "@/components/medicines/PersonCheck";
 import { RecordDoseForm } from "@/components/medicines/RecordDoseForm";
+import {
+  ClockChange,
+  CovertBeside,
+  DoseNotices,
+  EntryStatusNotice,
+  PrnFigures,
+  SelfAdminBeside,
+} from "@/components/medicines/RoundDetails";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { tabHref } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import {
-  covertChip,
   covertFor,
   doseChip,
+  mayRecordDose,
   medicinesRoundShown,
   offeredAmount,
   personRoundHref,
   prescribedDose,
+  selfAdministrationFor,
 } from "@/lib/medicine-round";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
@@ -59,10 +68,11 @@ async function RecordDose({
   const { me } = await getShellContext();
   if (!medicinesRoundShown(me.permissions)) return <NoAccess />;
   const api = await tenantApi();
-  const [round, record, covert] = await Promise.all([
+  const [round, record, covert, selfAdmin] = await Promise.all([
     api.GET("/v1/people/{id}/medicine-round", { params: { path: { id }, query: {} } }),
     api.GET("/v1/people/{id}/medicines", { params: { path: { id } } }),
     api.GET("/v1/people/{id}/covert-medicines", { params: { path: { id } } }),
+    api.GET("/v1/people/{id}/self-administration", { params: { path: { id } } }),
   ]);
   const data = readOrFail(round, tabHref(id, "medicines"));
   if (!data) return <NoAccess />;
@@ -78,13 +88,14 @@ async function RecordDose({
       </Link>
     </p>
   );
-  if (!entry || (!dose && !prn)) {
+  // Only a dose late or due, not recorded and not waiting for review, may be recorded here (HZ-004).
+  if (!entry || (!dose && !prn) || (dose && !mayRecordDose(dose))) {
     return (
       <>
         <Notice
+          tone="warning"
           icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
           title={t("medicines.round.notOnRound")}
-          tone="warning"
         />
         {back}
       </>
@@ -96,12 +107,15 @@ async function RecordDose({
   const when = (iso: string) => formatDateTime(iso) ?? "";
   const product = dose?.productName ?? prn?.productName ?? entry.product.name;
   const chip = dose ? doseChip(dose.state, dose.stateInWords) : null;
-  const notices = dose?.notices ?? prn?.notices ?? [];
 
   return (
     <>
       <Card as="section" title={t("medicines.round.recordFor", { product })} headingLevel={2}>
         <div className="flex flex-col gap-4">
+          <Notice
+            icon={<Info size={20} strokeWidth={1.5} aria-hidden="true" />}
+            title={t("medicines.round.cdNotice")}
+          />
           <section
             aria-label={t("medicines.round.medicineLabel")}
             className="flex flex-col gap-2 rounded-input border border-border p-3"
@@ -121,6 +135,7 @@ async function RecordDose({
                 </span>
               ) : null}
             </p>
+            {dose ? <ClockChange dose={dose} /> : null}
             {entry.indication ? (
               <p className="m-0">
                 {t("medicines.round.indication", { indication: entry.indication })}
@@ -131,55 +146,15 @@ async function RecordDose({
                 {t("medicines.round.instructions", { instructions: entry.specialInstructions })}
               </p>
             ) : null}
-            {prn ? (
-              <p className="m-0">
-                {prn.lastGiven
-                  ? t("medicines.round.prnLastAt", { at: when(prn.lastGiven.at) })
-                  : t("medicines.round.notGiven")}
-                {". "}
-                {prn.maxPer24Hours === null
-                  ? t("medicines.round.prn24NoMax", { count: prn.givenInLast24Hours })
-                  : t("medicines.round.prn24Max", {
-                      count: prn.givenInLast24Hours,
-                      max: prn.maxPer24Hours,
-                    })}
-                {". "}
-                {prn.nextAllowedAt
-                  ? t("medicines.round.prnNextAt", { at: when(prn.nextAllowedAt) })
-                  : t("medicines.round.prnNextNow")}
-              </p>
-            ) : null}
-            {!entry.status.mayGive || entry.status.notice ? (
-              <Notice
-                tone="warning"
-                icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
-                title={entry.status.words}
-              >
-                {entry.status.notice}
-              </Notice>
-            ) : null}
-            {notices.length > 0 ? (
-              <ul className="m-0 flex flex-col gap-1 pl-5">
-                {notices.map((n) => (
-                  <li key={n}>{n}</li>
-                ))}
-              </ul>
-            ) : null}
-            {covertRecord ? (
-              <div className="flex flex-col gap-1">
-                <p className="m-0 flex flex-wrap items-center gap-2">
-                  <EyeOff {...iconProps} />
-                  <span className="font-semibold">{t("medicines.round.covert.title")}</span>
-                  <StatusChip {...covertChip(covertRecord)} />
-                </p>
-                <p className="m-0">
-                  {t("medicines.round.covert.method", { method: covertRecord.method })}
-                </p>
-                <p className="m-0">
-                  {t("medicines.round.covert.advice", { advice: covertRecord.pharmacistAdvice })}
-                </p>
-              </div>
-            ) : null}
+            {prn ? <PrnFigures prn={prn} unit={unit?.name ?? null} /> : null}
+            <EntryStatusNotice status={entry.status} />
+            <DoseNotices notices={dose?.notices ?? prn?.notices ?? []} />
+            {covert.error ? (
+              <p className="m-0 font-semibold">{t("medicines.round.covertUnreadable")}</p>
+            ) : (
+              <CovertBeside record={covertRecord} />
+            )}
+            <SelfAdminBeside item={selfAdministrationFor(entry, selfAdmin.data?.medicines ?? [])} />
           </section>
           <RecordDoseForm
             personId={id}
@@ -189,7 +164,8 @@ async function RecordDose({
             unitCode={unit?.code ?? null}
             unitName={unit?.name ?? null}
             offeredQuantity={offeredAmount(prescribed)}
-            covertOffered={covertRecord !== null}
+            mayGive={entry.status.mayGive}
+            covertRecordCurrent={covertRecord?.status === "current"}
             person={<PersonCheck person={person} />}
           />
         </div>

@@ -4,6 +4,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/care/Notice";
+import {
+  ClockChange,
+  DoseNotices,
+  EntryStatusNotice,
+  PrnFigures,
+} from "@/components/medicines/RoundDetails";
 import { PersonHeaderCompact } from "@/components/people/PersonHeader";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
@@ -18,6 +24,7 @@ import {
   personRoundHref,
   roundPeople,
 } from "@/lib/medicine-round";
+import { personNames } from "@/lib/people";
 
 type Params = Promise<{ locationId: string }>;
 
@@ -62,6 +69,13 @@ export default async function MedicinesRoundPage({ params }: { readonly params: 
         title={title}
         description={t("medicines.round.slot", { from: when(slot.from), to: when(slot.to) })}
       />
+      {people.error ? (
+        <Notice
+          tone="warning"
+          icon={<TriangleAlert {...iconProps} />}
+          title={t("medicines.round.peopleUnreadable")}
+        />
+      ) : null}
       {rows.length === 0 ? (
         <EmptyState
           icon={<Pill {...iconProps} />}
@@ -82,8 +96,9 @@ export default async function MedicinesRoundPage({ params }: { readonly params: 
                       title={entry.unavailable}
                     />
                   ) : null}
-                  {entry.doses.length > 0 ? (
-                    <section aria-label={t("medicines.round.dosesLabel")}>
+                  {/* Without the person's name, photo and allergies, no dose is listed (HZ-001). */}
+                  {person && entry.doses.length > 0 ? (
+                    <div className="flex flex-col gap-1">
                       <h3 className="m-0 text-body font-semibold">{t("medicines.round.doses")}</h3>
                       <ul className="m-0 flex list-none flex-col gap-2 p-0">
                         {entry.doses.map((dose) => {
@@ -109,13 +124,9 @@ export default async function MedicinesRoundPage({ params }: { readonly params: 
                                   </span>
                                 ) : null}
                               </p>
-                              {!dose.entryStatus.mayGive || dose.entryStatus.notice ? (
-                                <p className="m-0 font-semibold">
-                                  {[dose.entryStatus.words, dose.entryStatus.notice]
-                                    .filter(Boolean)
-                                    .join(": ")}
-                                </p>
-                              ) : null}
+                              <ClockChange dose={dose} />
+                              <EntryStatusNotice status={dose.entryStatus} />
+                              <DoseNotices notices={dose.notices} />
                               {dose.reviewInWords ? (
                                 <p className="m-0">{dose.reviewInWords}</p>
                               ) : null}
@@ -123,25 +134,24 @@ export default async function MedicinesRoundPage({ params }: { readonly params: 
                           );
                         })}
                       </ul>
-                    </section>
+                    </div>
                   ) : null}
-                  {entry.whenRequired.length > 0 ? (
-                    <section aria-label={t("medicines.round.prnLabel")}>
+                  {person && entry.whenRequired.length > 0 ? (
+                    <div className="flex flex-col gap-1">
                       <h3 className="m-0 text-body font-semibold">{t("medicines.round.prn")}</h3>
-                      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+                      <ul className="m-0 flex list-none flex-col gap-2 p-0">
                         {entry.whenRequired.map((prn) => (
-                          <li key={prn.entryId}>
-                            <span className="font-semibold">{prn.productName}</span>
-                            {": "}
-                            {prn.lastGiven
-                              ? t("medicines.round.lastGiven", { at: when(prn.lastGiven.at) })
-                              : t("medicines.round.notGiven")}
+                          <li key={prn.entryId} className="flex flex-col gap-1">
+                            <p className="m-0 font-semibold">{prn.productName}</p>
+                            <PrnFigures prn={prn} unit={null} />
+                            <DoseNotices notices={prn.notices} />
                           </li>
                         ))}
                       </ul>
-                    </section>
+                    </div>
                   ) : null}
-                  {entry.doses.length === 0 &&
+                  {person &&
+                  entry.doses.length === 0 &&
                   entry.whenRequired.length === 0 &&
                   !entry.unavailable ? (
                     <p className="m-0">{t("medicines.round.nothingInSlot")}</p>
@@ -153,7 +163,7 @@ export default async function MedicinesRoundPage({ params }: { readonly params: 
                     >
                       {person
                         ? t("medicines.round.openPerson", {
-                            name: person.preferredName ?? person.givenName,
+                            name: personNames(person).full,
                           })
                         : t("medicines.round.openSomeone")}
                     </Link>

@@ -1,11 +1,12 @@
 "use client";
 
 import { Button, Checkbox, RadioGroup, SelectField, TextArea, TextField } from "@harbour/ui";
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, TriangleAlert } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { recordDose } from "@/app/actions/medicine-round";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
+import { Notice } from "@/components/care/Notice";
 import { characterCount, t } from "@/lib/i18n";
 import {
   OUTCOME_REASON_CODES,
@@ -24,9 +25,9 @@ const count = (remaining: number) => characterCount(remaining);
 /**
  * Recording one dose on the round (slice 53; medicines.md section 16): the outcome, a reason where
  * the outcome takes one, the amount when the person took it (offered as prescribed, in the entry's
- * unit), and covert when given under the person's covert record. The person and every allergy are
- * shown at the top (`person`, HZ-007), and the medicine with its covert record beside it on the
- * page. The API decides again; its words are shown at their fields. A reason the API asks for (late,
+ * unit), and covert for a dose given. The person and every allergy are shown at the top
+ * (`person`, HZ-007), and the medicine with its covert record beside it on the page. The API
+ * decides again; its words are shown at their fields. A reason the API may ask for (early or late,
  * a different amount, a minimum interval) is offered as a field the person may fill.
  */
 export function RecordDoseForm({
@@ -37,7 +38,8 @@ export function RecordDoseForm({
   unitCode,
   unitName,
   offeredQuantity,
-  covertOffered,
+  mayGive,
+  covertRecordCurrent,
   person,
 }: {
   readonly personId: string;
@@ -48,8 +50,10 @@ export function RecordDoseForm({
   readonly unitCode: string | null;
   readonly unitName: string | null;
   readonly offeredQuantity: string;
-  /** The medicine has a covert record that is not ended. */
-  readonly covertOffered: boolean;
+  /** The entry may be given now; when it may not, "Given" is not offered (the API refuses it). */
+  readonly mayGive: boolean;
+  /** The medicine has a current covert record; covert is still recordable without one (HZ-026). */
+  readonly covertRecordCurrent: boolean;
   readonly person: ReactNode;
 }) {
   const ids = useFieldIds([
@@ -70,6 +74,7 @@ export function RecordDoseForm({
     (body) => recordDose(personId, body),
     () => arrive(personRoundHref(personId), "recorded"),
   );
+  const offered = OUTCOMES.filter((o) => mayGive || o !== "given");
   const codes = (OUTCOMES as readonly string[]).includes(outcome)
     ? OUTCOME_REASON_CODES[outcome as Outcome]
     : [];
@@ -80,7 +85,7 @@ export function RecordDoseForm({
         id={ids.outcome}
         name="outcome"
         legend={t("medicines.round.form.outcome")}
-        options={OUTCOMES.map((o) => ({
+        options={offered.map((o) => ({
           value: o,
           label: t("medicines.round.outcome", { outcome: o }),
         }))}
@@ -92,10 +97,11 @@ export function RecordDoseForm({
       />
       {codes.length > 0 ? (
         <SelectField
+          key={outcome}
           id={ids.reasonCode}
           name="reasonCode"
           label={t("medicines.round.form.reason")}
-          defaultValue=""
+          value={code}
           emptyOption={t("medicines.form.choose")}
           options={codes.map((c) => ({
             value: c,
@@ -116,16 +122,19 @@ export function RecordDoseForm({
           error={errorFor(result, "reasonNote")}
         />
       ) : null}
-      {outcomeTakesAmount(outcome) ? (
+      {outcomeTakesAmount(outcome) && !unitCode ? (
+        <Notice
+          tone="warning"
+          icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
+          title={t("medicines.round.unitUnknown")}
+        />
+      ) : null}
+      {outcomeTakesAmount(outcome) && unitCode ? (
         <>
           <TextField
             id={ids.quantity}
             name="quantity"
-            label={
-              unitName
-                ? t("medicines.round.form.quantity", { unit: unitName })
-                : t("medicines.round.form.quantityNoUnit")
-            }
+            label={t("medicines.round.form.quantity", { unit: unitName ?? unitCode })}
             hint={t("medicines.round.form.quantityHint")}
             inputMode="decimal"
             defaultValue={offeredQuantity}
@@ -143,13 +152,17 @@ export function RecordDoseForm({
           />
         </>
       ) : null}
-      {outcome === "given" && covertOffered ? (
+      {outcome === "given" ? (
         <Checkbox
           id={ids.covert}
           name="covert"
           value="yes"
           label={t("medicines.round.form.covert")}
-          hint={t("medicines.round.form.covertHint")}
+          hint={
+            covertRecordCurrent
+              ? t("medicines.round.form.covertHint")
+              : t("medicines.round.form.covertNoRecordHint")
+          }
           error={errorFor(result, "covert")}
         />
       ) : null}
@@ -165,18 +178,16 @@ export function RecordDoseForm({
             formatCount={count}
             error={errorFor(result, "timingReason")}
           />
-          {dueAt === null ? (
-            <TextArea
-              id={ids.intervalOverrideReason}
-              name="intervalOverrideReason"
-              label={t("medicines.round.form.intervalOverrideReason")}
-              hint={t("medicines.round.form.askedHint")}
-              rows={2}
-              maxLength={2000}
-              formatCount={count}
-              error={errorFor(result, "intervalOverrideReason")}
-            />
-          ) : null}
+          <TextArea
+            id={ids.intervalOverrideReason}
+            name="intervalOverrideReason"
+            label={t("medicines.round.form.intervalOverrideReason")}
+            hint={t("medicines.round.form.askedHint")}
+            rows={2}
+            maxLength={2000}
+            formatCount={count}
+            error={errorFor(result, "intervalOverrideReason")}
+          />
         </>
       ) : null}
       <div>
