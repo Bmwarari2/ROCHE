@@ -112,6 +112,11 @@ describe("catalogues", () => {
       "medicines.stop.whenSubject",
       "medicines.rec.receivedSubject",
       "medicines.rec.undecided",
+      // Inside "born {born}" on a printed controlled drugs page when no date is recorded.
+      "cd.print.noBirthDate",
+      "cd.print.noNhs",
+      // The subject of a date check on the controlled drugs forms.
+      "cd.form.occurredSubject",
       // In brackets after a former member's name on a destruction certificate.
       "shred.certificate.memberRef",
     ]);
