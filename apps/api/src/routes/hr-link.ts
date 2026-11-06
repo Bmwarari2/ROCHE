@@ -50,7 +50,7 @@ import {
   starterFor,
   ukRefusal,
 } from "../integrations/hr-link";
-import { activeHrAbsenceCopies, syncRotaSafely } from "../integrations/hr-rota";
+import { activeHrAbsenceCopies, lockRota, syncRotaSafely } from "../integrations/hr-rota";
 import { receiveInbound } from "../integrations/inbound";
 import { SECRET_REF_SHAPE, secretRefProblem } from "../integrations/secret-ref";
 import { publish } from "../outbox";
@@ -422,6 +422,8 @@ export const hrLinkRouter = createRouter()
           });
           return { refusal };
         }
+        // The rota's lock, so a release of copies never runs across a reconnect.
+        await lockRota(tx, access.tenantId);
         const existing = await hrConnection(tx);
         if (existing?.status === "connected") throw problems.conflict("Already linked.");
         const values = {
@@ -556,6 +558,7 @@ export const hrLinkRouter = createRouter()
       const access = await requirePermission(c, "integrations.hr_link.manage");
       await withTenant(c, async (tx) => {
         await requireFlag(tx);
+        await lockRota(tx, access.tenantId);
         const link = await hrConnection(tx);
         if (link?.status !== "connected") throw notConnected();
         await tx

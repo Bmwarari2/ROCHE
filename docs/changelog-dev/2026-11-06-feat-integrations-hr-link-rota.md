@@ -69,7 +69,7 @@ Behind `integrations.thapsus_hr`, off by default. Harbour keeps the rota.
 - Security reviewer on the release route, request changes (fixed): ending every copy only once
   disconnected, never with the flag off while connected; the sync's lock is taken before the link
   is read; the reviewed ids, not a count; reasons fit the mode; the alert closes in both modes and
-  the copies record who released them.
+  the copies record who released them; connecting and disconnecting take the same lock.
 
 ## Left
 
@@ -81,5 +81,7 @@ Behind `integrations.thapsus_hr`, off by default. Harbour keeps the rota.
   in jsdom.
 - Mobile shift screens do not show the note yet (recorded against HZ-133; mobile has no rota or
   cover screens today).
+- A shift with any delivery row gets a cancellation, even if Thapsus-HR never held it; a
+  `not_found` answer is retried each run (rate limit only; slice 90: treat it as done).
 - No screen yet for releasing held drift; the alert task names the action and the API serves it
   (slice 90 screens).
