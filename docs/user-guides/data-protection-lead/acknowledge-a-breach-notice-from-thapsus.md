@@ -13,8 +13,8 @@ when a notice arrives.
 ## Steps
 
 1. You get an urgent notification, "Thapsus has told you about a personal data breach", in Harbour
-   and by email. Its link opens **Data protection**, not the register, so go to **Data rights**,
-   then **Breaches**. A breach opened from a notice says "Opened from a breach notice from Thapsus".
+   and by email. Its link opens the breach in the register. A breach opened from a notice says
+   "Opened from a breach notice from Thapsus".
 2. Open it. Under **Notices from Thapsus**, read **What happened**, **Kinds of data**, **How
    many**, **Likely consequences**, **What Thapsus has done**, **What your organisation needs to
    do** and the **Thapsus contact**.

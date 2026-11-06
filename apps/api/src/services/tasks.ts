@@ -262,9 +262,16 @@ export const OVERDUE_FIRST_RESPONDERS = ["clinical_lead", "team_leader"] as cons
 /**
  * Tasks with their own escalation ladder, which this engine leaves alone: the duty of candour
  * holding an incident open goes to Registered Managers, then owners, who manage incidents, every
- * day until it is resolved (`services/candour-blocked.ts`; #120 review round 3, M2).
+ * day until it is resolved (`services/candour-blocked.ts`; #120 review round 3, M2), and a
+ * safeguarding referral goes to the managers of the log (`services/safeguarding.ts`).
  */
-export const SELF_ESCALATED_TASK_KINDS: readonly string[] = ["safety.candour_close_blocked"];
+export const SELF_ESCALATED_TASK_KINDS: readonly string[] = [
+  "safety.candour_close_blocked",
+  // A safeguarding referral: the concern's own alerts and the overdue sweep escalate it, to the
+  // managers of the log only; the clinical leads and team leaders this engine tells cannot act on
+  // it and may be the subject of the allegation (clinical review, finding 2; HZ-126).
+  "safety.safeguarding_referral",
+];
 
 /**
  * Which overdue tasks a run takes (review round 4): `due`, those not audited as unrouted in the
@@ -513,6 +520,8 @@ export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = [
   // A return from hospital's medicines check is done by completing its reconciliation (slice 16;
   // HZ-005, HZ-121), so a return never reads as reconciled while the chart is not.
   "people.return_check.medicines_reconciled",
+  // Completed only by referring the concern or recording why not (HZ-126).
+  "safety.safeguarding_referral",
 ];
 
 /** Whether a task's assignee completes it whatever they hold (a general task or an owner's). */

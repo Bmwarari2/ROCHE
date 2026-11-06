@@ -4473,6 +4473,7 @@
     "approvals.emptyTruncated",
     "approvals.done",
     "shell.nav.safeguarding",
+    "shell.nav.raiseSafeguarding",
     "shell.nav.complaints",
     "shell.nav.speakUp",
     "care.tabs.safeguarding",
@@ -4605,6 +4606,9 @@
     "safeguarding.update.dbsReason",
     "safeguarding.update.dbsReasonError",
     "safeguarding.update.measuresChanged",
+    "safeguarding.update.measuresOutcome",
+    "safeguarding.update.measuresOutcomeHint",
+    "safeguarding.measuresOutcome",
     "safeguarding.update.nothing",
     "safeguarding.update.submit",
     "safeguarding.update.done",
@@ -4615,6 +4619,7 @@
     "safeguarding.step.done",
     "safeguarding.measures.title",
     "safeguarding.measures.intro",
+    "safeguarding.raiseAbout",
     "safeguarding.measures.inPlace",
     "safeguarding.measures.none",
     "safeguarding.measures.updated",
@@ -5566,6 +5571,16 @@
     "scheduling.wellbeing.noHomes",
     "scheduling.wellbeing.team.showing",
     "shell.nav.menu",
-    "shell.nav.closeMenu"
+    "shell.nav.closeMenu",
+    "safeguarding.update.measuresOutcomeError",
+    "safeguarding.detail.measuresOutcome",
+    "safeguarding.form.personHint",
+    "safeguarding.form.personChoose",
+    "safeguarding.form.personOption",
+    "safeguarding.form.personError",
+    "safeguarding.form.personNotFound",
+    "safeguarding.raised.title",
+    "safeguarding.raised.body",
+    "safeguarding.raised.back"
   ]
 }

@@ -20,6 +20,26 @@ whole organisation. Undoing needs you to confirm it is you with your passkey or 
    and try again.
 5. The import says "Import undone. The people it added have been removed."
 
+## If a person was imported by mistake
+
+1. Open the import and read **Where it stands**. If it can still be undone, undo the whole import
+   (the steps above) and import the right file. Undo is the only way to remove people.
+2. If it can no longer be undone and the person is real but some details are wrong, correct them on
+   the person's **Personal details** tab. The history keeps what the import said.
+3. If the person should not be in Harbour at all (the wrong person, or someone already on another
+   record), tell your Registered Manager straight away. Harbour has no "created in error" status
+   for a person yet (H-680), so the record stays on the list of people receiving care, and staff
+   could choose it by mistake. Until your clinical safety officer decides what to do (H-1158):
+   - make sure staff at that home know, for example at handover, that the record is a mistake
+     and must not be used, and that anything for the real person goes on the real record;
+   - record nothing more on the mistaken record. Its allergy status check from the import stays
+     open: leave it, and tell your Registered Manager it is there;
+   - never record a death, and do not record a discharge or transfer unless your Registered
+     Manager and clinical safety officer decide to. Those can send notifications to other people;
+   - if the person should never have been in Harbour, tell your data protection lead, who decides
+     whether it is a personal data breach;
+   - ask Harbour support.
+
 ## Good to know
 
 - **Undo is possible only once, and only while nothing has happened to those people.** Harbour
@@ -29,8 +49,7 @@ whole organisation. Undoing needs you to confirm it is you with your passkey or 
 - If phones are in use in your organisation, treat every import as one that cannot be undone.
   Harbour asks you to accept this before you add the people.
 - When undo is not available, the page says "This import can no longer be undone. Correct any
-  record imported by mistake on the person's record." A person imported by mistake cannot be
-  removed after that; ask Harbour support.
+  record imported by mistake on the person's record." See below.
 - Undo also removes the allergy status checks the import raised that are still open.
 - The audit trail keeps the record of what was imported and undone.
 - The rules are in the

@@ -6,9 +6,10 @@ import {
   type SafeguardingConcernRow,
   safeguardingConcern,
   type Transaction,
+  task,
 } from "@harbour/db";
 import { type EscalationStep, nextEscalationAt, ukIsoDate } from "@harbour/domain";
-import { and, eq, gt, isNull, lt, lte, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { publish } from "../outbox";
 import { rateNumber } from "./rates";
 import { OVERDUE_ESCALATION_RATE_KEY, permissionHolders, withTenantWideScope } from "./safety";
@@ -21,6 +22,8 @@ import { OVERDUE_ESCALATION_RATE_KEY, permissionHolders, withTenantWideScope } f
  */
 
 export const SAFEGUARDING_CHAIN_KEY = "safety.safeguarding.overdue";
+/** The task a raised concern opens for the managers of the log at the person's home. */
+export const SAFEGUARDING_REFERRAL_TASK_KIND = "safety.safeguarding_referral";
 export const SAFEGUARDING_REFERRAL_RATE_KEY = "safeguarding.referral_hours";
 export const SAFEGUARDING_UNROUTED_ACTION = "safety.safeguarding.unrouted";
 /**
@@ -49,7 +52,12 @@ export async function safeguardingChain(tx: Transaction, tenantId: string) {
 }
 
 /** Audited once a day when nobody active can manage the log where the concern is (as HZ-013). */
-async function recordUnrouted(tx: Transaction, row: SafeguardingConcernRow, now: Date) {
+async function recordUnrouted(
+  tx: Transaction,
+  row: SafeguardingConcernRow,
+  now: Date,
+  reasonCode: "no_active_manager" | "raiser_only" = "no_active_manager",
+) {
   const [recent] = await tx
     .select({ id: auditEvent.id })
     .from(auditEvent)
@@ -69,11 +77,11 @@ async function recordUnrouted(tx: Transaction, row: SafeguardingConcernRow, now:
     outcome: "error",
     resourceType: "safeguarding_concern",
     resourceId: row.id,
-    reason: "no_active_manager",
+    reason: reasonCode,
     scope: {
       locationId: row.locationId,
       dueAt: row.referralDueAt.toISOString(),
-      reasonCode: "no_active_manager",
+      reasonCode,
     },
   });
 }
@@ -223,4 +231,143 @@ export async function tellManagersNotReferred(
       .onConflictDoNothing();
   }
   return others.length;
+}
+
+/**
+ * A concern raised is never left unseen (HZ-126; the gap found by the slice 83 guides): at once,
+ * the holders of `safety.safeguarding.manage` at the person's home other than the raiser are told
+ * (urgent, in the app; push has no destination yet) through the same chain as an overdue referral
+ * (H-598: unacknowledged, it goes to the chain's next step), and a task asks them to decide on the
+ * referral by its target. When the raiser is the only holder at the home, the holders at other
+ * homes are told instead (clinical review, finding 8); when there are none, the raiser is told
+ * and it is audited as unrouted, coded `raiser_only`, so the operator's daily signal counts it.
+ * Nobody active at all is audited as unrouted, as the overdue sweep does. Returns how many were
+ * told.
+ */
+export async function alertSafeguardingRaised(
+  tx: Transaction,
+  row: SafeguardingConcernRow,
+  now: Date,
+): Promise<number> {
+  return withTenantWideScope(tx, async () => {
+    const [home] = await tx
+      .select({ locationId: person.locationId })
+      .from(person)
+      .where(eq(person.id, row.personId));
+    const locationId = home?.locationId ?? row.locationId;
+    const holders = await permissionHolders(tx, "safety.safeguarding.manage", locationId, now);
+    const notRaiser = (ids: readonly string[]) => ids.filter((id) => id !== row.raisedBy);
+    let recipients = notRaiser(holders);
+    let raiserOnly = false;
+    if (recipients.length === 0 && holders.length > 0) {
+      recipients = notRaiser(await permissionHolders(tx, "safety.safeguarding.manage", null, now));
+      if (recipients.length === 0) {
+        recipients = holders;
+        raiserOnly = true;
+      }
+    }
+    await tx
+      .insert(task)
+      .values({
+        kind: SAFEGUARDING_REFERRAL_TASK_KIND,
+        title: "Decide on a safeguarding referral",
+        requiredPermission: "safety.safeguarding.manage",
+        locationId,
+        personId: row.personId,
+        sourceType: "safeguarding_concern",
+        sourceId: row.id,
+        dueAt: row.referralDueAt,
+        priority: "urgent",
+        createdAt: now,
+      })
+      .onConflictDoNothing();
+    if (recipients.length === 0) {
+      await recordUnrouted(tx, { ...row, locationId }, now);
+      return 0;
+    }
+    if (raiserOnly) await recordUnrouted(tx, { ...row, locationId }, now, "raiser_only");
+    const chain = await safeguardingChain(tx, row.tenantId);
+    const steps = chain.steps as EscalationStep[];
+    for (const recipient of recipients) {
+      await tx
+        .insert(notification)
+        .values({
+          recipientTenantUserId: recipient,
+          kind: "safety.safeguarding.raised",
+          severity: "urgent",
+          title: "A safeguarding concern has been raised",
+          body: "Open it to read the concern and decide on the referral to the local authority.",
+          link: `/safeguarding/${row.id}`,
+          channels: ["in_app"],
+          sourceType: "safeguarding_concern",
+          sourceId: row.id,
+          personId: row.personId,
+          locationId,
+          dedupeKey: `safeguarding_raised:${row.id}:${recipient}`,
+          escalationChainId: chain.id,
+          escalateAt: nextEscalationAt(steps, {
+            createdAt: now,
+            stepsFired: 0,
+            acknowledgedAt: null,
+          }),
+        })
+        .onConflictDoNothing();
+    }
+    return recipients.length;
+  });
+}
+
+/**
+ * The referral decision (referred, or not referred with a reason) completes the task it opened,
+ * attributed to whoever made it, with the concern as its evidence.
+ */
+export async function finishSafeguardingReferralTask(
+  tx: Transaction,
+  concernId: string,
+  now: Date,
+  reason: "referred" | "no_referral",
+  decidedBy: string,
+): Promise<void> {
+  await withTenantWideScope(tx, async () => {
+    await tx
+      .update(task)
+      .set({
+        status: "done",
+        completedAt: now,
+        completedBy: decidedBy,
+        evidenceType: "safeguarding_concern",
+        evidenceId: concernId,
+        statusReason:
+          reason === "referred" ? "The concern was referred" : "A reason not to refer was recorded",
+      })
+      .where(
+        and(
+          eq(task.kind, SAFEGUARDING_REFERRAL_TASK_KIND),
+          eq(task.sourceType, "safeguarding_concern"),
+          eq(task.sourceId, concernId),
+          inArray(task.status, ["open", "in_progress"]),
+        ),
+      );
+  });
+}
+
+/**
+ * A manager of the log opening a raised concern stops the escalation of the alerts it raised
+ * (clinical review, finding 7): a manager has seen it, so the next step of the chain is not told
+ * for every manager who has not. The alerts stay unread for the others.
+ */
+export async function stopRaisedEscalation(tx: Transaction, concernId: string): Promise<void> {
+  await withTenantWideScope(tx, async () => {
+    await tx
+      .update(notification)
+      .set({ escalateAt: null })
+      .where(
+        and(
+          eq(notification.kind, "safety.safeguarding.raised"),
+          eq(notification.sourceType, "safeguarding_concern"),
+          eq(notification.sourceId, concernId),
+          isNull(notification.acknowledgedAt),
+        ),
+      );
+  });
 }

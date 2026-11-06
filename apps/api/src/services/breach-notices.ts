@@ -1,4 +1,4 @@
-import { notification, type Transaction, tenant } from "@harbour/db";
+import { notification, processorBreachNotice, type Transaction, tenant } from "@harbour/db";
 import { eq } from "drizzle-orm";
 import { roleHolders } from "./role-holders";
 
@@ -7,7 +7,9 @@ import { roleHolders } from "./role-holders";
  * breach-response.md section 2 step 4: "the tenant's DPO and Owner roles"): its named data
  * protection lead and its owners, urgently, in the app and by email. Idempotent: each recipient's
  * notification has a dedupe key from the notice, so a retried outbox event tells no one twice. A
- * generic title with ids only; the register says the rest.
+ * generic title with ids only; the register says the rest. The link opens the breach the notice
+ * opened or followed in the breach register (it opened the data protection settings until the
+ * slice 83 guides found it).
  */
 export async function tellAboutBreachNotice(
   tx: Transaction,
@@ -20,6 +22,11 @@ export async function tellAboutBreachNotice(
     .from(tenant)
     .where(eq(tenant.id, tenantId));
   const owners = await roleHolders(tx, ["owner"], null, now);
+  const [notice] = await tx
+    .select({ breachId: processorBreachNotice.breachId })
+    .from(processorBreachNotice)
+    .where(eq(processorBreachNotice.id, noticeId));
+  const link = notice ? `/data-rights/breaches/${notice.breachId}` : "/data-rights/breaches";
   const recipients = [...new Set([...(t?.leadId ? [t.leadId] : []), ...owners])];
   for (const recipient of recipients) {
     await tx
@@ -30,7 +37,7 @@ export async function tellAboutBreachNotice(
         severity: "urgent",
         title: "Thapsus has told you about a personal data breach",
         body: "Open the breach register: the ICO clock may already be running.",
-        link: "/settings/data-protection",
+        link,
         channels: ["in_app", "email"],
         sourceType: "processor_breach_notice",
         sourceId: noticeId,
