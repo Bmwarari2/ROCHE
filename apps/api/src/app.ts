@@ -74,6 +74,7 @@ import {
 } from "./routes/platform";
 import { platformImportsRouter } from "./routes/platform-imports";
 import { policiesRouter } from "./routes/policies";
+import { prnProtocolsRouter } from "./routes/prn-protocols";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
@@ -364,6 +365,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dsarRouter);
   app.route("/", medicinesRouter);
   app.route("/", medicineAdministrationsRouter);
+  app.route("/", prnProtocolsRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

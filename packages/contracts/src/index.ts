@@ -526,6 +526,7 @@ export * from "./onboarding";
 export * from "./operations";
 export * from "./people";
 export * from "./person-summary";
+export * from "./prn-protocols";
 export * from "./quality";
 export * from "./quality-framework";
 export * from "./records";
