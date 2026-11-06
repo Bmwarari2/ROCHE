@@ -12,7 +12,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Platform core | `PLAT` | 9.1 | 23 | 3 | 20 | 0 |
 | Service-user lifecycle | `PEOP` | 9.2 | 13 | 4 | 9 | 0 |
 | Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 8 | 14 | 0 |
-| Medicines | `MEDS` | 10.2-10.3 | 14 | 9 | 5 | 0 |
+| Medicines | `MEDS` | 10.2-10.3 | 14 | 8 | 6 | 0 |
 | Safety and notifications | `SAFE` | 11.1 | 16 | 5 | 11 | 0 |
 | Quality and governance | `QUAL` | 11.2 | 13 | 4 | 9 | 0 |
 | Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 13 | 0 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **153** | **80** | **0** |
+| **Total** | | | **233** | **152** | **81** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -122,7 +122,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | MEDS-005 | Electronic controlled-drugs register with two signatures and running balances | 10.2 | 2 | partial | [medicines](medicines.md#14-controlled-drugs-register-slice-34-schema-and-api) | `packages/domain/src/medicines/controlled-drugs.ts` (slice 3 rules); `packages/db/src/schema/medicines.ts` (migration 0128), `apps/api/src/routes/controlled-drugs.ts` (pages, entries, witness assertions, stock checks raising incidents, the administration hook; slice 34); the printable page and screens in slices 50 and 53 | `packages/domain/src/medicines/controlled-drugs.test.ts`, `packages/db/test/controlled-drugs.test.ts`, `apps/api/test/controlled-drugs.test.ts` | - |
 | MEDS-006 | Self-administration risk assessment and review | 10.2 | 2 | todo | - | - | - | - |
 | MEDS-007 | Homely remedies protocols | 10.2 | 2 | todo | - | - | - | - |
-| MEDS-008 | Stock, 28-day cycle ordering and disposal records, with fridge and room temperature logs | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-008 | Stock, 28-day cycle ordering and disposal records, with fridge and room temperature logs | 10.2 | 2 | partial | [medicines](medicines.md#15-stock-ordering-disposal-and-temperatures-slice-42-schema-and-api) (section 15) | `packages/domain/src/medicines/stock.ts`, `packages/db/src/schema/medicine-stock.ts`, `packages/db/drizzle/0138_medicine_stock.sql`, `apps/api/src/routes/medicine-stock.ts`, `apps/api/src/services/medicine-stock.ts`, `apps/api/src/integrations/pharmacy.ts`, `packages/contracts/src/medicine-stock.ts` | `packages/domain/src/medicines/stock.test.ts`, `packages/db/test/medicine-stock.test.ts`, `apps/api/test/medicine-stock.test.ts` | HZ-003, HZ-132 |
 | MEDS-009 | GP proxy ordering workflow | 10.2 | 5 | todo | - | - | - | - |
 | MEDS-010 | Pharmacy interface (order, MAR import, label data) | 10.2, 15.3 | 5 | todo | - | - | - | - |
 | MEDS-011 | Home-care levels of support (prompt, assist, administer; family-administered arrangements) | 10.2 | 4 | todo | - | - | - | - |

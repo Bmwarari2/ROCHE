@@ -76,6 +76,7 @@
 | [HZ-126](#hz-126-a-safeguarding-concern-not-progressed-or-protective-measures-not-visible-to-the-staff-caring-for-the-person) | A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person | Major / Medium / 3 | Major / Low / 3 until the open questions in H-599 are settled, then Very low / 2 (engineering proposal; the CSO rates it, H-595) | Open | None (Phase 2) | Phase 2 |
 | [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
 | [HZ-130](#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person) | Imported records mis-mapped, duplicated or attached to the wrong person | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-543 and H-680) | Open | None (Phase 2) | Phase 2 (slices 26, 51, 67, 79) |
+| [HZ-132](#hz-132-medicines-stored-outside-their-temperature-range-used-without-the-pharmacists-advice) | Medicines stored outside their temperature range used without the pharmacist's advice | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1327) | Open | None (Phase 2) | Phase 2 (slice 42) |
 
 Eighteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-112 until its mobile control is built, HZ-119 until its override report is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -278,6 +279,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 - The person is not assigned to anyone for the round.
 - The carer is interrupted mid-round; the round is closed with doses outstanding.
 - Medicine not available and no stock escalation.
+- Stock runs out unnoticed: doses given are not taken off the person's stock, a count that differs
+  is not looked into, or the cycle's order is not made in time (slice 42).
 - A new or changed prescription not yet on the MAR (see HZ-005).
 - Reminder or escalation not delivered (offline device, failed job) or ignored (HZ-008).
 - The person's rounds stay stopped after the people lifecycle stopped them: a discharge or death
@@ -338,7 +341,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | A round cannot be closed with outstanding doses without a reason; outstanding doses appear in the auto-compiled handover | Domain rule built in Phase 2 slice 3 (`checkRoundClose`, time-critical first); handover in slice 49 |
 | Design | On-device reminders for due doses that work offline | Phase 2 |
 | Design | A dose due for a person not assigned to any staff member on the shift alerts the shift lead | Phase 2 |
-| Design | "Not available" creates a stock and ordering task | Phase 2 |
+| Design | "Not available: out of stock" raises an urgent task for the person in charge to check the stock and order. A given dose takes its amount off the person's stock of that product, in the same transaction, and never refuses the dose. A balance going below zero asks for a count. A count that differs is adjusted only with a reason. The daily job asks for the cycle's order `medicines.order.prompt_days_before` days before each 28-day cycle, once, unless an order exists. A controlled drug's stock stays the register's (medicines.md section 15) | Built in Phase 2 slice 42 (migration 0138) |
 | Design | Expired medicines competence blocks administration (manager override logged) | Domain rule built in Phase 2 slice 3 (HZ-119) |
 | Design | The tasks and series the people lifecycle stops carry a code (`task.cancel_code`, `task_series.inactive_code`: paused while away, ended at exit) and, when an exit stopped them, that exit (`stopped_by_exit_id`). Migration 0023 codes existing rows only from the lifecycle event that stopped them (the outbox event written in the same transaction), never from reason text. A return brings back the rounds paused while the person was away; correcting a discharge or death recorded in error brings back only what that exit ended and starts its series again ([people.md](../specs/people.md) rules 1 and 2). Whether rounds restart without a person confirming them is for the CSO (H-89) | Built in Phase 1 slice 8 |
 | Design | Of the tasks brought back (`planTaskRestore`), only those whose window ends at or after the return count. A task an entry answered while it was stopped is restored as done, never due again (`restore_code` answered_while_stopped; HZ-004; H-91). One still in its window reopens. Of those whose window passed, the latest occurrence of each series (and each one-off task) is caught up once, due now with a fresh window of its own length and its escalation reset (`restore_code` caught_up), unless a later occurrence of the series is done or open again, so two turns or doses never fall due minutes apart; a missed `medicines.*` task is never made due again, because giving a late dose is a treatment decision ([medical-device boundary](../compliance/medical-device-boundary.md)): it is listed as missed for the nurse in charge. The others stay cancelled, coded as missed (H-92, H-131). One urgent review task goes to the nurse in charge and lists every round, its due time and whether it was caught up (`task.details.missedTasks`, `listMissedRounds`): missed medicines rounds first and never dropped, then the rest newest first, at most 50 in all and the rest counted, so the latest rounds and every missed dose are always listed (review round 5, M2). Shown on screen, in UK time, on the web task list (`/tasks`, HZ-006) | Built in Phase 1 slice 8 (review rounds 3 to 5) |
@@ -365,6 +368,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Test | Status |
 | --- | --- |
+| `packages/domain/src/medicines/stock.test.ts`: `hazard HZ-002 MEDS-008 rules 2 to 4 stock movements` (a given dose moves stock, a refused one or a controlled drug does not, a correction moves the difference, a count adjusts only when it differs, crossing below zero asks for a count) and the cycle and reorder prompt table | Passing (Phase 2 slice 42) |
+| `apps/api/test/medicine-stock.test.ts`: `hazard HZ-003 MEDS-008 a person's stock and slice 22's hook` (a dose given and corrected moves stock; a count; "not available: out of stock" raises an urgent task; a controlled drug left to its register) and `MEDS-008 the 28-day cycle, reorder prompts and orders` (one prompt, an order through the pharmacy mock filled by receipts) | Passing (Phase 2 slice 42) |
 | `apps/api/test/medicines.test.ts`: `shows the MAR for a cycle from the rate table, with the times before recording not due` (the API expands doses with the domain's `marEntryDoses` over `medicines.ordering_cycle_days`, no literal) | Passing (Phase 2 slice 16) |
 | `apps/api/test/medicines.test.ts`: `hazard HZ-003 expands a weekly schedule on its weekdays, and refuses weekday names it does not use` (the contract takes the domain's weekday codes, so a weekly medicine's doses appear on the MAR; full names, which the rules never matched, are refused) | Passing (Phase 2 slice 16) |
 | `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-003 the count is kept from the last dose due: ...` (table: the grid, a fortnightly or weekly Monday moved to Tuesday, a monthly day moved, a missing anchor), `refuses a missing or unreadable anchor instead of throwing`, `hazard HZ-009 every-n-days and fortnightly doses keep their days and times across the clock changes`; `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-003 hazard HZ-004 a change keeps the day count ...` (`compares with the last dose actually due, through a change to every day and back`, `keeps the count when the same product is stopped and started again`, `treats moving a fortnightly / weekly Monday dose to Tuesday as a new count that needs a reason`) | Passing (#135 review round 2) |
@@ -3522,6 +3527,48 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | `apps/api/test/imports.test.ts`: `hazard HZ-130 who may import` (no permission; `hazard HZ-130 refuses a holder at one home with one answer, whatever the file holds`, the same for a number at another home and an unused one, audited; another organisation's batch and location not found); `hazard HZ-130 uploading names columns and rows by number`; `hazard HZ-130 dry run, commit and undo` (a number at another home reported with its record, another organisation's imported as new; the report's words; nothing commits with an error; step-up; whole commit, people active at the location and tied to the batch; idempotent commit; undo once and re-import; changed and referenced refusals; `needs exactly the possible duplicates seen acknowledged, each naming the record or row`; dry run first; not staged; test NHS numbers; `refuses an undo once a phone may hold the imported people`, which since round 2 also shows the batch's undo as not available, the dry run's words and `phonesInUse` once phones are in use, the commit refused without `acceptNoUndo` and audited with it; allergy status checks raised, paired and replayed); `hazard HZ-130 an imported value never reaches a log` (a NUL and a lone surrogate refused at upload with nothing personal logged; a failed write rethrown as its code alone); `hazard HZ-072 an import waits while sample data is in place`; `hazard HZ-130 nothing imported is echoed in an audit event`; no commit past expiry | Passing (Phase 2 slice 26, review round 1) |
 | `apps/web` Playwright: `hazard HZ-130 the wizard shows the mapping beside the file's first rows before the dry run` | Planned, Phase 2 slice 67 |
 | `apps/api`: `hazard HZ-130 an allergy or contact row is attached only to the person its identifier names, never by name` | Planned, Phase 2 (contacts and allergies import) |
+
+---
+
+## HZ-132 Medicines stored outside their temperature range used without the pharmacist's advice
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-132 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `medicines` module |
+| Source | Master prompt 10.2 (fridge and room temperature logs); [phase-2.md](../plans/phase-2.md) slice 42; [medicines.md](../specs/medicines.md) section 15 rule 8; [ADR-0103](../decisions/0103-medicines-stock.md); related to HZ-002 (wrong dose) and HZ-008 (alert fatigue) |
+
+**Description**: a medicines fridge or room goes outside its range (a fridge above 8 or below 2 degrees, a room above 25), and nobody notices, or someone notices and the medicines are used anyway, or thrown away, without the pharmacist's advice. Medicines that lost potency, such as insulin or vaccines kept warm, are given; or a person goes without because stock was discarded needlessly.
+
+**Causes**: no reading taken; a reading out of range not recognised; a range typed in code rather than taken from the rate table, so it is wrong or out of date; only the current reading checked when the thermometer's maximum or minimum shows a breach since the last reading; the alert unseen or ignored; software that tells staff the medicines are fine, or that they must be discarded, crossing the medical-device boundary.
+
+**Effects**: a less effective or harmful medicine given (HZ-002); a dose missed because stock was thrown away (HZ-003); regulatory breach (Regulation 12).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The range comes only from the rate table (`medicines.fridge_min_celsius`, `medicines.fridge_max_celsius`, `medicines.room_max_celsius`), and the database works out whether a reading is out of range itself, from the rate table, storing the range that applied with the reading | Built in Phase 2 slice 42 (migration 0138) |
+| Design | A reading is out of range when the reading, or the thermometer's maximum or minimum since the last one, falls outside the range (`readingOutOfRange`) | Built in Phase 2 slice 42 |
+| Design | An out-of-range reading raises an urgent task for the person in charge (`clinical_lead`), due after `medicines.temperature.acknowledge_minutes`; the database refuses an out-of-range reading without its task; the task engine escalates it when overdue | Built in Phase 2 slice 42 |
+| Design | The task's fixed words never say whether the medicines can be used: "Medicines storage out of range. Check the storage, and ask the pharmacist whether the medicines in it can still be used." (medical-device boundary) | Built in Phase 2 slice 42 |
+| Design | Readings are append-only | Built in Phase 2 slice 42 |
+| Design | A reminder when a day's reading is missed | Planned (H-1322) |
+| Training and user documentation | Deployer control: the organisation's medicines storage policy and the pharmacist's advice line | Phase 2 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3**. `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/medicines/stock.test.ts`: `hazard HZ-002 MEDS-008 rule 8 storage temperatures` (the edges of each range, a maximum or minimum since the last reading, the task's words) | Passing (Phase 2 slice 42) |
+| `packages/db/test/medicine-stock.test.ts`: `hazard HZ-132 ...` (the range from the rate table, an out-of-range reading refused without its task, readings never edited) | Passing (Phase 2 slice 42) |
+| `apps/api/test/medicine-stock.test.ts`: `hazard HZ-132 MEDS-008 storage temperatures` (an urgent task due after the acknowledgement time, escalated when overdue, its words giving no advice on use) | Passing (Phase 2 slice 42) |
 
 ---
 

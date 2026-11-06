@@ -22,6 +22,7 @@ import {
   materialiseTaskSeries,
   outboxHandlers,
   processDeliveries,
+  promptMedicineOrders,
   raiseCandourBlocked,
   raiseCareReviews,
   raiseReviews,
@@ -76,6 +77,7 @@ const QUEUES = {
   careReviews: "care-reviews",
   dolsExpiry: "dols-expiry-reminders",
   outstandingDoses: "medicines-outstanding-doses",
+  reorderPrompts: "medicines-reorder-prompts",
   staffFileExpiry: "staff-file-expiry-reminders",
   policyReminders: "policy-reminders",
   statutoryNotifications: "statutory-notification-escalations",
@@ -129,6 +131,9 @@ await work(QUEUES.careReviews, async () => {
 });
 await work(QUEUES.outstandingDoses, async () => {
   await escalateOutstandingDoses(deps);
+});
+await work(QUEUES.reorderPrompts, async () => {
+  await promptMedicineOrders(deps);
 });
 await work(QUEUES.dolsExpiry, async () => {
   await remindDolsExpiry(deps);
@@ -213,6 +218,7 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
 // Every 5 minutes, so a time-critical dose's window ending is escalated promptly (HZ-003).
 await boss.schedule(QUEUES.outstandingDoses, "*/5 * * * *");
+await boss.schedule(QUEUES.reorderPrompts, "20 6 * * *");
 // Staff check expiry reminders (workforce.md section 5), hourly at 17 past.
 await boss.schedule(QUEUES.staffFileExpiry, "17 * * * *");
 // Policy read-and-sign reminders and review tasks (quality.md section 18.3), hourly at 27 past.

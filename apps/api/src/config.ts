@@ -124,6 +124,12 @@ const Env = z.object({
    * checked against invented reference data; it fails closed until slices 10 and 17 land.
    */
   MEDICINES_FIXTURES: z.enum(["off", "on"]).optional(),
+  /**
+   * Orders to the pharmacy (medicines.md section 15 rule 7): `mock` answers from memory and calls
+   * nothing; `off` (the default) means orders are submitted by hand. No live client exists yet
+   * (H-517, H-1321), so production accepts only `off`.
+   */
+  PHARMACY_ORDERS: z.enum(["off", "mock"]).default("off"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -188,6 +194,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
     }
     // Invented dm+d and competence never stand in for the real sources (HZ-001, HZ-121).
+    if (parsed.PHARMACY_ORDERS !== "off")
+      throw new Error("PHARMACY_ORDERS must be off in production");
     if (parsed.MEDICINES_FIXTURES === "on") {
       throw new Error("MEDICINES_FIXTURES cannot be on in production");
     }

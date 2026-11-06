@@ -16,6 +16,7 @@ import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createMedicinesPorts } from "./integrations/medicines-ports";
+import { MockPharmacy } from "./integrations/pharmacy";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
@@ -46,6 +47,7 @@ import { lettersRouter } from "./routes/letters";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { medicineAdministrationsRouter } from "./routes/medicine-administrations";
+import { medicineStockRouter } from "./routes/medicine-stock";
 import { medicinesRouter } from "./routes/medicines";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
@@ -127,6 +129,8 @@ export interface AppHandle {
   readonly app: ReturnType<typeof createRouter>;
   readonly services: Services;
   readonly signer: SyncTokenSigner;
+  /** What the pharmacy mock was given (development and tests). */
+  readonly pharmacyMock: MockPharmacy;
   close(): Promise<void>;
 }
 
@@ -143,6 +147,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     idleErrorLogger(logger, "operator"),
   );
   const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
+  const pharmacyMock = new MockPharmacy();
   const services: Services = {
     config,
     logger,
@@ -169,6 +174,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       60_000,
     ),
     medicines: createMedicinesPorts(config.medicinesFixtures),
+    pharmacy: config.PHARMACY_ORDERS === "mock" ? pharmacyMock : null,
     adapterFor: createAdapterResolver({ production: config.NODE_ENV === "production", mocks }),
     mockEmail: mocks.email,
     evidenceLinkThrottles: {
@@ -366,6 +372,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", medicinesRouter);
   app.route("/", medicineAdministrationsRouter);
   app.route("/", controlledDrugsRouter);
+  app.route("/", medicineStockRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
@@ -422,6 +429,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     app,
     services,
     signer,
+    pharmacyMock,
     close: async () => {
       await Promise.all([appPool.end(), authPool.end(), operatorPool.end()]);
     },

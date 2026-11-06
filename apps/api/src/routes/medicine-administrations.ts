@@ -82,6 +82,7 @@ import {
   supersededBy,
   witnessesFor,
 } from "../services/medicine-administrations";
+import { stockOnCorrection, stockOnDose } from "../services/medicine-stock";
 import {
   guardConcurrent,
   lockPerson,
@@ -536,6 +537,15 @@ export const medicineAdministrationsRouter = createRouter()
             cdEntryId: cd?.cdEntryId ?? null,
             now,
           });
+          // Slice 42's stock hook (medicines.md section 15 rule 3): a given dose moves the person's
+          // stock of its product; a controlled drug's stock stays the register's.
+          await stockOnDose(tx, {
+            record: stored,
+            vmpId: entry.product.vmpId,
+            isControlledDrug: isCd,
+            locationId: facts.person.locationId,
+            recordedBy: access.tenantUserId,
+          });
           if (cd && body.amount) {
             await writeRegisterEntry(c, tx, access, deny, {
               id: cd.cdEntryId,
@@ -726,6 +736,14 @@ export const medicineAdministrationsRouter = createRouter()
             // correction corrects that entry (security review M1, clinical review H1).
             cdEntryId: cdMove?.id ?? original.cdEntryId,
             now,
+          });
+          await stockOnCorrection(tx, {
+            record: stored,
+            chainIds: chainOf(original, facts.rows),
+            vmpId: entry.product.vmpId,
+            isControlledDrug: isCd,
+            locationId: facts.person.locationId,
+            recordedBy: access.tenantUserId,
           });
           if (cdMove) {
             await writeRegisterEntry(c, tx, access, deny, {
@@ -1194,6 +1212,21 @@ export const medicineAdministrationsRouter = createRouter()
       return c.json(out, 200);
     },
   );
+
+/** A record and every record it corrects, newest first (the chain's stock movements, section 15). */
+function chainOf(
+  latest: { readonly id: string; readonly supersedesId: string | null },
+  rows: readonly { readonly id: string; readonly supersedesId: string | null }[],
+): string[] {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const ids: string[] = [];
+  let at: { readonly id: string; readonly supersedesId: string | null } | undefined = latest;
+  while (at && !ids.includes(at.id)) {
+    ids.push(at.id);
+    at = at.supersedesId ? byId.get(at.supersedesId) : undefined;
+  }
+  return ids;
+}
 
 /** Whether the entry's dm+d product is a controlled drug (its schedule comes from slice 10). */
 async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {

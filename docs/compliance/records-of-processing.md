@@ -178,6 +178,16 @@ a medication incident (B1's incident record), whose words name no drug or count.
 `controlled_drugs_register` (2 years from the page's last entry; entries recording an
 administration keep the longer `mar_chart` period). No new recipient or sub-processor.
 
+Medicines stock, ordering, disposal and temperatures (Phase 2 slice 42, migration 0138; ADR-0103):
+B1 now also covers each person's stock of each medicine (the product, its unit and every movement:
+receipts, doses given, returns, disposals, corrections and count adjustments, with the balance,
+who recorded each and why a count differed), disposals with their reason and witness, and the
+lines of a home's medicines orders (person, medicine, quantity). Temperature readings, storage and
+order headers name no person. A controlled drug's stock stays in its register and is not copied.
+Orders through the pharmacy port send each line's product, quantity and unit with an opaque person
+id, never a name; only a mock exists, and the pharmacy is assessed before it receives anything
+(H-517, H-1321). Retention class `mar_chart`; cycles and storage `tenant_configuration`.
+
 Notes:
 
 - The photo in the point-of-care header (B1) is a safety control against wrong-person selection (hazard HZ-001), not an optional feature, so it is not consent-based. Photos shared with families (B8) are.

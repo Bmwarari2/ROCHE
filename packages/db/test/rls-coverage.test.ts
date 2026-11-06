@@ -9,6 +9,9 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  */
 
 const APPEND_ONLY_TABLES = [
+  "medicine_stock_item",
+  "medicine_stock_movement",
+  "medicine_temperature_reading",
   "audit_event",
   "record_version",
   "workflow_transition",
