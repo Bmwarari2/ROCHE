@@ -1,6 +1,7 @@
 import {
   ABOUT_ME_SECTIONS,
   describeIddsiLevel,
+  emarSnapshotNotice,
   formatNhsNumber,
   iddsiLevel,
   isUkClockChangeDay,
@@ -170,14 +171,24 @@ function sectionLines(key: string, content: Record<string, unknown>, names: Name
           route: string;
           frequency: string;
           timeCritical: boolean;
+          lastGivenAt?: string | null;
+          status?: string | null;
         }[]) ?? [];
+      // From the eMAR (slice 49): when it was read, and that it is not the live record (HZ-023).
+      const fromEmar = c.source === "emar";
+      const producedAt = (c as { producedAt?: string }).producedAt;
       return [
         ...(c.source === "pre_admission_assessment" || c.source === "medicines_list"
           ? ["From the pre-admission assessment, not the MAR: check against the MAR."]
           : []),
+        ...(fromEmar && producedAt ? [emarSnapshotNotice(new Date(producedAt))] : []),
         ...items.map(
           (m) =>
-            `${m.timeCritical ? "TIME-CRITICAL: " : ""}${m.name}, ${m.dose}, ${m.route}, ${m.frequency}`,
+            `${m.timeCritical ? "TIME-CRITICAL: " : ""}${m.name}, ${m.dose}, ${m.route}, ${m.frequency}` +
+            (fromEmar
+              ? `. Last taken: ${m.lastGivenAt ? ukDateTime(m.lastGivenAt) : "not recorded on the eMAR"}`
+              : "") +
+            (m.status ? `. Entry: ${m.status}` : ""),
         ),
       ];
     }

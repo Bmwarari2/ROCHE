@@ -338,8 +338,8 @@ describe("hazards HZ-024 and HZ-003 what a round and an action say about themsel
   );
 
   it("hazard HZ-003 says a medicines action is not a round, and nothing on the rest", () => {
-    expect(planActionNotice("medicines")).toBe("Not a round: see the medicines record");
-    expect(NOT_A_ROUND_NOTICE).toBe("Not a round: see the medicines record");
+    expect(planActionNotice("medicines")).toBe("Not a round: medicines rounds are on the eMAR");
+    expect(NOT_A_ROUND_NOTICE).toBe("Not a round: medicines rounds are on the eMAR");
     expect(planActionNotice("skin")).toBeNull();
     expect(EARLIER_PLAN_NOTICE).toBe("From an earlier plan: check the current plan");
   });

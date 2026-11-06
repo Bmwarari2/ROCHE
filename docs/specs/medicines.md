@@ -1234,3 +1234,33 @@ person scope, and its retention class is `mar_chart`.
   conflict and person ids), `.conflict_resolved`.
 - Outbox events: `medicines.administration.conflict_raised`; `medicines.administration.double_dose`
   (raises a medication incident whose id is the conflict's, so applying it twice raises one).
+
+## 16. Medicines in the Phase 1 outputs (slice 49, API)
+
+MEDS-001 and MEDS-002, with HZ-003, HZ-021 and HZ-023. No migration; the packs' JSON content gains
+fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice` in
+`packages/domain/src/medicines/outputs.ts`.
+
+- **Every printed or exported medicines list** opens with when it was read from the eMAR and "This
+  is not the live record: check the eMAR, or the paper MAR in use, before giving or holding any
+  medicine" (UK date, 24-hour time and zone). The lists show the record and pass it on; they never
+  say what to give or hold (medical-device boundary).
+- **Downtime pack (HZ-021, H-102)**: for each person with entries on the eMAR, `medicines_due` lists
+  the scheduled doses from when the pack is built to 48 hours on (the round's rules, so a dose since
+  the same UK time the day before that is still open is included) with dose, route, due time,
+  time-critical and `due` or `given`. A dose still open from before is `outstanding: true`, listed
+  first and printed "Outstanding, was due …". When-required medicines carry dose, route, the
+  indication and when last given. `producedAt` is when the eMAR was read. Someone with no eMAR
+  entries, or whose eMAR cannot be read (each person in a savepoint), keeps where the paper MAR is
+  kept. A medicines change or an administration for anyone on the pack makes it stale.
+- **Transfer pack (HZ-023, H-82)**: for a person with entries on the eMAR, `medicines` has `source:
+  "emar"`, `producedAt` and each entry in force (not withdrawn, not yet started, replaced, stopped or
+  ended): name, dose (each distinct scheduled dose, joined), route, how often in words or "When
+  required", `lastGivenAt` (the latest given, self-administered or given-by-family record across the
+  entry's versions) and `status` (the entry's status in words, null when checked). The PDF adds "Last
+  taken: …" or "not recorded on the eMAR" and "Entry: …". An empty list still reads not recorded.
+  Otherwise the pre-admission list stays, marked as needing checking against the MAR.
+- **Handover and care plans (HZ-003, H-151)**: outstanding doses and medicines out of stock reach the
+  shift handover as their tasks. A care plan medicines action still never generates tasks; its
+  notice reads "Not a round: medicines rounds are on the eMAR". A refused dose is not yet on the
+  handover: it needs a new handover source (a migration).

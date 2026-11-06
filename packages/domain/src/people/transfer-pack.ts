@@ -123,6 +123,8 @@ export interface TransferMedicine {
   readonly lastGivenAt: Date | null;
   /** Time-critical medicines (for example for Parkinson's disease) are listed first. */
   readonly timeCritical: boolean;
+  /** From the eMAR: the entry's status when it is not simply checked ("Not yet checked"). */
+  readonly status?: string | null;
 }
 
 export type MedicinesStatement =
@@ -136,6 +138,8 @@ export type MedicinesStatement =
        */
       readonly source: "emar" | "medicines_list" | "pharmacy_mar" | "pre_admission_assessment";
       readonly items: readonly TransferMedicine[];
+      /** From the eMAR: when it was read, so the pack says it is not the live record (slice 49). */
+      readonly producedAt?: Date;
     };
 
 export interface TransferCommunicationNeed {

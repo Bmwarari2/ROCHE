@@ -115,6 +115,11 @@ export interface ScheduledDose {
   /** Only `due` doses are listed; a dose already given, or recorded as not given, is not due. */
   readonly status: "due" | "given" | "not_given";
   readonly givenAt: Date | null;
+  /**
+   * Due before the pack's window began and still without an outcome (slice 49; HZ-021): listed
+   * first, whatever the window, so a dose already late is never left off the pack.
+   */
+  readonly outstanding?: boolean;
 }
 
 /** A when-required medicine, listed with when it was last given so nobody repeats it too soon. */
@@ -133,6 +138,8 @@ export type MedicinesDueStatement =
       readonly status: "recorded";
       readonly scheduled: readonly ScheduledDose[];
       readonly prn: readonly PrnMedicine[];
+      /** When the eMAR was read, so the pack says it is not the live record (slice 49). */
+      readonly producedAt?: Date;
     };
 
 /** Implemented by the medicines module in Phase 2; the API calls it once per person. */
@@ -335,6 +342,7 @@ export type DowntimeMedicinesContent =
       /** Doses still due while the pack is in use, in time order, time-critical first. */
       readonly due: readonly ScheduledDose[];
       readonly prn: readonly PrnMedicine[];
+      readonly producedAt?: Date;
     };
 
 export interface DowntimePersonPage {
@@ -524,14 +532,21 @@ function medicinesInWindow(
     .filter(
       (d) =>
         d.status === "due" &&
-        d.dueAt.getTime() >= from.getTime() &&
+        (d.outstanding === true || d.dueAt.getTime() >= from.getTime()) &&
         d.dueAt.getTime() < until.getTime(),
     )
     .sort(
       (a, b) =>
-        a.dueAt.getTime() - b.dueAt.getTime() || Number(b.timeCritical) - Number(a.timeCritical),
+        Number(b.outstanding === true) - Number(a.outstanding === true) ||
+        a.dueAt.getTime() - b.dueAt.getTime() ||
+        Number(b.timeCritical) - Number(a.timeCritical),
     );
-  return { status: "recorded", due, prn: statement.prn };
+  return {
+    status: "recorded",
+    due,
+    prn: statement.prn,
+    ...(statement.producedAt ? { producedAt: statement.producedAt } : {}),
+  };
 }
 
 /** One IDDSI level: described, not recorded, or unreadable (never throws for a bad code). */

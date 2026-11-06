@@ -168,7 +168,8 @@ export const MUST_FOLLOW_UP_TASK_KINDS: readonly `care.${CareTaskKind}`[] = MUST
 /**
  * Whether a chart entry records a refusal: a drink or food refused, or repositioning declined.
  * Mirrors the chart values in `packages/contracts` (`ObservationValues`); other charts have no
- * refusal field. Medicines refusals join from the eMAR in Phase 2 (HZ-003).
+ * refusal field. A medicine refused is on the eMAR and its round (slices 22 and 48); a dose with
+ * no outcome, and a medicine out of stock, reach the handover as their tasks (slice 49; HZ-003).
  */
 export function observationIsRefusal(values: {
   readonly chart: string;

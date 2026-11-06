@@ -626,7 +626,7 @@ describe("the round view (CARE-013)", () => {
         domain: "medicines",
         action: "Apply the prescribed cream as the MAR says",
         whenText: "Morning and evening",
-        notice: "Not a round: see the medicines record",
+        notice: "Not a round: medicines rounds are on the eMAR",
       },
     ]);
     expect(stop?.tasks.length).toBeGreaterThan(0);

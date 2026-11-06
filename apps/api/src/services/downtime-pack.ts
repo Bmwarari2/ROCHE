@@ -23,6 +23,7 @@ import {
   type DowntimePersonInput,
   type DowntimeRisk,
   LIVE_PERSON_STATUSES,
+  type MedicinesDueStatement,
   OPERATIONS_RATE_KEYS,
   type OperationsRates,
   type PcspDomain,
@@ -36,6 +37,7 @@ import {
 } from "@harbour/domain";
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { publish } from "../outbox";
+import { downtimeMedicinesFrom, emarFacts } from "./medicines-outputs";
 import { rateNumber, rateRows } from "./rates";
 import { allergyStatementOf, communicationStatementOf, currentAllergiesOf } from "./transfer-pack";
 
@@ -102,13 +104,44 @@ export async function livePeopleAt(tx: Transaction, locationId: string) {
 const latest = (dates: readonly (Date | null)[]): Date | null =>
   dates.reduce<Date | null>((a, d) => (d && (!a || d > a) ? d : a), null);
 
+/**
+ * Each person's medicines from the eMAR (slice 49; HZ-021): the doses due from `asAt` for the next
+ * two days (the pack keeps its own window) and those still outstanding, and their when-required
+ * medicines. A person with no eMAR entry, or whose eMAR cannot be read, keeps where the paper MAR
+ * is kept; one person's failure never takes the pack from everyone else.
+ */
+async function packMedicines(
+  tx: Transaction,
+  tenantId: string,
+  ids: readonly string[],
+  asAt: Date,
+): Promise<Map<string, MedicinesDueStatement>> {
+  const out = new Map<string, MedicinesDueStatement>();
+  const until = new Date(asAt.getTime() + 48 * 3_600_000);
+  for (const id of ids) {
+    try {
+      const statement = await tx.transaction(async (sp) => {
+        const facts = await emarFacts(sp as unknown as Transaction, tenantId, id, asAt);
+        return facts ? downtimeMedicinesFrom(facts, asAt, until, asAt) : null;
+      });
+      if (statement) out.set(id, statement);
+    } catch {
+      // Falls back to the paper MAR's place for this person.
+    }
+  }
+  return out;
+}
+
 async function packPeople(
   tx: Transaction,
   place: PackLocation,
   people: Awaited<ReturnType<typeof livePeopleAt>>,
+  tenantId: string,
+  asAt: Date,
 ): Promise<DowntimePersonInput[]> {
   const ids = people.map((p) => p.id);
   if (ids.length === 0) return [];
+  const medicines = await packMedicines(tx, tenantId, ids, asAt);
   const [allergies, records, profiles, contacts, plans, risks] = await Promise.all([
     // Every allergy row of these people; allergyStatementOf keeps each person's current ones.
     tx
@@ -245,8 +278,8 @@ async function packPeople(
       },
       medicinesDue: {
         personId: p.id,
-        asOf: null,
-        data: { status: "held_elsewhere", where: marWhere },
+        asOf: medicines.has(p.id) ? asAt : null,
+        data: medicines.get(p.id) ?? { status: "held_elsewhere", where: marWhere },
       },
       contacts: of(contacts, p.id).map((c) => ({
         personId: c.personId,
@@ -320,6 +353,9 @@ export async function sourcesChangedSince(
           ${newest("care_plan")},
           ${newest("care_plan_section")},
           ${newest("risk_assessment")},
+          ${newest("medication")},
+          (SELECT max(a.recorded_at) FROM medication_administration a
+            WHERE a.person_id = ANY (${ids})),
           (SELECT max(greatest(d.updated_at, d.deleted_at)) FROM document d
             WHERE d.id IN (SELECT p.photo_document_id FROM person p WHERE p.id = ANY (${ids})))
         ) > ${since.toISOString()}::timestamptz AS changed`,
@@ -371,7 +407,7 @@ export async function buildDowntimePack(
       locationName: place.name,
       generatedAt: asAt,
       asAt,
-      people: await packPeople(tx, place, people),
+      people: await packPeople(tx, place, people, input.tenantId, asAt),
     },
     rates,
   );

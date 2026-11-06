@@ -51,7 +51,7 @@ export const NotARound = z
     domain: PcspDomain,
     action: z.string().meta({ description: "What staff do, as the active plan words it" }),
     whenText: z.string().nullable(),
-    /** "Not a round: see the medicines record" (HZ-003). */
+    /** "Not a round: medicines rounds are on the eMAR" (HZ-003). */
     notice: z.string(),
   })
   .meta({

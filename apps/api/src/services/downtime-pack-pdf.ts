@@ -11,6 +11,7 @@ import {
   type DowntimeRisk,
   type DowntimeWarning,
   type EvacuationPlanStatement,
+  emarSnapshotNotice,
 } from "@harbour/domain";
 import { type PdfLine, renderPdf } from "./pdf";
 import { ukDate, ukDateTime } from "./transfer-pack-pdf";
@@ -85,10 +86,13 @@ function evacuationLines(e: Json<EvacuationPlanStatement> | null): string[] {
 
 function medicinesLines(m: Json<DowntimeMedicinesContent> | null): string[] {
   if (!m || m.status === "held_elsewhere") return [];
+  // From the eMAR (slice 49): when it was read, and that it is not the live record (HZ-021).
+  const producedAt = (m as { producedAt?: string }).producedAt;
   return [
+    ...(producedAt ? [emarSnapshotNotice(new Date(producedAt))] : []),
     ...m.due.map(
       (d) =>
-        `${ukDateTime(d.dueAt)}: ${d.name} ${d.dose} ${d.route}${d.timeCritical ? " (time-critical)" : ""}`,
+        `${(d as { outstanding?: boolean }).outstanding ? "Outstanding, was due " : ""}${ukDateTime(d.dueAt)}: ${d.name} ${d.dose} ${d.route}${d.timeCritical ? " (time-critical)" : ""}`,
     ),
     ...m.prn.map(
       (p) =>
