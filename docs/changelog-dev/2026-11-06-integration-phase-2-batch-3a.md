@@ -33,11 +33,21 @@ Branch `integration/phase-2-batch-3a`.
 - Tests kept true after the merges: the dashboard's unfinished month, the encrypting store, GTIN
   lengths, and lower-case medicines subjects inside sentences.
 - The API refuses Care mode with its own 403 code `care_mode_off` (from 0118's branch).
+- The hospital tab no longer offers to tick a return's medicines check, which only the medicines
+  reconciliation completes (HZ-005); it links to the medicines tab instead.
 
 ## Data protection and clinical safety
 
 - No new processing beyond the merged branches' own records. Clinical-safety and security reviews
   ran on the merge resolutions; their findings are fixed or listed below.
+
+## API contract
+
+- Reviewed oasdiff ignores (`apps/api/openapi-breaking-ignore.txt`): the incident answers widen from
+  boolean to boolean or null ("not known yet", 0118), and the staff file's unnamed detail variants
+  re-index because `professional_registration` gains an optional `nmcPart` and `driving_for_work` is
+  new (H-835). The API now refuses an NMC registration without `nmcPart`; no client sends staff file
+  items in this batch, and batch 3b's staff file screens (`feat/web-staff-file`) must send it.
 
 ## What is next
 

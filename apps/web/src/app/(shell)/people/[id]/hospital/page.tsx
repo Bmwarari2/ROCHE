@@ -2,6 +2,7 @@ import type { HospitalTransferOut } from "@harbour/contracts";
 import { Card, StatusChip } from "@harbour/ui";
 import { CircleCheck, Clock, Printer } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
 import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
@@ -171,7 +172,14 @@ function ReturnChecks({
                       })}
                     </p>
                   ) : null}
-                  {canCheck ? (
+                  {check.key === "medicines_reconciled" ? (
+                    // Done only by completing the medicines reconciliation (HZ-005), never ticked.
+                    <p className="m-0 text-body-dense">
+                      <Link href={`/people/${personId}/medicines`}>
+                        {t("people.transfer.checks.byReconciliation")}
+                      </Link>
+                    </p>
+                  ) : canCheck ? (
                     <ReturnCheckButton
                       personId={personId}
                       transferId={transfer.id}

@@ -1271,6 +1271,7 @@
     "people.transfer.checks.check",
     "people.transfer.checks.due",
     "people.transfer.checks.toDo",
+    "people.transfer.checks.byReconciliation",
     "people.transfer.checks.done",
     "people.transfer.checks.doneAt",
     "people.transfer.checks.submit",
