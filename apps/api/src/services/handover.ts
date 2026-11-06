@@ -918,6 +918,7 @@ export async function sweepHandovers(
             OR EXISTS (SELECT 1 FROM medication_administration e
               JOIN person p ON p.id = e.person_id
               WHERE p.location_id = ${handover.locationId} AND e.outcome = 'refused'
+              AND NOT EXISTS (SELECT 1 FROM medication_administration c WHERE c.supersedes_id = e.id)
               AND e.recorded_at > ${handover.refreshedAt} - ${margin}::interval
               AND e.given_at >= ${handover.shiftStart} AND e.given_at < ${handover.shiftEnd})
             OR EXISTS (SELECT 1 FROM incident e WHERE e.location_id = ${handover.locationId}

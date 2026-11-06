@@ -377,7 +377,7 @@ export async function sourcesChangedSince(
         ) > ${since.toISOString()}::timestamptz AS changed`,
   );
   if (rows[0]?.changed === true) return true;
-  return snapshot !== null && (await writtenAfterSnapshot(tx, locationId, ids, snapshot));
+  return snapshot !== null && (await writtenAfterSnapshot(tx, locationId, ids, snapshot, since));
 }
 
 /**
@@ -385,13 +385,16 @@ export async function sourcesChangedSince(
  * 49 review): a record's time is when its transaction began, so a write that began before the build
  * and committed after it has a time before the pack's "as at" and the time check misses it. The row's
  * `xmin` against the snapshot is commit order, so the printed "as at" never claims data it lacks.
- * Rows a later build saw are visible to its snapshot, so this never rebuilds in a loop.
+ * Rows a later build saw are visible to its snapshot, so this never rebuilds in a loop. Limit: the
+ * snapshot lists top-level transactions only, so a row written inside a savepoint of a transaction
+ * still open at the build can read as seen; the administration route writes at the top level.
  */
 async function writtenAfterSnapshot(
   tx: Transaction,
   locationId: string,
   ids: ReturnType<typeof sql>,
   snapshot: string,
+  since: Date,
 ): Promise<boolean> {
   // The snapshot's xmax and in-progress ids as 32-bit ids, compared by age (newer is younger).
   const unseen = (alias: string) =>
@@ -414,7 +417,12 @@ async function writtenAfterSnapshot(
           OR ${byPerson("care_plan_section")}
           OR ${byPerson("risk_assessment")}
           OR ${byPerson("medication")}
-          OR ${byPerson("medication_administration")}
+          -- Append-only and the largest: only rows recorded in the day before the pack (no write
+          -- transaction runs that long), so the check never scans the whole history.
+          OR EXISTS (SELECT 1 FROM medication_administration t
+               WHERE t.person_id = ANY (${ids})
+                 AND t.recorded_at > ${since.toISOString()}::timestamptz - interval '1 day'
+                 AND ${unseen("t")})
           OR ${byPerson("medication_dosing_record")}
           OR EXISTS (SELECT 1 FROM document d
             WHERE d.id IN (SELECT p.photo_document_id FROM person p WHERE p.id = ANY (${ids}))
