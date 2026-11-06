@@ -272,9 +272,43 @@ describe("hazard HZ-131 medication errors on the incident (slice 45)", () => {
     expect(JSON.stringify(await r.json())).toMatch(/closed/);
   });
 
-  it("counts it in the trend by month, kind and stage", async () => {
+  it("keeps the safeguarding prompt for an unsure answer, and clears it on a latest yes or no", async () => {
+    const promptsNow = async () =>
+      (
+        await json<{ error: ErrorOut }>(
+          await send("manager", `/v1/incidents/${INCIDENT}/medication-error`),
+        )
+      ).error.prompts.map((p) => p.prompt);
+    const answer = (value: string, at: string) =>
+      asDemo((c) =>
+        c.query(
+          `INSERT INTO classifier_answer (incident_id, question_key, value, answered_at)
+           VALUES ($1, 'safeguarding.concern', to_jsonb($2::text), $3)`,
+          [INCIDENT, value, at],
+        ),
+      );
+    await answer("no", "2026-10-15T19:00:00Z");
+    await answer("unsure", "2026-10-15T20:00:00Z");
+    expect(await promptsNow()).toContain("safeguarding_consideration");
+    await answer("no", "2026-10-15T21:00:00Z");
+    expect(await promptsNow()).not.toContain("safeguarding_consideration");
+  });
+
+  it("counts it in the trend by month, kind and stage, leaving out deleted incidents", async () => {
+    await asDemo(async (c) => {
+      await c.query(
+        `INSERT INTO medication_error (incident_id, person_id, kinds) VALUES ($1, $2, '{wrong_dose}')`,
+        [CLOSED, ADA],
+      );
+      await c.query("UPDATE incident SET deleted_at = now() WHERE id = $1", [CLOSED]);
+    });
     const r = await json<{
-      months: { month: string; errors: number; byKind: Record<string, number> }[];
+      months: {
+        month: string;
+        errors: number;
+        notYetKnown: number;
+        byKind: Record<string, number>;
+      }[];
     }>(
       await send(
         "manager",
@@ -284,6 +318,7 @@ describe("hazard HZ-131 medication errors on the incident (slice 45)", () => {
     expect(r.months.map((m) => m.month)).toEqual(["2026-09", "2026-10"]);
     expect(r.months[0]?.errors).toBe(0);
     expect(r.months[1]?.errors).toBe(1);
+    expect(r.months[1]?.notYetKnown).toBe(0);
     expect(r.months[1]?.byKind.wrong_time).toBe(1);
   });
 });

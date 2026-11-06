@@ -237,6 +237,22 @@ describe("hazard HZ-131 the medication error record (slice 45)", () => {
       ["clinical_advice", "cqc_through_classifier"],
     ],
     [
+      "an omitted dose with no harm, for neglect",
+      [
+        { ...answered, kinds: ["omitted_dose"] },
+        { ...none, harmGrade: "none" },
+      ],
+      ["clinical_advice", "safeguarding_consideration", "cqc_through_classifier"],
+    ],
+    [
+      "an omitted dose with low harm, for neglect",
+      [
+        { ...answered, kinds: ["omitted_dose"] },
+        { ...none, harmGrade: "low" },
+      ],
+      ["clinical_advice", "safeguarding_consideration", "cqc_through_classifier"],
+    ],
+    [
       "an omitted dose with fatal harm, even if said not to reach the person",
       [
         { ...answered, kinds: ["omitted_dose"] },

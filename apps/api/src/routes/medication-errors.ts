@@ -51,7 +51,7 @@ import {
   usageCounts,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -195,9 +195,10 @@ async function errorOut(tx: Transaction, row: ErrorRow): Promise<MedicationError
     .from(incident)
     .where(eq(incident.id, row.incidentId));
   const med = await medicineOf(tx, row.medicationId, row.administrationId);
-  // The incident's own safeguarding question answered clears the safeguarding prompt (B13).
+  // The incident's own safeguarding question answered "yes" or "no" clears the safeguarding
+  // prompt (B13); only the latest answer counts, and "unsure" leaves it showing.
   const [safeguarding] = await tx
-    .select({ id: classifierAnswer.id })
+    .select({ value: classifierAnswer.value })
     .from(classifierAnswer)
     .where(
       and(
@@ -205,6 +206,7 @@ async function errorOut(tx: Transaction, row: ErrorRow): Promise<MedicationError
         eq(classifierAnswer.questionKey, "safeguarding.concern"),
       ),
     )
+    .orderBy(desc(classifierAnswer.answeredAt), desc(classifierAnswer.createdAt))
     .limit(1);
   const answered = (v: string | null) => v as "yes" | "no" | "unsure" | null;
   const controlledDrug = presumedControlledDrug(
@@ -254,7 +256,7 @@ async function errorOut(tx: Transaction, row: ErrorRow): Promise<MedicationError
       harmGrade: harm,
       clinicalAdviceRecorded:
         row.clinicianToldAt !== null && row.clinicianTold !== null && row.adviceGiven !== null,
-      safeguardingAnswered: safeguarding !== undefined,
+      safeguardingAnswered: safeguarding?.value === "yes" || safeguarding?.value === "no",
     }),
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
@@ -1088,6 +1090,7 @@ export const medicationErrorsRouter = createRouter()
             and(
               eq(incident.locationId, id),
               isNull(medicationError.deletedAt),
+              isNull(incident.deletedAt),
               gte(incident.occurredAt, startsAt),
               lt(incident.occurredAt, endsAt),
             ),

@@ -18,20 +18,22 @@ Human actions H-1290 to H-1299 (recommended answers applied). Hazard HZ-131; HZ-
   client regenerated; export catalogue, retention, records of processing, data standards, feature
   register.
 
-## Left t## Review fixes (06/11/2026)
+## Review fixes (06/11/2026)
 
 The clinical-safety and security reviews of 01/11/2026 are addressed:
 
-- Access as the incident: `readIncident` and `mayChange`, MFA, restricted incidents refused whole,
-  closed incidents fixed, deleted ones not found (the guard checks `deleted_at` too).
-- Record checks: strict request bodies; impossible dates; the medicine and dose record of one
+- Access as the incident (H1, M1, M2, M3, B20): `readIncident` and `mayChange`, MFA, restricted
+  incidents refused whole, closed incidents fixed, deleted ones not found (the guard and the trend
+  check `deleted_at` too).
+- Record checks (L4, B5, B6, B14, B21): strict request bodies; impossible dates; the medicine and dose record of one
   entry; a "no" refused against a CD-scheduled medicine; an omitted dose never a near miss; check
   violations returned as 422; retention copied from the incident.
-- Prompts: wording (999, "was or may have been", harm not yet graded, CQC examples), clinical advice
-  and safeguarding clearing once their evidence is recorded.
-- Reviews: next due the earlier of booked and interval, a "not yet booked" status, reschedule and
+- Prompts (B7, B9 to B13): wording (999, "was or may have been", harm not yet graded, CQC examples), clinical advice
+  and safeguarding clearing once their evidence is recorded (safeguarding only on a latest answer
+  of yes or no); an omitted dose always prompts safeguarding, whatever the harm (B7; B8 is H-1292).
+- Reviews (B1 to B4, L5): next due the earlier of booked and interval, a "not yet booked" status, reschedule and
   cancel with a reason, lifecycle checks, the done-needs-reason refusal as 422.
-- Reports: latest version only, each dose by its own version, overrides against the giver with
+- Reports (L2, B15 to B18; L1 and B19 are H-1298): latest version only, each dose by its own version, overrides against the giver with
   not-current competence, every month with "not yet known", a period cap
   (`medicines.report_max_days`); current-home attribution documented (H-1298).
 - Tests on fixed dates. Docs: spec section 14, HZ-131, HZ-119, the medical-device boundary note,

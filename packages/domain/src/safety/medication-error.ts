@@ -298,16 +298,18 @@ export function medicationErrorPrompts(
     context.harmGrade === "moderate" ||
     context.harmGrade === "severe" ||
     context.harmGrade === "fatal";
+  const omitted = answers.kinds.includes("omitted_dose");
   if (
-    reached &&
-    (significant || !graded) &&
+    ((reached && (significant || !graded)) || omitted) &&
     !prompts.some((p) => p.prompt === "safeguarding_consideration")
   ) {
     prompts.push({
       prompt: "safeguarding_consideration",
-      reason: graded
-        ? "A medication error that caused significant harm may need a safeguarding concern: answer the incident's safeguarding question"
-        : "The harm is not graded yet: once it is, consider whether a safeguarding concern is needed and answer the incident's safeguarding question",
+      reason: !graded
+        ? "The harm is not graded yet: once it is, consider whether a safeguarding concern is needed and answer the incident's safeguarding question"
+        : significant
+          ? "A medication error that caused significant harm may need a safeguarding concern: answer the incident's safeguarding question"
+          : "A dose was omitted: consider whether it suggests neglect and answer the incident's safeguarding question",
     });
   }
   const shown = context.safeguardingAnswered
@@ -337,7 +339,7 @@ export function ukMonthOf(instant: Date): string {
 
 export interface MedicationErrorTrendRow {
   readonly month: string;
-  /** Reached, or may have reached, the person (an omitted dose always counts). */
+  /** Reached the person (an omitted dose always counts); "unsure" is in notYetKnown. */
   readonly errors: number;
   /** Did not reach the person. */
   readonly nearMisses: number;
