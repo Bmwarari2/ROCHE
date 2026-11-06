@@ -994,6 +994,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/web/src/lib/incidents.test.ts`: `hazard HZ-009 tells the two 01:30s apart on the night the clocks go back` (a notification's due time on 25/10/2026 says BST or GMT) | Passing (slice 9, part 2) |
 | `apps/api` (slice 34): register times are instants (UTC), shown in UK time; a page's next stock count is due `medicines.cd.stock_check_interval_days` UK days after the last (`cdStockCheckDueAt`, `addUkDays`, so a clock change neither shortens nor lengthens it); register entries go in time order on the server's clock | Noted (Phase 2 slice 34) |
 | `apps/api` (slice 48): the round reaches back to the same UK clock time the day before (`addUkDays`), so a clock change moves no earlier dose out of reach; each round dose carries its weekday and any clock change that skips or repeats its time (rule 5, H-553). A slot across a clock change has no dedicated test yet (H-1277) | Noted (Phase 2 slice 48) |
+| Design (slice 53): the web round and the record-a-dose page say what a clock change does to a dose: a time the clocks skip is due an hour later, at its due time; a repeated time is given once, at the first (H-1404); `apps/web/src/lib/medicine-round.test.ts`: `hazard HZ-009 the round says what a clock change does to a dose` (29/03/2026 01:30 shown as 02:30, 25/10/2026 01:30 given once at the first) | Built and passing (Phase 2 slice 53) |
 
 ---
 

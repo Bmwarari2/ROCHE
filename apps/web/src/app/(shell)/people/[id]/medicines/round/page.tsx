@@ -98,7 +98,7 @@ async function PersonRound({
         <p className="m-0">{t("medicines.round.workedOutAt", { at: when(data.at) })}</p>
       </div>
       {done === "recorded" ? <ArrivalNotice>{t("medicines.round.form.done")}</ArrivalNotice> : null}
-      {covert.error ? (
+      {!covert.data ? (
         <Notice
           tone="warning"
           icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}

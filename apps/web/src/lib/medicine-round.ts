@@ -109,6 +109,24 @@ export function prnNext(
   return { kind: "now" };
 }
 
+/**
+ * What a clock change does to a dose, in words (HZ-009): a time the clocks skip is due an hour
+ * later, at its due time; a repeated time is given once, at the first. Null on any other day.
+ */
+export function clockChangeWords(
+  dose: Pick<RoundDose, "clockChange" | "dueAt" | "time">,
+  t: Translator,
+  when: (iso: string) => string,
+): string | null {
+  if (dose.clockChange === "time_skipped") {
+    return t("medicines.round.clockSkipped", { at: when(dose.dueAt) });
+  }
+  if (dose.clockChange === "time_repeated") {
+    return t("medicines.round.clockRepeated", { time: dose.time });
+  }
+  return null;
+}
+
 export type SelfAdministration = Schemas["PersonSelfAdministration"]["medicines"][number];
 
 /** Where self-administration stands for the entry's medicine, if it has been assessed (H-1354). */

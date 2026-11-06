@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { t } from "./i18n";
 import {
   type CovertRecord,
+  clockChangeWords,
   covertChip,
   covertFor,
   doseChip,
@@ -161,6 +162,34 @@ describe("the self-administration level beside the medicine (H-1354)", () => {
     ] as unknown as SelfAdministration[];
     expect(selfAdministrationFor({ medicineId: "m1" }, items)?.level).toBe("self_administers");
     expect(selfAdministrationFor({ medicineId: "m2" }, items)).toBeNull();
+  });
+});
+
+describe("hazard HZ-009 the round says what a clock change does to a dose", () => {
+  const when = (iso: string) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  it.each([
+    [
+      "a skipped time is due an hour later, at its due time",
+      { clockChange: "time_skipped", dueAt: "2026-03-29T01:30:00Z", time: "01:30" },
+      "The clocks go forward today: this dose is due an hour later, at 29/03/2026, 02:30.",
+    ],
+    [
+      "a repeated time is given once, at the first",
+      { clockChange: "time_repeated", dueAt: "2026-10-25T00:30:00Z", time: "01:30" },
+      "The clocks go back today, so 01:30 happens twice. Give this dose once, at the first 01:30.",
+    ],
+    [
+      "any other day says nothing",
+      { clockChange: null, dueAt: "2026-11-06T08:00:00Z", time: "08:00" },
+      null,
+    ],
+  ] as const)("%s", (_, dose, words) => {
+    expect(clockChangeWords(dose, t, when)).toBe(words);
   });
 });
 

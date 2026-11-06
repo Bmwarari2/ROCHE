@@ -5,6 +5,7 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import {
   type CovertRecord,
+  clockChangeWords,
   covertChip,
   prnNext,
   type RoundDose,
@@ -51,14 +52,8 @@ export function ClockChange({
 }: {
   readonly dose: Pick<RoundDose, "clockChange" | "dueAt" | "time">;
 }) {
-  if (!dose.clockChange) return null;
-  return (
-    <p className="m-0 font-semibold">
-      {dose.clockChange === "time_skipped"
-        ? t("medicines.round.clockSkipped", { at: when(dose.dueAt) })
-        : t("medicines.round.clockRepeated", { time: dose.time })}
-    </p>
-  );
+  const words = clockChangeWords(dose, t, when);
+  return words ? <p className="m-0 font-semibold">{words}</p> : null;
 }
 
 /** The dose's own notices, as the API words them. */

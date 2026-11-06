@@ -149,7 +149,7 @@ async function RecordDose({
             {prn ? <PrnFigures prn={prn} unit={unit?.name ?? null} /> : null}
             <EntryStatusNotice status={entry.status} />
             <DoseNotices notices={dose?.notices ?? prn?.notices ?? []} />
-            {covert.error ? (
+            {!covert.data ? (
               <p className="m-0 font-semibold">{t("medicines.round.covertUnreadable")}</p>
             ) : (
               <CovertBeside record={covertRecord} />
