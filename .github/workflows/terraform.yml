@@ -258,10 +258,12 @@ jobs:
           terraform apply -no-color tfplan
 
   # Builds the api and web images before signing in, so no credential is in the build context
-  # while dependencies install; then signs in as the release account (no credentials file),
-  # pushes them to Artifact Registry under the commit SHA (tags are immutable), runs the migration
-  # job with the new api image, and releases the services. Terraform ignores the services' images
-  # after the first apply, so this job owns them from then on.
+  # while dependencies install, and scans them with the same Trivy gate as the `images` job in
+  # ci.yml (same digest, flags and .trivyignore-images), so an image with a high or critical
+  # finding that has a fix is never pushed; then signs in as the release account (no credentials
+  # file), pushes them to Artifact Registry under the commit SHA (tags are immutable), runs the
+  # migration job with the new api image, and releases the services. Terraform ignores the
+  # services' images after the first apply, so this job owns them from then on.
   release-dev:
     name: Build, push and release dev
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.gcp-gate.outputs.enabled == 'true'
@@ -278,6 +280,8 @@ jobs:
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID_DEV }}
       PREFIX: harbour-dev
+      # The same digest as TRIVY_IMAGE in ci.yml (update both together).
+      TRIVY_IMAGE: aquasec/trivy:0.67.2@sha256:e2b22eac59c02003d8749f5b8d9bd073b62e30fefaef5b7c8371204e0a4b0c08
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -288,6 +292,16 @@ jobs:
           repo="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/harbour"
           for app in api web; do
             docker build -f "apps/${app}/Dockerfile" -t "${repo}/${app}:${GITHUB_SHA}" .
+          done
+
+      - name: High and critical findings in the images stop the release (Trivy, no credentials yet)
+        run: |
+          repo="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/harbour"
+          for app in api web; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" -w /src \
+              "$TRIVY_IMAGE" image --scanners vuln,secret --ignorefile /src/.trivyignore-images \
+              --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
+              "${repo}/${app}:${GITHUB_SHA}"
           done
 
       - id: auth
