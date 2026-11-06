@@ -9,15 +9,19 @@ import {
 } from "@harbour/contracts";
 import { importBatch, importCommit, importRow, person } from "@harbour/db";
 import {
+  type ClinicalDryRun,
+  type ClinicalRecordType,
   checkPeopleCommit,
   IMPORT_FIELDS,
   IMPORT_LIMITS,
   type ImportLimits,
+  type ImportRecordType,
   importStagingExpiresAt,
   importUndoEligibility,
   mapImportColumns,
   type ParsedImportFile,
   type PeopleDryRun,
+  type Permission,
   parseImportCsv,
   sampleDataRefusal,
   stagedCells,
@@ -37,6 +41,7 @@ import {
 } from "../http/audit";
 import {
   type AppEnv,
+  refusalOf,
   requirePermission,
   stepUpRefusal,
   type TenantAccess,
@@ -62,6 +67,12 @@ import {
   undoState,
   writingImported,
 } from "../services/platform-imports";
+import {
+  CLINICAL_IMPORTED,
+  type ClinicalImportContext,
+  clinicalDryRunNow,
+  commitClinical,
+} from "../services/platform-imports-clinical";
 import {
   conflictResponse,
   createRouter,
@@ -111,10 +122,23 @@ const ORGANISATION_WIDE = new HttpProblem(
  * organisation, with MFA (care-record permissions). Anyone else is refused, audited, before the
  * request's batch or file is read; the request then runs scoped to the whole organisation.
  */
-async function requireImporter(c: Context<AppEnv>, action: string): Promise<TenantAccess> {
+async function requireImporter(
+  c: Context<AppEnv>,
+  action: string,
+  recordType?: ImportRecordType,
+): Promise<TenantAccess> {
   await requirePermission(c, "platform.import.run");
-  await requirePermission(c, "people.person.create");
-  const access = await requirePermission(c, "people.person.read");
+  // A known type needs its own permissions; otherwise (a list, a batch not yet read) at least one
+  // type's, and the batch's own are checked once it is read (rule 27; the database checks too).
+  const holdsType = (t: ImportRecordType) =>
+    TYPE_PERMISSIONS[t].every((p) => refusalOf(c.get("access"), p) === null);
+  const needed =
+    recordType ?? (Object.keys(TYPE_PERMISSIONS) as ImportRecordType[]).find(holdsType) ?? "people";
+  let access: TenantAccess | undefined;
+  for (const permission of TYPE_PERMISSIONS[needed]) {
+    access = await requirePermission(c, permission);
+  }
+  if (!access) throw new Error("no permission checked");
   if (access.context.scope !== "tenant") {
     await writeAudit(c.get("services").appPool, access, {
       action,
@@ -126,6 +150,39 @@ async function requireImporter(c: Context<AppEnv>, action: string): Promise<Tena
   }
   return access;
 }
+
+/** The permissions each record type needs besides platform.import.run (rule 27). */
+const TYPE_PERMISSIONS: Readonly<Record<ImportRecordType, readonly Permission[]>> = {
+  people: ["people.person.create", "people.person.read"],
+  medicines: ["medicines.record.manage", "people.person.read"],
+  care_plans: ["care.plan.write", "people.person.read"],
+  staff_files: ["workforce.staff_file.manage"],
+};
+
+/** A batch read by a member without its type's permissions: refused, audited (rule 27). */
+function requireBatchType(c: Context<AppEnv>, recordType: string, action: string, id: string) {
+  const perms: readonly Permission[] = TYPE_PERMISSIONS[recordType as ImportRecordType] ?? [
+    "platform.import.run",
+  ];
+  if (perms.every((p) => refusalOf(c.get("access"), p) === null)) return;
+  throw new AuditedRefusal(problems.forbidden(), {
+    action,
+    outcome: "denied",
+    resourceType: "import_batch",
+    resourceId: id,
+    reason: "missing_permission",
+  });
+}
+
+const isClinical = (t: string): t is ClinicalRecordType =>
+  t === "medicines" || t === "care_plans" || t === "staff_files";
+
+const clinicalContext = (c: Context<AppEnv>, access: TenantAccess): ClinicalImportContext => ({
+  tenantId: access.tenantId,
+  tenantUserId: access.tenantUserId,
+  allowTestNhsNumbers: testNumbersAllowed(c),
+  medicines: c.get("services").medicines,
+});
 
 /** Commit and undo create or remove care records in bulk: a fresh second factor first. */
 async function requireStepUp(c: Context<AppEnv>, access: TenantAccess, action: string) {
@@ -227,9 +284,16 @@ function readMapping(mapping: Record<string, unknown> | undefined): Record<strin
 
 const BatchParam = z.object({ id: z.uuid() });
 
-function reportOut(batchId: string, report: PeopleDryRun): ImportDryRunReport {
+function reportOut(batchId: string, report: PeopleDryRun | ClinicalDryRun): ImportDryRunReport {
   return {
     batchId,
+    ...("recordType" in report
+      ? {
+          recordType: report.recordType,
+          rowOutcomes: report.rowOutcomes.map((r) => ({ ...r })),
+          createsCount: report.createsCount,
+        }
+      : {}),
     rows: report.rows,
     validRows: report.validRows,
     errorCount: report.errorCount,
@@ -293,6 +357,112 @@ function personValues(
   };
 }
 
+type BatchRow = NonNullable<Awaited<ReturnType<typeof findBatch>>>;
+
+/**
+ * Commits a medicines, care plans or staff files batch (rules 27 to 31): the dry run again with the
+ * batch locked, the people rules for when a batch may commit (staged, unexpired, dry run first, no
+ * errors; there are no warnings to acknowledge), then the records the dry run planned, tied to the
+ * batch, each audited, and the batch closed with its commit record. Nothing is created otherwise.
+ */
+async function commitClinicalBatch(
+  c: Context<AppEnv>,
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  access: TenantAccess,
+  batch: BatchRow & { recordType: ClinicalRecordType },
+  body: { acknowledgedWarnings: string[] },
+  undoWindowDays: number,
+) {
+  const { report, planned } = await clinicalDryRunNow(
+    tx,
+    batch.id,
+    batch.recordType,
+    clinicalContext(c, access),
+  );
+  const check = checkPeopleCommit({
+    status: batch.status as "staged",
+    expiresAt: batch.expiresAt,
+    now: new Date(),
+    dryRunAt: batch.dryRunAt,
+    report,
+    acknowledgedWarnings: body.acknowledgedWarnings,
+  });
+  if (!check.ok) stateRefusal(COMMITTED, batch.id, check.problem, check.message);
+  let createdIds: string[];
+  try {
+    createdIds = await commitClinical(tx, batch.id, planned);
+  } catch (error) {
+    const code = sqlState(error);
+    if (code === "23514" && raisedMessage(error) === "remove_sample_data_first") {
+      const refusal = sampleDataRefusal("remove_sample_data_first");
+      stateRefusal(COMMITTED, batch.id, refusal.problem, refusal.message);
+    }
+    // A record added meanwhile (a second draft, the same check, the same medicine).
+    if (code === "23505") {
+      stateRefusal(
+        COMMITTED,
+        batch.id,
+        "records_changed",
+        "Something in this file was added to Harbour since the dry run. Nothing was imported: run the dry run again.",
+      );
+    }
+    if (code === "42501") throw problems.forbidden();
+    // Anything else may carry the file's values in its message: only its code goes on.
+    throw new ImportWriteFailed(code);
+  }
+  const [closed] = await tx
+    .update(importBatch)
+    .set({ status: "committed", closedAt: sql`now()`, closedBy: access.tenantUserId })
+    .where(eq(importBatch.id, batch.id))
+    .returning({ closedAt: importBatch.closedAt })
+    .catch((error: unknown) => {
+      if (raisedMessage(error) === "import_expired") {
+        stateRefusal(COMMITTED, batch.id, "expired", COMMIT_EXPIRED);
+      }
+      throw error;
+    });
+  const [commit] = await tx
+    .insert(importCommit)
+    .values({ batchId: batch.id, recordIds: createdIds, recordCount: createdIds.length })
+    .returning();
+  if (!closed || !commit) throw new Error("import commit not recorded");
+  const imported = CLINICAL_IMPORTED[batch.recordType];
+  await auditManyInTx(
+    tx,
+    access,
+    createdIds.map((recordId) => ({
+      action: imported.action,
+      resourceType: imported.resourceType,
+      resourceId: recordId,
+      scope: { importBatchId: batch.id },
+      requestId: c.get("requestId"),
+    })),
+  );
+  await auditInTx(tx, access, {
+    action: COMMITTED,
+    resourceType: "import_batch",
+    resourceId: batch.id,
+    scope: { records: createdIds.length, recordType: batch.recordType },
+    requestId: c.get("requestId"),
+  });
+  const undo = undoState(
+    "committed",
+    commit,
+    undoWindowDays,
+    batch.recordType === "care_plans" ? await latestPeopleToken(tx) : null,
+    new Date(),
+  );
+  return {
+    batchId: batch.id,
+    records: createdIds.length,
+    committedAt: commit.committedAt.toISOString(),
+    undoAvailable: undo.available,
+    undoClosesAt: undo.closesAt,
+    replayed: false,
+    allergyStatusToConfirm: [],
+  };
+}
+
 export const platformImportsRouter = createRouter()
   .openapi(
     createRoute({
@@ -307,8 +477,8 @@ export const platformImportsRouter = createRouter()
       responses: { 201: jsonBody(ImportBatch, "Staged"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requireImporter(c, UPLOADED);
       const body = c.req.valid("json");
+      const access = await requireImporter(c, UPLOADED, body.recordType);
       const upload = readUpload(body);
       const fields = IMPORT_FIELDS[body.recordType];
       const mapped = mapImportColumns(upload.header, fields, readMapping(body.mapping));
@@ -480,11 +650,14 @@ export const platformImportsRouter = createRouter()
         withTenant(c, async (tx) => {
           const batch = await findBatch(tx, id, true);
           if (!batch) throw problems.notFound();
+          requireBatchType(c, batch.recordType, DRY_RUN, batch.id);
           if (batch.status !== "staged") stateRefusal(DRY_RUN, batch.id, "not_staged", NOT_STAGED);
-          const { report } = await dryRunNow(tx, batch.id, {
-            allowTestNhsNumbers: testNumbersAllowed(c),
-            phonesInUse: await phonesInUse(tx, access.tenantId, batch.locationId),
-          });
+          const { report } = isClinical(batch.recordType)
+            ? await clinicalDryRunNow(tx, batch.id, batch.recordType, clinicalContext(c, access))
+            : await dryRunNow(tx, batch.id, {
+                allowTestNhsNumbers: testNumbersAllowed(c),
+                phonesInUse: await phonesInUse(tx, access.tenantId, batch.locationId),
+              });
           await tx
             .update(importBatch)
             .set({
@@ -542,6 +715,7 @@ export const platformImportsRouter = createRouter()
         withTenant(c, async (tx) => {
           const batch = await findBatch(tx, id, true);
           if (!batch) throw problems.notFound();
+          requireBatchType(c, batch.recordType, COMMITTED, batch.id);
           const rates = await importRates(tx, access.tenantId, batch.locationId);
           if (batch.status === "committed" || batch.status === "undone") {
             const done = await findCommit(tx, batch.id);
@@ -570,6 +744,16 @@ export const platformImportsRouter = createRouter()
               // Kept on the checks the commit raised, so a replay lists them too (#150 M-A).
               allergyStatusToConfirm: await allergyStatusChecks(tx, batch.id),
             };
+          }
+          if (isClinical(batch.recordType)) {
+            return commitClinicalBatch(
+              c,
+              tx,
+              access,
+              batch as BatchRow & { recordType: ClinicalRecordType },
+              body,
+              rates.undoWindowDays,
+            );
           }
           const { validation, report } = await dryRunNow(tx, batch.id, {
             allowTestNhsNumbers: testNumbersAllowed(c),
@@ -719,6 +903,7 @@ export const platformImportsRouter = createRouter()
         withTenant(c, async (tx) => {
           const batch = await findBatch(tx, id, true);
           if (!batch) throw problems.notFound();
+          requireBatchType(c, batch.recordType, UNDONE, batch.id);
           const commit = await findCommit(tx, batch.id);
           if (!commit || (batch.status !== "committed" && batch.status !== "undone")) {
             stateRefusal(
@@ -729,7 +914,14 @@ export const platformImportsRouter = createRouter()
             );
           }
           const rates = await importRates(tx, access.tenantId, batch.locationId);
-          const unchanged = await unchangedPeople(tx, commit.recordIds);
+          // People are checked here first; the other types' changes are decided by the database.
+          const unchanged =
+            batch.recordType === "people"
+              ? await unchangedPeople(tx, commit.recordIds)
+              : commit.recordIds.length;
+          // Medicines and staff file checks never reach a phone before their undo can matter:
+          // imported medicines are held off rounds, and staff files do not sync.
+          const reachesPhones = batch.recordType === "people" || batch.recordType === "care_plans";
           const eligible = importUndoEligibility(
             {
               committedAt: commit.committedAt,
@@ -738,7 +930,8 @@ export const platformImportsRouter = createRouter()
               // Decided by the database, which sees every record that refers to them.
               referencedSinceCommit: false,
               // Decided again by the database, from the same audit events.
-              sentToDevices: mayBeOnPhones(commit.committedAt, await latestPeopleToken(tx)),
+              sentToDevices:
+                reachesPhones && mayBeOnPhones(commit.committedAt, await latestPeopleToken(tx)),
             },
             rates,
             new Date(),

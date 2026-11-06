@@ -54278,6 +54278,13 @@ export interface components {
     ImportDryRunReport: {
       /** Format: uuid */
       batchId: string;
+      recordType?: components["schemas"]["ImportRecordType"];
+      rowOutcomes?: {
+        row: number;
+        /** @enum {string} */
+        outcome: "creates" | "refused";
+      }[];
+      createsCount?: number;
       rows: number;
       validRows: number;
       errorCount: number;

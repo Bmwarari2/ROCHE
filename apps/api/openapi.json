@@ -41108,6 +41108,34 @@
             "type": "string",
             "format": "uuid"
           },
+          "recordType": {
+            "$ref": "#/components/schemas/ImportRecordType"
+          },
+          "rowOutcomes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "type": "integer"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "creates",
+                    "refused"
+                  ]
+                }
+              },
+              "required": [
+                "row",
+                "outcome"
+              ]
+            }
+          },
+          "createsCount": {
+            "type": "integer"
+          },
           "rows": {
             "type": "integer",
             "minimum": 0

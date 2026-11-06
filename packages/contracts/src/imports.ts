@@ -116,6 +116,12 @@ const rowNumbers = z.array(z.number().int().min(1));
 export const ImportDryRunReport = z
   .object({
     batchId: uuid,
+    /** Slice 51 types: the type, every row's outcome and how many records committing creates. */
+    recordType: ImportRecordType.optional(),
+    rowOutcomes: z
+      .array(z.object({ row: z.number().int(), outcome: z.enum(["creates", "refused"]) }))
+      .optional(),
+    createsCount: z.number().int().optional(),
     rows: count,
     validRows: count,
     errorCount: count,
