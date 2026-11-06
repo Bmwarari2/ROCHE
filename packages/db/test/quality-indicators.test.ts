@@ -5,6 +5,17 @@ import { QUALITY_INDICATOR_HIGHER_IS_BETTER, QUALITY_INDICATOR_KEY_CODES } from 
 import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
+/** The UK month we are in, which has not ended: never a fixed date that a calendar overtakes. */
+const THIS_MONTH = (() => {
+  const [y, m] = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" })
+    .format(new Date())
+    .split("-")
+    .map(Number) as [number, number];
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const mm = String(m).padStart(2, "0");
+  return { from: `${y}-${mm}-01`, to: `${y}-${mm}-${String(last).padStart(2, "0")}` };
+})();
+
 /**
  * The quality dashboard in the database (QUAL-005, QUAL-006; quality.md section 22; migration
  * 0108; hazards HZ-011 and HZ-129). Targets are read by holders of quality.audit.manage and written
@@ -406,7 +417,7 @@ describe("hazard HZ-129 the quality dashboard's counts (migration 0108)", () => 
     ["a period that ends before it starts", "2026-09-30", "2026-09-01", 2],
     ["a period that is not whole months", "2026-09-02", "2026-09-30", 2],
     ["a period that ends mid-month", "2026-09-01", "2026-09-29", 2],
-    ["a month that has not ended", "2026-10-01", "2026-10-31", 2],
+    ["a month that has not ended", THIS_MONTH.from, THIS_MONTH.to, 2],
     ["more than twelve months", "2025-09-01", "2026-09-30", 2],
     ["a negative target", "2026-09-01", "2026-09-30", -1],
   ])("refuses %s", async (_name, from, to, days) => {
