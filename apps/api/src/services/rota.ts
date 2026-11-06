@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import type { RotaCheck, StaffingComparisonItem, WorkerWorkingTime } from "@harbour/contracts";
 import {
+  agencyWorker,
   complianceItem,
   location,
+  locationInduction,
   rosterOverride,
   type rota,
   shift,
@@ -12,6 +14,8 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
+  type AgencyConfirmation,
+  agencyRosterChecks,
   blockerKey,
   type Competence,
   checkWorkingTime,
@@ -40,6 +44,7 @@ import {
 } from "@harbour/domain";
 import type { z } from "@hono/zod-openapi";
 import { and, eq, gt, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { agencyWithoutPeople } from "./agency-window";
 import { competencePort } from "./competence-port";
 import { rateRows } from "./rates";
 import { profileFacts, storedItem, workforceRates } from "./staff-files";
@@ -69,7 +74,7 @@ export const BLOCKER_MESSAGES: Readonly<Record<RosterBlocker["kind"], string>> =
   registration: "Their professional registration is not current on the day.",
   competence: "They are not signed off as competent for this on the day.",
   not_active:
-    "They are not working for your organisation on the day (suspended, left or not yet started). This cannot be overridden.",
+    "They are not working for your organisation on the day (suspended, left, not yet started, or marked not to be booked). This cannot be overridden.",
 };
 
 export function blockerItems(blockers: readonly RosterBlocker[]) {
@@ -95,11 +100,12 @@ async function staffFileChecks(
   day: string,
   shiftLocationId: string,
 ) {
-  const { profile, items, member } = await withSystemRights(tx, async () => {
+  const { profile, items, member, agencyRow } = await withSystemRights(tx, async () => {
     const [m] = await tx
       .select({ status: tenantUser.status })
       .from(tenantUser)
       .where(eq(tenantUser.id, workerId));
+    const [w] = await tx.select().from(agencyWorker).where(eq(agencyWorker.tenantUserId, workerId));
     const [p] = await tx
       .select()
       .from(staffProfile)
@@ -110,22 +116,49 @@ async function staffFileChecks(
           .from(complianceItem)
           .where(and(eq(complianceItem.staffProfileId, p.id), isNull(complianceItem.deletedAt)))
       : [];
-    return { profile: p ?? null, items: rows, member: m ?? null };
+    return { profile: p ?? null, items: rows, member: m ?? null, agencyRow: w ?? null };
   });
+  // A bank or agency worker marked do not book is not working for the organisation (clinical
+  // safety review of slice 27, H1): never rostered, never overridden.
+  const membership: Membership = {
+    status: agencyRow?.doNotBook
+      ? "suspended"
+      : ((member?.status ?? "left") as Membership["status"]),
+    leftOn: profile?.leftOn ?? null,
+    startsOn: profile?.startsOn ?? null,
+  };
+  // An agency worker's checks are the agency's written confirmation (scheduling.md section 15
+  // rule 1); a bank worker's, like any member's, come from the staff file.
+  if (agencyRow?.kind === "agency") {
+    return {
+      // The agency's DBS confirmation is all the organisation has: never overridden (H3).
+      strictDbs: true,
+      registrationBody: agencyRow.registrationBody,
+      checks: agencyRosterChecks(
+        {
+          dbsConfirmedOn: agencyRow.dbsConfirmedOn,
+          dbsEnhancedBarred: agencyRow.dbsEnhancedBarred,
+          rightToWorkConfirmedOn: agencyRow.rightToWorkConfirmedOn,
+          rightToWorkExpiresOn: agencyRow.rightToWorkExpiresOn,
+          registrationBody: agencyRow.registrationBody as AgencyConfirmation["registrationBody"],
+          registrationValidUntil: agencyRow.registrationValidUntil,
+        },
+        day,
+        membership,
+      ),
+    };
+  }
   const nation = await nationOfLocation(tx, shiftLocationId);
   const rates = await workforceRates(tx, tenantId, nation, day);
   return {
-    profile,
+    strictDbs: false,
+    registrationBody: profile?.registrationBody ?? null,
     checks: rosterChecks(
       profile ? profileFacts(profile) : null,
       items.map((i) => storedItem(i)),
       day,
       rates,
-      {
-        status: (member?.status ?? "left") as Membership["status"],
-        leftOn: profile?.leftOn ?? null,
-        startsOn: profile?.startsOn ?? null,
-      },
+      membership,
     ),
   };
 }
@@ -160,8 +193,15 @@ export async function shiftEligibility(
   const end = lastInstant(row.endsAt);
   if (ukIsoDate(end) !== ukIsoDate(row.startsAt)) instants.push(end);
   const perDay: RosterBlocker[][] = [];
+  let strictDbs = false;
   for (const at of instants) {
-    const { checks } = await staffFileChecks(tx, tenantId, workerId, ukIsoDate(at), row.locationId);
+    const { checks, strictDbs: strict } = await staffFileChecks(
+      tx,
+      tenantId,
+      workerId,
+      ukIsoDate(at),
+      row.locationId,
+    );
     const competences = [];
     for (const competence of row.requiredCompetences.filter(isCompetence)) {
       competences.push({
@@ -169,9 +209,12 @@ export async function shiftEligibility(
         gate: await competencePort(tx, workerId, competence, at, now),
       });
     }
+    strictDbs ||= strict;
     perDay.push([...rosterBlockers({ ...checks, competences, shiftSupervised: row.supervised })]);
   }
-  return combinedRosterDecision(perDay, override, MIN_OVERRIDE_JUSTIFICATION);
+  return combinedRosterDecision(perDay, override, MIN_OVERRIDE_JUSTIFICATION, (b) =>
+    strictDbs ? b.kind === "dbs" || b.kind === "dbs_supervised_only" : false,
+  );
 }
 
 /**
@@ -190,7 +233,7 @@ export async function workerSkills(
   const instants = [row.startsAt, lastInstant(row.endsAt)];
   let nurse = true;
   for (const at of instants) {
-    const { profile, checks } = await staffFileChecks(
+    const { registrationBody, checks } = await staffFileChecks(
       tx,
       tenantId,
       workerId,
@@ -198,9 +241,7 @@ export async function workerSkills(
       row.locationId,
     );
     nurse &&=
-      profile?.registrationBody === "nmc" &&
-      checks.registrationCurrent === true &&
-      checks.memberActive;
+      registrationBody === "nmc" && checks.registrationCurrent === true && checks.memberActive;
   }
   const held = async (c: Competence) => {
     for (const at of instants) {
@@ -551,6 +592,48 @@ export async function rotaCheck(
   for (const w of workers) workingTime.push(await workingTimeFor(tx, w, rotaRow, rotaShiftIds));
 
   const openShiftIds = shifts.filter((s) => !assignmentOf(s.id)).map((s) => s.id);
+  // Bank and agency workers with no induction at the location (scheduling.md section 15 rule 5).
+  const assigned = shifts
+    .map((s) => assignmentOf(s.id))
+    .filter((a): a is AssignmentRow => a !== null);
+  const agencyMembers =
+    assigned.length === 0
+      ? []
+      : await withSystemRights(tx, () =>
+          tx
+            .select({ id: agencyWorker.tenantUserId })
+            .from(agencyWorker)
+            .where(
+              inArray(agencyWorker.tenantUserId, [...new Set(assigned.map((a) => a.workerId))]),
+            ),
+        );
+  const inducted =
+    agencyMembers.length === 0
+      ? []
+      : await tx
+          .select({ workerId: locationInduction.workerId })
+          .from(locationInduction)
+          .where(
+            and(
+              eq(locationInduction.locationId, rotaRow.locationId),
+              inArray(
+                locationInduction.workerId,
+                agencyMembers.map((m) => m.id),
+              ),
+            ),
+          );
+  const inductionsDue = assigned
+    .filter(
+      (a) =>
+        agencyMembers.some((m) => m.id === a.workerId) &&
+        !inducted.some((i) => i.workerId === a.workerId),
+    )
+    .map((a) => a.id);
+  // H-927: a booked bank or agency worker on a shift running now with nobody assigned (HZ-073).
+  const rotaShiftSet = new Set(shifts.map((s) => s.id));
+  const peopleUnassigned = (await agencyWithoutPeople(tx, rotaRow.locationId, now, now, now))
+    .filter((x) => rotaShiftSet.has(x.shiftId))
+    .map((x) => x.assignmentId);
   const blockedAssignmentIds = eligibility.filter((e) => !e.covered).map((e) => e.assignmentId);
   const periodsToAcknowledge = staffing
     .filter((p) => p.status === "below" || p.status === "incomplete" || p.status === "no_scale")
@@ -559,6 +642,8 @@ export async function rotaCheck(
     staffing.some((s) => s.status !== "met") ||
     workingTime.some((w) => w.status === "cannot_check" || w.findings.length > 0) ||
     openShiftIds.length > 0 ||
+    inductionsDue.length > 0 ||
+    peopleUnassigned.length > 0 ||
     eligibility.some((e) => !e.allowed);
   const digest = createHash("sha256")
     .update(
@@ -578,6 +663,8 @@ export async function rotaCheck(
           s.warnings,
         ]),
         periodsToAcknowledge,
+        inductionsDue,
+        peopleUnassigned,
         workingTime,
       }),
     )
@@ -591,6 +678,8 @@ export async function rotaCheck(
     workingTime,
     eligibility,
     openShiftIds,
+    inductionsDue,
+    peopleUnassigned,
     hasWarnings,
     periodsToAcknowledge,
     blockedAssignmentIds,

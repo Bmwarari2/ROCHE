@@ -32,6 +32,7 @@ import { auditInTx } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { requireWithinLimit } from "../http/rate-limit";
+import { agencyWithoutPeople } from "../services/agency-window";
 import {
   acknowledgementSummary,
   acknowledgementsOf,
@@ -279,8 +280,13 @@ async function detail(
     ...notes.map((n) => n.createdBy),
     ...view.acks.map((a) => a.tenantUserId),
   ]);
+  const unassigned =
+    now < row.shiftEnd
+      ? await agencyWithoutPeople(tx, row.locationId, row.shiftStart, row.shiftEnd, now)
+      : [];
   return {
     ...summary(view, access, now),
+    agencyWithoutPeople: unassigned.map((u) => ({ memberId: u.memberId, shiftId: u.shiftId })),
     items: view.items.map((i) => ({
       key: i.key,
       kind: i.kind,

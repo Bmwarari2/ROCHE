@@ -45,6 +45,7 @@ const FIGURES = {
   awrQualifyingWeeks: "awr.qualifying_weeks",
   awrBreakResetWeeks: "awr.break_reset_weeks",
   awrSicknessPauseMaxWeeks: "awr.sickness_pause_max_weeks",
+  awrJuryServicePauseMaxWeeks: "awr.jury_service_pause_max_weeks",
   aeEligibleMinAge: "auto_enrolment.eligible_min_age",
   aeMinAge: "auto_enrolment.min_age",
   aeMaxAge: "auto_enrolment.max_age",

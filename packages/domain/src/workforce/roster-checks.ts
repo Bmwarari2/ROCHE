@@ -169,6 +169,8 @@ export function combinedRosterDecision(
   perDay: readonly (readonly RosterBlocker[])[],
   override: { readonly justification: string; readonly blockerKeys: readonly string[] } | null,
   minJustification: number,
+  /** Blockers no override covers for this worker (an agency worker's DBS; clinical review of slice 27, H3). */
+  alsoNeverOverridable: (blocker: RosterBlocker) => boolean = () => false,
 ):
   | { readonly allowed: true; readonly overridden: readonly RosterBlocker[] }
   | {
@@ -179,18 +181,22 @@ export function combinedRosterDecision(
         | "justification_required"
         | "right_to_work"
         | "not_active"
+        | "not_overridable"
         | "blockers_changed";
     } {
   const byKey = new Map<string, RosterBlocker>();
   for (const list of perDay) for (const b of list) byKey.set(blockerKey(b), b);
   const blockers = [...byKey.values()];
   if (blockers.length === 0) return { allowed: true, overridden: [] };
-  const overridable = !blockers.some(neverOverridable);
+  const strict = (b: RosterBlocker) => neverOverridable(b) || alsoNeverOverridable(b);
+  const overridable = !blockers.some(strict);
   if (!override) return { allowed: false, blockers, overridable };
   if (!overridable) {
     const refused = blockers.some((b) => b.kind === "right_to_work")
       ? "right_to_work"
-      : "not_active";
+      : blockers.some((b) => b.kind === "not_active")
+        ? "not_active"
+        : "not_overridable";
     return { allowed: false, blockers, overridable, overrideRefused: refused };
   }
   if (!sameBlockers(override.blockerKeys, [...byKey.keys()])) {

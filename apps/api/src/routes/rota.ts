@@ -114,16 +114,16 @@ const A = {
 } as const;
 
 const IdParam = z.object({ id: z.uuid() });
-const stale = () =>
+export const stale = () =>
   new HttpProblem(
     409,
     "version_conflict",
     "This was changed by someone else since you loaded it. Reload it and try again.",
   );
-const stateConflict = (detail: string) => new HttpProblem(409, "invalid_state", detail);
+export const stateConflict = (detail: string) => new HttpProblem(409, "invalid_state", detail);
 
 /** Runs a change; refusals, the database's own included (403, 409, 422), are audited. */
-async function change<T>(
+export async function change<T>(
   c: Context<AppEnv>,
   access: TenantAccess,
   what: { action: string; resourceType: string; id: string | null },
@@ -223,7 +223,7 @@ async function rotaItem(tx: Transaction, r: RotaRow): Promise<z.infer<typeof Rot
   };
 }
 
-function shiftItem(
+export function shiftItem(
   s: ShiftRow,
   a: AssignmentRow | null,
   overriddenOf: (assignmentId: string) => string[],
@@ -302,7 +302,7 @@ async function rotasChangedSince(tx: Transaction, rows: readonly RotaRow[]): Pro
  * publishing, take it first, so a publication publishes exactly what its check saw (security
  * review round 1, M2).
  */
-async function lockRota(tx: Transaction, id: string): Promise<RotaRow | null> {
+export async function lockRota(tx: Transaction, id: string): Promise<RotaRow | null> {
   const [row] = await tx
     .select()
     .from(rota)
@@ -316,7 +316,11 @@ async function lockRota(tx: Transaction, id: string): Promise<RotaRow | null> {
  * organisation (security review round 1, M3). Anyone else reads as not found, so the rota cannot be
  * used to look up another location's staff files. Read with the system's rights.
  */
-async function worksAt(tx: Transaction, workerId: string, locationId: string): Promise<boolean> {
+export async function worksAt(
+  tx: Transaction,
+  workerId: string,
+  locationId: string,
+): Promise<boolean> {
   const rows = await withSystemRights(tx, () =>
     tx.execute<{ ok: boolean }>(sql`
       SELECT EXISTS (
@@ -328,8 +332,16 @@ async function worksAt(tx: Transaction, workerId: string, locationId: string): P
   return rows.rows[0]?.ok === true;
 }
 
+/** Whether the member is a bank or agency worker (read with the system's rights). */
+async function isAgencyMember(tx: Transaction, memberId: string): Promise<boolean> {
+  const rows = await withSystemRights(tx, () =>
+    tx.execute<{ yes: boolean }>(sql`SELECT app.member_is_agency(${memberId}) AS yes`),
+  );
+  return rows.rows[0]?.yes === true;
+}
+
 /** Takes one member's assignment lock (the database guard takes the same one; M1). */
-async function lockWorker(tx: Transaction, tenantId: string, workerId: string) {
+export async function lockWorker(tx: Transaction, tenantId: string, workerId: string) {
   await tx.execute(
     sql`SELECT pg_advisory_xact_lock(hashtextextended(${`worker:${tenantId}${workerId}`}, 0))`,
   );
@@ -361,7 +373,11 @@ async function loadRota(tx: Transaction, id: string): Promise<RotaRow | null> {
   return row ?? null;
 }
 
-async function loadShift(tx: Transaction, id: string, lock = false): Promise<ShiftRow | null> {
+export async function loadShift(
+  tx: Transaction,
+  id: string,
+  lock = false,
+): Promise<ShiftRow | null> {
   const query = tx
     .select()
     .from(shift)
@@ -371,7 +387,7 @@ async function loadShift(tx: Transaction, id: string, lock = false): Promise<Shi
 }
 
 /** A change on a published rota is recorded for notice tracking, and the rota needs publishing again. */
-async function markChanged(tx: Transaction, s: ShiftRow, r: RotaRow, at: Date) {
+export async function markChanged(tx: Transaction, s: ShiftRow, r: RotaRow, at: Date) {
   if (!s.publishedAt && !r.publishedAt) return;
   await tx.update(shift).set({ changedAfterPublishAt: at }).where(eq(shift.id, s.id));
 }
@@ -410,7 +426,11 @@ async function requireWholeLocation(
 }
 
 /** Whether the member is on another live shift that overlaps, at any location (system rights). */
-async function doubleBooked(tx: Transaction, workerId: string, s: ShiftRow): Promise<boolean> {
+export async function doubleBooked(
+  tx: Transaction,
+  workerId: string,
+  s: ShiftRow,
+): Promise<boolean> {
   const rows = await withSystemRights(tx, () =>
     tx
       .select({ id: shift.id, startsAt: shift.startsAt, endsAt: shift.endsAt })
@@ -1137,6 +1157,17 @@ export const rotaRouter = createRouter()
           if (!s || !locked) return null;
           if (s.version !== body.version) throw stale();
           if (!(await worksAt(tx, body.workerId, s.locationId))) return null;
+          // Bank and agency workers go on a shift by booking (scheduling.md section 15 rule 2; the
+          // database refuses it otherwise): the booking records the cost and opens their access.
+          if (await isAgencyMember(tx, body.workerId)) {
+            return {
+              refused: new HttpProblem(
+                409,
+                "book_instead",
+                "This is a bank or agency worker: book them onto the shift instead.",
+              ),
+            };
+          }
           const now = new Date();
           const decision = await shiftEligibility(
             tx,
