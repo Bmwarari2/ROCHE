@@ -76,7 +76,7 @@ describe("hazard HZ-003 medication errors and near misses (safety.md Phase 2 rul
   });
 });
 
-describe("hazard HZ-133 the medication error record (slice 45)", () => {
+describe("hazard HZ-134 the medication error record (slice 45)", () => {
   const now = new Date("2026-11-01T12:00:00Z");
   const context = {
     now,

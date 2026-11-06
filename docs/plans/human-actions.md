@@ -980,14 +980,14 @@ Logged by slice 79 (INTG-013; ADR-0095) on 1 November 2026.
 
 ## Phase 2: medication errors and reviews (slice 45)
 
-Logged by slice 45 ([medicines.md](../specs/medicines.md) section 14, HZ-133) on 6 November 2026,
+Logged by slice 45 ([medicines.md](../specs/medicines.md) section 14, HZ-134) on 6 November 2026,
 from the block H-1290 to H-1299 the lead assigned. Each open question takes its recommended answer
 until the testing-phase review.
 
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
 | H-1290 | Confirm the medication error kinds and stages follow the NRLS medication incident categories (now kept by Learn from Patient Safety Events), and whether LFPSE's current list should replace them. Recommended answer, taken until the testing-phase review: keep the 16 NRLS kinds and 7 stages as built, with the source named; revisit when LFPSE publishes a stable medication taxonomy | CSO with a pharmacist | [medicines.md](../specs/medicines.md) 14.1; `MEDICATION_ERROR_KINDS` | Nothing (recommended answer applied) | open |
-| H-1291 | Rate HZ-133 (proposed initial Major / Medium / 3, target Major / Low / 3) and review its controls and its justification for level 3. Recommended answer, taken until the testing-phase review: accept the proposed ratings and the level 3 justification until the web screens exist | CSO | [Hazard log](../clinical-safety/hazard-log.md) HZ-133 | Nothing (recommended answer applied) | open |
+| H-1291 | Rate HZ-134 (proposed initial Major / Medium / 3, target Major / Low / 3) and review its controls and its justification for level 3. Recommended answer, taken until the testing-phase review: accept the proposed ratings and the level 3 justification until the web screens exist | CSO | [Hazard log](../clinical-safety/hazard-log.md) HZ-134 | Nothing (recommended answer applied) | open |
 | H-1292 | Decide when the safeguarding prompt shows: today for deliberate or repeated errors, significant harm, harm not yet graded and omitted doses (H-549); decide whether near misses that risked significant harm prompt too. Recommended answer, taken until the testing-phase review: keep as built; near misses do not prompt, since the incident's own safeguarding question is still asked for every incident | CSO with the safeguarding lead | `medicationErrorPrompts`; clinical review B7, B8 | Nothing (recommended answer applied) | open |
 | H-1293 | Confirm the review interval (`medicines.review_interval_months`) and the due-soon window (`medicines.review_due_soon_days`, 28 days) as tenant defaults. Recommended answer, taken until the testing-phase review: 12 months and 28 days, tenant-configurable; NICE SC1 and STOMP reviews for psychotropics are booked by the tenant as separate reviews | CSO with a pharmacist | [rates.md](../specs/rates.md) | Nothing (recommended answer applied) | open |
 | H-1294 | Confirm that an explicit "no controlled drug" is refused when the medicine carries a CD schedule, and which schedules count (today any schedule recorded on the entry, 1 to 5) (H-594). Recommended answer, taken until the testing-phase review: refuse for any recorded schedule; the CDAO report prompt shows for schedules 2 to 5 alike | CSO with the CD lead | `checkMedicationErrorRecord`; clinical review B5 | Nothing (recommended answer applied) | open |

@@ -129,7 +129,7 @@ Phases 3 to 7 are not started.
 
 **Added to the plan on 01/11/2026**: the Thapsus-HR link (INTG-014, ADR-0126), so a provider using
 both products shares rota, time, pay and staff records without exports. It is Phase 2 slices 86 to 90
-on `docs/plan-thapsus-hr-link`, and takes migration 0139 (0140 if needed), H-1340 to H-1345, HZ-133
+on `docs/plan-thapsus-hr-link`, and takes migration 0141 (0142 if needed), H-1340 to H-1345, HZ-133
 and DPIA risk R30.
 
 **Next free numbers**: migration 0141, human actions block H-1350, hazard HZ-134, ADR-0127.
@@ -292,7 +292,7 @@ medication incident through the safety module. A controlled drug given writes it
 with the administration; corrections are margin entries. Next for medicines: slice 50 (printable
 page), slice 28, slice 48 and the screens. Open: H-1200 to H-1209.
 **Phase 2 slice 45, medication errors, reviews and reports** (`feat/meds-errors-reviews`, MEDS-012,
-MEDS-013, from slice 22; migration 0135; HZ-133; H-1290 to H-1299, recommended answers applied):
+MEDS-013, from slice 22; migration 0135; HZ-134; H-1290 to H-1299, recommended answers applied):
 error details on medication incidents (NRLS kinds and stages, CD presumption, prompts that clear on
 evidence, access as the incident with MFA), medication reviews (booked or by interval, moved or
 cancelled with a reason), and the override, PRN and psychotropic, and error trend reports. Clinical

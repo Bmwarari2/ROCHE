@@ -90,13 +90,16 @@
 | [HZ-130](#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person) | Imported records mis-mapped, duplicated or attached to the wrong person | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-543 and H-680) | Open | None (Phase 2) | Phase 2 (slices 26, 51, 67, 79) |
 | [HZ-131](#hz-131-a-speak-up-concern-not-seen-or-acted-on) | A speak-up concern not seen or acted on | `[CSO rating - human action]` | `[CSO rating - human action]` (H-1152) | Open | None (Phase 2) | Phase 2 (fixes from the slice 83 guides) |
 | [HZ-132](#hz-132-medicines-stored-outside-their-temperature-range-used-without-the-pharmacists-advice) | Medicines stored outside their temperature range used without the pharmacist's advice | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1327) | Open | None (Phase 2) | Phase 2 (slice 42) |
-| [HZ-133](#hz-133-a-medication-error-not-followed-up-or-a-medication-review-missed) | A medication error not followed up, or a medication review missed | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1291) | Open | None (Phase 2) | Phase 2 (slice 45; web screens, H-1299) |
+| [HZ-133](#hz-133-staff-data-from-the-hr-platform-out-of-date-matched-to-the-wrong-person-or-changed-outside-its-owner) | Staff data from the HR platform out of date, matched to the wrong person, or changed outside its owner | Major / Medium / 3 (engineering proposal) | Major / Low / 3 (engineering proposal; the CSO rates it, H-1345) | Open | None (Phase 2) | Phase 2 (slices 86 to 90) |
+| [HZ-134](#hz-134-a-medication-error-not-followed-up-or-a-medication-review-missed) | A medication error not followed up, or a medication review missed | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1291) | Open | None (Phase 2) | Phase 2 (slice 45; web screens, H-1299) |
 
 Twenty-two hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-125, HZ-130, HZ-112 until its mobile control is built, HZ-113 until the download alert (slice 75) and the device subset land, HZ-119 until its override report is built, HZ-123 until the CSO confirms the move now the rota shows the comparison (H-960), HZ-124 until the CSO re-rates it now the rota and clock-in apply the rule, and HZ-126 once the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. HZ-126 is rated Catastrophic and stays at 4 until H-599 is settled (H-595), which is not acceptable for a live tenant. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 Seventeen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-121, HZ-112 until its mobile control is built, HZ-123 until the rota shows the staffing comparison, HZ-125 until the phone reminds the worker offline and offers help from the lock screen, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 Nineteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-120, HZ-121, HZ-112 until its mobile control is built, HZ-119 until its override report is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
-Eighteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-133, HZ-112 until its mobile control is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Twenty hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-112 until its mobile control is built, HZ-119 until its override report is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled, HZ-130, HZ-133) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+
+Eighteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-134, HZ-112 until its mobile control is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed. HZ-113 to HZ-130 are assigned to Phase 2 slices (HZ-131 came from a review) in [phase-2.md](../plans/phase-2.md) and are added by the slice the plan names, so they arrive out of order (HZ-121 first, with slice 2).
 
@@ -4112,11 +4115,56 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 ---
 
-## HZ-133 A medication error not followed up, or a medication review missed
+## HZ-133 Staff data from the HR platform out of date, matched to the wrong person, or changed outside its owner
 
 | Field | Value |
 | --- | --- |
 | ID | HZ-133 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `integrations` module (lead engineer) |
+| Source | [ADR-0126](../decisions/0126-thapsus-hr-link.md); [integrations.md](../specs/integrations.md) section 11 (INTG-014); [phase-2.md](../plans/phase-2.md) slices 86 to 90 |
+
+**Description**: a provider that links Harbour to Thapsus-HR rosters and pays staff from data that crosses between the two systems. The copy Harbour holds may be out of date (a leaver still rostered, sickness not yet seen), attached to the wrong member, changed in the system that does not own it, or paid twice through both routes to payroll.
+
+**Causes**: a sync that has failed or stalled; a match made on a name or on a shared or mistyped email; an edit in the non-owning system; a leaving date that never arrives because syncs fail; a pay route changed part-way through a pay period; a workspace outside the UK; more data crossing than a flow needs.
+
+**Effects**: a shift covered on paper by someone who has left, is off sick or is not the person the rota shows, leaving a home short-staffed (with HZ-123 and HZ-124); a leaver keeping access to care records; staff paid twice or not at all; personal data shared beyond what the flow needs.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3** (engineering proposal; the CSO rates it, H-1345).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | One owner for each kind of staff data; the other system's copy is read-only and reconciliation puts back the owner's version; care-specific records and clocking cannot be moved to Thapsus-HR, nor the rota until slice 88's checks exist (`editRefusal`, `ownersProblems`; rules 2 and 13) | Domain rule, slice 86; enforced in slices 87 to 89 |
+| Design | Matching by employee number, then by work email with date of birth; never by name; a disagreeing, ambiguous or already linked match, two routes pointing at two members, or two different employee numbers, goes to review, and an unconfirmed person is neither rostered from Thapsus-HR data nor sent to it (`matchEmployee`; rule 3) | Domain rule, slice 86; review queue slice 87 |
+| Design | The link only with a UK workspace on the UK host over HTTPS with no credentials in the URL, checked on connecting and before every sync against the URL the adapter really sends to, never the workspace's own claim; otherwise nothing is sent (`connectionRefusal`; rule 1) | Domain rule, slice 86 |
+| Design | Staleness said in words with the time when the last good sync is past the tenant's limit (15 minutes by default, at most 60; H-1344); absences already known still block rostering; a limit out of range counts as the default and a last sync in the future is not trusted (`hrStaleness`, `stalenessLimitProblem`; rule 9) | Domain rule, slice 86; screens slice 88 and 90 |
+| Design | A known leaving date ends sign-in at the end of that day in UK time even if later syncs fail; a sync that drops the date or moves it later never gives access back, and a leaving date that is not a real day refuses sign-in (`leaverSignInEndsAt`, `leaverMaySignIn`, `effectiveLeavingDate`; rule 8) | Domain rule, slice 86; applied in slice 88 |
+| Design | Exactly one route pays a pay period: Harbour's export only while the route is Harbour's, pay units to Thapsus-HR only while it is Thapsus-HR's, a route change only from a later pay period, and nothing through either when a date is not a real day (`payrollExportAllowed`, `payUnitsToHrAllowed`, `payRouteChangeProblem`; rule 12) | Domain rule, slice 86; slice 76 export checks it |
+| Design | Only each flow's listed fields cross, as plain values (nothing nested), clock kinds in and out only; nothing about people receiving care; sickness as dates and type only, with bounded identifiers and real dates (`OUTBOUND_FIELDS`, `outboundProblems`, `inboundAbsence`; rules 4 and 10) | Domain rule, slice 86 |
+| Design | **Open control** (slice 88): incoming shifts when Thapsus-HR owns the rota are checked against competence, required checks and the staffing need, with an alert to the rota manager (rule 13; HZ-123, HZ-124) | Planned, slice 88 |
+| Test | See Verification | Phase 2 |
+| Training and user documentation | The link's owner guide: what each system owns, the staleness notice, the review queue | Slice 90 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (engineering proposal), because rostering still depends on data a person enters in another system; the CSO rates it before a linked tenant goes live (H-1345).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/integrations/thapsus-hr.test.ts`: `hazard HZ-133 one owner for each kind of staff data (rule 2)`, `hazard HZ-133 the link is refused outside the UK (rule 1)`, `hazard HZ-133 matching never relies on a name (rule 3)`, `hazard HZ-133 only allowed fields cross (rules 4 and 10)`, `hazard HZ-133 staleness is said, at the limit and one minute past (rule 9)`, `hazard HZ-133 a leaver's sign-in ends with their leaving day, even if later syncs fail or drop it (rule 8)`, `hazard HZ-133 nobody is paid twice (rule 12)` | Passing (Phase 2 slice 86) |
+| `apps/api/src/integrations/thapsus-hr.test.ts`: `hazard HZ-133 Thapsus-HR contract: mock`, `hazard HZ-133 the mock's guards` (the UK check on the URL really used; payloads outside the allow-list refused; a key with another body a conflict; keys forgotten after 24 hours) and `hazard HZ-133 the pin (re-pin when Thapsus-HR Phase 19 ships)` | Passing (Phase 2 slice 86) |
+| `apps/api`: `hazard HZ-133 reconciliation puts back the owner's version`, `hazard HZ-133 an unconfirmed match is neither rostered nor sent` | Planned (slices 87 and 88) |
+
+---
+
+## HZ-134 A medication error not followed up, or a medication review missed
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-134 |
 | Status | Open |
 | Clinical owner | `[CSO name - human action]` |
 | Engineering owner | `medicines` module (lead engineer), with `safety` |
@@ -4153,11 +4201,11 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 | Test | Status |
 | --- | --- |
-| `packages/domain/src/safety/medication-error.test.ts`: `hazard HZ-133 the medication error record (slice 45)` (kinds and stages in words with the source; the record checks, table-driven, including a clinician told before the incident, a CD report in the future, an omitted dose said not to reach the person and a "no" against a scheduled medicine; the prompts, table-driven, clearing once their evidence is recorded, an omitted dose prompting safeguarding whatever the harm; the words; the UK month across the clock changes; the trend with empty months and not yet known) | Passing (Phase 2 slice 45) |
-| `packages/domain/src/medicines/medication-review.test.ts`: `hazard HZ-133 medication reviews (slice 45, MEDS-013)` (next due the earlier of booked and interval, over month ends; every status; a booking later than the interval) and `hazard HZ-133 PRN and psychotropic use, information only (slice 45)` (each dose by its own version) | Passing (Phase 2 slice 45) |
-| `packages/db/test/medication-errors.test.ts`: `hazard HZ-133 medication errors and reviews are isolated and follow scope (slice 45)`, `hazard HZ-133 an error belongs to a medication incident and one of its people`, `hazard HZ-133 a done review is fixed unless corrected with a reason`, `hazard HZ-133 slice 45 review fixes in the database` (a dose record of another medicine refused; the incident's retention class copied; a booked review moved only with a reason) | Passing (Phase 2 slice 45) |
-| `apps/api/test/medication-errors.test.ts`: `hazard HZ-133 medication errors on the incident (slice 45)` (the presumption and prompts; refusals in words; the CD prompt clearing; a stale version; a member who may not change the incident; a restricted incident; a closed incident; the safeguarding prompt kept for an unsure answer; the trend on fixed months without deleted incidents), `hazard HZ-133 medication reviews (slice 45, MEDS-013)` (scheduled, done, not booked after done, moved and cancelled with a reason), `hazard HZ-133 the reports are counts, information only (slice 45)` (overrides, PRN, the period cap) | Passing (Phase 2 slice 45) |
-| `apps/web` Playwright: `hazard HZ-133 the error record shows its prompts until their evidence is recorded` | Planned (H-1299) |
+| `packages/domain/src/safety/medication-error.test.ts`: `hazard HZ-134 the medication error record (slice 45)` (kinds and stages in words with the source; the record checks, table-driven, including a clinician told before the incident, a CD report in the future, an omitted dose said not to reach the person and a "no" against a scheduled medicine; the prompts, table-driven, clearing once their evidence is recorded, an omitted dose prompting safeguarding whatever the harm; the words; the UK month across the clock changes; the trend with empty months and not yet known) | Passing (Phase 2 slice 45) |
+| `packages/domain/src/medicines/medication-review.test.ts`: `hazard HZ-134 medication reviews (slice 45, MEDS-013)` (next due the earlier of booked and interval, over month ends; every status; a booking later than the interval) and `hazard HZ-134 PRN and psychotropic use, information only (slice 45)` (each dose by its own version) | Passing (Phase 2 slice 45) |
+| `packages/db/test/medication-errors.test.ts`: `hazard HZ-134 medication errors and reviews are isolated and follow scope (slice 45)`, `hazard HZ-134 an error belongs to a medication incident and one of its people`, `hazard HZ-134 a done review is fixed unless corrected with a reason`, `hazard HZ-134 slice 45 review fixes in the database` (a dose record of another medicine refused; the incident's retention class copied; a booked review moved only with a reason) | Passing (Phase 2 slice 45) |
+| `apps/api/test/medication-errors.test.ts`: `hazard HZ-134 medication errors on the incident (slice 45)` (the presumption and prompts; refusals in words; the CD prompt clearing; a stale version; a member who may not change the incident; a restricted incident; a closed incident; the safeguarding prompt kept for an unsure answer; the trend on fixed months without deleted incidents), `hazard HZ-134 medication reviews (slice 45, MEDS-013)` (scheduled, done, not booked after done, moved and cancelled with a reason), `hazard HZ-134 the reports are counts, information only (slice 45)` (overrides, PRN, the period cap) | Passing (Phase 2 slice 45) |
+| `apps/web` Playwright: `hazard HZ-134 the error record shows its prompts until their evidence is recorded` | Planned (H-1299) |
 
 ---
 

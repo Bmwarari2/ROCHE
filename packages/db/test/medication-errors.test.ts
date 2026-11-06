@@ -138,7 +138,7 @@ afterAll(async () => {
   await db?.drop();
 });
 
-describe("hazard HZ-133 medication errors and reviews are isolated and follow scope (slice 45)", () => {
+describe("hazard HZ-134 medication errors and reviews are isolated and follow scope (slice 45)", () => {
   it("shows another tenant nothing", async () => {
     for (const table of ["medication_error", "medication_review"]) {
       expect(await visible(ctx(TENANT_B, ids.b.manager, "tenant"), table)).toEqual([]);
@@ -179,7 +179,7 @@ describe("hazard HZ-133 medication errors and reviews are isolated and follow sc
   });
 });
 
-describe("hazard HZ-133 an error belongs to a medication incident and one of its people", () => {
+describe("hazard HZ-134 an error belongs to a medication incident and one of its people", () => {
   it("refuses an error on an incident that is not about medication", async () => {
     const [sql, params] = insertError(crypto.randomUUID(), FALL_INCIDENT, a.personAda);
     expect(await refused(manager, sql, [...params])).toMatch(/medication_error_not_on_incident/);
@@ -271,7 +271,7 @@ describe("hazard HZ-133 an error belongs to a medication incident and one of its
   });
 });
 
-describe("hazard HZ-133 a done review is fixed unless corrected with a reason", () => {
+describe("hazard HZ-134 a done review is fixed unless corrected with a reason", () => {
   it("records a review as done, then refuses a change without a new reason", async () => {
     await inContext(app(), manager, (c) =>
       c.query(
@@ -317,7 +317,7 @@ describe("the code lists match the domain", () => {
   });
 });
 
-describe("hazard HZ-133 slice 45 review fixes in the database", () => {
+describe("hazard HZ-134 slice 45 review fixes in the database", () => {
   it("refuses a medicine and a dose record of different entries (B6)", async () => {
     const SECOND = "0193a000-0000-7000-8000-00000000e103";
     await inContext(app(), manager, (c) => entry(c, SECOND, a.personAda));
