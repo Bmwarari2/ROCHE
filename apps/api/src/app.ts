@@ -73,6 +73,7 @@ import { lmsImportRouter } from "./routes/lms-import";
 import { loneWorkerRouter } from "./routes/lone-worker";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { medicationErrorsRouter } from "./routes/medication-errors";
 import { medicineAdministrationsRouter } from "./routes/medicine-administrations";
 import { medicineRoundsRouter } from "./routes/medicine-rounds";
 import { medicinesRouter } from "./routes/medicines";
@@ -520,6 +521,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", controlledDrugsRouter);
   app.route("/", medicineRoundsRouter);
   app.route("/", disclosuresRouter);
+  app.route("/", medicationErrorsRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

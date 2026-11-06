@@ -110,6 +110,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `outbreak_case` | care_record for residents; outbreak_staff_case for staff, named or unnamed (H-767) |
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `medication`, `medication_schedule`, `medication_administration`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `medication_error` (slice 45; one per medication incident, kept with its incident) | serious_incident |
+| `medication_review` (slice 45) | mar_chart |
 | `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item` | staff_file (tenant's chosen row) |

@@ -72,6 +72,7 @@
 | [HZ-116](#hz-116-a-two-person-check-done-by-one-person-or-not-genuinely-witnessed) | A two-person check (witness, second signature, transcription check) done by one person or not genuinely witnessed | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 | [HZ-119](#hz-119-expired-competence-does-not-block-administration-or-the-manager-override-becomes-routine) | Expired competence does not block administration, or the manager override becomes routine | Major / Medium / 3 | Major / Low / 3 until the override report exists (slice 45), then Very low / 2 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 | [HZ-113](#hz-113-dmd-reference-data-out-of-date-loaded-wrongly-or-missing-on-a-device-so-the-wrong-product-unit-or-barcode-match-is-shown) | dm+d reference data out of date, loaded wrongly or missing on a device, so the wrong product, unit or barcode match is shown | Major / Medium / 3 | Major / Low / 3 until the download alert (slice 75: built, its alert policies H-1241) and the device subset (slice 68) are in place, then Major / Very low / 2 (engineering proposal; the CSO rates it, H-650) | Open | None (Phase 2) | Phase 2 (slices 10, 68, 75) |
+| [HZ-119](#hz-119-expired-competence-does-not-block-administration-or-the-manager-override-becomes-routine) | Expired competence does not block administration, or the manager override becomes routine | Major / Medium / 3 | Major / Very low / 2 now the override report exists (slice 45; engineering proposal; the CSO rates it, H-513 and H-1295) | Open | None (Phase 2) | Phase 2 |
 | [HZ-121](#hz-121-medicines-not-reconciled-after-admission-transfer-or-return-from-hospital) | Medicines not reconciled after admission, transfer or return from hospital | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 | [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3, then Major / Very low / 2 once the CSO confirms the move (slices 21 and 59 built; H-830, H-960) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 17, 21, 27, 30, 59) |
@@ -86,6 +87,9 @@
 | [HZ-131](#hz-131-a-speak-up-concern-not-seen-or-acted-on) | A speak-up concern not seen or acted on | `[CSO rating - human action]` | `[CSO rating - human action]` (H-1152) | Open | None (Phase 2) | Phase 2 (fixes from the slice 83 guides) |
 
 Twenty-two hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-125, HZ-130, HZ-112 until its mobile control is built, HZ-113 until the download alert (slice 75) and the device subset land, HZ-119 until its override report is built, HZ-123 until the CSO confirms the move now the rota shows the comparison (H-960), HZ-124 until the CSO re-rates it now the rota and clock-in apply the rule, and HZ-126 once the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. HZ-126 is rated Catastrophic and stays at 4 until H-599 is settled (H-595), which is not acceptable for a live tenant. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+| [HZ-131](#hz-131-a-medication-error-not-followed-up-or-a-medication-review-missed) | A medication error not followed up, or a medication review missed | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1291) | Open | None (Phase 2) | Phase 2 (slice 45; web screens, H-1299) |
+
+Eighteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-131, HZ-112 until its mobile control is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed. HZ-113 to HZ-130 are assigned to Phase 2 slices (HZ-131 came from a review) in [phase-2.md](../plans/phase-2.md) and are added by the slice the plan names, so they arrive out of order (HZ-121 first, with slice 2).
 
@@ -3370,12 +3374,13 @@ person receiving care.
 | Design | A dose cannot be dated back on the round to before a competence lapsed or an override ended: one dated more than `medicines.record_delay_tolerance_minutes` before it is recorded goes by the flagged route (`recorded_after_delay`), and within that delay an ordinary record must pass the competence gate at both the time given and `recordedAt` (`competenceAtRecording` from workforce's port), or goes by the flagged route (#162 third review's re-checks) | Domain rule built in Phase 2 slice 3 |
 | Design | Whoever records a dose after it was given, by the route or by a correction to a dose outcome, needs current competence then (or an override of an expired one), or it is refused; the member named as having given it is checked at the time given (a lapse flagged and escalated urgently) and, when not the recorder, the record is flagged; every use of the route is counted per member beside competence overrides for the override report (`REPORTED_FLAGS`, `countReportedFlags`), so it cannot quietly become routine (rule 17; H-1067) | Domain rule built in Phase 2 slice 3 (#162 third clinical review); the report in slice 45 |
 | Design | The API reads competence on the server from workforce's port and checks the approver holds `medicines.override.approve`; never from the request (ADR-0085) | Planned, slices 17 and 22 |
-| Design | The member's own competence rows sync to the device, so the gate holds offline (slice 68); the override report and its trend (slice 45) | Planned, Phase 2 |
+| Design | The override report: per member and period at a home, competence overrides and doses given while competence was not current, counted against the member who gave the dose, and doses recorded after they were given, counted against the member who recorded them; the latest version of each record only (medicines.md 14.3; `overrideCounts`; H-1295) | Built in Phase 2 slice 45 (API; the web screen is H-1299) |
+| Design | The member's own competence rows sync to the device, so the gate holds offline | Planned, Phase 2 slice 68 |
 | Training and user documentation | Deployer control: the tenant's competence assessment programme and who may approve overrides (DCB0160 template) | Phase 2 (slice 81) |
 
-**Target residual risk**: severity Major, likelihood Low, **risk 3** until the override report is built (slice 45), then likelihood Very low, **risk 2** (an engineering proposal; the CSO rates it, H-513).
+**Target residual risk**: severity Major, likelihood Very low, **risk 2** now the override report is built (slice 45; an engineering proposal; the CSO rates it, H-513 and H-1295).
 
-**Justification for level 3 for now**: the gate is enforced in the domain rule every record passes through, but until the report exists an override that becomes routine is visible only record by record. `[CSO acceptance - human action]`
+**Justification for level 2**: the gate is enforced in the domain rule every record passes through, and since slice 45 an override that becomes routine shows in the override report per member; until its web screen is built (H-1299) the report is read through the API. `[CSO acceptance - human action]`
 
 **Verification**
 
@@ -3385,6 +3390,7 @@ person receiving care.
 | `packages/domain/src/medicines/administration.test.ts`: `hazard HZ-004 hazard HZ-119 refuses a dose recorded after giving it %s` (a recorder never signed off, or expired with no override) and `hazard HZ-004 hazard HZ-005 records a dose given %s` (another member named as giver, whose lapsed competence is escalated urgently); `counts every use of the route, and every override, per member for the override report` | Passing (#162 third clinical review) |
 | `packages/domain/src/medicines/competence.test.ts`: `hazard HZ-119 a member never signed off is refused outright: only a lapsed competence may be overridden` (with no override, and with one someone else approved, with a reason, in force) and `hazard HZ-119 competence lapses at 00:00 UK time on the days the clocks change` (lapsing on 28/03/2027 at 00:00 GMT and 31/10/2027 at 00:00 BST, and signed off on 29/03/2026 and 25/10/2026: current the minute before, expired at 00:00) | Passing (#162 clinical review) |
 | `packages/domain/src/medicines/competence.test.ts`: `hazard HZ-119 medicines competence lasts the rate table's months from its sign-off` (the day of the sign-off, the minute before it lapses, 00:00 UK time on the day it lapses, 29 February) and `hazard HZ-119 expired medicines competence blocks an administration unless someone else overrides it` (the member themselves, someone else's override, no reason, too long, not yet or no longer in force) | Passing (Phase 2 slice 3) |
+| `packages/domain/src/medicines/medication-review.test.ts`: `hazard HZ-119 competence overrides count against the right member (slice 45)` (an override and not-current competence against the member who gave the dose, a dose recorded after giving it against the recorder); `apps/api/test/medication-errors.test.ts`: `counts competence overrides against the member who gave the dose` | Passing (Phase 2 slice 45) |
 | `apps/api/test/medicine-administrations.test.ts`: `hazard HZ-119 competence from the port`: `refuses someone with no sign-off, and records under an override of an expired one, flagged` (competence and any override read from the port at the time, never the request; the override stored with the record); `hazards HZ-004 and HZ-119 a dose recorded after it was given (#162)` (a time before the server's and a reason; the recorder's competence now; always flagged and escalated; refused from a recorder without current competence) | Passing (Phase 2 slice 22) |
 | `apps/api/test/controlled-drugs.test.ts`: `hazard HZ-119 refuses a witness whose medicines competence is not current` (a controlled drugs witness needs current competence from the port) | Passing (Phase 2 slice 34) |
 
@@ -3874,7 +3880,6 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | `apps/api`: `hazard HZ-130 an allergy or contact row is attached only to the person its identifier names, never by name` | Planned, Phase 2 (contacts and allergies import) |
 | `apps/api/test/esign-ocr.test.ts`: `hazard HZ-130 releases a scanned chart only after its person is confirmed`; `packages/domain/src/integrations/esign-ocr.test.ts`: `hazard HZ-005 hazard HZ-130 a scan is released only when the chart is fully accounted for` (the person on the chart not confirmed) | Passing (Phase 2 slice 79) |
 ---
-
 ## HZ-127 A missing person's escalation delayed, or the Herbert Protocol profile out of date
 
 | Field | Value |
@@ -3927,6 +3932,7 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 ---
 ## HZ-131 A speak-up concern not seen or acted on
+## HZ-131 A medication error not followed up, or a medication review missed
 
 | Field | Value |
 | --- | --- |
@@ -3943,6 +3949,16 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 **Effects**: harm to a person continues while a concern waits unseen; the reporter loses confidence in speaking up.
 
 **Initial risk**: `[CSO rating - human action]` (the CSO rates it with the Freedom to Speak Up guardian, H-1152).
+| Engineering owner | `medicines` module (lead engineer), with `safety` |
+| Source | Master prompt 9.4 (MEDS-012, MEDS-013); [phase-2.md](../plans/phase-2.md) slice 45; [medicines.md](../specs/medicines.md) section 14; [safety.md](../specs/safety.md) Phase 2 rule 7; slice 45 clinical-safety and security reviews (01/11/2026 and 06/11/2026); related to HZ-003 (medication incident triage), HZ-004 and HZ-005 (administration), HZ-119 (competence overrides), HZ-126 (safeguarding) |
+
+**Description**: after a medication error or near miss, the follow-up the person needs does not happen: no clinician is told, a controlled drug incident is not reported to the Controlled Drugs Accountable Officer, a possible safeguarding concern is not considered, or the record of what happened is wrong (the wrong medicine or dose, a near miss that in fact reached the person). Separately, a person's medication review is missed because Harbour shows the wrong next date or none, or the reports managers use to spot patterns (errors by month, PRN and psychotropic use, overrides) count the wrong records.
+
+**Causes**: prompts that stop showing before their evidence is recorded, or that never show (an omitted dose treated as a near miss; harm not yet graded treated as no harm); a controlled drug answered "no" against a scheduled medicine; a dose record linked from another medicine; dates that cannot be true (a clinician told before the incident, a report in the future); a review status taken from a booked date later than the interval allows; a review that cannot be moved or cancelled, so a stale date stays; a report that counts superseded records, classes doses by the wrong version of the medicine, attributes an override to the recorder instead of the giver, hides months with no records, or covers a period so long it is never read; the record changed after the incident is closed; the record read or changed by someone who cannot see the incident or the person (HZ-011).
+
+**Effects**: harm from an error not escalated (a missed dose of a time-critical medicine, a double dose not monitored); a controlled drug loss or diversion not reported; abuse or neglect not referred; a person kept on a medicine past its review, including antipsychotics given for distress (STOMP); patterns of error or routine overrides not seen.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
 
 **Controls**
 
@@ -3954,6 +3970,20 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | Process | Who is told inside the organisation when there is no lead, an acknowledgement clock with re-alerts, and a deputy or escalation route beyond the leads are decided with the Freedom to Speak Up guardian (H-1152) | Open |
 
 **Target residual risk**: `[CSO rating - human action]` (H-1152).
+| Design | One medication error record per medication incident, about a person on it; the kinds and stages follow the NRLS categories with the source named (H-1290); the medicine and dose record checked to be that person's and of one entry, in the API and the database guard; impossible dates refused (medicines.md 14.1; `checkMedicationErrorRecord`) | Built in Phase 2 slice 45 |
+| Design | A controlled drug presumed from the medicine's or the dose record's CD schedule, and an explicit "no" against a scheduled medicine refused (H-1294) | Built in Phase 2 slice 45 |
+| Design | Prompts shown with the record, never sent: clinical advice (with "call 999") until who, when and the advice are recorded; the CD report until its date and reference are recorded; safeguarding when deliberate or repeated, significant harm, harm not yet graded or a dose omitted, until the incident's safeguarding question is answered (H-1292); CQC only through the classifier (`medicationErrorPrompts`) | Built in Phase 2 slice 45 |
+| Design | An omitted dose always counts as reaching the person, never a near miss | Built in Phase 2 slice 45 |
+| Design | Access as the incident: MFA; a restricted incident refused whole; a deleted one not found; only its raiser, a manager of incidents at its home or the member who added the record may add or change it; a closed incident's record fixed (H-1299); the record takes the incident's retention class | Built in Phase 2 slice 45 |
+| Design | Medication reviews: next due is the earlier of the booked date and the last done plus `medicines.review_interval_months`, with a booking later than the interval shown; status words for overdue, due soon (`medicines.review_due_soon_days`, H-1293), booked, due by the interval and not booked, not scheduled; a booked review moved or cancelled only with a reason; a done review changed only with a new reason (`reviewStatus`, database guard) | Built in Phase 2 slice 45 |
+| Design | Reports as counts for a person to read, never a judgement: latest version of each record only; each dose classed by its own version; overrides against the giver (HZ-119); every month shown; periods at most `medicines.report_max_days` (H-1296); people counted at their current home (H-1298) | Built in Phase 2 slice 45 |
+| Design | Web screens for the error record, the review tracker and the reports | Planned (H-1299) |
+| Process | Deployer control: the tenant's medicines policy names who tells the prescriber, who reports to the CDAO and how safeguarding is decided; managers read the tracker and reports at least monthly (DCB0160 template) | Before each real tenant |
+| Test | See Verification | Phase 2 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-1291).
+
+**Justification for level 3**: Harbour records, prompts and counts, but the follow-up itself (telling a clinician, reporting to the CDAO, deciding on safeguarding, booking the review) is done by people outside Harbour, and the prompts are only seen once someone opens the record; until the web screens exist (H-1299) they are read through the API.
 
 **Verification**
 
@@ -3961,6 +3991,11 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | --- | --- |
 | `apps/api/test/speak-up.test.ts`: `hazard HZ-131 the Freedom to Speak Up lead is told a concern has arrived` (anonymous: in the app, at the real time, no words of the concern, no event) and `hazard HZ-131 the Freedom to Speak Up lead is told a named or confidential concern has arrived` (never the reporter; a care quality or safety concern urgent; the unrouted action counted in the daily signal) | Passing |
 | The audit of a concern with no lead at intake | Gap: needs a fixture organisation with no lead |
+| `packages/domain/src/safety/medication-error.test.ts`: `hazard HZ-131 the medication error record (slice 45)` (kinds and stages in words with the source; the record checks, table-driven, including a clinician told before the incident, a CD report in the future, an omitted dose said not to reach the person and a "no" against a scheduled medicine; the prompts, table-driven, clearing once their evidence is recorded, an omitted dose prompting safeguarding whatever the harm; the words; the UK month across the clock changes; the trend with empty months and not yet known) | Passing (Phase 2 slice 45) |
+| `packages/domain/src/medicines/medication-review.test.ts`: `hazard HZ-131 medication reviews (slice 45, MEDS-013)` (next due the earlier of booked and interval, over month ends; every status; a booking later than the interval) and `hazard HZ-131 PRN and psychotropic use, information only (slice 45)` (each dose by its own version) | Passing (Phase 2 slice 45) |
+| `packages/db/test/medication-errors.test.ts`: `hazard HZ-131 medication errors and reviews are isolated and follow scope (slice 45)`, `hazard HZ-131 an error belongs to a medication incident and one of its people`, `hazard HZ-131 a done review is fixed unless corrected with a reason`, `hazard HZ-131 slice 45 review fixes in the database` (a dose record of another medicine refused; the incident's retention class copied; a booked review moved only with a reason) | Passing (Phase 2 slice 45) |
+| `apps/api/test/medication-errors.test.ts`: `hazard HZ-131 medication errors on the incident (slice 45)` (the presumption and prompts; refusals in words; the CD prompt clearing; a stale version; a member who may not change the incident; a restricted incident; a closed incident; the safeguarding prompt kept for an unsure answer; the trend on fixed months without deleted incidents), `hazard HZ-131 medication reviews (slice 45, MEDS-013)` (scheduled, done, not booked after done, moved and cancelled with a reason), `hazard HZ-131 the reports are counts, information only (slice 45)` (overrides, PRN, the period cap) | Passing (Phase 2 slice 45) |
+| `apps/web` Playwright: `hazard HZ-131 the error record shows its prompts until their evidence is recorded` | Planned (H-1299) |
 
 ---
 

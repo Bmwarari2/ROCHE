@@ -24,6 +24,7 @@ export * from "./lone-worker";
 export * from "./mca";
 export * from "./medicines";
 export * from "./medicines-dmd";
+export * from "./medicines-errors";
 export * from "./onboarding";
 export * from "./operations";
 export * from "./operator";
