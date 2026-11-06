@@ -27834,6 +27834,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/training-matrix": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's training matrix
+     * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. Every member of staff whose roles need training, by name and job title, with each required topic's state today (valid, due soon, expired or missing), by the rules of the member's record. Filter by location (roles held there), role key, or attention (only members with a topic not valid). At most 2,000 members; truncated says when more match. Audited without names.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          roleKey?: string;
+          attention?: "true" | "false";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The matrix */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TrainingMatrix"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/members/{memberId}/development": {
     parameters: {
       query?: never;
@@ -28293,7 +28363,7 @@ export interface paths {
     put?: never;
     /**
      * Record a supervision, appraisal or spot check
-     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept here (slice 57 records them). Audited.
+     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. An optional note (what was discussed and the actions agreed; H-692's default, ADR-0114) is read only by supervision holders and the member. Audited without the note.
      */
     post: {
       parameters: {
@@ -28307,6 +28377,97 @@ export interface paths {
       requestBody?: {
         content: {
           "application/json": components["schemas"]["CreateSupervisionRecord"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add or correct a supervision's note
+     * @description workforce.supervision.manage, by whoever held the supervision, never for oneself. Adds the note when there is none, or a correction superseding the note in force (append-only; the earlier note is kept and shown struck through; H-692's default, ADR-0114). Audited without the note.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+          supervisionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveSupervisionNote"];
         };
       };
       responses: {
@@ -56793,6 +56954,27 @@ export interface components {
       | "dementia_awareness"
       | "fluids_and_nutrition"
       | "oliver_mcgowan";
+    TrainingMatrix: {
+      /** Format: date */
+      asOf: string;
+      topics: components["schemas"]["TrainingTopic"][];
+      members: components["schemas"]["TrainingMatrixMember"][];
+      truncated: boolean;
+    };
+    TrainingMatrixMember: {
+      member: components["schemas"]["StaffName"];
+      roles: string[];
+      locationIds: string[];
+      cells: components["schemas"]["TrainingMatrixRow"][];
+    };
+    TrainingMatrixRow: {
+      topic: components["schemas"]["TrainingTopic"];
+      tier: 1 | 2 | null;
+      /** @enum {string} */
+      status: "valid" | "due_soon" | "expired" | "missing";
+      /** Format: date */
+      validUntil: string | null;
+    };
     PutTrainingRequirement: {
       expectedVersion?: number;
       roleKey: string;
@@ -56813,14 +56995,6 @@ export interface components {
       nextSupervision: components["schemas"]["NextMeetingItem"];
       nextAppraisal: components["schemas"]["NextMeetingItem"];
       revalidation: components["schemas"]["RevalidationView"];
-    };
-    TrainingMatrixRow: {
-      topic: components["schemas"]["TrainingTopic"];
-      tier: 1 | 2 | null;
-      /** @enum {string} */
-      status: "valid" | "due_soon" | "expired" | "missing";
-      /** Format: date */
-      validUntil: string | null;
     };
     TrainingRecordItem: {
       /** Format: uuid */
@@ -56875,9 +57049,18 @@ export interface components {
       /** Format: date */
       heldOn: string;
       heldBy: components["schemas"]["StaffName"];
+      note: components["schemas"]["SupervisionNoteView"];
+      earlierNotes: components["schemas"]["SupervisionNoteView"][];
     };
     /** @enum {string} */
     SupervisionKind: "supervision" | "appraisal" | "spot_check";
+    SupervisionNoteView: {
+      discussion: string;
+      actions: string | null;
+      writtenBy: components["schemas"]["StaffName"];
+      /** Format: date */
+      writtenOn: string;
+    } | null;
     NextMeetingItem: {
       /** @enum {string} */
       kind: "supervision" | "appraisal";
@@ -56942,6 +57125,16 @@ export interface components {
       kind: components["schemas"]["SupervisionKind"];
       /** Format: date */
       heldOn: string;
+      note?: components["schemas"]["SupervisionNote"];
+    };
+    /** @default null */
+    SupervisionNote: {
+      discussion: string;
+      actions: string | null;
+    } | null;
+    SaveSupervisionNote: {
+      discussion: string;
+      actions: string | null;
     };
     PutRevalidationEvidence: {
       expectedVersion?: number;

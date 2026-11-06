@@ -30740,6 +30740,118 @@
           "oliver_mcgowan"
         ]
       },
+      "TrainingMatrix": {
+        "type": "object",
+        "properties": {
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "topics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingTopic"
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingMatrixMember"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "asOf",
+          "topics",
+          "members",
+          "truncated"
+        ]
+      },
+      "TrainingMatrixMember": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "locationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingMatrixRow"
+            }
+          }
+        },
+        "required": [
+          "member",
+          "roles",
+          "locationIds",
+          "cells"
+        ]
+      },
+      "TrainingMatrixRow": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "$ref": "#/components/schemas/TrainingTopic"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "due_soon",
+              "expired",
+              "missing"
+            ]
+          },
+          "validUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "topic",
+          "tier",
+          "status",
+          "validUntil"
+        ]
+      },
       "PutTrainingRequirement": {
         "type": "object",
         "properties": {
@@ -30854,55 +30966,6 @@
           "nextSupervision",
           "nextAppraisal",
           "revalidation"
-        ]
-      },
-      "TrainingMatrixRow": {
-        "type": "object",
-        "properties": {
-          "topic": {
-            "$ref": "#/components/schemas/TrainingTopic"
-          },
-          "tier": {
-            "anyOf": [
-              {
-                "type": "number",
-                "enum": [
-                  1
-                ]
-              },
-              {
-                "type": "number",
-                "enum": [
-                  2
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "valid",
-              "due_soon",
-              "expired",
-              "missing"
-            ]
-          },
-          "validUntil": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          }
-        },
-        "required": [
-          "topic",
-          "tier",
-          "status",
-          "validUntil"
         ]
       },
       "TrainingRecordItem": {
@@ -31086,13 +31149,24 @@
           },
           "heldBy": {
             "$ref": "#/components/schemas/StaffName"
+          },
+          "note": {
+            "$ref": "#/components/schemas/SupervisionNoteView"
+          },
+          "earlierNotes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupervisionNoteView"
+            }
           }
         },
         "required": [
           "id",
           "kind",
           "heldOn",
-          "heldBy"
+          "heldBy",
+          "note",
+          "earlierNotes"
         ]
       },
       "SupervisionKind": {
@@ -31101,6 +31175,40 @@
           "supervision",
           "appraisal",
           "spot_check"
+        ]
+      },
+      "SupervisionNoteView": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "discussion": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 4000
+          },
+          "actions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 2000
+          },
+          "writtenBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "writtenOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "discussion",
+          "actions",
+          "writtenBy",
+          "writtenOn"
         ]
       },
       "NextMeetingItem": {
@@ -31394,11 +31502,62 @@
           "heldOn": {
             "type": "string",
             "format": "date"
+          },
+          "note": {
+            "$ref": "#/components/schemas/SupervisionNote"
           }
         },
         "required": [
           "kind",
           "heldOn"
+        ]
+      },
+      "SupervisionNote": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "discussion": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 4000
+          },
+          "actions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 2000
+          }
+        },
+        "default": null,
+        "required": [
+          "discussion",
+          "actions"
+        ]
+      },
+      "SaveSupervisionNote": {
+        "type": "object",
+        "properties": {
+          "discussion": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 4000
+          },
+          "actions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "discussion",
+          "actions"
         ]
       },
       "PutRevalidationEvidence": {
@@ -81805,6 +81964,98 @@
         }
       }
     },
+    "/v1/workforce/training-matrix": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "The organisation's training matrix",
+        "description": "workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. Every member of staff whose roles need training, by name and job title, with each required topic's state today (valid, due soon, expired or missing), by the rules of the member's record. Filter by location (roles held there), role key, or attention (only members with a topic not valid). At most 2,000 members; truncated says when more match. Audited without names.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "required": false,
+            "name": "roleKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "attention",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matrix",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingMatrix"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workforce/members/{memberId}/development": {
       "get": {
         "tags": [
@@ -82315,7 +82566,7 @@
           "workforce"
         ],
         "summary": "Record a supervision, appraisal or spot check",
-        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept here (slice 57 records them). Audited.",
+        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. An optional note (what was discussed and the actions agreed; H-692's default, ADR-0114) is read only by supervision holders and the member. Audited without the note.",
         "security": [
           {
             "bearerAuth": []
@@ -82340,6 +82591,114 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateSupervisionRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Add or correct a supervision's note",
+        "description": "workforce.supervision.manage, by whoever held the supervision, never for oneself. Adds the note when there is none, or a correction superseding the note in force (append-only; the earlier note is kept and shown struck through; H-692's default, ADR-0114). Audited without the note.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "supervisionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveSupervisionNote"
               }
             }
           }

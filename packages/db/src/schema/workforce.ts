@@ -12,6 +12,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
@@ -306,6 +307,58 @@ export const supervisionRecord = pgTable(
     index("supervision_record_worker_idx").on(t.tenantId, t.workerId),
     check("supervision_record_kind", sql`kind IN (${sqlList(SUPERVISION_KINDS)})`),
     check("supervision_record_not_self", sql`held_by <> worker_id`),
+  ],
+);
+
+/**
+ * What was discussed at a supervision, appraisal or spot check and the actions agreed (slice 57;
+ * H-692's default, ADR-0114: kept in Harbour). Likely to hold special category content (health,
+ * wellbeing), so it is a table of its own: read by its writer, the member it is about, and a
+ * supervisor for the member (organisation-wide HR, or a holder where the member works), never by
+ * training or staff file readers or tenant-wide roles. Written by the person who held the
+ * supervision, in their own name; append-only, a correction being a new note that supersedes the
+ * one before (struck through on screen), so one note in force per supervision.
+ */
+export const supervisionNote = pgTable(
+  "supervision_note",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    supervisionId: uuid("supervision_id").notNull(),
+    /** The member it is about, as the supervision's (a trigger checks they match). */
+    workerId: uuid("worker_id").notNull(),
+    discussion: text("discussion").notNull(),
+    actions: text("actions"),
+    /** The note this one corrects, if any. */
+    supersedesId: uuid("supersedes_id"),
+    writtenBy: uuid("written_by").notNull().default(sql`app.current_user_id()`),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("supervision_note_tenant_id_id_key").on(t.tenantId, t.id),
+    // One original per supervision; each note is corrected at most once.
+    uniqueIndex("supervision_note_original_key")
+      .on(t.tenantId, t.supervisionId)
+      .where(sql`supersedes_id IS NULL`),
+    unique("supervision_note_supersedes_key").on(t.tenantId, t.supersedesId),
+    foreignKey({
+      name: "supervision_note_supersedes_fk",
+      columns: [t.tenantId, t.supersedesId],
+      foreignColumns: [t.tenantId, t.id],
+    }),
+    foreignKey({
+      name: "supervision_note_supervision_fk",
+      columns: [t.tenantId, t.supervisionId],
+      foreignColumns: [supervisionRecord.tenantId, supervisionRecord.id],
+    }),
+    workerRef("supervision_note_worker_fk", t, t.workerId),
+    staffRef("supervision_note_written_by_fk", t, t.writtenBy),
+    check("supervision_note_discussion", sql`length(btrim(discussion)) BETWEEN 10 AND 4000`),
+    check(
+      "supervision_note_actions",
+      sql`actions IS NULL OR length(btrim(actions)) BETWEEN 2 AND 2000`,
+    ),
+    check("supervision_note_not_self", sql`written_by <> worker_id`),
   ],
 );
 

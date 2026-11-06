@@ -78,6 +78,7 @@ const APPEND_ONLY_TABLES = [
   "death_step",
   "missing_event",
   "lone_worker_event",
+  "supervision_note",
 ];
 /**
  * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the

@@ -11,6 +11,7 @@ import { complaintsShown } from "@/lib/complaints";
 import { readNotifications } from "@/lib/dashboard-data";
 import { dataRightsShown } from "@/lib/data-rights";
 import { dataSecurityShown } from "@/lib/data-security";
+import { developmentShown } from "@/lib/development";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
 import { elearningShown } from "@/lib/elearning";
@@ -94,6 +95,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
         tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
         documents: isFamilyMember(me) ? undefined : t("shell.nav.documents"),
+        training: developmentShown(me.permissions) ? t("shell.nav.training") : undefined,
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
         evidencePacks: evidencePacksShown(me.permissions)
           ? t("shell.nav.evidencePacks")

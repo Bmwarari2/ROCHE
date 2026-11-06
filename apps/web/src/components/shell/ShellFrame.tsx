@@ -111,6 +111,8 @@ export interface ShellFrameLabels {
   readonly tasks?: string | undefined;
   /** Shown to staff: the organisation's documents (PLAT-009). */
   readonly documents?: string | undefined;
+  /** Shown to holders of the workforce read permissions: the training matrix (slice 57). */
+  readonly training?: string | undefined;
   /** Shown only to people who manage records retention (platform.retention.manage). */
   readonly retention?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
@@ -169,6 +171,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/letters")) return "letters";
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/documents")) return "documents";
+  if (pathname.startsWith("/training")) return "training";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/training/elearning")) return "elearning";
@@ -356,6 +359,16 @@ export function ShellFrame({
             label: labels.documents,
             href: "/documents",
             icon: <FileText {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.training
+      ? [
+          {
+            id: "training",
+            label: labels.training,
+            href: "/training",
+            icon: <GraduationCap {...icon} />,
           },
         ]
       : []),

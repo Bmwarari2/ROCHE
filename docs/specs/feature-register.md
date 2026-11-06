@@ -11,12 +11,12 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | --- | --- | --- | --- | --- | --- | --- |
 | Platform core | `PLAT` | 9.1 | 23 | 3 | 20 | 0 |
 | Service-user lifecycle | `PEOP` | 9.2 | 13 | 4 | 9 | 0 |
-| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 8 | 14 | 0 |
-| Medicines | `MEDS` | 10.2-10.3 | 14 | 9 | 5 | 0 |
-| Safety and notifications | `SAFE` | 11.1 | 16 | 0 | 16 | 0 |
-| Quality and governance | `QUAL` | 11.2 | 13 | 4 | 9 | 0 |
-| Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 6 | 5 | 2 |
-| Rostering, time and pay | `SCHED` | 12.3 | 12 | 3 | 9 | 0 |
+| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 9 | 13 | 0 |
+| Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
+| Safety and notifications | `SAFE` | 11.1 | 16 | 6 | 10 | 0 |
+| Quality and governance | `QUAL` | 11.2 | 13 | 11 | 2 | 0 |
+| Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 9 | 4 | 0 |
+| Rostering, time and pay | `SCHED` | 12.3 | 12 | 11 | 1 | 0 |
 
 | Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 5 | 5 | 3 |
 | Rostering, time and pay | `SCHED` | 12.3 | 12 | 4 | 8 | 0 |
@@ -39,6 +39,8 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | **Total** | | | **233** | **156** | **77** | **0** |
 
 | **Total** | | | **233** | **135** | **95** | **3** |
+
+| **Total** | | | **233** | **164** | **69** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

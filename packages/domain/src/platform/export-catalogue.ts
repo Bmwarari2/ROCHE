@@ -8212,7 +8212,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.supervision_record": {
     context: "workforce",
     description:
-      "Supervisions, appraisals and spot checks held (workforce.md section 2b); no notes.",
+      "Supervisions, appraisals and spot checks held (workforce.md section 2b); notes are in supervision_note.",
     treatment: "tenant_rows",
     retention: "staff_file",
     personal: true,
@@ -8236,6 +8236,26 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.supervision_note": {
+    context: "workforce",
+    description:
+      "What was discussed at a supervision, appraisal or spot check and the actions agreed; special category content is likely (append-only; a correction supersedes the note before).",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      supervision_id: { description: "The supervision it records (supervision_record.id)." },
+      worker_id: { description: "The member of staff (tenant_user.id)." },
+      discussion: { description: "What was discussed, in the writer's words." },
+      actions: { description: "The actions agreed, if any." },
+      supersedes_id: { description: "The note this one corrects, if any (supervision_note.id)." },
+      written_by: { description: "Who wrote it (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.support_access_request": {
