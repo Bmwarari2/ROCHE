@@ -27,7 +27,7 @@
  * of refused entries (`onRefused`, `refused-copies.ts`), so it is never only on one phone.
  */
 
-import type { RoundWritableTable } from "@harbour/sync/client";
+import type { RoundWritableTable, TrainingWritableTable } from "@harbour/sync/client";
 import type {
   CommonPowerSyncDatabase,
   PowerSyncBackendConnector,
@@ -61,6 +61,7 @@ import {
   type SessionCheck,
   TENANT_HEADER,
 } from "./session-signals";
+import { isTrainingWritableTable, toTrainingUpload } from "./training-upload";
 import { type WriteScope, writeScopeFromToken } from "./write-scope";
 
 export type UploadOp = "PUT" | "PATCH" | "DELETE";
@@ -467,6 +468,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         await this.uploadCareEntry(database, { ...entry, table: entry.table }, clientId);
       } else if (isRoundWritableTable(entry.table)) {
         await this.uploadRoundChange(database, { ...entry, table: entry.table }, clientId);
+      } else if (isTrainingWritableTable(entry.table)) {
+        await this.uploadTrainingChange(database, { ...entry, table: entry.table }, clientId);
       } else {
         others.push(entry);
       }
@@ -477,6 +480,43 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       await this.uploadOperations(database, others, idempotencyKey);
     }
     await transaction.complete();
+  }
+
+  /**
+   * What a course taken offline queued, to its own route (`training-upload.ts`, slice 72); a
+   * refusal moves it to "needs attention" in the API's own words (a course changed since it was
+   * downloaded says so).
+   */
+  private async uploadTrainingChange(
+    database: UploadSource,
+    entry: CrudEntryLike & { readonly table: TrainingWritableTable },
+    clientId: string,
+  ): Promise<void> {
+    const request = toTrainingUpload(entry);
+    const park = (status: number | null, code: string, message: string) =>
+      recordUploadIssue(database, {
+        id: request.recordId,
+        tenantId: request.tenantId,
+        personId: null,
+        table: entry.table,
+        httpStatus: status,
+        code,
+        message,
+        payload: { ...(entry.opData ?? {}) },
+        rejectedAt: this.now(),
+      });
+    if (request.kind === "refused") {
+      await park(null, request.code, request.message);
+      this.options.onRefused?.();
+      return;
+    }
+    try {
+      await this.postChange(request, clientId);
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
+      await park(error.status, error.code, error.reason ?? t("mobile.issues.unknownReason"));
+      this.options.onRefused?.();
+    }
   }
 
   /** One care entry to its own endpoint; a refusal moves it to "needs attention". */
@@ -678,6 +718,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
    */
   private async postChange(
     request: {
+      /** POST unless the route says otherwise (the training routes, slice 72). */
+      readonly method?: "POST" | "PUT" | "PATCH";
       readonly path: string;
       readonly recordId: string;
       readonly tenantId: string;
@@ -689,7 +731,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     await retryWithBackoff(async () => {
       const headers = await this.authorisedHeaders();
       const response = await this.options.fetch(`${this.options.apiUrl}${request.path}`, {
-        method: "POST",
+        method: request.method ?? "POST",
         headers: {
           ...headers,
           "Content-Type": "application/json",

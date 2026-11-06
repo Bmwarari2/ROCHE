@@ -18,6 +18,7 @@ import {
   requestAccountDeletion,
 } from "../../platform/account-deletion";
 import { describeTimeout, SHARED_AUTO_LOCK_CHOICES_MS } from "../../security/auto-lock";
+import { TRAINING_SELF } from "../../training/hooks";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const theme = useTheme();
@@ -176,6 +177,17 @@ export default function SettingsScreen() {
           />
           <SignOutControl variant="destructive" testID="settings-sign-out" />
         </Section>
+
+        {(session.me?.permissions ?? []).includes(TRAINING_SELF) ? (
+          <Section title={t("mobile.training.title")}>
+            <Button
+              label={t("mobile.training.open")}
+              variant="secondary"
+              onPress={() => router.push("/training")}
+              testID="settings-training"
+            />
+          </Section>
+        ) : null}
 
         <Section title={t("mobile.account.deleteTitle")}>
           <Text tone="secondary">

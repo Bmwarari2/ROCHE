@@ -1375,3 +1375,51 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     expect(queue.issues()).toMatchObject([{ id: TASK, code: "round_change_unreadable" }]);
   });
 });
+
+describe("uploadData: a course taken offline goes to the e-learning routes (slice 72)", () => {
+  const ATTEMPT = "0199d000-0000-7000-8000-000000000c11";
+  const start = (): CrudEntryLike => ({
+    op: "PUT",
+    table: "elearning_outbox",
+    id: ATTEMPT,
+    opData: {
+      tenant_id: TENANT,
+      action: "start",
+      attempt_id: ATTEMPT,
+      body: JSON.stringify({
+        courseId: "0199d000-0000-7000-8000-000000000c01",
+        packageSha256: "a".repeat(64),
+      }),
+      queued_at: "2026-11-06T10:00:00.000Z",
+    },
+  });
+
+  it("starts the attempt by the phone's id with PUT, keyed by its own id", async () => {
+    const { fetch, calls } = fakeFetch([json({}, 201)]);
+    const queue = fakeQueue([start()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls[0]?.url).toBe(`${API}/v1/workforce/elearning/offline-attempts/${ATTEMPT}`);
+    expect(calls[0]?.init?.method).toBe("PUT");
+    expect(new Headers(calls[0]?.init?.headers).get("idempotency-key")).toBe(ATTEMPT);
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("keeps a refusal as needs attention, in the API's own words", async () => {
+    const words =
+      "This course has changed since it was downloaded, so the work done on the phone was not kept. Download it again and take it again.";
+    const { fetch } = fakeFetch([problem(422, "course_changed", words)]);
+    const queue = fakeQueue([start()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(queue.issues()).toEqual([
+      expect.objectContaining({
+        id: ATTEMPT,
+        personId: null,
+        table: "elearning_outbox",
+        code: "course_changed",
+        message: expect.stringContaining("has changed since it was downloaded"),
+      }),
+    ]);
+    expect(queue.state.completed).toBe(1);
+  });
+});

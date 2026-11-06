@@ -6,6 +6,7 @@ import {
   NEVER_EVICT_TABLES,
   OFFLINE_WINDOW_TABLES,
   ROUND_AND_HANDOVER_TABLES,
+  TRAINING_WRITABLE_TABLES,
 } from "../src/client/schema";
 import { readSyncConfig } from "../src/streams/index";
 import { compile, ids, syncFor } from "./support/simulator";
@@ -62,18 +63,27 @@ describe("client schema covers every stream", () => {
         expect(declared.has(column), `${table}.${column}`).toBe(true);
       }
     }
-    // Every synced table on the device has a stream; only local-only tables have none.
+    // Every synced table on the device has a stream; only local-only and insert-only tables (an
+    // outbox, never synced down) have none, and an insert-only table never has one.
     for (const table of AppSchema.tables) {
-      expect(tablesSeen.has(table.name) || table.localOnly, table.name).toBe(true);
+      expect(tablesSeen.has(table.name) || table.localOnly || table.insertOnly, table.name).toBe(
+        true,
+      );
+      if (table.insertOnly) expect(tablesSeen.has(table.name), table.name).toBe(false);
     }
   });
 
   it("splits the care tables into reference data, windowed entries and the round and handover, and only entries are written", () => {
-    const synced = AppSchema.tables.filter((t) => !t.localOnly).map((t) => t.name);
+    const synced = AppSchema.tables.filter((t) => !t.localOnly && !t.insertOnly).map((t) => t.name);
     expect(
       [...NEVER_EVICT_TABLES, ...OFFLINE_WINDOW_TABLES, ...ROUND_AND_HANDOVER_TABLES].sort(),
     ).toEqual(synced.sort());
     expect(DEVICE_WRITABLE_TABLES).toEqual(OFFLINE_WINDOW_TABLES);
+  });
+
+  it("sends the training outbox up only, never down (slice 72)", () => {
+    const insertOnly = AppSchema.tables.filter((t) => t.insertOnly).map((t) => t.name);
+    expect(insertOnly).toEqual([...TRAINING_WRITABLE_TABLES]);
   });
 
   it("keeps upload problems and bookkeeping on the device only", () => {

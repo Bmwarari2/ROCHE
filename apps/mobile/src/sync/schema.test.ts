@@ -34,6 +34,7 @@ describe("schema bridge", () => {
       handover_staff_acknowledgement: false,
       upload_issue: true,
       held_entry: true,
+      elearning_outbox: false,
     });
   });
 
