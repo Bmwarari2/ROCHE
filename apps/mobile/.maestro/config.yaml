@@ -8,6 +8,7 @@ flows:
   - hazard-HZ-006-offline-note-and-vitals.yaml
   - hazard-HZ-028-round-on-the-phone.yaml
   - demo-round.yaml
+  - tablet-split-views.yaml
   - account-deletion-request.yaml
 executionOrder:
   continueOnFailure: false
@@ -18,4 +19,5 @@ executionOrder:
     - hazard-HZ-006-offline-note-and-vitals
     - hazard-HZ-028-round-on-the-phone
     - demo-round
+    - tablet-split-views
     - account-deletion-request

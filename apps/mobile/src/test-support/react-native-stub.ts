@@ -54,7 +54,27 @@ export const AccessibilityInfo = {
   isHighTextContrastEnabled: async () => false,
   isReduceMotionEnabled: async () => false,
   addEventListener: () => ({ remove: () => undefined }),
+  announced: [] as string[],
+  focused: [] as unknown[],
+  announceForAccessibility(message: string) {
+    AccessibilityInfo.announced.push(message);
+  },
+  setAccessibilityFocus(node: unknown) {
+    AccessibilityInfo.focused.push(node);
+  },
 };
+
+/** The native view behind a host element: the test renderer's instance stands in for it. */
+export function findNodeHandle(instance: unknown): unknown {
+  return instance ?? null;
+}
+
+/** The window a render test draws into; a test sets it to draw a phone or a tablet. */
+export const testWindow = { width: 393, height: 852, fontScale: 1, scale: 3 };
+
+export function useWindowDimensions() {
+  return testWindow;
+}
 
 export function useColorScheme(): "light" {
   return "light";

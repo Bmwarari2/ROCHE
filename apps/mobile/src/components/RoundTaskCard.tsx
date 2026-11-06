@@ -21,6 +21,13 @@ export interface RoundTaskCardProps {
    * path too; #123 clinical review, L1), or null when they may.
    */
   readonly refusal?: FieldError | null;
+  /**
+   * On a tablet beside the round (MOB-013): shows the person's record, with its point-of-care
+   * header, in the pane beside the round (HZ-001). Absent on a phone.
+   */
+  readonly onShowPerson?: (item: RoundItem) => void;
+  /** Whether this task's person is the one shown beside the round. */
+  readonly personShown?: boolean;
 }
 
 /**
@@ -37,6 +44,8 @@ export function RoundTaskCard({
   onMark,
   onRecordEvidence,
   refusal = null,
+  onShowPerson,
+  personShown = false,
 }: RoundTaskCardProps) {
   const theme = useTheme();
   const [asking, setAsking] = useState(false);
@@ -122,6 +131,21 @@ export function RoundTaskCard({
         ) : null}
       </View>
       {chip}
+      {onShowPerson && item.personId ? (
+        personShown ? (
+          <Text variant="bodyDense" emphasis testID={`round-${item.id}-shown`}>
+            {t("mobile.split.recordShown", { person: item.person ?? "" })}
+          </Text>
+        ) : (
+          <Button
+            label={t("mobile.split.showRecord")}
+            accessibilityLabel={t("mobile.split.showRecordLabel", { person: item.person ?? "" })}
+            variant="secondary"
+            onPress={() => onShowPerson(item)}
+            testID={`round-${item.id}-show`}
+          />
+        )
+      ) : null}
       {item.notices.map((notice) => (
         <Text key={notice} variant="bodyDense" testID={`round-${item.id}-notice`}>
           {notice}

@@ -1,6 +1,7 @@
 import ChevronRight from "lucide-react-native/icons/chevron-right";
+import PanelRight from "lucide-react-native/icons/panel-right";
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH } from "./icons";
 import { Text } from "./Text";
@@ -17,6 +18,14 @@ export interface ListItemProps {
   readonly accessibilityLabel?: string;
   readonly accessibilityHint?: string;
   readonly showChevron?: boolean;
+  /**
+   * The row whose detail is open beside the list on a tablet (MOB-013). Said in words with an icon
+   * (`selectedLabel`), marked by a bar on the leading edge, and announced as selected: never by
+   * colour alone.
+   */
+  readonly selected?: boolean;
+  /** Words shown and read on the selected row, such as "Shown on the right". */
+  readonly selectedLabel?: string;
   readonly testID?: string;
 }
 
@@ -30,11 +39,18 @@ export function ListItem({
   accessibilityLabel,
   accessibilityHint,
   showChevron = onPress !== undefined,
+  selected = false,
+  selectedLabel,
   testID,
 }: ListItemProps) {
   const theme = useTheme();
   const haptics = useHaptics();
+  // The selected state is said once, by the platform ("selected"), not again in the label; the
+  // words on the row are for sighted readers (#73 accessibility review L7).
   const label = accessibilityLabel ?? [title, subtitle].filter(Boolean).join(", ");
+  // At large text the title and subtitle wrap as far as they need, never cut off (WCAG 1.4.4).
+  const { fontScale } = useWindowDimensions();
+  const lines = fontScale > LARGE_TEXT_SCALE ? undefined : 2;
 
   return (
     <Pressable
@@ -42,7 +58,8 @@ export function ListItem({
       accessible
       accessibilityRole={onPress ? "button" : undefined}
       accessibilityLabel={label}
-      accessibilityHint={accessibilityHint}
+      accessibilityHint={selected ? undefined : accessibilityHint}
+      accessibilityState={onPress ? { selected } : undefined}
       disabled={!onPress}
       onPress={
         onPress
@@ -59,8 +76,10 @@ export function ListItem({
           paddingHorizontal: theme.space[2],
           paddingVertical: theme.space[1.5],
           gap: theme.space[1.5],
-          backgroundColor: pressed ? theme.colors.bgSecondary : theme.colors.card,
+          backgroundColor: pressed || selected ? theme.colors.bgSecondary : theme.colors.card,
           borderBottomColor: theme.colors.border,
+          borderLeftWidth: SELECTED_BAR,
+          borderLeftColor: selected ? theme.colors.accent : "transparent",
         },
       ]}
     >
@@ -70,15 +89,32 @@ export function ListItem({
         </View>
       ) : null}
       <View style={[styles.body, { gap: theme.space[0.5] }]}>
-        <Text emphasis numberOfLines={2}>
+        <Text emphasis numberOfLines={lines}>
           {title}
         </Text>
         {subtitle ? (
-          <Text variant="bodyDense" tone="secondary" numberOfLines={2}>
+          <Text variant="bodyDense" tone="secondary" numberOfLines={lines}>
             {subtitle}
           </Text>
         ) : null}
         {accessories}
+        {selected && selectedLabel ? (
+          <View
+            style={[styles.selected, { gap: theme.space[0.5] }]}
+            testID={testID ? `${testID}-selected` : undefined}
+          >
+            <PanelRight
+              color={theme.textColors.accent}
+              size={18}
+              strokeWidth={ICON_STROKE_WIDTH}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text variant="bodyDense" tone="accent" emphasis>
+              {selectedLabel}
+            </Text>
+          </View>
+        ) : null}
       </View>
       {showChevron ? (
         <ChevronRight
@@ -93,6 +129,12 @@ export function ListItem({
   );
 }
 
+/** Above this text size a row's lines are never limited. */
+const LARGE_TEXT_SCALE = 1.3;
+
+/** The leading bar on the selected row, in points; always drawn so the row never shifts. */
+const SELECTED_BAR = 4;
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
@@ -100,4 +142,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   body: { flex: 1 },
+  selected: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
 });

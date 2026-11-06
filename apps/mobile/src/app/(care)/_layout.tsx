@@ -49,6 +49,8 @@ export default function CareLayout() {
         name="round"
         options={{
           title: t("mobile.round.title"),
+          // The round has its own stack (round/_layout.tsx), which draws the header.
+          headerShown: false,
           tabBarButtonTestID: "tab-round",
           tabBarAccessibilityLabel: t("mobile.round.title"),
           tabBarIcon: ({ color, size }) => (
