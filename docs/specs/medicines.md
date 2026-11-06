@@ -779,8 +779,6 @@ schema, API, web or mobile changes in this slice.
 | `administration.ts` | `ADMINISTRATION_OUTCOMES`, `OUTCOME_WORDS`, `OUTCOME_REASONS`, `REASON_WORDS`, `DOSE_TAKEN_OUTCOMES`, `DOSE_ALREADY_TAKEN_OUTCOMES`, `REVIEW_FLAG_WORDS`, `GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH`, `REPORTED_FLAGS`, `countReportedFlags`, `checkAdministration` (with `AdministrationEscalation`, `ReviewFlag`), `checkRoundClose`, `marRowLocked`, `checkAmendment`, `checkCorrection` | Rules 17, 23 |
 | `controlled-drugs.ts` | `cdPageKey`, `cdBalanceAfter`, `checkCdEntry`, `defaultCdWitnessPolicy`, `cdPageBalance`, `cdStockCheck`, `cdStockCheckDueAt` | Rules 24 to 27 |
 | `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | Every medicines figure (cycle, windows, intervals, PRN outcome, CD stock check, competence and override) |
-
-| `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | `medicines.ordering_cycle_days` |
 | `dmd-release.ts` (slice 10) | `checkDmdRelease`, `dmdReleaseOrder`, `dmdReleaseFreshness`, `dmdReleaseDateFromName`, `isGtin`, `toGtin14`, `dmdSearchQuery`, `dmdDoseUnitCodes`, `dmdProductFacts`, the release content types | Rules 1 and 2 against the reference data; [integrations.md](integrations.md) section 11 rules 2 to 8 |
 | `dmd-subset.ts` (slice 10) | `selectDmdDeviceSubset` | The device's dm+d subset ([integrations.md](integrations.md) section 11 rule 9; slice 68) |
 

@@ -979,8 +979,6 @@ fields are Harbour's.
 
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `absence.kind` | Harbour (`ABSENCE_KINDS`) | `annual_leave`, `sickness`, `compassionate`, `carers_leave`, `parental_leave`, `maternity`, `paternity`, `adoption`, `parental_bereavement`, `unpaid`, `other` | Only `sickness` takes self-certification, fit notes, return to work, SSP and the Bradford factor; never a diagnosis. |
-| `absence.state` | Harbour (`ABSENCE_STATES`) | `requested`, `approved`, `declined`, `postponed`, `cancelled`, `recorded` | `requested` moves to `approved`, `declined`, `postponed` or `cancelled` (statutory leave is never declined; only carer's and parental leave are postponed: H-970); `approved` and `recorded` to `cancelled`; nothing back (trigger `absence_guard`). |
 | `absence.starts_on`, `ends_on` | ISO 8601 date | `YYYY-MM-DD` (UK calendar), shown dd/mm/yyyy; `ends_on` null while a sickness is open | Leave always has a last day. |
 | `absence.decided_by`, `decided_at`, `decision_reason` | Harbour | `tenant_user` id, UTC; a reason of 3 to 500 characters for a decline or a manager's cancellation | The decider is never the member (check `absence_decider_is_member`). The reason is about the rota, never health. |
 | `absence.self_certified_at`, `bradford_excluded_reason` | Harbour | UTC; free text of 3 to 500 characters | Self-certification covers `ssp.self_certification_days`; the exclusion reason is HR's only. |
@@ -1035,14 +1033,6 @@ needs `rota_and_timesheet`.
 | --- | --- | --- | --- |
 | `absence.kind` | Harbour (`ABSENCE_KINDS`) | `annual_leave`, `sickness`, `compassionate`, `carers_leave`, `parental_leave`, `maternity`, `paternity`, `adoption`, `unpaid`, `other` | Only `sickness` takes self-certification, fit notes, return to work, SSP and the Bradford factor; never a diagnosis. |
 | `absence.state` | Harbour (`ABSENCE_STATES`) | `requested`, `approved`, `declined`, `cancelled`, `recorded` | `requested` moves to `approved`, `declined` or `cancelled`; `approved` and `recorded` to `cancelled`; nothing back (trigger `absence_guard`). |
-| `absence.starts_on`, `ends_on` | ISO 8601 date | `YYYY-MM-DD` (UK calendar), shown dd/mm/yyyy; `ends_on` null while a sickness is open | Leave always has a last day. |
-| `absence.decided_by`, `decided_at`, `decision_reason` | Harbour | `tenant_user` id, UTC; a reason of 3 to 500 characters for a decline or a manager's cancellation | The decider is never the member (check `absence_decider_is_member`). The reason is about the rota, never health. |
-| `absence.self_certified_at`, `bradford_excluded_reason` | Harbour | UTC; free text of 3 to 500 characters | Self-certification covers `ssp.self_certification_days`; the exclusion reason is HR's only. |
-| `fit_note.issued_on`, `covers_from`, `covers_to` | ISO 8601 date | `YYYY-MM-DD` | `covers_to` on or after `covers_from`; issued no later than `covers_to`. |
-| `fit_note.fitness` and adjustments | The fit note form (Statement of Fitness for Work) | `not_fit`, `may_be_fit`; booleans `phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations` (ticked only when `may_be_fit`) | The condition stays on the document; never typed into Harbour. |
-| `fit_note.document_id` | Harbour | A `document` of category `staff_hr_document`, subject `fit_note`, retention `sickness_absence` | Opened only by holders of `workforce.hr_document.read`, audited. |
-| `return_to_work.*` | Harbour | `held_on` date; `held_by` (never the member); `fit_for_usual_duties`; the four adjustments; `notes` up to 4,000 characters | One per absence, after it ends. Notes never in an audit event. |
-| `shift_cover_need.resolution` | Harbour | `assignment_removed`, `absence_ended` | Raised once, resolved once (trigger `shift_cover_need_guard`). |
 
 ## Pay calculation runs (Phase 2, slice 36)
 

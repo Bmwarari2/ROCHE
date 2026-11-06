@@ -145,7 +145,6 @@ that home only.
 | `scheduling.lone_worker.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.wellbeing.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.wellbeing.self` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |
-
 | `scheduling.pay.manage` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `scheduling.pay.approve` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `operations.premises.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |

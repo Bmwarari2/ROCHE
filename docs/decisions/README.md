@@ -74,11 +74,8 @@ for an answer.
 | [0098](0098-production-on-google-cloud.md) | Production on Google Cloud europe-west2, and Brian's open decisions take their defaults | accepted | 2026-10-31 | Before go-live |
 | [0126](0126-thapsus-hr-link.md) | Link Harbour to Thapsus-HR with one owner for each kind of staff data | accepted | 2026-11-01 | Phase 2 |
 | [0082](0082-medicines-rules-at-the-device-boundary.md) | Medicines rules at the medical-device boundary: tags set at transcription and checked, tenant lists as suggestions, no ingredient or allergen matching | proposed | 2026-10-31 | Phase 2 |
-
 | [0108](0108-quality-indicator-counts.md) | Quality indicator counts: one definer function returning numbers only | accepted | 2026-10-31 | Phase 2 |
-
 | [0114](0114-supervision-notes-kept-in-harbour.md) | Supervision and appraisal notes are kept in Harbour, read by few | proposed | 2026-10-31 | Phase 2 |
-
 | [0125](0125-speak-up-anonymised-view-not-yet-granted.md) | The speak-up anonymised view is not granted until it exists | accepted | 2026-10-31 | Phase 2 |
 
 ## Open items carried by these ADRs

@@ -77,6 +77,4 @@ Sources: [Bedrock model and region support](https://docs.aws.amazon.com/bedrock/
 | --- | --- | --- |
 | 11 October 2026 | Register created (Phase 0) | Not applicable (no live tenants) |
 | 11 October 2026 | Pending entries for family notifications: SES for family email and a UK SMS gateway (Phase 1, slice 12) | Not applicable (no live tenants); notice due before they process family data |
-| 31 October 2026 | Google Cloud EMEA Limited replaces Amazon Web Services for hosting, under the CDPA (ADR-0098, H-1000); Amazon SES removed (the 11 October SES entries are superseded); the email provider is not yet chosen (H-08) and production email is off until it is | Not applicable (no live tenants) |
-
 | 31 October 2026 | The NHSBSA dm+d release from TRUD recorded as a download source, not a sub-processor (Phase 2 slice 10, ADR-0080) | Not applicable (no personal data) |

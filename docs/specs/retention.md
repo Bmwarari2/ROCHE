@@ -86,7 +86,6 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `outbreak` ([safety.md](safety.md) section 11) | serious_incident, as its UKHSA report |
 | `outbreak_case` | care_record for residents; staff cases follow it for now, to be confirmed by the DPO (H-767) |
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
-
 | `medication`, `medication_schedule`, `medication_administration`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item` | staff_file (tenant's chosen row) |

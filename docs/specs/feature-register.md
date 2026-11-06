@@ -15,33 +15,17 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
 | Safety and notifications | `SAFE` | 11.1 | 16 | 6 | 10 | 0 |
 | Quality and governance | `QUAL` | 11.2 | 13 | 11 | 2 | 0 |
-| Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 9 | 4 | 0 |
-| Rostering, time and pay | `SCHED` | 12.3 | 12 | 11 | 1 | 0 |
-
 | Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 5 | 5 | 3 |
 | Rostering, time and pay | `SCHED` | 12.3 | 12 | 4 | 8 | 0 |
 | Operations | `OPS` | 13 | 28 | 27 | 1 | 0 |
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
 | Communication and portals | `COMMS` | 15.1 | 8 | 4 | 4 | 0 |
 | Reporting and analytics | `INSI` | 15.2 | 6 | 6 | 0 | 0 |
-| Integrations | `INTG` | 15.3 | 14 | 12 | 2 | 0 |
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 6 | 7 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **234** | **154** | **80** | **0** |
-
-| **Total** | | | **233** | **135** | **96** | **2** |
-
 | Integrations | `INTG` | 15.3 | 13 | 10 | 3 | 0 |
-| AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
-| Mobile apps | `MOB` | 17 | 13 | 6 | 7 | 0 |
-| Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **156** | **77** | **0** |
 | **Total** | | | **233** | **135** | **95** | **3** |
-
-| **Total** | | | **233** | **164** | **69** | **0** |
-
-| **Total** | | | **233** | **156** | **77** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
