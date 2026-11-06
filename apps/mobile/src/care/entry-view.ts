@@ -260,8 +260,26 @@ export function issueItem(row: UploadIssueRow): IssueItem {
   } else if (row.record_table === "handover_acknowledgement") {
     content = t("mobile.handover.acknowledged");
   }
+  // A clock event or a lone-working action (scheduling.md section 18): what it was, never more. A
+  // duress press was kept as a check-in before it got here (`screenSafePayload`, HZ-125).
+  let shiftAt: string | null = null;
+  if (row.record_table === "clock_event") {
+    content = t("mobile.clock.issue", { kind: String(payload.kind ?? "other") });
+    shiftAt = typeof payload.device_time === "string" ? payload.device_time : null;
+  } else if (row.record_table === "lone_worker_outbox") {
+    const body = parseObject(typeof payload.body === "string" ? payload.body : null);
+    const kind = payload.action === "start" ? "start" : String(body.kind ?? "other");
+    content = t("mobile.lone.issue", { kind: kind === "duress" ? "check_in" : kind });
+    shiftAt =
+      typeof body.deviceAt === "string"
+        ? body.deviceAt
+        : typeof body.startedAt === "string"
+          ? body.startedAt
+          : null;
+  }
   const at =
     move?.at ??
+    shiftAt ??
     (typeof payload.acknowledged_at === "string" ? payload.acknowledged_at : null) ??
     (typeof payload.occurred_at === "string" ? payload.occurred_at : null);
   const occurred = parseInstant(at);
@@ -274,7 +292,11 @@ export function issueItem(row: UploadIssueRow): IssueItem {
     personId,
     // A task about nobody and an acknowledgement name no one.
     title:
-      !personId && (table === "task" || table === "handover_acknowledgement")
+      !personId &&
+      (table === "task" ||
+        table === "handover_acknowledgement" ||
+        table === "clock_event" ||
+        table === "lone_worker_outbox")
         ? t("mobile.issues.itemNoPerson", { table })
         : t("mobile.issues.item", { table, name: display || t("mobile.common.notRecorded") }),
     reason: t("mobile.issues.reason", { reason: row.message ?? t("mobile.issues.unknownReason") }),

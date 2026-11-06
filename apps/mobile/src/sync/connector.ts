@@ -27,7 +27,7 @@
  * of refused entries (`onRefused`, `refused-copies.ts`), so it is never only on one phone.
  */
 
-import type { RoundWritableTable } from "@harbour/sync/client";
+import type { RoundWritableTable, ShiftWritableTable } from "@harbour/sync/client";
 import type {
   CommonPowerSyncDatabase,
   PowerSyncBackendConnector,
@@ -61,6 +61,7 @@ import {
   type SessionCheck,
   TENANT_HEADER,
 } from "./session-signals";
+import { isShiftWritableTable, screenSafePayload, toShiftUpload } from "./shift-upload";
 import { type WriteScope, writeScopeFromToken } from "./write-scope";
 
 export type UploadOp = "PUT" | "PATCH" | "DELETE";
@@ -467,6 +468,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         await this.uploadCareEntry(database, { ...entry, table: entry.table }, clientId);
       } else if (isRoundWritableTable(entry.table)) {
         await this.uploadRoundChange(database, { ...entry, table: entry.table }, clientId);
+      } else if (isShiftWritableTable(entry.table)) {
+        await this.uploadShiftChange(database, { ...entry, table: entry.table }, clientId);
       } else {
         others.push(entry);
       }
@@ -477,6 +480,43 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       await this.uploadOperations(database, others, idempotencyKey);
     }
     await transaction.complete();
+  }
+
+  /**
+   * A clock event or a lone-worker action to its own route (`shift-upload.ts`); a refusal moves it
+   * to "needs attention" in the API's own words (a refused clock-in says why), with a duress press
+   * kept as an ordinary check-in (HZ-125).
+   */
+  private async uploadShiftChange(
+    database: UploadSource,
+    entry: CrudEntryLike & { readonly table: ShiftWritableTable },
+    clientId: string,
+  ): Promise<void> {
+    const request = toShiftUpload(entry);
+    const park = (status: number | null, code: string, message: string) =>
+      recordUploadIssue(database, {
+        id: request.recordId,
+        tenantId: request.tenantId,
+        personId: null,
+        table: entry.table,
+        httpStatus: status,
+        code,
+        message,
+        payload: screenSafePayload(entry.table, { ...(entry.opData ?? {}) }),
+        rejectedAt: this.now(),
+      });
+    if (request.kind === "refused") {
+      await park(null, request.code, request.message);
+      this.options.onRefused?.();
+      return;
+    }
+    try {
+      await this.postChange(request, clientId);
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
+      await park(error.status, error.code, error.reason ?? t("mobile.issues.unknownReason"));
+      this.options.onRefused?.();
+    }
   }
 
   /** One care entry to its own endpoint; a refusal moves it to "needs attention". */

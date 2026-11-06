@@ -1,0 +1,159 @@
+/**
+ * Turns a queued clock event or lone-worker action into a request to the API's own route for it
+ * (scheduling.md section 18): a clock event to `POST /v1/me/clock-events` (the device's time and
+ * the client's UUID; the server keeps its own time too, HZ-010), a lone-worker session start to
+ * `POST /v1/lone-worker/sessions` and a lone-worker event to
+ * `POST /v1/lone-worker/sessions/{id}/events`. Each carries the client's UUID, so a retry records
+ * once. `POST /v1/sync/upload` writes none of them.
+ *
+ * A duress press is sent as what it is, but anything the phone keeps about it after a refusal
+ * ("needs attention") reads as an ordinary check-in (`screenSafePayload`), so the device never
+ * shows that duress was pressed (HZ-125).
+ *
+ * Pure, so the mapping is tested without a device. A change that cannot become a valid request is
+ * refused here, with a reason, rather than sent; the connector keeps it as "needs attention".
+ */
+import { SHIFT_WRITABLE_TABLES, type ShiftWritableTable } from "@harbour/sync/client";
+import { t } from "../i18n/t";
+import type { CrudEntryLike } from "./connector";
+
+export function isShiftWritableTable(table: string): table is ShiftWritableTable {
+  return (SHIFT_WRITABLE_TABLES as readonly string[]).includes(table);
+}
+
+export interface ShiftUploadRequest {
+  readonly kind: "request";
+  readonly table: ShiftWritableTable;
+  /** The event's or the session's own id: the idempotency key and "needs attention" id. */
+  readonly recordId: string;
+  readonly tenantId: string;
+  readonly path: string;
+  readonly body: Record<string, unknown>;
+}
+
+export interface ShiftUploadRefusal {
+  readonly kind: "refused";
+  readonly table: ShiftWritableTable;
+  readonly recordId: string;
+  readonly tenantId: string | null;
+  readonly code: "shift_change_unreadable";
+  readonly message: string;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CLOCK_KINDS = new Set(["in", "out", "break_start", "break_end"]);
+const LONE_WORKER_KINDS = new Set(["check_in", "help", "duress", "finish"]);
+
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function parsed(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "string") return null;
+  try {
+    const v: unknown = JSON.parse(value);
+    return typeof v === "object" && v !== null && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function isInstant(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+const segment = encodeURIComponent;
+
+/** Maps one queued change to its API request, or says why it cannot be sent. */
+export function toShiftUpload(
+  entry: CrudEntryLike & { readonly table: ShiftWritableTable },
+): ShiftUploadRequest | ShiftUploadRefusal {
+  const data = entry.opData ?? {};
+  const tenantId = text(data.tenant_id);
+  const refused = (): ShiftUploadRefusal => ({
+    kind: "refused",
+    table: entry.table,
+    recordId: entry.id,
+    tenantId,
+    code: "shift_change_unreadable",
+    message: t("mobile.shifts.unreadable"),
+  });
+  // Both are inserts only: nothing on the phone changes or removes one once queued.
+  if (entry.op !== "PUT" || !tenantId || !UUID.test(entry.id)) return refused();
+
+  if (entry.table === "clock_event") {
+    const kind = text(data.kind);
+    const locationId = text(data.location_id);
+    const shiftId = text(data.shift_id);
+    const deviceTime = data.device_time;
+    if (!kind || !CLOCK_KINDS.has(kind) || !locationId || !UUID.test(locationId)) return refused();
+    if (shiftId !== null && !UUID.test(shiftId)) return refused();
+    if (!isInstant(deviceTime)) return refused();
+    return {
+      kind: "request",
+      table: entry.table,
+      recordId: entry.id,
+      tenantId,
+      path: "/v1/me/clock-events",
+      body: {
+        id: entry.id,
+        kind,
+        locationId,
+        shiftId,
+        deviceTime: new Date(deviceTime).toISOString(),
+        evidence: "none",
+        nfcTagRef: null,
+      },
+    };
+  }
+
+  // lone_worker_outbox
+  const action = text(data.action);
+  const sessionId = text(data.session_id);
+  const body = parsed(data.body);
+  if (!body || !sessionId || !UUID.test(sessionId)) return refused();
+  if (action === "start") {
+    if (body.id !== sessionId) return refused();
+    return {
+      kind: "request",
+      table: entry.table,
+      recordId: entry.id,
+      tenantId,
+      path: "/v1/lone-worker/sessions",
+      body,
+    };
+  }
+  if (action === "event") {
+    if (typeof body.kind !== "string" || !LONE_WORKER_KINDS.has(body.kind)) return refused();
+    if (typeof body.id !== "string" || !UUID.test(body.id) || !isInstant(body.deviceAt)) {
+      return refused();
+    }
+    return {
+      kind: "request",
+      table: entry.table,
+      recordId: entry.id,
+      tenantId,
+      path: `/v1/lone-worker/sessions/${segment(sessionId)}/events`,
+      body,
+    };
+  }
+  return refused();
+}
+
+/**
+ * What the phone keeps of a refused change: a duress press kept as an ordinary check-in, so a
+ * refusal never shows on the device that duress was pressed (HZ-125). The server recorded and
+ * alarmed the duress press whatever it answered (scheduling.md section 17.3 rule 8), so nothing is
+ * lost by sending it again as a check-in.
+ */
+export function screenSafePayload(
+  table: ShiftWritableTable,
+  payload: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  if (table !== "lone_worker_outbox") return { ...payload };
+  const body = parsed(payload.body);
+  if (body?.kind !== "duress") return { ...payload };
+  return { ...payload, body: JSON.stringify({ ...body, kind: "check_in" }) };
+}

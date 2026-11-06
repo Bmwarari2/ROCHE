@@ -20,6 +20,12 @@ export interface ButtonProps {
   /** Visible label, sentence case. Also the accessibility label unless one is given. */
   readonly label: string;
   readonly onPress: (event: GestureResponderEvent) => void;
+  /**
+   * A press held for `delayLongPress` ms. It gives exactly the same feedback as a press (haptic,
+   * look and what is said), so nobody watching can tell the two apart.
+   */
+  readonly onLongPress?: (event: GestureResponderEvent) => void;
+  readonly delayLongPress?: number;
   readonly variant?: ButtonVariant;
   readonly disabled?: boolean;
   /** Shows a spinner and marks the button busy for assistive technology. */
@@ -41,6 +47,8 @@ export interface ButtonProps {
 export function Button({
   label,
   onPress,
+  onLongPress,
+  delayLongPress,
   variant = "primary",
   disabled = false,
   loading = false,
@@ -72,6 +80,12 @@ export function Button({
     if (feedback !== "none") haptics?.[feedback]();
     onPress(event);
   };
+  const handleLongPress = onLongPress
+    ? (event: GestureResponderEvent) => {
+        if (feedback !== "none") haptics?.[feedback]();
+        onLongPress(event);
+      }
+    : undefined;
 
   return (
     <Pressable
@@ -82,6 +96,8 @@ export function Button({
       accessibilityState={{ disabled: inactive, busy: loading }}
       disabled={inactive}
       onPress={handlePress}
+      onLongPress={handleLongPress}
+      delayLongPress={delayLongPress}
       testID={testID}
       hitSlop={4}
       style={({ pressed }) => [
