@@ -184,6 +184,10 @@ export const PERMISSIONS = {
     description: "Record and end covert administration agreed in a best-interests decision",
     careRecord: true,
   },
+  "medicines.list.manage": {
+    description: "Manage the organisation's medicine lists, such as the psychotropic list",
+    careRecord: true,
+  },
   "medicines.override.approve": {
     description: "Approve overrides such as expired competence",
     careRecord: true,

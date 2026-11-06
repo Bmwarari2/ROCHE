@@ -1404,6 +1404,21 @@ stored. Exported in the full tenant export with these names.
 | `hr_delivery.payload_sha256` | Harbour | 64 lower-case hex characters | Digest of what was last sent (slice 88, migration 0142) |
 | `absence.source`, `absence.hr_id` | Harbour; Thapsus-HR | `harbour` or `thapsus_hr`; `^[A-Za-z0-9_-]{1,64}$` | A Thapsus-HR copy is annual leave, sickness or other, recorded or cancelled, with no decider (slice 88, migration 0142) |
 
+## PRN protocols and outcomes (Phase 2, slice 28)
+
+Migration 0143 ([medicines.md](medicines.md) section 16). Retention class `mar_chart` (medicine
+lists: `organisation_document`); every column is exported.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `medicine_list_item.list`, `vmp_id` | Harbour (ADR-0082); dm+d VMP | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic`; SNOMED CT concept id | Exact products only. |
+| `prn_protocol.triggers`, `non_drug_alternatives` | Harbour | Arrays of text | Staff's words; never Harbour's suggestion. |
+| `prn_protocol.purpose_group`, `order_of_use` | Harbour | Text; integer from 1 | One medicine per place in a group. |
+| `prn_protocol.agreed_with_role` | Harbour | `prescriber`, `pharmacist` | |
+| `prn_protocol.agreed_on`, `review_on`, `withdrawn_on` | ISO 8601 date | UK date | Review within `medicines.prn_protocol.review_max_days`. |
+| `prn_outcome.outcome` | Harbour; PRSB eMAR (not yet coded) | `effective`, `partly_effective`, `not_effective`, `person_asleep`, `could_not_assess` | Shown in words (`PRN_OUTCOME_WORDS`). |
+| `prn_outcome.observed_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

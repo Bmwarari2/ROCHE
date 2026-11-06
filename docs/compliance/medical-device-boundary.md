@@ -238,6 +238,15 @@ checked only against the home's own protocol, agreed with a GP or pharmacist: it
 in 24 hours and days before referral, and an exact dm+d product match with a current entry. No
 ingredient is compared (ADR-0082), no dose is calculated, and no remedy is suggested.
 
+**PRN protocols, outcomes and the PRN frequency report (Phase 2, slice 28)**: checked; inside the
+boundary. A protocol stores the home's guidance in its own words, agreed with the prescriber or
+pharmacist, and shows the prescriber's limits from the entry; Harbour never suggests a sign, an
+alternative, an order or a dose. An outcome records what staff saw. The report counts records per
+person and medicine (doses, days, the most on one day, outcomes) and says it is a count for the
+prescriber and pharmacist; it applies no threshold, rate or score to any person. The psychotropic
+list holds exact dm+d products the organisation chose; nothing is matched by ingredient or name
+(ADR-0082).
+
 **Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 **OCR of scanned MAR charts and e-signature (Phase 2, slice 79; ADR-0095)**: these stay inside the
 boundary. OCR transcribes the text on a photographed chart and nothing more: it never interprets a

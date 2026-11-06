@@ -117,6 +117,7 @@ import {
 } from "./routes/platform";
 import { platformImportsRouter } from "./routes/platform-imports";
 import { policiesRouter } from "./routes/policies";
+import { prnProtocolsRouter } from "./routes/prn-protocols";
 import { qualityAuditsRouter } from "./routes/quality-audits";
 import { qualityDashboardRouter } from "./routes/quality-dashboard";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
@@ -539,6 +540,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", medicationErrorsRouter);
   app.route("/", medicineStockRouter);
   app.route("/", medicinesAuthorityRouter);
+  app.route("/", prnProtocolsRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

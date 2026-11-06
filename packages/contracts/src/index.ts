@@ -598,6 +598,7 @@ export * from "./pay";
 export * from "./payroll-export";
 export * from "./people";
 export * from "./person-summary";
+export * from "./prn-protocols";
 export * from "./quality";
 export * from "./quality-audits";
 export * from "./quality-dashboard";

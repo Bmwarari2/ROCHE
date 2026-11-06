@@ -319,6 +319,12 @@ escalated, never refused; self-administration assessments; homely remedy protoco
 doses checked against them. New permission `medicines.covert.manage`, backfilled to built-in roles.
 Next: the web screens (slices 52, 53, 55). Lands through a merge batch.
 
+**Phase 2 slice 28, PRN protocols and the psychotropic report** (`feat/meds-prn-protocols`,
+MEDS-003, from slice 22; migration 0143; HZ-117; H-1380 to H-1389, recommended answers applied):
+versioned PRN protocols that show the entry's limits and never copy them, outcome follow-up, the
+organisation's medicine lists (the psychotropic list) and the PRN frequency report. New permission
+`medicines.list.manage`, backfilled to built-in roles. Next: the round display (slice 53).
+
 **Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
 with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
 UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the

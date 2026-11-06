@@ -28,6 +28,7 @@ export * from "./medicines";
 export * from "./medicines-authority";
 export * from "./medicines-dmd";
 export * from "./medicines-errors";
+export * from "./medicines-prn";
 export * from "./onboarding";
 export * from "./operations";
 export * from "./operator";
