@@ -93,3 +93,13 @@ Branch `feat/meds-rounds`, from `feat/meds-cd-register` (slice 34), with #162's 
   a future time given, and the clock-change slot (H-1277).
 - Noted, not changed: a location in a nation with no medicines rates seeded, or a regular entry
   with no times, fails the whole location round with a 500 rather than one person's part of it.
+
+## Final review fixes (06/11/2026)
+
+- Security B1: a controlled drug's permission and step-up are checked before the decision's
+  transaction opens, so its scope limits RLS. Not covered by a test (needs a member whose
+  controlled drugs scope differs from their record-management scope).
+- Clinical B1: the decider (or anyone who recorded, gave, corrected or uploaded the dose) cannot
+  close the retrospective review; the provider reviews when the Registered Manager decided. Tested.
+- Security 2: self-review counts the uploaded giver, the current and named corrections' authors.
+  The controlled drug witness is not yet counted.

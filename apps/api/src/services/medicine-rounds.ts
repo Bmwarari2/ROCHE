@@ -1,5 +1,10 @@
 import type { MedicineRound } from "@harbour/contracts";
-import { medicationAdministrationConflict, type Transaction, task } from "@harbour/db";
+import {
+  medicationAdministration,
+  medicationAdministrationConflict,
+  type Transaction,
+  task,
+} from "@harbour/db";
 import {
   addUkDays,
   doseNotices,
@@ -416,4 +421,39 @@ export async function conflictOut(
           }
         : null,
   };
+}
+
+export const RETROSPECTIVE_TASK = "medicines.administration.conflict_retrospective";
+
+/**
+ * Why someone may not close a self-reviewed conflict's retrospective review: they decided it, or
+ * recorded or uploaded the dose, so the review would not be independent (clinical review B1).
+ */
+export async function retrospectiveRefusal(
+  tx: Transaction,
+  tenantUserId: string,
+  conflictId: string | null,
+): Promise<string | null> {
+  if (!conflictId) return null;
+  const [row] = await tx
+    .select()
+    .from(medicationAdministrationConflict)
+    .where(eq(medicationAdministrationConflict.id, conflictId));
+  if (!row) return "missing_permission";
+  const joined = await joinedTo(tx, conflictId);
+  const [standing] = await tx
+    .select({
+      recordedBy: medicationAdministration.recordedBy,
+      administeredBy: medicationAdministration.administeredBy,
+    })
+    .from(medicationAdministration)
+    .where(eq(medicationAdministration.id, row.standingId));
+  const involved = [
+    row.resolvedBy,
+    row.uploadedBy,
+    ...joined.map((r) => r.uploadedBy),
+    standing?.recordedBy,
+    standing?.administeredBy,
+  ];
+  return involved.includes(tenantUserId) ? "own_decision" : null;
 }

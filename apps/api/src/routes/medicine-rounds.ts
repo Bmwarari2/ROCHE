@@ -34,6 +34,7 @@ import {
   conflictOut,
   joinedTo,
   pendingConflicts,
+  RETROSPECTIVE_TASK,
   ROUTINE_REVIEW_MS,
   roundFor,
   TAKEN,
@@ -62,7 +63,6 @@ const ADMINISTER = "medicines.emar.administer" as const;
 const MANAGE = "medicines.record.manage" as const;
 const CD_ADMINISTER = "medicines.cd.administer" as const;
 const CD_REGISTER_TASK = "medicines.cd.register_entry_due";
-const RETROSPECTIVE_TASK = "medicines.administration.conflict_retrospective";
 const LocationParam = z.object({ id: z.uuid() });
 const ConflictParam = z.object({ id: z.uuid() });
 const HOUR_MS = 3_600_000;
@@ -273,6 +273,35 @@ export const medicineRoundsRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
+      // A controlled drug's permission, with its own scope, and a fresh step-up apply before the
+      // decision's transaction opens, so RLS runs in the narrower of both scopes (security
+      // review B1): someone without controlled drugs authority there finds no conflict.
+      const pre = await withTenant(c, async (tx) => {
+        const [r] = await tx
+          .select({
+            personId: medicationAdministrationConflict.personId,
+            medicationId: medicationAdministrationConflict.medicationId,
+          })
+          .from(medicationAdministrationConflict)
+          .where(eq(medicationAdministrationConflict.id, id));
+        return r
+          ? { personId: r.personId, controlled: await isControlledDrug(tx, r.medicationId) }
+          : null;
+      });
+      if (pre?.controlled) {
+        const cd = await requirePermission(c, CD_ADMINISTER);
+        if (!stepUpFresh(cd)) {
+          await withAuditedRefusal(c, access, async () => {
+            throw new AuditedRefusal(problems.stepUp(), {
+              action: "medicines.administration.conflict_resolved",
+              outcome: "denied",
+              resourceType: "medication_administration_conflict",
+              resourceId: id,
+              scope: { personId: pre.personId, problems: ["step_up_required"] },
+            });
+          });
+        }
+      }
       const out = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           const [first] = await tx
@@ -322,37 +351,6 @@ export const medicineRoundsRouter = createRouter()
           const joined = await joinedTo(tx, id);
           const standing = rows.find((r) => r.id === row.standingId) as AdministrationRow;
           const uploads = [row, ...joined].map((r) => (r.uploaded as { outcome: string }).outcome);
-          // Deciding on a record you made or uploaded is a self-review (re-review L1, M4). A lone
-          // nurse may still decide, so the conflict never waits for the day shift, and a
-          // retrospective review goes to the Registered Manager (H-1270's recommended answer).
-          const uploader = [row.uploadedBy, ...joined.map((r) => r.uploadedBy)].includes(
-            access.tenantUserId,
-          );
-          const recorder = [standing.recordedBy, standing.administeredBy].includes(
-            access.tenantUserId,
-          );
-          const selfReview = uploader || recorder;
-          // A controlled drug needs its own permission and a fresh step-up (re-review M3).
-          const controlled = await isControlledDrug(tx, row.medicationId);
-          if (controlled && selfReview) {
-            // Controlled drugs always need two people (separation of duties).
-            throw deny(
-              "own_record",
-              "A controlled drug's records are decided by someone who did not record or upload the dose.",
-            );
-          }
-          if (controlled) {
-            await requirePermission(c, CD_ADMINISTER);
-            if (!stepUpFresh(access)) {
-              throw new AuditedRefusal(problems.stepUp(), {
-                action: "medicines.administration.conflict_resolved",
-                outcome: "denied",
-                resourceType: "medication_administration_conflict",
-                resourceId: id,
-                scope: { personId: row.personId, problems: ["step_up_required"] },
-              });
-            }
-          }
           // The decision must fit what the records say (re-review M2).
           const takenUpload = uploads.some((o) => TAKEN.has(o));
           // What the record that stands says now, after any correction (re-review L1).
@@ -360,6 +358,34 @@ export const medicineRoundsRouter = createRouter()
           let current = standing;
           for (let i = 0; later.has(current.id) && i < rows.length; i++) {
             current = rows.find((r) => r.id === later.get(current.id)) ?? current;
+          }
+          // Deciding on a record you made, gave, corrected or uploaded is a self-review (re-review
+          // L1, M4; security re-review 2). A lone nurse may still decide, so the conflict never
+          // waits for the day shift, and a retrospective review goes to someone else (H-1270).
+          const named = body.correctionId
+            ? rows.find((r) => r.id === body.correctionId)
+            : undefined;
+          const parties = [
+            row.uploadedBy,
+            ...joined.map((r) => r.uploadedBy),
+            ...[row, ...joined].map((r) => (r.uploaded as { givenBy?: string | null }).givenBy),
+            standing.recordedBy,
+            standing.administeredBy,
+            current.recordedBy,
+            current.administeredBy,
+            named?.recordedBy,
+          ];
+          const selfReview = parties.includes(access.tenantUserId);
+          const controlled = await isControlledDrug(tx, row.medicationId);
+          if (controlled !== (pre?.controlled ?? false)) {
+            throw problems.conflict("This medicine changed while you were deciding. Try again.");
+          }
+          if (controlled && selfReview) {
+            // Controlled drugs always need two people (separation of duties).
+            throw deny(
+              "own_record",
+              "A controlled drug's records are decided by someone who did not record, give or upload the dose.",
+            );
           }
           if (body.outcome === "both_given" && !(TAKEN.has(current.outcome) && takenUpload)) {
             throw deny(
@@ -471,7 +497,10 @@ export const medicineRoundsRouter = createRouter()
               locationId: where.locationId,
               sourceType: "medication_administration_conflict",
               sourceId: id,
-              assigneeRoleKey: "registered_manager",
+              // The Registered Manager reviews, or the provider when the manager decided (B1).
+              assigneeRoleKey: access.effective.roleKeys.includes("registered_manager")
+                ? "owner"
+                : "registered_manager",
               dueAt: new Date(now.getTime() + ROUTINE_REVIEW_MS),
               priority: "routine",
             });

@@ -1203,8 +1203,11 @@ self-administered or given by family); `first_stands` is refused when an upload 
 record that stands does not, so the reviewer corrects the record instead. Someone who recorded or
 uploaded the dose may still decide, so a lone nurse at night never leaves a conflict waiting: the
 decision is audited as a self-review and raises a routine retrospective review task for the
-Registered Manager, due within 8 hours (H-1270). A controlled drug's conflict is always decided by
-someone who neither recorded nor uploaded the dose. The checks read what the record that stands
+Registered Manager (the provider when the Registered Manager decided), due within 8 hours
+(H-1270). Nobody who decided, recorded, gave, corrected or uploaded the dose may close that review.
+A controlled drug's conflict is always decided by someone who did none of these, and its permission
+and step-up are checked before the decision's transaction opens, so its scope limits what the
+decider can see. The checks read what the record that stands
 says now, after any correction. A controlled drug's conflict also needs
 `medicines.cd.administer` and a fresh step-up, and `both_given` on one raises an urgent task to
 enter the second dose on the register, witnessed. The incident's time is the device's time given

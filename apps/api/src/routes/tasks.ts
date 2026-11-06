@@ -48,6 +48,7 @@ import {
 } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
+import { RETROSPECTIVE_TASK, retrospectiveRefusal } from "../services/medicine-rounds";
 import {
   assigneeMayComplete,
   EVIDENCE_ONLY_TASK_KINDS,
@@ -105,6 +106,11 @@ async function completionRefusal(
   now: Date,
 ): Promise<string | null> {
   if (EVIDENCE_ONLY_TASK_KINDS.includes(row.kind)) return "completed_by_its_evidence";
+  // A self-reviewed medicines conflict is reviewed by someone else (slice 48 clinical review B1).
+  if (row.kind === RETROSPECTIVE_TASK) {
+    const own = await retrospectiveRefusal(tx, access.tenantUserId, row.sourceId);
+    if (own) return own;
+  }
   const permission = row.requiredPermission;
   if (isPermission(permission) && can(access.effective, permission)) {
     const here = await inScopeOf(tx, scopeFor(access.effective, permission), () =>

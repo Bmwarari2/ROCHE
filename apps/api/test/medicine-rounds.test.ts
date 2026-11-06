@@ -317,19 +317,31 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       { method: "POST", body: { outcome: "both_given", note: "Given on both tablets" } },
     );
     expect(both.status, await both.clone().text()).toBe(200);
-    const retrospective = await asDemo(
+    const [retrospective] = await asDemo(
       async (c) =>
         (
-          await c.query<{ priority: string; assignee_role_key: string }>(
-            `SELECT priority, assignee_role_key FROM task
+          await c.query<{
+            id: string;
+            version: number;
+            priority: string;
+            assignee_role_key: string;
+          }>(
+            `SELECT id, version, priority, assignee_role_key FROM task
               WHERE kind = 'medicines.administration.conflict_retrospective' AND source_id = $1`,
             [next.conflictId],
           )
         ).rows,
     );
-    expect(retrospective).toEqual([
-      { priority: "routine", assignee_role_key: "registered_manager" },
-    ]);
+    // The manager decided, so the provider reviews; the decider cannot close the review (B1).
+    expect(retrospective).toMatchObject({ priority: "routine", assignee_role_key: "owner" });
+    const close = (who: string) =>
+      send(who, `/v1/tasks/${retrospective?.id}/transition`, {
+        method: "POST",
+        body: { to: "done", version: retrospective?.version },
+      });
+    expect((await close("manager")).status).toBe(403);
+    const reviewed = await close("owner");
+    expect(reviewed.status, await reviewed.clone().text()).toBe(200);
     const deps = {
       workerPool: h.db.pool("harbour_worker"),
       appDb: createDatabase(h.db.pool("harbour_app")),
