@@ -132,8 +132,9 @@ jobs:
       - name: Markdown links resolve
         run: node scripts/check-markdown-links.mjs
       # Trivy's --ignore-unfixed hides an unfixed advisory whatever its exp: date, and pnpm's
-      # ignoreGhsas never expires, so this fails once an exception's review date has passed, or
-      # when the exceptions record, ignoreGhsas and .trivyignore list different advisories.
+      # ignoreGhsas never expires, so this fails once an exception's review date has passed or is
+      # later than its cap, or when the exceptions record, ignoreGhsas, .trivyignore and the inline
+      # Trivy ignores in the Terraform disagree. vulnerability-exceptions.yml also runs it daily.
       - name: Vulnerability exceptions are in date and listed alike
         run: |
           pnpm test:scripts
