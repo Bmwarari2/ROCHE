@@ -957,7 +957,11 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 3 
       await asOwner("UPDATE tenant_user SET status = $2 WHERE id = $1", [KIT, status]);
       expect(await rows()).toEqual({ assignments: [], grants: [] });
     }
+    // An ended membership stays ended (migration 0144); this fixture member is restored for the
+    // tests after it with the guard set aside by the table's owner.
+    await asOwner("ALTER TABLE tenant_user DISABLE TRIGGER tenant_user_status_guard", []);
     await asOwner("UPDATE tenant_user SET status = 'active' WHERE id = $1", [KIT]);
+    await asOwner("ALTER TABLE tenant_user ENABLE TRIGGER tenant_user_status_guard", []);
   });
 
   it("attaches an organisation's document only to the organisation's own records, and a subject only with its type (security lows)", async () => {

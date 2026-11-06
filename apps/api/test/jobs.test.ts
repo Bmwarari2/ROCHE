@@ -102,10 +102,11 @@ describe("escalation chains", () => {
         "UPDATE role_assignment SET valid_from = '2026-01-01T00:00:00Z' WHERE tenant_user_id = $1",
         [DEMO.users.manager.id],
       );
-      // Only someone active is told: the manager has signed in (review round 3, C3-M3).
-      await c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [
-        DEMO.users.manager.id,
-      ]);
+      // Only someone active is told: the manager has signed in (review round 3, C3-M3); set by
+      // the owning role, as the application role writes no member state (migration 0144).
+      await asTenant(db.pool("harbour_owner"), (o) =>
+        o.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [DEMO.users.manager.id]),
+      );
       const chain = await c.query<{ id: string }>(
         `INSERT INTO escalation_chain (key, name, steps) VALUES ('missed_visit', 'Missed visit',
            '[{"afterMinutes":10,"targetRoleKey":"registered_manager","channels":["push"]},
@@ -145,10 +146,10 @@ describe("escalation chains", () => {
     const created = new Date("2026-10-11T09:00:00Z");
     // Harbour Field, an invented home no one works at.
     const field = "0194d000-0000-7000-8000-0000000001f1";
+    await asTenant(db.pool("harbour_owner"), (o) =>
+      o.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [DEMO.users.manager.id]),
+    );
     const ids = await asTenant(appPool, async (c) => {
-      await c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [
-        DEMO.users.manager.id,
-      ]);
       await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Field')", [field]);
       const chain = await c.query<{ id: string }>(
         `INSERT INTO escalation_chain (key, name, steps) VALUES ('fall_unwitnessed', 'Unwitnessed fall',

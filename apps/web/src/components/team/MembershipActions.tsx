@@ -38,11 +38,13 @@ export function MembershipAction({
   const [pending, startTransition] = useTransition();
   // Entries the phone reported after this page was drawn: the API asks for the confirmation.
   const [lateWaiting, setLateWaiting] = useState(false);
+  // Devices the API counted that this page did not: it asks how they were checked.
+  const [lateDevices, setLateDevices] = useState(false);
   const path = `/settings/team/${memberId}`;
   const id = (field: string) => `membership-${kind}-${field}`;
   const askConfirm = kind === "suspend" && (entriesWaiting > 0 || lateWaiting);
   const app = t("app.name");
-  const askCheck = kind === "end" && devicesUsed > 0;
+  const askCheck = kind === "end" && (devicesUsed > 0 || lateDevices);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -69,10 +71,9 @@ export function MembershipAction({
           : { kind, reasonCode, ...(askCheck ? { deviceCheck } : {}) },
       );
       setResult(outcome);
-      if (!outcome.ok && outcome.code === "entries_waiting") {
-        setLateWaiting(true);
-        requestAnimationFrame(() => document.getElementById(id("confirm"))?.focus());
-      }
+      // The refusal's alert takes focus and says what to do; the field it names appears below it.
+      if (!outcome.ok && outcome.code === "entries_waiting") setLateWaiting(true);
+      if (!outcome.ok && outcome.code === "devices_unchecked") setLateDevices(true);
       if (outcome.ok) {
         setOpen(false);
         router.replace(
@@ -96,6 +97,7 @@ export function MembershipAction({
           setResult(null);
           setErrors({});
           setLateWaiting(false);
+          setLateDevices(false);
         }
       }}
       trigger={

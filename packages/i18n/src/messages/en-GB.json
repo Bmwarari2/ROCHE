@@ -4324,7 +4324,7 @@
   "team.suspend.confirmWaitingHint": "They stay on the phone, protected, until a manager hands them over.",
   "team.member.pageTitle": "Membership and invitations",
   "team.lifecycle.devices": "{count, plural, =0 {They have not used a device for Care mode.} one {They used # device for Care mode.} other {They used # devices for Care mode.}}",
-  "team.lifecycle.lastReported": "A device of theirs last reported on {dateTime}. Entries written after that are known only to whoever holds the device.",
+  "team.lifecycle.lastReported": "Their device last reported on {dateTime}. Entries written after that are known only to whoever holds the device.",
   "team.end.deviceCheck": "How you checked their devices",
   "team.end.deviceCheckHint": "Their phone cannot report once suspended, so entries written since its last report are known only to whoever holds it.",
   "team.end.deviceCheckEmpty": "Choose how you checked",
