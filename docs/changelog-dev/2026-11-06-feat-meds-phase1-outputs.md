@@ -1,7 +1,7 @@
 # Medicines in the Phase 1 outputs (Phase 2 slice 49)
 
 Branch `feat/meds-phase1-outputs`, from `feat/meds-rounds` (slice 48). MEDS-001, MEDS-002.
-Migration 0145.
+Migration 0144.
 
 ## What changed
 
@@ -26,7 +26,7 @@ Migration 0145.
   processing, the medical-device boundary.
 
 - **Round 3 (lead's leftovers)**:
-  - **Migration 0145**: `handover_item.source_type` gains `medication_administration`. A refused
+  - **Migration 0144**: `handover_item.source_type` gains `medication_administration`. A refused
     dose reaches the shift handover as a refusal ("Refused: a medicine"), including one recorded
     late. `app.downtime_pack_people()` accepts the pack's `buildSnapshot`.
   - The downtime pack is stale when any source row was written by a transaction its build snapshot

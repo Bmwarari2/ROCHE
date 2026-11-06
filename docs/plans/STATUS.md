@@ -188,7 +188,7 @@ manager kept); its web screens and a reinstate route are still to build.
 **Phase 2 slice 49, medicines in the Phase 1 outputs** (`feat/meds-phase1-outputs`, MEDS-001 and
 MEDS-002, from slice 48; no migration): the downtime pack's doses due and the transfer pack's
 medicines come from the eMAR, each saying when it was read and that it is not the live record;
-outstanding and refused doses reach the handover (migration 0145). Left: the not-available stock
+outstanding and refused doses reach the handover (migration 0144). Left: the not-available stock
 task needs slice 42's hook (TODO for the batch).
 
 **Phase 2 slice 48, rounds, escalation and conflict review** (`feat/meds-rounds`, MEDS-002, from

@@ -1907,7 +1907,7 @@ yet (slice 68).
 
 ## 16. Medicines in the Phase 1 outputs (slice 49, API)
 
-MEDS-001 and MEDS-002, with HZ-003, HZ-021 and HZ-023. Migration 0145 (a refused dose as a
+MEDS-001 and MEDS-002, with HZ-003, HZ-021 and HZ-023. Migration 0144 (a refused dose as a
 handover source; the pack's build snapshot); the packs' JSON content gains fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice` in
 `packages/domain/src/medicines/outputs.ts`.
 

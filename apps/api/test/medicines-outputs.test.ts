@@ -362,7 +362,7 @@ describe("hazard HZ-021 entries that may not be given, and an eMAR that cannot b
   });
 });
 
-describe("hazard HZ-003 a refused dose reaches the shift handover (slice 49, migration 0145)", () => {
+describe("hazard HZ-003 a refused dose reaches the shift handover (slice 49, migration 0144)", () => {
   it("hazard HZ-003 hands over a dose refused on the eMAR as a refusal", async () => {
     const EVE = "0194d000-0000-7000-8600-000000000005";
     const at = new Date(
