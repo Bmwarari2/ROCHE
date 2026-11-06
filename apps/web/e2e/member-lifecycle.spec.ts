@@ -56,9 +56,18 @@ test("the manager suspends, then ends, a membership after a coded reason", async
   await expect(membership(page)).toContainText("They have not made a sign-in yet.");
   await bothThemes(page, "suspended membership");
 
-  await membership(page).getByRole("button", { name: "End membership" }).click();
+  // By keyboard: open, close with Escape (focus returns to the trigger), open again.
+  const endTrigger = membership(page).getByRole("button", { name: "End membership" });
+  await endTrigger.focus();
+  await page.keyboard.press("Enter");
   const end = page.getByRole("dialog", { name: /^End Lee Leaver's membership/ });
+  await expect(end).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(end).toBeHidden();
+  await expect(endTrigger).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(end).toContainText("cannot be undone");
+  await expect(end.getByRole("button", { name: "Keep membership" })).toBeVisible();
   await bothThemes(page, "end confirmation");
   await end.getByLabel("Reason").selectOption({ label: "They left employment" });
   await end.getByRole("button", { name: "End membership" }).click();

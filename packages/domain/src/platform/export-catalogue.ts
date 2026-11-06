@@ -7442,6 +7442,16 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       is_agency: { description: "True for agency and bank workers." },
       mfa_required: { description: "True when MFA is required (every role reading care records)." },
       last_seen_at: "exported",
+      status_changed_at: {
+        description: "When the membership was last suspended or ended (instant, UTC; H-566).",
+      },
+      sign_in_erasure_requested_at: {
+        description: "When the member asked for their account to be deleted (instant, UTC).",
+      },
+      sign_in_erased_at: {
+        description:
+          "When the member's sign-in identity was erased; the name and job title stay (instant, UTC).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

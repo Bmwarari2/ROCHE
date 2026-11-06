@@ -28,7 +28,7 @@ import {
 type Params = Promise<{ memberId: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export const metadata: Metadata = { title: t("team.invitations.title") };
+export const metadata: Metadata = { title: t("team.member.pageTitle") };
 
 const DONE = new Set(["sent", "revoked", "suspended", "ended"]);
 

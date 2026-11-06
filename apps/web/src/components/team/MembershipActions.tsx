@@ -33,9 +33,11 @@ export function MembershipAction({
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [errors, setErrors] = useState<{ reason?: string; confirm?: string }>({});
   const [pending, startTransition] = useTransition();
+  // Entries the phone reported after this page was drawn: the API asks for the confirmation.
+  const [lateWaiting, setLateWaiting] = useState(false);
   const path = `/settings/team/${memberId}`;
   const id = (field: string) => `membership-${kind}-${field}`;
-  const askConfirm = kind === "suspend" && entriesWaiting > 0;
+  const askConfirm = kind === "suspend" && (entriesWaiting > 0 || lateWaiting);
   const app = t("app.name");
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -44,7 +46,7 @@ export function MembershipAction({
     const reasonCode = String(form.get("reasonCode") ?? "");
     const confirmed = form.get("confirmEntriesWaiting") === "on";
     const next = {
-      ...(reasonCode === "" ? { reason: t("team.lifecycle.reasonRequired") } : {}),
+      ...(reasonCode === "" ? { reason: t("team.lifecycle.reasonRequired", { kind }) } : {}),
       ...(askConfirm && !confirmed ? { confirm: t("team.suspend.confirmRequired") } : {}),
     };
     setErrors(next);
@@ -61,6 +63,10 @@ export function MembershipAction({
           : { kind, reasonCode },
       );
       setResult(outcome);
+      if (!outcome.ok && outcome.code === "entries_waiting") {
+        setLateWaiting(true);
+        requestAnimationFrame(() => document.getElementById(id("confirm"))?.focus());
+      }
       if (outcome.ok) {
         setOpen(false);
         router.replace(
@@ -83,6 +89,7 @@ export function MembershipAction({
         if (!next) {
           setResult(null);
           setErrors({});
+          setLateWaiting(false);
         }
       }}
       trigger={
@@ -97,7 +104,13 @@ export function MembershipAction({
       description={kind === "suspend" ? t("team.suspend.body", { name, app }) : t("team.end.body")}
       closeLabel={t("common.close")}
     >
-      <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form
+        method="post"
+        className="flex flex-col gap-4"
+        onSubmit={submit}
+        noValidate
+        aria-busy={pending}
+      >
         <ManageFeedback result={result} path={path} stepUp={t("team.stepUp.membership", { app })} />
         <SelectField
           id={id("reason")}
@@ -112,19 +125,28 @@ export function MembershipAction({
           <Checkbox
             id={id("confirm")}
             name="confirmEntriesWaiting"
-            label={t("team.suspend.confirmWaiting", { count: entriesWaiting })}
+            label={
+              entriesWaiting > 0
+                ? t("team.suspend.confirmWaiting", { count: entriesWaiting })
+                : t("team.suspend.confirmWaitingLate")
+            }
+            hint={t("team.suspend.confirmWaitingHint")}
             {...(errors.confirm ? { error: errors.confirm } : {})}
           />
         ) : null}
         <div className="flex flex-wrap justify-end gap-2">
           <SheetClose asChild>
             <Button type="button" variant="secondary">
-              {t("common.cancel")}
+              {t("team.lifecycle.keep")}
             </Button>
           </SheetClose>
-          <Button type="submit" disabled={pending}>
+          <Button
+            type="submit"
+            variant={kind === "end" ? "destructive" : "primary"}
+            disabled={pending}
+          >
             {pending
-              ? t("common.saving")
+              ? t("team.lifecycle.pending", { kind })
               : kind === "suspend"
                 ? t("team.suspend.confirm")
                 : t("team.end.confirm")}

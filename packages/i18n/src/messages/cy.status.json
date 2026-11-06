@@ -4318,6 +4318,11 @@
     "team.end.body",
     "team.end.reasonOption",
     "team.end.confirm",
-    "team.stepUp.membership"
+    "team.stepUp.membership",
+    "team.lifecycle.keep",
+    "team.lifecycle.pending",
+    "team.suspend.confirmWaitingLate",
+    "team.suspend.confirmWaitingHint",
+    "team.member.pageTitle"
   ]
 }
