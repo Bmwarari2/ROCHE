@@ -1,12 +1,12 @@
 # Thapsus-HR link: connection, people and locations
 
 Branch `feat/integrations-hr-link-connection`, from `feat/integrations-hr-link-port` (Phase 2
-slice 87; INTG-014; ADR-0126; integrations.md section 11). Migration 0140. Behind the
+slice 87; INTG-014; ADR-0126; integrations.md section 11). Migration 0141. Behind the
 `integrations.thapsus_hr` flag, off by default.
 
 ## What changed
 
-- **Schema** (migration 0140): `hr_person_link`, `hr_location_link`, `hr_sync_state` and
+- **Schema** (migration 0141): `hr_person_link`, `hr_location_link`, `hr_sync_state` and
   `hr_delivery`, each with `tenant_id`, forced RLS, a tenant policy, read only with an
   `integrations.hr_link.*` permission, no DELETE. Links are proposed by the sync and decided by a
   person in their own name, never to their own staff file. The link's `integration_connection`
@@ -62,3 +62,12 @@ slice 87; INTG-014; ADR-0126; integrations.md section 11). Migration 0140. Behin
 - Starters are created through `POST /v1/integrations/hr-link/starters/{id}`; hooking this to the
   offer-accepted event waits for WORK-001's event.
 - Absences, the rota's staleness notice and `integrations.hr_link.stale` are slice 88.
+- Reviewers' remaining non-blocking findings:
+  - the starter route should require an accepted offer (WORK-001's event) and take names from it;
+  - a route to withdraw a wrong leaving date (with `workforce.staff_file.manage` and a reason);
+  - raise `employee_missing` and `leaving_date_invalid` once rather than on every pull;
+  - a review queue for start dates held back;
+  - move `retainUntil` into a shared service;
+  - tests for the page cap, one record failing, `pullSafely` and `leaversNotEnded`;
+  - fetch the employee before confirming, so a leaving date given since the last sync is checked;
+  - cache the webhook secret.

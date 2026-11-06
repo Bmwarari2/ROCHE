@@ -1038,7 +1038,7 @@ sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, t
 ## Integrations: Thapsus-HR link (Phase 2, slice 87)
 
 Fields for [integrations.md](integrations.md#11-thapsus-hr-link-intg-014) section 11 (migration
-0140). Identifiers only: Thapsus-HR's names, emails and dates of birth are read to match and never
+0141). Identifiers only: Thapsus-HR's names, emails and dates of birth are read to match and never
 stored. Exported in the full tenant export with these names.
 
 | Harbour field | Standard mapping | Code list or format | Notes |

@@ -276,9 +276,9 @@ BEGIN
         outcome, resource_type, resource_id, scope, reason)
       SELECT x.tenant_id, 'system', ARRAY['system'], 'platform.role.permissions_migrated',
         'success', 'role', x.id::text,
-        jsonb_build_object('migration', '0140_hr_link', 'roleKey', x.key,
+        jsonb_build_object('migration', '0141_hr_link', 'roleKey', x.key,
           'added', to_jsonb(x.missing)),
-        'Existing tenants'' built-in role copies gained the HR platform link permissions their built-in definitions added (migration 0140)'
+        'Existing tenants'' built-in role copies gained the HR platform link permissions their built-in definitions added (migration 0141)'
       FROM targets x JOIN changed c ON c.id = x.id;
   END LOOP;
   PERFORM set_config('app.tenant_id', '', true);

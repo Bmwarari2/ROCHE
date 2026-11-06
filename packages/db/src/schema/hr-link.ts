@@ -19,7 +19,7 @@ import { location, tenantUser } from "./platform";
 import { staffProfile } from "./workforce";
 
 /**
- * The Thapsus-HR link (integrations.md section 11.3; ADR-0126; slice 87, migration 0140). The
+ * The Thapsus-HR link (integrations.md section 11.3; ADR-0126; slice 87, migration 0141). The
  * connection itself is the `integrations.hr_link` row of `integration_connection`; these tables
  * hold the identifier mapping (Thapsus-HR has no external identifier columns), the sync position
  * and the outbound delivery log. Identifiers only: names, emails and dates of birth stay in the

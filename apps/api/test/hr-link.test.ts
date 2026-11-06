@@ -9,7 +9,7 @@ import { ageSession, createHarness, type Harness } from "./support/harness";
 
 /**
  * The Thapsus-HR link through the API (INTG-014; integrations.md section 11; slice 87; migration
- * 0140; hazard HZ-133): off unless the flag is on; connecting needs step-up and a UK workspace on
+ * 0141; hazard HZ-133): off unless the flag is on; connecting needs step-up and a UK workspace on
  * its UK address; employees matched by number or by work email with date of birth, never by name,
  * the rest to a review queue decided in the reviewer's own name; leavers lose sign-in at the end
  * of their leaving day even if later syncs fail; drift put back to the owner's version; the signed

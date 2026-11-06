@@ -7,7 +7,7 @@ import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./suppo
 
 /**
  * The Thapsus-HR link in the database (integrations.md section 11.3; INTG-014; slice 87;
- * migration 0140): cross-tenant denial for every new table; nothing seen without an
+ * migration 0141): cross-tenant denial for every new table; nothing seen without an
  * `integrations.hr_link.*` permission; links proposed and made by the sync alone and decided by a
  * reviewer in their own name, never to their own staff file (hazard HZ-133); the connection only
  * with a UK workspace on the UK host (rule 1); the built-in role backfill. Invented people only.
@@ -32,8 +32,8 @@ const asCarer = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
 const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_B, b.manager, "tenant"), fn);
 
-const CARER_FILE = "0199f000-0000-7000-8000-000000001401";
-const MANAGER_FILE = "0199f000-0000-7000-8000-000000001402";
+const CARER_FILE = "0199f000-0000-7000-8000-000000001411";
+const MANAGER_FILE = "0199f000-0000-7000-8000-000000001412";
 const REVIEW_LINK = "0199f000-0000-7000-8000-000000001411";
 const OWN_LINK = "0199f000-0000-7000-8000-000000001412";
 const TABLES = ["hr_person_link", "hr_location_link", "hr_sync_state", "hr_delivery"] as const;
@@ -295,9 +295,9 @@ describe("hazard HZ-133 the connection only with a UK workspace on the UK host (
   });
 });
 
-describe("existing organisations' built-in roles (migration 0140)", () => {
+describe("existing organisations' built-in roles (migration 0141)", () => {
   it("gain the HR link permissions where the built-in definitions now hold them, once", async () => {
-    const sql = readFileSync(new URL("../drizzle/0140_hr_link.sql", import.meta.url), "utf8");
+    const sql = readFileSync(new URL("../drizzle/0141_hr_link.sql", import.meta.url), "utf8");
     const start = sql.indexOf("ALTER TABLE public.role NO FORCE ROW LEVEL SECURITY;");
     const block = sql
       .slice(start)
@@ -337,7 +337,7 @@ describe("existing organisations' built-in roles (migration 0140)", () => {
     ]);
     const events = await inContext(owner(), ctx(TENANT_A, null, "tenant"), (c) =>
       c.query(
-        "SELECT 1 FROM audit_event WHERE action = 'platform.role.permissions_migrated' AND scope->>'migration' = '0140_hr_link'",
+        "SELECT 1 FROM audit_event WHERE action = 'platform.role.permissions_migrated' AND scope->>'migration' = '0141_hr_link'",
       ),
     );
     expect(events.rows).toHaveLength(1);

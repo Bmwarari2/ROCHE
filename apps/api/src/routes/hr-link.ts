@@ -1043,8 +1043,9 @@ export const hrLinkInboundRouter = createRouter().openapi(
     const { tenantId } = c.req.valid("param");
     const services = c.get("services");
     const throttles = services.hrLink.webhookThrottles;
+    const address = clientIp(c);
     const wait =
-      throttles.address.take(clientIp(c) ?? "unknown") ?? throttles.tenant.take(tenantId);
+      (address ? throttles.address.take(address) : null) ?? throttles.tenant.take(tenantId);
     if (wait !== null) {
       const limited = new HttpProblem(429, "rate_limited", "Too many requests.");
       limited.retryAfterSeconds = wait;
@@ -1121,6 +1122,9 @@ export const hrLinkInboundRouter = createRouter().openapi(
       if (received.status === "quarantined") return "quarantined" as const;
       const port = services.hrLink.port(tenantId, link.settings);
       const employee = port ? await port.employee(received.data.employeeId) : null;
+      // An employee Thapsus-HR no longer has: taken, and left to the reconciliation's
+      // employee_missing check rather than retried for ever.
+      if (employee && !employee.ok && employee.error === "not_found") return "accepted" as const;
       if (!port || !employee?.ok || (await ukRefusal(port, link.settings))) {
         // Nothing kept: Thapsus-HR sends it again, and the reconciliation catches it meanwhile.
         throw retry();

@@ -694,6 +694,13 @@ export async function pullEmployees(
     });
   }
   await recordSync(tx, "employees", now, null);
+  if (total.failed > 0) {
+    // The data is current, but some employees were not applied: the status says so (rule 9).
+    await tx
+      .update(hrSyncState)
+      .set({ lastErrorCode: "record_failed" })
+      .where(eq(hrSyncState.kind, "employees"));
+  }
   await endLeaversAccess(tx, tenantId, now);
   return { ...total, error: null };
 }
