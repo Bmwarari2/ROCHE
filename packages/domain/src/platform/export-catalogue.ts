@@ -4611,6 +4611,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "hours (by night, weekend, bank holiday and overtime), sleep_in, on_call or mileage.",
       },
       quantity: { description: "Hours to 2 places, miles to 1, or a count.", unit: "units" },
+      pay_code: {
+        description: "The pay code the unit kind was mapped to when the run was locked.",
+      },
       created_at: "exported",
       created_by: "exported",
     },
@@ -5542,6 +5545,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       period_start: { description: "The first UK date of the pay period." },
       period_end: { description: "The last UK date of the pay period." },
       kind: { description: "Regular or a correction." },
+      pay_route: {
+        description:
+          "The route to payroll fixed when the run was drafted: harbour_export or thapsus_hr (a correction takes its original's); empty before slice 89.",
+      },
       corrects_run_id: { description: "The locked run a correction corrects (pay_run.id)." },
       rule_set_id: { description: "The rule set used (pay_rule_set.id)." },
       nation: { description: "The nation whose rates applied." },
