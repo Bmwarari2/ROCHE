@@ -176,6 +176,20 @@ describe("hazard HZ-117 PRN protocols in the database (migration 0143)", () => {
     expect(await attempt(carer, protocolSql, [a.personAda, ADA_PRN])).toMatch(/^42501/);
   });
 
+  it("never shows another home's protocols or outcomes to a manager of North House", async () => {
+    await inContext(app(), manager, (c) => c.query(protocolSql, [a.personCara, CARA_PRN]));
+    const caraRows = (context: ReturnType<typeof ctx>, table: string) =>
+      inContext(app(), context, async (c) => {
+        const r = await c.query(`SELECT count(*)::int AS n FROM ${table} WHERE person_id = $1`, [
+          a.personCara,
+        ]);
+        return r.rows[0].n as number;
+      });
+    expect(await caraRows(manager, "prn_protocol")).toBe(1);
+    expect(await caraRows(north, "prn_protocol")).toBe(0);
+    expect(await caraRows(north, "medication_administration")).toBe(0);
+  });
+
   it("needs a new reason for every change, and is closed once withdrawn", async () => {
     const change = (reason: string | null) =>
       attempt(

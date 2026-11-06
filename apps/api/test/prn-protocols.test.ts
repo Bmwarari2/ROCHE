@@ -363,6 +363,25 @@ describe("hazard HZ-117 the PRN frequency report counts, never judges (slice 28)
     expect(ada?.outcomes.effective).toBe(0);
   });
 
+  it("refuses the report at another home to a manager of this one", async () => {
+    const elsewhere = randomUUID();
+    await asDemo((c) =>
+      c.query("INSERT INTO location (id, name) VALUES ($1, 'Riverside House')", [elsewhere]),
+    );
+    const r = await send(
+      "manager",
+      `/v1/locations/${elsewhere}/medicines/prn-frequency?from=${yesterday()}&to=${today()}`,
+    );
+    expect(r.status).toBe(403);
+    // The owner, across the organisation, may read it: an empty home has no lines.
+    const owner = await send(
+      "owner",
+      `/v1/locations/${elsewhere}/medicines/prn-frequency?from=${yesterday()}&to=${today()}`,
+    );
+    expect(owner.status, await owner.clone().text()).toBe(200);
+    expect((await json<{ items: unknown[] }>(owner)).items).toEqual([]);
+  });
+
   it("refuses a period past the rate table's days, a reversed period, and a carer", async () => {
     expect((await report("manager", "from=2024-01-01&to=2026-11-01")).status).toBe(422);
     expect((await report("manager", `from=${today()}&to=${yesterday()}`)).status).toBe(422);
