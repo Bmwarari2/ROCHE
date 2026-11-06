@@ -4548,6 +4548,73 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.hr_pay_period": {
+    context: "integrations",
+    description:
+      "Thapsus-HR's pay periods, the pay reference periods for a linked organisation (integrations.md section 11.5 rule 11; slice 89). Written by the link's sync.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      hr_id: { description: "Thapsus-HR's identifier for the pay period." },
+      frequency: { description: "weekly or monthly." },
+      starts_on: "exported",
+      ends_on: "exported",
+      last_seen_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.hr_pay_rate": {
+    context: "integrations",
+    description:
+      "A staff member's hourly rate from Thapsus-HR, read only for the minimum wage check (integrations.md section 11.5 rule 11; slice 89; HZ-140). Pay holders only.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      staff_profile_id: { description: "The staff file (staff_profile.id)." },
+      hourly_pence: { description: "Pence an hour.", unit: "pence" },
+      effective_from: { description: "The day the rate took effect." },
+      last_seen_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.hr_pay_unit": {
+    context: "integrations",
+    description:
+      "The units by kind worked out when a pay run was locked, as sent to Thapsus-HR's payroll (integrations.md section 11.5 rule 11; slice 89; append-only). Units, never money.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      run_id: { description: "The locked pay run (pay_run.id)." },
+      hr_pay_period_id: { description: "Thapsus-HR's pay period (hr_pay_period.id)." },
+      member_id: { description: "The member (tenant_user.id)." },
+      unit_kind: {
+        description:
+          "hours (by night, weekend, bank holiday and overtime), sleep_in, on_call or mileage.",
+      },
+      quantity: { description: "Hours to 2 places, miles to 1, or a count.", unit: "units" },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.hr_person_link": {
     context: "integrations",
     description:

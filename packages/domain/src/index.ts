@@ -41,6 +41,7 @@ export * from "./comms/visit-booking";
 export * from "./integrations/dmd-release-source";
 export * from "./integrations/ports";
 export * from "./integrations/thapsus-hr";
+export * from "./integrations/thapsus-hr-pay";
 export * from "./medicines/administration";
 export * from "./medicines/competence";
 export * from "./medicines/controlled-drugs";

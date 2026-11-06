@@ -33,11 +33,13 @@ import { raiseCoverNeeds, resolveCoverNeeds } from "../services/absence";
 import {
   closeHrAlert,
   HR_ACTOR,
+  type HrAlert,
   type HrLinkSettings,
   raiseHrAlert,
   recordSync,
   ukRefusal,
 } from "./hr-link";
+import { deliverPayUnits, type PayDeliveryOutcome, type PayPullOutcome, pullPay } from "./hr-pay";
 
 /**
  * The Thapsus-HR link's rota, clocking and absence flows (integrations.md section 11.2; slice 88;
@@ -68,7 +70,7 @@ export function deliveryKey(kind: string, harbourRef: string, digest: string): s
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-8${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-async function audit(
+export async function audit(
   tx: Transaction,
   tenantId: string,
   action: string,
@@ -176,7 +178,7 @@ function absencePort(tx: Transaction, locationId: string): HrAbsencePort {
  * Employees by Thapsus-HR id: confirmed links with the member, their home (the staff file's, else
  * the home of their oldest live role) and job title; and links waiting for a person.
  */
-async function members(tx: Transaction) {
+export async function members(tx: Transaction) {
   const rows = await tx
     .select({
       linkId: hrPersonLink.id,
@@ -476,14 +478,16 @@ export interface DeliveryOutcome {
  * already refused, is never sent again; a changed one goes with its own key. Thapsus-HR's refusal
  * (an overlapping shift, say; rule 14) is raised for the rota manager.
  */
-async function deliver(
+export async function deliver(
   tx: Transaction,
   tenantId: string,
-  kind: "shift" | "clock_event",
+  kind: "shift" | "clock_event" | "pay_units",
   harbourRef: string,
   digest: string,
   now: Date,
   send: (key: string) => Promise<HrResult<{ readonly id: string }>>,
+  /** The alert a refusal raises (pay units go to pay holders, slice 89). */
+  refusedAlert: HrAlert = "delivery_refused",
 ): Promise<"sent" | "skipped" | "refused" | "failed" | "rate_limited"> {
   const [known] = await tx
     .select()
@@ -563,7 +567,7 @@ async function deliver(
     .where(where);
   if (result.error === "rate_limited") return "rate_limited";
   if (refused) {
-    if (await raiseHrAlert(tx, "delivery_refused", kind, harbourRef, now)) {
+    if (await raiseHrAlert(tx, refusedAlert, kind, harbourRef, now)) {
       await audit(
         tx,
         tenantId,
@@ -745,11 +749,16 @@ export async function syncRotaSafely(
   port: ThapsusHrPort,
   settings: HrLinkSettings,
   now: Date,
-  parts: { readonly absences: boolean } = { absences: true },
+  parts: { readonly absences: boolean; readonly pay?: "due" | "now" } = { absences: true },
 ): Promise<{
   readonly absences: AbsenceOutcome | null;
   readonly deliveries: DeliveryOutcome | null;
+  readonly pay: { read: PayPullOutcome | null; sent: PayDeliveryOutcome | null };
 }> {
+  const pay: { read: PayPullOutcome | null; sent: PayDeliveryOutcome | null } = {
+    read: null,
+    sent: null,
+  };
   await lockRota(tx, tenantId);
   const refusal = await ukRefusal(port, settings);
   if (refusal) {
@@ -763,7 +772,7 @@ export async function syncRotaSafely(
       "denied",
     );
     if (parts.absences) await recordSync(tx, "absences", now, refusal);
-    return { absences: null, deliveries: null };
+    return { absences: null, deliveries: null, pay };
   }
   let absences: AbsenceOutcome | null = null;
   let deliveries: DeliveryOutcome | null = null;
@@ -773,6 +782,25 @@ export async function syncRotaSafely(
     } catch {
       await absencesFailed(tx, tenantId, now, "internal");
     }
+  }
+  // Pay periods and rates in (daily, or when asked), and locked pay units out (slice 89).
+  try {
+    pay.read = await tx.transaction((sp) => pullPay(sp, tenantId, port, now, parts.pay === "now"));
+  } catch {
+    await recordSync(tx, "rates", now, "internal");
+  }
+  try {
+    pay.sent = await tx.transaction((sp) => deliverPayUnits(sp, tenantId, port, settings, now));
+  } catch {
+    await audit(
+      tx,
+      tenantId,
+      "integrations.hr_link.delivery",
+      "integration_connection",
+      HR_LINK_PORT,
+      { code: "internal", flow: "pay_units" },
+      "error",
+    );
   }
   try {
     deliveries = await tx.transaction((sp) => deliverRota(sp, tenantId, port, now));
@@ -787,7 +815,7 @@ export async function syncRotaSafely(
       "error",
     );
   }
-  return { absences, deliveries };
+  return { absences, deliveries, pay };
 }
 
 /**

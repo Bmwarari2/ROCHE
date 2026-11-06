@@ -1036,7 +1036,9 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   // A rota published at a home linked to Thapsus-HR: its shifts go out now rather than at the next
   // sync (integrations.md section 11.2). A failure is recorded in the delivery log; the sync
   // carries on with it.
-  handlers.set("scheduling.rota_published", async (event) => {
+  // A published rota or a locked pay run goes out without waiting for the sync (slices 88, 89);
+  // absences come in on the scheduled sync.
+  const sendToHr: OutboxHandler = async (event) => {
     const services = deps.hrLink;
     if (!services) return;
     await inTenant(event.tenantId, async (tx) => {
@@ -1044,14 +1046,15 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       const link = await hrConnection(tx);
       if (link?.status !== "connected") return;
       const port = services.port(event.tenantId, link.settings);
-      // Only the rota goes out here; absences come in on the scheduled sync.
       if (port) {
         await syncRotaSafely(tx, event.tenantId, port, link.settings, new Date(), {
           absences: false,
         });
       }
     });
-  });
+  };
+  handlers.set("scheduling.rota_published", sendToHr);
+  handlers.set("scheduling.pay_run_locked", sendToHr);
   handlers.set("scheduling.cover_needed", async (event) => {
     const coverNeedId = (event.payload as { coverNeedId?: unknown } | null)?.coverNeedId;
     // A malformed event is dropped, never retried for ever (security review, finding 5).

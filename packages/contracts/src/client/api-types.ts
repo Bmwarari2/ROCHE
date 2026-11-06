@@ -32995,7 +32995,7 @@ export interface paths {
     };
     options?: never;
     head?: never;
-    /** Change the owners, staleness limit or webhook secret (step-up) */
+    /** Change the owners, staleness limit, webhook secret, pay codes or route to payroll (step-up) */
     patch: {
       parameters: {
         query?: never;
@@ -62092,6 +62092,20 @@ export interface components {
         held: number;
         error: string | null;
       } | null;
+      pay?: {
+        read: {
+          periods: number;
+          rates: number;
+          failed: number;
+          error: string | null;
+        } | null;
+        sent: {
+          sent: number;
+          refused: number;
+          failed: number;
+          error: string | null;
+        } | null;
+      };
       deliveries: {
         sent: number;
         cancelled: number;
@@ -62112,6 +62126,15 @@ export interface components {
       owners?: components["schemas"]["HrLinkOwners"];
       stalenessMinutes?: number;
       secretRef?: string | null;
+      payCodes?: {
+        [key: string]: string;
+      };
+      payRoute?: {
+        /** @enum {string} */
+        route: "harbour_export" | "thapsus_hr";
+        /** Format: date */
+        from: string;
+      };
     };
     HrLinkLocations: {
       harbour: {

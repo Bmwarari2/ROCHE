@@ -7,6 +7,7 @@ import {
   hrPersonLink,
   integrationConnection,
   location,
+  payRun,
   staffProfile,
   type Transaction,
   tenant,
@@ -17,6 +18,9 @@ import {
   HR_STALENESS_DEFAULT_MINUTES,
   HR_STALENESS_MAX_MINUTES,
   type HrOwners,
+  PAY_CODE,
+  PAY_UNIT_KIND,
+  payRouteChangeProblem,
   stalenessLimitProblem,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -36,9 +40,12 @@ import { HttpProblem, problems } from "../http/problem";
 import {
   applyEmployee,
   DECOY_SECRET,
+  DEFAULT_HR_PAY,
   deliverStarter,
+  type HrConnection,
   type HrLinkSettings,
   HrOwnersSchema,
+  type HrPaySettings,
   HrWebhookSchema,
   hrConnection,
   hrLinkEnabled,
@@ -50,6 +57,7 @@ import {
   starterFor,
   ukRefusal,
 } from "../integrations/hr-link";
+import { storedHrPayPeriods } from "../integrations/hr-pay";
 import { activeHrAbsenceCopies, lockRota, syncRotaSafely } from "../integrations/hr-rota";
 import { receiveInbound } from "../integrations/inbound";
 import { SECRET_REF_SHAPE, secretRefProblem } from "../integrations/secret-ref";
@@ -160,6 +168,22 @@ const Change = z
       .max(HR_STALENESS_MAX_MINUTES)
       .optional(),
     secretRef: z.string().regex(SECRET_REF_SHAPE).nullable().optional(),
+    /** The pay code for each unit kind (rule 11; slice 89): replaces the mapping. Step-up. */
+    payCodes: z
+      .record(z.string().regex(PAY_UNIT_KIND), z.string().regex(PAY_CODE))
+      .refine((r) => Object.keys(r).length <= 40, "At most 40 pay codes.")
+      .optional(),
+    /**
+     * Move the route to payroll from the start of a later pay period (rule 12; slice 89). To
+     * Thapsus-HR only from the start of one of its pay periods. Step-up.
+     */
+    payRoute: z
+      .object({
+        route: z.enum(["harbour_export", "thapsus_hr"]),
+        from: z.iso.date(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .meta({ id: "HrLinkChange" });
@@ -184,6 +208,27 @@ const SyncResult = z
         error: z.string().nullable(),
       })
       .nullable(),
+    /** Pay periods and rates read, and pay periods sent (slice 89); null where not run. */
+    pay: z
+      .object({
+        read: z
+          .object({
+            periods: z.number().int(),
+            rates: z.number().int(),
+            failed: z.number().int(),
+            error: z.string().nullable(),
+          })
+          .nullable(),
+        sent: z
+          .object({
+            sent: z.number().int(),
+            refused: z.number().int(),
+            failed: z.number().int(),
+            error: z.string().nullable(),
+          })
+          .nullable(),
+      })
+      .optional(),
     /** Shifts and clock events sent, cancelled or refused (slice 88); null if not run. */
     deliveries: z
       .object({
@@ -256,7 +301,82 @@ const settingsOf = (
   thapsusDomain: domain,
   owners,
   stalenessMinutes: minutes,
+  pay: DEFAULT_HR_PAY,
 });
+
+/**
+ * The pay settings after a change (rules 11 and 12; slice 89; HZ-140): with a fresh step-up; a
+ * route change only from the start of a later pay period than any run's; to Thapsus-HR only when
+ * its pay items and pay read are available, from the start of one of its pay periods, with
+ * timesheets and pay units Harbour's and pay rates and periods Thapsus-HR's. A change already in
+ * force becomes the route first, so a new one never reaches back over periods already paid.
+ */
+async function payChangeOf(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  access: TenantAccess,
+  link: HrConnection,
+  owners: HrOwners,
+  body: z.infer<typeof Change>,
+): Promise<HrPaySettings> {
+  const now = link.settings.pay;
+  if (body.payCodes === undefined && body.payRoute === undefined) return now;
+  if (!access.stepUpFresh) throw stepUpRefusal(access);
+  const codes = body.payCodes ?? now.codes;
+  if (!body.payRoute) return { ...now, codes };
+  const [latest] = await withSystemRights(tx, () =>
+    tx
+      .select({ start: payRun.periodStart })
+      .from(payRun)
+      .orderBy(desc(payRun.periodStart))
+      .limit(1),
+  );
+  // With no pay run yet, nothing has been paid either way: any real first day may be chosen.
+  const currentPeriodStart = latest?.start ?? "1970-01-01";
+  const { route, from } = body.payRoute;
+  if (payRouteChangeProblem({ from, currentPeriodStart })) {
+    throw new HttpProblem(
+      422,
+      "pay_route_not_later",
+      "Change the route to payroll from the start of a later pay period than any pay run.",
+    );
+  }
+  if (route === "thapsus_hr") {
+    const caps = portFor(c, access.tenantId, link.settings).capabilities();
+    if (caps.partner_pay_items !== "available" || caps.pay_rates_read !== "available") {
+      throw new HttpProblem(
+        409,
+        "hr_link_pay_not_available",
+        "The HR platform cannot take pay from this product yet. Keep using the payroll export.",
+      );
+    }
+    if (
+      owners.timesheets_and_pay_units !== "harbour" ||
+      owners.pay_rates_and_periods !== "thapsus_hr"
+    ) {
+      throw new HttpProblem(
+        409,
+        "hr_link_pay_owners",
+        "Pay goes to the HR platform only while timesheets are this product's and pay rates and periods are the HR platform's.",
+      );
+    }
+    const periods = await withSystemRights(tx, () => storedHrPayPeriods(tx));
+    if (!periods.some((p) => p.startsOn === from)) {
+      throw new HttpProblem(
+        422,
+        "not_hr_pay_period_start",
+        "Start from the first day of one of the HR platform's pay periods.",
+      );
+    }
+  }
+  const inForce =
+    now.pendingRoute !== null && now.pendingFrom !== null && now.pendingFrom <= currentPeriodStart
+      ? now.pendingRoute
+      : now.route;
+  return route === inForce
+    ? { route: inForce, pendingRoute: null, pendingFrom: null, codes }
+    : { route: inForce, pendingRoute: route, pendingFrom: from, codes };
+}
 
 function checkSecret(c: Context<AppEnv>, access: TenantAccess, ref: string | null | undefined) {
   if (!ref) return;
@@ -279,7 +399,10 @@ function pullAsSystem(
     const now = new Date();
     const people = await pullSafely(tx, tenantId, port, settings, now);
     // Absences in and the rota out, once people are linked (slice 88).
-    return { ...people, ...(await syncRotaSafely(tx, tenantId, port, settings, now)) };
+    return {
+      ...people,
+      ...(await syncRotaSafely(tx, tenantId, port, settings, now, { absences: true, pay: "now" })),
+    };
   });
 }
 
@@ -459,7 +582,8 @@ export const hrLinkRouter = createRouter()
       method: "patch",
       path: "/v1/integrations/hr-link",
       tags,
-      summary: "Change the owners, staleness limit or webhook secret (step-up)",
+      summary:
+        "Change the owners, staleness limit, webhook secret, pay codes or route to payroll (step-up)",
       security,
       request: { body: { content: { "application/json": { schema: Change } } } },
       responses: {
@@ -482,7 +606,8 @@ export const hrLinkRouter = createRouter()
         if (ownersProblem) throw problems.invalid(`These stay with this product: ${ownersProblem}`);
         const minutes = body.stalenessMinutes ?? link.settings.stalenessMinutes;
         if (stalenessLimitProblem(minutes)) throw problems.invalid("Choose 1 to 60 minutes.");
-        const settings = { ...link.settings, owners, stalenessMinutes: minutes };
+        const pay = await payChangeOf(c, tx, access, link, owners, body);
+        const settings = { ...link.settings, owners, stalenessMinutes: minutes, pay };
         const [row] = await tx
           .update(integrationConnection)
           .set({

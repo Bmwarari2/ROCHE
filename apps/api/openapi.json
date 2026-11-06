@@ -35237,6 +35237,73 @@
               "error"
             ]
           },
+          "pay": {
+            "type": "object",
+            "properties": {
+              "read": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "periods": {
+                    "type": "integer"
+                  },
+                  "rates": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "error": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "periods",
+                  "rates",
+                  "failed",
+                  "error"
+                ]
+              },
+              "sent": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "sent": {
+                    "type": "integer"
+                  },
+                  "refused": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "error": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "sent",
+                  "refused",
+                  "failed",
+                  "error"
+                ]
+              }
+            },
+            "required": [
+              "read",
+              "sent"
+            ]
+          },
           "deliveries": {
             "type": [
               "object",
@@ -35331,6 +35398,34 @@
               "null"
             ],
             "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$"
+          },
+          "payCodes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{1,32}$"
+            }
+          },
+          "payRoute": {
+            "type": "object",
+            "properties": {
+              "route": {
+                "type": "string",
+                "enum": [
+                  "harbour_export",
+                  "thapsus_hr"
+                ]
+              },
+              "from": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "route",
+              "from"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -90246,7 +90341,7 @@
         "tags": [
           "integrations"
         ],
-        "summary": "Change the owners, staleness limit or webhook secret (step-up)",
+        "summary": "Change the owners, staleness limit, webhook secret, pay codes or route to payroll (step-up)",
         "security": [
           {
             "bearerAuth": []

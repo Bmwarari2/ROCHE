@@ -530,3 +530,40 @@ export function payLineInputFromJson(json: unknown): PayLineInput {
     })),
   };
 }
+
+/** One kind of unit a member worked in a period, for a payroll that applies its own rates. */
+export interface PayUnitTotal {
+  /** `hours`, `hours_<enhancements>` (sorted, joined by `_`), `sleep_in`, `on_call` or `mileage`. */
+  readonly kind: string;
+  /** Hours to 2 places, miles to 1, counts whole. */
+  readonly quantity: number;
+}
+
+/**
+ * Units, not money (integrations.md rule 11; slice 89): a member's paid hours split exactly as
+ * their pay line splits them (by night, weekend, bank holiday and overtime), with sleep-ins,
+ * on-call periods away and miles, for a payroll that applies its own rates. An agency worker, paid
+ * by their agency, and a member with no pay profile have none.
+ */
+export function payUnits(input: PayLineInput): PayUnitTotal[] {
+  const p = input.profile;
+  if (!p || p.employment === "agency") return [];
+  const pieces = withOvertime(
+    input.entries.flatMap((e) => paidPieces(e, input.ruleSet)),
+    input.ruleSet.overtimeAfterMinutes,
+  );
+  const minutes = new Map<string, number>();
+  for (const x of pieces) {
+    const kind = ["hours", ...[...x.enhancements].sort()].join("_");
+    minutes.set(kind, (minutes.get(kind) ?? 0) + spanMinutes(x.span));
+  }
+  const out: PayUnitTotal[] = [...minutes.entries()]
+    .map(([kind, m]) => ({ kind, quantity: Math.round((Math.round(m) / 60) * 100) / 100 }))
+    .filter((u) => u.quantity > 0);
+  const count = (k: WorkPeriodKind) => input.entries.filter((e) => e.kind === k).length;
+  const tenths = input.entries.reduce((n, e) => n + (e.mileageTenths ?? 0), 0);
+  if (count("sleep_in") > 0) out.push({ kind: "sleep_in", quantity: count("sleep_in") });
+  if (count("on_call_away") > 0) out.push({ kind: "on_call", quantity: count("on_call_away") });
+  if (tenths > 0) out.push({ kind: "mileage", quantity: tenths / TENTHS_PER_MILE });
+  return out.sort((a, b) => a.kind.localeCompare(b.kind));
+}

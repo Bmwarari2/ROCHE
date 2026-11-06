@@ -15,6 +15,7 @@ export * from "./elearning";
 export * from "./enums";
 export * from "./exports";
 export * from "./hr-link";
+export * from "./hr-pay";
 export * from "./imports";
 export * from "./induction";
 export * from "./integrations";

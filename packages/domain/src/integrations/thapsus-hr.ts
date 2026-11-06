@@ -548,7 +548,12 @@ export interface ThapsusHrPort {
     units: readonly HrPayUnit[],
     idempotencyKey: string,
   ): Promise<HrResult<{ readonly accepted: number }>>;
-  rates(employeeIds: readonly string[]): Promise<HrResult<readonly HrRate[]>>;
+  /** Hourly rates, as Thapsus-HR sends them (checked with `inboundRate` before use; K5). */
+  rates(
+    employeeIds: readonly string[],
+  ): Promise<HrResult<readonly Readonly<Record<string, unknown>>[]>>;
+  /** Pay periods, as Thapsus-HR sends them (checked with `inboundPayPeriod`; K5). */
+  payPeriods(): Promise<HrResult<readonly Readonly<Record<string, unknown>>[]>>;
   health(): Promise<HealthResult>;
 }
 
