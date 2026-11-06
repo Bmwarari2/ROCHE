@@ -21,7 +21,8 @@ import { location, tenant, tenantUser } from "./platform";
  * The breach register and data protection complaints (PLAT-022; platform.md rules 6 to 10 and 18
  * to 26; UK GDPR Arts 33 and 34; DPA 2018 as amended by the Data (Use and Access) Act 2025).
  * Clocks are never stored: they are worked out from these dates and the rate table when read.
- * Interim `audit_event` retention class until the DPO sets periods (H-670).
+ * Retention (H-670): the register, Thapsus's notices and their acknowledgements `dp_breach` (6 years
+ * from closure of the breach); data protection complaints `data_rights_case` (3 years from closure).
  */
 
 /** One register entry per personal data breach, reportable or not (Art 33(5)). */

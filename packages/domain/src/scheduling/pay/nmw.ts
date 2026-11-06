@@ -143,14 +143,17 @@ export function nmwCheck(input: NmwInput, rates: PayRates): NmwResult {
 }
 
 /**
- * The pay the minimum wage check takes from gross pay: basic pay, premiums (taken out again by the
- * check) and sleep-in allowances, which are pay for the sleep-in. Mileage is an expense and an
- * on-call allowance for time at home is not pay for time work, so neither is counted (gov.uk
- * "Calculating the minimum wage"; H-529).
+ * The pay the minimum wage check takes from gross pay: basic pay and premiums (taken out again by
+ * the check). Mileage is an expense and an on-call allowance for time at home is not pay for time
+ * work, so neither is counted (gov.uk "Calculating the minimum wage"). The sleep-in flat allowance
+ * is not counted either until an employment adviser confirms it does: an allowance not consolidated
+ * into basic pay may not count (National Minimum Wage Regulations 2015 reg 10; HMRC NMW Manual), so
+ * the check errs towards flagging an underpayment (recommended answer to H-585, 31/10/2026;
+ * H-529).
  */
 export function nmwPayFromGross(gross: GrossPay): Pick<NmwInput, "payPence" | "premiumPence"> {
   return {
-    payPence: gross.basicPence + gross.premiumPence + gross.sleepInPence,
+    payPence: gross.basicPence + gross.premiumPence,
     premiumPence: gross.premiumPence,
   };
 }

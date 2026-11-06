@@ -48,7 +48,7 @@ The breach register in Harbour shows these clocks for each breach (master prompt
 | Level | Example | Typical decision |
 | --- | --- | --- |
 | Low | Email with a person's first name sent to the wrong colleague in the same organisation, deleted unread | Log only |
-| Medium | Care record of one person seen by a staff member without a care relationship (no further disclosure) | Assess; often reportable to the ICO given special category data |
+| Medium | Care record of one person seen by a staff member without a care relationship (no further disclosure); any identifiable detail of one person receiving care sent outside the organisation, even without health data, since receiving care itself reveals health (H-611) | Assess; often reportable to the ICO given special category data and the vulnerability of the people affected |
 | High | Records of several people disclosed outside the organisation; device lost without encryption confirmation; cross-tenant exposure | Report to the ICO; consider telling individuals |
 | Critical | Large-scale disclosure, safeguarding information or the location of a person at risk disclosed; ransomware with loss of availability of care records | Report to the ICO; tell individuals; consider police and CQC |
 

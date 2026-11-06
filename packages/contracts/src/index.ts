@@ -98,6 +98,56 @@ export const RevokeMemberSessionsResult = z
   .meta({ id: "RevokeMemberSessionsResult" });
 export type RevokeMemberSessionsResult = z.infer<typeof RevokeMemberSessionsResult>;
 
+/**
+ * Why a manager suspended or ended a membership: a code, never words (H-566; the domain's
+ * `MEMBERSHIP_CHANGE_REASONS`, kept equal by a test).
+ */
+export const MEMBER_CHANGE_REASONS = [
+  "staff_left",
+  "account_deletion_request",
+  "investigation",
+  "safeguarding_concern",
+  "long_absence",
+  "other",
+] as const;
+
+export const ChangeMembership = z
+  .object({
+    reasonCode: z.enum(MEMBER_CHANGE_REASONS),
+    /**
+     * Suspending only: true once the manager has been told how many entries the member's devices
+     * last reported waiting (they stay on each device, protected, until handed over).
+     */
+    confirmEntriesWaiting: z.boolean().optional(),
+  })
+  .meta({ id: "ChangeMembership" });
+export type ChangeMembership = z.infer<typeof ChangeMembership>;
+
+export const MembershipChangeResult = z
+  .object({
+    tenantUserId: uuid,
+    state: z.enum(["suspended", "left"]),
+    /** True when the membership was already in this state: nothing changed. */
+    replay: z.boolean(),
+    /** Sessions of the person's sign-in ended (0 while they work for another organisation). */
+    sessionsEnded: z.number().int().min(0),
+    /** Entries the member's devices last reported waiting (0 when none). */
+    entriesWaiting: z.number().int().min(0),
+  })
+  .meta({ id: "MembershipChangeResult" });
+export type MembershipChangeResult = z.infer<typeof MembershipChangeResult>;
+
+export const EraseSignInResult = z
+  .object({
+    tenantUserId: uuid,
+    /** False when the sign-in had already been erased (a retry). */
+    erased: z.boolean(),
+    /** An open account deletion request for the member was closed. */
+    deletionRequestClosed: z.boolean(),
+  })
+  .meta({ id: "EraseSignInResult" });
+export type EraseSignInResult = z.infer<typeof EraseSignInResult>;
+
 export const LocationSummary = z
   .object({
     id: uuid,

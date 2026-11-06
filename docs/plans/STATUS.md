@@ -150,6 +150,18 @@ H-482, H-543, H-551 and H-595. Left open, each with a note in
   on the safeguarding log (on `main` since slice 13), so it is not used by a live tenant until then.
 - The ratings applied here (H-543, H-595, H-267) are recommended ratings, not the CSO's; the CSO
   rates them, and signs safety case v0.1 (H-381), at the testing phase.
+**Recommended answers applied, platform items** (`fix/recommended-answers-platform`, 31/10/2026;
+each reviewed at the testing phase): sharing decisions last at most `sharing.decision_max_months`
+or to the authority's end (H-38, HZ-022); retention classes for people never admitted (H-39),
+family notification deliveries (H-106), search events that showed no one (`security_log`, H-121),
+the breach register and data protection complaints (H-670) and the Phase 2 gaps (H-525); the
+sleep-in allowance no longer counts as minimum wage pay (H-585); an identifiable disclosure outside
+the organisation suggests at least medium (H-611); B1 keeps the care record under Regulation
+17(2)(c) (H-612) and complaints have purpose B14 (H-700); the free-text dependency category is no
+longer written (H-716; the column drop is a later contract migration). H-566 has its domain rules
+and API routes (suspend, end, erase the sign-in), held in the database by migration 0129
+(`app.change_membership`, a restrictive policy and a guard trigger on `tenant_user`, the last user
+manager kept); its web screens and a reinstate route are still to build.
 
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or

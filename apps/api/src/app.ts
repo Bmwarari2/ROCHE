@@ -68,6 +68,7 @@ import { membershipsRouter, meRouter } from "./routes/me";
 import { medicineAdministrationsRouter } from "./routes/medicine-administrations";
 import { medicinesRouter } from "./routes/medicines";
 import { medicinesDmdRouter } from "./routes/medicines-dmd";
+import { memberLifecycleRouter } from "./routes/member-lifecycle";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
 import { onboardingRouter } from "./routes/onboarding";
@@ -407,6 +408,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
+  app.route("/", memberLifecycleRouter);
   app.route("/", peopleRouter);
   app.route("/", peopleLifecycleRouter);
   app.route("/", peopleEnquiriesRouter);

@@ -16,12 +16,14 @@ import {
   SEARCH_CLOSED_PERSON_STATUSES,
   SEARCH_LIMITS,
   type SearchActor,
+  type SearchAuditRetentionClass,
   type SearchEntityType,
   type SearchHit,
   type SearchPlan,
   type SearchPlanProblem,
   sameNameWarnings,
   searchAuditEvent,
+  searchAuditRetentionClass,
   searchRefusalAuditEvent,
   searchTerms,
 } from "./search";
@@ -1080,6 +1082,7 @@ describe("hazard HZ-011 search audit events record what was shown, never the wor
         validUntil: null,
         personIds: ["p-9"],
         careRecordView: true,
+        retentionClass: "audit_event.care_record",
         resultIds: { person: ["r-1"], staff: [], document: [], note: [] },
       },
     });
@@ -1092,6 +1095,7 @@ describe("hazard HZ-011 search audit events record what was shown, never the wor
     const event = searchAuditEvent(plan, filterSearchResults(plan, [], NOW));
     expect(event.scope.validUntil).toBe(agencyAccessEndsAt(SHIFT_END, RATES).toISOString());
     expect(event.scope.careRecordView).toBe(false);
+    expect(event.scope.retentionClass).toBe("security_log");
   });
 
   it("refers to the break-glass record for the reason instead of copying it", () => {
@@ -1123,6 +1127,7 @@ describe("hazard HZ-011 search audit events record what was shown, never the wor
         personIds: ["p-77"],
         breakGlassRecordId: "bg-1",
         reasonCode: "emergency_care",
+        retentionClass: "audit_event",
         personScope: "tenant",
         termCount: 2,
         queryKind: "text",
@@ -1153,9 +1158,31 @@ describe("hazard HZ-011 search audit events record what was shown, never the wor
         resultIds: null,
         personIds: [],
         careRecordView: false,
+        retentionClass: "security_log",
         problem: "archived_not_permitted",
       },
     });
     expect(searchRefusalAuditEvent("not_permitted").scope.entityTypes).toHaveLength(4);
+    expect(
+      searchRefusalAuditEvent("rate_limited", ["person"], { breakGlass: true }).scope,
+    ).toMatchObject({ breakGlass: true, retentionClass: "audit_event" });
+  });
+
+  it.each<[string, { breakGlass: boolean; personIds: string[] }, SearchAuditRetentionClass]>([
+    [
+      "a search that showed people",
+      { breakGlass: false, personIds: ["p-1"] },
+      "audit_event.care_record",
+    ],
+    ["a search with no results", { breakGlass: false, personIds: [] }, "security_log"],
+    ["a search of staff or documents only", { breakGlass: false, personIds: [] }, "security_log"],
+    [
+      "a break-glass search that showed people",
+      { breakGlass: true, personIds: ["p-1"] },
+      "audit_event",
+    ],
+    ["a break-glass search that showed no one", { breakGlass: true, personIds: [] }, "audit_event"],
+  ])("keeps %s under its retention class (H-121)", (_label, event, retentionClass) => {
+    expect(searchAuditRetentionClass(event)).toBe(retentionClass);
   });
 });

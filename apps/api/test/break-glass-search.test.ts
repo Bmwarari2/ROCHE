@@ -241,7 +241,11 @@ describe("hazard HZ-011 break-glass search", () => {
     const [refused] = await sql<{ scope: Record<string, unknown> }>(
       "SELECT scope FROM audit_event WHERE action = 'platform.search.refused' ORDER BY occurred_at DESC LIMIT 1",
     );
-    expect(refused?.scope).toMatchObject({ problem: "rate_limited", breakGlass: true });
+    expect(refused?.scope).toMatchObject({
+      problem: "rate_limited",
+      breakGlass: true,
+      retentionClass: "audit_event",
+    });
 
     // With no active data protection lead, the refusal is still made and the alert audited.
     await setLeadStatus("suspended");
