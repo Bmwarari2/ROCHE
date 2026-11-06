@@ -680,5 +680,24 @@ describe("hazard HZ-113 the dm+d rows a phone needs (slice 68; ADR-0130)", () =>
     for (const g of subset.gtins) expect(packs.has(g.amppId), g.gtin).toBe(true);
     // Nothing about a person: products and barcodes only.
     expect(JSON.stringify(subset)).not.toContain(ADA);
+    // Ben's lactulose too: every person on the member's MARs.
+    expect(
+      subset.products.some((p) => p.kind === "vmp" && p.id === LACTULOSE.vmpId) ||
+        subset.unresolved.includes(LACTULOSE.vmpId),
+    ).toBe(true);
+    for (const id of subset.unresolved) expect(id).toMatch(/^[1-9]\d{5,17}$/);
+  });
+
+  it("gives a care worker the products on their assigned people's MARs, and needs the permission to give medicines", async () => {
+    const carer = await send("carer", "/v1/medicines/device-subset");
+    expect(carer.status).toBe(200);
+    const subset = await json<{ products: { id: string }[]; unresolved: string[] }>(carer);
+    const ids = new Set([...subset.products.map((p) => p.id), ...subset.unresolved]);
+    // The carer is assigned to Ada and Ben (the demo seed's first three residents).
+    expect(ids.has(PARACETAMOL.vmpId)).toBe(true);
+    expect(ids.has(LACTULOSE.vmpId)).toBe(true);
+    // A quality lead reads records but does not give medicines.
+    const quality = await send("quality", "/v1/medicines/device-subset");
+    expect(quality.status).toBe(403);
   });
 });

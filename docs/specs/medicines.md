@@ -1068,14 +1068,18 @@ Built in slice 68 (migration 0149), for members holding `medicines.emar.administ
 person scopes of the care streams (replication bypasses RLS, so the stream queries carry the scope;
 `medicines-streams.test.ts` proves it):
 - **`*_medicines`** (priority 1, with the allergy streams, HZ-002): MAR entry versions not
-  replaced, withdrawn or removed, a stopped one included (the phone judges the stop's time), with
-  their schedule times, dosing records and covert records.
+  withdrawn or removed, a stopped or replaced one included (the phone judges `stop_at`,
+  `stop_effective_at` and `replaced_from`, so a change from tomorrow never takes today's doses off
+  the round), with the schedule times, dosing records and covert records of those versions only.
 - **`*_medicine_administrations`**: administrations recorded on a day of `meds_recent_days` (today
-  and the two UTC days before, minted by the API): the last 48 hours at least, for intervals, the
-  24-hour maximum and the last given.
-- **`my_medicines_competence`**: the member's own medicines competence sign-offs and withdrawals.
-- **dm+d**: `GET /v1/medicines/device-subset` (integrations.md section 12 rule 9), fetched on
-  connecting and at most hourly after and replaced whole on the phone.
+  and the 34 UTC days before, minted by the API), for the last given of a monthly or weekly
+  medicine, intervals and the 24-hour maximum (H-1421).
+- **`my_medicines_competence`**: the member's own medicines competence sign-offs and their
+  withdrawals.
+- **dm+d**: `GET /v1/medicines/device-subset` (integrations.md section 12 rule 9), for the products
+  on the MARs of the people the streams give the member, fetched on connecting, when those products
+  change and at most hourly otherwise, and replaced whole on the phone; a failed request keeps the
+  last copy and records when it failed (`meta:dmd-subset-failed-at`).
 - Token claims `meds_location_ids`, `meds_assigned` and `meds_recent_days`; none reach a device
   without them (fails closed). No document, reconciliation, error, review, stock or controlled drug
   register row syncs.

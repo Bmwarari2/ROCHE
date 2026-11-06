@@ -101,10 +101,11 @@ export function shiftWindowDays(now: Date): string[] {
 
 /**
  * The UTC days of the administrations a phone holds (`meds_recent_days`; medicines.md section
- * 13.8; slice 68): today and the two days before, so the last 48 hours are always there, for
- * intervals, the 24-hour maximum and the last given. A product setting, not a statutory figure.
+ * 13.8; slice 68): today and the 34 days before, so the last given of a monthly medicine, an
+ * interval of up to 34 days and the last 24 hours are always there (clinical review of slice 68,
+ * M3). A product setting, not a statutory figure; the server decides when a record arrives.
  */
-export const MEDS_RECENT_DAYS_BEHIND = 2;
+export const MEDS_RECENT_DAYS_BEHIND = 34;
 
 export function medsRecentDays(now: Date): string[] {
   const days: string[] = [];

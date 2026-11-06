@@ -172,12 +172,12 @@ export const DmdDeviceSubset = z
     products: z.array(DmdDeviceProduct),
     gtins: z.array(
       z.object({
-        gtin: z.string(),
+        gtin: z.string().regex(/^\d{8,14}$/),
         amppId: dmdId,
         startDate: isoDate,
         endDate: isoDate.nullable(),
       }),
     ),
-    unresolved: z.array(z.string()),
+    unresolved: z.array(dmdId),
   })
   .meta({ id: "DmdDeviceSubset" });

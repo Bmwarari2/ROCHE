@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { all, openLocalDatabase } from "../test-support/local-db";
 import {
+  DMD_SUBSET_FAILED_META_ID,
   DMD_SUBSET_REFRESH_MS,
   parseDeviceSubset,
   replaceSubsetStatements,
+  SUBSET_NEEDS_SQL,
   subsetDue,
+  subsetFailedStatement,
+  subsetNeedsKey,
 } from "./dmd-subset";
 
 /**
@@ -50,6 +54,7 @@ describe("the phone's dm+d subset", () => {
       parseDeviceSubset({ ...subset, products: [{ ...subset.products[0], id: "1; DROP" }] }),
     ).toBeNull();
     expect(parseDeviceSubset({ products: [] })).toBeNull();
+    expect(parseDeviceSubset({ ...subset, unresolved: ["<script>"] })).toBeNull();
   });
 
   it("replaces the subset whole on the phone's schema, with the products the data lacks named", async () => {
@@ -85,5 +90,42 @@ describe("the phone's dm+d subset", () => {
     ["fetched in the future (a wrong clock)", "2026-11-07T10:00:00.000Z", true],
   ])("asks again when %s", (_case, last, due) => {
     expect(subsetDue(last, new Date("2026-11-06T10:00:00Z"))).toBe(due);
+  });
+
+  it("asks again at once when the products on the MAR entries change (M4)", () => {
+    const now = new Date("2026-11-06T10:00:00Z");
+    const just = "2026-11-06T10:00:00.000Z";
+    expect(subsetDue(just, now, "vmp-1/", "vmp-1/")).toBe(false);
+    expect(subsetDue(just, now, "vmp-1/", "vmp-1/,vmp-2/")).toBe(true);
+    expect(subsetDue(just, now, null, "")).toBe(true);
+  });
+
+  it("keys the needs on the phone's own MAR entries, leaving withdrawn versions out", async () => {
+    const db = await openLocalDatabase();
+    const add = (id: string, vmp: string, amp: string | null, state: string) =>
+      db
+        .prepare("INSERT INTO medication (id, vmp_id, amp_id, state) VALUES (?, ?, ?, ?)")
+        .run(id, vmp, amp, state);
+    add("m1", "90000011000001104", null, "checked");
+    add("m2", "90000011000001104", null, "replaced");
+    add("m3", "90000012000001105", "90000021000001106", "stopped");
+    add("m4", "90000013000001109", null, "withdrawn");
+    const rows = all<{ vmp_id: string | null; amp_id: string | null }>(db, SUBSET_NEEDS_SQL, []);
+    expect(subsetNeedsKey(rows)).toBe("90000011000001104/,90000012000001105/90000021000001106");
+  });
+
+  it("records a failed request and clears it on the next success (M5)", async () => {
+    const db = await openLocalDatabase();
+    const run = (s: { sql: string; params: unknown[] }) => db.prepare(s.sql).run(...s.params);
+    const failedAt = () =>
+      all<{ value: string }>(db, "SELECT value FROM sync_meta WHERE id = ?", [
+        DMD_SUBSET_FAILED_META_ID,
+      ]);
+    run(subsetFailedStatement(new Date("2026-11-06T10:00:00Z")));
+    expect(failedAt()).toEqual([{ value: "2026-11-06T10:00:00.000Z" }]);
+    const parsed = parseDeviceSubset(subset);
+    if (!parsed) throw new Error("not parsed");
+    for (const s of replaceSubsetStatements(parsed, new Date("2026-11-06T11:00:00Z"), "k")) run(s);
+    expect(failedAt()).toEqual([]);
   });
 });

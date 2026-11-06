@@ -32,6 +32,12 @@ export interface DeviceSubset {
 
 /** When the subset was last fetched, in `sync_meta`. */
 export const DMD_SUBSET_META_ID = "meta:dmd-subset-at";
+/** The products the subset was fetched for (`subsetNeedsKey`). */
+export const DMD_SUBSET_NEEDS_META_ID = "meta:dmd-subset-needs";
+/** When the last request for the subset failed; cleared by the next one that succeeds. */
+export const DMD_SUBSET_FAILED_META_ID = "meta:dmd-subset-failed-at";
+/** How often a connected phone checks whether the subset is due. */
+export const DMD_SUBSET_CHECK_MS = 5 * 60 * 1000;
 
 /** How often the phone asks again while connected (a product setting): every hour. */
 export const DMD_SUBSET_REFRESH_MS = 60 * 60 * 1000;
@@ -100,7 +106,7 @@ export function parseDeviceSubset(body: unknown): DeviceSubset | null {
     }
     gtins.push({ gtin: r.gtin, amppId: r.amppId, startDate: r.startDate, endDate: r.endDate });
   }
-  if (!b.unresolved.every((u) => typeof u === "string")) return null;
+  if (!b.unresolved.every((u) => typeof u === "string" && DMD_ID.test(u))) return null;
   return { products, gtins, unresolved: b.unresolved as string[] };
 }
 
@@ -113,7 +119,11 @@ export interface SqlStatement {
  * The statements that replace the phone's subset with this one, in one transaction: everything
  * old removed first, so nothing that left the subset stays.
  */
-export function replaceSubsetStatements(subset: DeviceSubset, at: Date): SqlStatement[] {
+export function replaceSubsetStatements(
+  subset: DeviceSubset,
+  at: Date,
+  needsKey = "",
+): SqlStatement[] {
   const out: SqlStatement[] = [
     { sql: "DELETE FROM dmd_device_product", params: [] },
     { sql: "DELETE FROM dmd_device_gtin", params: [] },
@@ -152,12 +162,47 @@ export function replaceSubsetStatements(subset: DeviceSubset, at: Date): SqlStat
     sql: "INSERT OR REPLACE INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
     params: [DMD_SUBSET_META_ID, DMD_SUBSET_META_ID, at.toISOString()],
   });
+  out.push({
+    sql: "INSERT OR REPLACE INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
+    params: [DMD_SUBSET_NEEDS_META_ID, DMD_SUBSET_NEEDS_META_ID, needsKey],
+  });
+  out.push({ sql: "DELETE FROM sync_meta WHERE id = ?", params: [DMD_SUBSET_FAILED_META_ID] });
   return out;
 }
 
-/** Whether the subset is due to be asked for again. */
-export function subsetDue(lastAt: string | null | undefined, now: Date): boolean {
+/** The products the phone's MAR entries name, as one key: a change asks for the subset again. */
+export const SUBSET_NEEDS_SQL = `SELECT DISTINCT vmp_id, amp_id FROM medication
+  WHERE state <> 'withdrawn' ORDER BY vmp_id, amp_id`;
+
+export function subsetNeedsKey(
+  rows: readonly { vmp_id: string | null; amp_id: string | null }[],
+): string {
+  return rows.map((r) => `${r.vmp_id ?? ""}/${r.amp_id ?? ""}`).join(",");
+}
+
+/**
+ * The statement that records a failed request (clinical review of slice 68, M5): the phone keeps
+ * its last subset, and the time of the failure shows that it may be out of date.
+ */
+export function subsetFailedStatement(at: Date): SqlStatement {
+  return {
+    sql: "INSERT OR REPLACE INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
+    params: [DMD_SUBSET_FAILED_META_ID, DMD_SUBSET_FAILED_META_ID, at.toISOString()],
+  };
+}
+
+/**
+ * Whether the subset is due to be asked for again: never fetched, an hour old, from the future, or
+ * the products on the phone's MAR entries have changed since (clinical review of slice 68, M4).
+ */
+export function subsetDue(
+  lastAt: string | null | undefined,
+  now: Date,
+  keptNeeds?: string | null,
+  currentNeeds?: string,
+): boolean {
   const last = lastAt ? Date.parse(lastAt) : Number.NaN;
+  if (currentNeeds !== undefined && (keptNeeds ?? null) !== currentNeeds) return true;
   return (
     !Number.isFinite(last) || now.getTime() - last >= DMD_SUBSET_REFRESH_MS || last > now.getTime()
   );

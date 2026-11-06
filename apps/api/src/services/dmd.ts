@@ -518,6 +518,10 @@ export async function dmdDeviceRows(
     }
     wanted = next;
   }
+  // A replacement chain longer than the limit is cut short: the products not followed are named
+  // as unresolved, so the phone says so rather than stopping at an old product (security review
+  // of slice 68, finding 5).
+  const beyondChain = [...wanted];
   const vmpIds = [...vmpRows.keys()];
   const namedAmps = needs.flatMap((n) => (n.ampId ? [n.ampId] : []));
   const amps = await rows<{
@@ -674,6 +678,6 @@ export async function dmdDeviceRows(
     gtins: input.gtins
       .filter((g) => gtinKept.has(dmdGtinKey(g)))
       .map((g) => ({ gtin: g.gtin, amppId: g.amppId, startDate: g.startDate, endDate: g.endDate })),
-    unresolved: [...subset.unresolved],
+    unresolved: [...new Set([...subset.unresolved, ...beyondChain])].sort(),
   };
 }

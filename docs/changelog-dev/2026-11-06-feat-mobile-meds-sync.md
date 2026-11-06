@@ -8,12 +8,12 @@ Branch `feat/mobile-meds-sync`, slice 68 (no PR yet), on `integration/phase-2-ba
   for replication only.
 - Streams in the two person scopes of `medicines.emar.administer`: live MAR entry versions (a stopped
   one included) with schedule times, dosing and covert records, with priority 1 like the allergy
-  streams (HZ-002); administrations recorded today and the two days before; the member's own
+  streams (HZ-002); administrations recorded today and the 34 days before; the member's own
   medicines competence. Isolation tests per person, location, member and tenant; the slice 22
   contract test is replaced by them.
 - The sync token carries `meds_location_ids`, `meds_assigned` and `meds_recent_days`.
 - `GET /v1/medicines/device-subset` gives the dm+d rows the member's MARs need; the phone keeps
-  them in local-only tables, replaced whole on connecting and at most hourly (ADR-0130).
+  them in local-only tables, replaced whole on connecting, when the MAR products change and at most hourly (ADR-0130).
 - Docs: medicines.md section 13.8, ADR-0130, HZ-002 and HZ-113, data standards, records of
   processing, register, H-1421 to H-1424.
 

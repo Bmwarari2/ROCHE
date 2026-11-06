@@ -208,9 +208,11 @@ administration keep the longer `mar_chart` period). No new recipient or sub-proc
 
 Medicines on the phone (Phase 2 slice 68, migration 0149; ADR-0130): B1 now also covers copies,
 on the phones of members who give medicines (`medicines.emar.administer`), of the MAR entry
-versions not replaced or withdrawn of the people in their scope (assigned people, or every live
-person at the homes it reaches), with schedule times, dosing records and covert administration
-records, and the administrations recorded in the last two to three days; and each member's own
+versions not withdrawn or removed (a stopped or replaced one included, until the person leaves
+scope) of the people in their scope (assigned people, or every live person at the homes it
+reaches), with the schedule times, dosing records and covert administration records of those
+versions only, and the administrations recorded today and the 34 days before (for monthly and
+weekly medicines); and each member's own
 medicines competence sign-offs and withdrawals (B3) on their own phone. In the encrypted device
 database (SQLCipher), removed when the person leaves the member's scope, at sign-out, wipe or hold.
 The dm+d subset on the phone is national reference data, not personal data. No new recipient or

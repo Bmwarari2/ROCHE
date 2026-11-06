@@ -610,8 +610,8 @@ const elearning_outbox = new Table(
 );
 
 /**
- * Medicines on the phone (medicines.md section 13.8; Phase 2 slice 68; ADR-0130): the MAR entry
- * versions in force, stopped (the phone judges the stop's time) or not yet checked for the people in
+ * Medicines on the phone (medicines.md section 13.8; Phase 2 slice 68; ADR-0130): every MAR entry
+ * version not withdrawn (a stopped or replaced one too: the phone judges the time) for the people in
  * the member's `medicines.emar.administer` scope, with their schedule times, dosing records and
  * covert records; the administrations of the last days; the member's own medicines competence.
  */
@@ -646,6 +646,10 @@ const medication = new Table(
     cd_schedule: column.text,
     check_outcome: column.text,
     updated_at: column.text,
+    prn_max_per_24h: column.text,
+    replaced_by_id: column.text,
+    replaced_from: column.text,
+    stop_at: column.text,
   },
   { indexes: { by_person: ["person_id"], by_medicine: ["medicine_id"] } },
 );

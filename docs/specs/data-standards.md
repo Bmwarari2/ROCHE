@@ -1483,14 +1483,17 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
 - Medicines (Phase 2 slice 68; medicines.md section 13.8; ADR-0130): `medication`,
   `medication_schedule`, `medication_dosing_record`, `covert_medication_record` and
   `medication_administration` hold, with the database column names, the rows the medicines streams
-  send (a version's `state` may be `stopped`; the phone judges `stop_effective_at`;
-  `medication_administration.covert` is 0 or 1), and `competence_sign_off` with
+  send (a version's `state` may be `stopped` or `replaced`; the phone judges `stop_at`,
+  `stop_effective_at` and `replaced_from` (ISO 8601 UTC), `replaced_by_id` names the version that
+  follows, `prn_max_per_24h` is a decimal as text; `medication_administration.covert` is 0 or 1), and `competence_sign_off` with
   `competence_withdrawal` the member's own medicines competence. `dmd_device_product` (local-only)
   holds the dm+d subset's products, keyed `<kind>:<dm+d id>`, `kind` one of `vmp`, `amp`, `vmpp`,
   `ampp` or `unresolved` (a code a MAR names that the reference data lacks), with `vmp_id`,
   `amp_id`, `vmpp_id`, `invalid` (0 or 1) and `detail` (JSON: the id and `supersededBy`);
   `dmd_device_gtin` (local-only) each barcode with its pack and its start and end dates
-  (yyyy-mm-dd). `sync_meta` keeps when the subset was fetched under `meta:dmd-subset-at`.
+  (yyyy-mm-dd). `sync_meta` keeps when the subset was fetched under `meta:dmd-subset-at`, the products
+  it was fetched for under `meta:dmd-subset-needs` (dm+d ids only) and when the last request failed
+  under `meta:dmd-subset-failed-at` (cleared by the next success).
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
   someone removes it with a recorded reason (the content never ages out). The device also sends
   the content to the server, which keeps a copy (`refused_entry`; contract `SyncRefusedEntry`,

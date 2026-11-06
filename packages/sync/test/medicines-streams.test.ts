@@ -7,8 +7,10 @@ import { compile, ids, type SourceRows, syncFor } from "./support/simulator";
  * Medicines on the phone (medicines.md section 13.8; Phase 2 slice 68; ADR-0130). Logical
  * replication bypasses row-level security, so these tests alone prove that a phone receives only
  * the medicines of the people in the member's `medicines.emar.administer` scope (assigned people, or
- * live people at the token's locations), in the token's tenant; only MAR entry versions not
- * replaced, withdrawn or removed; administrations recorded on the token's days only; and the
+ * live people at the token's locations), in the token's tenant; every MAR entry version not
+ * withdrawn or removed (a replaced one too, so a change from tomorrow never takes today's doses
+ * off the phone), with the schedules, dosing and covert records of those versions only;
+ * administrations recorded on the token's days only; and the
  * member's own medicines competence, never a colleague's; and that nothing the device sends widens
  * it (hazards HZ-011, HZ-002). Invented ids only.
  */
@@ -113,6 +115,48 @@ const source: SourceRows = {
   ],
   medication_schedule: [
     {
+      id: "s-ada-replaced",
+      tenant_id: A,
+      person_id: "ada",
+      medication_id: "m-ada-replaced",
+      position: 1,
+      time: "08:00",
+      dose_kind: "fixed",
+      quantity: "2",
+      from_quantity: null,
+      to_quantity: null,
+      unit_code: "tablet",
+      unit_name: "tablet",
+    },
+    {
+      id: "s-ada-withdrawn",
+      tenant_id: A,
+      person_id: "ada",
+      medication_id: "m-ada-withdrawn",
+      position: 1,
+      time: "08:00",
+      dose_kind: "fixed",
+      quantity: "2",
+      from_quantity: null,
+      to_quantity: null,
+      unit_code: "tablet",
+      unit_name: "tablet",
+    },
+    {
+      id: "s-ada-removed",
+      tenant_id: A,
+      person_id: "ada",
+      medication_id: "m-ada-removed",
+      position: 1,
+      time: "08:00",
+      dose_kind: "fixed",
+      quantity: "2",
+      from_quantity: null,
+      to_quantity: null,
+      unit_code: "tablet",
+      unit_name: "tablet",
+    },
+    {
       id: "s-ada",
       tenant_id: A,
       person_id: "ada",
@@ -143,6 +187,16 @@ const source: SourceRows = {
   ],
   medication_dosing_record: [
     {
+      id: "d-ada-withdrawn",
+      tenant_id: A,
+      person_id: "ada",
+      medication_id: "m-ada-withdrawn",
+      doses: "[]",
+      check_outcome: "agreed",
+      check_at: "2026-11-05 09:00:00+00",
+      recorded_at: "2026-11-05 08:00:00+00",
+    },
+    {
       id: "d-ada",
       tenant_id: A,
       person_id: "ada",
@@ -154,6 +208,21 @@ const source: SourceRows = {
     },
   ],
   covert_medication_record: [
+    {
+      id: "c-ada-withdrawn",
+      tenant_id: A,
+      person_id: "ada",
+      medication_id: "m-ada-withdrawn",
+      medicine_id: "m-ada-medicine",
+      method: "x",
+      pharmacist_advice: null,
+      starts_on: "2026-10-01",
+      review_on: "2027-01-01",
+      reviewed_on: null,
+      ended_on: null,
+      version: 1,
+      deleted_at: null,
+    },
     {
       id: "c-ada",
       tenant_id: A,
@@ -188,7 +257,8 @@ const source: SourceRows = {
   medication_administration: [
     administration("a-ada-today", A, "ada", "2026-11-06 08:00:00+00"),
     administration("a-ada-two-days", A, "ada", "2026-11-04 08:00:00+00"),
-    administration("a-ada-old", A, "ada", "2026-11-01 08:00:00+00"),
+    administration("a-ada-month", A, "ada", "2026-10-03 08:00:00+00"),
+    administration("a-ada-old", A, "ada", "2026-10-02 23:59:00+00"),
     administration("a-bea-today", A, "bea", "2026-11-06 08:00:00+00"),
     administration("a-eve-today", B, "eve", "2026-11-06 08:00:00+00"),
   ],
@@ -228,6 +298,7 @@ const source: SourceRows = {
   ],
   competence_withdrawal: [
     { id: "cw-carer", tenant_id: A, sign_off_id: "cs-carer" },
+    { id: "cw-carer-hoist", tenant_id: A, sign_off_id: "cs-carer-hoist" },
     { id: "cw-colleague", tenant_id: A, sign_off_id: "cs-colleague" },
   ],
 };
@@ -260,22 +331,27 @@ beforeAll(() => {
 });
 
 describe("hazard HZ-011 only the medicines of the people in the member's scope reach the phone", () => {
-  it("gives a care worker their assigned people's live MAR entry versions, never replaced, withdrawn or removed ones", async () => {
+  it("gives a care worker their assigned people's MAR entry versions with their schedules, never withdrawn or removed ones", async () => {
     const device = await syncFor(hydrated, source, claims());
     expect(ids(device, "medication")).toEqual([
       "m-ada",
       "m-ada-difference",
+      "m-ada-replaced",
       "m-ada-stopped",
       "m-ada-unchecked",
     ]);
-    expect(ids(device, "medication_schedule")).toEqual(["s-ada"]);
+    expect(ids(device, "medication_schedule")).toEqual(["s-ada", "s-ada-replaced"]);
     expect(ids(device, "medication_dosing_record")).toEqual(["d-ada"]);
     expect(ids(device, "covert_medication_record")).toEqual(["c-ada"]);
   });
 
-  it("gives administrations recorded on the token's days only (48 hours at least)", async () => {
+  it("gives administrations recorded on the token's days only (35 UTC days, for monthly medicines)", async () => {
     const device = await syncFor(hydrated, source, claims());
-    expect(ids(device, "medication_administration")).toEqual(["a-ada-today", "a-ada-two-days"]);
+    expect(ids(device, "medication_administration")).toEqual([
+      "a-ada-month",
+      "a-ada-today",
+      "a-ada-two-days",
+    ]);
     const none = await syncFor(hydrated, source, claims({ meds_recent_days: [] }));
     expect(ids(none, "medication_administration")).toEqual([]);
   });
@@ -297,11 +373,13 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     expect(ids(device, "medication")).toEqual([
       "m-ada",
       "m-ada-difference",
+      "m-ada-replaced",
       "m-ada-stopped",
       "m-ada-unchecked",
       "m-bea",
     ]);
     expect(ids(device, "medication_administration")).toEqual([
+      "a-ada-month",
       "a-ada-today",
       "a-ada-two-days",
       "a-bea-today",
@@ -331,10 +409,15 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     expect(ids(device, "medication")).toEqual([
       "m-ada",
       "m-ada-difference",
+      "m-ada-replaced",
       "m-ada-stopped",
       "m-ada-unchecked",
     ]);
-    expect(ids(device, "medication_administration")).toEqual(["a-ada-today", "a-ada-two-days"]);
+    expect(ids(device, "medication_administration")).toEqual([
+      "a-ada-month",
+      "a-ada-today",
+      "a-ada-two-days",
+    ]);
     expect(ids(device, "competence_sign_off")).toEqual(["cs-carer"]);
   });
 
@@ -355,10 +438,19 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
 
 describe("the medicines window", () => {
   it.each([
-    ["midday", "2026-11-06T12:00:00Z", ["2026-11-04", "2026-11-05", "2026-11-06"]],
-    ["just after midnight UTC", "2026-11-06T00:05:00Z", ["2026-11-04", "2026-11-05", "2026-11-06"]],
-    ["across a month", "2026-12-01T09:00:00Z", ["2026-11-29", "2026-11-30", "2026-12-01"]],
-  ])("covers today and the two days before (%s)", (_case, now, days) => {
-    expect(medsRecentDays(new Date(now))).toEqual(days);
+    ["midday", "2026-11-06T12:00:00Z", "2026-10-03", "2026-11-06"],
+    ["just after midnight UTC", "2026-11-06T00:05:00Z", "2026-10-03", "2026-11-06"],
+    ["just before midnight UTC", "2026-11-06T23:55:00Z", "2026-10-03", "2026-11-06"],
+    ["across a year", "2027-01-10T09:00:00Z", "2026-12-07", "2027-01-10"],
+    ["across a leap day", "2028-03-15T09:00:00Z", "2028-02-10", "2028-03-15"],
+    ["on the day the clocks go back", "2026-10-25T00:30:00Z", "2026-09-21", "2026-10-25"],
+    ["on the day the clocks go forward", "2027-03-28T01:30:00Z", "2027-02-22", "2027-03-28"],
+  ])("covers today and the 34 UTC days before (%s)", (_case, now, first, last) => {
+    const days = medsRecentDays(new Date(now));
+    expect(days).toHaveLength(35);
+    expect(days[0]).toBe(first);
+    expect(days.at(-1)).toBe(last);
+    expect(new Set(days).size).toBe(35);
+    expect([...days].sort()).toEqual(days);
   });
 });

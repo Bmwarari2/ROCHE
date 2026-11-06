@@ -57904,7 +57904,8 @@
               "type": "object",
               "properties": {
                 "gtin": {
-                  "type": "string"
+                  "type": "string",
+                  "pattern": "^\\d{8,14}$"
                 },
                 "amppId": {
                   "type": "string",
@@ -57933,7 +57934,8 @@
           "unresolved": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[1-9]\\d{5,17}$"
             }
           }
         },
@@ -127896,7 +127898,7 @@
           "medicines"
         ],
         "summary": "The dm+d rows the member's phone needs",
-        "description": "medicines.emar.administer. For the MAR entries the member's phone holds (the people that permission reaches; versions not replaced, withdrawn or removed): the products they name and the products that replaced them, every valid AMP of a VMP-level entry (the named AMP for an AMP-level one), their valid packs and the barcodes on them not withdrawn and not ended, and the identifiers the reference data lacks (integrations.md section 12 rule 9; ADR-0130; slice 68). National reference data with no personal data; not audited one by one.",
+        "description": "medicines.emar.administer. For the MAR entries the member's phone holds (the people the medicines sync streams give the member: the live people at the homes that permission reaches and their assigned people; every version not withdrawn or removed): the products they name and the products that replaced them, every valid AMP of a VMP-level entry (the named AMP for an AMP-level one), their valid packs and the barcodes on them not withdrawn and not ended, and the identifiers the reference data lacks (integrations.md section 12 rule 9; ADR-0130; slice 68). National reference data with no personal data; not audited one by one.",
         "security": [
           {
             "bearerAuth": []
