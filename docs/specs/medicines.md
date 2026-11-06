@@ -1813,3 +1813,66 @@ Not sent to devices yet (the round stream is a contract until slice 68).
   refusals, the flag and escalation before an assessment and none after; protocol refusals, a dose
   by a named member once per id, refusals in words, entered in error, a prescribed product,
   withdrawal.
+
+## 16. Web: rounds, administration, when-required medicines and covert (slice 53; MEDS-002, MEDS-003, MEDS-004)
+
+The round on the web for the office and the tablet browser, on slice 48's API. No migration and no
+API change. Holders of `medicines.emar.administer` see it; the API checks the permission again at
+each person's home.
+
+**Rules**
+
+1. **The home's round** (`/medicines-round/{locationId}`, in the side navigation as "Medicines
+   round"): each person living there whom the reader may see, in the API's order (room, then name),
+   with the point-of-care header. It lists their doses from two hours ago to two hours ahead, plus
+   any earlier dose still late or due (the API's reach). Doses are late first, then due, not yet due
+   and recorded, with time-critical first in each. Each dose shows its state as an icon and a word,
+   the medicine, the dose and time, and "Time-critical" with an icon. An entry that may not be given
+   shows its words and notice. A dose recorded twice on different devices says it is waiting for
+   review. When-required medicines show when last given. A person whose round cannot be worked out
+   shows the API's words. Each person links to their own round.
+2. **A person's round** (`/people/{id}/medicines/round`, linked from the Medicines tab): the same
+   doses, each with:
+   - its notices and any clock change;
+   - the **covert record** beside the medicine (H-1354): its status as an icon and a word, how it is
+     given and the pharmacist's advice;
+   - "Record …" when it is late or due, not recorded and not waiting for review.
+
+   When-required medicines that may be given now show when last given (with "on a device that has
+   not synced yet" where that is so), the 24-hour total against the maximum, and when the next may be
+   given (HZ-117, HZ-004).
+3. **Recording a dose** (`…/round/record?entry=&due=`) on its own page. The page shows:
+   - the medicine as the round gives it (product, dose, route, due time, time-critical, indication,
+     special instructions, the entry's status and notices, and the covert record);
+   - above the form, the person's name, date of birth, NHS number, allergy status and every allergy,
+     most severe first (`PersonCheck`; HZ-007). Harbour never matches them (ADR-0082).
+
+   The form asks:
+   - what happened (given, refused, not given, withheld, not available, taken by the person
+     themselves, given by family);
+   - the reason, for an outcome that takes one: the domain's codes, with words for "other";
+   - the amount, for a dose taken. It is offered as prescribed when the prescription gives one
+     amount, in the entry's unit; a range or a variable dose is typed. A leading zero, zero or more
+     than three decimal places is refused at the field.
+   - "Given covertly", only for a dose given and only when the medicine has a covert record that is
+     not ended.
+
+   Reasons the API may ask for (early or late, a different amount, before the minimum interval) are
+   optional fields. The API's refusals show in its words at their field (`administration_*` codes).
+   The record's id is made by the page, so a resend is the same record. The server's time is used.
+   After saving, the person's round opens and says "Dose recorded."
+4. A dose not on the round any more (recorded since, or the medicine changed) says so on the record
+   page and offers the way back; it cannot be recorded there.
+5. **Not in this slice**:
+   - recording a dose already given (`givenBeforeRecorded`), a controlled drug's witness, and
+     corrections: the record page records doses on the round now, and a controlled drug is refused
+     by the API in its words until the witness step joins the web round (follow-up);
+   - the PRN protocol's text and the outcome check (slice 28's API), which are not in this base;
+   - barcode scanning and the offline round (slices 68 to 70).
+
+**Tests**:
+- `apps/web/src/lib/medicine-round.test.ts`: the state chips, the dose offered, the covert record
+  beside the medicine, the outcomes and reasons matching the domain's, and the form read into the
+  request with every refusal at its field;
+- `apps/web/e2e/medicine-round.spec.ts`: the home's round, the person's round, a when-required dose
+  given and a scheduled dose refused, with axe in light and dark, with and without errors.

@@ -46,6 +46,7 @@ import {
   MessageSquare,
   Newspaper,
   Palette,
+  Pill,
   Scale,
   ScrollText,
   Search,
@@ -87,6 +88,7 @@ export interface ShellFrameLabels {
   readonly people?: string | undefined;
   /** Shown only to people who read care plans (care.plan.read), whose round it is. */
   readonly round?: string | undefined;
+  readonly medicinesRound?: string | undefined;
   /** Shown only to people who take part in the shift handover (care.handover.manage). */
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
@@ -221,6 +223,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/my-shifts")) return "my-shifts";
   if (pathname.startsWith("/settings/dependency")) return "dependency";
   if (pathname.startsWith("/round")) return "round";
+  if (pathname.startsWith("/medicines-round")) return "medicines-round";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
@@ -353,6 +356,16 @@ export function ShellFrame({
       : []),
     ...(labels.round
       ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]
+      : []),
+    ...(labels.medicinesRound
+      ? [
+          {
+            id: "medicines-round",
+            label: labels.medicinesRound,
+            href: "/medicines-round",
+            icon: <Pill {...icon} />,
+          },
+        ]
       : []),
     ...(labels.handover
       ? [
