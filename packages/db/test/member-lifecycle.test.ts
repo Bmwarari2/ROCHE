@@ -102,14 +102,54 @@ describe("suspending and ending a membership (migration 0144)", () => {
   });
 
   it("reinstates only a suspended membership, keeping its roles", async () => {
-    await expect(change(TENANT_A, a.manager, a.carer, "active")).resolves.toBe("active");
-    expect(await change(TENANT_A, a.manager, a.carer, "suspended")).toBe("active");
-    expect(await change(TENANT_A, a.manager, a.carer, "active")).toBe("suspended");
-    expect((await statusOf(TENANT_A, a.carer))?.status).toBe("active");
-    const roles = await owner(TENANT_A, (c) =>
-      c.query("SELECT 1 FROM person_assignment WHERE tenant_user_id = $1", [a.carer]),
+    const inForce = () =>
+      owner(TENANT_A, (c) =>
+        c
+          .query(
+            "SELECT count(*)::int AS n FROM role_assignment WHERE tenant_user_id = $1 AND (valid_to IS NULL OR valid_to > now())",
+            [a.northManager],
+          )
+          .then((r) => r.rows[0]?.n as number),
+      );
+    const before = await inForce();
+    await expect(change(TENANT_A, a.manager, a.northManager, "active")).resolves.toBe("active");
+    expect(await change(TENANT_A, a.manager, a.northManager, "suspended")).toBe("active");
+    expect(await change(TENANT_A, a.manager, a.northManager, "active")).toBe("suspended");
+    expect((await statusOf(TENANT_A, a.northManager))?.status).toBe("active");
+    expect(await inForce()).toBe(before);
+  });
+
+  it("never reinstates permissions the manager does not hold there (security review H1)", async () => {
+    const giver = "0199f000-0000-7000-8000-000000014403";
+    const wider = "0199f000-0000-7000-8000-000000014404";
+    const member = "0199f000-0000-7000-8000-000000014405";
+    await owner(TENANT_A, async (c) => {
+      await c.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+           ($1, 'north_admin', 'North admin', 'location', '{platform.user.manage,people.person.read}'),
+           ($2, 'north_finance', 'North finance', 'location', '{people.person.read,finance.invoice.approve}')`,
+        [giver, wider],
+      );
+      await c.query(
+        `INSERT INTO tenant_user (id, display_name, email, status)
+         VALUES ($1, 'Fin Example', 'fin@example.invalid', 'suspended')`,
+        [member],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
+           ($1, $2, $4), ($3, $5, $4)`,
+        [a.northManager, giver, member, a.locationNorth, wider],
+      );
+    });
+    await owner(TENANT_A, (c) =>
+      c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [a.northManager]),
     );
-    expect(roles.rowCount).toBeGreaterThan(0);
+    await expect(
+      inContext(app(), ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), (c) =>
+        c.query("SELECT app.change_member_status($1, 'active')", [member]),
+      ),
+    ).rejects.toThrow(/do not hold/);
+    expect((await statusOf(TENANT_A, member))?.status).toBe("suspended");
   });
 
   it("suspends, replays without change, then ends and ends the roles", async () => {

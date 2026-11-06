@@ -76,6 +76,13 @@ const REFUSALS = {
       "You cannot change your own membership.",
       "Ask another member who manages users to do this.",
     ),
+  beyond_inviter: () =>
+    new HttpProblem(
+      403,
+      "beyond_inviter",
+      "You cannot give this person's roles back.",
+      "Their roles include permissions you do not hold where they apply. Ask someone who holds them.",
+    ),
   last_user_manager: () =>
     new HttpProblem(
       409,
@@ -110,6 +117,7 @@ const REFUSALS = {
 function statusRefusal(error: unknown): HttpProblem | null {
   const code = dbCode(error);
   if (code === "HB566") return REFUSALS.own_membership();
+  if (code === "HB567") return REFUSALS.beyond_inviter();
   if (code === "23514") return REFUSALS.last_user_manager();
   if (code === "55000") return REFUSALS.membership_state();
   if (code === "P0002") return problems.notFound();
@@ -420,7 +428,7 @@ export const memberLifecycleRouter = createRouter()
       tags: ["platform"],
       summary: "Reinstate a suspended membership",
       description:
-        "Undoes a suspension before the membership is ended (H-1392; platform.user.manage, step-up, a coded reason; audited): the membership is active again with the roles and grants it had. Sessions ended at the suspension stay ended, so the member signs in again; held entries stay held until handed over or sent. Only a suspended membership (409 membership_state), never your own (409 own_membership). An active one changes nothing (replay).",
+        "Undoes a suspension before the membership is ended (H-1392; platform.user.manage, step-up, a coded reason; audited): the membership is active again with the roles and grants it had. Sessions ended at the suspension stay ended, so the member signs in again; held entries stay held until handed over or sent. Only a suspended membership whose sign-in erasure has not begun (409 membership_state), never your own (409 own_membership), and only when you hold every permission of their roles and grants where they apply (403 beyond_inviter, as for an invitation). An active one changes nothing (replay).",
       security,
       request: {
         params: z.object({ tenantUserId: z.uuid() }),

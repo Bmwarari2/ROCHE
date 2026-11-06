@@ -4332,7 +4332,7 @@
   "team.end.deviceCheckOption": "{check, select, device_returned_checked {The device was returned and checked, and anything waiting was handed over} device_lost_incident_raised {The device is lost, and an incident was raised} other {Another check}}",
   "team.reinstate.open": "Reinstate membership",
   "team.reinstate.title": "Reinstate {name}'s membership?",
-  "team.reinstate.body": "{name} can use {app} for your organisation again, with the roles they had. They need to sign in again. Care entries held on a device stay there until a manager hands them over.",
+  "team.reinstate.body": "{name} can use {app} for your organisation again, with the roles they had. If they were signed out, they need to sign in again. Care entries held on their phone stay there until they sign in on it again and send them, or a manager hands them over. Entries they wrote while suspended then reach the record under their name.",
   "team.reinstate.reasonOption": "{reason, select, suspended_in_error {They were suspended by mistake} investigation_cleared {An investigation cleared them} returned_from_absence {They are back from an absence} other {Another reason}}",
   "team.reinstate.confirm": "Reinstate membership"
 }

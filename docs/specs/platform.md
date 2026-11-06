@@ -305,8 +305,11 @@ built on `feat/platform-member-lifecycle` (migration 0144).
   which stays closed to others until those are handed over or deleted.
 - **Reinstate** (`POST /v1/members/{tenantUserId}/reinstate`, the same permission, step-up, a coded
   reason: `suspended_in_error`, `investigation_cleared`, `returned_from_absence`, `other`; H-1392):
-  suspended back to active, before the membership is ended, with the roles and grants it had; the
-  sessions ended at the suspension stay ended, so the member signs in again. Audited as
+  suspended back to active, before the membership is ended, with the roles and grants it had, and
+  only when the manager holds every permission of them where they apply (`app.may_invite`, 403
+  `beyond_inviter`), never for a membership whose sign-in erasure has begun. Sessions ended at the
+  suspension stay ended, so the member signs in again; a member who also works elsewhere kept their
+  sessions and reaches the organisation again at once. Audited as
   `platform.member.reinstated`. A nurse suspended by mistake is not left locked out.
 - **End** (`POST /v1/members/{tenantUserId}/end`, the same permission, step-up, a coded reason:
   `left_employment`, `account_deletion_requested`, `contract_ended`, `dismissed`, `other`):

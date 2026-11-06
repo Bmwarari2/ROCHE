@@ -442,6 +442,13 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
     const reinstate = (member: string) =>
       post(owner, `/v1/members/${member}/reinstate`, { reasonCode: "suspended_in_error" });
     const manager = DEMO.users.manager.id;
+    const before = await signIn(DEMO.users.manager.email);
+    // Without the permission (the quality lead, signed in afresh before they were suspended
+    // earlier, holds none), refused: 403, or 401 now their session has ended.
+    const outsider = await post(h.tokens.quality ?? "", `/v1/members/${manager}/reinstate`, {
+      reasonCode: "suspended_in_error",
+    });
+    expect([401, 403]).toContain(outsider.status);
     expect((await suspend(owner, manager)).status).toBe(200);
     const back = await reinstate(manager);
     expect(back.status, await back.clone().text()).toBe(200);
@@ -451,9 +458,13 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
       { reason: "suspended_in_error" },
       { scope: { replay: true } },
     ]);
-    // The manager reaches the organisation again once signed in afresh.
+    // The session ended at the suspension stays ended; a fresh sign-in reaches the organisation
+    // again with the roles the manager had.
+    expect((await h.request("/v1/me", { token: before, tenant: DEMO.tenantId })).status).toBe(401);
     const again = await signIn(DEMO.users.manager.email);
-    expect((await h.request("/v1/me", { token: again, tenant: DEMO.tenantId })).status).toBe(200);
+    const me = await h.request("/v1/me", { token: again, tenant: DEMO.tenantId });
+    expect(me.status).toBe(200);
+    expect(JSON.stringify(await me.json())).toContain("platform.user.manage");
     // An ended membership is never reinstated; nor another organisation's.
     const ended = await reinstate(DEMO.users.carer.id);
     expect(ended.status).toBe(409);

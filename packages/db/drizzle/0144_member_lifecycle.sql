@@ -75,6 +75,19 @@ BEGIN
   IF v_from = p_to THEN
     RETURN v_from;
   END IF;
+  -- Reinstating gives back live access: only what the manager holds where it applies (the
+  -- invitation rule, app.may_invite), and never to a row whose sign-in erasure has begun.
+  IF p_to = 'active' AND v_from = 'suspended' THEN
+    IF EXISTS (SELECT 1 FROM public.tenant_user u
+               WHERE u.tenant_id = app.current_tenant_id() AND u.id = p_member
+                 AND u.sign_in_erased_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'A membership whose sign-in erasure has begun is not reinstated'
+        USING ERRCODE = 'object_not_in_prerequisite_state';
+    END IF;
+    IF NOT app.may_invite(p_member) THEN
+      RAISE EXCEPTION 'Reinstating gives back permissions you do not hold' USING ERRCODE = 'HB567';
+    END IF;
+  END IF;
   IF (p_to = 'suspended' AND v_from <> 'active') OR (p_to IN ('active', 'left') AND v_from <> 'suspended') THEN
     RAISE EXCEPTION 'A membership is suspended from active, and reinstated or ended from suspended'
       USING ERRCODE = 'object_not_in_prerequisite_state';

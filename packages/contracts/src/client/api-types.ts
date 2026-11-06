@@ -1515,7 +1515,7 @@ export interface paths {
     put?: never;
     /**
      * Reinstate a suspended membership
-     * @description Undoes a suspension before the membership is ended (H-1392; platform.user.manage, step-up, a coded reason; audited): the membership is active again with the roles and grants it had. Sessions ended at the suspension stay ended, so the member signs in again; held entries stay held until handed over or sent. Only a suspended membership (409 membership_state), never your own (409 own_membership). An active one changes nothing (replay).
+     * @description Undoes a suspension before the membership is ended (H-1392; platform.user.manage, step-up, a coded reason; audited): the membership is active again with the roles and grants it had. Sessions ended at the suspension stay ended, so the member signs in again; held entries stay held until handed over or sent. Only a suspended membership whose sign-in erasure has not begun (409 membership_state), never your own (409 own_membership), and only when you hold every permission of their roles and grants where they apply (403 beyond_inviter, as for an invitation). An active one changes nothing (replay).
      */
     post: {
       parameters: {
