@@ -66,6 +66,7 @@ import {
 import { LONE_WORKER_UNROUTED_ACTION, sweepLoneWorkers } from "../services/lone-worker";
 import { raiseDolsReminders } from "../services/mca";
 import { raiseOutstandingDoseTasks } from "../services/medicine-administrations";
+import { raiseReorderPrompts } from "../services/medicine-stock";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
 import { expireImportBatches } from "../services/platform-imports";
@@ -546,6 +547,15 @@ export async function escalateOutstandingDoses(deps: TaskDeps, now = new Date())
     ),
   );
   if (raised > 0) deps.logger.info({ raised }, "outstanding dose tasks raised");
+  return raised;
+}
+
+/** Medicines order prompts before each location's 28-day cycle (medicines.md section 15 rule 6). */
+export async function promptMedicineOrders(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "medicines-reorder-prompts", (tx, tenantId) =>
+    raiseReorderPrompts(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "medicines order prompts raised");
   return raised;
 }
 

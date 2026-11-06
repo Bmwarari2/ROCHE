@@ -56,6 +56,7 @@ export * from "./medicines/medication-review";
 export * from "./medicines/rates";
 export * from "./medicines/reconciliation";
 export * from "./medicines/schedule";
+export * from "./medicines/stock";
 export * from "./medicines/timing";
 export * from "./operations/downtime-pack";
 export * from "./operations/kiosk-cache";

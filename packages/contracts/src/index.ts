@@ -588,6 +588,7 @@ export * from "./lms-import";
 export * from "./lone-worker";
 export * from "./mca";
 export * from "./medicine-administrations";
+export * from "./medicine-stock";
 export * from "./medicines";
 export * from "./members";
 export * from "./onboarding";

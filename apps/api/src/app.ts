@@ -30,6 +30,7 @@ import {
   MockXeroPayrollClient,
   XeroPayrollAdapter,
 } from "./integrations/payroll/xero";
+import { MockPharmacy } from "./integrations/pharmacy";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { absencesRouter } from "./routes/absences";
@@ -76,6 +77,7 @@ import { membershipsRouter, meRouter } from "./routes/me";
 import { medicationErrorsRouter } from "./routes/medication-errors";
 import { medicineAdministrationsRouter } from "./routes/medicine-administrations";
 import { medicineRoundsRouter } from "./routes/medicine-rounds";
+import { medicineStockRouter } from "./routes/medicine-stock";
 import { medicinesRouter } from "./routes/medicines";
 import { medicinesDmdRouter } from "./routes/medicines-dmd";
 import { memberLifecycleRouter } from "./routes/member-lifecycle";
@@ -195,6 +197,8 @@ export interface AppHandle {
   /** The learning platform mock and its credentials (development and tests). */
   readonly learningPlatformMock: MockLearningPlatformClient;
   readonly learningPlatformSecrets: MemoryLearningPlatformSecrets;
+  /** What the pharmacy mock was given (development and tests). */
+  readonly pharmacyMock: MockPharmacy;
   close(): Promise<void>;
 }
 
@@ -216,6 +220,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   const payrollSecrets = new MemoryPayrollSecretStore();
   const learningPlatformMock = new MockLearningPlatformClient();
   const learningPlatformSecrets = new MemoryLearningPlatformSecrets();
+  const pharmacyMock = new MockPharmacy();
   const services: Services = {
     config,
     logger,
@@ -263,6 +268,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       mocks,
       smtp: config.smtp,
     }),
+    pharmacy: config.PHARMACY_ORDERS === "mock" ? pharmacyMock : null,
     mockEmail: mocks.email,
     evidenceLinkThrottles: {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
@@ -523,6 +529,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", disclosuresRouter);
   app.route("/", medicationErrorsRouter);
   app.route("/", medicinesRouter);
+  app.route("/", medicineStockRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
@@ -601,6 +608,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     payrollSecrets,
     learningPlatformMock,
     learningPlatformSecrets,
+    pharmacyMock,
     close: async () => {
       await Promise.all([appPool.end(), authPool.end(), operatorPool.end()]);
     },

@@ -22,6 +22,7 @@ export * from "./invitations";
 export * from "./lms-import";
 export * from "./lone-worker";
 export * from "./mca";
+export * from "./medicine-stock";
 export * from "./medicines";
 export * from "./medicines-dmd";
 export * from "./medicines-errors";

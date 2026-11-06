@@ -50,6 +50,7 @@ import type { DataKeyCache } from "../integrations/envelope";
 import type { LearningPlatformAdapter } from "../integrations/lms/learning-platform";
 import type { MedicinesPorts } from "../integrations/medicines-ports";
 import type { XeroPayrollAdapter } from "../integrations/payroll/xero";
+import type { PharmacyOrderPort } from "../integrations/pharmacy";
 import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
@@ -115,6 +116,8 @@ export interface Services {
   readonly ocr: OcrPort | null;
   /** DocuSign, or null when off: signing is then in Harbour only (ADR-0095). */
   readonly docusign: ExternalSignaturePort | null;
+  /** Orders to the pharmacy (medicines.md section 15), or null while off: submitted by hand. */
+  readonly pharmacy: PharmacyOrderPort | null;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */

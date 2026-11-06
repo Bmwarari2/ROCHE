@@ -984,6 +984,24 @@ is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/
 | `medication.tags` | Harbour (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |
 | `medication.minimum_interval_minutes`, `prn_max_per_24h` | Harbour | Minutes; numeric in the dose's unit | As the prescription states. |
 
+## Medicines stock, ordering, disposal and temperatures (Phase 2, slice 42)
+
+Migration 0138 ([medicines.md](medicines.md) section 15; ADR-0103). Retention class `mar_chart`
+(cycles and storage `tenant_configuration`); every column is exported. Quantities are in the item's
+dm+d unit; temperatures in tenths of a degree Celsius.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `medicine_stock_item.vmp_id`, `product_name`, `unit_code`, `unit_name` | dm+d VMP and unit of measure | SNOMED CT concept id; dm+d description and unit | One item per person and VMP; never a controlled drug. |
+| `medicine_stock_movement.movement` | Harbour (`STOCK_MOVEMENTS`) | `receipt`, `carried_forward`, `administration`, `returned`, `disposal`, `administration_correction`, `count_adjustment` | |
+| `medicine_stock_movement.change`, `balance_after` | Harbour | Numeric, 3 decimal places, signed | A balance may be below zero. |
+| `medicine_disposal.reason` | Harbour (`DISPOSAL_REASONS`) | `refused_dose`, `dropped_or_spoilt`, `out_of_date`, `discontinued`, `person_left`, `other` | `other` needs a note. |
+| `medicine_order.status` | Harbour (`ORDER_STATUSES`) | `draft`, `submitted`, `part_received`, `received`, `cancelled` | |
+| `medicine_order.sent_via` | Harbour | `manual`, `pharmacy_port` | |
+| `medicine_order_cycle.anchor_on`, `medicine_order.cycle_starts_on` | Harbour | `YYYY-MM-DD` | Cycles every `medicines.ordering_cycle_days`. |
+| `medicine_storage.kind` | Harbour (`STORAGE_KINDS`) | `fridge`, `room` | |
+| `medicine_temperature_reading.reading_tenths`, `min_tenths`, `max_tenths`, `low_tenths`, `high_tenths` | Harbour | Integer tenths of a degree Celsius | The range from the rate table at the time. |
+
 ## Controlled drugs register (Phase 2, slice 34)
 
 Migration 0128 ([medicines.md](medicines.md) section 14). Retention class
