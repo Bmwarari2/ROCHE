@@ -34458,6 +34458,24 @@
           "sentAt"
         ]
       },
+      "HrLeavingWithdrawn": {
+        "type": "object",
+        "properties": {
+          "withdrawn": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "accessRestored": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "withdrawn",
+          "accessRestored"
+        ]
+      },
       "SupportAccessRequest": {
         "type": "object",
         "properties": {
@@ -80370,6 +80388,130 @@
                     "hrId",
                     "error"
                   ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/leavers/{staffProfileId}/withdraw": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Withdraw a wrong leaving date from the HR platform (step-up)",
+        "description": "Refused while Thapsus-HR still gives the date (raised for review instead). When access has already ended, gives back sign-in and the roles that leaving ended, from now.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "staffProfileId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "date_entered_in_error",
+                      "leaving_cancelled",
+                      "invalid_date_from_hr_platform",
+                      "other_recorded_in_staff_file"
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLeavingWithdrawn"
                 }
               }
             }

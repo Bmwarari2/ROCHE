@@ -10,6 +10,7 @@ import {
   leaverRecord,
   staffProfile,
   type Transaction,
+  task,
   tenantUser,
 } from "@harbour/db";
 import {
@@ -252,6 +253,74 @@ async function event(
   });
 }
 
+/**
+ * What a person must look at (HZ-133), each raised as one open task for holders of
+ * `integrations.hr_link.review`. Titles name no product and no person.
+ */
+export const HR_ALERTS = {
+  employee_missing: { title: "Check a staff member the HR platform no longer lists", urgent: true },
+  leaving_date_invalid: { title: "Check a leaving date the HR platform sent", urgent: true },
+  record_failed: {
+    title: "Check staff records the HR platform link could not apply",
+    urgent: true,
+  },
+  start_date_review: { title: "Check a start date the HR platform changed", urgent: false },
+  leaving_still_sent: { title: "Correct a leaving date in the HR platform", urgent: true },
+  leaving_resent: { title: "Record a leaving the HR platform sent again", urgent: true },
+} as const;
+export type HrAlert = keyof typeof HR_ALERTS;
+
+/**
+ * One open alert per cause and subject: raised once, then only its count and last-seen time are
+ * updated on later pulls, so a lasting problem is never re-raised every 10 minutes. Returns
+ * whether it was raised now (callers audit and publish only then).
+ */
+export async function raiseHrAlert(
+  tx: Transaction,
+  alert: HrAlert,
+  sourceType: string,
+  sourceId: string,
+  now: Date,
+): Promise<boolean> {
+  const kind = `integrations.hr_link.${alert}`;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`${kind}:${sourceId}`}))`);
+  const [open] = await tx
+    .select({ id: task.id, details: task.details })
+    .from(task)
+    .where(
+      and(
+        eq(task.kind, kind),
+        eq(task.sourceId, sourceId),
+        sql`${task.status} IN ('open', 'in_progress')`,
+        isNull(task.deletedAt),
+      ),
+    );
+  if (open) {
+    const details = (open.details ?? {}) as { seen?: number };
+    await tx
+      .update(task)
+      .set({ details: { seen: (details.seen ?? 1) + 1, lastSeenAt: now.toISOString() } })
+      .where(eq(task.id, open.id));
+    return false;
+  }
+  const spec = HR_ALERTS[alert];
+  await tx.insert(task).values({
+    kind,
+    title: spec.title,
+    requiredPermission: "integrations.hr_link.review",
+    sourceType,
+    sourceId,
+    locationId: null,
+    assigneeRoleKey: "registered_manager",
+    dueAt: new Date(now.getTime() + (spec.urgent ? 4 : 72) * 3_600_000),
+    priority: spec.urgent ? "urgent" : "routine",
+    details: { seen: 1, lastSeenAt: now.toISOString() },
+    createdBy: null,
+    updatedBy: null,
+  });
+  return true;
+}
+
 /** Records a sync's outcome for its kind (rule 9 reads the last good sync from here). */
 export async function recordSync(
   tx: Transaction,
@@ -398,13 +467,27 @@ async function applyLeaving(
       await tx
         .update(leaverRecord)
         .set({
-          leavingOn: known.deletedAt !== null && !earlier ? known.leavingOn : leavingOn,
+          // A withdrawn leaving comes back with the date Thapsus-HR gives now, never the old one.
+          leavingOn,
           deletedAt: null,
           staffFileRetainUntil: keep,
           updatedBy: null,
         })
         .where(eq(leaverRecord.id, known.id));
       changed = true;
+    }
+  } else if (known.deletedAt !== null) {
+    // A member reinstated after a withdrawn leaving, whom Thapsus-HR now gives a leaving again:
+    // the ended leaving cannot be ended twice, so a manager records it, urgently (HZ-133).
+    if (await raiseHrAlert(tx, "leaving_resent", "staff_profile", staffProfileId, new Date())) {
+      await audit(
+        tx,
+        tenantId,
+        "integrations.hr_link.leaving_resent",
+        "staff_profile",
+        staffProfileId,
+      );
+      await event(tx, "hr_link.leaving_resent", "staff_profile", staffProfileId);
     }
   }
   if (profile.leftOn === null || profile.leftOn > leavingOn) {
@@ -487,6 +570,11 @@ async function reconcile(
     }
   }
   const held = drift.filter((f) => !applied || !putBack.includes(f));
+  // A held change is raised once, as one open alert; a lasting one is not re-raised each pull.
+  const firstHeld =
+    held.length > 0 &&
+    (await raiseHrAlert(tx, "start_date_review", "staff_profile", staffProfileId, new Date()));
+  if (!applied && !firstHeld) return false;
   await audit(
     tx,
     tenantId,
@@ -580,7 +668,10 @@ export async function applyEmployee(
       });
     }
   }
-  if (leaving.invalid) {
+  if (
+    leaving.invalid &&
+    (await raiseHrAlert(tx, "leaving_date_invalid", "hr_person_link", id, now))
+  ) {
     await audit(tx, tenantId, "integrations.hr_link.leaving_date_invalid", "hr_person_link", id);
     await event(tx, "hr_link.leaving_date_invalid", "hr_person_link", id);
   }
@@ -684,10 +775,20 @@ export async function pullEmployees(
       ),
     );
   for (const m of missing) {
-    await audit(tx, tenantId, "integrations.hr_link.employee_missing", "hr_person_link", m.id);
-    await event(tx, "hr_link.employee_missing", "hr_person_link", m.id);
+    if (await raiseHrAlert(tx, "employee_missing", "hr_person_link", m.id, now)) {
+      await audit(tx, tenantId, "integrations.hr_link.employee_missing", "hr_person_link", m.id);
+      await event(tx, "hr_link.employee_missing", "hr_person_link", m.id);
+    }
   }
-  if (total.failed > 0) {
+  const [connection] = await tx
+    .select({ id: integrationConnection.id })
+    .from(integrationConnection)
+    .where(eq(integrationConnection.port, HR_LINK_PORT));
+  if (
+    total.failed > 0 &&
+    connection &&
+    (await raiseHrAlert(tx, "record_failed", "integration_connection", connection.id, now))
+  ) {
     await event(tx, "hr_link.sync_failed", "integration_connection", HR_LINK_PORT, {
       code: "record_failed",
       count: total.failed,

@@ -32409,6 +32409,112 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/integrations/hr-link/leavers/{staffProfileId}/withdraw": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Withdraw a wrong leaving date from the HR platform (step-up)
+     * @description Refused while Thapsus-HR still gives the date (raised for review instead). When access has already ended, gives back sign-in and the roles that leaving ended, from now.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          staffProfileId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            reason:
+              | "date_entered_in_error"
+              | "leaving_cancelled"
+              | "invalid_date_from_hr_platform"
+              | "other_recorded_in_staff_file";
+          };
+        };
+      };
+      responses: {
+        /** @description Withdrawn */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrLeavingWithdrawn"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/p/integrations/thapsus-hr/{tenantId}": {
     parameters: {
       query?: never;
@@ -52471,6 +52577,11 @@ export interface components {
       attempts: number;
       lastErrorCode: string | null;
       sentAt: string | null;
+    };
+    HrLeavingWithdrawn: {
+      /** @enum {boolean} */
+      withdrawn: true;
+      accessRestored: boolean;
     };
     SupportAccessRequest: {
       /** Format: uuid */
