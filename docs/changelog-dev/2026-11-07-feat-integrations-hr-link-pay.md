@@ -1,0 +1,36 @@
+# 2026-11-07 feat/integrations-hr-link-pay: pay through the Thapsus-HR link (slice 89)
+
+INTG-014, SCHED-005, SCHED-008; [ADR-0131](../decisions/0131-pay-through-thapsus-hr.md); migration
+0151; HZ-133, new HZ-140; H-1441 to H-1444.
+
+## What changed
+
+- **One route to payroll per pay period.** The link's settings hold the route (Harbour's export by
+  default) and one change waiting, from the first day of a later pay period than any run, with a
+  fresh step-up. A move to Thapsus-HR needs its pay items and pay read available, the default
+  owners, and a start on one of its pay periods. With the link off or disconnected, Harbour's
+  export as before.
+- **Pay periods and rates in**, once a day and on a manual sync, checked at the boundary, written
+  by the sync alone (`hr_pay_period`, `hr_pay_rate`); rates read by pay holders only.
+- **Pay runs** for a period paid through Thapsus-HR must be one of its pay periods exactly, and
+  check the minimum wage with its rate; no rate blocks the lock.
+- **Units by pay code out.** Hours split as the pay line splits them, sleep-ins, on-call periods
+  and miles. The lock is refused until every member with units is matched and every unit kind has
+  a pay code; the units are then kept unchanged (`hr_pay_unit`), the export is not offered, and the
+  latest locked run replaces the period's items in Thapsus-HR through the delivery log.
+- **Mock.** Thapsus-HR's Phase 19 pay items (K4) and pay read (K5) are served only with
+  `phase19` switched on; at the pinned commit (d9888cef) they still answer `planned`, so nothing
+  goes live (H-1443).
+- Docs: ADR-0131, integrations.md section 11.5, HZ-140, records of processing, data standards,
+  feature register, H-1441 to H-1444.
+
+## Checks
+
+See the branch's head commit message for the suites run on a private Postgres.
+
+## Left
+
+- Pay through Thapsus-HR goes live only when Thapsus-HR publishes K4 and K5 and the mock is
+  re-pinned (H-1443).
+- Rates are read daily, not yet on `employee.changed`.
+- Screens for the route to payroll and the pay codes (slice 90).
