@@ -6,7 +6,7 @@ import type {
   ProblemDetails,
   StatutoryNotificationList,
 } from "@harbour/contracts";
-import { createDatabase, createPool } from "@harbour/db";
+import { createDatabase, createPool, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -17,7 +17,8 @@ import {
   type TaskDeps,
 } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { ageSession, createHarness, type Harness } from "./support/harness";
+import { tellOnSiteNow } from "../src/services/deaths-missing";
+import { ageSession, createHarness, type Harness, LODGE } from "./support/harness";
 
 /**
  * Deaths and missing persons through the API (Phase 2 slice 37; SAFE-014, SAFE-015; hazards
@@ -414,6 +415,112 @@ describe("hazard HZ-127 the missing person episode (slice 37)", () => {
   });
 });
 
+describe("hazard HZ-127 an episode at immediate risk tells those on site at once (H-771)", () => {
+  it("hazard HZ-127 notifies every clinical lead and team leader on site when it opens, without waiting", async () => {
+    const created = await as("carer", "/v1/incidents", {
+      method: "POST",
+      body: {
+        locationId: DEMO.locationId,
+        type: "missing_person",
+        occurredAt: ago(5 * MIN),
+        description: "Not in the lounge after lunch.",
+        people: [{ kind: "service_user", role: "affected", personId: resident(2) }],
+      },
+    });
+    expect(created.status, await created.clone().text()).toBe(201);
+    const episodeId = newId();
+    const opened = await as("carer", "/v1/missing-episodes", {
+      method: "POST",
+      body: {
+        id: episodeId,
+        incidentId: (await json<IncidentDetail>(created)).id,
+        personId: resident(2),
+        immediateRisk: true,
+        noticedMissingAt: ago(5 * MIN),
+        lastSeenAt: ago(20 * MIN),
+      },
+    });
+    expect(opened.status, await opened.clone().text()).toBe(201);
+    const told = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ recipient: string; severity: string; title: string }>(
+        `SELECT recipient_tenant_user_id AS recipient, severity, title FROM notification
+          WHERE kind = 'safety.missing.immediate_risk' AND source_id = $1`,
+        [episodeId],
+      );
+      return rows;
+    });
+    // The nurse is the clinical lead at this home.
+    expect(told.map((r) => r.recipient)).toContain(DEMO.users.nurse.id);
+    expect(told.every((r) => r.severity === "urgent")).toBe(true);
+    // Generic words only: no name in a push.
+    expect(told.every((r) => !/Ada|Ben|Example/.test(r.title))).toBe(true);
+
+    // Found but not yet checked and debriefed: going missing again still opens a new episode, so
+    // the police call task and the alert are never lost (clinical review finding 2).
+    const found = await as("carer", `/v1/missing-episodes/${episodeId}/events`, {
+      method: "POST",
+      body: { id: newId(), at: ago(MIN), kind: "found", note: "Found in the garden." },
+    });
+    expect(found.status, await found.clone().text()).toBe(200);
+    const again = await as("carer", "/v1/incidents", {
+      method: "POST",
+      body: {
+        locationId: DEMO.locationId,
+        type: "missing_person",
+        occurredAt: ago(0),
+        description: "Gone again from the garden.",
+        people: [{ kind: "service_user", role: "affected", personId: resident(2) }],
+      },
+    });
+    expect(again.status).toBe(201);
+    const second = newId();
+    const reopened = await as("carer", "/v1/missing-episodes", {
+      method: "POST",
+      body: {
+        id: second,
+        incidentId: (await json<IncidentDetail>(again)).id,
+        personId: resident(2),
+        immediateRisk: false,
+        noticedMissingAt: ago(0),
+        lastSeenAt: ago(MIN),
+      },
+    });
+    expect(reopened.status, await reopened.clone().text()).toBe(201);
+    // Without immediate risk nobody is alerted at once: the police call task escalates instead.
+    const quiet = await asDemoTenant(async (c) =>
+      Number(
+        (
+          await c.query<{ n: string }>(
+            "SELECT count(*) AS n FROM notification WHERE kind = 'safety.missing.immediate_risk' AND source_id = $1",
+            [second],
+          )
+        ).rows[0]?.n,
+      ),
+    );
+    expect(quiet).toBe(0);
+  });
+
+  it("hazard HZ-127 falls back to whoever manages incidents there when nobody holds the roles", async () => {
+    // The second home has no clinical lead, team leader or Registered Manager of its own.
+    const told = await withRequestContext(
+      deps.appDb,
+      { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) =>
+        tellOnSiteNow(
+          tx,
+          {
+            id: newId(),
+            tenantId: DEMO.tenantId,
+            locationId: LODGE.locationId,
+            personId: LODGE.personId,
+          } as Parameters<typeof tellOnSiteNow>[1],
+          new Date(),
+        ),
+    );
+    expect(told).toBeGreaterThan(0);
+  });
+});
+
 describe("hazard HZ-127 the Herbert Protocol profile (slice 37)", () => {
   const path = `/v1/people/${resident(2)}/herbert-profile`;
   const fields = {
@@ -490,5 +597,58 @@ describe("hazard HZ-127 the Herbert Protocol profile (slice 37)", () => {
       body: { ...fields, reviewedOn: future, version: 2 },
     });
     expect(ahead.status).toBe(422);
+  });
+});
+describe("hazard HZ-127 a profile is prompted for anyone at risk of going missing (H-773)", () => {
+  it("hazard HZ-127 raises one prompt per risk assessment, and the profile settles it", async () => {
+    const who = resident(3);
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO risk_assessment (person_id, template_key, template_version, hazard, who_at_risk,
+           assessed_on, review_due_on)
+         VALUES ($1, 'absconding', '1', 'Leaving without staff knowing', 'The person',
+           current_date, current_date + 90)`,
+        [who],
+      ),
+    );
+    const prompts = () =>
+      asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ status: string; assignee_role_key: string }>(
+          "SELECT status, assignee_role_key FROM task WHERE kind = 'safety.herbert_profile_prepare' AND person_id = $1",
+          [who],
+        );
+        return rows;
+      });
+    // The daily job prompts once, however often it runs; never forced.
+    await raiseHerbertProfileReviews(deps);
+    await raiseHerbertProfileReviews(deps);
+    expect(await prompts()).toEqual([{ status: "open", assignee_role_key: "clinical_lead" }]);
+    // Preparing the profile settles the prompt.
+    const saved = await as("manager", `/v1/people/${who}/herbert-profile`, {
+      method: "PUT",
+      body: {
+        photoDocumentId: null,
+        physicalDescription: "Tall, grey beard, walks with a stick",
+        distinguishingFeatures: null,
+        usualClothing: null,
+        medicalNeeds: null,
+        mobility: null,
+        communication: null,
+        placesLikely: "The station and the park",
+        peopleLikely: null,
+        routines: null,
+        phoneOrTracker: null,
+        previousEpisodes: null,
+        approach: null,
+        reviewedWith: "Her daughter, in person",
+        reviewedOn: new Date().toISOString().slice(0, 10),
+        version: 0,
+      },
+    });
+    expect(saved.status, await saved.clone().text()).toBe(200);
+    expect((await prompts()).map((t) => t.status)).toEqual(["done"]);
+    // A person with a profile is never prompted again.
+    await raiseHerbertProfileReviews(deps);
+    expect(await prompts()).toHaveLength(1);
   });
 });

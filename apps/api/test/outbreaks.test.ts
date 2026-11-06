@@ -198,6 +198,34 @@ describe("the line list and the report fields", () => {
     expect(response.status).toBe(status);
   });
 
+  it("hazard HZ-013 adds agency workers not in Harbour as unnamed staff cases, each counted once (H-782)", async () => {
+    const unnamed = (over: Record<string, unknown> = {}) =>
+      as("manager", `/v1/safety/outbreaks/${outbreak.id}/cases`, {
+        method: "POST",
+        body: resident("", {
+          caseType: "staff_unnamed",
+          personId: null,
+          tenantUserId: null,
+          testType: null,
+          testedOn: null,
+          testResult: "not_tested",
+          // Recovered, so the later steps' count of those still unwell is unchanged.
+          outcome: "recovered",
+          outcomeOn: today(),
+          ...over,
+        }),
+      });
+    const before = (await json(await as("manager", `/v1/safety/outbreaks/${outbreak.id}`))).report;
+    expect((await unnamed()).status).toBe(201);
+    const second = await unnamed();
+    expect(second.status).toBe(201);
+    const detail = await json(second);
+    expect(detail.report.staffCases).toBe(before.staffCases + 2);
+    expect(detail.report.unnamedStaffCases).toBe(before.unnamedStaffCases + 2);
+    // An unnamed case names nobody: naming a member is refused.
+    expect((await unnamed({ tenantUserId: DEMO.users.carer.id })).status).toBe(422);
+  });
+
   it("updates a case by superseding its current row, and refuses superseding an old one", async () => {
     const update = await as("manager", `/v1/safety/outbreaks/${outbreak.id}/cases`, {
       method: "POST",

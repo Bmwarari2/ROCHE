@@ -87,7 +87,8 @@ export const CloseOutbreak = z
 
 export const RecordOutbreakCase = z
   .object({
-    caseType: z.enum(["resident", "staff"]),
+    /** `staff_unnamed`: an agency or bank worker not in Harbour, naming nobody (H-782). */
+    caseType: z.enum(["resident", "staff", "staff_unnamed"]),
     personId: uuid.nullable(),
     tenantUserId: uuid.nullable(),
     onsetOn: isoDate,
@@ -148,6 +149,8 @@ export const UkhsaReportFieldsView = z
     declaredOn: isoDate,
     residentCases: z.number().int(),
     staffCases: z.number().int(),
+    /** Of the staff cases, those added unnamed (agency or bank workers not in Harbour). */
+    unnamedStaffCases: z.number().int(),
     firstOnsetOn: isoDate.nullable(),
     latestOnsetOn: isoDate.nullable(),
     tested: z.number().int(),

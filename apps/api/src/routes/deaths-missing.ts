@@ -50,6 +50,7 @@ import { problems } from "../http/problem";
 import {
   deathItem,
   episodeItem,
+  finishHerbertPrepareTasks,
   finishHerbertReviewTasks,
   herbertPrefillFor,
   openDeathRecord,
@@ -57,6 +58,7 @@ import {
   readDeath,
   readEpisode,
   syncPoliceCallTask,
+  tellOnSiteNow,
 } from "../services/deaths-missing";
 import { loadPerson } from "../services/people";
 import { classifyAndStore, subjectToDolsAt } from "../services/safety";
@@ -653,6 +655,8 @@ export const deathsMissingRouter = createRouter()
         });
         const read = await readEpisode(tx, access.tenantId, row, now);
         await syncPoliceCallTask(tx, row, read.view.policeCallDueAt, now);
+        // Told at opening, whatever the police call task (H-771; clinical review finding 4).
+        if (row.immediateRisk) await tellOnSiteNow(tx, row, now);
         await audit(c, tx, access, {
           action: "safety.missing.open",
           resourceType: "missing_episode",
@@ -970,6 +974,7 @@ export const deathsMissingRouter = createRouter()
               .returning();
         if (!saved) throw problems.conflict();
         await finishHerbertReviewTasks(tx, saved.id, now);
+        await finishHerbertPrepareTasks(tx, saved.personId, now);
         await audit(c, tx, access, {
           action: "safety.herbert.save",
           resourceType: "herbert_profile",

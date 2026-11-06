@@ -181,7 +181,7 @@ export async function outbreakDetail(
     ...outbreakSummary(row),
     cases: rows.map((r) => ({
       id: r.id,
-      caseType: r.caseType as "resident" | "staff",
+      caseType: r.caseType as OutbreakCase["caseType"],
       personId: r.personId,
       tenantUserId: r.tenantUserId,
       onsetOn: r.onsetOn,
