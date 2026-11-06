@@ -338,6 +338,83 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     );
     expect(incidents).toEqual([{ type: "medication", person_ids: [ADA] }]);
   });
+
+  it("hazards HZ-004 and HZ-008 the decision must fit both records, a disagreement is urgent and the round says a review is waiting", async () => {
+    const other = (
+      await transcribe(BEN, {
+        product: PARACETAMOL,
+        directions: regularAt(ukTime(new Date(Date.now() + 5 * MINUTE))),
+      })
+    ).id;
+    const dueOf = async (entryId: string) =>
+      (
+        await json<Round>(
+          await send("manager", `/v1/locations/${DEMO.locationId}/medicine-round?${slot()}`),
+        )
+      ).people
+        .find((p) => p.personId === BEN)
+        ?.doses.find((d) => d.entryId === entryId)?.dueAt;
+    const record = (entryId: string, dueAt: string | undefined, outcome: string, device: boolean) =>
+      send("manager", `/v1/people/${BEN}/medicine-administrations`, {
+        method: "POST",
+        headers: device ? { [DEVICE_HEADER]: DEVICE } : {},
+        body: {
+          id: randomUUID(),
+          entryId,
+          dueAt,
+          outcome,
+          ...(outcome === "given"
+            ? { amount: { quantity: 1, unitCode: TABLET.code } }
+            : { reason: { code: "declined", note: null } }),
+          timingReason: "Given with breakfast",
+          deviceOffsetMs: device ? 0 : null,
+        },
+      });
+    const resolveAs = (conflictId: string, body: Record<string, unknown>) =>
+      send("owner", `/v1/medicine-administration-conflicts/${conflictId}/resolve`, {
+        method: "POST",
+        body,
+      });
+    const priorityOf = async (conflictId: string) =>
+      asDemo(
+        async (c) =>
+          (
+            await c.query<{ priority: string }>(
+              "SELECT priority FROM task WHERE kind = 'medicines.administration.conflict' AND source_id = $1",
+              [conflictId],
+            )
+          ).rows[0]?.priority,
+      );
+    // The record that stands says refused; the device says given.
+    const dueAt = await dueOf(other);
+    expect((await record(other, dueAt, "refused", false)).status).toBe(201);
+    const up = await record(other, dueAt, "given", true);
+    expect(up.status, await up.clone().text()).toBe(202);
+    const { conflictId } = await json<{ conflictId: string }>(up);
+    expect(await priorityOf(conflictId)).toBe("urgent");
+    const round = await json<{
+      people: {
+        personId: string;
+        doses: { entryId: string; reviewPending: boolean; reviewInWords: string | null }[];
+      }[];
+    }>(await send("manager", `/v1/locations/${DEMO.locationId}/medicine-round?${slot()}`));
+    const shown = round.people
+      .find((p) => p.personId === BEN)
+      ?.doses.find((d) => d.entryId === other);
+    expect(shown?.reviewPending).toBe(true);
+    expect(shown?.reviewInWords).toMatch(/waiting for review/);
+    const both = await resolveAs(conflictId, { outcome: "both_given", note: "Both given" });
+    expect((await json<{ code: string }>(both)).code).toBe("conflict_not_both_given");
+    const stands = await resolveAs(conflictId, { outcome: "first_stands", note: "Refused" });
+    expect((await json<{ code: string }>(stands)).code).toBe("conflict_upload_says_given");
+    // The uploader cannot correct someone else's record to their own (clinical re-review M4).
+    const mine = await send(
+      "manager",
+      `/v1/medicine-administration-conflicts/${conflictId}/resolve`,
+      { method: "POST", body: { outcome: "first_stands", note: "Mine" } },
+    );
+    expect(mine.status).toBe(422);
+  });
 });
 
 describe("hazards HZ-003 and HZ-008 an outstanding dose is escalated and reaches the handover", () => {

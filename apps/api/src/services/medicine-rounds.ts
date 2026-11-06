@@ -1,6 +1,7 @@
 import type { MedicineRound } from "@harbour/contracts";
 import { medicationAdministrationConflict, type Transaction, task } from "@harbour/db";
 import {
+  addUkDays,
   doseNotices,
   doseWindow,
   entryVersionIds,
@@ -14,7 +15,7 @@ import {
   SCHEDULED_DOSE_WORDS,
   scheduledDoseState,
 } from "@harbour/domain";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import type { AppEnv, TenantAccess } from "../http/context";
@@ -37,32 +38,75 @@ import { UNCHECKED_POLICY } from "./medicines";
  */
 const STATE_ORDER = { late: 0, due: 1, not_yet_due: 2, recorded: 3 } as const;
 
+/** Outcomes that mean the person took the dose. */
+export const TAKEN: ReadonlySet<string> = new Set([
+  "given",
+  "self_administered",
+  "given_by_family",
+]);
+
+/** A dose with an open conflict, so the round says a review is waiting (clinical re-review H3). */
+export interface PendingConflict {
+  readonly medicationId: string;
+  readonly dueAt: Date;
+}
+
+export const REVIEW_PENDING_WORDS = "Recorded twice on different devices: waiting for review";
+
+/** The open first conflicts for a person, for the round. */
+export function pendingConflicts(tx: Transaction, personId: string): Promise<PendingConflict[]> {
+  return tx
+    .select({
+      medicationId: medicationAdministrationConflict.medicationId,
+      dueAt: medicationAdministrationConflict.dueAt,
+    })
+    .from(medicationAdministrationConflict)
+    .where(
+      and(
+        eq(medicationAdministrationConflict.personId, personId),
+        isNull(medicationAdministrationConflict.resolvedAt),
+        isNull(medicationAdministrationConflict.joinsId),
+      ),
+    );
+}
+
 export function roundFor(
   facts: {
     readonly entries: readonly MarEntry[];
     readonly rows: readonly AdministrationRow[];
     readonly rates: MedicinesRates;
+    readonly pending?: readonly PendingConflict[];
   },
   range: { readonly from: Date; readonly to: Date },
   at: Date,
   now: Date,
 ): Pick<MedicineRound, "doses" | "whenRequired"> {
+  const pending = facts.pending ?? [];
   const eff = effective(facts.rows);
   const history = givenDoses(facts.rows, new Map(facts.entries.map((e) => [e.id, e])));
   const doses = facts.entries
     .flatMap((entry) => {
       const versionIds = entryVersionIds(entry, facts.entries);
       const status = marEntryStatus(entry, at, UNCHECKED_POLICY);
-      // The slot's doses, and any dose in the 24 hours before it still late with no outcome, so an
-      // earlier missed dose is never off the round (clinical review M4).
-      const reach = { from: new Date(range.from.getTime() - 86_400_000), to: range.to };
+      // The slot's doses, and any dose since the same UK clock time the day before that is still
+      // late or due, so an earlier dose is never off the round (clinical review M4; re-review H1
+      // and M6: a UK day back, not 24 hours, so a clock change moves nothing out of reach).
+      const reach = { from: addUkDays(range.from, -1), to: range.to };
       return marEntryDoses(entry, reach).flatMap((d) => {
         const window = doseWindow(d.dueAt, isTimeCritical(entry), facts.rates);
         const recorded = eff.some(
           (r) => versionIds.has(r.medicationId) && r.dueAt?.getTime() === d.dueAt.getTime(),
         );
         const state = scheduledDoseState(window, recorded, now);
-        if (d.dueAt.getTime() < range.from.getTime() && state !== "late") return [];
+        if (
+          d.dueAt.getTime() < range.from.getTime() &&
+          (state === "recorded" || state === "not_yet_due")
+        ) {
+          return [];
+        }
+        const reviewPending = pending.some(
+          (p) => versionIds.has(p.medicationId) && p.dueAt.getTime() === d.dueAt.getTime(),
+        );
         return [
           {
             entryId: entry.id,
@@ -70,10 +114,16 @@ export function roundFor(
             dueAt: d.dueAt.toISOString(),
             date: d.date,
             time: d.time,
+            // The weekday for a non-daily pattern, and a clock change moving or repeating the time
+            // (HZ-009, H-553; re-review H2).
+            dayName: d.dayName,
+            clockChange: d.clockChange,
             doseInWords: formatDose(d.dose),
             timeCritical: window.timeCritical,
             state,
             stateInWords: SCHEDULED_DOSE_WORDS[state],
+            reviewPending,
+            reviewInWords: reviewPending ? REVIEW_PENDING_WORDS : null,
             opensAt: window.opensAt.toISOString(),
             lateAfter: window.lateAfter.toISOString(),
             notices: [...doseNotices(entry, facts.rates)],
@@ -117,9 +167,13 @@ export function roundFor(
 
 export type ConflictRow = typeof medicationAdministrationConflict.$inferSelect;
 export const CONFLICT_TASK = "medicines.administration.conflict";
+/** A routine conflict's review is due within a shift (a policy figure for the CSO, H-1271). */
+const ROUTINE_REVIEW_MS = 8 * 3_600_000;
+const DIFFER_TITLE =
+  "Two devices recorded different outcomes for one dose: review both records now";
 
 const CONFLICT_MESSAGE =
-  "This dose was already recorded on another device. Your record is kept for the nurse in charge to review; it is not added to the MAR until they decide.";
+  "This dose was already recorded on another device. Your record is kept for review by the person in charge.";
 
 /**
  * The conflict a device's record was kept as, if it was (a resend finds it); "mismatch" when the
@@ -212,6 +266,20 @@ export async function raiseConflict(
     })
     .returning();
   if (open) {
+    // A later upload that disagrees with the record that stands makes the review urgent (re-review M2).
+    if (TAKEN.has(e.uploaded.outcome) !== TAKEN.has(e.standing.outcome)) {
+      await tx
+        .update(task)
+        .set({ priority: "urgent", title: DIFFER_TITLE, dueAt: new Date() })
+        .where(
+          and(
+            eq(task.kind, CONFLICT_TASK),
+            eq(task.sourceId, open.id),
+            eq(task.priority, "routine"),
+            inArray(task.status, ["open", "in_progress"]),
+          ),
+        );
+    }
     await auditInTx(tx, access, {
       action: "medicines.administration.conflict_joined",
       resourceType: "medication_administration_conflict",
@@ -230,11 +298,13 @@ export async function raiseConflict(
   // Urgent when the dose is time-critical or the two records disagree (one given, one not): until
   // reviewed the MAR shows only the first (clinical review H2).
   const timeCritical = isTimeCritical(e.entry);
-  const differ = e.uploaded.outcome !== e.standing.outcome;
+  // One says taken and the other not (re-review M1).
+  const differ = TAKEN.has(e.uploaded.outcome) !== TAKEN.has(e.standing.outcome);
+  const urgent = timeCritical || differ;
   await tx.insert(task).values({
     kind: CONFLICT_TASK,
     title: differ
-      ? "Two devices recorded different outcomes for one dose: review both records now"
+      ? DIFFER_TITLE
       : timeCritical
         ? "A time-critical dose was recorded twice on different devices: review both records now"
         : "A dose was recorded twice on different devices: review both records",
@@ -244,8 +314,10 @@ export async function raiseConflict(
     sourceType: "medication_administration_conflict",
     sourceId: conflict.id,
     assigneeRoleKey: "clinical_lead",
-    dueAt: new Date(),
-    priority: timeCritical || differ ? "urgent" : "routine",
+    // Escalation runs from the due time whatever the priority, so a routine duplicate is due within
+    // the shift, not at once (re-review M3; H-1271).
+    dueAt: urgent ? new Date() : new Date(Date.now() + ROUTINE_REVIEW_MS),
+    priority: urgent ? "urgent" : "routine",
   });
   await auditInTx(tx, access, {
     action: "medicines.administration.conflict_raised",

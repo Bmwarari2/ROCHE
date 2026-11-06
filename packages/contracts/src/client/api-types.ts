@@ -55574,11 +55574,16 @@ export interface components {
         /** Format: date */
         date: string;
         time: string;
+        dayName: string | null;
+        /** @enum {string|null} */
+        clockChange: "time_skipped" | "time_repeated" | null;
         doseInWords: string;
         timeCritical: boolean;
         /** @enum {string} */
         state: "not_yet_due" | "due" | "late" | "recorded";
         stateInWords: string;
+        reviewPending: boolean;
+        reviewInWords: string | null;
         /** Format: date-time */
         opensAt: string;
         /** Format: date-time */
@@ -55849,11 +55854,16 @@ export interface components {
           /** Format: date */
           date: string;
           time: string;
+          dayName: string | null;
+          /** @enum {string|null} */
+          clockChange: "time_skipped" | "time_repeated" | null;
           doseInWords: string;
           timeCritical: boolean;
           /** @enum {string} */
           state: "not_yet_due" | "due" | "late" | "recorded";
           stateInWords: string;
+          reviewPending: boolean;
+          reviewInWords: string | null;
           /** Format: date-time */
           opensAt: string;
           /** Format: date-time */
@@ -55887,6 +55897,7 @@ export interface components {
     };
     AdministrationConflictList: {
       conflicts: components["schemas"]["AdministrationConflict"][];
+      truncated: boolean;
     };
     AdministrationConflict: {
       /** Format: uuid */

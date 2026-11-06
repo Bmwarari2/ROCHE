@@ -40433,6 +40433,23 @@
                 "time": {
                   "type": "string"
                 },
+                "dayName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "clockChange": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "time_skipped",
+                    "time_repeated",
+                    null
+                  ]
+                },
                 "doseInWords": {
                   "type": "string"
                 },
@@ -40450,6 +40467,15 @@
                 },
                 "stateInWords": {
                   "type": "string"
+                },
+                "reviewPending": {
+                  "type": "boolean"
+                },
+                "reviewInWords": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "opensAt": {
                   "type": "string",
@@ -40494,10 +40520,14 @@
                 "dueAt",
                 "date",
                 "time",
+                "dayName",
+                "clockChange",
                 "doseInWords",
                 "timeCritical",
                 "state",
                 "stateInWords",
+                "reviewPending",
+                "reviewInWords",
                 "opensAt",
                 "lateAfter",
                 "notices",
@@ -41442,6 +41472,23 @@
                       "time": {
                         "type": "string"
                       },
+                      "dayName": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "clockChange": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "time_skipped",
+                          "time_repeated",
+                          null
+                        ]
+                      },
                       "doseInWords": {
                         "type": "string"
                       },
@@ -41459,6 +41506,15 @@
                       },
                       "stateInWords": {
                         "type": "string"
+                      },
+                      "reviewPending": {
+                        "type": "boolean"
+                      },
+                      "reviewInWords": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "opensAt": {
                         "type": "string",
@@ -41503,10 +41559,14 @@
                       "dueAt",
                       "date",
                       "time",
+                      "dayName",
+                      "clockChange",
                       "doseInWords",
                       "timeCritical",
                       "state",
                       "stateInWords",
+                      "reviewPending",
+                      "reviewInWords",
                       "opensAt",
                       "lateAfter",
                       "notices",
@@ -41615,10 +41675,14 @@
             "items": {
               "$ref": "#/components/schemas/AdministrationConflict"
             }
+          },
+          "truncated": {
+            "type": "boolean"
           }
         },
         "required": [
-          "conflicts"
+          "conflicts",
+          "truncated"
         ]
       },
       "AdministrationConflict": {

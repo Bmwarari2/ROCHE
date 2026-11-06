@@ -52,12 +52,28 @@ Branch `feat/meds-rounds`, from `feat/meds-cd-register` (slice 34), with #162's 
   force; the reviewer sees every field sent; the incident's time is the device's time given.
 - Not done: a test of a successful `corrected` and of rates per nation.
 
+## Clinical-safety re-review fixes (06/11/2026)
+
+- H1: a dose still due from before the slot stays on the round (only recorded or not-yet-due
+  earlier doses are left off).
+- H2: round doses carry `dayName` and `clockChange`.
+- H3: a dose with an open conflict says it is waiting for review (`reviewPending`).
+- M1: urgent when one record says taken and the other not; M2: a later disagreeing upload makes
+  the task urgent; M3: a routine conflict is due within 8 hours, not at once.
+- M4: an uploader may choose `corrected` only for their own record; the single-nurse rule is in
+  H-1270. M6: the reach is the same UK clock time the day before (`addUkDays`).
+- Lows: checks read the standing record's current outcome; the device message no longer promises a
+  MAR entry; the list says when it is truncated.
+- Not done: tests for the controlled drug conflict, a cookie session with the header, a malformed
+  double-dose payload, a future `givenAt` and the clock-change slot (H-1277); the `clinical_lead`
+  assignee's vacancy routing at homes without nurses is the task engine's (HZ-040).
+
 ## Recommended answers (for recommended-answers.md, branch feat/meds-rounds)
 
 | # | Owner | Recommended answer | Build change |
 | --- | --- | --- | --- |
-| H-1270 | CSO | Accept as built: `both_given` raises a medication incident; the second dose stays on the conflict and the incident, not the MAR history, and when-required totals do not count it. | No |
-| H-1271 | CSO | Accept as built: urgent when time-critical or the outcomes differ, routine otherwise; one task per dose and uploader. | No |
+| H-1270 | CSO | Accept as built: `both_given` raises a medication incident; the second dose stays on the conflict and the incident, not the MAR history, and when-required totals do not count it. For a lone night nurse, let them resolve and raise a routine retrospective review for the Registered Manager. | Yes: a single-resolver path with a retrospective review task |
+| H-1271 | CSO | Accept as built: urgent and due at once when time-critical or one record says taken and the other not; routine and due within 8 hours otherwise; one task per dose and uploader. | No |
 | H-1272 | CSO | Keep refusing other device refusals back to the device, where the person sees them; revisit with the slice 53 screens. | No |
 | H-1273 | CSO | Keep the rate table's `medicines.record_delay_tolerance_minutes` value as seeded. | No |
 | H-1274 | CSO | Accept no identity screen until slice 53; the API carries person ids and rooms only. | No |

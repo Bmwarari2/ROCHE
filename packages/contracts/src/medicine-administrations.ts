@@ -147,10 +147,17 @@ export const MedicineRound = z
         dueAt: isoDateTime,
         date: ukDate,
         time: z.string(),
+        /** The weekday, for a pattern that is not every day. */
+        dayName: z.string().nullable(),
+        /** A clock change moved this time (skipped) or it happens twice (repeated). */
+        clockChange: z.enum(["time_skipped", "time_repeated"]).nullable(),
         doseInWords: z.string(),
         timeCritical: z.boolean(),
         state: z.enum(["not_yet_due", "due", "late", "recorded"]),
         stateInWords: z.string(),
+        /** Recorded twice on different devices, with the review still open. */
+        reviewPending: z.boolean(),
+        reviewInWords: z.string().nullable(),
         opensAt: isoDateTime,
         lateAfter: isoDateTime,
         notices: z.array(z.string()),
@@ -296,7 +303,11 @@ export const AdministrationConflictOut = z
   .meta({ id: "AdministrationConflict" });
 
 export const AdministrationConflictList = z
-  .object({ conflicts: z.array(AdministrationConflictOut) })
+  .object({
+    conflicts: z.array(AdministrationConflictOut),
+    /** More conflicts match than are listed (at most 200). */
+    truncated: z.boolean(),
+  })
   .meta({ id: "AdministrationConflictList" });
 
 /** One of locationId or personId is required (checked by the route). */

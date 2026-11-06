@@ -1127,9 +1127,12 @@ RLS and person scope), it gives:
 - the scheduled doses in the slot, each with its window, its state in words (`Not due yet`, `Due
   now`, `Late: no outcome recorded`, `Outcome recorded`) and the notices its tags switch on.
   Doses are ordered by state (late, due now, not due yet, recorded), time-critical first within
-  each state, then by due time. Any dose in the 24 hours before the slot that is still late with no
-  outcome is included, so an earlier missed dose never drops off the round. The person view
-  inherits this.
+  each state, then by due time. Any dose since the same UK clock time the day before the slot
+  that is still late or due is included (a UK day back, not 24 hours, so a clock change moves
+  nothing out of reach), so an earlier dose never drops off the round. Each dose carries its
+  weekday for a pattern that is not every day and any clock change that skips or repeats its
+  time (rule 5, H-553). A dose with an open conflict says "Recorded twice on different devices:
+  waiting for review" (`reviewPending`). The person view inherits this.
 - each when-required medicine that may be given now, with when it was last given, by whom, the
   24-hour total, what remains and when the interval allows the next (`prnStatus`).
 
@@ -1165,9 +1168,11 @@ web, with no device, the second record is refused in words, because the person i
   the same dose by the same person is kept as its own row joining the first (`joins_id`), with its
   own client id and payload, so a resend finds it; it raises no further task, is audited
   (`conflict_joined`) and is resolved with the first.
-- A review task for the nurse in charge is raised. It is urgent when the dose is time-critical or
-  when the two records disagree (one given, one not), because until it is reviewed the MAR shows
-  only the first. The task names no medicine.
+- A review task for the nurse in charge is raised. It is urgent, and due at once, when the dose is
+  time-critical or when the two records disagree (one says taken, the other not), because until it
+  is reviewed the MAR shows only the first; a later upload that disagrees makes it urgent.
+  Otherwise it is routine and due within 8 hours, because escalation runs from the due time
+  whatever the priority (H-1271). The task names no medicine.
 - The upload gets `202 Accepted` with the conflict's id, so the device stops resending it.
   Resending the same client id returns the same conflict; the same id sent for another person,
   dose or outcome is refused (`409`).
@@ -1179,7 +1184,8 @@ A round record may carry `givenAt` up to `medicines.record_delay_tolerance_minut
 recorded (section 13; #162); a time in the future beyond the clock drift allowance is refused.
 
 `GET /v1/medicine-administration-conflicts?locationId=` (or `?personId=`; one is required) lists
-first conflicts, open ones first, each with the uploads that joined it; the reviewer sees every field
+first conflicts, open ones first (at most 200, with `truncated` when more match), each with the
+uploads that joined it; the reviewer sees every field
 the device sent. `GET
 /v1/medicine-administration-conflicts/{id}` shows both records side by side. `POST .../resolve`,
 with `medicines.record.manage`, records the decision and why. Its outcome is either:
@@ -1195,7 +1201,9 @@ with `medicines.record.manage`, records the decision and why. Its outcome is eit
 The decision must fit the records: `both_given` only when both say the dose was taken (given,
 self-administered or given by family); `first_stands` is refused when an upload says taken and the
 record that stands does not, so the reviewer corrects the record instead. Nobody who recorded the
-dose or uploaded it decides `first_stands` or `both_given`. A controlled drug's conflict also needs
+dose or uploaded it decides `first_stands` or `both_given`, and an uploader may choose
+`corrected` only for a record they made themselves (H-1270 holds the single-nurse question). The
+checks read what the record that stands says now, after any correction. A controlled drug's conflict also needs
 `medicines.cd.administer` and a fresh step-up, and `both_given` on one raises an urgent task to
 enter the second dose on the register, witnessed. The incident's time is the device's time given
 when it sent one.

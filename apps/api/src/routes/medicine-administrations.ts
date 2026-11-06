@@ -75,7 +75,12 @@ import {
   supersededBy,
   witnessesFor,
 } from "../services/medicine-administrations";
-import { conflictForClientRecord, raiseConflict, roundFor } from "../services/medicine-rounds";
+import {
+  conflictForClientRecord,
+  pendingConflicts,
+  raiseConflict,
+  roundFor,
+} from "../services/medicine-rounds";
 import {
   guardConcurrent,
   lockPerson,
@@ -1005,7 +1010,12 @@ export const medicineAdministrationsRouter = createRouter()
           from: new Date(at.getTime() - 12 * HOUR_MS),
           to: new Date(at.getTime() + 12 * HOUR_MS),
         };
-        const { doses, whenRequired } = roundFor(facts, range, at, now);
+        const { doses, whenRequired } = roundFor(
+          { ...facts, pending: await pendingConflicts(tx, personId) },
+          range,
+          at,
+          now,
+        );
         await audit(c, tx, access, {
           action: "medicines.administration.viewed",
           resourceType: "person",

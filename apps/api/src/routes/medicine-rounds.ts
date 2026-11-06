@@ -33,7 +33,9 @@ import {
   type ConflictRow,
   conflictOut,
   joinedTo,
+  pendingConflicts,
   roundFor,
+  TAKEN,
 } from "../services/medicine-rounds";
 import { guardConcurrent, lockPerson, personEntries } from "../services/medicines";
 import { loadPerson } from "../services/people";
@@ -59,8 +61,6 @@ const ADMINISTER = "medicines.emar.administer" as const;
 const MANAGE = "medicines.record.manage" as const;
 const CD_ADMINISTER = "medicines.cd.administer" as const;
 const CD_REGISTER_TASK = "medicines.cd.register_entry_due";
-/** Outcomes that mean the person took the dose. */
-const TAKEN = new Set(["given", "self_administered", "given_by_family"]);
 const LocationParam = z.object({ id: z.uuid() });
 const ConflictParam = z.object({ id: z.uuid() });
 const HOUR_MS = 3_600_000;
@@ -124,7 +124,8 @@ export const medicineRoundsRouter = createRouter()
             ratesByNation.set(nation, rates);
           }
           const rows = await personAdministrations(tx, p.id);
-          const round = roundFor({ entries, rows, rates }, { from, to }, now, now);
+          const pending = await pendingConflicts(tx, p.id);
+          const round = roundFor({ entries, rows, rates, pending }, { from, to }, now, now);
           if (round.doses.length === 0 && round.whenRequired.length === 0) continue;
           rounds.push({ personId: p.id, room: p.room, ...round });
         }
@@ -171,7 +172,7 @@ export const medicineRoundsRouter = createRouter()
                 .where(eq(person.locationId, q.locationId))
             ).map((p) => p.id)
           : null;
-        if (personIds && personIds.length === 0) return { conflicts: [] };
+        if (personIds && personIds.length === 0) return { conflicts: [], truncated: false };
         const rows = await tx
           .select()
           .from(medicationAdministrationConflict)
@@ -188,9 +189,10 @@ export const medicineRoundsRouter = createRouter()
             desc(sql`${medicationAdministrationConflict.resolvedAt} IS NULL`),
             asc(medicationAdministrationConflict.receivedAt),
           )
-          .limit(200);
+          .limit(201);
+        const truncated = rows.length > 200;
         const conflicts = [];
-        for (const row of rows) {
+        for (const row of rows.slice(0, 200)) {
           conflicts.push(await conflictOut(tx, row, await personAdministrations(tx, row.personId)));
         }
         await audit(c, tx, access, {
@@ -204,7 +206,7 @@ export const medicineRoundsRouter = createRouter()
             personIds: [...new Set(conflicts.map((x) => x.personId))],
           },
         });
-        return { conflicts };
+        return { conflicts, truncated };
       });
       return c.json(out, 200);
     },
@@ -325,6 +327,20 @@ export const medicineRoundsRouter = createRouter()
             standing.recordedBy,
             standing.administeredBy,
           ];
+          // The uploader may correct only a record they made themselves (clinical re-review M4).
+          const uploader = [row.uploadedBy, ...joined.map((r) => r.uploadedBy)].includes(
+            access.tenantUserId,
+          );
+          if (
+            body.outcome === "corrected" &&
+            uploader &&
+            standing.recordedBy !== access.tenantUserId
+          ) {
+            throw deny(
+              "own_record",
+              "Someone who did not upload this dose decides between the records.",
+            );
+          }
           if (body.outcome !== "corrected" && own.includes(access.tenantUserId)) {
             throw deny(
               "own_record",
@@ -347,13 +363,19 @@ export const medicineRoundsRouter = createRouter()
           }
           // The decision must fit what the records say (re-review M2).
           const takenUpload = uploads.some((o) => TAKEN.has(o));
-          if (body.outcome === "both_given" && !(TAKEN.has(standing.outcome) && takenUpload)) {
+          // What the record that stands says now, after any correction (re-review L1).
+          const later = supersededBy(rows);
+          let current = standing;
+          for (let i = 0; later.has(current.id) && i < rows.length; i++) {
+            current = rows.find((r) => r.id === later.get(current.id)) ?? current;
+          }
+          if (body.outcome === "both_given" && !(TAKEN.has(current.outcome) && takenUpload)) {
             throw deny(
               "not_both_given",
               "Both records must say the dose was taken. Otherwise correct the record that stands.",
             );
           }
-          if (body.outcome === "first_stands" && takenUpload && !TAKEN.has(standing.outcome)) {
+          if (body.outcome === "first_stands" && takenUpload && !TAKEN.has(current.outcome)) {
             throw deny(
               "upload_says_given",
               "The device recorded the dose as given. Correct the record that stands, or say why it was not given, through the corrections route.",
