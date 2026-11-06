@@ -285,6 +285,104 @@ describe("WORK-006 xAPI courses settle from their statements", () => {
   });
 });
 
+describe("MOB-007 WORK-006 courses taken offline on the phone (slice 72)", () => {
+  let courseId = "";
+  let sha = "";
+  const attemptId = "0199f300-0000-7000-8000-00000000ab01";
+
+  it("gives the phone the launch page, the servable files with their sizes and the package's hash", async () => {
+    const zip = buildZip([
+      { name: "tincan.xml", data: TINCAN },
+      { name: "story.html", data: "<!doctype html><p>Offline</p>" },
+    ]);
+    const added = await upload(
+      "owner",
+      zip,
+      "title=Moving%20and%20handling&topic=moving_and_handling",
+    );
+    expect(added.status).toBe(201);
+    courseId = ((await added.json()) as { id: string }).id;
+    const response = await send("carer", `${COURSES}/${courseId}/offline`);
+    expect(response.status).toBe(200);
+    const offline = (await response.json()) as {
+      launchPath: string;
+      packageSha256: string;
+      files: { path: string; size: number }[];
+      totalBytes: number;
+    };
+    sha = offline.packageSha256;
+    expect(sha).toMatch(/^[0-9a-f]{64}$/);
+    expect(offline.launchPath).toBe("story.html");
+    expect(offline.files.map((f) => f.path).sort()).toContain("story.html");
+    expect(offline.totalBytes).toBe(offline.files.reduce((n, f) => n + f.size, 0));
+  });
+
+  it("serves each file to the member, checked against the index, and nothing outside it", async () => {
+    const file = await send(
+      "carer",
+      `${COURSES}/${courseId}/offline/files/${encodeURIComponent("story.html")}`,
+    );
+    expect(file.status).toBe(200);
+    expect(await file.text()).toBe("<!doctype html><p>Offline</p>");
+    for (const path of ["../story.html", "missing.html", "folder/"]) {
+      expect(
+        (await send("carer", `${COURSES}/${courseId}/offline/files/${encodeURIComponent(path)}`))
+          .status,
+      ).toBe(404);
+    }
+  });
+
+  it("records an attempt started offline once, by the phone's id, and never against a changed package", async () => {
+    const put = (id: string, body: unknown, who = "carer") =>
+      send(who, `/v1/workforce/elearning/offline-attempts/${id}`, { method: "PUT", body });
+    expect((await put(attemptId, { courseId, packageSha256: sha })).status).toBe(201);
+    expect((await put(attemptId, { courseId, packageSha256: sha })).status).toBe(200);
+    const changed = await put("0199f300-0000-7000-8000-00000000ab02", {
+      courseId,
+      packageSha256: "0".repeat(64),
+    });
+    expect(changed.status).toBe(422);
+    expect(await codeOf(changed)).toBe("course_changed");
+    // Another member never takes over the phone's attempt.
+    const theirs = await put(attemptId, { courseId, packageSha256: sha }, "nurse");
+    expect(theirs.status).toBeGreaterThanOrEqual(400);
+    const [row] = await sql<{ worker_id: string }>(
+      "SELECT worker_id FROM elearning_attempt WHERE id = $1",
+      [attemptId],
+    );
+    expect(row?.worker_id).toBe(DEMO.users.carer.id);
+  });
+
+  it("keeps statements the phone sends on sync, once, and records the completion", async () => {
+    const statement = {
+      id: "0199f300-0000-7000-8000-00000000ab11",
+      verb: { id: "http://adlnet.gov/expapi/verbs/completed" },
+      object: { id: "https://courses.example.invalid/moving" },
+    };
+    const post = (who = "carer") =>
+      send(who, `/v1/workforce/elearning/attempts/${attemptId}/statements`, {
+        method: "POST",
+        body: [statement],
+      });
+    expect((await post("nurse")).status).toBe(404);
+    const kept = await post();
+    expect(kept.status).toBe(200);
+    expect(await kept.json()).toEqual([statement.id]);
+    expect((await post()).status).toBe(200);
+    const [attempt] = await sql<{ status: string; training_record_id: string | null }>(
+      "SELECT status, training_record_id FROM elearning_attempt WHERE id = $1",
+      [attemptId],
+    );
+    expect(attempt?.status).toBe("completed");
+    expect(attempt?.training_record_id).toBeTruthy();
+    const counted = await sql<{ n: string }>(
+      "SELECT count(*) AS n FROM elearning_statement WHERE attempt_id = $1",
+      [attemptId],
+    );
+    expect(Number(counted[0]?.n)).toBe(1);
+  });
+});
+
 describe("WORK-006 retired courses", () => {
   it("are no longer offered to staff", async () => {
     expect(

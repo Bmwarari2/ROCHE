@@ -140,3 +140,35 @@ export const ElearningAppMessage = z.discriminatedUnion("type", [
     .strict(),
 ]);
 export type ElearningAppMessage = z.infer<typeof ElearningAppMessage>;
+
+/**
+ * What the phone needs to take a course offline (workforce.md section 14.5; mobile slice 72): the
+ * launch page, the package's servable files with their sizes, and the package's hash, so a course
+ * changed since it was downloaded is never completed against the new one.
+ */
+export const ElearningOfflineFile = z
+  .object({ path: z.string().max(240), size: z.number().int().min(0) })
+  .meta({ id: "ElearningOfflineFile" });
+
+export const ElearningOffline = z
+  .object({
+    courseId: uuid,
+    title: z.string(),
+    standard: ElearningStandard,
+    launchPath: z.string(),
+    launchQuery: z.string(),
+    packageSha256: z.string(),
+    files: z.array(ElearningOfflineFile),
+    /** The files' sizes added up: what the phone must have room for. */
+    totalBytes: z.number().int().min(0),
+  })
+  .meta({ id: "ElearningOffline" });
+
+/** An attempt started on the phone without a connection, by the client's id (idempotent). */
+export const StartOfflineElearningAttempt = z
+  .object({
+    courseId: uuid,
+    /** The package the phone downloaded: refused if the course has changed since. */
+    packageSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .meta({ id: "StartOfflineElearningAttempt" });
