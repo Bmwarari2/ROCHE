@@ -62,6 +62,16 @@ in). The PR to `main` opens once batch 3a's has merged and this branch is green 
   15 (slices 48, 42, 54, 38 and 34's screens), each cited by its own slice's code. Renumber them in
   one docs pass with their references (about 90, some in migration comments).
 
+- Security re-review, non-blocking: an assigned-scope role reaches every person its holder can see
+  in `app.may_record_for_person` (migration 0140) and at the homely remedy and self-administration
+  routes, as eMAR recording already does (`medicine-administrations.ts`). Require an open
+  `person_assignment` in the database and the API together, in one change across all three.
+- Security re-review, non-blocking: `GET /v1/locations/{id}/homely-remedies` relies on RLS
+  (`handover_location_visible`) for reach. An API location check would refuse assigned-scope carers,
+  who need the home's protocols, so it goes with the item above.
+- Migration 0139 was edited before reaching main (the agency_window grants). A database that ran an
+  earlier 0139 needs rebuilding; batch 3b ran only on private databases.
+
 ## For the CSO and DPO
 
 - H-1400: how imported medicines get their tags and minimum interval.
