@@ -22,6 +22,8 @@ batch 3b (#172) is on `main`, and the PR opens then.
   formatted with the repository's Biome settings.
 - The HR link's routes are registered before the generic `/v1/integrations/{port}` routes, which
   had taken `/v1/integrations/hr-link` as a port and refused disconnecting (422).
+- HZ-133 is the HR branch's entry (it supersedes slice 86's rows that 3b carried), with the batch
+  3c rule 8 change; the clinical review caught an earlier merge that kept both sets of rows.
 - Hazard log merged section by section: HZ-117 (slice 28) joins the one list of hazards at target
   residual risk 3 (now twenty-seven); the branches' older copies of that list and of the HZ-119
   and HZ-133 index rows are dropped for 3b's.
@@ -63,5 +65,9 @@ fail-safe direction (no access is given back); HZ-133 records it, with a test.
   heading or region, so heading and landmark navigation skip it; the transfer pack still prints
   `TIME-CRITICAL:` in capitals where the downtime pack says "(time-critical)"; the PDF medicine
   lines are English literals, not ICU strings. Each needs a human action number from the lead.
+- Clinical review (non-blocking, for the CSO): a PRN protocol on an entry recorded before 0123 with
+  no 24-hour maximum shows none without words (H-1381: say "No most in 24 hours recorded on the
+  entry", or refuse until the entry is corrected); a refused dose reaches handover as "Refused: a
+  medicine", naming the person but not the medicine (check under HZ-003).
 - `docs/specs/retention.md` has several overlapping `medication…` rows from batch 3b's merges;
   fold them into one.
