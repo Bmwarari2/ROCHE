@@ -931,8 +931,27 @@ Logged by slice 78 (WORK-006 LMS imports; ADR-0102) on 1 November 2026.
 ## Phase 2: lone-worker safety (slice 46)
 Logged by slice 46 (lone-worker safety, [scheduling.md](../specs/scheduling.md) section 14) on
 31 October 2026, from the block H-1030 to H-1039 the lead assigned.
+## Phase 2: training offline on the phone (slice 72)
+Logged by slice 72 ([workforce.md](../specs/workforce.md) section 14.5) on 6 November 2026, from the
+block H-1360 to H-1369 the lead assigned. Each open question takes its recommended answer, in force
+now, until the testing-phase review.
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
+| H-1360 | Confirm the storage rule: a course downloads only when the phone has room for it and 200 MB to spare (`STORAGE_RESERVE_BYTES`, a product setting), within the package limits of slice 43. Recommended: accept; review after the pilot with real course sizes | Brian | `apps/mobile/src/training/offline-plan.ts` | None | Open, recommended answer in force |
+| H-1361 | Confirm that a downloaded course's files sit in the app's documents folder unencrypted (the organisation's training content, no personal data), while progress and work waiting to send stay in the encrypted database. Recommended: accept | DPO | data standards "Device copies"; records of processing (e-learning) | None | Open, recommended answer in force |
+| H-1362 | Accept that a course offline may open only its own files and never the network, and that the WebView refuses scripts reading files (`allowFileAccessFromFileURLs` off), so a package that fetches its own files by script or needs the internet does not run offline. Recommended: accept; training leads try a course on a phone before relying on it offline, and a "works offline" mark per course follows if needed | Brian with the security lead | workforce.md section 14.5 rule 2 | None | Open, recommended answer in force |
+| H-1363 | Confirm that a completion made offline counts when it reaches the server, self-reported by the course as online (H-1013 covers a training lead's confirmation), with the time from the phone's session time only. Recommended: accept | Brian | workforce.md section 14.5 rule 3 | None | Open, recommended answer in force |
+| H-1364 | Confirm that work done offline on a course retired or changed since it was downloaded is refused in words and not counted, so the member takes it again. Recommended: accept; tell training leads when they retire or replace a course that some phones may hold it | Brian | `PUT /v1/workforce/elearning/offline-attempts/{id}` | None | Open, recommended answer in force |
+| H-1365 | Decide where training sits in the app: for now Settings, then Training courses (not a tab), so it does not clash with slice 71's Shifts tab. Recommended: the integrator moves it beside Shifts when slices 71 and 72 are both merged | Brian | `apps/mobile/src/app/(care)/training/` | None | Open, recommended answer in force |
+| H-1366 | Decide whether to add a platform-level block on the course WebView's network (an iOS content rule list and Android `setBlockNetworkLoads` through an Expo config plugin) and to serve each course from its own scheme rooted at its folder with file access off, beyond the content security policy and interceptions built (security review of slice 72, M1 and L7). Recommended: yes, before courses are offered offline beyond the pilot; until then training leads assign offline only courses they have tried on a phone (H-1362) | Brian with the security lead | workforce.md section 14.5 rule 2 | Offering courses offline beyond the pilot | Open, recommended answer in force |
+
+## Per tenant at onboarding
+
+Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
+assessment ([template](../clinical-safety/dcb0160-deployment-template.md)), enrol shared devices in
+MDM, sign off imported data, confirm photos for every person, approve role design and run the
+[tenant onboarding](../runbooks/tenant-onboarding.md) checklist.
+
 | H-1250 | Choose the first learning platform with the design partner, register for its API, build the live `LearningPlatformClient` against its sandbox and the live credential store adapter (credentials written to the managed secret store under the source's `secret_ref`, removed when the source ends); until then `LMS_API` is `off` in production and only the mock exists | Brian | `apps/api/src/integrations/lms/learning-platform.ts`; H-520 | Pulls from a platform | open |
 | H-1251 | Decide whether xAPI statements from an external platform should be imported beside completions, and how they relate to slice 43's own statement store | Brian with the DPO | workforce.md section 13.7 | xAPI imports | open |
 | H-1252 | Build the training import screens (sources, mappings, links, the dry-run report and commit, skips, certificates) with the accessibility review | Web lane | workforce.md section 13.4 | Imports without the API | open |

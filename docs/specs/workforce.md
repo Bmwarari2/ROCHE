@@ -1187,11 +1187,55 @@ in [ADR-0093](../decisions/0093-elearning-runtime.md).
   `/training/elearning/{id}`, the upload route `/api/elearning/upload` (titles in headers), and the
   content origin's `/learn/{token}` (runtime page, its script, package files, xAPI statements).
 
-### 14.5 Offline (mobile slice 72)
+### 14.5 Offline on the phone (mobile slice 72; MOB-007)
 
-Not built. The phone would need the stored archive, the allowlisted file list and a local runtime
-page under its own origin, with commits queued like other entries; statements and completions
-would sync on reconnect (H-1018).
+1. **Download, with a connection.** Settings, then Training courses, lists the courses the member
+   may take (`workforce.self.read`). `GET /v1/workforce/elearning/courses/{id}/offline` gives the
+   launch page, the package's servable files (allowlisted types, never a folder) with their sizes
+   and the package's hash; the phone checks every path stays in the course's folder and the sizes
+   add up, then checks it has room for the course and `STORAGE_RESERVE_BYTES` (200 MB, a product
+   setting) to spare, saying in words what is needed and what is free when it has not. Each file
+   comes from `GET .../courses/{id}/offline/files/{path}` (the same checked, ranged read as the
+   content origin's, throttled per member) into the app's documents folder, under the
+   organisation's and the course's folder, and must arrive at its expected size; a course is
+   recorded as on the phone only when every file has, and a failed download leaves nothing.
+2. **Take it, without a connection.** The package's own launch page runs in a WebView from the
+   phone's copy, with an offline runtime injected first (`offlineRuntimeMain`): the SCORM 1.2 and
+   2004 APIs as on the content origin, keeping only `CMI_ELEMENTS`, and, for xAPI, the course's
+   record store pointed at an address that never leaves the phone (`OFFLINE_LRS`), its statements
+   caught there. The course may open only its own files: a page outside the course's folder is
+   stopped and said (`isInsideFolder`, dot segments and escapes resolved). Every page of the
+   package is written with a content security policy first in its `<head>` when it downloads
+   (`withOfflinePolicy`, `OFFLINE_CSP`: the package's own files and inline code only,
+   `connect-src 'none'`, no forms), and the runtime refuses `fetch` and `XMLHttpRequest` to the
+   network and stops beacons, WebSockets and server-sent events on the page; a `<head>` hidden in a
+   comment is ignored, and only the package's pages (`.html`, `.htm`) open as pages. This has not
+   yet been tried on a device's WebView; a frame the page makes from nothing (`about:blank`) is
+   outside it, pages are read as UTF-8 when the policy is written (another encoding may show
+   garbled), and a platform-level block is H-1366. Bridge messages carry only the elements the API keeps,
+   within their lengths, and statements of at most 16 KB. The course is told the attempt's id and
+   the member's first name only.
+3. **Queued and sent.** The attempt is started on the phone by its own UUID, and each commit and
+   batch of statements is queued in `elearning_outbox` (insert-only) with a client UUID, each
+   statement given an id when the course left it out. Commits are merged and queued at most every
+   5 seconds (finishing at once), and no more than 5,000 statements an attempt, as the server keeps,
+   so a course cannot fill the phone or hold up care uploads. On sync they go, in order, to
+   `PUT /v1/workforce/elearning/offline-attempts/{id}` (refused in words when the course has been
+   retired or its package changed since the download), `PATCH .../attempts/{id}` and
+   `POST .../attempts/{id}/statements` (as the token route, with the member's session, on an
+   active course only). The start is throttled per member and refused in words beyond three
+   offline attempts in progress at one course; an id already used reads as not found. A refusal
+   stays under "needs attention" in the API's words, never dropped. Where to resume and how the
+   attempt stands are kept in the encrypted database, by the same rules as the server's.
+4. **Remove.** Removing a course deletes its files and record; work waiting to send is kept and
+   still sent. Every course's files go when the session ends, the phone is wiped or its work is
+   held.
+
+Tests: `apps/api/test/elearning.test.ts` (offline manifest, files, offline attempts, statements),
+`apps/mobile/src/training/training.test.ts` (storage check, paths, queued rows, runtime, list),
+`apps/mobile/src/components/training.render.test.ts`, `apps/mobile/src/sync/connector.test.ts`,
+`packages/sync/test/client-schema.test.ts` (the outbox is sent up only). Questions: H-1360 to
+H-1366.
 
 ### 14.6 Tests
 
@@ -1458,3 +1502,4 @@ Audit events carry ids, codes and counts only, never a learner id, a name or a f
 | A platform's file layouts beyond the headings in `LMS_CSV_HEADINGS` are unverified | H-1253 |
 | Certificates are fetched in the commit's request, at most 50 at a time | H-1256 (the job queue, with a per-organisation limit) |
 | No route opens a certificate yet; the database's read rule is tested directly | The training screens (H-1252) |
+| Offline courses on the phone: a package that fetches its own files by script, or needs the internet, does not run offline | Training leads try a course on a phone before relying on it offline (H-1362) |

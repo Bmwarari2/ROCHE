@@ -100,6 +100,15 @@ export default function CareLayout() {
         }}
       />
       <Tabs.Screen
+        name="training"
+        options={{
+          // Reached from Settings (mobile slice 72), never a tab of its own.
+          href: null,
+          headerShown: false,
+          title: t("mobile.training.title"),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: t("mobile.tabs.settings"),

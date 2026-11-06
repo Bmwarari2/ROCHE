@@ -117,6 +117,7 @@ import { commitOfflineDays, type PendingWindow, windowToCommit } from "../sync/o
 import { resolveOfflineWindow } from "../sync/offline-window";
 import { flushRefusedCopies } from "../sync/refused-copies";
 import { setWriteScope } from "../sync/write-scope-store";
+import { removeAllCourseFiles } from "../training/store";
 import { sessionEndNotices } from "./care-mode-gate";
 import {
   HandOverNotAllowedError,
@@ -799,6 +800,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         await session.clearHeld();
         void cancelHeldNotifications();
         clearPhotoCache();
+        // Downloaded courses go with everything else (security review of slice 72, L8).
+        removeAllCourseFiles();
         setDemoSeededAt(null);
         setIntegrity(null);
         setOfflineWindowDays(null);
@@ -876,6 +879,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
             }
             await closeKeepingData();
             clearPhotoCache();
+            // Downloaded courses go with everything else (security review of slice 72, L8).
+            removeAllCourseFiles();
             setOfflineWindowDays(null);
             windowValidUntilRef.current = null;
             setRestoreProblemText(null);
@@ -1085,6 +1090,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);
         void cancelHeldNotifications();
         clearPhotoCache();
+        // Downloaded courses go with everything else (security review of slice 72, L8).
+        removeAllCourseFiles();
         setError(null);
         // A full sign-out: the kept app mode goes too, so the next person starts fresh.
         await session.clearSession();
@@ -1176,6 +1183,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);
           void cancelHeldNotifications();
           clearPhotoCache();
+          // Downloaded courses go with everything else (security review of slice 72, L8).
+          removeAllCourseFiles();
           setError(null);
           await session.clearHeld();
           await session.clearSession(message);

@@ -8,6 +8,7 @@ import {
   ROUND_AND_HANDOVER_TABLES,
   SHIFT_TABLES,
   SHIFT_WRITABLE_TABLES,
+  TRAINING_WRITABLE_TABLES,
 } from "../src/client/schema";
 import { readSyncConfig } from "../src/streams/index";
 import { compile, ids, syncFor } from "./support/simulator";
@@ -70,6 +71,7 @@ describe("client schema covers every stream", () => {
       expect(tablesSeen.has(table.name) || table.localOnly || table.insertOnly, table.name).toBe(
         true,
       );
+      if (table.insertOnly) expect(tablesSeen.has(table.name), table.name).toBe(false);
     }
   });
 
@@ -86,10 +88,15 @@ describe("client schema covers every stream", () => {
     expect(DEVICE_WRITABLE_TABLES).toEqual(OFFLINE_WINDOW_TABLES);
   });
 
+  it("sends the training outbox up only, never down (slice 72)", () => {
+    const insertOnly = AppSchema.tables.filter((t) => t.insertOnly).map((t) => t.name);
+    expect(insertOnly).toEqual(expect.arrayContaining([...TRAINING_WRITABLE_TABLES]));
+  });
+
   // Scheduling.md section 18: the lone-worker queue is sent, never synced down (HZ-125).
   it("sends the lone-worker queue up and never syncs it down", () => {
     const upOnly = AppSchema.tables.filter((t) => t.insertOnly).map((t) => t.name);
-    expect(upOnly).toEqual(["lone_worker_outbox"]);
+    expect(upOnly).toEqual(["lone_worker_outbox", ...TRAINING_WRITABLE_TABLES]);
     expect(SHIFT_WRITABLE_TABLES).toEqual(["clock_event", "lone_worker_outbox"]);
   });
 

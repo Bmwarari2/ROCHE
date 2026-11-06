@@ -591,6 +591,24 @@ const lone_worker_outbox = new Table(
   { insertOnly: true },
 );
 
+/**
+ * Insert-only: what an e-learning course taken offline on the phone sends on sync (workforce.md
+ * section 14.5; mobile slice 72). `action` is `start` (the attempt, by the phone's id, with the
+ * package's hash), `commit` (SCORM data model elements) or `statements` (xAPI statements, each
+ * with its id); `body` is the API's contract JSON. Each row's id is its idempotency key. Never
+ * synced down: the row lives only in the upload queue until it is sent.
+ */
+const elearning_outbox = new Table(
+  {
+    tenant_id: column.text,
+    action: column.text,
+    attempt_id: column.text,
+    body: column.text,
+    queued_at: column.text,
+  },
+  { insertOnly: true },
+);
+
 export const AppSchema = new Schema({
   person,
   allergy,
@@ -619,6 +637,7 @@ export const AppSchema = new Schema({
   shift,
   clock_event,
   lone_worker_outbox,
+  elearning_outbox,
 });
 
 export type Database = (typeof AppSchema)["types"];
@@ -705,6 +724,10 @@ export const ROUND_AND_HANDOVER_TABLES = [
  */
 export const ROUND_WRITABLE_TABLES = ["task", "handover_acknowledgement"] as const;
 export type RoundWritableTable = (typeof ROUND_WRITABLE_TABLES)[number];
+
+/** What the phone sends for a course taken offline (slice 72): to the e-learning routes. */
+export const TRAINING_WRITABLE_TABLES = ["elearning_outbox"] as const;
+export type TrainingWritableTable = (typeof TRAINING_WRITABLE_TABLES)[number];
 
 /** The only synced tables a device writes to: append-only entries, inserts only. */
 export const DEVICE_WRITABLE_TABLES: readonly OfflineWindowTable[] = OFFLINE_WINDOW_TABLES;

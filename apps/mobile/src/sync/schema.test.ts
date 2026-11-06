@@ -37,6 +37,7 @@ describe("schema bridge", () => {
       lone_worker_outbox: false,
       upload_issue: true,
       held_entry: true,
+      elearning_outbox: false,
     });
   });
 

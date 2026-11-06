@@ -8,6 +8,8 @@ import {
   ElearningCourseList,
   ElearningCourseUploadQuery,
   ElearningLaunch,
+  ElearningOffline,
+  StartOfflineElearningAttempt,
 } from "@harbour/contracts";
 import {
   elearningAttempt,
@@ -97,6 +99,7 @@ const A = {
 const IdParam = z.object({ id: z.uuid() });
 const TokenParam = z.object({ token: z.string().min(10).max(512) });
 const FileParam = TokenParam.extend({ path: z.string().min(1).max(240) });
+const OfflineFileParam = IdParam.extend({ path: z.string().min(1).max(240) });
 
 const binary = z.string().meta({ format: "binary" });
 const zipBody = {
@@ -116,6 +119,11 @@ let serving = 0;
 const fileThrottle = new MemoryThrottle(600, 60_000);
 const statementThrottle = new MemoryThrottle(120, 60_000);
 const commitThrottle = new MemoryThrottle(60, 60_000);
+/** The phone's routes, per member, before anything is looked up (security review of slice 72). */
+const offlineStartThrottle = new MemoryThrottle(20, 60_000);
+const memberStatementThrottle = new MemoryThrottle(120, 60_000);
+/** Attempts started offline and still in progress, per member and course: phones, not floods. */
+const OFFLINE_OPEN_ATTEMPTS_MAX = 3;
 /** Statements kept for one attempt at most (review M7). */
 const STATEMENTS_PER_ATTEMPT_MAX = 5000;
 
@@ -607,6 +615,269 @@ export const elearningRouter = createRouter()
       const after = await afterSettled(c, access.tenantId, saved, "session");
       return c.json(attemptView(after), 200);
     },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/workforce/elearning/courses/{id}/offline",
+      tags: ["workforce"],
+      summary: "What the phone needs to take a course offline",
+      description:
+        "workforce.self.read, an active course. The launch page, the package's servable files with their sizes and the package's hash (workforce.md section 14.5; mobile slice 72).",
+      security,
+      request: { params: IdParam },
+      responses: {
+        200: jsonBody(ElearningOffline, "The course for the phone"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      await requirePermission(c, SELF);
+      const { id } = c.req.valid("param");
+      const course = await activeCourse(c, id);
+      const files = servableFiles(course).map((e) => ({ path: e.p, size: e.u }));
+      return c.json(
+        {
+          courseId: course.id,
+          title: course.title,
+          standard: course.standard as "scorm_1_2" | "scorm_2004" | "xapi",
+          launchPath: course.launchPath,
+          launchQuery: course.launchQuery,
+          packageSha256: course.packageSha256,
+          files,
+          totalBytes: files.reduce((n, f) => n + f.size, 0),
+        },
+        200,
+      );
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/workforce/elearning/courses/{id}/offline/files/{path}",
+      tags: ["workforce"],
+      summary: "A file of a course, for the phone to keep offline",
+      description:
+        "workforce.self.read, an active course. `path` is the file's path inside the package, URL-encoded as one segment; only the package's own files of allowlisted types, checked against the index as they are read. Throttled per member.",
+      security,
+      request: { params: OfflineFileParam },
+      responses: {
+        200: {
+          description: "The file",
+          content: { "application/octet-stream": { schema: binary } },
+        },
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, SELF);
+      const { id, path } = c.req.valid("param");
+      const wait = fileThrottle.take(`offline:${access.tenantUserId}`);
+      if (wait !== null) throw tooMany(wait);
+      const type = contentTypeOf(path);
+      if (entryNameProblem(path) || path.endsWith("/") || !type) throw problems.notFound();
+      const course = await activeCourse(c, id);
+      const entry = indexEntry(course.packageIndex as PackageIndexEntry[], path);
+      if (!entry) throw problems.notFound();
+      return serveEntry(c, access.tenantId, course, entry, type);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "put",
+      path: "/v1/workforce/elearning/offline-attempts/{id}",
+      tags: ["workforce"],
+      summary: "Record an attempt started on the phone without a connection",
+      description:
+        "workforce.self.read. The phone's client id makes a resend return the first attempt. Refused in words when the course has been retired or changed since it was downloaded (its package hash differs), so work done offline is never counted against another package. Audited when an attempt starts.",
+      security,
+      request: {
+        params: IdParam,
+        body: { content: { "application/json": { schema: StartOfflineElearningAttempt } } },
+      },
+      responses: {
+        201: jsonBody(ElearningAttempt, "Started"),
+        200: jsonBody(ElearningAttempt, "Already started with this id"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, SELF);
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const wait = offlineStartThrottle.take(access.tenantUserId);
+      if (wait !== null) throw tooMany(wait);
+      const result = await change(c, access, A.started, ATTEMPT_SOURCE, id, async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(elearningAttempt)
+          .where(
+            and(
+              eq(elearningAttempt.id, id),
+              eq(elearningAttempt.workerId, access.tenantUserId),
+              isNull(elearningAttempt.deletedAt),
+            ),
+          );
+        if (existing) {
+          if (existing.courseId !== body.courseId) throw problems.notFound();
+          return { attempt: existing, created: false };
+        }
+        const [course] = await tx
+          .select()
+          .from(elearningCourse)
+          .where(
+            and(
+              eq(elearningCourse.id, body.courseId),
+              eq(elearningCourse.status, "active"),
+              isNull(elearningCourse.deletedAt),
+            ),
+          );
+        if (!course) {
+          throw refused(
+            new HttpProblem(
+              422,
+              "course_unavailable",
+              "This course is no longer offered, so the work done on the phone was not kept.",
+            ),
+            A.started,
+            COURSE_SOURCE,
+            body.courseId,
+            "not_found",
+          );
+        }
+        if (course.packageSha256 !== body.packageSha256) {
+          throw refused(
+            new HttpProblem(
+              422,
+              "course_changed",
+              "This course has changed since it was downloaded, so the work done on the phone was not kept. Download it again and take it again.",
+            ),
+            A.started,
+            COURSE_SOURCE,
+            course.id,
+            "course_changed",
+          );
+        }
+        const [open] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(elearningAttempt)
+          .where(
+            and(
+              eq(elearningAttempt.courseId, course.id),
+              eq(elearningAttempt.workerId, access.tenantUserId),
+              eq(elearningAttempt.status, "in_progress"),
+              isNull(elearningAttempt.deletedAt),
+            ),
+          );
+        if ((open?.n ?? 0) >= OFFLINE_OPEN_ATTEMPTS_MAX) {
+          throw refused(
+            new HttpProblem(
+              422,
+              "too_many_attempts",
+              "You have this course open on too many phones. Finish it on one of them first.",
+            ),
+            A.started,
+            COURSE_SOURCE,
+            course.id,
+            "too_many_attempts",
+          );
+        }
+        // An id already used by anyone else reads as not found, never as a clash (review L6).
+        const [row] = await tx
+          .insert(elearningAttempt)
+          .values({
+            id,
+            courseId: course.id,
+            workerId: access.tenantUserId,
+            launchNonce: randomUUID(),
+          })
+          .onConflictDoNothing()
+          .returning();
+        if (!row) throw problems.notFound();
+        await audit(c, tx, access, {
+          action: A.started,
+          resourceType: ATTEMPT_SOURCE,
+          resourceId: row.id,
+          scopeExtra: { courseId: course.id, offline: true },
+        });
+        return { attempt: row, created: true };
+      });
+      return c.json(attemptView(result.attempt), result.created ? 201 : 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/workforce/elearning/attempts/{id}/statements",
+      tags: ["workforce"],
+      summary: "Keep xAPI statements made on the phone",
+      description:
+        "workforce.self.read, the member's own attempt. As the content origin's statements route (one to 50, each at most 16 KB, kept once per statement id, a completed, passed or failed verb settling an xAPI course), for statements a course made offline and the phone sends on sync. Returns the statement ids.",
+      security,
+      request: {
+        params: IdParam,
+        body: { content: { "application/json": { schema: z.unknown() } } },
+      },
+      responses: {
+        200: jsonBody(z.array(z.uuid()), "Kept"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, SELF);
+      const { id } = c.req.valid("param");
+      // Per member first, so nobody uses up another attempt's allowance (review L5).
+      const wait = memberStatementThrottle.take(access.tenantUserId);
+      if (wait !== null) throw tooMany(wait);
+      const parsed = parseStatements(c.req.valid("json"));
+      const found = await withTenant(c, async (tx) => {
+        const [attempt] = await tx
+          .select()
+          .from(elearningAttempt)
+          .where(
+            and(
+              eq(elearningAttempt.id, id),
+              eq(elearningAttempt.workerId, access.tenantUserId),
+              isNull(elearningAttempt.deletedAt),
+            ),
+          );
+        if (!attempt) return null;
+        const [course] = await tx
+          .select()
+          .from(elearningCourse)
+          .where(eq(elearningCourse.id, attempt.courseId));
+        return course ? { attempt, course } : null;
+      });
+      if (!found) throw problems.notFound();
+      const attemptWait = statementThrottle.take(id);
+      if (attemptWait !== null) throw tooMany(attemptWait);
+      // A retired or removed course takes no more, as on the content origin (review L4).
+      if (found.course.status !== "active" || found.course.deletedAt) {
+        throw new HttpProblem(
+          422,
+          "course_unavailable",
+          "This course is no longer offered, so the work done on the phone was not kept.",
+        );
+      }
+      const claims: LaunchClaims = {
+        attemptId: id,
+        tenantId: access.tenantId,
+        workerId: access.tenantUserId,
+        courseId: found.course.id,
+        nonce: "",
+        expiresAt: 0,
+      };
+      const settled = await keepStatements(c, claims, found.attempt, found.course, parsed);
+      if (settled) await afterSettled(c, access.tenantId, settled, "session");
+      return c.json(
+        parsed.map((s) => s.id),
+        200,
+      );
+    },
   );
 
 // ------------------------------------------------------------------------------------------------
@@ -695,44 +966,7 @@ export const elearningLaunchRouter = createRouter()
       const { course } = await launchedAttempt(c, claims);
       const entry = indexEntry(course.packageIndex as PackageIndexEntry[], path);
       if (!entry) throw problems.notFound();
-      const { db, storage } = c.get("services");
-      // The stored package as it is now: still available, still the course's own (review L1).
-      const stored = await packageOf(db, claims.tenantId, course.documentId);
-      if (!stored || stored.sha256 !== course.packageSha256) throw problems.notFound();
-      if (serving >= SERVING_MAX) {
-        const busy = new HttpProblem(503, "busy", "Busy. Try again in a moment.");
-        busy.retryAfterSeconds = 2;
-        throw busy;
-      }
-      serving += 1;
-      let released = false;
-      const release = () => {
-        if (!released) {
-          released = true;
-          serving -= 1;
-        }
-      };
-      try {
-        const packed =
-          entry.c === 0
-            ? (async function* () {})()
-            : await storage.getRange(stored.storageKey, entry.o, entry.o + entry.c - 1);
-        if (!packed) throw problems.notFound();
-        // Only this file's bytes are read, inflated as a stream and checked (review H2).
-        const body = entryStream(packed, entry);
-        body.once("close", release);
-        body.once("error", release);
-        return c.body(Readable.toWeb(body) as ReadableStream, 200, {
-          "content-type": type,
-          "content-length": String(entry.u),
-          "x-content-type-options": "nosniff",
-          "cache-control": "private, max-age=300",
-          "cross-origin-resource-policy": "same-site",
-        });
-      } catch (error) {
-        release();
-        throw error;
-      }
+      return serveEntry(c, claims.tenantId, course, entry, type);
     },
   )
   .openapi(
@@ -758,22 +992,7 @@ export const elearningLaunchRouter = createRouter()
       const claims = claimsOf(c, token);
       const wait = statementThrottle.take(claims.attemptId);
       if (wait !== null) throw tooMany(wait);
-      const raw = c.req.valid("json");
-      const list = Array.isArray(raw) ? raw : [raw];
-      if (list.length === 0 || list.length > 50) {
-        throw new HttpProblem(400, "statements_refused", "Send between 1 and 50 statements.");
-      }
-      const parsed = list.map((s) => {
-        const ok = XapiStatement.safeParse(s);
-        if (!ok.success || Buffer.byteLength(JSON.stringify(s)) > XAPI_STATEMENT_MAX_BYTES) {
-          throw new HttpProblem(
-            400,
-            "statements_refused",
-            "A statement is not one Harbour can keep.",
-          );
-        }
-        return { ...ok.data, id: ok.data.id ?? crypto.randomUUID() };
-      });
+      const parsed = parseStatements(c.req.valid("json"));
       const { attempt, course } = await launchedAttempt(c, claims);
       const settled = await keepStatements(c, claims, attempt, course, parsed);
       if (settled) await afterSettled(c, claims.tenantId, settled, "launch_token");
@@ -783,6 +1002,99 @@ export const elearningLaunchRouter = createRouter()
       );
     },
   );
+
+/**
+ * One file of a course's stored package: only its own bytes, inflated as a stream and checked
+ * against the index (review H2), at most `SERVING_MAX` at once. Shared by the content origin's
+ * launch route and the phone's offline download (mobile slice 72).
+ */
+async function serveEntry(
+  c: Context<AppEnv>,
+  tenantId: string,
+  course: CourseRow,
+  entry: PackageIndexEntry,
+  type: string,
+) {
+  const { db, storage } = c.get("services");
+  // The stored package as it is now: still available, still the course's own (review L1).
+  const stored = await packageOf(db, tenantId, course.documentId);
+  if (!stored || stored.sha256 !== course.packageSha256) throw problems.notFound();
+  if (serving >= SERVING_MAX) {
+    const busy = new HttpProblem(503, "busy", "Busy. Try again in a moment.");
+    busy.retryAfterSeconds = 2;
+    throw busy;
+  }
+  serving += 1;
+  let released = false;
+  const release = () => {
+    if (!released) {
+      released = true;
+      serving -= 1;
+    }
+  };
+  try {
+    const packed =
+      entry.c === 0
+        ? (async function* () {})()
+        : await storage.getRange(stored.storageKey, entry.o, entry.o + entry.c - 1);
+    if (!packed) throw problems.notFound();
+    // Only this file's bytes are read, inflated as a stream and checked (review H2).
+    const body = entryStream(packed, entry);
+    body.once("close", release);
+    body.once("error", release);
+    return c.body(Readable.toWeb(body) as ReadableStream, 200, {
+      "content-type": type,
+      "content-length": String(entry.u),
+      "x-content-type-options": "nosniff",
+      "cache-control": "private, max-age=300",
+      "cross-origin-resource-policy": "same-site",
+    });
+  } catch (error) {
+    release();
+    throw error;
+  }
+}
+
+/** An active course, as the member's own tenant view finds it, or 404. */
+async function activeCourse(c: Context<AppEnv>, id: string): Promise<CourseRow> {
+  const course = await withTenant(c, async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(elearningCourse)
+      .where(
+        and(
+          eq(elearningCourse.id, id),
+          eq(elearningCourse.status, "active"),
+          isNull(elearningCourse.deletedAt),
+        ),
+      );
+    return row ?? null;
+  });
+  if (!course) throw problems.notFound();
+  return course;
+}
+
+/** The package's files the runtime may serve: allowlisted types, never a folder. */
+function servableFiles(course: CourseRow): PackageIndexEntry[] {
+  return (course.packageIndex as PackageIndexEntry[]).filter(
+    (e) => !e.p.endsWith("/") && contentTypeOf(e.p) !== null && !entryNameProblem(e.p),
+  );
+}
+
+/** One statement or up to 50, each one Harbour can keep, with an id (made here when missing). */
+function parseStatements(raw: unknown) {
+  const list = Array.isArray(raw) ? raw : [raw];
+  if (list.length === 0 || list.length > 50) {
+    throw new HttpProblem(400, "statements_refused", "Send between 1 and 50 statements.");
+  }
+  return list.map((s) => {
+    const ok = XapiStatement.safeParse(s);
+    if (!ok.success || Buffer.byteLength(JSON.stringify(s)) > XAPI_STATEMENT_MAX_BYTES) {
+      throw new HttpProblem(400, "statements_refused", "A statement is not one Harbour can keep.");
+    }
+    return { ...ok.data, id: ok.data.id ?? crypto.randomUUID() };
+  });
+}
 
 /** Keeps a batch of statements and settles an xAPI attempt; the database's refusals are a 400. */
 async function keepStatements(

@@ -1,0 +1,48 @@
+# Training taken offline (mobile slice 72; MOB-007, WORK-006): a course is downloaded with a
+# connection, opened with none, and the list says in words what it is on the phone; it is then
+# removed. Needs the live API stack with one active SCORM course for the care worker (a demo build
+# lists no courses). setAirplaneMode is Android only in Maestro. Written in slice 72 and not yet
+# run on a device or emulator.
+appId: uk.co.thapsus.harbour
+name: Training course downloaded, taken offline and removed
+tags:
+  - offline
+---
+- runFlow: sign-in.yaml
+- tapOn:
+    id: "tab-settings"
+- tapOn:
+    id: "settings-training"
+- extendedWaitUntil:
+    visible:
+      id: "training-screen"
+    timeout: 15000
+- assertVisible:
+    text: "Not on this phone"
+- tapOn:
+    text: "Download"
+- extendedWaitUntil:
+    visible:
+      text: "On this phone"
+    timeout: 60000
+- setAirplaneMode: enabled
+- assertVisible:
+    text: "There is no connection, so only the courses on this phone are shown."
+- tapOn:
+    text: "Open"
+- extendedWaitUntil:
+    visible:
+      id: "course-webview"
+    timeout: 15000
+- assertVisible:
+    text: "Your progress is saved on this phone.*"
+- back
+- tapOn:
+    text: "Remove from this phone"
+- tapOn:
+    text: "Remove from this phone"
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible:
+      text: "Not on this phone"
+    timeout: 30000
