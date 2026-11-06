@@ -20,10 +20,12 @@ import {
   EXPORT_ARCHIVE_FILE,
   exportStoragePrefix,
   nextEscalationAt,
+  type TenantKeyPort,
   ukIsoDate,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
+import type { DataKeyCache } from "../integrations/envelope";
 import type { Logger } from "../logger";
 import { raiseCoverTask } from "../services/absence";
 import { tellAboutBreachNotice } from "../services/breach-notices";
@@ -69,6 +71,7 @@ import {
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
+import { completeShred, SHRED_APPROVED_EVENT } from "../services/shred";
 import { raiseStaffFileReminders } from "../services/staff-files";
 import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import { tellAboutNotice } from "../services/sub-processors";
@@ -97,7 +100,15 @@ export interface TaskDeps {
   readonly exportStorage?: DocumentStoragePort;
   /** The documents bucket, for the bytes of documents destroyed past retention. */
   readonly storage?: DocumentStoragePort;
+  /** Organisation keys, to complete an approved crypto-shred (PLAT-012, ADR-0109). */
+  readonly tenantKeys?: TenantKeyPort;
+  readonly dataKeyCache?: DataKeyCache;
+  /** `backupDays(config)`, stated on shred certificates. */
+  readonly backupDays?: number;
 }
+
+/** The queue named in `worker.job.failed` when an approved shred could not be completed. */
+export const SHRED_QUEUE = "tenant-shred";
 
 /** The queue named in `worker.job.failed` when a destroyed document's bytes could not be deleted. */
 export const DOCUMENT_DESTRUCTION_QUEUE = "document-destruction";
@@ -869,6 +880,34 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   // writes `worker.job.failed` (queue `document-destruction`, opaque ids), which the operator's
   // alarm watches, and throws, so the relay backs off and tries again (security review, 31
   // October 2026).
+  const completeApprovedShred: OutboxHandler = async (event) => {
+    try {
+      if (!deps.tenantKeys) throw new Error("The worker has no organisation keys.");
+      const approverId = (event.payload as { approverId?: unknown } | null)?.approverId;
+      if (typeof approverId !== "string") throw new Error("The shred event names no approver.");
+      await completeShred(
+        {
+          appDb: deps.appDb,
+          tenantKeys: deps.tenantKeys,
+          ...(deps.dataKeyCache ? { dataKeyCache: deps.dataKeyCache } : {}),
+          backupDays: deps.backupDays ?? 7,
+        },
+        { tenantId: event.tenantId, requestId: event.aggregateId, approverId },
+      );
+    } catch (error) {
+      deps.logger.error(
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: SHRED_QUEUE,
+          tenantId: event.tenantId,
+          outboxEventId: event.id,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
+      );
+      throw error;
+    }
+  };
   const deleteDestroyedDocument: OutboxHandler = async (event) => {
     try {
       if (!deps.storage) throw new Error("The worker has no document storage.");
@@ -900,6 +939,7 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
     ["platform.export.downloaded", deleteArchive],
     ["platform.export.revoked", deleteArchive],
     ["platform.document.destroyed", deleteDestroyedDocument],
+    [SHRED_APPROVED_EVENT, completeApprovedShred],
     [
       "people.person.died",
       async (event) => {

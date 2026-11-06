@@ -17,6 +17,7 @@ import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import { TenantKeysShredded } from "./integrations/envelope";
 import { createMedicinesPorts } from "./integrations/medicines-ports";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
@@ -100,6 +101,7 @@ import { sampleDataRouter } from "./routes/sample-data";
 import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { shredRouter } from "./routes/shred";
 import { speakUpRouter } from "./routes/speak-up";
 import { ldssRouter, sponsorshipRouter, staffPrivacyRouter } from "./routes/sponsorship";
 import { ssoRouter } from "./routes/sso";
@@ -401,6 +403,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", speakUpRouter);
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
+  app.route("/", shredRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);
@@ -495,6 +498,14 @@ export function createApp(config: Config, logger: Logger): AppHandle {
 
   app.notFound((c) => problemResponse(c, problems.notFound(), c.get("requestId")));
   app.onError((error, c) => {
+    // A read or write of an organisation whose keys were shredded (PLAT-012, ADR-0109).
+    if (error instanceof TenantKeysShredded) {
+      return problemResponse(
+        c,
+        new HttpProblem(410, "shredded", "This organisation's records have been destroyed."),
+        c.get("requestId"),
+      );
+    }
     if (error instanceof HttpProblem) {
       const response = problemResponse(c, error, c.get("requestId"));
       if (error instanceof QuotaExceeded) {

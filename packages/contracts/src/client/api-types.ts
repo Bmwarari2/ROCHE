@@ -9600,6 +9600,390 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/retention/shred-requests": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whole-organisation shred requests */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Requests */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredRequestList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Ask for the organisation's records to be crypto-shredded
+     * @description Needs a fresh step-up, a reason of at least 20 characters (no names: it is kept on the certificate) and the organisation's full export, downloaded within 30 days. Refused while any legal hold is active or another request is open. A different member approves it within 7 days.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateShredRequest"];
+        };
+      };
+      responses: {
+        /** @description Requested */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredRequestItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/retention/shred-requests/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve a shred: the organisation's keys are scheduled for destruction
+     * @description A different member from the requester, with a fresh step-up, within 7 days of the request, while the requester can still manage retention, the export is still recent and no legal hold is active. The approval is recorded first (status shredding); then every version of the organisation's key is scheduled for destruction and a signed certificate is issued (status approved, 200). If the keys cannot be reached now, 202 says the worker will complete it. Afterwards stored documents, exports and DSAR bundles can no longer be read (410 shredded) and cannot be restored once the delay ends.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Shredded, with its certificate */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredApproved"];
+          };
+        };
+        /** @description Approved; the worker is completing the shred */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredApproved"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/retention/shred-requests/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a pending shred request
+     * @description The requester may cancel their own pending request; any other holder may withdraw one more than 7 days old. An approved request (shredding or approved) cannot be cancelled.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Cancelled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShredRequestItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/destruction-certificates/{id}/verification": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Check a destruction certificate's signature
+     * @description Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Harbour's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Checked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CertificateVerification"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people/{id}/notes": {
     parameters: {
       query?: never;
@@ -49467,6 +49851,1165 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/pay-rule-sets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Pay rule sets */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Rule sets */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRuleSetList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Write a draft pay rule set
+     * @description The organisation's own rates (never statutory figures, which come from the rate table). One draft at a time; approved by someone who neither wrote nor changed it.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The rule set */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreatePayRuleSet"];
+        };
+      };
+      responses: {
+        /** @description Drafted */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRuleSetItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-rule-sets/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Change a draft pay rule set */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The rule set */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangePayRuleSet"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRuleSetItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/pay-rule-sets/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve a pay rule set
+     * @description By a holder of scheduling.pay.approve who neither wrote nor changed it.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ApprovePayRuleSet"];
+        };
+      };
+      responses: {
+        /** @description Approved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRuleSetItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{id}/pay-profile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's pay profile
+     * @description Pay holders across the organisation, or the member themselves.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The profile */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayProfileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set a member's pay profile
+     * @description Never one's own. Earnings for SSP are in the body, never the address.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The profile */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PutPayProfile"];
+        };
+      };
+      responses: {
+        /** @description Set */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayProfileItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Pay runs */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Runs */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Draft a pay run for a period
+     * @description Uses the approved rule set in force on the period's first day. One regular run a period.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The period */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreatePayRun"];
+        };
+      };
+      responses: {
+        /** @description Drafted */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A pay run with its lines and exceptions */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The run */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}/calculate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Calculate a draft pay run
+     * @description From approved timesheets and recorded sickness only, with the slice 6 rules and the rate table's figures for the period (stored with the run). Each line keeps its working and canonical inputs; exceptions block locking.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PayRunVersion"];
+        };
+      };
+      responses: {
+        /** @description Calculated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-run-exceptions/{id}/override": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Override a pay run exception with a reason
+     * @description By a holder of scheduling.pay.approve, never on their own line.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The reason */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["OverridePayException"];
+        };
+      };
+      responses: {
+        /** @description Overridden */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunExceptionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}/lock": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Check and lock a pay run
+     * @description By a holder of scheduling.pay.approve who neither created nor calculated it, with no open exception. A locked run never changes; it is offered to the payroll export (slice 76).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PayRunVersion"];
+        };
+      };
+      responses: {
+        /** @description Locked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}/corrections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start a correction of a locked pay run
+     * @description A new draft for the same period; each line shows its difference from the locked run it corrects. One open correction at a time.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Drafted */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayRunItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/pay-runs/{id}/lines/{lineId}/verify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Recalculate a line from its stored inputs
+     * @description From the line's canonical inputs and the run's stored rate rows: the same figures and hash, or the figures that differ.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          lineId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The check */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PayLineVerification"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/pay-lines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** My lines in locked pay runs */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Lines */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MyPayLines"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -51942,6 +53485,12 @@ export interface components {
     DestructionCertificateItem: {
       /** Format: uuid */
       id: string;
+      /** Format: uuid */
+      tenantId: string;
+      subjectIds: string[];
+      retentionRule: {
+        [key: string]: unknown;
+      };
       recordClass: string;
       subjectType: string;
       recordCount: number;
@@ -51949,6 +53498,23 @@ export interface components {
       method: string;
       /** Format: date-time */
       executedAt: string;
+      bodySha256: string | null;
+      signature: string | null;
+      signatureKey: string | null;
+      signatureAlgorithm: string | null;
+      keyVersions: {
+        name: string;
+        /** Format: date-time */
+        destroyAt: string;
+      }[];
+      /** Format: date-time */
+      keysDestroyedAt: string | null;
+      /** Format: date-time */
+      backupsExpireAt: string | null;
+      /** Format: uuid */
+      requestedBy: string | null;
+      /** Format: uuid */
+      approvedBy: string | null;
     };
     /** @description Certificates per record class; skipped ids were held, not yet due or not found */
     DestructionResult: {
@@ -51958,6 +53524,47 @@ export interface components {
     DestroyDocuments: {
       documentIds: string[];
       reason: string;
+    };
+    ShredRequestList: {
+      items: components["schemas"]["ShredRequestItem"][];
+    };
+    /** @description A whole-organisation shred request (PLAT-012) */
+    ShredRequestItem: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      status: "pending" | "shredding" | "approved" | "cancelled";
+      reason: string;
+      /** Format: uuid */
+      exportId: string;
+      /** Format: uuid */
+      requestedBy: string;
+      /** Format: date-time */
+      requestedAt: string;
+      /** Format: uuid */
+      decidedBy: string | null;
+      /** Format: date-time */
+      decidedAt: string | null;
+      /** Format: uuid */
+      certificateId: string | null;
+    };
+    CreateShredRequest: {
+      reason: string;
+      /** Format: uuid */
+      exportId: string;
+    };
+    /** @description certificate is null while the keys are still being destroyed (status shredding): the worker completes it */
+    ShredApproved: {
+      request: components["schemas"]["ShredRequestItem"];
+      certificate: components["schemas"]["DestructionCertificateItem"] &
+        (Record<string, never> | null);
+    };
+    CertificateVerification: {
+      valid: boolean | null;
+      body: string;
+      signature: string | null;
+      signatureKey: string | null;
+      signatureAlgorithm: string | null;
     };
     CareNoteItem: {
       /** Format: uuid */
@@ -61829,8 +63436,8 @@ export interface components {
       }[];
       openShiftIds: string[];
       inductionsDue: string[];
-      peopleUnassigned: string[];
       coverNeededAssignmentIds: string[];
+      peopleUnassigned: string[];
       hasWarnings: boolean;
       periodsToAcknowledge: string[];
       blockedAssignmentIds: string[];
@@ -62986,6 +64593,291 @@ export interface components {
       /** Format: uuid */
       incidentId?: string | null;
       version: number;
+    };
+    PayRuleSetList: {
+      items: components["schemas"]["PayRuleSetItem"][];
+    };
+    PayRuleSetItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      versionNumber: number;
+      name: string;
+      /** Format: date */
+      effectiveFrom: string;
+      roleRates: {
+        [key: string]: number;
+      };
+      enhancements: components["schemas"]["PayEnhancement"][];
+      stackEnhancements: boolean;
+      sleepInFlatPence: number;
+      mileagePencePerMile: number;
+      onCallFlatPence: number;
+      nightStartMinute: number | null;
+      nightEndMinute: number | null;
+      extraBankHolidays: string[];
+      overtimeAfterMinutes: number | null;
+      rolledUpHoliday: boolean;
+      /** @enum {string} */
+      status: "draft" | "approved";
+      /** Format: uuid */
+      approvedBy: string | null;
+      /** Format: date-time */
+      approvedAt: string | null;
+    };
+    PayEnhancement: {
+      /** @enum {string} */
+      kind: "night" | "weekend" | "bank_holiday" | "overtime";
+      /** @enum {string} */
+      mode: "percent" | "flat_per_hour";
+      value: number;
+    };
+    CreatePayRuleSet: {
+      name: string;
+      /** Format: date */
+      effectiveFrom: string;
+      roleRates: {
+        [key: string]: number;
+      };
+      /** @default [] */
+      enhancements: components["schemas"]["PayEnhancement"][];
+      /** @default false */
+      stackEnhancements: boolean;
+      /** @default 0 */
+      sleepInFlatPence: number;
+      /** @default 0 */
+      mileagePencePerMile: number;
+      /** @default 0 */
+      onCallFlatPence: number;
+      /** @default null */
+      nightStartMinute: number | null;
+      /** @default null */
+      nightEndMinute: number | null;
+      /** @default [] */
+      extraBankHolidays: string[];
+      /** @default null */
+      overtimeAfterMinutes: number | null;
+      /** @default false */
+      rolledUpHoliday: boolean;
+    };
+    ChangePayRuleSet: {
+      version: number;
+      name: string;
+      /** Format: date */
+      effectiveFrom: string;
+      roleRates: {
+        [key: string]: number;
+      };
+      /** @default [] */
+      enhancements: components["schemas"]["PayEnhancement"][];
+      /** @default false */
+      stackEnhancements: boolean;
+      /** @default 0 */
+      sleepInFlatPence: number;
+      /** @default 0 */
+      mileagePencePerMile: number;
+      /** @default 0 */
+      onCallFlatPence: number;
+      /** @default null */
+      nightStartMinute: number | null;
+      /** @default null */
+      nightEndMinute: number | null;
+      /** @default [] */
+      extraBankHolidays: string[];
+      /** @default null */
+      overtimeAfterMinutes: number | null;
+      /** @default false */
+      rolledUpHoliday: boolean;
+    };
+    ApprovePayRuleSet: {
+      version: number;
+    };
+    PayProfileItem: {
+      /** Format: uuid */
+      memberId: string;
+      version: number | null;
+      frequency: components["schemas"]["PayFrequency"];
+      /** @enum {string} */
+      employment: "staff" | "bank" | "agency";
+      roleKey: string | null;
+      /** Format: date */
+      apprenticeshipStartedOn: string | null;
+      irregularHours: boolean;
+      /** Format: date */
+      leaveYearStart: string | null;
+      qualifyingWeekdays: number[];
+      sspAverageWeeklyEarningsPence: number | null;
+      /** Format: date */
+      statePensionAgeOn: string | null;
+    };
+    /** @enum {string|null} */
+    PayFrequency: "weekly" | "monthly" | null;
+    PutPayProfile: {
+      version: number | null;
+      frequency: components["schemas"]["PayFrequency"];
+      /**
+       * @default staff
+       * @enum {string}
+       */
+      employment: "staff" | "bank" | "agency";
+      /** @default null */
+      roleKey: string | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      apprenticeshipStartedOn: string | null;
+      /** @default false */
+      irregularHours: boolean;
+      /**
+       * Format: date
+       * @default null
+       */
+      leaveYearStart: string | null;
+      /** @default [] */
+      qualifyingWeekdays: number[];
+      /** @default null */
+      sspAverageWeeklyEarningsPence: number | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      statePensionAgeOn: string | null;
+    };
+    PayRunList: {
+      items: components["schemas"]["PayRunItem"][];
+    };
+    PayRunItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      frequency: components["schemas"]["PayFrequency"];
+      /** Format: date */
+      periodStart: string;
+      /** Format: date */
+      periodEnd: string;
+      /** @enum {string} */
+      kind: "regular" | "correction";
+      /** Format: uuid */
+      correctsRunId: string | null;
+      /** Format: uuid */
+      ruleSetId: string;
+      nation: string;
+      calculation: number;
+      /** Format: date-time */
+      calculatedAt: string | null;
+      /** Format: uuid */
+      calculatedBy: string | null;
+      /** @enum {string} */
+      status: "draft" | "locked";
+      /** Format: uuid */
+      lockedBy: string | null;
+      /** Format: date-time */
+      lockedAt: string | null;
+      /** Format: uuid */
+      createdBy: string | null;
+      openExceptions: number;
+    };
+    CreatePayRun: {
+      frequency: components["schemas"]["PayFrequency"];
+      /** Format: date */
+      periodStart: string;
+      /** Format: date */
+      periodEnd: string;
+    };
+    PayRunDetail: {
+      run: components["schemas"]["PayRunItem"];
+      lines: components["schemas"]["PayRunLineItem"][];
+      exceptions: components["schemas"]["PayRunExceptionItem"][];
+    };
+    PayRunLineItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      runId: string;
+      calculation: number;
+      /** Format: uuid */
+      memberId: string;
+      paidMinutes: number;
+      nmwMinutes: number;
+      basicPence: number;
+      premiumPence: number;
+      sleepInPence: number;
+      onCallPence: number;
+      mileagePence: number;
+      nmwTopUpPence: number;
+      rolledUpHolidayPence: number;
+      sspPence: number;
+      totalPence: number;
+      differencePence: number | null;
+      holidayAccruedMinutes: number | null;
+      nmwBand: string | null;
+      aeCategory: string | null;
+      qualifyingEarningsPence: number | null;
+      working: components["schemas"]["PayWorkingLine"][];
+      inputHash: string;
+    };
+    PayWorkingLine: {
+      step: string;
+      pence: number | null;
+      rateKey: string | null;
+    };
+    PayRunExceptionItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      calculation: number;
+      /** Format: uuid */
+      memberId: string;
+      kind: components["schemas"]["PayExceptionKind"];
+      /** Format: uuid */
+      ref: string | null;
+      message: string;
+      /** @enum {string} */
+      status: "open" | "overridden";
+      overrideReason: string | null;
+      /** Format: uuid */
+      overriddenBy: string | null;
+      /** Format: date-time */
+      overriddenAt: string | null;
+    };
+    /** @enum {string} */
+    PayExceptionKind:
+      | "unapproved_timesheet"
+      | "no_pay_profile"
+      | "no_role_rate"
+      | "no_date_of_birth"
+      | "below_nmw"
+      | "ssp_earnings_missing"
+      | "no_qualifying_days"
+      | "rate_missing";
+    PayRunVersion: {
+      version: number;
+    };
+    OverridePayException: {
+      version: number;
+      reason: string;
+    };
+    PayLineVerification: {
+      /** Format: uuid */
+      lineId: string;
+      reproduced: boolean;
+      storedHash: string;
+      recalculatedHash: string;
+      differences: string[];
+    };
+    MyPayLines: {
+      items: {
+        line: components["schemas"]["PayRunLineItem"];
+        /** Format: date */
+        periodStart: string;
+        /** Format: date */
+        periodEnd: string;
+        /** @enum {string} */
+        kind: "regular" | "correction";
+        /** Format: date-time */
+        lockedAt: string;
+      }[];
     };
   };
   responses: never;

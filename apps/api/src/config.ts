@@ -14,6 +14,14 @@ const GCP_PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 const KMS_KEY = new RegExp(
   `^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/locations/(${GCP_REGIONS.join("|")})/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}$`,
 );
+/** A key ring in an allowed region: projects/<p>/locations/<region>/keyRings/<r>. */
+const KMS_KEY_RING = new RegExp(
+  `^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/locations/(${GCP_REGIONS.join("|")})/keyRings/[A-Za-z0-9_-]{1,63}$`,
+);
+/** An asymmetric key version in an allowed region (the certificate signing key). */
+const KMS_KEY_VERSION = new RegExp(
+  `^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/locations/(${GCP_REGIONS.join("|")})/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[0-9]{1,10}$`,
+);
 /** Bucket names as Cloud Storage takes them (no dotted, domain-named buckets). */
 const BUCKET = /^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$/;
 
@@ -148,6 +156,28 @@ const Env = z.object({
   GCS_EXPORTS_BUCKET: z.string().regex(BUCKET).optional(),
   /** The customer-managed Cloud KMS key both buckets encrypt with, in europe-west2. */
   GCS_KMS_KEY: z.string().regex(KMS_KEY).optional(),
+  /**
+   * Organisation keys for envelope encryption and crypto-shredding (ADR-0109): Cloud KMS in
+   * production (one key per organisation in TENANT_KMS_KEY_RING), local files in development and
+   * an in-memory provider in tests. CERTIFICATE_SIGNING_KEY signs destruction certificates.
+   */
+  TENANT_KEY_PROVIDER: z.enum(["local", "cloudkms"]).default("local"),
+  TENANT_KMS_KEY_RING: z.string().regex(KMS_KEY_RING).optional(),
+  CERTIFICATE_SIGNING_KEY: z.string().regex(KMS_KEY_VERSION).optional(),
+  /** Local keys (development): `.data/keys` when unset; tests keep keys in memory. */
+  LOCAL_KEYS_DIR: z.string().optional(),
+  /**
+   * Objects stored before envelope encryption are read as they are only when this is `on`, which
+   * production refuses (H-1115). Off by default, so a deployed environment never serves them.
+   */
+  DOCUMENTS_LEGACY_PLAINTEXT: z.enum(["on", "off"]).default("off"),
+  /**
+   * The database's point-in-time recovery window and its longest backup retention, in days:
+   * certificates state that backups no longer hold deleted rows after the longer of the two.
+   * Both are required in production (H-1114); elsewhere each counts as 7.
+   */
+  DATABASE_PITR_DAYS: z.coerce.number().int().min(1).max(35).optional(),
+  DATABASE_BACKUP_RETENTION_DAYS: z.coerce.number().int().min(0).max(3650).optional(),
   /**
    * The SMTP relay for email (the `smtp` provider of comms.email). Unset in production, email is not
    * configured and every send fails clearly; elsewhere it defaults to Mailpit (docker-compose.yml).
@@ -299,6 +329,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       "GCS_KMS_KEY",
     ] as const) {
       if (!parsed[key]) throw new Error(`${key} must be set in production`);
+    }
+    if (parsed.TENANT_KEY_PROVIDER !== "cloudkms") {
+      throw new Error("TENANT_KEY_PROVIDER must be cloudkms in production");
+    }
+    for (const key of [
+      "TENANT_KMS_KEY_RING",
+      "CERTIFICATE_SIGNING_KEY",
+      "DATABASE_PITR_DAYS",
+      "DATABASE_BACKUP_RETENTION_DAYS",
+    ] as const) {
+      if (parsed[key] === undefined) throw new Error(`${key} must be set in production`);
+    }
+    if (parsed.DOCUMENTS_LEGACY_PLAINTEXT === "on") {
+      throw new Error("DOCUMENTS_LEGACY_PLAINTEXT cannot be on in production");
     }
     if (parsed.GCS_DOCUMENTS_BUCKET === parsed.GCS_EXPORTS_BUCKET) {
       throw new Error("GCS_EXPORTS_BUCKET must not be the documents bucket in production");

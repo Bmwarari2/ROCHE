@@ -28,6 +28,7 @@ import {
   requiresStepUp,
   resolveAccess,
   scopeFor,
+  type TenantKeyPort,
   widestScope,
 } from "@harbour/domain";
 import { and, eq, isNull, like, lt, sql } from "drizzle-orm";
@@ -43,6 +44,7 @@ import { endSsoSession, sessionFactorState, sessionSsoTenant } from "../auth/ses
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
+import type { DataKeyCache } from "../integrations/envelope";
 import type { MedicinesPorts } from "../integrations/medicines-ports";
 import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
@@ -97,6 +99,10 @@ export interface Services {
   readonly scanner: MalwareScanPort;
   /** The medicines rules' outside inputs: competence (workforce) and dm+d facts (slice 10). */
   readonly medicines: MedicinesPorts;
+  /** Organisation keys: envelope encryption and crypto-shredding (ADR-0109). */
+  readonly tenantKeys: TenantKeyPort;
+  /** Unwrapped data keys in memory, forgotten for an organisation when it is shredded. */
+  readonly dataKeyCache: DataKeyCache;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */
