@@ -250,8 +250,14 @@ not yet pushed):
 | 0129 | Member lifecycle security | `fix/recommended-answers-platform` |
 | 0130 | Crypto-shred refusals | `feat/web-retention-shred` |
 | 0131 | The dm+d job's own role (slice 75) | `feat/integrations-dmd-download` |
+| 0132 | LMS imports (slice 78) | `feat/work-lms-import` |
+| 0133 | E-signature and OCR (slice 79) | `feat/integrations-esign-ocr` |
+| 0134 | Medicines rounds (slice 48) | `feat/meds-rounds` |
+| 0135 | Medication errors and reviews (slice 45) | `feat/meds-errors-reviews` |
+| 0136 | Clinical import (slice 51) | `feat/platform-import-clinical` |
 | 0137 | Built-in role backfill (workforce grants, speak-up and employee relations roles) | `chore/phase-2-cleanups` |
-| 0105, 0106, 0119, 0126, 0132 to 0136 | Assigned; not on any branch yet | - |
+| 0138 | Medicines stock (slice 42) | `feat/meds-stock` |
+| 0105, 0106, 0119, 0126 | Assigned; not on any branch yet | - |
 
 | ADR | What | Where |
 | --- | --- | --- |
@@ -321,16 +327,16 @@ the slices it depends on.
 | 39 | Employee relations casework | B | WORK-010 | Disciplinary, grievance, capability, sickness absence, suspension and probation cases with investigation, hearing, outcome, appeal and timelines following the ACAS Code; restricted silo (ADR-0089); DBS barring and regulator referral decisions linked to the safeguarding log | 0101 | 11, 13 |
 | 40 | Absence and leave | C | SCHED-010 | Requests and approvals, Bradford factor, return to work, fit notes, SSP eligibility, statutory family leave (maternity, paternity, parental, bereavement, carer's leave) | 0107 | 6, 21 |
 | 41 | Disclosure requests | D | SAFE-016 | Coroner disclosure and inquest packs with the Regulation 28 response tracker, SAR and DHR chronologies, police and solicitor disclosure under DPA 2018 Schedule 2, Access to Health Records Act 1990 requests, disclosure log with legal basis and approver; collection through slice 15 | 0103, 0124 | 7, 15 |
-| 42 | Stock, ordering, disposal and temperatures | A | MEDS-008 | Stock per medicine with receipts and returns; 28-day cycle ordering; disposal records; fridge and room temperature logs (`medicines.fridge_*`, `medicines.room_max_celsius`); medicines for leave; creams and patches charted against the body map; "not available" creates a stock task | at assignment | 16, 22 |
+| 42 | Stock, ordering, disposal and temperatures | A | MEDS-008 | Stock per medicine with receipts and returns; 28-day cycle ordering; disposal records; fridge and room temperature logs (`medicines.fridge_*`, `medicines.room_max_celsius`); medicines for leave; creams and patches charted against the body map; "not available" creates a stock task | 0138 | 16, 22 |
 | 43 | E-learning runtime | B | WORK-006 | Package upload to the document store, SCORM 1.2 and 2004 and xAPI runtime on a sandboxed origin, statement store, completion into training records (ADR-0093) | 0112 | 17 |
 | 44 | Staff wellbeing and voice | C | SCHED-011 | Pulse surveys with a minimum group size before results show, recognition, speak-up link to slice 24, exit interviews, turnover by team | 0115 | 11, 24 |
-| 45 | Medication errors and reviews | A | MEDS-012, MEDS-013 | Errors and near misses on the incident with medicines details (severity, harm, immediate actions, prescriber informed, root cause), CQC and safeguarding decisions through slice 7's classifier questions, trend report; annual medication review tracker (`medicines.review_interval_months`); competence override log and report | at assignment | 22, 17, 7 |
+| 45 | Medication errors and reviews | A | MEDS-012, MEDS-013 | Errors and near misses on the incident with medicines details (severity, harm, immediate actions, prescriber informed, root cause), CQC and safeguarding decisions through slice 7's classifier questions, trend report; annual medication review tracker (`medicines.review_interval_months`); competence override log and report | 0135 | 22, 17, 7 |
 | 46 | Lone-worker safety | C | SCHED-012 | Scheduled check-ins, overdue alarm to on-call through escalation chains, panic button, incident link | 0113 | 21 |
 | 47 | Quality dashboard and PIR prefill | E | QUAL-005, QUAL-006 | Indicators by location (falls per 1,000 bed-days, pressure ulcers, medication errors, overdue reviews, training compliance, agency hours, complaints, turnover, incident response times) with the method shown and RAG against tenant targets, from events the source slices publish; PIR data points in the CQC question set for the manager to copy | 0108 | 14, 17, 18, 27, 45 |
-| 48 | Rounds, escalation and conflict review | A | MEDS-002 | Round view by time slot; late and early warnings; time-critical escalation that a tenant cannot switch off (HZ-008); closing a round; a conflict review task when two devices record one dose (HZ-004); alert volume and override metrics | - | 22 |
+| 48 | Rounds, escalation and conflict review | A | MEDS-002 | Round view by time slot; late and early warnings; time-critical escalation that a tenant cannot switch off (HZ-008); closing a round; a conflict review task when two devices record one dose (HZ-004); alert volume and override metrics | 0134 | 22 |
 | 49 | Medicines in the Phase 1 outputs | A | MEDS-001, MEDS-002 | Outstanding doses in the handover; doses due in the downtime pack (HZ-021, H-102); transfer pack medicines from the eMAR (HZ-023, H-82); how care plan medicines actions relate to rounds (H-151). Touches care, people and operations files: merge after the Phase 1 web items on them | - | 48, 16 |
 | 50 | Printable MAR and CD register | A | MEDS-014 | MAR chart per person per month (allergy section, codes key, covert marks, printed time, "not the live record") and CD register page exports as PDFs | - | 48, 34, 38 |
-| 51 | Import of medicines, care plans and staff files | F | PLAT-014, WORK-013 | Imported medicines arrive "not yet checked" through slice 16's import origin (HZ-005); care plans as drafts; staff files; TUPE transfer between group tenants | - | 26, 16, 11 |
+| 51 | Import of medicines, care plans and staff files | F | PLAT-014, WORK-013 | Imported medicines arrive "not yet checked" through slice 16's import origin (HZ-005); care plans as drafts; staff files; TUPE transfer between group tenants | 0136 | 26, 16, 11 |
 | 52 | Web: medicines record, reconciliation and self-administration | A | MEDS-001, MEDS-006 | Medicines tab on the person record; dm+d picker; second check; reconciliation; self-administration assessments; Playwright and axe | - | 16, 38 |
 | 53 | Web: rounds, administration, PRN and covert | A | MEDS-002, MEDS-003, MEDS-004 | Round view for the office and tablet browser; administration with allergies beside the medicine (HZ-007); PRN with last given; covert marks | - | 48, 28, 38 |
 | 54 | Web: controlled drugs register and exports | A | MEDS-005, MEDS-014 | Register pages, entries, witness, stock checks; MAR and CD register exports (HZ-007 printed MAR test) | - | 34, 50 |
@@ -357,8 +363,8 @@ the slices it depends on.
 | 75 | dm+d release download | H | INTG-006 | Worker job fetching the release from TRUD with credentials from the secret store; checksum; load through slice 10; release history; failure alert (HZ-113); monthly schedule; contract test with a mock TRUD | - | 10 |
 | 76 | Payroll and pension exports | H | SCHED-008 | Port `payroll.export`; Xero Payroll UK adapter with per-tenant OAuth; file exports for Staffology, Sage and BrightPay; approved timesheets only; auto-enrolment flags; export records for reproducibility (ADR-0013, ADR-0097) | 0127 | 36 |
 | 77 | Identity and vetting adapters | H | INTG-007 | Ports for IDSP right-to-work checks, DBS e-bulk and Update Service status, the NMC register; mocks and contract tests; results stored as compliance items with evidence (ADR-0094) | - | 11 |
-| 78 | LMS imports | H | WORK-006 | External training records and xAPI statements imported from an LMS behind a port with a mock | - | 43 |
-| 79 | E-signature and OCR adapters | H | INTG-013 | Optional DocuSign adapter behind the existing signature port, off by default; camera scan of paper MARs with server-side OCR producing draft medicines that arrive "not yet checked" through slice 51 (ADR-0095) | - | 51, 16 |
+| 78 | LMS imports | H | WORK-006 | External training records and xAPI statements imported from an LMS behind a port with a mock | 0132 | 43 |
+| 79 | E-signature and OCR adapters | H | INTG-013 | Optional DocuSign adapter behind the existing signature port, off by default; camera scan of paper MARs with server-side OCR producing draft medicines that arrive "not yet checked" through slice 51 (ADR-0095) | 0133 | 51, 16 |
 | 80 | Cyber Essentials and ISO 27001 control mapping | E | - | `docs/compliance/cyber-essentials.md` (firewalls, secure configuration, security update management, user access control, malware protection, each with evidence in the repository and `infra/`); `docs/compliance/iso27001-controls.md` (Annex A mapping draft) | - | 1 (can start at once) |
 | 81 | User guides: medicines | A | MEDS rows | `docs/user-guides/` sections for the care worker, nurse and Registered Manager; each row links its section | - | 52 to 55, 69, 70 |
 | 82 | User guides: workforce and scheduling | B, C | WORK rows, SCHED rows, CARE-004 | Sections for the HR lead, manager and care worker | - | 56 to 61, 71, 72 |

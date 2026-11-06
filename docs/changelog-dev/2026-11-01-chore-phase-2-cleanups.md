@@ -36,3 +36,13 @@ Branch `chore/phase-2-cleanups`.
 
 - Packs issued before this change stay in the exports bucket until it expires them; on any
   environment holding real packs, copy them across before then (none hold real data today).
+
+## Follow-up (06/11/2026)
+
+- phase-2.md listed 0132 to 0136 as on no branch. They are on `feat/work-lms-import`,
+  `feat/integrations-esign-ocr`, `feat/meds-rounds`, `feat/meds-errors-reviews` and
+  `feat/platform-import-clinical`, and 0138 is on `feat/meds-stock`; the slice table says so too.
+- Batch 3a keeps the scheduling branches' `packages/db/test/builtin-role-backfills.test.ts`
+  (baseline: main's built-in roles on 01/11/2026). When this branch joins batch 3b, fold 0137's
+  re-run test and the new-role check into that file and drop `builtin-role-backfill.test.ts` and
+  its fixture.
