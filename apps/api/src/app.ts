@@ -18,6 +18,7 @@ import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { TenantKeysShredded } from "./integrations/envelope";
+import { createEsignOcrServices } from "./integrations/esign-ocr";
 import {
   LearningPlatformAdapter,
   MemoryLearningPlatformSecrets,
@@ -55,6 +56,7 @@ import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
 import { dsarRouter } from "./routes/dsar";
 import { elearningLaunchRouter, elearningRouter } from "./routes/elearning";
+import { esignOcrRouter } from "./routes/esign-ocr";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
@@ -237,6 +239,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.LMS_API === "mock"
         ? new LearningPlatformAdapter(learningPlatformMock, learningPlatformSecrets)
         : null,
+    ...createEsignOcrServices(config),
     transferPackLimiter: new RateLimiter(
       "transfer_pack",
       config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
@@ -341,6 +344,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     "/v1/documents",
     "/v1/documents/*",
     "/v1/people/:id/photo",
+    "/v1/people/:id/mar-scans",
     "/v1/workforce/staff-files/:id/items/:kind/documents",
     "/v1/absences/:id/fit-notes",
     "/v1/workforce/members/:memberId/training-records/:recordId/certificate",
@@ -452,6 +456,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", shredRouter);
+  app.route("/", esignOcrRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);

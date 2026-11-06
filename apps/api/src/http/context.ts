@@ -17,11 +17,13 @@ import {
   can,
   type DocumentStoragePort,
   type EffectiveAccess,
+  type ExternalSignaturePort,
   IDLE_TIMEOUT_KEY_PREFIX,
   idleExpired,
   idleTimeoutMinutes,
   type MalwareScanPort,
   narrowestScope,
+  type OcrPort,
   type Permission,
   type PermissionScope,
   requiresMfa,
@@ -109,6 +111,10 @@ export interface Services {
   readonly dataKeyCache: DataKeyCache;
   /** Pulls from learning platforms (workforce.md section 13), or null while off. */
   readonly learningPlatform: LearningPlatformAdapter | null;
+  /** OCR of scanned MAR charts, or null when none is configured (ADR-0095). */
+  readonly ocr: OcrPort | null;
+  /** DocuSign, or null when off: signing is then in Harbour only (ADR-0095). */
+  readonly docusign: ExternalSignaturePort | null;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */

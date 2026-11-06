@@ -69,6 +69,8 @@ describe("loadConfig", () => {
       { DOCUMENTS_LEGACY_PLAINTEXT: "on" },
       "DOCUMENTS_LEGACY_PLAINTEXT",
     ],
+    ["the OCR mock (ADR-0095)", { OCR_ENGINE: "mock" }, "OCR_ENGINE"],
+    ["the DocuSign mock (ADR-0095)", { DOCUSIGN: "mock" }, "DOCUSIGN"],
     [
       "one bucket for documents and exports",
       { GCS_EXPORTS_BUCKET: "harbour-dev-documents" },

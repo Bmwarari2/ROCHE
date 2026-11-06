@@ -576,6 +576,7 @@ export * from "./dmd";
 export * from "./dpia";
 export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";
 export * from "./escalation-policy";
+export * from "./esign-ocr";
 export * from "./exports";
 export * from "./family-feed";
 export * from "./handover";

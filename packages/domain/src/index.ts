@@ -39,6 +39,7 @@ export * from "./comms/template-style";
 export * from "./comms/templates";
 export * from "./comms/visit-booking";
 export * from "./integrations/dmd-release-source";
+export * from "./integrations/esign-ocr";
 export * from "./integrations/ports";
 export * from "./integrations/trud";
 export * from "./medicines/administration";

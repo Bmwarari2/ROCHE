@@ -101,6 +101,8 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.person_care_profile",
   "public.observation",
   "public.outbreak_case",
+  "public.ocr_extraction",
+  "public.ocr_field",
   "public.care_note",
   "public.body_map_mark",
   "public.assessment",
@@ -1249,6 +1251,41 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       document_id: { description: "A copy of the card, letter or message (document.id)." },
       recorded_by: { description: "The member of staff who recorded it (tenant_user.id)." },
       retention_class: { description: "The retention class (always complaint)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.signature_request": {
+    context: "platform",
+    description:
+      "Requests for a member to sign an organisation document, in Harbour or through DocuSign (ADR-0095), with the evidence of how it was signed.",
+    treatment: "tenant_rows",
+    retention: "as_subject",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      document_id: "exported",
+      document_sha256: { description: "SHA-256 of the version the member is asked to sign." },
+      signer_tenant_user_id: { description: "The member asked to sign (tenant_user.id)." },
+      provider: { description: "in_app (Harbour) or docusign." },
+      state: { description: "requested, sent, signed, declined, cancelled or failed." },
+      envelope_id: { description: "DocuSign's envelope id; empty in Harbour." },
+      requested_by: { description: "The member who asked (tenant_user.id)." },
+      signature_id: { description: "In Harbour: the signature recorded (document_signature.id)." },
+      signed_document_id: {
+        description: "Through DocuSign: the signed document returned, stored as a new version.",
+      },
+      step_up_method: {
+        description:
+          "In Harbour: the second factor the signer used just before signing (passkey or totp).",
+      },
+      signed_at: "exported",
+      closed_reason: { description: "Why it was cancelled, declined or failed." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -6647,6 +6684,110 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "Flags computed when the entry was saved (for example NEWS2 component scores), JSON.",
       },
+    },
+  },
+  "public.ocr_extraction": {
+    context: "integrations",
+    description:
+      "Scanned MAR charts read by OCR (ADR-0095): the image document, the engine and where it ran, and whether a person released or discarded what was read.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      document_id: { description: "The scanned image, stored as the person's document." },
+      kind: { description: "What was scanned: mar (a paper MAR chart)." },
+      engine: { description: "The OCR engine that read it: google_document_ai or mock." },
+      location: { description: "Where the engine ran: europe-west2, or local for the mock." },
+      state: {
+        description:
+          "blocked (the image did not scan clean and was never read), failed, ready (waiting for a person to decide each value), released or discarded.",
+      },
+      failure: {
+        description: "Why it was not read: not_clean, engine_error, unreadable or nothing_read.",
+      },
+      requested_by: { description: "The member who scanned it (tenant_user.id)." },
+      client_ref: {
+        description: "The scanning device's id for the upload, so a retry returns the same scan.",
+      },
+      lines_counted: {
+        description: "The medicine lines the person counted on the paper chart at release.",
+        unit: "lines",
+      },
+      line_statuses: {
+        description:
+          "At release: each medicine line in force or stopped on the chart, as the person decided.",
+      },
+      chart_from: { description: "The first day the chart covers." },
+      chart_to: { description: "The last day the chart covers." },
+      person_confirmed_by: {
+        description:
+          "The member who confirmed the name and date of birth on the chart are this person's (tenant_user.id).",
+      },
+      released_by: { description: "The member who released the decided values (tenant_user.id)." },
+      released_at: {
+        description: "When the decided values were released to the medicines module.",
+      },
+      discarded_by: { description: "The member who discarded it (tenant_user.id)." },
+      discarded_at: { description: "When it was discarded." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.ocr_field": {
+    context: "integrations",
+    description:
+      "Each value OCR read from a scanned MAR chart, never a fact until a person confirmed, corrected or rejected it (HZ-005).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      extraction_id: { description: "The extraction it belongs to (ocr_extraction.id)." },
+      person_id: "exported",
+      position: { description: "Its place in the order read.", unit: "position (from 0)" },
+      line_group: {
+        description: "Which medicine line on the chart it belongs to.",
+        unit: "position (from 0)",
+      },
+      label: {
+        description:
+          "What part of the line it is: medicine, strength, dose, route, directions, prescriber or text.",
+      },
+      read_text: { description: "The text as OCR read it, unconfirmed." },
+      confidence: {
+        description: "The engine's own confidence in the reading, for information only.",
+        unit: "fraction from 0 to 1",
+      },
+      state: { description: "unconfirmed, confirmed (as read), corrected or rejected." },
+      value: { description: "The value a person decided: the text as read or their correction." },
+      decided_line_group: {
+        description: "The chart line a person decided the value belongs to.",
+        unit: "position (from 0)",
+      },
+      decided_label: { description: "The part of the line a person decided the value is." },
+      truncated: {
+        description:
+          "Whether the text read was longer than a value holds and was cut (it could only be corrected or rejected).",
+      },
+      added_by_person: {
+        description: "Whether a person typed the value for something the scan missed.",
+      },
+      decided_by: { description: "The member who decided it (tenant_user.id)." },
+      decided_at: { description: "When it was decided." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
     },
   },
   "public.operator_user": {

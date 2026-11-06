@@ -868,6 +868,23 @@ Logged by slice 78 (WORK-006 LMS imports; ADR-0102) on 1 November 2026.
 | H-1257 | Build the live connection handshake to write the credential and the platform organisation it was issued for together under the source's secret, and add a contract test that the live client never uses an organisation other than the stored one | Engineering | `apps/api/src/integrations/lms/learning-platform.ts`; H-1250 | Pulls from a platform | open |
 | H-1255 | Review with the CSO that an imported completion counts towards the training matrix and the rota's training checks exactly as a Harbour record does (HZ-124), and whether certain topics should need a certificate before they count | CSO | hazard-log.md HZ-124 | Clinical safety sign-off of slice 78 | open |
 
+## Phase 2: e-signature and OCR adapters (slice 79)
+
+Logged by slice 79 (INTG-013; ADR-0095) on 1 November 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1260 | Accept or change ADR-0095 for clinical safety, with the slice 79 clinical review in view: every value, its chart line and its part decided by a person; release only when the chart is accounted for (the count on the paper, line statuses, the person, the period); imported entries held until checked whatever the organisation's rule (H-548 over H-550); whether to require retyping the medicine, strength and dose rather than confirming them; whether OCR waits for slice 51 to enforce an independent checker before any organisation uses it; whether the residual risks warrant a hazard of their own (automation bias, missed lines) rather than HZ-005; rate HZ-130 for slice 79; and confirm that a signature on the wrong document or by the wrong member is a records control, not a clinical hazard | CSO | ADR-0095; HZ-005 | Clinical safety case delta | open |
+| H-1261 | Accept or change ADR-0095 for data protection: the records of processing row, the R25 measures built, and the sub-processor entries (Document AI under Google Cloud; DocuSign pending) | DPO | ADR-0095; records-of-processing.md; sub-processors.md; dpia-template.md R25 | OCR or DocuSign for any organisation | open |
+| H-1262 | Build the Document AI adapter (processor location europe-west2, the project's CMEK, no document retention by the processor) after confirming Google's Document AI data terms for europe-west2, and run it through the OCR contract tests | Brian | ADR-0095; `apps/api/src/integrations/esign-ocr.ts` | OCR in production | open |
+| H-1263 | Choose the Document AI processor for MAR charts (form parser or a custom extractor) and test it on invented charts that look like the design partner's (no real charts) | Brian with the design partner | ADR-0095 | H-1262 | open |
+| H-1264 | Decide how long a scan may wait undecided, or released but not yet transcribed into the MAR by slice 51, before the manager is told (today nothing reminds) | CSO | integrations.md section 11 rules 7 to 9 | None (default applied) | open |
+| H-1265 | Agree the wording a member sees before signing in Harbour (the statement and that a second sign-in step is asked for) with the design partner | Brian with the design partner | `POST /v1/signature-requests/{id}/sign` | Signing screens | open |
+| H-1266 | Schedule the web and mobile screens: what I am asked to sign, asking for a signature, scanning a MAR chart with the photograph beside each value to decide | Brian | integrations.md section 11.4 | Using the ports from the apps | open |
+| H-1267 | Confirm with the medicines lead that slice 51 consumes `integrations.ocr_mar_released` and reads `/v1/ocr-extractions/{id}/medicine-lines`, and that each line becomes a MAR entry draft the transcriber completes from dm+d | Brian | integrations.md rule 8; slice 51 | Scanned MARs reaching the MAR | open |
+| H-1268 | Write the user guide sections: asking for and giving a signature, scanning a paper MAR during a migration, deciding each value, and why nothing read counts until checked | Brian | ADR-0095; HZ-005 training control | Pilot training | open |
+| H-1269 | Before any organisation turns DocuSign on (H-540): confirm DocuSign's UK or EU data residency and the transfer safeguard, and review the real client against the e-signature contract tests | Brian, DPO | ADR-0095; sub-processors.md | DocuSign signing | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
