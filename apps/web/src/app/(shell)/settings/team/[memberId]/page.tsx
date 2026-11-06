@@ -30,7 +30,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export const metadata: Metadata = { title: t("team.member.pageTitle") };
 
-const DONE = new Set(["sent", "revoked", "suspended", "ended"]);
+const DONE = new Set(["sent", "revoked", "suspended", "ended", "reinstated"]);
 
 /**
  * One member's membership (H-566): its state as an icon and a word, when it changed, their
@@ -153,15 +153,23 @@ export default async function MemberInvitationsPage({
               {t("team.lifecycle.toHandOver", { count: lifecycle.entriesToHandOver })}
             </Notice>
           ) : null}
-          {change === "suspend" || (change === "end" && lifecycle.entriesToHandOver === 0) ? (
-            <div>
-              <MembershipAction
-                kind={change}
-                memberId={memberId}
-                name={lifecycle.displayName}
-                entriesWaiting={lifecycle.entriesWaiting}
-                devicesUsed={lifecycle.devicesUsed}
-              />
+          {change ? (
+            <div className="flex flex-wrap gap-2">
+              {(change === "suspend"
+                ? (["suspend"] as const)
+                : lifecycle.entriesToHandOver === 0
+                  ? (["reinstate", "end"] as const)
+                  : (["reinstate"] as const)
+              ).map((kind) => (
+                <MembershipAction
+                  key={kind}
+                  kind={kind}
+                  memberId={memberId}
+                  name={lifecycle.displayName}
+                  entriesWaiting={lifecycle.entriesWaiting}
+                  devicesUsed={lifecycle.devicesUsed}
+                />
+              ))}
             </div>
           ) : null}
         </div>

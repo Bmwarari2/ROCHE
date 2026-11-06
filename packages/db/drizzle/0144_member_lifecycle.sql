@@ -42,8 +42,8 @@ CREATE TRIGGER tenant_user_status_guard BEFORE UPDATE ON public.tenant_user
   FOR EACH ROW EXECUTE FUNCTION app.tenant_user_status_guard();
 --> statement-breakpoint
 
--- Suspends (from active) or ends (from suspended) a membership for a holder of
--- platform.user.manage; the API has already checked that the permission reaches the member
+-- Suspends (from active), reinstates (from suspended, back to active) or ends (from suspended) a
+-- membership for a holder of platform.user.manage; the API has already checked that the permission reaches the member
 -- (ADR-0071), the step-up and the held entries. Never the caller's own membership, never the
 -- organisation's last active member who manages users (two managers suspending each other are
 -- serialised on the organisation). Ending also ends the member's roles and grants. Returns the
@@ -58,8 +58,9 @@ BEGIN
     RAISE EXCEPTION 'Changing a membership needs platform.user.manage'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
-  IF p_to NOT IN ('suspended', 'left') THEN
-    RAISE EXCEPTION 'A membership is suspended or ended here' USING ERRCODE = 'invalid_parameter_value';
+  IF p_to NOT IN ('suspended', 'active', 'left') THEN
+    RAISE EXCEPTION 'A membership is suspended, reinstated or ended here'
+      USING ERRCODE = 'invalid_parameter_value';
   END IF;
   IF p_member = app.current_user_id() THEN
     RAISE EXCEPTION 'Nobody changes their own membership' USING ERRCODE = 'HB566';
@@ -74,8 +75,8 @@ BEGIN
   IF v_from = p_to THEN
     RETURN v_from;
   END IF;
-  IF (p_to = 'suspended' AND v_from <> 'active') OR (p_to = 'left' AND v_from <> 'suspended') THEN
-    RAISE EXCEPTION 'A membership is suspended from active and ended from suspended'
+  IF (p_to = 'suspended' AND v_from <> 'active') OR (p_to IN ('active', 'left') AND v_from <> 'suspended') THEN
+    RAISE EXCEPTION 'A membership is suspended from active, and reinstated or ended from suspended'
       USING ERRCODE = 'object_not_in_prerequisite_state';
   END IF;
   IF p_to = 'suspended' AND EXISTS (

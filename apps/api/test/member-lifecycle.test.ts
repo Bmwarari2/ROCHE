@@ -52,6 +52,22 @@ async function inTenant<R extends Record<string, unknown>>(
 const asDemo = <R extends Record<string, unknown>>(text: string, values: unknown[] = []) =>
   inTenant<R>(DEMO.tenantId, text, values);
 
+/** Writes an audit event as the application role, as the report and hold routes do. */
+async function appAudit(values: unknown[], text: string) {
+  const app = await h.db.pool("harbour_app").connect();
+  try {
+    await app.query("BEGIN");
+    await app.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await app.query(text, values);
+    await app.query("COMMIT");
+  } finally {
+    app.release();
+  }
+}
+
 const auth = () => h.db.pool("harbour_auth");
 
 /** A fresh sign-in from the web app (two-factor switched off for the moment it takes). */
@@ -398,24 +414,12 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
        VALUES ($1, $2, now(), $3, 'lost_or_stolen')`,
       [lost, nurse, DEMO.users.owner.id],
     );
-    // The device's last report, as the report route writes it (the application role writes audit).
-    const app = await h.db.pool("harbour_app").connect();
-    try {
-      await app.query("BEGIN");
-      await app.query(
-        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
-        [DEMO.tenantId],
-      );
-      await app.query(
-        `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, actor_tenant_user_id, scope)
-         VALUES ($1, 'sync.device.report', 'device', $2, $3::uuid,
-                 jsonb_build_object('waiting', 2, 'ownerTenantUserId', $3::text))`,
-        [DEMO.tenantId, lost, nurse],
-      );
-      await app.query("COMMIT");
-    } finally {
-      app.release();
-    }
+    await appAudit(
+      [DEMO.tenantId, lost, nurse],
+      `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, actor_tenant_user_id, scope)
+       VALUES ($1, 'sync.device.report', 'device', $2, $3::uuid,
+               jsonb_build_object('waiting', 2, 'ownerTenantUserId', $3::text))`,
+    );
     const [hold] = await asDemo<{ id: string }>(
       `INSERT INTO task (kind, title, required_permission, due_at, source_type, source_id)
        VALUES ('sync.device_hold', 'Unsent entries on a device', 'care.held_entry.hand_over', now(),
@@ -431,6 +435,65 @@ describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
       hold?.id,
     ]);
     expect(still?.status).not.toBe("done");
+  });
+
+  it("reinstates a membership suspended by mistake, with a fresh sign-in, audited (H-1392)", async () => {
+    const owner = await signIn(DEMO.users.owner.email);
+    const reinstate = (member: string) =>
+      post(owner, `/v1/members/${member}/reinstate`, { reasonCode: "suspended_in_error" });
+    const manager = DEMO.users.manager.id;
+    expect((await suspend(owner, manager)).status).toBe(200);
+    const back = await reinstate(manager);
+    expect(back.status, await back.clone().text()).toBe(200);
+    expect(await json(back)).toEqual({ state: "active", replay: false });
+    expect(await json(await reinstate(manager))).toEqual({ state: "active", replay: true });
+    expect(await audits("platform.member.reinstated", manager)).toMatchObject([
+      { reason: "suspended_in_error" },
+      { scope: { replay: true } },
+    ]);
+    // The manager reaches the organisation again once signed in afresh.
+    const again = await signIn(DEMO.users.manager.email);
+    expect((await h.request("/v1/me", { token: again, tenant: DEMO.tenantId })).status).toBe(200);
+    // An ended membership is never reinstated; nor another organisation's.
+    const ended = await reinstate(DEMO.users.carer.id);
+    expect(ended.status).toBe(409);
+    expect((await json<{ code: string }>(ended)).code).toBe("membership_state");
+    expect((await reinstate(OTHER.managerId)).status).toBe(404);
+  });
+
+  it("holds ending while the member's entries sit in a capped-holds task (clinical review M4)", async () => {
+    const member = "0194d000-0000-7000-8000-0000000e0569";
+    const device = "0199d000-0000-4000-8000-0000000e0569";
+    await asDemo(
+      `INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, 'Cal Example', 'cal@example.invalid', 'active')`,
+      [member],
+    );
+    await asDemo("INSERT INTO device_binding (device_id, tenant_user_id) VALUES ($1, $2)", [
+      device,
+      member,
+    ]);
+    const [capped] = await asDemo<{ id: string }>(
+      `INSERT INTO task (kind, title, required_permission, due_at, source_type, source_id)
+       VALUES ('sync.device_hold', 'Unsent entries on several devices', 'care.held_entry.hand_over',
+               now(), 'device_hold_capped', $1) RETURNING id`,
+      [DEMO.users.owner.id],
+    );
+    await appAudit(
+      [DEMO.tenantId, device, member],
+      `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, actor_tenant_user_id, scope)
+       VALUES ($1, 'sync.device.report', 'device', $2, $3::uuid,
+               jsonb_build_object('waiting', 2, 'ownerTenantUserId', $3::text))`,
+    );
+    await appAudit(
+      [DEMO.tenantId, device, capped?.id],
+      `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, scope)
+       VALUES ($1, 'sync.device_hold.capped', 'device', $2, jsonb_build_object('mergedInto', jsonb_build_array($3::text)))`,
+    );
+    const owner = await signIn(DEMO.users.owner.email);
+    expect((await suspend(owner, member, { confirmEntriesWaiting: true })).status).toBe(200);
+    const early = await end(owner, member, "device_returned_checked");
+    expect(early.status).toBe(409);
+    expect((await json<{ code: string }>(early)).code).toBe("entries_to_hand_over");
   });
 
   it("shows a member's status to a manager it reaches, with no address", async () => {

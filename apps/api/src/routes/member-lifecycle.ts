@@ -2,7 +2,9 @@ import {
   EndMember,
   MemberEnded,
   MemberLifecycle,
+  MemberReinstated,
   MemberSuspended,
+  ReinstateMember,
   SuspendMember,
 } from "@harbour/contracts";
 import {
@@ -63,6 +65,7 @@ import { dbCode, requireStepUp } from "./people-shared";
 const PERMISSION = "platform.user.manage";
 export const MEMBER_SUSPENDED_ACTION = "platform.member.suspended";
 export const MEMBER_ENDED_ACTION = "platform.member.ended";
+export const MEMBER_REINSTATED_ACTION = "platform.member.reinstated";
 export const MEMBER_LIFECYCLE_VIEWED_ACTION = "platform.member.lifecycle_viewed";
 
 const REFUSALS = {
@@ -85,7 +88,7 @@ const REFUSALS = {
       409,
       "membership_state",
       "This membership cannot change that way.",
-      "Suspend an active membership first. Only a suspended membership can be ended.",
+      "Suspend an active membership first. Only a suspended membership can be reinstated or ended.",
     ),
   devices_unchecked: (n: number) =>
     new HttpProblem(
@@ -139,7 +142,7 @@ async function changeStatus(
   access: TenantAccess,
   db: Parameters<typeof withRequestContext>[0],
   memberId: string,
-  to: "suspended" | "left",
+  to: "suspended" | "active" | "left",
   then: (tx: Transaction, from: string) => Promise<void>,
 ): Promise<string> {
   try {
@@ -408,6 +411,61 @@ export const memberLifecycleRouter = createRouter()
         },
         200,
       );
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/members/{tenantUserId}/reinstate",
+      tags: ["platform"],
+      summary: "Reinstate a suspended membership",
+      description:
+        "Undoes a suspension before the membership is ended (H-1392; platform.user.manage, step-up, a coded reason; audited): the membership is active again with the roles and grants it had. Sessions ended at the suspension stay ended, so the member signs in again; held entries stay held until handed over or sent. Only a suspended membership (409 membership_state), never your own (409 own_membership). An active one changes nothing (replay).",
+      security,
+      request: {
+        params: z.object({ tenantUserId: z.uuid() }),
+        body: { content: { "application/json": { schema: ReinstateMember } } },
+      },
+      responses: {
+        200: jsonBody(MemberReinstated, "Reinstated"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, PERMISSION);
+      await requireStepUp(c, access, MEMBER_REINSTATED_ACTION);
+      const { tenantUserId } = c.req.valid("param");
+      const { reasonCode } = c.req.valid("json");
+      const services = c.get("services");
+      const requestId = c.get("requestId");
+      const now = new Date();
+      const refuse = refusalFor(services.appPool, access, MEMBER_REINSTATED_ACTION, tenantUserId, {
+        reasonCode,
+        requestId,
+      });
+      const target = await inSystemView(services.db, access, (tx) =>
+        targetOf(tx, access, tenantUserId, now),
+      );
+      if (!target) throw await refuse("not_found_or_out_of_scope", problems.notFound());
+      let from: string;
+      try {
+        from = await changeStatus(access, services.db, tenantUserId, "active", (tx, was) =>
+          auditInTx(tx, access, {
+            action: MEMBER_REINSTATED_ACTION,
+            resourceType: "tenant_user",
+            resourceId: tenantUserId,
+            reason: reasonCode,
+            scope: { reasonCode, replay: was === "active" },
+            requestId,
+          }),
+        );
+      } catch (error) {
+        if (error instanceof HttpProblem) throw await refuse(error.code, error);
+        throw error;
+      }
+      return c.json({ state: "active" as const, replay: from === "active" }, 200);
     },
   )
   .openapi(

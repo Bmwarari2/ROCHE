@@ -94,6 +94,29 @@ export const MEMBER_END_REASONS = [
 ] as const;
 export type MemberEndReason = (typeof MEMBER_END_REASONS)[number];
 
+/** Why a suspension is undone (H-1392): a code, never words. */
+export const MEMBER_REINSTATE_REASONS = [
+  "suspended_in_error",
+  "investigation_cleared",
+  "returned_from_absence",
+  "other",
+] as const;
+export type MemberReinstateReason = (typeof MEMBER_REINSTATE_REASONS)[number];
+
+export const ReinstateMember = z
+  .object({ reasonCode: z.enum(MEMBER_REINSTATE_REASONS) })
+  .meta({ id: "ReinstateMember" });
+export type ReinstateMember = z.infer<typeof ReinstateMember>;
+
+export const MemberReinstated = z
+  .object({
+    state: z.enum(["active"]),
+    /** True when the membership was already active: nothing changed. */
+    replay: z.boolean(),
+  })
+  .meta({ id: "MemberReinstated" });
+export type MemberReinstated = z.infer<typeof MemberReinstated>;
+
 export const SuspendMember = z
   .object({
     reasonCode: z.enum(MEMBER_SUSPEND_REASONS),

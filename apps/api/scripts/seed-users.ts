@@ -89,7 +89,20 @@ const LEAVER = {
   jobTitle: "Care worker",
 } as const;
 
-/** The leaver's active membership and care worker role at Harbour House; rerunnable. */
+/**
+ * A second member for that journey whose phone last reported two care entries waiting (H-566):
+ * suspending asks the manager to confirm them, and ending asks how the device was checked. No
+ * sign-in; the device id and report are invented.
+ */
+const REPORTER = {
+  id: "0194d000-0000-7000-8000-000000000308",
+  email: "robin.reporter@example.invalid",
+  name: "Robin Reporter",
+  jobTitle: "Senior care worker",
+  deviceId: "0199d000-0000-4000-8000-0000000e0308",
+} as const;
+
+/** The leaver's and the reporter's memberships and care worker roles at Harbour House; rerunnable. */
 async function seedLeaver(): Promise<void> {
   const client = await owner.connect();
   try {
@@ -109,12 +122,51 @@ async function seedLeaver(): Promise<void> {
          AND NOT EXISTS (SELECT 1 FROM role_assignment WHERE tenant_user_id = $1)`,
       [LEAVER.id, DEMO.locationId],
     );
+    await client.query(
+      `INSERT INTO tenant_user (id, display_name, email, job_title, status)
+       VALUES ($1, $2, $3, $4, 'active') ON CONFLICT (id) DO NOTHING`,
+      [REPORTER.id, REPORTER.name, REPORTER.email, REPORTER.jobTitle],
+    );
+    await client.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+       SELECT $1, id, $2, 'Demo seed' FROM role WHERE key = 'care_worker'
+         AND NOT EXISTS (SELECT 1 FROM role_assignment WHERE tenant_user_id = $1)`,
+      [REPORTER.id, DEMO.locationId],
+    );
+    await client.query(
+      `INSERT INTO device_binding (device_id, tenant_user_id)
+       SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM device_binding WHERE device_id = $1)`,
+      [REPORTER.deviceId, REPORTER.id],
+    );
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();
+  }
+  // The device's report, written by the application role as the report route does.
+  const app = await services.appPool.connect();
+  try {
+    await app.query("BEGIN");
+    await app.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await app.query(
+      `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, actor_tenant_user_id, scope)
+       SELECT $1, 'sync.device.report', 'device', $2, $3::uuid,
+              jsonb_build_object('waiting', 2, 'ownerTenantUserId', $3::text)
+        WHERE NOT EXISTS (SELECT 1 FROM audit_event WHERE action = 'sync.device.report'
+                            AND resource_id = $2)`,
+      [DEMO.tenantId, REPORTER.deviceId, REPORTER.id],
+    );
+    await app.query("COMMIT");
+  } catch (error) {
+    await app.query("ROLLBACK");
+    throw error;
+  } finally {
+    app.release();
   }
 }
 

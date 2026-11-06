@@ -101,6 +101,17 @@ describe("suspending and ending a membership (migration 0144)", () => {
     );
   });
 
+  it("reinstates only a suspended membership, keeping its roles", async () => {
+    await expect(change(TENANT_A, a.manager, a.carer, "active")).resolves.toBe("active");
+    expect(await change(TENANT_A, a.manager, a.carer, "suspended")).toBe("active");
+    expect(await change(TENANT_A, a.manager, a.carer, "active")).toBe("suspended");
+    expect((await statusOf(TENANT_A, a.carer))?.status).toBe("active");
+    const roles = await owner(TENANT_A, (c) =>
+      c.query("SELECT 1 FROM person_assignment WHERE tenant_user_id = $1", [a.carer]),
+    );
+    expect(roles.rowCount).toBeGreaterThan(0);
+  });
+
   it("suspends, replays without change, then ends and ends the roles", async () => {
     expect(await change(TENANT_A, a.manager, SOLO, "suspended")).toBe("active");
     const first = await statusOf(TENANT_A, SOLO);
@@ -116,6 +127,12 @@ describe("suspending and ending a membership (migration 0144)", () => {
       ),
     );
     expect(roles.rowCount).toBe(0);
+  });
+
+  it("never reinstates an ended membership", async () => {
+    await expect(change(TENANT_A, a.manager, SOLO, "active")).rejects.toThrow(
+      /reinstated or ended/,
+    );
   });
 
   it("keeps an ended membership ended, whoever writes, and lets the application write no state", async () => {

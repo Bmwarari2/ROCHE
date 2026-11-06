@@ -49,9 +49,16 @@ lifecycle).
 - Accessibility: a late entries-waiting refusal shows the confirmation; destructive end button;
   plainer errors, hint, titles and a keyboard step in the journey.
 
+## Last round
+
+- Reinstating a suspended membership (H-1392's recommended answer): `POST /v1/members/{id}/reinstate`
+  with step-up and a coded reason, audited, and the web sheet.
+- Tests: a capped-holds task blocks the end; reinstatement; e2e for the entries-waiting checkbox
+  and the device-check select (seeded Robin Reporter), axe in both themes.
+
 ## Left
 
-- Reinstating a suspended membership (H-1392); a suspended phone's device report (H-1394); a
+- A suspended phone's device report (H-1394); a
   lost-device hold closure (H-1395); reach checked in the database; the residuals in H-1393; an
-  incident id with `device_lost_incident_raised`, a test for a capped hold blocking the end, and
-  the end checks inside the status change's transaction (clinical re-review).
+  incident id with `device_lost_incident_raised` and the end checks inside the status change's
+  transaction (clinical re-review).

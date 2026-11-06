@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Checkbox, SelectField, Sheet, SheetClose } from "@harbour/ui";
-import { CircleOff, Pause } from "lucide-react";
+import { CircleOff, Pause, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 import { changeMembership } from "@/app/actions/team";
@@ -11,6 +11,7 @@ import type { ActionResult } from "@/lib/outcome";
 import { deviceChecks, membershipReasons } from "@/lib/team";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
+const DONE = { suspend: "suspended", reinstate: "reinstated", end: "ended" } as const;
 
 /**
  * Suspend or end a membership (H-566), in a sheet that says what will happen: a coded reason, and
@@ -24,7 +25,7 @@ export function MembershipAction({
   entriesWaiting,
   devicesUsed,
 }: {
-  readonly kind: "suspend" | "end";
+  readonly kind: "suspend" | "reinstate" | "end";
   readonly memberId: string;
   readonly name: string;
   readonly entriesWaiting: number;
@@ -68,7 +69,9 @@ export function MembershipAction({
         memberId,
         kind === "suspend"
           ? { kind, reasonCode, confirmEntriesWaiting: confirmed }
-          : { kind, reasonCode, ...(askCheck ? { deviceCheck } : {}) },
+          : kind === "reinstate"
+            ? { kind, reasonCode }
+            : { kind, reasonCode, ...(askCheck ? { deviceCheck } : {}) },
       );
       setResult(outcome);
       // The refusal's alert takes focus and says what to do; the field it names appears below it.
@@ -76,18 +79,15 @@ export function MembershipAction({
       if (!outcome.ok && outcome.code === "devices_unchecked") setLateDevices(true);
       if (outcome.ok) {
         setOpen(false);
-        router.replace(
-          `${path}?done=${kind === "suspend" ? "suspended" : "ended"}&at=${Date.now()}`,
-          {
-            scroll: false,
-          },
-        );
+        router.replace(`${path}?done=${DONE[kind]}&at=${Date.now()}`, {
+          scroll: false,
+        });
         router.refresh();
       }
     });
   };
 
-  const label = kind === "suspend" ? t("team.suspend.open") : t("team.end.open");
+  const label = t(`team.${kind}.open`);
   return (
     <Sheet
       open={open}
@@ -103,13 +103,21 @@ export function MembershipAction({
       trigger={
         <Button
           variant="secondary"
-          icon={kind === "suspend" ? <Pause {...icon} /> : <CircleOff {...icon} />}
+          icon={
+            kind === "suspend" ? (
+              <Pause {...icon} />
+            ) : kind === "reinstate" ? (
+              <Undo2 {...icon} />
+            ) : (
+              <CircleOff {...icon} />
+            )
+          }
         >
           {label}
         </Button>
       }
-      title={kind === "suspend" ? t("team.suspend.title", { name }) : t("team.end.title", { name })}
-      description={kind === "suspend" ? t("team.suspend.body", { name, app }) : t("team.end.body")}
+      title={t(`team.${kind}.title`, { name })}
+      description={t(`team.${kind}.body`, { name, app })}
       closeLabel={t("common.close")}
     >
       <form
@@ -157,7 +165,7 @@ export function MembershipAction({
         <div className="flex flex-wrap justify-end gap-2">
           <SheetClose asChild>
             <Button type="button" variant="secondary">
-              {t("team.lifecycle.keep")}
+              {t("team.lifecycle.keep", { kind })}
             </Button>
           </SheetClose>
           <Button
@@ -165,11 +173,7 @@ export function MembershipAction({
             variant={kind === "end" ? "destructive" : "primary"}
             disabled={pending}
           >
-            {pending
-              ? t("team.lifecycle.pending", { kind })
-              : kind === "suspend"
-                ? t("team.suspend.confirm")
-                : t("team.end.confirm")}
+            {pending ? t("team.lifecycle.pending", { kind }) : t(`team.${kind}.confirm`)}
           </Button>
         </div>
       </form>

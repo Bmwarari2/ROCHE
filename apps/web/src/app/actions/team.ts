@@ -1,6 +1,6 @@
 "use server";
 
-import type { EndMember, SuspendMember } from "@harbour/contracts";
+import type { EndMember, ReinstateMember, SuspendMember } from "@harbour/contracts";
 import type { ApiClient } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
@@ -81,10 +81,11 @@ type MembershipChange =
       readonly reasonCode: string;
       readonly confirmEntriesWaiting: boolean;
     }
+  | { readonly kind: "reinstate"; readonly reasonCode: string }
   | { readonly kind: "end"; readonly reasonCode: string; readonly deviceCheck?: string };
 
 /**
- * Suspends or ends a membership (H-566). The API checks `platform.user.manage`, step-up, its
+ * Suspends, reinstates or ends a membership (H-566, H-1392). The API checks `platform.user.manage`, step-up, its
  * reach, the reason code and the held care entries again.
  */
 export async function changeMembership(
@@ -95,23 +96,28 @@ export async function changeMembership(
   return withApi<null>(async (api) => {
     const params = { path: { tenantUserId: memberId } };
     const { error, response } =
-      change.kind === "suspend"
-        ? await api.POST("/v1/members/{tenantUserId}/suspend", {
+      change.kind === "reinstate"
+        ? await api.POST("/v1/members/{tenantUserId}/reinstate", {
             params,
-            body: {
-              reasonCode: change.reasonCode as SuspendMember["reasonCode"],
-              confirmEntriesWaiting: change.confirmEntriesWaiting,
-            },
+            body: { reasonCode: change.reasonCode as ReinstateMember["reasonCode"] },
           })
-        : await api.POST("/v1/members/{tenantUserId}/end", {
-            params,
-            body: {
-              reasonCode: change.reasonCode as EndMember["reasonCode"],
-              ...(change.deviceCheck
-                ? { deviceCheck: change.deviceCheck as NonNullable<EndMember["deviceCheck"]> }
-                : {}),
-            },
-          });
+        : change.kind === "suspend"
+          ? await api.POST("/v1/members/{tenantUserId}/suspend", {
+              params,
+              body: {
+                reasonCode: change.reasonCode as SuspendMember["reasonCode"],
+                confirmEntriesWaiting: change.confirmEntriesWaiting,
+              },
+            })
+          : await api.POST("/v1/members/{tenantUserId}/end", {
+              params,
+              body: {
+                reasonCode: change.reasonCode as EndMember["reasonCode"],
+                ...(change.deviceCheck
+                  ? { deviceCheck: change.deviceCheck as NonNullable<EndMember["deviceCheck"]> }
+                  : {}),
+              },
+            });
     if (!response.ok) return teamProblem(error);
     revalidatePath("/settings/team", "layout");
     return { ok: true, data: null };

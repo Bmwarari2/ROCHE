@@ -1530,6 +1530,41 @@
           "reasonCode"
         ]
       },
+      "MemberReinstated": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "active"
+            ]
+          },
+          "replay": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "state",
+          "replay"
+        ]
+      },
+      "ReinstateMember": {
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "suspended_in_error",
+              "investigation_cleared",
+              "returned_from_absence",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "reasonCode"
+        ]
+      },
       "MemberEnded": {
         "type": "object",
         "properties": {
@@ -44578,6 +44613,105 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemberSuspended"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/reinstate": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Reinstate a suspended membership",
+        "description": "Undoes a suspension before the membership is ended (H-1392; platform.user.manage, step-up, a coded reason; audited): the membership is active again with the roles and grants it had. Sessions ended at the suspension stay ended, so the member signs in again; held entries stay held until handed over or sent. Only a suspended membership (409 membership_state), never your own (409 own_membership). An active one changes nothing (replay).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReinstateMember"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reinstated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberReinstated"
                 }
               }
             }

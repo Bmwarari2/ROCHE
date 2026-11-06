@@ -1504,6 +1504,96 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/members/{tenantUserId}/reinstate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reinstate a suspended membership
+     * @description Undoes a suspension before the membership is ended (H-1392; platform.user.manage, step-up, a coded reason; audited): the membership is active again with the roles and grants it had. Sessions ended at the suspension stay ended, so the member signs in again; held entries stay held until handed over or sent. Only a suspended membership (409 membership_state), never your own (409 own_membership). An active one changes nothing (replay).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReinstateMember"];
+        };
+      };
+      responses: {
+        /** @description Reinstated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberReinstated"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/members/{tenantUserId}/end": {
     parameters: {
       query?: never;
@@ -42717,6 +42807,19 @@ export interface components {
         | "long_absence"
         | "other";
       confirmEntriesWaiting?: boolean;
+    };
+    MemberReinstated: {
+      /** @enum {string} */
+      state: "active";
+      replay: boolean;
+    };
+    ReinstateMember: {
+      /** @enum {string} */
+      reasonCode:
+        | "suspended_in_error"
+        | "investigation_cleared"
+        | "returned_from_absence"
+        | "other";
     };
     MemberEnded: {
       state: components["schemas"]["MembershipState"];

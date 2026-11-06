@@ -4,6 +4,7 @@ import {
   type InvitationSummary,
   MEMBER_DEVICE_CHECKS,
   MEMBER_END_REASONS,
+  MEMBER_REINSTATE_REASONS,
   MEMBER_SUSPEND_REASONS,
   type MemberLifecycle,
   type MemberSummary,
@@ -68,7 +69,8 @@ export function membershipChip(state: MembershipState, t: Translator): TeamChip 
 }
 
 /**
- * Which change to offer (H-566): suspend an active membership, end a suspended one, nothing else.
+ * Which change to offer (H-566): suspend an active membership; reinstate or end a suspended one
+ * (`end` stands for both, H-1392); nothing else.
  * The manager never changes their own; the API refuses that too.
  */
 export function membershipChange(
@@ -83,9 +85,15 @@ export function membershipChange(
 
 /** The coded reasons for a change, with their words. */
 export function membershipReasons(
-  kind: "suspend" | "end",
+  kind: "suspend" | "reinstate" | "end",
   t: Translator,
 ): { readonly value: string; readonly label: string }[] {
+  if (kind === "reinstate") {
+    return MEMBER_REINSTATE_REASONS.map((reason) => ({
+      value: reason,
+      label: t("team.reinstate.reasonOption", { reason }),
+    }));
+  }
   return kind === "suspend"
     ? MEMBER_SUSPEND_REASONS.map((reason) => ({
         value: reason,

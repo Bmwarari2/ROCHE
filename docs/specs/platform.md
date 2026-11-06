@@ -303,6 +303,11 @@ built on `feat/platform-member-lifecycle` (migration 0144).
   each hold falls due at once for a manager to hand over (`hurryRevokedHold`, HZ-110). Shared devices
   are not revoked: other staff go on using them, except one holding the member's unsent entries,
   which stays closed to others until those are handed over or deleted.
+- **Reinstate** (`POST /v1/members/{tenantUserId}/reinstate`, the same permission, step-up, a coded
+  reason: `suspended_in_error`, `investigation_cleared`, `returned_from_absence`, `other`; H-1392):
+  suspended back to active, before the membership is ended, with the roles and grants it had; the
+  sessions ended at the suspension stay ended, so the member signs in again. Audited as
+  `platform.member.reinstated`. A nurse suspended by mistake is not left locked out.
 - **End** (`POST /v1/members/{tenantUserId}/end`, the same permission, step-up, a coded reason:
   `left_employment`, `account_deletion_requested`, `contract_ended`, `dismissed`, `other`):
   suspended to ended (`left`). Refused while entries the member owns are still held on a device whose
@@ -335,8 +340,8 @@ built on `feat/platform-member-lifecycle` (migration 0144).
   deletion was asked for and is still open, the sign-in's state (`kept`, `kept_other_organisation`,
   `erased`, `none`), entries waiting and entries to hand over. No address or sign-in detail.
 - **Rules in the database** (`app.change_member_status`, security definer, called as the manager):
-  `platform.user.manage` again; never the caller's own membership; suspend only from active, end only
-  from suspended, the same state again a replay that changes nothing; never the organisation's last
+  `platform.user.manage` again; never the caller's own membership; suspend only from active,
+  reinstate or end only from suspended, the same state again a replay that changes nothing; never the organisation's last
   active member who manages users. A trigger keeps an ended membership ended and an erased row
   without a sign-in, whoever writes; the application role has no UPDATE on `status`, `auth_user_id`
   or the three lifecycle times. Two managers suspending each other are serialised on the
@@ -344,13 +349,13 @@ built on `feat/platform-member-lifecycle` (migration 0144).
 - **Reach**: both routes and the status reach only members the manager's permission reaches
   (ADR-0071, `memberReached`); anyone else, another organisation's member included, reads as not
   found, audited by opaque id.
-- **Audit**: `platform.member.suspended`, `platform.member.ended` (each refusal as `denied` with its
+- **Audit**: `platform.member.suspended`, `platform.member.reinstated`, `platform.member.ended` (each refusal as `denied` with its
   reason), `platform.member.sign_in_erased` (per membership, and once for the sign-in),
   `platform.account_deletion.completed`, `platform.member.lifecycle_viewed` (refusals).
 - **Web**: the member page in Settings, Team shows the state (icon and word), the sign-in, any
   deletion request and held entries, with "Suspend membership" and "End membership" sheets taking a
-  coded reason.
-- **Not built or residual**: reinstating a suspended membership (H-1392); a route for a suspended
+  coded reason, and "Reinstate membership" beside "End membership" while suspended.
+- **Not built or residual**: a route for a suspended
   phone to send its device report (H-1394); a documented closure of a lost device's hold (H-1395);
   the database checks the permission but not its reach (the API does, ADR-0071); a request withdrawn
   without erasure leaves `sign_in_erasure_requested_at` set (H-1393); an invitation accepted while

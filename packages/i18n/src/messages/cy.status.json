@@ -4330,6 +4330,11 @@
     "team.end.deviceCheckHint",
     "team.end.deviceCheckEmpty",
     "team.end.deviceCheckRequired",
-    "team.end.deviceCheckOption"
+    "team.end.deviceCheckOption",
+    "team.reinstate.open",
+    "team.reinstate.title",
+    "team.reinstate.body",
+    "team.reinstate.reasonOption",
+    "team.reinstate.confirm"
   ]
 }
