@@ -39,7 +39,7 @@ in one integration batch: the Drizzle migrator skips a migration whose journal t
 the newest one applied. Never edit a migration that is on `main`.
 
 - **Batch 3a** (merge first): built on `integration/phase-2-batch-3a` (06/11/2026) with every
-  branch below except 0118, which joins last; see
+  branch below, 0118 last, and main at 5dec5f37; see
   [the batch's log entry](../changelog-dev/2026-11-06-integration-phase-2-batch-3a.md).
   - 0104 `feat/sched-bank-agency`
   - 0107 `feat/sched-absence-leave`
@@ -53,8 +53,7 @@ the newest one applied. Never edit a migration that is on `main`.
   - 0115 `feat/sched-wellbeing`
   - 0116 `feat/sched-pay-runs`
   - 0117 `feat/platform-crypto-shred`
-  - 0118 `fix/recommended-answers-care`. Not ready: the clinical re-review fixes are part done
-    (commit 8ff73957 lists what is left).
+  - 0118 `fix/recommended-answers-care` (ready at 2c981215, merged last)
   - Branches with no migration:
     - `feat/web-rota`
     - `feat/web-pay-time`
