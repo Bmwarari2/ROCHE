@@ -83,6 +83,13 @@ export const FLAGS = {
     defaultEnabled: true,
     licensed: false,
   },
+  // Lone-worker location (SCHED-012, H-527): evidence only, captured with a check-in, help or
+  // duress event and never as a track; off until the employee-monitoring DPIA allows it.
+  "scheduling.lone_worker.location": {
+    description: "Attach the device's location to lone-worker check-ins and alarms (evidence only)",
+    defaultEnabled: false,
+    licensed: false,
+  },
   // Validated tools whose terms of use in software are not yet confirmed (human action H-25,
   // care.md section 10): off for real tenants, switched on for the demo tenant by the seed.
   "care.tool.waterlow": {

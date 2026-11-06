@@ -43,6 +43,7 @@ import {
   runEscalations,
   sweepEvidenceBundlesJob,
   sweepLeaverAccess,
+  sweepLoneWorkersJob,
 } from "./tasks";
 
 /**
@@ -109,6 +110,7 @@ const QUEUES = {
   statementOverdue: "statement-of-purpose-overdue",
   importExpiry: "import-expiry",
   dmdRelease: "dmd-release-load",
+  loneWorkers: "lone-worker-sweep",
 } as const;
 
 // The dm+d load (ADR-0080) is long and rare: its own queue holds one job, queued or running, and
@@ -251,9 +253,15 @@ await boss.work(QUEUES.dmdRelease, DMD_WORK_OPTIONS, () =>
   ),
 );
 
+// Lone-worker safety (HZ-125): every minute, as check-ins and alarms are measured in minutes.
+await work(QUEUES.loneWorkers, async () => {
+  await sweepLoneWorkersJob(deps);
+});
+
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
 await boss.schedule(QUEUES.escalations, "* * * * *");
+await boss.schedule(QUEUES.loneWorkers, "* * * * *");
 await boss.schedule(QUEUES.assignments, "*/5 * * * *");
 await boss.schedule(QUEUES.deliveries, "* * * * *");
 await boss.schedule(QUEUES.taskSeries, "*/15 * * * *");

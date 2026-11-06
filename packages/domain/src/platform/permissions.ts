@@ -301,6 +301,19 @@ export const PERMISSIONS = {
   "scheduling.dependency.manage": {
     description: "Write, approve and archive the organisation's dependency scale",
   },
+  "scheduling.lone_worker.check_in": {
+    description: "Start a lone-working session and check in, ask for help or raise duress",
+  },
+  // MFA (security review M3): monitors see where staff are and notes that may describe an injury.
+  // Checking in stays without MFA on purpose: a call for help is never refused for a factor.
+  "scheduling.lone_worker.monitor": {
+    description: "See lone workers' sessions and acknowledge their alarms where in scope",
+    sensitive: true,
+  },
+  "scheduling.lone_worker.manage": {
+    description: "Name the on-call route for lone-worker alarms",
+    sensitive: true,
+  },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
   "operations.catering.manage": {

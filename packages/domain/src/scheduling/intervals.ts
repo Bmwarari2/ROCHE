@@ -15,7 +15,7 @@ export interface Span {
 }
 
 // why: calendar units, not statutory figures (the figures come from the rate table).
-const MS_PER_MINUTE = 60 * 1000;
+export const MS_PER_MINUTE = 60 * 1000;
 export const MINUTES_PER_HOUR = 60;
 export const HOURS_PER_DAY = 24;
 export const DAYS_PER_WEEK = 7;
