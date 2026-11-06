@@ -199,7 +199,7 @@ describe("hazard HZ-005 importing medicines (rule 28)", () => {
   });
 });
 
-describe("H-548 an imported medicine stays held through a change, and its import's checks", () => {
+describe("hazard HZ-003 H-548 an imported medicine stays held through a change, with a task to check it", () => {
   it("raises a task to check each person's imported medicines, keeps a changed entry held, and refuses the undo", async () => {
     const nhs = nextNhs();
     const personId = await newPerson(nhs);

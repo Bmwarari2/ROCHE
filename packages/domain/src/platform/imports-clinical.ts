@@ -448,7 +448,7 @@ export function clinicalOutcomeWords(
     case "medicines":
       words.push(
         `Adding the file adds ${plural(report.createsCount, "medicine", "medicines")} to people's MAR as "Imported, not yet checked", with dm+d's own names.`,
-        "None is given or on a round until a second person competent in medicines checks it against its source document. Plan who checks them before the first round.",
+        "None is given until a second person competent in medicines checks it against its source document. Each person gets an urgent task to have their medicines checked before their next round: plan who checks them.",
         "It can be undone within the undo window while none of them has been checked.",
       );
       break;

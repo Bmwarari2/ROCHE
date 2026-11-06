@@ -87,6 +87,20 @@ END
 $$;
 --> statement-breakpoint
 
+-- A care plan section's creation time is the server's, so an undo's "added since the commit"
+-- check can be trusted whatever a client sends (security re-review of slice 51, low).
+CREATE OR REPLACE FUNCTION app.care_plan_section_created_now() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog AS $$
+BEGIN
+  NEW.created_at := now();
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER care_plan_section_created_now BEFORE INSERT ON public.care_plan_section
+  FOR EACH ROW EXECUTE FUNCTION app.care_plan_section_created_now();
+--> statement-breakpoint
+
 -- Staff file checks are never deleted, except by an import's undo (rule 30): the undo function
 -- runs as harbour_import_owner, the one role the trigger lets through.
 DROP TRIGGER no_delete ON public.compliance_item;
