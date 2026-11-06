@@ -872,8 +872,12 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   // A dose found given twice in conflict review raises a medication incident (HZ-004; slice 48).
   const raiseDoubleDose: OutboxHandler = async (event) => {
     const p = event.payload as Record<string, unknown> | null;
-    const fields = ["conflictId", "personId", "locationId", "resolvedBy", "dueAt"] as const;
-    if (!p || fields.some((f) => typeof p[f] !== "string")) return;
+    const fields = ["conflictId", "personId", "locationId", "resolvedBy", "occurredAt"] as const;
+    // A malformed event fails, so it is retried and then dead-lettered, never marked done with no
+    // incident raised (re-review L2).
+    if (!p || fields.some((f) => typeof p[f] !== "string")) {
+      throw new Error("medicines.administration.double_dose: malformed payload");
+    }
     await inTenant(event.tenantId, (tx) =>
       raiseDoubleDoseIncident(
         tx,

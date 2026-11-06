@@ -55898,21 +55898,8 @@ export interface components {
       /** Format: date-time */
       dueAt: string;
       standing: components["schemas"]["Administration"];
-      uploaded: {
-        /** Format: uuid */
-        id: string;
-        outcome: components["schemas"]["AdministrationOutcome"];
-        amount: {
-          quantity: number;
-          unitCode: string;
-        } | null;
-        reason: {
-          code: string;
-          note: string | null;
-        } | null;
-        /** Format: date-time */
-        givenAt: string | null;
-      };
+      uploaded: components["schemas"]["UploadedAdministration"];
+      joined: components["schemas"]["UploadedAdministration"][];
       problems: string[];
       /** Format: date-time */
       deviceAt: string | null;
@@ -55931,6 +55918,33 @@ export interface components {
         /** Format: date-time */
         at: string;
       } | null;
+    };
+    UploadedAdministration: {
+      /** Format: uuid */
+      id: string;
+      outcome: components["schemas"]["AdministrationOutcome"];
+      amount: {
+        quantity: number;
+        unitCode: string;
+      } | null;
+      reason: {
+        code: string;
+        note: string | null;
+      } | null;
+      /** Format: date-time */
+      givenAt: string | null;
+      timingReason: string | null;
+      amountDifferenceReason: string | null;
+      /** Format: uuid */
+      givenBy: string | null;
+      givenBeforeRecordedReason: string | null;
+      problems: string[];
+      /** Format: date-time */
+      deviceAt: string | null;
+      /** Format: uuid */
+      uploadedBy: string;
+      /** Format: date-time */
+      receivedAt: string;
     };
     ResolveAdministrationConflict: {
       /** @enum {string} */

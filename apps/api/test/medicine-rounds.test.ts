@@ -197,7 +197,10 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     const standingId = (await json<{ administration: { id: string } }>(first)).administration.id;
     // On the web (no bound device) a second record is refused in words: the person sees it.
     expect((await record(randomUUID(), false)).status).toBe(422);
-    // From a device it is kept, and a resend finds the same conflict.
+    // A device the session was not already bound to does not make it an upload (re-review M1).
+    expect((await record(randomUUID(), true)).status).toBe(422);
+    // Bound now (the request above bound the session to it), the second record is kept, and a
+    // resend finds the same conflict.
     const secondId = randomUUID();
     const second = await record(secondId, true);
     expect(second.status, await second.clone().text()).toBe(202);
@@ -208,10 +211,14 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     expect((await json<{ conflictId: string }>(again)).conflictId).toBe(raised.conflictId);
     // The same id sent for another dose is refused, not matched to the conflict (security L4).
     expect((await record(secondId, true, routine)).status).toBe(409);
-    // A further upload of the dose by the same person joins the open conflict (security H1).
-    const third = await record(randomUUID(), true);
+    // A further upload of the dose by the same person joins the open conflict (security H1), kept
+    // with its own id so a resend finds it (re-review M4).
+    const thirdId = randomUUID();
+    const third = await record(thirdId, true);
     expect(third.status).toBe(202);
     expect((await json<{ conflictId: string }>(third)).conflictId).toBe(raised.conflictId);
+    const thirdAgain = await record(thirdId, true);
+    expect((await json<{ conflictId: string }>(thirdAgain)).conflictId).toBe(raised.conflictId);
     // The list needs a location or a person.
     expect((await send("manager", "/v1/medicine-administration-conflicts")).status).toBe(422);
     const tasks = await asDemo(
@@ -230,6 +237,7 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
         id: string;
         standing: { id: string };
         uploaded: { id: string };
+        joined: { id: string }[];
         problems: string[];
       }[];
     }>(
@@ -239,8 +247,10 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     expect(shown?.standing.id).toBe(standingId);
     expect(shown?.uploaded.id).toBe(secondId);
     expect(shown?.problems.length).toBeGreaterThan(0);
+    expect(shown?.joined.map((j) => j.id)).toEqual([thirdId]);
+    expect(list.conflicts.filter((x) => x.uploaded.id === thirdId)).toEqual([]);
 
-    const resolve = (body: Record<string, unknown>, who = "manager") =>
+    const resolve = (body: Record<string, unknown>, who = "owner") =>
       send(who, `/v1/medicine-administration-conflicts/${raised.conflictId}/resolve`, {
         method: "POST",
         body,
@@ -252,6 +262,10 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       (await resolve({ outcome: "corrected", correctionId: randomUUID(), note: "Corrected" }))
         .status,
     ).toBe(422);
+    // The person who recorded the dose does not decide between the records (re-review L1).
+    const own = await resolve({ outcome: "first_stands", note: "Mine" }, "manager");
+    expect(own.status).toBe(422);
+    expect((await json<{ code: string }>(own)).code).toBe("conflict_own_record");
     const ok = await resolve({
       outcome: "first_stands",
       note: "The same dose, recorded on two tablets",
@@ -261,6 +275,19 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       "first_stands",
     );
     expect((await resolve({ outcome: "first_stands", note: "Again" })).status).toBe(409);
+    // Every refusal is audited, the repeat included (security review L6).
+    const refusals = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ n: string }>(
+            `SELECT count(*)::text AS n FROM audit_event
+              WHERE action = 'medicines.administration.conflict_resolved' AND outcome = 'denied'
+                AND resource_id = $1`,
+            [raised.conflictId],
+          )
+        ).rows[0]?.n,
+    );
+    expect(Number(refusals)).toBeGreaterThanOrEqual(3);
     const done = await asDemo(
       async (c) =>
         (
@@ -278,7 +305,7 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     const next = await json<{ conflictId: string }>(fourth);
     expect(next.conflictId).not.toBe(raised.conflictId);
     const twice = await send(
-      "manager",
+      "owner",
       `/v1/medicine-administration-conflicts/${next.conflictId}/resolve`,
       {
         method: "POST",
@@ -287,7 +314,7 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
     );
     expect(twice.status).toBe(422);
     const both = await send(
-      "manager",
+      "owner",
       `/v1/medicine-administration-conflicts/${next.conflictId}/resolve`,
       { method: "POST", body: { outcome: "both_given", note: "Given on both tablets" } },
     );

@@ -106,5 +106,15 @@ describe("hazard HZ-004 a second record is kept as sent and resolved once", () =
         CONFLICT,
       ]),
     ).toBe("42501");
+    // A further upload joins only an open first conflict for the same dose (re-review M4).
+    expect(
+      await refused(
+        manager,
+        `INSERT INTO medication_administration_conflict (person_id, client_record_id,
+           medication_id, due_at, standing_id, joins_id, uploaded, uploaded_by)
+         VALUES ($1, $2, $3, $4, $5, $6, '{"outcome": "given"}'::jsonb, $7)`,
+        [a.personBen, randomUUID(), ENTRY, DUE, STANDING, CONFLICT, a.carer],
+      ),
+    ).toBe("23514");
   });
 });

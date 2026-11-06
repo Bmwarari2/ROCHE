@@ -41644,69 +41644,13 @@
             "$ref": "#/components/schemas/Administration"
           },
           "uploaded": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "outcome": {
-                "$ref": "#/components/schemas/AdministrationOutcome"
-              },
-              "amount": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "quantity": {
-                    "type": "number"
-                  },
-                  "unitCode": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "quantity",
-                  "unitCode"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "code": {
-                    "type": "string"
-                  },
-                  "note": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "required": [
-                  "code",
-                  "note"
-                ]
-              },
-              "givenAt": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "date-time"
-              }
-            },
-            "required": [
-              "id",
-              "outcome",
-              "amount",
-              "reason",
-              "givenAt"
-            ]
+            "$ref": "#/components/schemas/UploadedAdministration"
+          },
+          "joined": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadedAdministration"
+            }
           },
           "problems": {
             "type": "array",
@@ -41778,11 +41722,131 @@
           "dueAt",
           "standing",
           "uploaded",
+          "joined",
           "problems",
           "deviceAt",
           "uploadedBy",
           "receivedAt",
           "resolution"
+        ]
+      },
+      "UploadedAdministration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AdministrationOutcome"
+          },
+          "amount": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "quantity": {
+                "type": "number"
+              },
+              "unitCode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "quantity",
+              "unitCode"
+            ]
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "note"
+            ]
+          },
+          "givenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "timingReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amountDifferenceReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "givenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "givenBeforeRecordedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deviceAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "outcome",
+          "amount",
+          "reason",
+          "givenAt",
+          "timingReason",
+          "amountDifferenceReason",
+          "givenBy",
+          "givenBeforeRecordedReason",
+          "problems",
+          "deviceAt",
+          "uploadedBy",
+          "receivedAt"
         ]
       },
       "ResolveAdministrationConflict": {

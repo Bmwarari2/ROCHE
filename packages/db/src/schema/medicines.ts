@@ -1046,6 +1046,11 @@ export const medicationAdministrationConflict = pgTable(
     dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
     /** The record that stands on the server. */
     standingId: uuid("standing_id").notNull(),
+    /**
+     * A further upload of the same dose by the same person, kept beside the first open conflict
+     * and resolved with it; null on the first (security re-review M4).
+     */
+    joinsId: uuid("joins_id"),
     /** The uploaded record as the device sent it. */
     uploaded: jsonb("uploaded").notNull(),
     /** Every problem the rules found with the upload, not only that the dose was recorded. */
@@ -1090,15 +1095,21 @@ export const medicationAdministrationConflict = pgTable(
         medicationAdministration.id,
       ],
     }),
+    foreignKey({
+      name: "medication_administration_conflict_joins_fk",
+      columns: [t.tenantId, t.joinsId],
+      foreignColumns: [t.tenantId, t.id],
+    }),
     memberRef("medication_administration_conflict_uploaded_by_fk", t.tenantId, t.uploadedBy),
     memberRef("medication_administration_conflict_resolved_by_fk", t.tenantId, t.resolvedBy),
     index("medication_administration_conflict_open_idx")
       .on(t.tenantId, t.personId)
       .where(sql`resolved_at IS NULL`),
-    // One open conflict per dose and uploader, so no one can flood the review queue.
+    // One open conflict per dose and uploader, so no one can flood the review queue; further
+    // uploads join it.
     uniqueIndex("medication_administration_conflict_open_dose_key")
       .on(t.tenantId, t.personId, t.medicationId, t.dueAt, t.uploadedBy)
-      .where(sql`resolved_at IS NULL`),
+      .where(sql`resolved_at IS NULL AND joins_id IS NULL`),
     check(
       "medication_administration_conflict_resolution",
       sql`(resolved_by IS NULL AND resolved_at IS NULL AND resolution IS NULL AND correction_id IS NULL

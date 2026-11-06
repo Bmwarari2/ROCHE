@@ -6,6 +6,7 @@ CREATE TABLE "medication_administration_conflict" (
 	"medication_id" uuid NOT NULL,
 	"due_at" timestamp with time zone NOT NULL,
 	"standing_id" uuid NOT NULL,
+	"joins_id" uuid,
 	"uploaded" jsonb NOT NULL,
 	"problems" text[] DEFAULT '{}'::text[] NOT NULL,
 	"device_at" timestamp with time zone,
@@ -34,10 +35,11 @@ ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_admi
 ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_administration_conflict_medication_fk" FOREIGN KEY ("tenant_id","person_id","medication_id") REFERENCES "public"."medication"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_administration_conflict_standing_fk" FOREIGN KEY ("tenant_id","person_id","standing_id") REFERENCES "public"."medication_administration"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_administration_conflict_correction_fk" FOREIGN KEY ("tenant_id","person_id","correction_id") REFERENCES "public"."medication_administration"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_administration_conflict_joins_fk" FOREIGN KEY ("tenant_id","joins_id") REFERENCES "public"."medication_administration_conflict"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_administration_conflict_uploaded_by_fk" FOREIGN KEY ("tenant_id","uploaded_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration_conflict" ADD CONSTRAINT "medication_administration_conflict_resolved_by_fk" FOREIGN KEY ("tenant_id","resolved_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "medication_administration_conflict_open_idx" ON "medication_administration_conflict" USING btree ("tenant_id","person_id") WHERE resolved_at IS NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX "medication_administration_conflict_open_dose_key" ON "medication_administration_conflict" USING btree ("tenant_id","person_id","medication_id","due_at","uploaded_by") WHERE resolved_at IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "medication_administration_conflict_open_dose_key" ON "medication_administration_conflict" USING btree ("tenant_id","person_id","medication_id","due_at","uploaded_by") WHERE resolved_at IS NULL AND joins_id IS NULL;--> statement-breakpoint
 ALTER TABLE "medication_administration" ADD CONSTRAINT "medication_administration_flags" CHECK (flags <@ ARRAY['early', 'late', 'interval_override', 'competence_override',
         'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',
         'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',
@@ -67,14 +69,24 @@ BEGIN
       RAISE EXCEPTION 'medication_administration_conflict: a new conflict is open'
         USING ERRCODE = 'check_violation';
     END IF;
+    -- A further upload joins only an open first conflict for the same dose and uploader.
+    IF NEW.joins_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.medication_administration_conflict f
+       WHERE f.tenant_id = NEW.tenant_id AND f.id = NEW.joins_id AND f.joins_id IS NULL
+         AND f.resolved_at IS NULL AND f.person_id = NEW.person_id
+         AND f.medication_id = NEW.medication_id AND f.due_at = NEW.due_at
+         AND f.uploaded_by = NEW.uploaded_by) THEN
+      RAISE EXCEPTION 'medication_administration_conflict: joins only an open first conflict for the same dose'
+        USING ERRCODE = 'check_violation';
+    END IF;
     RETURN NEW;
   END IF;
   IF (NEW.id, NEW.tenant_id, NEW.person_id, NEW.client_record_id, NEW.medication_id, NEW.due_at,
-      NEW.standing_id, NEW.uploaded, NEW.problems, NEW.device_at, NEW.device_offset_ms,
+      NEW.standing_id, NEW.joins_id, NEW.uploaded, NEW.problems, NEW.device_at, NEW.device_offset_ms,
       NEW.uploaded_by, NEW.received_at, NEW.created_at)
      IS DISTINCT FROM
      (OLD.id, OLD.tenant_id, OLD.person_id, OLD.client_record_id, OLD.medication_id, OLD.due_at,
-      OLD.standing_id, OLD.uploaded, OLD.problems, OLD.device_at, OLD.device_offset_ms,
+      OLD.standing_id, OLD.joins_id, OLD.uploaded, OLD.problems, OLD.device_at, OLD.device_offset_ms,
       OLD.uploaded_by, OLD.received_at, OLD.created_at)
      OR OLD.resolved_at IS NOT NULL THEN
     RAISE EXCEPTION 'medication_administration_conflict: what it holds never changes; it is resolved once'

@@ -437,9 +437,10 @@ export const medicineAdministrationsRouter = createRouter()
             return { status: 200 as const, administration: await outFor(tx, resent, facts.rows) };
           }
           // A device's upload is never dropped: a resend of a record kept as a conflict finds it.
-          // Only a request from a device bound to the session counts as an upload (security
-          // review H1), and any request with a kept record's id finds that conflict (L5).
-          const upload = access.deviceId !== null;
+          // Only a bearer request from a device the session was already bound to counts as an
+          // upload (security review H1, re-review M1), and any request with a kept record's id
+          // finds that conflict (L5).
+          const upload = access.deviceBound === true;
           const kept = await conflictForClientRecord(tx, body.id, {
             personId,
             entryId: body.entryId,
@@ -1205,7 +1206,7 @@ export const medicineAdministrationsRouter = createRouter()
   );
 
 /** Whether the entry's dm+d product is a controlled drug (its schedule comes from slice 10). */
-async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {
+export async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {
   const [row] = await tx
     .select({ cd: medication.cdSchedule })
     .from(medication)

@@ -1097,6 +1097,7 @@ is exported.
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `medication_administration_conflict.uploaded` | Harbour | JSON: the record as the device sent it (id, outcome, amount, reason, time given) | Never changes. |
+| `medication_administration_conflict.joins_id` | Harbour | uuid | A further upload of the same dose by the same person: the first conflict it joins and is resolved with. |
 | `medication_administration_conflict.problems` | Harbour | Problem codes from `checkAdministration` | What the server found wrong when the upload arrived. Never changes. |
 | `medication_administration_conflict.resolution` | Harbour | `first_stands`, `corrected`, `both_given` | `corrected` names the correction; `both_given` raises a medication incident whose id is the conflict's. |
 | `medication_administration_conflict.due_at`, `device_at`, `received_at`, `resolved_at` | ISO 8601 instant | UTC | `received_at` and `resolved_at` are the server's clock. |

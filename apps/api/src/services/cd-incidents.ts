@@ -52,7 +52,8 @@ export function raiseDoubleDoseIncident(
     readonly personId: string;
     readonly locationId: string;
     readonly resolvedBy: string;
-    readonly dueAt: string;
+    readonly occurredAt: string;
+    readonly controlledDrug?: boolean;
   },
   now: Date,
 ): Promise<boolean> {
@@ -64,9 +65,10 @@ export function raiseDoubleDoseIncident(
       personId: payload.personId,
       locationId: payload.locationId,
       raisedBy: payload.resolvedBy,
-      occurredAt: payload.dueAt,
-      description:
-        "A dose was recorded as given on two devices and the nurse in charge found it was given twice. Both records are on the conflict review page.",
+      occurredAt: payload.occurredAt,
+      description: payload.controlledDrug
+        ? "A controlled drug dose was recorded as given on two devices and the nurse in charge found it was given twice. Both records are on the conflict review page; the second dose must be entered on the register."
+        : "A dose was recorded as given on two devices and the nurse in charge found it was given twice. Both records are on the conflict review page.",
     },
     now,
   );

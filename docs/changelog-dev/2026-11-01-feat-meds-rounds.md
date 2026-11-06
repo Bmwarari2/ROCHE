@@ -37,22 +37,32 @@ Branch `feat/meds-rounds`, from `feat/meds-cd-register` (slice 34), with #162's 
 - Typecheck and Biome clean; OpenAPI and the client regenerated.
 - Database, API and domain suites: see the report to the lead session.
 
-## Left to do (paused 01/11/2026)
+## Security re-review fixes (resumed 06/11/2026)
 
-Database, API and domain suites passed at f2a9f3df (1090, 1858 and 6672 tests). The security
-re-review of the fixes found these, still open:
-- M1: the device header alone counts as a bound device (a session binds on first use). Count an
-  upload only for a bearer request on a binding that existed before the request; test that a
-  cookie session with the header still gets 422.
-- M2: `first_stands` and `both_given` ignore the outcomes. Allow `both_given` only when both are
-  given; refuse `first_stands` when the upload is given and the standing record is not.
-- M3: `both_given` on a controlled drug leaves the register short. Raise a register task or refuse
-  until an entry exists; resolving a controlled drug conflict needs `medicines.cd.administer` and
-  step-up.
-- M4: an upload that joins an open conflict keeps no client id or payload, so a retry after review
-  opens a new conflict. Store joined uploads (child table) and audit `conflict_joined`.
-- Lows: self-review refused; the double-dose handler throws on a bad payload and the publisher
-  refuses a missing location; audit person ids on views; open conflicts first in the list; the named
-  correction must still be in force; show the whole upload; the incident's time and place; more
-  tests (successful `corrected`, outcome mismatch 409, refusal audit row, rates per nation).
-The clinical-safety re-review stopped on a rate limit and must be run again.
+- M1: only a bearer request on a device the session was already bound to counts as an upload
+  (`access.deviceBound`).
+- M2: `both_given` only when both records say the dose was taken; `first_stands` refused when the
+  upload says taken and the record that stands does not.
+- M3: a controlled drug's conflict needs `medicines.cd.administer` and a fresh step-up;
+  `both_given` on one raises an urgent register-entry task and the incident says so.
+- M4: a further upload of the same dose by the same person is its own row joining the first
+  (`joins_id`, 0134 edited before landing), found on resend, audited and resolved with it.
+- Lows: the recorder or uploader does not decide; the double-dose handler fails on a bad payload;
+  views audit the person and conflict ids; open conflicts first; the named correction must be in
+  force; the reviewer sees every field sent; the incident's time is the device's time given.
+- Not done: a test of a successful `corrected` and of rates per nation.
+
+## Recommended answers (for recommended-answers.md, branch feat/meds-rounds)
+
+| # | Owner | Recommended answer | Build change |
+| --- | --- | --- | --- |
+| H-1270 | CSO | Accept as built: `both_given` raises a medication incident; the second dose stays on the conflict and the incident, not the MAR history, and when-required totals do not count it. | No |
+| H-1271 | CSO | Accept as built: urgent when time-critical or the outcomes differ, routine otherwise; one task per dose and uploader. | No |
+| H-1272 | CSO | Keep refusing other device refusals back to the device, where the person sees them; revisit with the slice 53 screens. | No |
+| H-1273 | CSO | Keep the rate table's `medicines.record_delay_tolerance_minutes` value as seeded. | No |
+| H-1274 | CSO | Accept no identity screen until slice 53; the API carries person ids and rooms only. | No |
+| H-1275 | CSO | Re-rate HZ-003, HZ-004 and HZ-008 at the testing phase with the slice 53 screens; keep the current targets. | No |
+| H-1276 | CSO | Accept as built: people away are left off the location round; slice 53 says they are away. | No |
+| H-1277 | Engineering, CSO | Add the clock-change slot test before the next clock change in a tenant. | Yes: a DST round test |
+| H-1278 | Engineering | Accept: 0134 restores the list; check at the testing phase that no sample-data removal ran between 0111 and 0134 anywhere. | No |
+| H-1279 | CSO | Accept as built: two when-required doses from two devices are both kept, and the server's 24-hour maximum check is the control. | No |

@@ -14,7 +14,7 @@ import {
   SCHEDULED_DOSE_WORDS,
   scheduledDoseState,
 } from "@harbour/domain";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import type { AppEnv, TenantAccess } from "../http/context";
@@ -150,7 +150,11 @@ export async function conflictForClientRecord(
   ) {
     return "mismatch" as const;
   }
-  return { conflictId: row.id, standingId: row.standingId, message: CONFLICT_MESSAGE };
+  return {
+    conflictId: row.joinsId ?? row.id,
+    standingId: row.standingId,
+    message: CONFLICT_MESSAGE,
+  };
 }
 
 /**
@@ -186,9 +190,11 @@ export async function raiseConflict(
         eq(medicationAdministrationConflict.dueAt, e.dueAt),
         eq(medicationAdministrationConflict.uploadedBy, access.tenantUserId),
         isNull(medicationAdministrationConflict.resolvedAt),
+        isNull(medicationAdministrationConflict.joinsId),
       ),
     );
-  if (open) return { conflictId: open.id, standingId: open.standingId, message: CONFLICT_MESSAGE };
+  // A further upload of the dose by the same person is kept beside the first, with its own client
+  // id and payload so a resend finds it, and joins its review (security re-review M4).
   const [row] = await tx
     .insert(medicationAdministrationConflict)
     .values({
@@ -197,6 +203,7 @@ export async function raiseConflict(
       medicationId: e.entry.id,
       dueAt: e.dueAt,
       standingId: e.standing.id,
+      joinsId: open?.id ?? null,
       uploaded: e.uploaded,
       problems: [...e.problems],
       deviceAt: e.deviceAt,
@@ -204,6 +211,21 @@ export async function raiseConflict(
       uploadedBy: access.tenantUserId,
     })
     .returning();
+  if (open) {
+    await auditInTx(tx, access, {
+      action: "medicines.administration.conflict_joined",
+      resourceType: "medication_administration_conflict",
+      resourceId: open.id,
+      scope: {
+        personId: e.personId,
+        joinedId: (row as ConflictRow).id,
+        clientRecordId: e.clientRecordId,
+        problems: e.problems,
+      },
+      requestId: c.get("requestId"),
+    });
+    return { conflictId: open.id, standingId: open.standingId, message: CONFLICT_MESSAGE };
+  }
   const conflict = row as ConflictRow;
   // Urgent when the dose is time-critical or the two records disagree (one given, one not): until
   // reviewed the MAR shows only the first (clinical review H2).
@@ -248,20 +270,53 @@ export async function raiseConflict(
   return { conflictId: conflict.id, standingId: e.standing.id, message: CONFLICT_MESSAGE };
 }
 
-/** A conflict with both records, for the nurse in charge. */
+/** An uploaded record as the device sent it: all of it, for the reviewer (re-review L6). */
+function uploadedOut(row: ConflictRow) {
+  const up = row.uploaded as {
+    id: string;
+    outcome: string;
+    amount?: { quantity: number; unitCode: string } | null;
+    reason?: { code: string; note?: string | null } | null;
+    givenAt?: string | null;
+    timingReason?: string | null;
+    amountDifferenceReason?: string | null;
+    givenBy?: string | null;
+    givenBeforeRecorded?: { reason: string } | null;
+  };
+  return {
+    id: up.id,
+    outcome: up.outcome as "given",
+    amount: up.amount ?? null,
+    reason: up.reason ? { code: up.reason.code, note: up.reason.note ?? null } : null,
+    givenAt: up.givenAt ?? null,
+    timingReason: up.timingReason ?? null,
+    amountDifferenceReason: up.amountDifferenceReason ?? null,
+    givenBy: up.givenBy ?? null,
+    givenBeforeRecordedReason: up.givenBeforeRecorded?.reason ?? null,
+    problems: [...row.problems],
+    deviceAt: row.deviceAt?.toISOString() ?? null,
+    uploadedBy: row.uploadedBy,
+    receivedAt: row.receivedAt.toISOString(),
+  };
+}
+
+/** The further uploads that joined a conflict, oldest first. */
+export function joinedTo(tx: Transaction, conflictId: string): Promise<ConflictRow[]> {
+  return tx
+    .select()
+    .from(medicationAdministrationConflict)
+    .where(eq(medicationAdministrationConflict.joinsId, conflictId))
+    .orderBy(asc(medicationAdministrationConflict.receivedAt));
+}
+
+/** A conflict with both records (and any further uploads), for the nurse in charge. */
 export async function conflictOut(
   tx: Transaction,
   row: ConflictRow,
   rows: readonly AdministrationRow[],
 ) {
   const standing = rows.find((r) => r.id === row.standingId) as AdministrationRow;
-  const up = row.uploaded as {
-    id: string;
-    outcome: string;
-    amount: { quantity: number; unitCode: string } | null;
-    reason: { code: string; note: string | null } | null;
-    givenAt: string | null;
-  };
+  const first = uploadedOut(row);
   return {
     id: row.id,
     personId: row.personId,
@@ -272,17 +327,12 @@ export async function conflictOut(
       supersededBy(rows),
       await witnessesFor(tx, [standing.id]),
     ),
-    uploaded: {
-      id: up.id,
-      outcome: up.outcome as "given",
-      amount: up.amount ?? null,
-      reason: up.reason ? { code: up.reason.code, note: up.reason.note ?? null } : null,
-      givenAt: up.givenAt ?? null,
-    },
-    problems: [...row.problems],
-    deviceAt: row.deviceAt?.toISOString() ?? null,
+    uploaded: first,
+    joined: (await joinedTo(tx, row.id)).map(uploadedOut),
+    problems: first.problems,
+    deviceAt: first.deviceAt,
     uploadedBy: row.uploadedBy,
-    receivedAt: row.receivedAt.toISOString(),
+    receivedAt: first.receivedAt,
     resolution:
       row.resolvedAt && row.resolvedBy && row.resolution
         ? {

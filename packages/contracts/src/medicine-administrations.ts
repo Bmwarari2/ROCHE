@@ -246,6 +246,26 @@ export const ConflictRaised = z
   })
   .meta({ id: "AdministrationConflictRaised" });
 
+/** A record a device uploaded for a dose already recorded, as it sent it (medicines.md 15.4). */
+export const UploadedAdministration = z
+  .object({
+    id: uuid,
+    outcome: AdministrationOutcome,
+    amount: z.object({ quantity: z.number(), unitCode: z.string() }).nullable(),
+    reason: z.object({ code: z.string(), note: z.string().nullable() }).nullable(),
+    givenAt: isoDateTime.nullable(),
+    timingReason: z.string().nullable(),
+    amountDifferenceReason: z.string().nullable(),
+    givenBy: uuid.nullable(),
+    givenBeforeRecordedReason: z.string().nullable(),
+    /** What the server found wrong with it when it arrived (problem codes). */
+    problems: z.array(z.string()),
+    deviceAt: isoDateTime.nullable(),
+    uploadedBy: uuid,
+    receivedAt: isoDateTime,
+  })
+  .meta({ id: "UploadedAdministration" });
+
 export const AdministrationConflictOut = z
   .object({
     id: uuid,
@@ -255,13 +275,9 @@ export const AdministrationConflictOut = z
     /** The record that stands, as stored. */
     standing: AdministrationOut,
     /** The uploaded record as the device sent it. */
-    uploaded: z.object({
-      id: uuid,
-      outcome: AdministrationOutcome,
-      amount: z.object({ quantity: z.number(), unitCode: z.string() }).nullable(),
-      reason: z.object({ code: z.string(), note: z.string().nullable() }).nullable(),
-      givenAt: isoDateTime.nullable(),
-    }),
+    uploaded: UploadedAdministration,
+    /** Further uploads of the same dose by the same person, resolved with this one. */
+    joined: z.array(UploadedAdministration),
     /** What the server found wrong with the upload when it arrived (problem codes). */
     problems: z.array(z.string()),
     deviceAt: isoDateTime.nullable(),

@@ -1154,14 +1154,17 @@ again.
 
 ### 15.4 Conflict review (two devices, one dose)
 
-A record uploaded from a bound device (the `x-harbour-device` header naming the device the session
-is bound to) for a scheduled dose that already has a record on the server is never dropped. On the
+A record uploaded from a bound device (a bearer request whose `x-harbour-device` header names a
+device the session was already bound to before the request, and not revoked; the header alone is
+not enough) for a scheduled dose that already has a record on the server is never dropped. On the
 web, with no device, the second record is refused in words, because the person is there to see it.
 - It is stored as a conflict (`medication_administration_conflict`): the uploaded record as sent,
   what the server found wrong with it (`problems`, codes), the record that stands, the device's time
   and who sent it.
-- One open conflict per dose and uploader: a further upload of the same dose by the same person
-  joins the open conflict (a partial unique index enforces it).
+- One open conflict per dose and uploader (a partial unique index enforces it). A further upload of
+  the same dose by the same person is kept as its own row joining the first (`joins_id`), with its
+  own client id and payload, so a resend finds it; it raises no further task, is audited
+  (`conflict_joined`) and is resolved with the first.
 - A review task for the nurse in charge is raised. It is urgent when the dose is time-critical or
   when the two records disagree (one given, one not), because until it is reviewed the MAR shows
   only the first. The task names no medicine.
@@ -1176,7 +1179,8 @@ A round record may carry `givenAt` up to `medicines.record_delay_tolerance_minut
 recorded (section 13; #162); a time in the future beyond the clock drift allowance is refused.
 
 `GET /v1/medicine-administration-conflicts?locationId=` (or `?personId=`; one is required) lists
-open conflicts. `GET
+first conflicts, open ones first, each with the uploads that joined it; the reviewer sees every field
+the device sent. `GET
 /v1/medicine-administration-conflicts/{id}` shows both records side by side. `POST .../resolve`,
 with `medicines.record.manage`, records the decision and why. Its outcome is either:
 - `first_stands`: the record on the server stands and the upload was a duplicate; or
@@ -1188,6 +1192,14 @@ with `medicines.record.manage`, records the decision and why. Its outcome is eit
   medicine). The second dose stays on the conflict and the incident; it is not added to the MAR
   history, so when-required totals do not count it (human action H-1270).
 
+The decision must fit the records: `both_given` only when both say the dose was taken (given,
+self-administered or given by family); `first_stands` is refused when an upload says taken and the
+record that stands does not, so the reviewer corrects the record instead. Nobody who recorded the
+dose or uploaded it decides `first_stands` or `both_given`. A controlled drug's conflict also needs
+`medicines.cd.administer` and a fresh step-up, and `both_given` on one raises an urgent task to
+enter the second dose on the register, witnessed. The incident's time is the device's time given
+when it sent one.
+
 A conflict is resolved once, never edited, and its task is closed. Every refusal, including a
 second attempt to resolve, is audited. The upload itself never
 becomes an administration record without a person's decision.
@@ -1197,7 +1209,8 @@ person scope, and its retention class is `mar_chart`.
 
 ### 15.5 Audit and outbox
 
-- Audit actions, carrying ids only: `medicines.round.viewed`, `medicines.administration.conflict_raised`,
-  `.conflict_viewed`, `.conflict_resolved`.
+- Audit actions, carrying ids only: `medicines.round.viewed` (with the person ids shown),
+  `medicines.administration.conflict_raised`, `.conflict_joined`, `.conflict_viewed` (with the
+  conflict and person ids), `.conflict_resolved`.
 - Outbox events: `medicines.administration.conflict_raised`; `medicines.administration.double_dose`
   (raises a medication incident whose id is the conflict's, so applying it twice raises one).

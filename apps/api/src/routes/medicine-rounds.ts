@@ -9,27 +9,35 @@ import {
 import { medicationAdministrationConflict, person, type Transaction, task } from "@harbour/db";
 import { ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, auditInTx, withAuditedRefusal } from "../http/audit";
 import {
   type AppEnv,
   requireAnyPermission,
   requirePermission,
+  stepUpFresh,
   type TenantAccess,
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
-import { medicinesRates, personAdministrations } from "../services/medicine-administrations";
+import {
+  type AdministrationRow,
+  medicinesRates,
+  personAdministrations,
+  supersededBy,
+} from "../services/medicine-administrations";
 import {
   CONFLICT_TASK,
   type ConflictRow,
   conflictOut,
+  joinedTo,
   roundFor,
 } from "../services/medicine-rounds";
 import { guardConcurrent, lockPerson, personEntries } from "../services/medicines";
 import { loadPerson } from "../services/people";
+import { isControlledDrug } from "./medicine-administrations";
 import {
   conflictResponse,
   createRouter,
@@ -49,6 +57,10 @@ import {
 const tags = ["medicines"];
 const ADMINISTER = "medicines.emar.administer" as const;
 const MANAGE = "medicines.record.manage" as const;
+const CD_ADMINISTER = "medicines.cd.administer" as const;
+const CD_REGISTER_TASK = "medicines.cd.register_entry_due";
+/** Outcomes that mean the person took the dose. */
+const TAKEN = new Set(["given", "self_administered", "given_by_family"]);
 const LocationParam = z.object({ id: z.uuid() });
 const ConflictParam = z.object({ id: z.uuid() });
 const HOUR_MS = 3_600_000;
@@ -120,7 +132,12 @@ export const medicineRoundsRouter = createRouter()
           action: "medicines.round.viewed",
           resourceType: "location",
           resourceId: locationId,
-          scope: { people: rounds.length, from: from.toISOString(), to: to.toISOString() },
+          scope: {
+            people: rounds.length,
+            personIds: rounds.map((r) => r.personId),
+            from: from.toISOString(),
+            to: to.toISOString(),
+          },
         });
         return { from: from.toISOString(), to: to.toISOString(), people: rounds };
       });
@@ -160,12 +177,17 @@ export const medicineRoundsRouter = createRouter()
           .from(medicationAdministrationConflict)
           .where(
             and(
+              isNull(medicationAdministrationConflict.joinsId),
               q.all === "true" ? undefined : isNull(medicationAdministrationConflict.resolvedAt),
               q.personId ? eq(medicationAdministrationConflict.personId, q.personId) : undefined,
               personIds ? inArray(medicationAdministrationConflict.personId, personIds) : undefined,
             ),
           )
-          .orderBy(asc(medicationAdministrationConflict.receivedAt))
+          // Open ones first, so a long history never hides one (re-review L4).
+          .orderBy(
+            desc(sql`${medicationAdministrationConflict.resolvedAt} IS NULL`),
+            asc(medicationAdministrationConflict.receivedAt),
+          )
           .limit(200);
         const conflicts = [];
         for (const row of rows) {
@@ -175,7 +197,12 @@ export const medicineRoundsRouter = createRouter()
           action: "medicines.administration.conflict_viewed",
           resourceType: q.locationId ? "location" : "person",
           resourceId: q.locationId ?? q.personId,
-          scope: { count: conflicts.length },
+          // Whose records were shown, by id (re-review L3).
+          scope: {
+            count: conflicts.length,
+            conflictIds: conflicts.map((x) => x.id),
+            personIds: [...new Set(conflicts.map((x) => x.personId))],
+          },
         });
         return { conflicts };
       });
@@ -283,10 +310,58 @@ export const medicineRoundsRouter = createRouter()
               },
             );
           }
+          // A further upload is resolved with the first conflict it joined.
+          if (row.joinsId) {
+            throw deny("resolve_first_conflict", "Resolve the first conflict for this dose.");
+          }
           const rows = await personAdministrations(tx, row.personId);
+          const joined = await joinedTo(tx, id);
+          const standing = rows.find((r) => r.id === row.standingId) as AdministrationRow;
+          const uploads = [row, ...joined].map((r) => (r.uploaded as { outcome: string }).outcome);
+          // Nobody reviews their own record (separation of duties; re-review L1).
+          const own = [
+            row.uploadedBy,
+            ...joined.map((r) => r.uploadedBy),
+            standing.recordedBy,
+            standing.administeredBy,
+          ];
+          if (body.outcome !== "corrected" && own.includes(access.tenantUserId)) {
+            throw deny(
+              "own_record",
+              "Someone who did not record this dose decides between the records.",
+            );
+          }
+          // A controlled drug needs its own permission and a fresh step-up (re-review M3).
+          const controlled = await isControlledDrug(tx, row.medicationId);
+          if (controlled) {
+            await requirePermission(c, CD_ADMINISTER);
+            if (!stepUpFresh(access)) {
+              throw new AuditedRefusal(problems.stepUp(), {
+                action: "medicines.administration.conflict_resolved",
+                outcome: "denied",
+                resourceType: "medication_administration_conflict",
+                resourceId: id,
+                scope: { personId: row.personId, problems: ["step_up_required"] },
+              });
+            }
+          }
+          // The decision must fit what the records say (re-review M2).
+          const takenUpload = uploads.some((o) => TAKEN.has(o));
+          if (body.outcome === "both_given" && !(TAKEN.has(standing.outcome) && takenUpload)) {
+            throw deny(
+              "not_both_given",
+              "Both records must say the dose was taken. Otherwise correct the record that stands.",
+            );
+          }
+          if (body.outcome === "first_stands" && takenUpload && !TAKEN.has(standing.outcome)) {
+            throw deny(
+              "upload_says_given",
+              "The device recorded the dose as given. Correct the record that stands, or say why it was not given, through the corrections route.",
+            );
+          }
           if (body.outcome === "corrected") {
-            // The correction must supersede the standing record, directly or through its chain, and
-            // be recorded after the upload arrived (security review M3).
+            // The correction must supersede the standing record, directly or through its chain, be
+            // still in force and be recorded after the upload arrived (security review M3, L5).
             const byId = new Map(rows.map((r) => [r.id, r]));
             const correction = body.correctionId ? byId.get(body.correctionId) : undefined;
             let reaches = false;
@@ -300,7 +375,12 @@ export const medicineRoundsRouter = createRouter()
                 break;
               }
             }
-            if (!correction || !reaches || correction.recordedAt < row.receivedAt) {
+            if (
+              !correction ||
+              !reaches ||
+              supersededBy(rows).has(correction.id) ||
+              correction.recordedAt < row.receivedAt
+            ) {
               throw deny(
                 "correction_not_for_dose",
                 "Name the correction made to this dose through the corrections route.",
@@ -312,7 +392,12 @@ export const medicineRoundsRouter = createRouter()
               "Name a correction only when you corrected the record.",
             );
           }
-          const [updated] = await guardConcurrent(() =>
+          const [where] = await tx
+            .select({ locationId: person.locationId })
+            .from(person)
+            .where(eq(person.id, row.personId));
+          if (!where) throw problems.notFound();
+          const resolved = await guardConcurrent(() =>
             tx
               .update(medicationAdministrationConflict)
               .set({
@@ -322,9 +407,18 @@ export const medicineRoundsRouter = createRouter()
                 correctionId: body.correctionId,
                 resolutionNote: body.note,
               })
-              .where(eq(medicationAdministrationConflict.id, id))
+              .where(
+                and(
+                  or(
+                    eq(medicationAdministrationConflict.id, id),
+                    eq(medicationAdministrationConflict.joinsId, id),
+                  ),
+                  isNull(medicationAdministrationConflict.resolvedAt),
+                ),
+              )
               .returning(),
           );
+          const updated = resolved.find((r) => r.id === id);
           await tx
             .update(task)
             .set({
@@ -349,15 +443,13 @@ export const medicineRoundsRouter = createRouter()
               personId: row.personId,
               outcome: body.outcome,
               correctionId: body.correctionId,
+              joinedIds: joined.map((r) => r.id),
             },
           });
           if (body.outcome === "both_given") {
             // A dose given twice is a medication incident, raised by safety through the outbox
             // (HZ-004; clinical review H1). The second dose is on the conflict, not the MAR history.
-            const [where] = await tx
-              .select({ locationId: person.locationId })
-              .from(person)
-              .where(eq(person.id, row.personId));
+            const sent = row.uploaded as { givenAt?: string | null };
             await publish(tx, {
               context: "medicines",
               aggregateType: "medication_administration_conflict",
@@ -366,11 +458,30 @@ export const medicineRoundsRouter = createRouter()
               payload: {
                 conflictId: id,
                 personId: row.personId,
-                locationId: where?.locationId ?? null,
+                locationId: where.locationId,
                 resolvedBy: access.tenantUserId,
-                dueAt: row.dueAt.toISOString(),
+                // When the second dose was given, as near as the device knew (re-review L7).
+                occurredAt: sent.givenAt ?? row.deviceAt?.toISOString() ?? row.dueAt.toISOString(),
+                controlledDrug: controlled,
               },
             });
+            if (controlled) {
+              // The register is one dose short of what left the cupboard until it is entered,
+              // witnessed, on the register page (re-review M3).
+              await tx.insert(task).values({
+                kind: CD_REGISTER_TASK,
+                title:
+                  "A controlled drug dose was given twice: enter the second dose on the register, witnessed",
+                requiredPermission: CD_ADMINISTER,
+                personId: row.personId,
+                locationId: where.locationId,
+                sourceType: "medication_administration_conflict",
+                sourceId: id,
+                assigneeRoleKey: "clinical_lead",
+                dueAt: now,
+                priority: "urgent",
+              });
+            }
           }
           return conflictOut(tx, updated as ConflictRow, rows);
         }),

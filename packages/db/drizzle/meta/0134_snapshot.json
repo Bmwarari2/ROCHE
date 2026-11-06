@@ -19523,6 +19523,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "joins_id": {
+          "name": "joins_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "uploaded": {
           "name": "uploaded",
           "type": "jsonb",
@@ -19671,20 +19677,37 @@
             }
           ],
           "isUnique": true,
-          "where": "resolved_at IS NULL",
+          "where": "resolved_at IS NULL AND joins_id IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "medication_administration_conflict_person_fk": {
-          "name": "medication_administration_conflict_person_fk",
+        "medication_administration_conflict_correction_fk": {
+          "name": "medication_administration_conflict_correction_fk",
           "tableFrom": "medication_administration_conflict",
-          "tableTo": "person",
+          "tableTo": "medication_administration",
           "columnsFrom": [
             "tenant_id",
-            "person_id"
+            "person_id",
+            "correction_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "medication_administration_conflict_joins_fk": {
+          "name": "medication_administration_conflict_joins_fk",
+          "tableFrom": "medication_administration_conflict",
+          "tableTo": "medication_administration_conflict",
+          "columnsFrom": [
+            "tenant_id",
+            "joins_id"
           ],
           "columnsTo": [
             "tenant_id",
@@ -19710,6 +19733,36 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "medication_administration_conflict_person_fk": {
+          "name": "medication_administration_conflict_person_fk",
+          "tableFrom": "medication_administration_conflict",
+          "tableTo": "person",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "medication_administration_conflict_resolved_by_fk": {
+          "name": "medication_administration_conflict_resolved_by_fk",
+          "tableFrom": "medication_administration_conflict",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "resolved_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "medication_administration_conflict_standing_fk": {
           "name": "medication_administration_conflict_standing_fk",
           "tableFrom": "medication_administration_conflict",
@@ -19727,23 +19780,6 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "medication_administration_conflict_correction_fk": {
-          "name": "medication_administration_conflict_correction_fk",
-          "tableFrom": "medication_administration_conflict",
-          "tableTo": "medication_administration",
-          "columnsFrom": [
-            "tenant_id",
-            "person_id",
-            "correction_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "person_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "medication_administration_conflict_uploaded_by_fk": {
           "name": "medication_administration_conflict_uploaded_by_fk",
           "tableFrom": "medication_administration_conflict",
@@ -19751,21 +19787,6 @@
           "columnsFrom": [
             "tenant_id",
             "uploaded_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "medication_administration_conflict_resolved_by_fk": {
-          "name": "medication_administration_conflict_resolved_by_fk",
-          "tableFrom": "medication_administration_conflict",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "resolved_by"
           ],
           "columnsTo": [
             "tenant_id",

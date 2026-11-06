@@ -1795,6 +1795,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       medication_id: { description: "The entry version it was recorded against (medication.id)." },
       due_at: { description: "The scheduled dose's time (instant, UTC)." },
       standing_id: { description: "The record that stands (medication_administration.id)." },
+      joins_id: {
+        description:
+          "For a further upload of the same dose by the same person, the first conflict it joins.",
+      },
       uploaded: { description: "The uploaded record as the device sent it, as JSON." },
       problems: {
         description: "What Harbour found wrong with the upload when it arrived (codes).",
