@@ -222,6 +222,7 @@ describe("hazard HZ-003 H-548 an imported medicine stays held through a change, 
       directions: {
         kind: "when_required",
         dose: { kind: "amount", quantity: 1, unit: { code: "428673006", name: "tablet" } },
+        maxQuantityPer24Hours: 8,
       },
       indication: "Pain",
       specialInstructions: null,

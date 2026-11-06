@@ -196,6 +196,7 @@ describe("the NMC register (H-523: the manual check stays the default)", () => {
         await record("professional_registration", {
           kind: "professional_registration",
           body: "nmc",
+          nmcPart: "nurse",
           pin: "99A9999E",
           renewalDueOn: inDays(20),
           revalidationDueOn: null,

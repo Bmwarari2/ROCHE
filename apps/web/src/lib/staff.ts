@@ -201,6 +201,8 @@ function whole(
 }
 
 export const REGISTRATION_BODIES = ["nmc", "hcpc", "swe", "gmc"] as const;
+/** The parts of the NMC register (H-835): only the nurse part counts as a registered nurse. */
+export const NMC_PARTS = ["nurse", "midwife", "nursing_associate"] as const;
 
 export interface StaffFileInput {
   readonly tenantUserId?: string;
@@ -440,7 +442,20 @@ export function readComplianceItem(
         t,
         true,
       );
-      detail = { kind, body, pin, renewalDueOn: renewalDueOn ?? today, revalidationDueOn };
+      // The part of the NMC register is required for an NMC registration (H-835), and never sent
+      // for another register.
+      const nmcPart =
+        body === "nmc"
+          ? oneOf(NMC_PARTS, text(form, "nmcPart"), "nmcPart", t("staff.choose.nmcPart"), problems)
+          : null;
+      detail = {
+        kind,
+        body,
+        pin,
+        renewalDueOn: renewalDueOn ?? today,
+        revalidationDueOn,
+        nmcPart,
+      };
       break;
     }
     default:

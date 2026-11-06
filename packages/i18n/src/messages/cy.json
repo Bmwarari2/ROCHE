@@ -7235,5 +7235,9 @@
   "cd.entry.correctedByMissing": "Corrected by an entry that is not on this page",
   "cd.check.result": "{kind, select, balanced {Balanced} short {Short by {amount, number} {unit}} other {Over by {amount, number} {unit}}}",
   "cd.check.incidentRaised": "Medication incident raised",
-  "cd.form.malformed": "This could not be sent as it stands. Check the form and try again."
+  "cd.form.malformed": "This could not be sent as it stands. Check the form and try again.",
+  "staff.form.nmcPart": "Part of the NMC register",
+  "staff.form.nmcPartHint": "Only for the Nursing and Midwifery Council. Only the nurse part counts as a registered nurse on a shift.",
+  "staff.registration.nmcPart": "{part, select, nurse {Nurse} midwife {Midwife} nursing_associate {Nursing associate} other {Another part}}",
+  "staff.choose.nmcPart": "Choose the part of the NMC register"
 }

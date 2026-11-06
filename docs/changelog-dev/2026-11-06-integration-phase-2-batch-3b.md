@@ -43,9 +43,15 @@ in). The PR to `main` opens once batch 3a's has merged and this branch is green 
 - Accessibility: one blocking finding (the when-required unit test), fixed with table-driven
   cases; the e-learning navigation item and the interval error wording corrected.
 
+## Follow-ups
+
+- `medicines.md` has one section 13 and 14 from batch 3a and one from 3b, and five sections numbered
+  15 (slices 48, 42, 54, 38 and 34's screens), each cited by its own slice's code. Renumber them in
+  one docs pass with their references (about 90, some in migration comments).
+
 ## For the CSO and DPO
 
-- H-1160 now also covers how imported medicines get their tags and minimum interval.
+- H-1400: how imported medicines get their tags and minimum interval.
 - Whether a when-required entry must have a 24-hour maximum everywhere (the web form and import
   require it; the API and domain accept an interval alone).
 - Rate HZ-134 (H-1291) and accept the corrected HZ-124 and HZ-125 residual risks.

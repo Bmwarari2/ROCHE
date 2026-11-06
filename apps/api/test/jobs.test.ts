@@ -101,6 +101,10 @@ describe("outbox relay", () => {
 describe("escalation chains", () => {
   it("re-sends an unacknowledged alarm to the next role, then stops when acknowledged", async () => {
     const created = new Date("2026-10-11T08:00:00Z");
+    // Only someone active is told: the manager has signed in (review round 3, C3-M3). Signing in
+    // is the invitation's own path, never the application role (migration 0129). It commits first:
+    // the role change below holds the member's rows until its own transaction ends.
+    await signedIn(DEMO.users.manager.id);
     await asTenant(appPool, async (c) => {
       // The Registered Manager has been in post since before the alarm: only a role in force when
       // a step fires is told (ADR-0071 review round 2).
@@ -108,9 +112,6 @@ describe("escalation chains", () => {
         "UPDATE role_assignment SET valid_from = '2026-01-01T00:00:00Z' WHERE tenant_user_id = $1",
         [DEMO.users.manager.id],
       );
-      // Only someone active is told: the manager has signed in (review round 3, C3-M3). Signing
-      // in is the invitation's own path, never the application role (migration 0129).
-      await signedIn(DEMO.users.manager.id);
       const chain = await c.query<{ id: string }>(
         `INSERT INTO escalation_chain (key, name, steps) VALUES ('missed_visit', 'Missed visit',
            '[{"afterMinutes":10,"targetRoleKey":"registered_manager","channels":["push"]},
@@ -150,8 +151,8 @@ describe("escalation chains", () => {
     const created = new Date("2026-10-11T09:00:00Z");
     // Harbour Field, an invented home no one works at.
     const field = "0194d000-0000-7000-8000-0000000001f1";
+    await signedIn(DEMO.users.manager.id);
     const ids = await asTenant(appPool, async (c) => {
-      await signedIn(DEMO.users.manager.id);
       await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Field')", [field]);
       const chain = await c.query<{ id: string }>(
         `INSERT INTO escalation_chain (key, name, steps) VALUES ('fall_unwitnessed', 'Unwitnessed fall',

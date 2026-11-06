@@ -12,7 +12,8 @@ const isoDate = z.iso.date();
 const isoDateTime = z.iso.datetime({ offset: true });
 const version = z.number().int().min(1);
 const words = (max: number) => z.string().trim().min(1).max(max);
-const quantity = z.number().positive().max(100_000).multipleOf(0.001);
+// Above zero, at most three decimals (inclusive bounds: the breaking-change check cannot read exclusive ones).
+const quantity = z.number().min(0.001).max(100_000).multipleOf(0.001);
 
 export const CovertAttendeeRole = z
   .enum([
@@ -152,7 +153,7 @@ const protocolFields = {
   indication: words(500),
   doseQuantity: quantity,
   unitName: words(60),
-  minIntervalHours: z.number().positive().max(168).multipleOf(0.01),
+  minIntervalHours: z.number().min(0.01).max(168).multipleOf(0.01),
   maxDailyQuantity: quantity,
   maxDays: z.number().int().min(1).max(365),
   authorisedMemberIds: z.array(uuid).min(1).max(500),

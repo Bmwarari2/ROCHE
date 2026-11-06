@@ -656,6 +656,8 @@ describe("hazard HZ-127 a profile is prompted for anyone at risk of going missin
         reviewedWith: "Her daughter, in person",
         reviewedOn: new Date().toISOString().slice(0, 10),
         version: 0,
+        // The record prefills parts of a first profile; each was checked with her daughter.
+        prefillChecked: true,
       },
     });
     expect(saved.status, await saved.clone().text()).toBe(200);

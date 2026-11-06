@@ -1123,7 +1123,12 @@ export const disclosuresRouter = createRouter()
         }
         return r;
       });
-      const bytes = await c.get("services").exportStorage.get(first.packStorageKey as string);
+      // Kept as a document since 0137; packs issued before are still in the exports bucket.
+      const packKey = first.packStorageKey as string;
+      const bytes = await (packKey.startsWith(`tenants/${access.tenantId}/documents/`)
+        ? c.get("services").storage
+        : c.get("services").exportStorage
+      ).get(packKey);
       if (!bytes) throw problems.notFound();
       const pack = JSON.parse(new TextDecoder().decode(bytes)) as StoredDisclosurePack;
       const fingerprint = createHash("sha256")

@@ -49587,7 +49587,7 @@
           },
           "doseQuantity": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.001,
             "maximum": 100000
           },
           "unitName": {
@@ -49597,12 +49597,12 @@
           },
           "minIntervalHours": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.01,
             "maximum": 168
           },
           "maxDailyQuantity": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.001,
             "maximum": 100000
           },
           "maxDays": {
@@ -49720,7 +49720,7 @@
           },
           "doseQuantity": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.001,
             "maximum": 100000
           },
           "unitName": {
@@ -49730,12 +49730,12 @@
           },
           "minIntervalHours": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.01,
             "maximum": 168
           },
           "maxDailyQuantity": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.001,
             "maximum": 100000
           },
           "maxDays": {
@@ -49812,7 +49812,7 @@
           },
           "doseQuantity": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.001,
             "maximum": 100000
           },
           "unitName": {
@@ -49822,12 +49822,12 @@
           },
           "minIntervalHours": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.01,
             "maximum": 168
           },
           "maxDailyQuantity": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.001,
             "maximum": 100000
           },
           "maxDays": {
@@ -50073,7 +50073,7 @@
           },
           "quantity": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.001,
             "maximum": 100000
           }
         },
@@ -50096,7 +50096,7 @@
           },
           "quantity": {
             "type": "number",
-            "exclusiveMinimum": 0,
+            "minimum": 0.001,
             "maximum": 100000
           },
           "reason": {

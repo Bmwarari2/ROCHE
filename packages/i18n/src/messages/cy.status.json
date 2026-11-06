@@ -7236,6 +7236,10 @@
     "cd.entry.correctedByMissing",
     "cd.check.result",
     "cd.check.incidentRaised",
-    "cd.form.malformed"
+    "cd.form.malformed",
+    "staff.form.nmcPart",
+    "staff.form.nmcPartHint",
+    "staff.registration.nmcPart",
+    "staff.choose.nmcPart"
   ]
 }

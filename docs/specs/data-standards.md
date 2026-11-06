@@ -1003,20 +1003,6 @@ dm+d unit; temperatures in tenths of a degree Celsius.
 | `medicine_storage.kind` | Harbour (`STORAGE_KINDS`) | `fridge`, `room` | |
 | `medicine_temperature_reading.reading_tenths`, `min_tenths`, `max_tenths`, `low_tenths`, `high_tenths` | Harbour | Integer tenths of a degree Celsius | The range from the rate table at the time. |
 
-## Controlled drugs register (Phase 2, slice 34)
-
-Migration 0128 ([medicines.md](medicines.md) section 14). Retention class
-`controlled_drugs_register`; every column is exported. Quantities are in the page's dm+d unit.
-
-| Harbour field | Standard mapping | Code list or format | Notes |
-| --- | --- | --- | --- |
-| `controlled_drug_page.vmp_id`, `product_name`, `unit_code`, `unit_name` | dm+d VMP and unit of measure | SNOMED CT concept id; dm+d description and unit | One page per person and VMP (drug, form and strength). |
-| `controlled_drug_entry.movement` | Harbour; Misuse of Drugs Regulations 2001 register entries | `receipt`, `administration`, `disposal`, `transfer_out`, `destruction`, `correction` | |
-| `controlled_drug_entry.quantity`, `balance_after` | Harbour | Numeric, 3 decimal places | A quantity correction is signed; a detail correction is 0. |
-| `controlled_drug_entry.seq` | Harbour | Integer from 1 | Its place on the page. |
-| `controlled_drug_entry.corrects` | Harbour | `quantity`, `detail` | Margin corrections. |
-| `controlled_drug_witness_assertion.movement` | Harbour | The movements above, or `stock_check` | Used once, before `expires_at`. |
-| `controlled_drug_stock_check.counted`, `expected`, `difference` | Harbour | Numeric, 3 decimal places | A difference raises a medication incident. |
 ## Workforce: training, competence, supervision and revalidation (Phase 2, slice 17)
 
 Code lists for [workforce.md](workforce.md) section 2b (migration 0079). Training topics follow
@@ -1094,13 +1080,6 @@ fields are Harbour's.
 | `compliance_item.detail` for `driving_for_work` (H-835) | DVLA licence categories | `licenceCheckedOn` date; `categories` as the DVLA shows them (`^[A-Z][A-Z0-9+]{0,3}$`); `insuranceExpiresOn` date | Never the licence number or the DVLA check code. Current for `workforce.driving_licence_check_months` and while insured |
 | `compliance_item.detail.nmcPart` (H-835) | NMC register parts | `nurse`, `midwife`, `nursing_associate` | Required for an NMC registration; only `nurse` counts as a registered nurse on duty |
 | `shift_cover_need.resolution` | Harbour | `assignment_removed`, `absence_ended` | Raised once, resolved once (trigger `shift_cover_need_guard`). |
-
-## Absence and leave (Phase 2, slice 40)
-
-Code lists for absence and leave ([scheduling.md](scheduling.md) section 15; SCHED-010; migration
-0107). None maps to a national standard. Every column is exported. Fit notes and return to work
-are health data (special category, records-of-processing.md). Retention `sickness_absence`, cover
-needs `rota_and_timesheet`.
 
 ## Time and attendance (Phase 2, slice 30)
 
@@ -1276,8 +1255,6 @@ transcription (slice 16); these tables say what the identifiers mean in the rele
 | `dmd_gtin.gtin` | GS1 GTIN | 14 digits, GS1 check digit; a GTIN-8, -12 or -13 padded with leading zeros | `start_date` and `end_date` as dm+d gives them; in force on the UK date; withdrawn when a later release lacks the mapping. |
 | `dmd_release.name`, `released_on` | NHSBSA release naming | The release's own name (`nhsbsa_dmd_10.1.0_20261026000001`); `YYYY-MM-DD` | The release in use is the latest loaded by `released_on`. |
 
-## Medicines record and reconciliation (Phase 2, slice 16)
-
 ## Conflict review (Phase 2, slice 48)
 
 Migration 0134 ([medicines.md](medicines.md) section 15). Retention class `mar_chart`; every column
@@ -1311,25 +1288,6 @@ exported (only a closed survey's results above the minimum group size leave Harb
 | `wellbeing_check_in.note` | Harbour | Plain text up to 1,000 characters; possibly health | |
 | `wellbeing_check_in.shared_at` | Harbour | ISO 8601 UTC, or empty while private | Set by the database |
 | `RecognitionItem.fromName`, `toName`; `CheckInItem.memberName`; `RecognitionColleagues.items[].name` (API, slice 61) | Harbour | The member's display name, or null when none is held | Read from `tenant_user`, never stored with the record; `memberName` only on a manager's view of shared check-ins |
-## Administrations (Phase 2, slice 22)
-
-Migration 0123 ([medicines.md](medicines.md) section 13). Retention class `mar_chart`; every column
-is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/mm/yyyy.
-
-| Harbour field | Standard mapping | Code list or format | Notes |
-| --- | --- | --- | --- |
-| `medication_administration.id` | Harbour (client UUID) | UUID, chosen by the device or browser | A resend with the same id is the same record. |
-| `medication_administration.outcome` | Harbour; PRSB eMAR administration outcome (not yet coded) | `given`, `refused`, `omitted`, `not_available`, `self_administered`, `given_by_family`, `withheld` | Words from `OUTCOME_WORDS`. |
-| `medication_administration.reason_code` | Harbour (`OUTCOME_REASONS`) | For example `declined`, `asleep`, `nil_by_mouth`, `out_of_stock`, `prescriber_instruction`, `other` | "Other" and "withheld" carry words. |
-| `medication_administration.quantity`, `unit_code` | dm+d unit of measure | Numeric, more than zero, 3 decimal places; dm+d unit code | Never converted between units. |
-| `medication_administration.flags` | Harbour | As medicines.md rule 17, with `given_before_recorded` and `clock_drift` | Shown in words. |
-| `medication_administration.due_at`, `given_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
-| `medication_administration.supersedes_id` | Harbour | The record corrected | Shown struck through beside its correction. |
-| `medication_administration_witness.method` | Harbour (ADR-0084) | `step_up`, `device_factor` | |
-| `medication_dosing_record.doses` | Harbour | JSON: `date` (ISO 8601 date), `time` (`HH:MM`, UK), `quantity` | In the entry's unit. |
-| `medication.tags` | Harbour (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |
-| `medication.minimum_interval_minutes`, `prn_max_per_24h` | Harbour | Minutes; numeric in the dose's unit | As the prescription states. |
-
 ## Controlled drugs register (Phase 2, slice 34)
 
 Migration 0128 ([medicines.md](medicines.md) section 14). Retention class
@@ -1411,26 +1369,6 @@ kept as their incident (`serious_incident`), reviews as the medicines record (`m
 | `medication_review.due_on`, `done_on` | ISO 8601 date | UK dates | |
 | `medication_review.clinician_role` | Harbour | `gp`, `pharmacist`, `prescriber`, `consultant`, `other` | |
 | `medication_review.outcome` | Harbour | Text up to 4,000 characters, the clinician's words | Never a Harbour suggestion. |
-## Medicines record and reconciliation (Phase 2, slice 16)
-
-Migration 0111 ([medicines.md](medicines.md) sections 2 and 12). Retention class `mar_chart`;
-every column is exported. dm+d (NHSBSA, SNOMED CT UK Drug Extension) is the coding standard;
-until slice 10 the identifiers are checked by shape and check digit, not against the release.
-
-| Harbour field | Standard mapping | Code list or format | Notes |
-| --- | --- | --- | --- |
-| `medication.vmp_id`, `amp_id`, `medication_reconciliation_item.vmp_id`, `amp_id` | dm+d VPID and APID (SNOMED CT concept ids) | 6 to 18 digits, partition `00` or `10`, Verhoeff check digit (`isDmdId`) | No foreign key until slice 10's tables (an expand step adds it). |
-| `medication.product_name` | dm+d VMP or AMP description | As dm+d words it at transcription | Kept as transcribed; a later dm+d release does not rewrite it. |
-| `medication.route_code`, `route_name` | dm+d route of administration lookup | Code and description | Permitted routes per product from dm+d (slice 10). |
-| `medication_schedule.unit_code`, `unit_name`, `medication.prn_dose.unit` | dm+d unit of measure | Code and description | Written in full on screen ("micrograms", "units") by `formatDose`. |
-| `medication_schedule.quantity`, `from_quantity`, `to_quantity` | Harbour (structured dose) | Numeric, more than zero, at most 3 decimal places | A range is from less than to; variable has no quantity. |
-| `medication_schedule.time` | ISO 8601 local time | `HH:MM`, 24-hour, UK time | Expanded to instants with the time-zone database (rule 4). |
-| `medication.pattern_kind` and its columns | Harbour (section 18 schedule type) | `every_day`; `every_n_days` (`interval_days`, `anchor_on`); `weekly` (`weekdays`, `interval_weeks`, `anchor_on`); `monthly` (`day_of_month`) | The anchor is its own date (rule 6a). |
-| `medication.state`, `origin`, `directions` | Harbour | As medicines.md rule 6 | |
-| `medication.source_kind`, `stop_source_kind`, `medication_reconciliation_source.kind` | Harbour (`MAR_SOURCE_KINDS`) | `prescription`, `pharmacy_label`, `pharmacy_mar`, `discharge_letter`, `transfer_letter`, `gp_record`, `clinic_letter`, `prescriber_instruction`, `previous_mar`; a source may also be `person_or_family` | No verbal instruction (H-552). |
-| `medication.cd_schedule` | Misuse of Drugs Regulations 2001 schedules, from dm+d | `1`, `2`, `3`, `4`, `4.1`, `4.2`, `5`; null until slice 10 | |
-| `medication_reconciliation.trigger` | Harbour; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
-| `medication_reconciliation_item.says` | Harbour | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
 ## Covert, self-administration and homely remedies (Phase 2, slice 38)
 
 Migration 0140 ([medicines.md](medicines.md) section 15). Retention class `mar_chart`; every column

@@ -235,7 +235,18 @@ describe("the compliance item form", () => {
     ],
     [
       "professional_registration",
+      { body: "nmc", nmcPart: "nurse", pin: "12a3456e", ...dateOf("renewalDueOn", "2027-01-31") },
+      true,
+    ],
+    // H-835: an NMC registration names its part of the register; other registers never do.
+    [
+      "professional_registration",
       { body: "nmc", pin: "12a3456e", ...dateOf("renewalDueOn", "2027-01-31") },
+      false,
+    ],
+    [
+      "professional_registration",
+      { body: "hcpc", pin: "12a3456e", ...dateOf("renewalDueOn", "2027-01-31") },
       true,
     ],
     [
@@ -246,6 +257,33 @@ describe("the compliance item form", () => {
     ["employment_history", {}, false],
   ] as const)("%s with %j reads %s", (kind, values, ok) => {
     expect(readComplianceItem(form(values as Record<string, string>), kind, null, t).ok).toBe(ok);
+  });
+
+  it("sends the NMC part, and none for another register (H-835)", () => {
+    const nmc = readComplianceItem(
+      form({
+        body: "nmc",
+        nmcPart: "nursing_associate",
+        pin: "12A3456E",
+        ...dateOf("renewalDueOn", "2027-01-31"),
+      }),
+      "professional_registration",
+      null,
+      t,
+    );
+    expect(nmc).toMatchObject({ ok: true, value: { detail: { nmcPart: "nursing_associate" } } });
+    const hcpc = readComplianceItem(
+      form({
+        body: "hcpc",
+        nmcPart: "nurse",
+        pin: "12A3456E",
+        ...dateOf("renewalDueOn", "2027-01-31"),
+      }),
+      "professional_registration",
+      null,
+      t,
+    );
+    expect(hcpc).toMatchObject({ ok: true, value: { detail: { nmcPart: null } } });
   });
 });
 

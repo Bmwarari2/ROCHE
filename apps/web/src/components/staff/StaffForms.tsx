@@ -12,6 +12,7 @@ import {
   type ComplianceKind,
   DBS_LEVELS,
   IDENTITY_DOCUMENTS,
+  NMC_PARTS,
   REGISTRATION_BODIES,
   RTW_METHODS,
   readComplianceItem,
@@ -243,6 +244,7 @@ const ITEM_FIELDS = [
   "expiresOn",
   "body",
   "pin",
+  "nmcPart",
   "renewalDueOn",
   "revalidationDueOn",
   "verifiedToday",
@@ -460,6 +462,19 @@ export function ComplianceItemForm({
                 label: t("staff.registration.body", { body: b }),
               }))}
               error={err("body")}
+            />
+            <SelectField
+              id={ids.nmcPart}
+              name="nmcPart"
+              label={t("staff.form.nmcPart")}
+              hint={t("staff.form.nmcPartHint")}
+              emptyOption={choose}
+              defaultValue={reg?.nmcPart ?? ""}
+              options={NMC_PARTS.map((p) => ({
+                value: p,
+                label: t("staff.registration.nmcPart", { part: p }),
+              }))}
+              error={err("nmcPart")}
             />
             <TextField
               id={ids.pin}
