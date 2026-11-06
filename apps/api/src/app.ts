@@ -519,11 +519,13 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);
   app.route("/", createRefusedEntriesRouter());
-  app.route("/", integrationsRouter);
+  // The HR link's own paths come before the generic /v1/integrations/{port} routes, which would
+  // otherwise take /v1/integrations/hr-link as a port and refuse it.
   app.route("/", hrLinkRouter);
   app.route("/", hrLinkLeaversRouter);
   app.route("/", hrLinkAbsencesRouter);
   app.route("/", hrLinkInboundRouter);
+  app.route("/", integrationsRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);
   app.route("/", invitationsRouter);
