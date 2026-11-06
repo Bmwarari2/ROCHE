@@ -10,6 +10,7 @@ import { guarded, SmtpEmail, type SmtpTransport, smtpTransport } from "./adapter
  */
 
 const FROM = "Harbour <no-reply@example.invalid>";
+const DOMAINS = ["example.invalid"];
 const MESSAGE: EmailMessage = {
   idempotencyKey: "invite-1",
   to: "ada.example@example.invalid",
@@ -47,7 +48,7 @@ function failing(error: Record<string, unknown>): SmtpTransport {
 describe("SmtpEmail", () => {
   it("sends a plain-text message with the title and the link, and nothing else", async () => {
     const { transport, raw } = captured();
-    const result = await new SmtpEmail(FROM, transport).send(MESSAGE);
+    const result = await new SmtpEmail(FROM, transport, DOMAINS).send(MESSAGE);
     expect(result).toMatchObject({ ok: true });
     const message = await raw();
     expect(message).toContain("Subject: You have been invited to Harbour");
@@ -60,7 +61,10 @@ describe("SmtpEmail", () => {
 
   it("carries a message's own body when it has one", async () => {
     const { transport, raw } = captured();
-    await new SmtpEmail(FROM, transport).send({ ...MESSAGE, body: "A manager will be in touch." });
+    await new SmtpEmail(FROM, transport, DOMAINS).send({
+      ...MESSAGE,
+      body: "A manager will be in touch.",
+    });
     expect(await raw()).toContain("A manager will be in touch.");
   });
 
@@ -70,14 +74,14 @@ describe("SmtpEmail", () => {
     ["a refused sign-in", { code: "EAUTH" }, false, "EAUTH"],
     ["a dropped connection", { code: "ECONNECTION" }, true, "ECONNECTION"],
   ])("reports %s by its code only", async (_label, error, retryable, code) => {
-    const result = await new SmtpEmail(FROM, failing(error)).send(MESSAGE);
+    const result = await new SmtpEmail(FROM, failing(error), DOMAINS).send(MESSAGE);
     expect(result).toEqual({ ok: false, retryable, error: code });
     // The relay's reply text quotes the address; it never reaches the result (or the logs).
     expect(JSON.stringify(result)).not.toContain(MESSAGE.to);
   });
 
   it("reports an unreachable relay by its code only", async () => {
-    expect(await new SmtpEmail(FROM, failing({})).health()).toEqual({
+    expect(await new SmtpEmail(FROM, failing({}), DOMAINS).health()).toEqual({
       ok: false,
       detail: "SMTP relay unreachable (ESOCKET).",
     });
@@ -85,11 +89,35 @@ describe("SmtpEmail", () => {
 
   it("is still refused a title shaped like an NHS number, by the guard", async () => {
     const { transport } = captured();
-    const result = await guarded(new SmtpEmail(FROM, transport)).send({
+    const result = await guarded(new SmtpEmail(FROM, transport, DOMAINS)).send({
       ...MESSAGE,
       title: "Update about NHS 999 123 4567",
     });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("SmtpEmail sender domains (#164 security review, L2)", () => {
+  it.each([
+    ["a domain not on the list", "Harbour <alerts@elsewhere.example>", DOMAINS],
+    ["a subdomain of an allowed domain", "alerts@mail.example.invalid", DOMAINS],
+    ["no domains configured", FROM, []],
+    ["something that is not an address", "Harbour", DOMAINS],
+  ])("sends nothing from %s", async (_label, from, domains) => {
+    let sent = 0;
+    const transport = {
+      sendMail: async () => {
+        sent += 1;
+        return { messageId: "x" };
+      },
+      verify: async () => true,
+    } as unknown as SmtpTransport;
+    expect(await new SmtpEmail(from, transport, domains).send(MESSAGE)).toEqual({
+      ok: false,
+      retryable: false,
+      error: "SenderNotAllowed",
+    });
+    expect(sent).toBe(0);
   });
 });
 
@@ -103,6 +131,7 @@ describe("smtpTransport", () => {
       host: "smtp.example.invalid",
       port: 587,
       tls,
+      allowedFromDomains: [],
     }) as unknown as {
       options: Record<string, unknown>;
     };

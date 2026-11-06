@@ -81,6 +81,8 @@ export function draft(overrides: Partial<MarEntryDraft> = {}): MarEntryDraft {
         ],
       },
     },
+    tags: [],
+    minimumIntervalMinutes: null,
     indication: "Pain",
     specialInstructions: null,
     prescriber: "Dr Example, GP",

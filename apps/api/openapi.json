@@ -78655,7 +78655,7 @@
                       "string",
                       "null"
                     ],
-                    "pattern": "^projects\\/[a-z][a-z0-9-]{4,28}[a-z0-9]\\/locations\\/europe-west2\\/secrets\\/[A-Za-z0-9_-]{1,255}(\\/versions\\/(latest|[1-9][0-9]*))?$",
+                    "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$",
                     "default": null
                   }
                 },

@@ -1,7 +1,11 @@
 import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
-import { createDocumentServices, createExportStorage } from "../integrations/documents";
+import {
+  assertStorageReady,
+  createDocumentServices,
+  createExportStorage,
+} from "../integrations/documents";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { sweepInvitations } from "../services/invitations";
@@ -45,6 +49,8 @@ import {
  */
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL);
+// Both buckets checked before the worker deletes or writes anything (#164 security review, L1).
+await assertStorageReady(config);
 const workerPool = createPool(
   config.DATABASE_WORKER_URL,
   { max: 4 },

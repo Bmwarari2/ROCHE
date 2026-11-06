@@ -47,6 +47,28 @@ describe("integrations settings (section 15.3)", () => {
     ]);
   });
 
+  // #164 security review, L2 and L3.
+  it("refuses a sender on a domain not allowed, and a secret that is not this organisation's", async () => {
+    const sender = await demo("owner", "/v1/integrations/comms.email", {
+      method: "PUT",
+      body: { provider: "smtp", settings: { from: "alerts@elsewhere.example" } },
+    });
+    expect(sender.status).toBe(422);
+    const other = "0194d000-0000-7000-8000-0000000000ff";
+    for (const secretRef of [
+      `projects/harbour-test/locations/europe-west2/secrets/harbour_int_${other}_smtp`,
+      `projects/harbour-test/locations/europe-west2/secrets/harbour_sso_${DEMO.tenantId}_okta`,
+      `projects/harbour-test/locations/europe-west2/secrets/harbour_int_${DEMO.tenantId}_smtp`,
+    ]) {
+      const refused = await demo("owner", "/v1/integrations/comms.email", {
+        method: "PUT",
+        body: { provider: "smtp", settings: { from: "alerts@example.invalid" }, secretRef },
+      });
+      // The last is the organisation's own, but no project is configured for tests: refused too.
+      expect(refused.status, secretRef).toBe(422);
+    }
+  });
+
   it("is closed to care workers", async () => {
     expect((await demo("carer", "/v1/integrations")).status).toBe(403);
   });

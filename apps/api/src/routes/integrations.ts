@@ -6,6 +6,7 @@ import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { KNOWN_PROVIDERS } from "../integrations/adapters";
+import { SECRET_REF_SHAPE, secretRefProblem, senderAllowed } from "../integrations/secret-ref";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
 /**
@@ -104,15 +105,11 @@ export const integrationsRouter = createRouter()
                 settings: z
                   .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
                   .default({}),
-                // A regional Secret Manager secret in europe-west2 (ADR-0098): the name carries
-                // its location, so the region is checked here rather than trusted.
-                secretRef: z
-                  .string()
-                  .regex(
-                    /^projects\/[a-z][a-z0-9-]{4,28}[a-z0-9]\/locations\/europe-west2\/secrets\/[A-Za-z0-9_-]{1,255}(\/versions\/(latest|[1-9][0-9]*))?$/,
-                  )
-                  .nullable()
-                  .default(null),
+                // A regional Secret Manager secret in europe-west2 (ADR-0098), named
+                // harbour_int_<organisation id>_<name>: the shape here; this environment's
+                // project, the region and the organisation's own prefix are checked below
+                // (#164 security review, L3).
+                secretRef: z.string().regex(SECRET_REF_SHAPE).nullable().default(null),
               }),
             },
           },
@@ -126,6 +123,24 @@ export const integrationsRouter = createRouter()
       const body = c.req.valid("json");
       if (!KNOWN_PROVIDERS[port as PortName].includes(body.provider)) {
         throw problems.invalid(`Provider ${body.provider} is not available for ${port}.`);
+      }
+      const { config } = c.get("services");
+      if (body.secretRef !== null) {
+        const problem = secretRefProblem(body.secretRef, {
+          projectId: config.GCP_PROJECT_ID,
+          tenantId: access.tenantId,
+        });
+        if (problem) throw problems.invalid(problem);
+      }
+      // A sender only on a domain the platform allows (#164 security review, L2); sends check it
+      // again.
+      if (port === "comms.email" && body.provider === "smtp") {
+        const from = typeof body.settings.from === "string" ? body.settings.from : "";
+        if (!senderAllowed(from, config.smtp?.allowedFromDomains ?? [])) {
+          throw problems.invalid(
+            "The sender address must be on a domain allowed for this environment.",
+          );
+        }
       }
       await withTenant(c, async (tx) => {
         await tx
