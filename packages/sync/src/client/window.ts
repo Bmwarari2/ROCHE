@@ -98,3 +98,18 @@ export function shiftWindowDays(now: Date): string[] {
     days.push(utcDay(today + d * DAY_MS));
   return days;
 }
+
+/**
+ * The UTC days of the administrations a phone holds (`meds_recent_days`; medicines.md section
+ * 13.8; slice 68): today and the two days before, so the last 48 hours are always there, for
+ * intervals, the 24-hour maximum and the last given. A product setting, not a statutory figure.
+ */
+export const MEDS_RECENT_DAYS_BEHIND = 2;
+
+export function medsRecentDays(now: Date): string[] {
+  const days: string[] = [];
+  for (let d = MEDS_RECENT_DAYS_BEHIND; d >= 0; d -= 1) {
+    days.push(new Date(now.getTime() - d * 86_400_000).toISOString().slice(0, 10));
+  }
+  return days;
+}

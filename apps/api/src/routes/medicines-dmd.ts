@@ -1,14 +1,18 @@
 import {
+  DmdDeviceSubset,
   DmdGtinMatch,
   DmdProductDetail,
   DmdReleaseHistory,
   DmdSearchResult,
 } from "@harbour/contracts";
+import { medication } from "@harbour/db";
 import { dmdSearchQuery, toGtin14, ukDateOf } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { requireAnyPermission, withTenant } from "../http/context";
+import { and, inArray, isNull } from "drizzle-orm";
+import { requireAnyPermission, requirePermission, withTenant } from "../http/context";
 import { HttpProblem } from "../http/problem";
 import {
+  dmdDeviceRows,
   dmdGtinMatches,
   dmdProductDetail,
   dmdReleaseHistory,
@@ -34,6 +38,39 @@ const READERS = [
 const DmdIdParam = z.object({ id: z.string().regex(/^[1-9]\d{5,17}$/) });
 
 export const medicinesDmdRouter = createRouter()
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/medicines/device-subset",
+      tags: ["medicines"],
+      summary: "The dm+d rows the member's phone needs",
+      description:
+        "medicines.emar.administer. For the MAR entries the member's phone holds (the people that permission reaches; versions not replaced, withdrawn or removed): the products they name and the products that replaced them, every valid AMP of a VMP-level entry (the named AMP for an AMP-level one), their valid packs and the barcodes on them not withdrawn and not ended, and the identifiers the reference data lacks (integrations.md section 12 rule 9; ADR-0130; slice 68). National reference data with no personal data; not audited one by one.",
+      security,
+      responses: { 200: jsonBody(DmdDeviceSubset, "The phone's dm+d rows"), ...errorResponses },
+    }),
+    async (c) => {
+      await requirePermission(c, "medicines.emar.administer");
+      const result = await withTenant(c, async (tx) => {
+        const named = await tx
+          .selectDistinct({ vmpId: medication.vmpId, ampId: medication.ampId })
+          .from(medication)
+          .where(
+            and(
+              isNull(medication.deletedAt),
+              inArray(medication.state, [
+                "not_yet_checked",
+                "checked",
+                "difference_found",
+                "stopped",
+              ]),
+            ),
+          );
+        return dmdDeviceRows(tx, named, ukDateOf(new Date()));
+      });
+      return c.json(result, 200);
+    },
+  )
   .openapi(
     createRoute({
       method: "get",

@@ -3,6 +3,7 @@ import { parse } from "yaml";
 import {
   AppSchema,
   DEVICE_WRITABLE_TABLES,
+  MEDICINES_TABLES,
   NEVER_EVICT_TABLES,
   OFFLINE_WINDOW_TABLES,
   ROUND_AND_HANDOVER_TABLES,
@@ -83,6 +84,7 @@ describe("client schema covers every stream", () => {
         ...OFFLINE_WINDOW_TABLES,
         ...ROUND_AND_HANDOVER_TABLES,
         ...SHIFT_TABLES,
+        ...MEDICINES_TABLES,
       ].sort(),
     ).toEqual(synced.sort());
     expect(DEVICE_WRITABLE_TABLES).toEqual(OFFLINE_WINDOW_TABLES);
@@ -102,7 +104,13 @@ describe("client schema covers every stream", () => {
 
   it("keeps upload problems and bookkeeping on the device only", () => {
     const localOnly = AppSchema.tables.filter((t) => t.localOnly).map((t) => t.name);
-    expect(localOnly.sort()).toEqual(["held_entry", "sync_meta", "upload_issue"]);
+    expect(localOnly.sort()).toEqual([
+      "dmd_device_gtin",
+      "dmd_device_product",
+      "held_entry",
+      "sync_meta",
+      "upload_issue",
+    ]);
   });
 });
 

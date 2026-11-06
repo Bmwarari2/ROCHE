@@ -25,6 +25,7 @@ import {
 } from "@harbour/domain";
 import {
   isValidWindowDays,
+  medsRecentDays,
   OFFLINE_WINDOW_RATE_KEY,
   offlineWindowDays,
   shiftWindowDays,
@@ -147,6 +148,8 @@ export const SYNCED_READS = {
   entries: ["care.note.read"],
   handover: ["care.handover.manage"],
   entries_write: ["care.note.write"],
+  // Medicines on the phone (medicines.md section 13.8; slice 68): who gives medicines.
+  meds: ["medicines.emar.administer"],
 } as const satisfies Record<string, readonly Permission[]>;
 
 type SyncFamily = keyof typeof SYNCED_READS;
@@ -223,7 +226,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), meds_location_ids and meds_assigned (where medicines.emar.administer reaches) with meds_recent_days (the UTC days of the administrations that sync, today and the two before; empty when it reaches no one), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -254,6 +257,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           const entries = familyReach(access.effective, "entries", allIds);
           const handovers = familyReach(access.effective, "handover", allIds);
           const recording = familyReach(access.effective, "entries_write", allIds);
+          const meds = familyReach(access.effective, "meds", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
           const rated = await rateNumber(tx, access.tenantId, OFFLINE_WINDOW_RATE_KEY).catch(
@@ -309,6 +313,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               careAssigned: care.assigned,
               entriesAssigned: entries.assigned,
               handoverAssigned: handovers.assigned,
+              medsLocations: meds.locationIds.length,
+              medsAssigned: meds.assigned,
               offlineWindowDays: windowDays,
             },
             requestId: c.get("requestId"),
@@ -355,6 +361,12 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             handover_shifts: handoverShifts,
             // The member's own shifts and clock events (scheduling.md section 18): only for those
             // who clock their own time; empty otherwise, so no shift syncs (fails closed).
+            // Medicines (slice 68): the people of the member's medicines.emar.administer scope, and
+            // the days of the administrations they need; none when it reaches no one.
+            meds_location_ids: meds.locationIds,
+            meds_assigned: meds.assigned,
+            meds_recent_days:
+              meds.assigned || meds.locationIds.length > 0 ? medsRecentDays(new Date()) : [],
             shift_days:
               scopeFor(access.effective, "scheduling.timesheet.self").scope === "none"
                 ? []

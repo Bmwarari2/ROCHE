@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 // The API mints the offline window into the token, so it needs the same day list as the streams.
 export {
   isValidWindowDays,
+  medsRecentDays,
   OFFLINE_WINDOW_RATE_KEY,
   offlineWindowDays,
   shiftWindowDays,
@@ -75,6 +76,12 @@ export interface SyncTokenClaims {
    * 18): empty unless the member holds `scheduling.timesheet.self`, so no shift syncs (fails closed).
    */
   readonly shift_days?: readonly string[];
+  /** Locations whose live people's medicines sync in full (`medicines.emar.administer`). */
+  readonly meds_location_ids?: readonly string[];
+  /** Whether the member's assigned people's medicines sync. Missing or false syncs none. */
+  readonly meds_assigned?: boolean;
+  /** UTC days of the administrations that sync (`medsRecentDays`); empty syncs none. */
+  readonly meds_recent_days?: readonly string[];
   /**
    * The day and night shift start times (minutes after midnight, UK time) of each nation the
    * organisation has homes in (`england`, `wales` and so on), from the rate table, sent where the

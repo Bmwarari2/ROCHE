@@ -883,6 +883,13 @@
       "when": 1793467243141,
       "tag": "0140_medicines_covert_self_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0149_medicines_sync",
+      "breakpoints": true
     }
   ]
 }

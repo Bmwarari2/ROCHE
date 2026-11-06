@@ -660,3 +660,25 @@ describe("hazard HZ-011 audit by id only", () => {
     expect(JSON.stringify(rows)).not.toMatch(/Paracetamol|Lactulose|tablet|Dr A Example/);
   });
 });
+
+describe("hazard HZ-113 the dm+d rows a phone needs (slice 68; ADR-0130)", () => {
+  it("gives the products the MAR entries name, with their packs and barcodes, or says which the data lacks", async () => {
+    // Ada's paracetamol is on the MAR from the tests above.
+    const response = await send("manager", "/v1/medicines/device-subset");
+    expect(response.status, await response.clone().text()).toBe(200);
+    const subset = await json<{
+      products: { kind: string; id: string; vmpId: string | null }[];
+      gtins: { gtin: string; amppId: string }[];
+      unresolved: string[];
+    }>(response);
+    const named =
+      subset.products.some((p) => p.kind === "vmp" && p.id === PARACETAMOL.vmpId) ||
+      subset.unresolved.includes(PARACETAMOL.vmpId);
+    expect(named).toBe(true);
+    // Every barcode belongs to a pack the phone holds.
+    const packs = new Set(subset.products.filter((p) => p.kind === "ampp").map((p) => p.id));
+    for (const g of subset.gtins) expect(packs.has(g.amppId), g.gtin).toBe(true);
+    // Nothing about a person: products and barcodes only.
+    expect(JSON.stringify(subset)).not.toContain(ADA);
+  });
+});

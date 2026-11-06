@@ -13,6 +13,7 @@ import type {
 import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import {
+  medsRecentDays,
   offlineWindowDays,
   SYNC_TOKEN_AUDIENCE,
   SYNC_TOKEN_ISSUER,
@@ -607,6 +608,28 @@ describe("offline sync", () => {
     const days = shiftWindowDays(new Date());
     expect(payload.shift_days).toEqual(days);
     expect(days).toHaveLength(11);
+  });
+
+  it("puts the medicines reach and days in the token where medicines.emar.administer reaches (slice 68)", async () => {
+    const carer = await jwtVerify(
+      (await json<SyncToken>(await demo("carer", "/v1/sync/token", { method: "POST" }))).token,
+      h.handle.signer.verificationKey,
+    );
+    // A care worker gives medicines to the people they are assigned to.
+    expect(carer.payload.meds_assigned).toBe(true);
+    expect(carer.payload.meds_location_ids).toEqual([]);
+    expect(carer.payload.meds_recent_days).toEqual(medsRecentDays(new Date()));
+    // An owner who does not give medicines receives none.
+    const owner = await jwtVerify(
+      (await json<SyncToken>(await demo("owner", "/v1/sync/token", { method: "POST" }))).token,
+      h.handle.signer.verificationKey,
+    );
+    if (
+      owner.payload.meds_assigned !== true &&
+      (owner.payload.meds_location_ids as string[]).length === 0
+    ) {
+      expect(owner.payload.meds_recent_days).toEqual([]);
+    }
   });
 
   it("does not let a script with a normal session widen the offline window", async () => {
