@@ -7,6 +7,15 @@ gate passes on `main` (section 19, definition of complete).
 **Overall: 1% done** (3 of 234 register rows `done`; 103 `partial`, 128 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
+**Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
+`partial`). It adds the TRUD download, which checks TRUD's answer, the archive's SHA-256 and its
+names before loading, and runs as its own Cloud Run job with alerts on refused, failed and late
+releases. Migration 0131; human actions H-1240 to H-1245. The job's Terraform waits for #164
+(H-1241).
+
+**Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
+only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
@@ -383,6 +392,24 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   time given and the time recorded, refused onto the flagged route where they differ; reason flags
   at either time kept; the flagged route checked when recorded too, urgent where the times differ.
   Next in lane A: slice 10 (dm+d reference data).
+
+**Slice 10, dm+d reference data** (lane A; MEDS-001 and INTG-006 `partial`): pushed on
+`feat/meds-dmd-reference`, pull request not yet opened. Migration 0110 (moved from 0072, which can no
+longer apply after 0088; slice 76 moves to 0111): global dm+d tables with no `tenant_id`, read by
+every role, written only by the loader's functions owned by the new no-login role
+`harbour_dmd_loader` (bootstrap first, H-656); a loader for the NHSBSA XML from an invented fixture
+(whole or nothing, never backwards, nothing disappears, GTINs withdrawn); the release source port
+with a mock and a monthly worker job (the TRUD download is slice 75); search, product, GTIN and
+release history routes that always say whether the data is out of date
+(`medicines.dmd.stale_after_days`); the device subset rule for slice 68. ADR-0080 (proposed), HZ-113,
+human actions H-650 to H-656 (H-657 to H-659 spare); [integrations.md](../specs/integrations.md)
+section 11. Security review round 2 fixed: the fixture refused by the database unless it is marked
+dev or test (`app.database_environment`); file, byte and time limits with streamed reads and no
+symbolic links; releases dated ahead of today refused; finish deriving the release from the rows
+written; `pg_temp` last in the loader functions' search path. Follow-ups: run the dm+d load in a
+process of its own (slice 75 moves it into its own Cloud Run job on `feat/integrations-dmd-download`),
+and add `pg_temp` to the other definer functions' search path (a separate chore). Next in lane A:
+slice 3 (stacked on #135), then slice 16 (the medicines record).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
 `feat/work-staff-profile` slice 11 (0073) on #131; `feat/quality-framework-library` slice 14 (0076)

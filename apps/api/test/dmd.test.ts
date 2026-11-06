@@ -51,7 +51,7 @@ async function setStaleAfter(days: number) {
 
 const job = (directories: string[]) =>
   loadLatestDmdRelease({
-    workerPool: h.db.pool("harbour_worker"),
+    pool: h.db.pool("harbour_dmd_job"),
     logger: createLogger("silent"),
     source: new MockDmdReleaseSource(directories),
   });
@@ -76,7 +76,7 @@ describe("hazard HZ-113 before any release is loaded", () => {
 
   it("loads nothing when no source is configured, and says so", async () => {
     const outcome = await loadLatestDmdRelease({
-      workerPool: h.db.pool("harbour_worker"),
+      pool: h.db.pool("harbour_dmd_job"),
       logger: createLogger("silent"),
       source: new UnconfiguredDmdReleaseSource(),
     });

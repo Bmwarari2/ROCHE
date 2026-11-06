@@ -40,6 +40,7 @@ export * from "./comms/templates";
 export * from "./comms/visit-booking";
 export * from "./integrations/dmd-release-source";
 export * from "./integrations/ports";
+export * from "./integrations/trud";
 export * from "./medicines/administration";
 export * from "./medicines/competence";
 export * from "./medicines/controlled-drugs";

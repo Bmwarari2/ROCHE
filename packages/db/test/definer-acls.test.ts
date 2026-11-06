@@ -113,14 +113,15 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.sso_sign_in_facts(text, text)": ["harbour_app"],
   "app.link_sso_member(text, text)": ["harbour_app"],
   "app.sso_key_ref(text)": ["harbour_app"],
-  // The dm+d release loader (Phase 2 slice 10, migration 0110, ADR-0080): the worker's job and a
-  // manual run by the owner; never the application.
-  "app.dmd_begin_release(text, date, text, text, jsonb)": ["harbour_owner", "harbour_worker"],
-  "app.dmd_load_rows(uuid, text, jsonb)": ["harbour_owner", "harbour_worker"],
-  "app.dmd_finish_release(uuid)": ["harbour_owner", "harbour_worker"],
+  // The dm+d release loader (Phase 2 slice 10, migration 0110, ADR-0080): the dm+d job's own
+  // role (migration 0131, slice 75) and a manual run by the owner; never the application or the
+  // worker.
+  "app.dmd_begin_release(text, date, text, text, jsonb)": ["harbour_dmd_job", "harbour_owner"],
+  "app.dmd_load_rows(uuid, text, jsonb)": ["harbour_dmd_job", "harbour_owner"],
+  "app.dmd_finish_release(uuid)": ["harbour_dmd_job", "harbour_owner"],
   "app.dmd_record_refusal(text, date, text, text, text, jsonb, jsonb, integer)": [
+    "harbour_dmd_job",
     "harbour_owner",
-    "harbour_worker",
   ],
 };
 

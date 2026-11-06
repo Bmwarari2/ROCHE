@@ -1,3 +1,4 @@
+import { trudUrlAllowed } from "@harbour/domain";
 import { z } from "zod";
 
 /**
@@ -44,6 +45,13 @@ const Env = z.object({
   DATABASE_WORKER_URL: z
     .string()
     .default("postgres://harbour_worker:harbour_worker_local@localhost:5432/harbour"),
+  /**
+   * harbour_dmd_job: the dm+d release job only (slice 75, migration 0131), which may call the
+   * loader and read the dm+d tables and nothing else. Never given to the API or the worker.
+   */
+  DATABASE_DMD_URL: z
+    .string()
+    .default("postgres://harbour_dmd_job:harbour_dmd_job_local@localhost:5432/harbour"),
   BETTER_AUTH_SECRET: z.string().min(32).default("local-development-secret-change-me-0123456789"),
   BETTER_AUTH_URL: z.url().default("http://localhost:4000"),
   /** Comma-separated origins allowed to call the API with credentials (the web app). */
@@ -85,6 +93,40 @@ const Env = z.object({
     .max(16 * 1024 ** 3)
     .default(2 * 1024 ** 3),
   DMD_LOAD_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(240).default(60),
+  /**
+   * The TRUD download of each dm+d release (integrations.md section 11, "Release download"; slice
+   * 75). The API key is a secret: in deployed environments it reaches the dm+d job's environment
+   * from Secret Manager (H-510, H-1240), and it is never logged. Without it, staging, pilot and
+   * production have no release source and say so.
+   */
+  TRUD_API_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9-]{16,128}$/)
+    .optional(),
+  TRUD_BASE_URL: z.url().default("https://isd.digital.nhs.uk/trud/api/v1"),
+  TRUD_DMD_ITEM: z.coerce.number().int().positive().default(24),
+  /** Hosts the download may reach, the archive's address and every redirect (comma separated). */
+  TRUD_ALLOWED_HOSTS: z
+    .string()
+    .default("isd.digital.nhs.uk")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((h) => h.trim().toLowerCase())
+        .filter((h) => h !== ""),
+    ),
+  /**
+   * The largest archive the job downloads: a real release is tens of megabytes; this bounds the
+   * job's disk and memory (Cloud Run's /tmp is memory) with headroom (H-1243; not statutory).
+   */
+  DMD_ARCHIVE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024 * 1024)
+    .max(8 * 1024 ** 3)
+    .default(256 * 1024 ** 2),
+  /** Where the job unpacks a release (a private directory under it, deleted after); the OS temp. */
+  DMD_WORK_DIR: z.string().optional(),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
@@ -303,6 +345,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (!DOMAIN.test(domain.toLowerCase())) {
       throw new Error("SMTP_ALLOWED_FROM_DOMAINS must list domain names only");
     }
+  }
+  // The dm+d download reaches TRUD over HTTPS only, on an allowed host (slice 75, rule 3).
+  if (!trudUrlAllowed(parsed.TRUD_BASE_URL, parsed.TRUD_ALLOWED_HOSTS)) {
+    throw new Error("TRUD_BASE_URL must be https on one of TRUD_ALLOWED_HOSTS");
   }
   if (parsed.NODE_ENV === "production") {
     if (parsed.BETTER_AUTH_SECRET.startsWith("local-development")) {

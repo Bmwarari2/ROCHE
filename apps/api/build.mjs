@@ -21,6 +21,7 @@ const shared = {
 await build({ ...shared, entryPoints: ["src/server.ts"], outfile: "dist/server.js" });
 await build({ ...shared, entryPoints: ["src/jobs/worker.ts"], outfile: "dist/worker.js" });
 await build({ ...shared, entryPoints: ["src/jobs/migrate.ts"], outfile: "dist/migrate.js" });
+await build({ ...shared, entryPoints: ["src/jobs/dmd-job.ts"], outfile: "dist/dmd-job.js" });
 
 // The migrator reads the SQL migrations and the reference documents at run time.
 mkdirSync("dist/drizzle", { recursive: true });
