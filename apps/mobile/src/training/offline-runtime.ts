@@ -429,12 +429,15 @@ export function parseRuntimeMessage(data: string): RuntimeMessage | null {
  */
 export function withOfflinePolicy(html: string): string {
   const meta = `<meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}">`;
-  const head = /<head(\s[^>]*)?>/i.exec(html);
-  if (head)
-    return (
-      html.slice(0, head.index + head[0].length) + meta + html.slice(head.index + head[0].length)
-    );
-  const root = /<html(\s[^>]*)?>/i.exec(html);
+  // Tags inside comments are blanked first, same length, so a "<head>" hidden in a comment is
+  // never taken for the real one (security review of slice 72, round 3).
+  const visible = html.replace(/<!--[\s\S]*?(?:-->|$)/g, (c) => " ".repeat(c.length));
+  const head = /<head(\s[^>]*)?>/i.exec(visible);
+  if (head) {
+    const at = head.index + head[0].length;
+    return html.slice(0, at) + meta + html.slice(at);
+  }
+  const root = /<html(\s[^>]*)?>/i.exec(visible);
   if (root) {
     const at = root.index + root[0].length;
     return `${html.slice(0, at)}<head>${meta}</head>${html.slice(at)}`;

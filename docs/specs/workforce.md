@@ -1017,9 +1017,11 @@ in [ADR-0093](../decisions/0093-elearning-runtime.md).
    package is written with a content security policy first in its `<head>` when it downloads
    (`withOfflinePolicy`, `OFFLINE_CSP`: the package's own files and inline code only,
    `connect-src 'none'`, no forms), and the runtime refuses `fetch` and `XMLHttpRequest` to the
-   network and stops beacons, WebSockets and server-sent events on the page. This has not yet been
-   tried on a device's WebView; a frame the page makes from nothing (`about:blank`) is outside it,
-   and a platform-level block is H-1366. Bridge messages carry only the elements the API keeps,
+   network and stops beacons, WebSockets and server-sent events on the page; a `<head>` hidden in a
+   comment is ignored, and only the package's pages (`.html`, `.htm`) open as pages. This has not
+   yet been tried on a device's WebView; a frame the page makes from nothing (`about:blank`) is
+   outside it, pages are read as UTF-8 when the policy is written (another encoding may show
+   garbled), and a platform-level block is H-1366. Bridge messages carry only the elements the API keeps,
    within their lengths, and statements of at most 16 KB. The course is told the attempt's id and
    the member's first name only.
 3. **Queued and sent.** The attempt is started on the phone by its own UUID, and each commit and

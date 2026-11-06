@@ -484,6 +484,11 @@ describe("the security re-check of slice 72", () => {
     ],
     ["no head", "<html><body>x</body></html>", `<html><head>${meta}</head><body>x</body></html>`],
     ["neither", "<p>x</p>", `<head>${meta}</head><p>x</p>`],
+    [
+      "a head hidden in a comment first",
+      "<!--<head>--><html><head></head></html>",
+      `<!--<head>--><html><head>${meta}</head></html>`,
+    ],
   ])("writes the offline policy first into a page with %s", (_case, html, kept) => {
     expect(withOfflinePolicy(html)).toBe(kept);
   });

@@ -9,6 +9,7 @@ import { t } from "../../../i18n/t";
 import { useOfflineCourse } from "../../../training/hooks";
 import { isInsideFolder } from "../../../training/offline-plan";
 import {
+  isPage,
   offlineLaunchQuery,
   offlineRuntimeSource,
   parseRuntimeMessage,
@@ -114,7 +115,9 @@ export default function OfflineCourseScreen() {
         cacheEnabled={false}
         onShouldStartLoadWithRequest={(request) => {
           // Only the course's own files on the phone; nothing else ever loads here.
-          const inside = isInsideFolder(request.url, folder);
+          // Only the course's own pages: never another file (an SVG with script) as a page.
+          const inside =
+            isInsideFolder(request.url, folder) && isPage(new URL(request.url).pathname);
           if (!inside) setBlocked(true);
           return inside;
         }}
