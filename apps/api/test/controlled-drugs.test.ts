@@ -183,6 +183,60 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
     receiptId = entry.id;
   });
 
+  it("lists whom a witness may sign for, never themselves (slice 54)", async () => {
+    const r = await send("carer", `/v1/controlled-drugs/pages/${pageId}/recorders`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    const ids = (await json<{ recorders: { id: string; name: string }[] }>(r)).recorders.map(
+      (x) => x.id,
+    );
+    expect(ids).toContain(DEMO.users.manager.id);
+    expect(ids).not.toContain(DEMO.users.carer.id);
+  });
+
+  it("hazard HZ-116 shows a recorder only the witness signatures waiting for them (slice 54)", async () => {
+    const forManager = await witness(pageId, "disposal", 1);
+    const forOwner = await witness(pageId, "disposal", 1, null, "carer", DEMO.users.owner.id);
+    const mine = await json<{
+      assertions: { id: string; movement: string; quantity: number; witnessName: string }[];
+    }>(await send("manager", `/v1/controlled-drugs/pages/${pageId}/witness-assertions`));
+    const ids = mine.assertions.map((a) => a.id);
+    expect(ids).toContain(forManager);
+    expect(ids).not.toContain(forOwner);
+    expect(mine.assertions.find((a) => a.id === forManager)).toMatchObject({
+      movement: "disposal",
+      quantity: 1,
+      witnessName: DEMO.users.carer.name,
+    });
+  });
+
+  it("hazard HZ-116 refuses the slice 54 reads to members without the permission or the page (slice 54)", async () => {
+    // The quality lead holds neither medicines.cd.witness nor a recording permission.
+    expect((await send("quality", `/v1/controlled-drugs/pages/${pageId}/recorders`)).status).toBe(
+      403,
+    );
+    expect(
+      (await send("quality", `/v1/controlled-drugs/pages/${pageId}/witness-assertions`)).status,
+    ).toBe(403);
+    // A page that does not exist, or that the caller's scope cannot see, is not found.
+    const other = randomUUID();
+    expect((await send("carer", `/v1/controlled-drugs/pages/${other}/recorders`)).status).toBe(404);
+    expect(
+      (await send("manager", `/v1/controlled-drugs/pages/${other}/witness-assertions`)).status,
+    ).toBe(404);
+  });
+
+  it("names everyone who signed the page, for the screens and the print (slice 54)", async () => {
+    const page = await json<{ people: { id: string; name: string }[] }>(
+      await send("manager", `/v1/controlled-drugs/pages/${pageId}`),
+    );
+    expect(page.people).toEqual(
+      expect.arrayContaining([
+        { id: DEMO.users.manager.id, name: DEMO.users.manager.name },
+        { id: DEMO.users.carer.id, name: DEMO.users.carer.name },
+      ]),
+    );
+  });
+
   it("hazard HZ-119 refuses a witness whose medicines competence is not current", async () => {
     const key = `${DEMO.tenantId}:${DEMO.users.carer.id}`;
     competence.held.set(key, "expired");
@@ -406,6 +460,12 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
         ).rows,
     );
     expect(incidents).toEqual([{ type: "medication", person_ids: [ADA] }]);
+    // The page keeps saying so for everyone who reads it later, and in print (slice 54).
+    const page = await json<{ stockChecks: { id: string; incidentRaised: boolean }[] }>(
+      await send("manager", `/v1/controlled-drugs/pages/${pageId}`),
+    );
+    expect(page.stockChecks.find((s) => s.id === out.stockCheck.id)?.incidentRaised).toBe(true);
+    expect(page.stockChecks.some((s) => !s.incidentRaised)).toBe(true);
   });
 
   it("hazard HZ-011 lists the person's pages, and audits by id, never the drug or the count", async () => {

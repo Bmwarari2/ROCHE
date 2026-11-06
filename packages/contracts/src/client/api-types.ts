@@ -46074,6 +46074,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/controlled-drugs/pages/{pageId}/recorders": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Who a witness may sign for on this page
+     * @description Members who may record controlled drugs or count the stock at the person's home (medicines.cd.administer or medicines.stock.manage there), never the witness themselves, by name: for choosing whom they watched (ADR-0084 on the web; slice 54). Audited as a view of the page.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          pageId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Recorders */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CdRecorderList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/controlled-drugs/pages/{pageId}/witness-assertions": {
     parameters: {
       query?: never;
@@ -46081,7 +46158,68 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * The witness signatures waiting for you on this page
+     * @description Unused, unexpired witness signatures on this page that name the signed-in member as recorder, with the witness's name, the movement and the quantity they signed for: the recorder chooses one when recording (ADR-0084 on the web; slice 54). Never another recorder's.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          pageId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Signatures waiting */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CdWaitingAssertions"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     put?: never;
     /**
      * Sign as witness for what you saw (ADR-0084)
@@ -72686,6 +72824,7 @@ export interface components {
       expected: number;
       difference: number;
       resultInWords: string;
+      incidentRaised: boolean;
       reason: string | null;
       checked: {
         /** Format: uuid */
@@ -72720,6 +72859,11 @@ export interface components {
       witnessPolicy: "required" | "where_available";
       entries: components["schemas"]["CdEntry"][];
       stockChecks: components["schemas"]["StockCheck"][];
+      people: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+      }[];
     };
     CdEntry: {
       /** Format: uuid */
@@ -72759,6 +72903,24 @@ export interface components {
       | "transfer_out"
       | "destruction"
       | "correction";
+    CdRecorderList: {
+      recorders: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+      }[];
+    };
+    CdWaitingAssertions: {
+      assertions: {
+        /** Format: uuid */
+        id: string;
+        movement: components["schemas"]["CdMovement"] | "stock_check";
+        quantity: number;
+        witnessName: string;
+        /** Format: date-time */
+        expiresAt: string;
+      }[];
+    };
     WitnessAssertion: {
       /** Format: uuid */
       id: string;

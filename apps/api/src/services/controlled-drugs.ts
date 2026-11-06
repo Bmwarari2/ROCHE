@@ -272,6 +272,8 @@ export function stockCheckOut(r: StockCheckRow, unitName: string): StockCheckOut
       difference === 0
         ? "Balanced"
         : `${difference > 0 ? "Over" : "Short"} by ${amount} ${unitName}: an incident is raised`,
+    // The count's POST publishes the discrepancy in the same transaction whenever it differs.
+    incidentRaised: difference !== 0,
     reason: r.reason,
     checked: { id: r.checkedBy, at: r.checkedAt.toISOString() },
     witnessId: r.witnessId,

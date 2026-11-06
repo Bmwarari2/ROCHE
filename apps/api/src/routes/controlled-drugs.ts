@@ -4,6 +4,8 @@ import {
   CdPageDetail,
   CdPageList,
   CdPageSummary,
+  CdRecorderList,
+  CdWaitingAssertions,
   OpenCdPage,
   RecordCdEntry,
   RecordStockCheck,
@@ -16,6 +18,7 @@ import {
   controlledDrugWitnessAssertion,
   medication,
   type Transaction,
+  tenantUser,
 } from "@harbour/db";
 import {
   type CdWitnessPolicy,
@@ -25,7 +28,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, auditInTx, withAuditedRefusal } from "../http/audit";
 import {
@@ -53,6 +56,7 @@ import { medicinesRates } from "../services/medicine-administrations";
 import { guardConcurrent, lockPerson, personEntries } from "../services/medicines";
 import { loadPerson } from "../services/people";
 import { rateNumber } from "../services/rates";
+import { permissionHolders, withTenantWideScope } from "../services/safety";
 import {
   conflictResponse,
   createRouter,
@@ -309,7 +313,24 @@ export const controlledDrugsRouter = createRouter()
           resourceId: page.id,
           scope: { personId: page.personId, entries: entries.length },
         });
+        // Everyone who signed the page, by name, for the screens and the print (slice 54).
+        const signers = [
+          ...new Set(
+            [
+              ...entries.flatMap((r) => [r.recordedBy, r.witnessId]),
+              ...checks.flatMap((s) => [s.checkedBy, s.witnessId]),
+            ].filter((v): v is string => !!v),
+          ),
+        ];
+        const people =
+          signers.length === 0
+            ? []
+            : await tx
+                .select({ id: tenantUser.id, name: tenantUser.displayName })
+                .from(tenantUser)
+                .where(inArray(tenantUser.id, signers));
         return {
+          people,
           ...(await summary(
             tx,
             page,
@@ -342,6 +363,126 @@ export const controlledDrugsRouter = createRouter()
         };
       });
       return c.json(out, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/controlled-drugs/pages/{pageId}/recorders",
+      tags,
+      summary: "Who a witness may sign for on this page",
+      description:
+        "Members who may record controlled drugs or count the stock at the person's home (medicines.cd.administer or medicines.stock.manage there), never the witness themselves, by name: for choosing whom they watched (ADR-0084 on the web; slice 54). Audited as a view of the page.",
+      security,
+      request: { params: PageParam },
+      responses: {
+        200: jsonBody(CdRecorderList, "Recorders"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, WITNESS);
+      const { pageId } = c.req.valid("param");
+      const recorders = await withTenant(c, async (tx) => {
+        const [page] = await tx
+          .select({ personId: controlledDrugPage.personId })
+          .from(controlledDrugPage)
+          .where(eq(controlledDrugPage.id, pageId));
+        if (!page) throw problems.notFound();
+        const person = await loadPerson(tx, page.personId);
+        await audit(c, tx, access, {
+          action: "medicines.cd.recorders_viewed",
+          resourceType: "controlled_drug_page",
+          resourceId: pageId,
+          scope: { personId: page.personId },
+        });
+        return withTenantWideScope(tx, async () => {
+          const now = new Date();
+          // Sequential: one transaction runs one query at a time.
+          const administer = await permissionHolders(tx, ADMINISTER, person.locationId, now);
+          const counters = await permissionHolders(
+            tx,
+            "medicines.stock.manage",
+            person.locationId,
+            now,
+          );
+          const ids = [...new Set([...administer, ...counters])].filter(
+            (id) => id !== access.tenantUserId,
+          );
+          if (ids.length === 0) return [];
+          const rows = await tx
+            .select({ id: tenantUser.id, name: tenantUser.displayName })
+            .from(tenantUser)
+            .where(inArray(tenantUser.id, ids));
+          return rows.sort((a, b) => a.name.localeCompare(b.name));
+        });
+      });
+      return c.json({ recorders }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/controlled-drugs/pages/{pageId}/witness-assertions",
+      tags,
+      summary: "The witness signatures waiting for you on this page",
+      description:
+        "Unused, unexpired witness signatures on this page that name the signed-in member as recorder, with the witness's name, the movement and the quantity they signed for: the recorder chooses one when recording (ADR-0084 on the web; slice 54). Never another recorder's.",
+      security,
+      request: { params: PageParam },
+      responses: {
+        200: jsonBody(CdWaitingAssertions, "Signatures waiting"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requireAnyPermission(c, [ADMINISTER, "medicines.stock.manage"]);
+      const { pageId } = c.req.valid("param");
+      const now = new Date();
+      const assertions = await withTenant(c, async (tx) => {
+        const [page] = await tx
+          .select({ id: controlledDrugPage.id, personId: controlledDrugPage.personId })
+          .from(controlledDrugPage)
+          .where(eq(controlledDrugPage.id, pageId));
+        if (!page) throw problems.notFound();
+        await audit(c, tx, access, {
+          action: "medicines.cd.assertions_viewed",
+          resourceType: "controlled_drug_page",
+          resourceId: pageId,
+          scope: { personId: page.personId },
+        });
+        const rows = await tx
+          .select({
+            id: controlledDrugWitnessAssertion.id,
+            movement: controlledDrugWitnessAssertion.movement,
+            quantity: controlledDrugWitnessAssertion.quantity,
+            expiresAt: controlledDrugWitnessAssertion.expiresAt,
+            witnessName: tenantUser.displayName,
+          })
+          .from(controlledDrugWitnessAssertion)
+          .innerJoin(tenantUser, eq(tenantUser.id, controlledDrugWitnessAssertion.witnessId))
+          .where(
+            and(
+              eq(controlledDrugWitnessAssertion.pageId, pageId),
+              eq(controlledDrugWitnessAssertion.recorderId, access.tenantUserId),
+              isNull(controlledDrugWitnessAssertion.usedAt),
+              gt(controlledDrugWitnessAssertion.expiresAt, now),
+            ),
+          )
+          .orderBy(desc(controlledDrugWitnessAssertion.assertedAt));
+        return rows.map((r) => ({
+          id: r.id,
+          movement: r.movement as z.infer<
+            typeof CdWaitingAssertions
+          >["assertions"][number]["movement"],
+          quantity: Number(r.quantity),
+          witnessName: r.witnessName,
+          expiresAt: r.expiresAt.toISOString(),
+        }));
+      });
+      return c.json({ assertions }, 200);
     },
   )
   .openapi(

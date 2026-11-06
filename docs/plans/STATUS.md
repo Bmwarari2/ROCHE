@@ -183,6 +183,13 @@ worker job and reach the shift handover as tasks. The API supplies `competenceAt
 delay tolerance to #162's rules. 0134 also restores 0099's sample-removal tables (H-1278). API only;
 screens are slice 53. Next for medicines: slice 50 (printable page), slice 28, slice 53. Open:
 H-1270 to H-1279.
+**Pushed on 01/11/2026, not merged: slice 54, the controlled drugs register screens**
+(`feat/web-cd-register`, MEDS-005 and MEDS-014 `partial`, from slice 34; medicines.md section 15).
+The register tab and page, witness first in their own session with step-up (ADR-0084 on the web),
+receipts, returns, disposals and destruction, corrections under the entry they correct, counts
+that raise an incident when they do not match, and a plain print view until slice 50. Two read
+routes added (recorders, waiting signatures). Playwright with axe in light and dark. Open: H-1330
+to H-1334. The tab change in `apps/web/src/lib/care-record.ts` overlaps slice 52's.
 
 **Phase 2 slice 34, the controlled drugs register** (`feat/meds-cd-register`, MEDS-005, from
 slice 22 with #162's latest head merged in): migration 0128 adds pages, append-only entries with the

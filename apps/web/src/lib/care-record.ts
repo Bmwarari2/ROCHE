@@ -34,6 +34,7 @@ export type RecordTab =
   | "property"
   | "letters"
   | "medicines"
+  | "controlled-drugs"
   | "family-updates"
   | "leaving"
   | "sharing"
@@ -55,7 +56,9 @@ type TabPermission =
   | "people.movement.record"
   | "comms.letter.manage"
   | "comms.feed.publish"
-  | "people.sharing.manage";
+  | "people.sharing.manage"
+  | "medicines.cd.administer"
+  | "medicines.cd.witness";
 
 /**
  * In the order the tabs appear: who the person is (personal details and About me), the plan and
@@ -74,6 +77,17 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   {
     tab: "medicines",
     needs: ["medicines.record.manage", "medicines.emar.administer", "care.plan.read"],
+  },
+  // The controlled drugs register (MEDS-005; medicines.md section 15): the API's readers.
+  {
+    tab: "controlled-drugs",
+    needs: [
+      "medicines.cd.administer",
+      "medicines.cd.witness",
+      "medicines.record.manage",
+      "medicines.emar.administer",
+      "care.plan.read",
+    ],
   },
   { tab: "body-map", needs: "care.note.read" },
   { tab: "advance-care", needs: "care.plan.read" },

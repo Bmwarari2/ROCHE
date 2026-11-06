@@ -181,8 +181,8 @@ export function createMedicinesPorts(fixtures: boolean): MedicinesPorts {
 
 /**
  * With the fixtures on (never in production), the invented demo owner, manager and nurse hold
- * current medicines competence, so the local journeys can check and complete (slice 52). Every
- * other member holds none until the workforce port exists.
+ * current medicines competence, so the local journeys can witness and check (slices 52 and 54).
+ * Every other member holds none until the workforce port exists.
  */
 function demoCompetence(): ReadonlyMap<string, MedicinesCompetence> {
   return new Map(
