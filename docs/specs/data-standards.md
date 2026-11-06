@@ -1128,6 +1128,14 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   kept the zone is sent with the zone its drawn side names on that view. The API works the side out
   again from the place and the view and stores all four (HZ-019); the streams do not send them
   back, so they are empty on synced rows.
+- Training taken offline (mobile slice 72; workforce.md section 14.5): a downloaded course's
+  package files are kept in the app's documents folder (training content, no personal data),
+  under `elearning/<tenant id>/<course id>/`; `sync_meta` keeps the course's offline answer and
+  when it was downloaded under `elearning-course:<tenant id>:<course id>`, and the phone's attempt
+  (its id, status, `location` and `suspend_data`) under `elearning-attempt:<tenant id>:<course
+  id>`. `elearning_outbox` (insert-only) holds what is waiting to send: `action` `start` (the
+  course id and package hash), `commit` (SCORM elements and `finished`) or `statements` (xAPI
+  statements, each with an id), `attempt_id`, `body` as the API's contract JSON and `queued_at`.
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
   someone removes it with a recorded reason (the content never ages out). The device also sends
   the content to the server, which keeps a copy (`refused_entry`; contract `SyncRefusedEntry`,

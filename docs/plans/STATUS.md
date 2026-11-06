@@ -174,6 +174,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 17 training and competence, `feat/work-training-competence` (0079; H-690 to H-699);
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
+- slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1365): download with a storage check, offline runtime, queued statements; MOB-007 partial;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 23 applicant tracking offered (0085; H-730 to H-739), not started.
 
