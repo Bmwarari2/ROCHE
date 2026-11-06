@@ -632,7 +632,7 @@ async function endLeaverSessions(
 }
 
 /**
- * Policy read-and-sign reminders and review tasks (quality.md section 18.3; HZ-128).
+ * Policy read-and-sign reminders and review tasks (quality.md section 19.3; HZ-128).
  */
 export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<number> {
   const raised = await eachTenant(deps, "policy-reminders", (tx, tenantId) =>

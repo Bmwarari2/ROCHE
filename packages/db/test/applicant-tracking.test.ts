@@ -16,7 +16,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Applicant tracking in the database (workforce.md section 2b, rules 11 to 13; WORK-001;
+ * Applicant tracking in the database (workforce.md section 2c, rules 11 to 13; WORK-001;
  * migration 0085; hazard HZ-011): another organisation's records never seen or written; only
  * holders of workforce.recruitment.manage read or write them; equality monitoring added but never
  * read, only counted through app.equality_monitoring_counts; stage events and interviews never

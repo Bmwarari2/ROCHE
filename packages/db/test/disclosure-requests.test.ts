@@ -4,7 +4,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Disclosure requests in the database (SAFE-016; safety.md section 11; migration 0103; hazard
+ * Disclosure requests in the database (SAFE-016; safety.md section 12; migration 0103; hazard
  * HZ-011): read and worked only by holders at the person's location or across the organisation;
  * logged in one's own name; approved only by a holder of safety.disclosure.approve who did not log
  * it; frozen once released, refused or withdrawn (bar a coroner's Regulation 28 dates); items

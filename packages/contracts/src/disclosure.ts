@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DsarNotSearched } from "./data-rights";
 
 /**
- * Disclosure requests (SAFE-016; safety.md section 11): coroner, Safeguarding Adults Review,
+ * Disclosure requests (SAFE-016; safety.md section 12): coroner, Safeguarding Adults Review,
  * Domestic Homicide Review, police, solicitor and Access to Health Records Act requests about one
  * person. Collection and review reuse the DSAR collector (ADR-0090); the approver is never the
  * person who logged the request; the pack is issued with step-up and stored as sent.

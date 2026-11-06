@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
- * The audit programme and mock inspections through the API (quality.md section 19; QUAL-004;
+ * The audit programme and mock inspections through the API (quality.md section 20; QUAL-004;
  * HZ-011; migration 0081): templates from the starters checked against the framework, schedules
  * with their next due date, audits scored against the questions they started with, completion
  * with a self-rating from the rate table's scale and actions raised as tasks with the default due

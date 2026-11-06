@@ -58803,7 +58803,8 @@ export interface components {
       | "organisation_logo"
       | "staff_hr_document"
       | "elearning_package"
-      | "training_certificate";
+      | "training_certificate"
+      | "disclosure_pack";
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * The audit programme and mock inspections (quality.md section 19; QUAL-004; migration 0081).
+ * The audit programme and mock inspections (quality.md section 20; QUAL-004; migration 0081).
  * Templates mapped to the compliance framework, schedules per location, audits scored against the
  * questions and framework version they started with, a self-rating given by a person, and actions
  * for what fell short. Dates are yyyy-mm-dd UK dates, times ISO 8601 with offset.

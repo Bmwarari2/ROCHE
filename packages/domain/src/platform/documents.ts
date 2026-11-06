@@ -131,12 +131,30 @@ export const DOCUMENT_CATEGORIES = {
     retentionClass: "training_record",
     inline: false,
   },
+  /**
+   * A disclosure pack exactly as it was issued (safety.md section 12 rule 42; SAFE-016): written
+   * only by the disclosure release, as JSON, kept under the disclosure's retention class rather
+   * than the exports bucket's 30-day expiry. About no person on the row (the request names them),
+   * so the general document routes never list or serve it; it is fetched only through
+   * `GET /v1/disclosures/{id}/pack`, with step-up. Never uploaded: no content type is accepted.
+   */
+  disclosure_pack: {
+    label: "Disclosure pack as issued",
+    contentTypes: [],
+    maxBytes: 50 * MB,
+    personRequired: false,
+    retentionClass: "serious_incident",
+    inline: false,
+  },
 } as const satisfies Record<string, DocumentCategory>;
 
-/** The categories the general document routes serve: not the workforce's own (HR-only staff documents, training certificates) or e-learning packages. */
+/**
+ * The categories the general document routes serve: everything but those with routes of their own
+ * (HR-only staff documents, e-learning packages, training certificates and disclosure packs).
+ */
 export type GeneralDocumentCategory = Exclude<
   DocumentCategoryKey,
-  "staff_hr_document" | "elearning_package" | "training_certificate"
+  "staff_hr_document" | "elearning_package" | "training_certificate" | "disclosure_pack"
 >;
 
 export type DocumentCategoryKey = keyof typeof DOCUMENT_CATEGORIES;

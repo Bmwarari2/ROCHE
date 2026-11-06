@@ -344,7 +344,7 @@ export const StatementOfPurposeChanges = z
 export type StatementOfPurposeChanges = z.infer<typeof StatementOfPurposeChanges>;
 
 // ------------------------------------------------------------------------------------------------
-// Policy library and read-and-sign (quality.md section 18; QUAL-008; HZ-128; slice 25)
+// Policy library and read-and-sign (quality.md section 19; QUAL-008; HZ-128; slice 25)
 // ------------------------------------------------------------------------------------------------
 
 const policyRoleKey = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/, "A role's key");

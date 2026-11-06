@@ -5,7 +5,7 @@ import { createLogger } from "../src/logger";
 import { createHarness, type Harness, LODGE } from "./support/harness";
 
 /**
- * Data security evidence (QUAL-012; quality.md section 18): quality.dsar.manage across the
+ * Data security evidence (QUAL-012; quality.md section 22): quality.dsar.manage across the
  * organisation only; the overview worked out from the rate table on every read (missing never
  * current); assertion rules (met needs evidence, notes when not met or not applicable); evidence
  * is an available organisation document; one submission per year; renewal tasks raised once; audit

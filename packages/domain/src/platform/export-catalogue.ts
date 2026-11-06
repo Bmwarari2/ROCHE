@@ -577,7 +577,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.applicant": {
     context: "workforce",
     description:
-      "People who applied for a job (purpose B15; workforce.md section 2b): names and contact details, talent pool consent, and the date until which they are kept.",
+      "People who applied for a job (purpose B15; workforce.md section 2c): names and contact details, talent pool consent, and the date until which they are kept.",
     treatment: "tenant_rows",
     retention: "applicant.unsuccessful",
     personal: true,
@@ -2613,7 +2613,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.competence_sign_off": {
     context: "workforce",
     description:
-      "Observed competence sign-offs (workforce.md section 2b; ADR-0085): append-only, by an observer who is not the member.",
+      "Observed competence sign-offs (workforce.md section 2c; ADR-0085): append-only, by an observer who is not the member.",
     treatment: "tenant_rows",
     retention: "training_record",
     personal: true,
@@ -2621,7 +2621,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       worker_id: { description: "The member of staff (tenant_user.id)." },
-      competence: { description: "The competence observed (workforce.md section 2b)." },
+      competence: { description: "The competence observed (workforce.md section 2c)." },
       observed_on: { description: "When it was observed (UK date)." },
       observer_id: { description: "Who observed and signed it off (tenant_user.id)." },
       valid_until: { description: "Its last valid day (UK date)." },
@@ -3164,7 +3164,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.disclosure_request": {
     context: "safety",
     description:
-      "Disclosure requests about one person (safety.md section 11): coroner, Safeguarding Adults Review, Domestic Homicide Review, police, solicitor and Access to Health Records Act requests, with the legal basis relied on, who asked and why, each step and who took it, the issued pack's hash, and a coroner's Regulation 28 dates.",
+      "Disclosure requests about one person (safety.md section 12): coroner, Safeguarding Adults Review, Domestic Homicide Review, police, solicitor and Access to Health Records Act requests, with the legal basis relied on, who asked and why, each step and who took it, the issued pack's hash, and a coroner's Regulation 28 dates.",
     treatment: "tenant_rows",
     retention: "serious_incident",
     personal: true,
@@ -3892,7 +3892,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.dspt_assertion": {
     context: "quality",
     description:
-      "DSPT assertions the organisation tracks for each financial year (quality.md section 18): the toolkit's reference, title, status, notes and owner. The DSPT status is worked out from submissions and the rate table, never stored.",
+      "DSPT assertions the organisation tracks for each financial year (quality.md section 22): the toolkit's reference, title, status, notes and owner. The DSPT status is worked out from submissions and the rate table, never stored.",
     treatment: "tenant_rows",
     retention: "audit_event",
     personal: false,
@@ -3975,7 +3975,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.employee_case": {
     context: "workforce",
     description:
-      "Employee relations cases (workforce.md section 2c; special category and allegations of criminal conduct): type, the member of staff, stage, outcome, appeal, suspension and the DBS and regulator referral decisions.",
+      "Employee relations cases (workforce.md section 2d; special category and allegations of criminal conduct): type, the member of staff, stage, outcome, appeal, suspension and the DBS and regulator referral decisions.",
     treatment: "not_exported",
     retention: "staff_file",
     personal: true,
@@ -5239,7 +5239,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.induction_plan": {
     context: "workforce",
     description:
-      "Each new starter's induction plan (workforce.md section 2d): whether they already hold the Care Certificate, the probation end date and its decision.",
+      "Each new starter's induction plan (workforce.md section 2e): whether they already hold the Care Certificate, the probation end date and its decision.",
     treatment: "tenant_rows",
     retention: "staff_file",
     personal: true,
@@ -6326,7 +6326,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.job_template": {
     context: "workforce",
     description:
-      "Job templates by Care Workforce Pathway role (workforce.md section 2b): the title, the essential criteria assessed at shortlisting and the values-based interview questions.",
+      "Job templates by Care Workforce Pathway role (workforce.md section 2c): the title, the essential criteria assessed at shortlisting and the values-based interview questions.",
     treatment: "tenant_rows",
     retention: "organisation_document",
     personal: false,
@@ -7314,7 +7314,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.policy": {
     context: "quality",
     description:
-      "The organisation's policies (quality.md section 18): key, title and whether a second reviewer publishes.",
+      "The organisation's policies (quality.md section 19): key, title and whether a second reviewer publishes.",
     treatment: "tenant_rows",
     retention: "organisation_document",
     personal: false,
@@ -7356,7 +7356,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.policy_version": {
     context: "quality",
     description:
-      "Versions of each policy (quality.md section 18; HZ-128): content, the change log, who must read it, the review date and who published it. At most one published at a time.",
+      "Versions of each policy (quality.md section 19; HZ-128): content, the change log, who must read it, the review date and who published it. At most one published at a time.",
     treatment: "tenant_rows",
     retention: "organisation_document",
     personal: true,
@@ -9325,7 +9325,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.supervision_record": {
     context: "workforce",
     description:
-      "Supervisions, appraisals and spot checks held (workforce.md section 2b); notes are in supervision_note.",
+      "Supervisions, appraisals and spot checks held (workforce.md section 2c); notes are in supervision_note.",
     treatment: "tenant_rows",
     retention: "staff_file",
     personal: true,
@@ -9867,7 +9867,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   },
   "public.training_record": {
     context: "workforce",
-    description: "Training a member of staff completed (workforce.md section 2b).",
+    description: "Training a member of staff completed (workforce.md section 2c).",
     treatment: "tenant_rows",
     retention: "training_record",
     personal: true,
@@ -9901,7 +9901,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.training_requirement": {
     context: "workforce",
     description:
-      "The organisation's training matrix (workforce.md section 2b): which topics each role needs, with the organisation's own refresh where it sets one.",
+      "The organisation's training matrix (workforce.md section 2c): which topics each role needs, with the organisation's own refresh where it sets one.",
     treatment: "tenant_rows",
     retention: "tenant_configuration",
     personal: false,
@@ -9924,7 +9924,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.vacancy": {
     context: "workforce",
     description:
-      "Vacancies (workforce.md section 2b): the template, where the job is, how many positions, the dates and the status.",
+      "Vacancies (workforce.md section 2c): the template, where the job is, how many positions, the dates and the status.",
     treatment: "tenant_rows",
     retention: "organisation_document",
     personal: false,

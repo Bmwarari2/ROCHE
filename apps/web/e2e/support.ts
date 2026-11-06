@@ -45,8 +45,18 @@ export async function settleAnimations(page: Page) {
   );
 }
 
-/** WCAG 2.2 AA with axe: no serious or critical violations. */
+/**
+ * Waits until the page has its title. A client-side navigation can leave `document.title` empty
+ * for a moment, and axe run then fails the `document-title` rule on a page that does have one (a
+ * breach journey failed this way once in CI, mid-navigation).
+ */
+export async function waitForTitle(page: Page) {
+  await page.waitForFunction(() => document.title.trim().length > 0);
+}
+
+/** WCAG 2.2 AA with axe: no serious or critical violations, once the page has its title. */
 export async function expectAccessible(page: Page, name: string) {
+  await waitForTitle(page);
   await settleAnimations(page);
   // Axe reads the whole page, but measures a target "obscured" by whatever covers it at the
   // current scroll: from the top, nothing sits under the sticky app bar by accident of where an

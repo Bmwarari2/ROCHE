@@ -210,6 +210,13 @@ codes are stored by shape until slice 10 (a test asks for the foreign key once a
 competence and dm+d facts are ports that fail closed in production until slices 17 and 10. Next for
 medicines: slice 10's reference data and the foreign key (expand step), slice 17's competence port,
 then the screens (slice 52). Open: H-1020, H-1022 to H-1025 (CSO), H-1021 (DPO).
+**Phase 2 clean-ups** (`chore/phase-2-cleanups`, 01/11/2026): migration 0137 backfills the
+workforce grants and the speak-up and employee relations roles that existing tenants missed, with
+a ratchet test (`packages/db/test/builtin-role-backfill.test.ts`) so a built-in role cannot gain a
+permission without a backfill. Disclosure packs are now documents (`disclosure_pack`, kept under
+`serious_incident`). Section numbers in quality.md, workforce.md and safety.md are unique again,
+and phase-2.md lists the migration and ADR numbers in use.
+
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or
 security change rather than a web one:

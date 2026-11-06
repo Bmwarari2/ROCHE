@@ -1,5 +1,5 @@
 /**
- * Employee relations casework (workforce.md section 2c and rules 14 to 18; WORK-010; plan slice
+ * Employee relations casework (workforce.md section 2d and rules 14 to 18; WORK-010; plan slice
  * 39). Grievance, disciplinary, capability, sickness absence and probation cases, run as the Acas
  * Code of Practice on disciplinary and grievance procedures sets out: establish the facts,
  * set the issue out in writing with the evidence, hold a meeting at which the employee may be

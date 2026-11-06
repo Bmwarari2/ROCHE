@@ -1455,6 +1455,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 **Verification**
 
+| Test | Status |
+| --- | --- |
 | `apps/mobile/src/care/person-summary.test.ts`: `hazard HZ-015 resuscitation status in the header` (not recorded with a warning, never blank; DNACPR and ReSPECT decisions as word and icon with the form and clinician; an overdue review keeps the decision and is spoken; records that disagree flagged; withdrawn and unreadable rows ignored); `queries.test.ts`: `hazard HZ-015 resuscitation status from the device's records` | Passing (Phase 1, mobile) |
 | `packages/sync/test/care-streams.test.ts`: `hazard HZ-015 only advance care records in force, and active risk assessments` | Passing (Phase 1) |
 | Test | Status |
@@ -2170,6 +2172,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | The tasks are created on the device when a fall is recorded offline, before it syncs | Phase 1 (offline slice) |
 | Design | The web form asks the falls questions (head injury, anticoagulant or antiplatelet treatment) when a fall is recorded, each needing an answer, "not sure yet" included, so the checklist starts from an answer, never a default. The form has no "when found" time yet, so observations count from when it happened (H-262) | Phase 1 (slice 9) |
 | Design | The web form asks whether anyone saw a fall and, when nobody did, "When were they found?" (required; just now taken on the server, or earlier, never before it happened), sent as `foundAt` so post-fall observations count from when the person was found and are not cut short by an estimated time; a missing person is asked when they were found, once they have been | Built for the recommended answer to H-262 (31/10/2026, reviewed at the testing phase) |
+| Design | Go-live waits until a working post-fall observation escalation chain exists and the clinical lead has reviewed the post-fall observation settings (`falls.*`) apart from the other defaults (onboarding items `escalation_chains_set` and `clinical_settings_reviewed`, [platform-completions.md](../specs/platform-completions.md) rule 26) | Phase 1 (domain rules built) |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Deployer control: the tenant's post-fall policy and escalation route linked from the task; staff trained in post-fall observations | Phase 1 |
 
@@ -2194,7 +2197,6 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-027 when the person was found (H-262)` (asked when nobody saw the fall and required; sent as `foundAt`; just now left to the server; refused before the time it happened; not asked for a seen fall; a missing person's only once found); `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 hazard HZ-090 the carer records an unwitnessed fall from a resident's record, never assumed no, with when they were found` | Unit tests passing (31/10/2026); Playwright updated, runs in CI |
 
 ---
-
 ## HZ-028 Point-of-care history on a device mistaken for the complete record
 
 | Field | Value |
@@ -2842,7 +2844,6 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/api/test/incidents.test.ts`: `hazard HZ-013 a stuck incident goes to Registered Managers, then owners, daily, and closing finishes it (round 3 M2)`, `hazard HZ-013 hazard HZ-073 the stuck-incident ladder cannot be reset by ending its task (round 4 M1)` and `hazard HZ-013 hazard HZ-073 an incident held open with no one to tell reaches the daily signal (round 4 M2)` | Passing (#120 review rounds 3 and 4) |
 
 ---
-
 ## HZ-090 An incident form records an assumed answer, or asks a notification question in other words
 
 | Field | Value |
@@ -2942,7 +2943,6 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/api/test/incidents.test.ts`: `hazard HZ-013 hazard HZ-091 a finished record keeps its decision until reopened with a reason, which blocks closing again (round 3 H1)`, `hazard HZ-013 hazard HZ-091 a closed incident's candour record is never changed (round 3 H1)` and `hazard HZ-013 hazard HZ-091 a finished record keeps the person it names (round 3 low)`; `apps/api/test/workflows.test.ts`: `hazard HZ-091 never lets a manager move an incident they raised at another home, or take a candour step on it` (the candour update, step and reopen refused to a raiser who manages incidents only elsewhere, round 4 M3); `apps/web/src/lib/refusals.test.ts` (the round 3 refusals); `apps/web/e2e/candour.spec.ts`: `hazard HZ-013 hazard HZ-091 a decision that differs from Harbour's finding takes a reason and a tick` (the finished record reopened with a reason, axe in light and dark) | Passing (#120 review rounds 3 and 4; the journey locally, hosted CI on the pull request) |
 
 ---
-
 ## HZ-080 A revised statement of purpose not sent to CQC in time
 
 | Field | Value |

@@ -1042,7 +1042,7 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
 ## 11. Outbreaks and IPC audits (slice 31: SAFE-013; migration 0093)
 
 Completes SAFE-013 on the Phase 1 UKHSA draft (section 4 rule 7) and slice 19's audit programme
-([quality.md](quality.md) section 19). Spec, schema, permission matrix and test list before the
+([quality.md](quality.md) section 20). Spec, schema, permission matrix and test list before the
 code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-management.ts`.
 
 ### 11.1 Rules
@@ -1115,7 +1115,7 @@ organisations' built-in owner, Registered Manager, deputy and clinical lead role
 | --- | --- | --- |
 | `safety.outbreak.manage` (care record, so MFA) at a location | Declare, read, update and close outbreaks there; keep the line list | Owner, Registered Manager, deputy, clinical lead |
 | `safety.outbreak.manage` or `quality.audit.manage` | Read the Code of Practice criteria | As above, and audit runners |
-| `quality.audit.manage` at the audit's location | Read an IPC audit against the criteria | As in quality.md section 19 |
+| `quality.audit.manage` at the audit's location | Read an IPC audit against the criteria | As in quality.md section 20 |
 
 ### 11.4 API
 
@@ -1204,8 +1204,11 @@ the whole organisation) reads them for the full export, never writes.
     logged the request (database check too); refusal and withdrawal need a reason.
 42. **Issuing.** Release needs approval and a fresh step-up. The pack is built from the decisions,
     in date order (the chronology for a SAR or DHR), redacted fields reading `[redacted]` and withheld
-    records counted, hashed, stored as sent in the exports bucket (CMEK, opaque key; ADR-0098) and can be
-    fetched again exactly, with step-up. The disclosure log is the list of requests with their basis,
+    records counted, hashed and stored as sent: a document of the `disclosure_pack` category in the
+    documents bucket (CMEK, opaque key; ADR-0098), under the `serious_incident` retention class, not
+    the exports bucket, whose objects expire after 30 days. The document names no person (the request
+    does), so the general document routes never list or serve it. It can be fetched again exactly,
+    with step-up. Packs issued before this change are read from the exports bucket. The disclosure log is the list of requests with their basis,
     approver and release.
 42a. **Hand-over (H-958, recommended answer applied 31/10/2026).** The released pack leaves Harbour
    once: a holder of `safety.incident.manage` where the person is, with a fresh step-up, downloads it
