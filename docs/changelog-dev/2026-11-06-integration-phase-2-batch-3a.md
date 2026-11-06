@@ -33,6 +33,8 @@ Branch `integration/phase-2-batch-3a`.
 - Tests kept true after the merges: the dashboard's unfinished month, the encrypting store, GTIN
   lengths, and lower-case medicines subjects inside sentences.
 - The API refuses Care mode with its own 403 code `care_mode_off` (from 0118's branch).
+- The hospital tab no longer offers to tick a return's medicines check, which only the medicines
+  reconciliation completes (HZ-005); it links to the medicines tab instead.
 
 ## Data protection and clinical safety
 
