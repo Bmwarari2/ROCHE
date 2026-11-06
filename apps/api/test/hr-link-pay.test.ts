@@ -415,6 +415,23 @@ describe("hazard HZ-140 a refusal of locked pay goes to pay approvers (rule 11)"
   });
 });
 
+describe("hazard HZ-140 disconnecting tells pay approvers when locked pay has not reached Thapsus-HR", () => {
+  it("counts a period sent before a later correction as not reached, and raises it on disconnecting", async () => {
+    // As if the regular run's units were sent and a correction's never were: another digest.
+    await sql(
+      `UPDATE hr_delivery SET state = 'sent', sent_at = now(), hr_id = 'pp_w1',
+         payload_sha256 = repeat('a', 64) WHERE kind = 'pay_units'`,
+    );
+    expect((await as("manager", "/v1/integrations/hr-link", { method: "DELETE" })).status).toBe(
+      204,
+    );
+    const alert = await sql(
+      "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.pay_units_unsent' AND required_permission = 'scheduling.pay.approve' AND status = 'open'",
+    );
+    expect(alert).toHaveLength(1);
+  });
+});
+
 describe("hazard HZ-140 pay is changed only with a fresh step-up (rule 12)", () => {
   it("refuses a pay code change from a stale sign-in", async () => {
     const { ageSession } = await import("./support/harness");

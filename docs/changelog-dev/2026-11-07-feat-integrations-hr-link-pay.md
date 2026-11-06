@@ -36,6 +36,9 @@ INTG-014, SCHED-005, SCHED-008; [ADR-0131](../decisions/0131-pay-through-thapsus
   refused on rates over two days old; alerts for a member unmatched after lock and for locked pay
   left unsent on disconnecting; HZ-140 re-rated on the plan's matrix (2, target 1) with a test for
   each code control; H-1441 and H-1442 updated.
+- Clinical safety reviewer, second pass (fixed): the unsent-pay check on disconnecting compares
+  the latest run's digest, so a correction locked after an earlier send is counted; tested.
+- Security reviewer, second pass: approve.
 
 ## Checks
 
@@ -47,6 +50,9 @@ See the branch's head commit message for the suites run on a private Postgres.
   re-pinned (H-1443).
 - Rates are read daily, not yet on `employee.changed`; Thapsus-HR periods and rates it stops
   listing are kept, not retired.
+- A run drafted while the link is down or off pays through Harbour's export even when the
+  settings say Thapsus-HR (never twice, but without a warning); slice 90 adds the warning.
+- Turning the flag off pauses delivery of locked pay without an alert (delivery runs at lock).
 - The lock reads the link's settings without locking its row; each run's fixed route makes this
   safe for routing, and a concurrent pay code change applies only to the next lock.
 - Screens for the route to payroll and the pay codes (slice 90).

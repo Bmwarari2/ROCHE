@@ -4,6 +4,7 @@ import {
   DAYS_PER_WEEK,
   dailyWindows,
   datesFrom,
+  MINUTES_PER_HOUR,
   plusMinutes,
   type Span,
   spanMinutes,
@@ -15,7 +16,13 @@ import {
 import type { TravelKind, WorkPeriod, WorkPeriodKind } from "../working-time-types";
 import { type AeCategory, autoEnrolmentCategory, qualifyingEarningsPence } from "./auto-enrolment";
 import { irregularHoursHoliday } from "./holiday";
-import { canonicalInput, formatPounds, TENTHS_PER_MILE, type WorkingLine } from "./money";
+import {
+  canonicalInput,
+  formatPounds,
+  HUNDREDTHS,
+  TENTHS_PER_MILE,
+  type WorkingLine,
+} from "./money";
 import { ageOn, type NmwBand, nmwCheck, nmwPayFromGross } from "./nmw";
 import {
   type EnhancementKind,
@@ -558,7 +565,10 @@ export function payUnits(input: PayLineInput): PayUnitTotal[] {
     minutes.set(kind, (minutes.get(kind) ?? 0) + spanMinutes(x.span));
   }
   const out: PayUnitTotal[] = [...minutes.entries()]
-    .map(([kind, m]) => ({ kind, quantity: Math.round((Math.round(m) / 60) * 100) / 100 }))
+    .map(([kind, m]) => ({
+      kind,
+      quantity: Math.round((Math.round(m) / MINUTES_PER_HOUR) * HUNDREDTHS) / HUNDREDTHS,
+    }))
     .filter((u) => u.quantity > 0);
   const count = (k: WorkPeriodKind) => input.entries.filter((e) => e.kind === k).length;
   const tenths = input.entries.reduce((n, e) => n + (e.mileageTenths ?? 0), 0);

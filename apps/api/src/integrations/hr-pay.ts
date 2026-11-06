@@ -388,53 +388,20 @@ export async function deliverPayUnits(
 ): Promise<PayDeliveryOutcome | null> {
   if (port.capabilities().partner_pay_items !== "available") return null;
   const out = { sent: 0, refused: 0, failed: 0 };
-  const latest = await tx
-    .selectDistinctOn([payRun.frequency, payRun.periodStart], {
-      id: payRun.id,
-      frequency: payRun.frequency,
-      periodStart: payRun.periodStart,
-      periodEnd: payRun.periodEnd,
-    })
-    .from(payRun)
-    .where(and(eq(payRun.status, "locked"), eq(payRun.payRoute, "thapsus_hr")))
-    .orderBy(payRun.frequency, payRun.periodStart, desc(payRun.lockedAt));
+  const latest = await latestHrRuns(tx);
   if (latest.length === 0) return { ...out, error: null };
   const { linked } = await members(tx);
   const employeeOf = new Map([...linked.entries()].map(([hrId, m]) => [m.memberId, hrId]));
   for (const run of latest) {
-    const period = await hrPayPeriodOf(tx, run);
-    if (!period) continue;
-    const rows = await tx
-      .select({
-        memberId: hrPayUnit.memberId,
-        kind: hrPayUnit.unitKind,
-        quantity: hrPayUnit.quantity,
-        payCode: hrPayUnit.payCode,
-      })
-      .from(hrPayUnit)
-      .where(eq(hrPayUnit.runId, run.id));
-    const unlinked = rows.filter((r) => !employeeOf.has(r.memberId));
-    if (unlinked.length > 0) {
+    const planned = await periodPlan(tx, run, employeeOf);
+    if (!planned) continue;
+    if (planned.unlinked) {
       // Never sent short: the whole period waits for the match to be put right.
       await raiseHrAlert(tx, "pay_member_unlinked", "pay_run", run.id, now);
       out.failed += 1;
       continue;
     }
-    const codes = Object.fromEntries(rows.map((r) => [r.kind, r.payCode]));
-    const byMember = new Map<string, { kind: string; quantity: number }[]>();
-    for (const r of rows) {
-      const list = byMember.get(r.memberId) ?? [];
-      list.push({ kind: r.kind, quantity: Number(r.quantity) });
-      byMember.set(r.memberId, list);
-    }
-    const plan = hrPayUnits(
-      period.hrId,
-      [...byMember.entries()].map(
-        ([m, units]): MemberUnits => ({ employeeId: employeeOf.get(m) as string, units }),
-      ),
-      codes,
-    );
-    const digest = sha256(JSON.stringify(plan.units));
+    const { period, plan, digest } = planned;
     let r: Awaited<ReturnType<typeof deliver>>;
     try {
       r = await tx.transaction((sp) =>
@@ -463,12 +430,9 @@ export async function deliverPayUnits(
   return { ...out, error: null };
 }
 
-/**
- * Locked periods paid through Thapsus-HR whose latest units have not reached it (for the alert on
- * disconnecting, so nobody is left unpaid without a person knowing; HZ-140).
- */
-export async function unsentPayPeriods(tx: Transaction): Promise<number> {
-  const latest = await tx
+/** The latest locked run of each period paid through Thapsus-HR (fixed on each run). */
+function latestHrRuns(tx: Transaction) {
+  return tx
     .selectDistinctOn([payRun.frequency, payRun.periodStart], {
       id: payRun.id,
       frequency: payRun.frequency,
@@ -478,16 +442,74 @@ export async function unsentPayPeriods(tx: Transaction): Promise<number> {
     .from(payRun)
     .where(and(eq(payRun.status, "locked"), eq(payRun.payRoute, "thapsus_hr")))
     .orderBy(payRun.frequency, payRun.periodStart, desc(payRun.lockedAt));
+}
+
+/**
+ * What a locked run sends for its Thapsus-HR pay period: its units with the pay codes kept at
+ * lock, and the digest the delivery log compares; `unlinked` when a member is no longer matched.
+ */
+async function periodPlan(
+  tx: Transaction,
+  run: {
+    readonly id: string;
+    readonly frequency: string;
+    readonly periodStart: string;
+    readonly periodEnd: string;
+  },
+  employeeOf: ReadonlyMap<string, string>,
+) {
+  const period = await hrPayPeriodOf(tx, run);
+  if (!period) return null;
+  const rows = await tx
+    .select({
+      memberId: hrPayUnit.memberId,
+      kind: hrPayUnit.unitKind,
+      quantity: hrPayUnit.quantity,
+      payCode: hrPayUnit.payCode,
+    })
+    .from(hrPayUnit)
+    .where(eq(hrPayUnit.runId, run.id));
+  const unlinked = rows.some((r) => !employeeOf.has(r.memberId));
+  const codes = Object.fromEntries(rows.map((r) => [r.kind, r.payCode]));
+  const byMember = new Map<string, { kind: string; quantity: number }[]>();
+  for (const r of rows) {
+    if (!employeeOf.has(r.memberId)) continue;
+    const list = byMember.get(r.memberId) ?? [];
+    list.push({ kind: r.kind, quantity: Number(r.quantity) });
+    byMember.set(r.memberId, list);
+  }
+  const plan = hrPayUnits(
+    period.hrId,
+    [...byMember.entries()].map(
+      ([m, units]): MemberUnits => ({ employeeId: employeeOf.get(m) as string, units }),
+    ),
+    codes,
+  );
+  return { period, plan, digest: sha256(JSON.stringify(plan.units)), unlinked };
+}
+
+/**
+ * Locked periods paid through Thapsus-HR whose latest units have not reached it: not sent, or
+ * sent before a later correction (another digest). For the alert on disconnecting, so nobody is
+ * left unpaid without a person knowing (HZ-140).
+ */
+export async function unsentPayPeriods(tx: Transaction): Promise<number> {
+  const { linked } = await members(tx);
+  const employeeOf = new Map([...linked.entries()].map(([hrId, m]) => [m.memberId, hrId]));
   let n = 0;
-  for (const run of latest) {
-    const period = await hrPayPeriodOf(tx, run);
-    const [sent] = period
-      ? await tx
-          .select({ state: hrDelivery.state })
-          .from(hrDelivery)
-          .where(and(eq(hrDelivery.kind, "pay_units"), eq(hrDelivery.harbourRef, period.rowId)))
-      : [];
-    if (sent?.state !== "sent") n += 1;
+  for (const run of await latestHrRuns(tx)) {
+    const planned = await periodPlan(tx, run, employeeOf);
+    if (!planned) {
+      n += 1;
+      continue;
+    }
+    const [sent] = await tx
+      .select({ state: hrDelivery.state, digest: hrDelivery.payloadSha256 })
+      .from(hrDelivery)
+      .where(
+        and(eq(hrDelivery.kind, "pay_units"), eq(hrDelivery.harbourRef, planned.period.rowId)),
+      );
+    if (planned.unlinked || sent?.state !== "sent" || sent.digest !== planned.digest) n += 1;
   }
   return n;
 }
