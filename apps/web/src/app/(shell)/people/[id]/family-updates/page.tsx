@@ -50,12 +50,17 @@ async function FamilyUpdatesTab({
   const now = new Date();
   const from = new Date(now.getTime() - RECENT_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const api = await tenantApi();
-  const [published, notes, activities, photos] = await Promise.all([
+  const [published, notes, activities, photos, members] = await Promise.all([
     api.GET("/v1/people/{id}/feed", { params: { path: { id } } }),
     api.GET("/v1/people/{id}/notes", { params: { path: { id }, query: { from } } }),
     api.GET("/v1/people/{id}/activities", { params: { path: { id }, query: { from } } }),
     api.GET("/v1/documents", { params: { query: { personId: id, category: "feed_photo" } } }),
+    // The staff a photo may name as shown (H-905): display names only.
+    api.GET("/v1/workforce/staff-members"),
   ]);
+  const staff = members.data
+    ? members.data.items.flatMap((m) => (m ? [{ id: m.id, name: m.displayName }] : []))
+    : null;
   // The updates and the records hold care details: the API asks for MFA first.
   const refusal = published.data ? null : problemCode(published.error);
   // A list that could not be read is said so, never shown as "there are none".
@@ -93,7 +98,13 @@ async function FamilyUpdatesTab({
         {refusal && MFA_CODES.has(refusal) ? (
           <p className="m-0">{t("errors.mfaVerifyRequired")}</p>
         ) : (
-          <FeedPublisher personId={id} path={path} sources={sources} unreadable={unreadable} />
+          <FeedPublisher
+            personId={id}
+            path={path}
+            sources={sources}
+            unreadable={unreadable}
+            staff={staff}
+          />
         )}
       </Card>
       <Card as="section" title={t("comms.feed.staff.listTitle")} headingLevel={3}>

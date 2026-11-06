@@ -55,6 +55,7 @@ import {
   Stamp,
   Timer,
   TriangleAlert,
+  UserCheck,
   UserPlus,
   UserRoundCheck,
   UserSearch,
@@ -177,6 +178,12 @@ export interface ShellFrameLabels {
   readonly onboarding?: string | undefined;
   /** Shown to staff and training leads: e-learning courses (ADR-0093). */
   readonly elearning?: string | undefined;
+  /** Shown to holders of workforce.staff_file.read or .manage. */
+  readonly staffFiles?: string | undefined;
+  /** Where the staff nav item goes: staff files, or sponsored workers for sponsor-only HR. */
+  readonly staffFilesHref?: string | undefined;
+  /** Shown to staff (workforce.self.read): their privacy notice and image consent. */
+  readonly privacy?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -251,6 +258,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/training/elearning")) return "elearning";
+  if (pathname.startsWith("/staff")) return "staff-files";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/import")) return "import";
@@ -595,6 +603,16 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.staffFiles
+      ? [
+          {
+            id: "staff-files",
+            label: labels.staffFiles,
+            href: labels.staffFilesHref ?? "/staff",
+            icon: <IdCard {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.framework
       ? [
           {
@@ -779,6 +797,16 @@ export function ShellFrame({
       href: "/settings/security",
       icon: <ShieldCheck {...menuIcon} />,
     },
+    ...(labels.privacy
+      ? [
+          {
+            id: "privacy",
+            label: labels.privacy,
+            href: "/settings/privacy",
+            icon: <UserCheck {...menuIcon} />,
+          },
+        ]
+      : []),
     {
       id: "sign-out",
       label: labels.signOut,

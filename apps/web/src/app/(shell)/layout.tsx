@@ -35,6 +35,7 @@ import { roundShown } from "@/lib/round";
 import { safeguardingShown } from "@/lib/safeguarding";
 import { searchShown } from "@/lib/search";
 import { speakUpShown } from "@/lib/speak-up";
+import { privacyShown, SPONSOR_PAGE, STAFF_PAGE, sponsorShown, staffFilesShown } from "@/lib/staff";
 import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
 import { wellbeingNavShown } from "@/lib/wellbeing";
@@ -140,6 +141,13 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           ? t("shell.nav.statementOfPurpose")
           : undefined,
         elearning: elearningShown(me.permissions) ? t("shell.nav.elearning") : undefined,
+        // Sponsor-only HR still reaches sponsored workers from the menu (review M4).
+        staffFiles:
+          staffFilesShown(me.permissions) || sponsorShown(me.permissions)
+            ? t("shell.nav.staffFiles")
+            : undefined,
+        staffFilesHref: staffFilesShown(me.permissions) ? STAFF_PAGE : SPONSOR_PAGE,
+        privacy: privacyShown(me.permissions) ? t("shell.nav.privacy") : undefined,
         framework: frameworkShown(me.permissions) ? t("shell.nav.framework") : undefined,
         audits: auditsShown(me.permissions) ? t("shell.nav.audits") : undefined,
         policies: t("shell.nav.policies"),

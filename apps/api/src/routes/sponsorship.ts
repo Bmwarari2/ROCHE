@@ -16,6 +16,7 @@ import {
   UpdateSponsoredWorker,
 } from "@harbour/contracts";
 import {
+  document,
   ldssClaim,
   sponsorAbsence,
   sponsoredWorker,
@@ -50,6 +51,7 @@ import { type AppEnv, requirePermission, type TenantAccess, withTenant } from ".
 import { HttpProblem, problems } from "../http/problem";
 import { bankHolidays, rateRows } from "../services/rates";
 import { type StaffLookup, staffNames } from "../services/staff";
+import { isCurrentStaff } from "../services/staff-files";
 import {
   conflictResponse,
   createRouter,
@@ -305,8 +307,21 @@ const workerValues = (body: CreateSponsoredWorker | UpdateSponsoredWorker) => ({
 /** The member's own notice and image consent state. */
 async function privacyOf(tx: Transaction, tenantId: string, member: string): Promise<StaffPrivacy> {
   const [t] = await tx
-    .select({ version: tenant.staffPrivacyNoticeVersion })
+    .select({
+      version: tenant.staffPrivacyNoticeVersion,
+      documentId: document.id,
+      title: document.title,
+      documentVersion: document.documentVersion,
+    })
     .from(tenant)
+    .leftJoin(
+      document,
+      and(
+        eq(document.tenantId, tenant.id),
+        eq(document.id, tenant.staffPrivacyNoticeDocumentId),
+        isNull(document.deletedAt),
+      ),
+    )
     .where(eq(tenant.id, tenantId));
   const acknowledgements = await tx
     .select({ version: staffPrivacyAcknowledgement.noticeVersion })
@@ -327,6 +342,10 @@ async function privacyOf(tx: Transaction, tenantId: string, member: string): Pro
   return {
     tenantUserId: member,
     currentNoticeVersion: current,
+    notice:
+      t?.documentId && t.title !== null && t.documentVersion !== null
+        ? { documentId: t.documentId, title: t.title, documentVersion: t.documentVersion }
+        : null,
     acknowledged: privacyNoticeAcknowledged(versions, current),
     acknowledgedVersions: versions,
     imageConsent: IMAGE_PURPOSES.map((purpose) => ({ purpose, ...imageConsent(events, purpose) })),
@@ -410,6 +429,15 @@ export const sponsorshipRouter = createRouter()
       const on = today();
       const view = await change(c, access, A.created, SOURCE, null, async (tx) => {
         if (body.tenantUserId === access.tenantUserId) throw ownRecord(A.created, null);
+        if (!(await isCurrentStaff(tx, body.tenantUserId))) {
+          throw refused(
+            new HttpProblem(422, "not_current_staff", "Choose a current member of staff."),
+            A.created,
+            SOURCE,
+            null,
+            "not_current_staff",
+          );
+        }
         const [row] = await tx
           .insert(sponsoredWorker)
           .values({ tenantUserId: body.tenantUserId, ...workerValues(body) })
@@ -631,7 +659,7 @@ export const staffPrivacyRouter = createRouter()
       tags: ["workforce"],
       summary: "Set the staff privacy notice in force",
       description:
-        "platform.tenant.manage. The version of the organisation's staff privacy notice now in force; members are asked to acknowledge it. Audited.",
+        "platform.tenant.manage. The staff privacy notice now in force: an available organisation document of this organisation (a version in the document store; H-940). Members are asked to acknowledge it; the version they acknowledge is the document's id, so each new version is asked about afresh. Any other document is refused (422). Audited.",
       security,
       request: { body: { content: { "application/json": { schema: SetStaffPrivacyNotice } } } },
       responses: {
@@ -641,20 +669,40 @@ export const staffPrivacyRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, TENANT);
-      const { version } = c.req.valid("json");
-      await withTenant(c, async (tx) => {
+      const { documentId } = c.req.valid("json");
+      await change(c, access, A.noticeSet, "tenant", access.tenantId, async (tx) => {
+        const [doc] = await tx
+          .select({ id: document.id })
+          .from(document)
+          .where(
+            and(
+              eq(document.id, documentId),
+              eq(document.category, "organisation_document"),
+              eq(document.status, "available"),
+              isNull(document.deletedAt),
+            ),
+          );
+        if (!doc) {
+          throw refused(
+            problems.invalid("Choose one of your organisation's documents."),
+            A.noticeSet,
+            "tenant",
+            access.tenantId,
+            "not_an_organisation_document",
+          );
+        }
         await tx
           .update(tenant)
-          .set({ staffPrivacyNoticeVersion: version })
+          .set({ staffPrivacyNoticeVersion: doc.id, staffPrivacyNoticeDocumentId: doc.id })
           .where(eq(tenant.id, access.tenantId));
         await audit(c, tx, access, {
           action: A.noticeSet,
           resourceType: "tenant",
           resourceId: access.tenantId,
-          scopeExtra: { noticeVersion: version },
+          scopeExtra: { noticeVersion: doc.id, documentId: doc.id },
         });
       });
-      return c.json({ version }, 200);
+      return c.json({ version: documentId }, 200);
     },
   )
   .openapi(

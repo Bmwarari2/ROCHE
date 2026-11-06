@@ -4,6 +4,7 @@ import {
   careNote,
   document,
   feedItem,
+  staffImageConsent,
   type Transaction,
   withRequestContext,
 } from "@harbour/db";
@@ -14,10 +15,11 @@ import {
   FEED_SOURCE_MAX_AGE_DAYS,
   type FeedItemKind,
   type FeedSource,
+  imageConsent,
   type PersonStatus,
 } from "@harbour/domain";
 import { createRoute, type z } from "@hono/zod-openapi";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import {
@@ -77,7 +79,8 @@ type SourceRead =
         | "source_not_found"
         | "source_corrected"
         | "source_too_old"
-        | "photo_not_for_feed";
+        | "photo_not_for_feed"
+        | "staff_not_consented";
     };
 
 const SOURCE_REFUSALS = {
@@ -86,7 +89,45 @@ const SOURCE_REFUSALS = {
   source_too_old: `Only notes and activities from the last ${FEED_SOURCE_MAX_AGE_DAYS} days can be shared. An older record published now would read as news.`,
   photo_not_for_feed:
     "Only a photo added for the family feed can be published. Identification photos, wound photos, care attachments and other documents never go to the family.",
+  staff_not_consented:
+    "Someone you named as shown in this photo has not said yes to their photo being used in family updates. Choose another photo, or ask them to change their answer in My privacy first.",
 } as const;
+
+/**
+ * Whether every member of staff the publisher named as shown in a photo has said yes to family
+ * updates (`family_feed`) in My privacy, read in the system's view (H-905). Someone never asked,
+ * who said no, who withdrew, or who is not a member of this organisation fails.
+ */
+async function staffConsented(system: Transaction, staffShown: readonly string[]) {
+  if (staffShown.length === 0) return true;
+  const rows = await system
+    .select({
+      member: staffImageConsent.tenantUserId,
+      decision: staffImageConsent.decision,
+      decidedAt: staffImageConsent.decidedAt,
+      id: staffImageConsent.id,
+    })
+    .from(staffImageConsent)
+    .where(
+      and(
+        inArray(staffImageConsent.tenantUserId, [...staffShown]),
+        eq(staffImageConsent.purpose, "family_feed"),
+      ),
+    );
+  return staffShown.every(
+    (member) =>
+      imageConsent(
+        rows
+          .filter((r) => r.member === member)
+          .map((r) => ({
+            purpose: "family_feed" as const,
+            decision: r.decision as "given" | "refused" | "withdrawn",
+            at: `${r.decidedAt.toISOString()}|${r.id}`,
+          })),
+        "family_feed",
+      ).mayUse,
+  );
+}
 
 /** The id of the record a request names. */
 const sourceIdOf = (body: z.infer<typeof PublishFeedItem>) =>
@@ -218,11 +259,16 @@ async function compose(
 ) {
   const read = await sourceOf(tx, p.id, body, access.tenantUserId, now);
   if (!read.ok) return { refused: read.reason } as const;
-  const facts = await withRequestContext(
+  const staffShown = body.source.kind === "photo" ? body.source.staffShown : [];
+  const { facts, consented } = await withRequestContext(
     c.get("services").db,
     { tenantId: access.tenantId, userId: null, scope: "tenant", locationIds: [] },
-    (system) => composeFacts(system, { id: p.id, locationId: p.locationId }, now),
+    async (system) => ({
+      facts: await composeFacts(system, { id: p.id, locationId: p.locationId }, now),
+      consented: await staffConsented(system, staffShown),
+    }),
   );
+  if (!consented) return { refused: "staff_not_consented" } as const;
   const result = composeFeedItem(read.source, {
     person: {
       id: p.id,
@@ -321,7 +367,7 @@ export const feedPublishRouter = createRouter()
       tags: ["comms"],
       summary: "Publish a family update from a note, an activity or a photo (HZ-022, HZ-061)",
       description:
-        "comms.feed.publish where the person lives. composeFeedItem: approved phrasing or the words written for the family, never the note itself; other people's names, contact details and clinical words refused; nothing while the person is in hospital, an incident waits for the next of kin or a candour step is open; event and wellbeing words only with confirmationReason; a photo only with the person's consent to photos and nobody else recognisable. Who sees it is decided by the sharing decisions. The id is the client's: a retry with the same id and source returns the update (200). Refusals are audited with problem codes only.",
+        "comms.feed.publish where the person lives. composeFeedItem: approved phrasing or the words written for the family, never the note itself; other people's names, contact details and clinical words refused; nothing while the person is in hospital, an incident waits for the next of kin or a candour step is open; event and wellbeing words only with confirmationReason; a photo only with the person's consent to photos and nobody else recognisable but the members of staff named in staffShown, each of whom must have said yes to family updates in My privacy (H-905; refused as staff_not_consented otherwise). Who sees it is decided by the sharing decisions. The id is the client's: a retry with the same id and source returns the update (200). Refusals are audited with problem codes only.",
       security,
       request: {
         params: PersonParam,
@@ -395,6 +441,10 @@ export const feedPublishRouter = createRouter()
               confirmedBy: composed.confirmation?.by ?? null,
               confirmationReason: composed.confirmation?.reason ?? null,
               otherPeopleIdentifiable: composed.kind === "photo" ? false : null,
+              staffShown:
+                composed.kind === "photo" && body.source.kind === "photo"
+                  ? [...new Set(body.source.staffShown)]
+                  : [],
             })
             .returning()
             .catch((error: unknown) => {

@@ -70,7 +70,7 @@ export const sponsoredWorker = pgTable(
     ),
     check(
       "sponsored_worker_english",
-      sql`english_evidence IN ('not_recorded', 'majority_english_speaking_country', 'degree_taught_in_english', 'secure_english_language_test', 'previous_grant')`,
+      sql`english_evidence IN ('not_recorded', 'majority_english_speaking_country', 'degree_taught_in_english', 'secure_english_language_test', 'previous_grant', 'uk_school_qualification', 'professional_body_assessment')`,
     ),
     check("sponsored_worker_soc", sql`soc_code ~ '^[0-9]{4}$'`),
     check("sponsored_worker_hours", sql`contracted_weekly_hours > 0`),

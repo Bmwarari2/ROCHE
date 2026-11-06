@@ -22759,6 +22759,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/staff-members": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Staff to choose from
+     * @description workforce.staff_file.manage, workforce.sponsor.manage, workforce.ldss.manage or comms.feed.publish. Active and invited members holding a staff role in force now, organisation-wide, by display name and job title only (never an email), for the member picker on HR forms and for naming the staff shown in a family photo (H-905); these roles hold no platform.user.manage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Staff */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffMemberList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/staff-files": {
     parameters: {
       query?: never;
@@ -23959,7 +24025,7 @@ export interface paths {
     get?: never;
     /**
      * Set the staff privacy notice in force
-     * @description platform.tenant.manage. The version of the organisation's staff privacy notice now in force; members are asked to acknowledge it. Audited.
+     * @description platform.tenant.manage. The staff privacy notice now in force: an available organisation document of this organisation (a version in the document store; H-940). Members are asked to acknowledge it; the version they acknowledge is the document's id, so each new version is asked about afresh. Any other document is refused (422). Audited.
      */
     put: {
       parameters: {
@@ -32299,7 +32365,7 @@ export interface paths {
     put?: never;
     /**
      * Publish a family update from a note, an activity or a photo (HZ-022, HZ-061)
-     * @description comms.feed.publish where the person lives. composeFeedItem: approved phrasing or the words written for the family, never the note itself; other people's names, contact details and clinical words refused; nothing while the person is in hospital, an incident waits for the next of kin or a candour step is open; event and wellbeing words only with confirmationReason; a photo only with the person's consent to photos and nobody else recognisable. Who sees it is decided by the sharing decisions. The id is the client's: a retry with the same id and source returns the update (200). Refusals are audited with problem codes only.
+     * @description comms.feed.publish where the person lives. composeFeedItem: approved phrasing or the words written for the family, never the note itself; other people's names, contact details and clinical words refused; nothing while the person is in hospital, an incident waits for the next of kin or a candour step is open; event and wellbeing words only with confirmationReason; a photo only with the person's consent to photos and nobody else recognisable but the members of staff named in staffShown, each of whom must have said yes to family updates in My privacy (H-905; refused as staff_not_consented otherwise). Who sees it is decided by the sharing decisions. The id is the client's: a retry with the same id and source returns the update (200). Refusals are audited with problem codes only.
      */
     post: {
       parameters: {
@@ -60424,6 +60490,10 @@ export interface components {
       closedOn: string;
       reason: string;
     };
+    /** @description The organisation's staff, by name and job title, to choose from on HR forms */
+    StaffMemberList: {
+      items: components["schemas"]["StaffName"][];
+    };
     StaffFileList: {
       items: components["schemas"]["StaffFileSummary"][];
       /** Format: date */
@@ -60766,7 +60836,9 @@ export interface components {
       | "majority_english_speaking_country"
       | "degree_taught_in_english"
       | "secure_english_language_test"
-      | "previous_grant";
+      | "previous_grant"
+      | "uk_school_qualification"
+      | "professional_body_assessment";
     /** @enum {string} */
     AppendixDItem:
       | "passport_or_travel_document"
@@ -60865,12 +60937,14 @@ export interface components {
       smsReference: string;
     };
     SetStaffPrivacyNotice: {
-      version: string;
+      /** Format: uuid */
+      documentId: string;
     };
     StaffPrivacy: {
       /** Format: uuid */
       tenantUserId: string;
       currentNoticeVersion: string | null;
+      notice: components["schemas"]["StaffPrivacyNotice"];
       acknowledged: boolean;
       acknowledgedVersions: string[];
       imageConsent: {
@@ -60880,6 +60954,12 @@ export interface components {
         mayUse: boolean;
       }[];
     };
+    StaffPrivacyNotice: {
+      /** Format: uuid */
+      documentId: string;
+      title: string;
+      documentVersion: number;
+    } | null;
     /** @enum {string} */
     ImagePurpose: "newsletter" | "website" | "social_media" | "family_feed";
     AcknowledgeStaffPrivacyNotice: {
@@ -62523,6 +62603,8 @@ export interface components {
             documentId: string;
             caption: string | null;
             onlyThisPerson: boolean;
+            /** @default [] */
+            staffShown: string[];
           };
       confirmationReason?: string;
     };

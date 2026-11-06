@@ -203,4 +203,15 @@ describe("the real documents", () => {
       expect(classes).toContain(required);
     }
   });
+
+  it("H-901 sponsor records are kept at least as long as right to work copies", () => {
+    const rows = parseRetention(readFileSync(`${docs}retention.md`, "utf8"));
+    const of = (c: string) => rows.find((r) => r.recordClass === c);
+    const sponsor = of("sponsor_record");
+    const rtw = of("right_to_work_copy");
+    expect(sponsor).toMatchObject({ trigger: "record_closed", unit: "years" });
+    expect(sponsor?.trigger).toBe(rtw?.trigger);
+    // The guidance asks for a year after sponsorship ends; never less than right to work copies.
+    expect(sponsor?.period).toBeGreaterThanOrEqual(Math.max(1, rtw?.period ?? 0));
+  });
 });

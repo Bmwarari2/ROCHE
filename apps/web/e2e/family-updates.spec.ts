@@ -165,7 +165,13 @@ test("hazard HZ-061 words to confirm, a photo without consent, a record correcte
   expect(upload.ok(), await upload.text()).toBe(true);
   await page.goto(PATH);
   await expect(await chooseNewest(page, "A photo")).toContainText(`Garden ${RUN}`);
-  await page.getByLabel("I have checked that nobody else can be recognised in this photo").check();
+  await page
+    .getByLabel(
+      "I have checked that nobody else can be recognised in this photo, apart from the staff I name below",
+    )
+    .check();
+  // H-905: the publisher can name the staff shown; nobody is named here.
+  await expect(page.getByRole("group", { name: "Staff shown in this photo" })).toBeVisible();
   await previewButton(page).click();
   await expect(alertIn(page)).toBeFocused();
   await expect(page.getByLabel("Photo", { exact: true })).toHaveAttribute("aria-invalid", "true");

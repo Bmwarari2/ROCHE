@@ -306,6 +306,12 @@ export const StaffFileItem = z
   .meta({ id: "StaffFileItem" });
 export type StaffFileItem = z.infer<typeof StaffFileItem>;
 
+export const StaffMemberList = z.object({ items: z.array(StaffName) }).meta({
+  id: "StaffMemberList",
+  description: "The organisation's staff, by name and job title, to choose from on HR forms",
+});
+export type StaffMemberList = z.infer<typeof StaffMemberList>;
+
 // ------------------------------------------------------------------------------------------------
 // Training, competence, supervision and revalidation (workforce.md sections 2b and 5; slice 17)
 // ------------------------------------------------------------------------------------------------

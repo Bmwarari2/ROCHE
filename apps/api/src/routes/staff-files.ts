@@ -6,6 +6,7 @@ import {
   StaffFileItem,
   StaffFileList,
   StaffHrDocument,
+  StaffMemberList,
   UpdateStaffFile,
 } from "@harbour/contracts";
 import { complianceItem, document, staffProfile, type Transaction } from "@harbour/db";
@@ -34,8 +35,10 @@ import { sameStored } from "../services/record-history";
 import {
   COMPLIANCE_ITEM_SOURCE,
   type ComplianceItemRow,
+  currentStaff,
   endItemReminders,
   hrDocuments,
+  isCurrentStaff,
   loadStaffFile,
   namesFor,
   nationOf,
@@ -98,6 +101,9 @@ const refused = (problem: HttpProblem, action: string, id: string | null, reason
     ...(id ? { resourceId: id } : {}),
     reason,
   });
+
+const notStaff = () =>
+  new HttpProblem(422, "not_current_staff", "Choose a current member of staff.");
 
 const ownFile = (action: string, id: string | null) =>
   refused(
@@ -199,6 +205,28 @@ export const staffFilesRouter = createRouter()
   .openapi(
     createRoute({
       method: "get",
+      path: "/v1/workforce/staff-members",
+      tags: ["workforce"],
+      summary: "Staff to choose from",
+      description:
+        "workforce.staff_file.manage, workforce.sponsor.manage, workforce.ldss.manage or comms.feed.publish. Active and invited members holding a staff role in force now, organisation-wide, by display name and job title only (never an email), for the member picker on HR forms and for naming the staff shown in a family photo (H-905); these roles hold no platform.user.manage.",
+      security,
+      responses: { 200: jsonBody(StaffMemberList, "Staff"), ...errorResponses },
+    }),
+    async (c) => {
+      await requireAnyPermission(c, [
+        MANAGE,
+        "workforce.sponsor.manage",
+        "workforce.ldss.manage",
+        "comms.feed.publish",
+      ]);
+      const items = await withTenant(c, (tx) => currentStaff(tx));
+      return c.json({ items }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
       path: "/v1/workforce/staff-files",
       tags: ["workforce"],
       summary: "Staff files",
@@ -269,6 +297,9 @@ export const staffFilesRouter = createRouter()
       const on = await today();
       const result = await change(c, access, A.created, null, async (tx) => {
         if (body.tenantUserId === access.tenantUserId) throw ownFile(A.created, null);
+        if (!(await isCurrentStaff(tx, body.tenantUserId))) {
+          throw refused(notStaff(), A.created, null, "not_current_staff");
+        }
         const [row] = await tx
           .insert(staffProfile)
           .values({

@@ -338,6 +338,11 @@ export const feedItem = pgTable(
     supersedesItemId: uuid("supersedes_item_id"),
     /** For a photo: whether anyone else can be recognised in it (composed only when false). */
     otherPeopleIdentifiable: boolean("other_people_identifiable"),
+    /**
+     * For a photo: the members of staff the publisher named as shown in it, each of whom had given
+     * consent to family updates (`family_feed`) when it was published (H-905). Empty otherwise.
+     */
+    staffShown: uuid("staff_shown").array().notNull().default(sql`'{}'::uuid[]`),
     ...createdColumns(),
   },
   (t) => [
@@ -373,6 +378,7 @@ export const feedItem = pgTable(
       sql`(photo_document_id IS NULL OR kind = 'photo')
         AND (kind <> 'photo' OR (photo_document_id IS NOT NULL AND other_people_identifiable = false))`,
     ),
+    check("feed_item_staff_shown", sql`cardinality(staff_shown) = 0 OR kind = 'photo'`),
     check(
       "feed_item_confirmation",
       sql`(confirmed_by IS NULL) = (confirmation_reason IS NULL)

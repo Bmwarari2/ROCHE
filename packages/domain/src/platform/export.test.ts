@@ -160,6 +160,22 @@ describe("hazard HZ-071 the export catalogue describes every table and column", 
     expect(resolveColumnDoc(EXPORT_TABLES[table] as never, column)?.class).toBe(cls);
   });
 
+  it("H-901 keeps sponsor records under their own retention class", () => {
+    for (const t of ["sponsored_worker", "sponsor_absence", "sponsor_report"]) {
+      expect(EXPORT_TABLES[`public.${t}`]?.retention).toBe("sponsor_record");
+    }
+  });
+
+  it("H-907 documents every way English language may be shown", () => {
+    const doc = resolveColumnDoc(
+      EXPORT_TABLES["public.sponsored_worker"] as never,
+      "english_evidence",
+    );
+    expect(Object.keys(doc?.codes ?? {})).toEqual(
+      expect.arrayContaining(["uk_school_qualification", "professional_body_assessment"]),
+    );
+  });
+
   it("returns nothing for a column the catalogue does not classify", () => {
     expect(resolveColumnDoc(EXPORT_TABLES["public.person"] as never, "api_token")).toBeNull();
   });

@@ -120,8 +120,16 @@ export const PublishFeedItem = z
         kind: z.literal("photo"),
         documentId: uuid,
         caption: z.string().trim().max(1000).nullable(),
-        /** The publisher checked that nobody else can be recognised in it (rule 6). */
+        /**
+         * The publisher checked that nobody else can be recognised in it (rule 6), apart from the
+         * members of staff named in `staffShown`.
+         */
         onlyThisPerson: z.boolean(),
+        /**
+         * The members of staff shown in the photo, named by the publisher (H-905). Each must have
+         * said yes to family updates (`family_feed`) in My privacy, or the photo is refused.
+         */
+        staffShown: z.array(uuid).max(20).default([]),
       }),
     ]),
     /** For staff words that announce an event or claim how the person is (rule 12). */

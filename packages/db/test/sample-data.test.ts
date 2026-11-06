@@ -411,6 +411,8 @@ const BLOCKS_REMOVAL = [
   "outbreak",
   "policy_version",
   "security_certificate",
+  // The organisation's staff privacy notice is one of its own documents (H-940), never sample data.
+  "tenant",
 ];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {
