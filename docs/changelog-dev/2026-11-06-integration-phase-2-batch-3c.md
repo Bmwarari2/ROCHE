@@ -58,5 +58,10 @@ fail-safe direction (no access is given back); HZ-133 records it, with a test.
   lifecycle rework, so it is idle until then; keep it for that slice.
 - `medicines.md` still has two sections 14, four sections 15 and two sections 16; renumber in one
   docs pass with their references.
+- Accessibility review (non-blocking): no Playwright journey or page-level axe scan yet for the HR
+  link's staleness note (jsdom axe and Storybook only); the note's title is a paragraph, not a
+  heading or region, so heading and landmark navigation skip it; the transfer pack still prints
+  `TIME-CRITICAL:` in capitals where the downtime pack says "(time-critical)"; the PDF medicine
+  lines are English literals, not ICU strings. Each needs a human action number from the lead.
 - `docs/specs/retention.md` has several overlapping `medication…` rows from batch 3b's merges;
   fold them into one.

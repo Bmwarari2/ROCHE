@@ -94,8 +94,8 @@ export const hrLinkLeaversRouter = createRouter().openapi(
         throw new HttpProblem(
           409,
           "hr_link_access_ended",
-          "This member's access has already ended, so the leaving cannot be withdrawn here.",
-          "Ask someone who manages members across the organisation to reinstate them once reinstatement is available; until then, invite them again.",
+          "This person's access has already ended, so their leaving date cannot be withdrawn here.",
+          "To give them access again, invite them again. When reinstating is available, someone who manages members across the organisation can reinstate them instead.",
         );
       }
       const [link] = await withSystemRights(tx, () =>

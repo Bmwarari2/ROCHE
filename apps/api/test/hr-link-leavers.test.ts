@@ -166,7 +166,7 @@ describe("hazard HZ-133 a wrong leaving date is withdrawn by a person, never whi
     const body = (await r.json()) as { code: string; title: string; detail: string };
     expect(body.code).toBe("hr_link_access_ended");
     expect(body.title).toMatch(/access has already ended/);
-    expect(body.detail).toMatch(/reinstate them once reinstatement is available/);
+    expect(body.detail).toMatch(/can reinstate them instead/);
     expect(body.detail).toMatch(/invite them again/);
     const [member] = await owner<{ status: string }>(
       "SELECT status FROM tenant_user WHERE id = $1",
