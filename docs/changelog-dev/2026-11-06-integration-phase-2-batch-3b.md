@@ -36,6 +36,19 @@ in). The PR to `main` opens once batch 3a's has merged and this branch is green 
   with tests; the pharmacy pseudonym key is refused at its development default once orders are on.
 - Each API router is registered once; the feature register summary is recounted.
 
+## Migration notes
+
+- Two deliberate API contract changes, listed in `apps/api/openapi-breaking-ignore.txt` as such (not
+  false positives):
+  - `PATCH /v1/workforce/staff-files/{id}/references/{referenceId}` no longer accepts
+    `declinedReason: no_consent_to_share` (H-876: a reference is never declined for want of consent).
+  - `PUT /v1/workforce/staff-privacy-notice` takes a required `documentId` (an available organisation
+    document) in place of the free-text `version` (H-940).
+- The rule that breaking changes need a major version is applied, not skipped: these go out without
+  one only because the API has no external consumer yet (the public API is Phase 6). The only callers
+  are the web actions updated in this batch; the mobile app has none.
+- Database migrations 0120 to 0140 are forward-only; the dm+d load now runs from its own job.
+
 ## Reviews
 
 - Security: no blocking findings; the three non-blocking ones fixed.
