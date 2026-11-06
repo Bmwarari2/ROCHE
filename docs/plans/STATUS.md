@@ -4,11 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 1% done** (2 of 233 register rows `done`; 95 `partial`, 136 `todo`). Rows become `done`
-**Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
-**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
-**Overall: 0% done** (0 of 233 register rows `done`; 80 `partial`, 153 `todo`). Rows become `done`
-only when they link spec, code, tests and user documentation; no user guides exist yet.
+**Overall: 1% done** (3 of 234 register rows `done`; 103 `partial`, 128 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 
@@ -16,7 +12,6 @@ screens (#128, `docs/user-guides/`).
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
-| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, in clinical review |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, cleared by the sixth clinical review; slice 3 (administration, PRN, competence and CD rules, MEDS-002, 003, 005 and 013 domain only; ADR-0082; HZ-116, HZ-119) pushed on `feat/meds-domain-administration`, stacked on #135 |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
@@ -43,7 +38,9 @@ cancelled by the runner. Re-run that job, then merge.
 in one integration batch: the Drizzle migrator skips a migration whose journal time is older than
 the newest one applied. Never edit a migration that is on `main`.
 
-- **Batch 3a** (merge first):
+- **Batch 3a** (merge first): built on `integration/phase-2-batch-3a` (06/11/2026) with every
+  branch below except 0118, which joins last; see
+  [the batch's log entry](../changelog-dev/2026-11-06-integration-phase-2-batch-3a.md).
   - 0104 `feat/sched-bank-agency`
   - 0107 `feat/sched-absence-leave`
   - 0108 `feat/quality-dashboard-pir`
