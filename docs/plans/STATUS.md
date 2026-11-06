@@ -5,6 +5,10 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 gate passes on `main` (section 19, definition of complete).
 
 **Overall: 1% done** (2 of 233 register rows `done`; 95 `partial`, 136 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 80 `partial`, 153 `todo`). Rows become `done`
+only when they link spec, code, tests and user documentation; no user guides exist yet.
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 
@@ -13,11 +17,121 @@ screens (#128, `docs/user-guides/`).
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, in clinical review |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, cleared by the sixth clinical review; slice 3 (administration, PRN, competence and CD rules, MEDS-002, 003, 005 and 013 domain only; ADR-0082; HZ-116, HZ-119) pushed on `feat/meds-domain-administration`, stacked on #135 |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
+
+## Paused 01/11/2026: where to resume
+
+All build work is paused at the owner's request. The account also reached its monthly spend
+limit at about 06:40 UTC, which had already stopped the builder sessions. Each builder was asked to
+commit and push its part-done work, with what is left in the commit body. Read the newest commit
+on each branch below before carrying on.
+
+**On `main` since the last status update**: batch 2 (#163), Google Cloud production (#164,
+ADR-0098), medicines administration rules (slice 3, #162, seven clinical review rounds) and the
+Google Cloud adapter follow-ups (#165). Main's highest migration is 0103.
+
+**Open pull request**: #166 (`fix/deps-and-image-scan`, dependency advisories and container image
+scanning). Every check passed except the Playwright job, which hung for six hours and was
+cancelled by the runner. Re-run that job, then merge.
+
+**Branches waiting to merge.** Migrations must reach `main` in increasing number order, or together
+in one integration batch: the Drizzle migrator skips a migration whose journal time is older than
+the newest one applied. Never edit a migration that is on `main`.
+
+- **Batch 3a** (merge first):
+  - 0104 `feat/sched-bank-agency`
+  - 0107 `feat/sched-absence-leave`
+  - 0108 `feat/quality-dashboard-pir`
+  - 0109 `feat/sched-time-attendance`
+  - 0110 `feat/meds-dmd-reference`
+  - 0111 `feat/meds-record-schema`
+  - 0112 `feat/work-elearning`
+  - 0113 `feat/sched-lone-worker`
+  - 0114 `feat/web-training-competence`
+  - 0115 `feat/sched-wellbeing`
+  - 0116 `feat/sched-pay-runs`
+  - 0117 `feat/platform-crypto-shred`
+  - 0118 `fix/recommended-answers-care`. Not ready: the clinical re-review fixes are part done
+    (commit 8ff73957 lists what is left).
+  - Branches with no migration:
+    - `feat/web-rota`
+    - `feat/web-pay-time`
+    - `feat/web-wellbeing-lone-worker`
+    - `feat/mobile-tablet-split`
+    - `feat/web-responsive-360`
+    - `docs/guides-safety-quality-platform`
+    - `fix/safety-gaps-from-guides`
+    - `chore/drizzle-snapshot-chain`
+    - `docs/security-controls-gcp`
+    - `fix/platform-sso-followups`
+    - `feat/web-medicines-record`
+- **Batch 3b**:
+  - 0120 `feat/work-vetting-adapters`
+  - 0121 `feat/web-workforce-people`
+  - 0122 `fix/recommended-answers-safety`
+  - 0123 `feat/meds-administration-schema`
+  - 0124 `feat/web-safety-events`
+  - 0125 `feat/web-staff-file`
+  - 0127 `feat/sched-payroll-export`
+  - 0128 `feat/meds-cd-register`
+  - 0129 `fix/recommended-answers-platform`
+  - 0130 `feat/web-retention-shred`
+  - 0131 `feat/integrations-dmd-download`
+  - 0132 `feat/work-lms-import`
+  - Then 0133 to 0138 from the work in progress below.
+- **When building the batches:**
+  - Respace the journal `when` values of migrations that are not on `main` yet.
+  - Make the highest migration in the batch redefine `app.sample_removal_tables()` as the union of
+    every branch's list. 0111 drops the death, missing and outbreak tables from it.
+  - Merge the hazard log section by section, never by concatenating.
+  - Point slice 52's `GET /v1/medicines/products?q=` at slice 10's dm+d tables.
+
+**Work in progress when paused** (part-done, pushed or being pushed):
+
+| Branch | Slice | Migration | Human actions |
+| --- | --- | --- | --- |
+| `feat/meds-rounds` | 48 medicines rounds | 0134 | H-1270 to H-1279 |
+| `feat/integrations-esign-ocr` | 79 e-signature and OCR | 0133 | H-1260 to H-1269 |
+| `feat/meds-errors-reviews` | 45 medication errors and reviews | 0135 | H-1290 to H-1299 |
+| `feat/platform-import-clinical` | 51 clinical import | 0136 | H-1300 to H-1309 |
+| `chore/phase-2-cleanups` | Phase 2 tidy-up | 0137 | none |
+| `feat/meds-stock` | 42 medicines stock (HZ-132, ADR-0103) | 0138 | H-1320 to H-1329 |
+| `feat/mobile-shifts-checkins` | 71 mobile shifts and check-ins | none | H-1310 to H-1319 |
+| `feat/web-cd-register` | 54 web controlled drugs register | none | H-1330 to H-1339 |
+
+`chore/phase-2-cleanups` covers:
+- the axe helper waiting for the page title;
+- hazard log and duplicate section fixes;
+- the reserved numbers in phase-2.md;
+- moving disclosure packs out of the exports bucket;
+- a backfill of built-in role grants made before today.
+
+**Not started in Phase 2:**
+- self-administration (H-1281);
+- slices 28, 38, 49, 50, 53 and 55;
+- mobile slices 68 to 70 and 72;
+- guides 81 and 82;
+- the slice 85 gate record;
+- member lifecycle screens (H-566);
+- the dm+d download Terraform, which waits for slice 10 to land.
+
+Phases 3 to 7 are not started.
+
+**Added to the plan on 01/11/2026**: the Thapsus-HR link (INTG-014, ADR-0126), so a provider using
+both products shares rota, time, pay and staff records without exports. It is Phase 2 slices 86 to 90
+on `docs/plan-thapsus-hr-link`, and takes migration 0139 (0140 if needed), H-1340 to H-1345, HZ-133
+and DPIA risk R30.
+
+**Next free numbers**: migration 0141, human actions block H-1350, hazard HZ-134, ADR-0127.
+
+**Human questions**: every open question takes its recommended answer until the testing-phase
+review ([recommended-answers.md](recommended-answers.md)). Ten Brian decisions still have no default:
+H-09, H-105, H-521, H-522, H-535, H-569, H-663, H-664, H-781 and H-829.
 
 ## Where to pick up (resumed 31/10/2026)
 
@@ -163,8 +277,8 @@ its work in progress (`wip(...)` commits) and stop. Resume by reading this secti
   environment (H-684); merge after the lower Phase 2 numbers or renumber.
 **In progress:** white-label branding (PLAT-002); workflow approvals and SLAs (PLAT-011 gap); API
 hardening (`x-request-id` validation, property witness must be staff at the location, retention
-destroy race and storage-before-certificate, legal holds audit); Phase 2 slice 2 (MEDS-001 domain,
-pushed, below) and slice 5 (SCHED-003 Working Time domain).
+destroy race and storage-before-certificate, legal holds audit); Phase 2 slices 2 and 3 (medicines
+domain, below) and slice 5 (SCHED-003 Working Time domain).
 
 **Phase 2 domain slices** (they touch only new folders, so they need not wait for the Phase 1
 gate; [phase-2.md](phase-2.md), "When it starts"):
@@ -181,6 +295,37 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   register's Platform core and Quality rows (which `main` had left at 6 and 11 `todo`), now match
   the register's rows. Next in lane A: slice 3 (administration, PRN and CD rules, ADR-0082), then
   slice 10 (dm+d reference data).
+- `feat/meds-domain-administration` (slice 3, lane A, stacked on #135; MEDS-002, MEDS-003, MEDS-005
+  and MEDS-013 `partial`): outcomes and coded reasons, dose windows and time-critical lateness,
+  minimum intervals on the drift-corrected clock, the PRN maximum and last given, the dosing record
+  for variable doses, competence and the override gate, round closing, the MAR row lock and
+  corrections, and the controlled drugs page, balance, corrections and witness rule; ADR-0082
+  (proposed); HZ-116 and HZ-119 added; HZ-003, HZ-004, HZ-009 and HZ-010 domain tests passing;
+  seven tenant-default rate rows marked to verify; human actions H-554 to H-558. Merged with
+  #135's third to sixth reviews and `main`: the overall counts above, and the register's Platform core and
+  Quality rows (which `main` had left at 6 and 11 `todo`), were corrected to the register's rows.
+  PR #162's clinical review fixed (31/10/2026): the newest dosing record decides a variable dose,
+  never an older one; a dose the person or family already gave counts towards the maximum and is
+  always recorded, flagged and over the maximum escalated urgently; no outcome before a dose's
+  window, and no dose given ahead of an earlier one that day; the maximum over every 24 hours
+  containing a dose; no override without a competence sign-off; corrections checked as new
+  records; a when-required entry needs an interval or a maximum; human actions H-1060 to H-1066.
+  The second clinical review's findings fixed too: a dose that has already happened (taken by the
+  person or family, recorded after it was given, or a correction) is recorded and flagged for
+  review, never refused; the corrector's competence gates a correction; same-instant dosing records
+  must agree; the earlier-dose check looks back 24 hours; a CD correction says what it puts right;
+  H-1067 and H-1068. The third review's too: a dose recorded after it was given needs a 20-character
+  reason, a time given before the server's time of recording and a competent recorder, and every
+  use is flagged, counted and escalated; an early dose inside its window asks why only when
+  time-critical or too close to the last dose. Its re-check's too: a correction to a dose outcome
+  follows the same rules, and the gap check applies to every dose, late or not. And its second
+  re-check's: every correction is flagged, counted and, when it removes, lowers or moves a dose,
+  escalated; breaches a correction creates or hides are flagged; the gap check looks both ways;
+  a dose cannot be dated forward, or back on the round beyond the 30-minute record delay
+  (`medicines.record_delay_tolerance_minutes`, to verify); an ordinary round record judged at the
+  time given and the time recorded, refused onto the flagged route where they differ; reason flags
+  at either time kept; the flagged route checked when recorded too, urgent where the times differ.
+  Next in lane A: slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
 `feat/work-staff-profile` slice 11 (0073) on #131; `feat/quality-framework-library` slice 14 (0076)

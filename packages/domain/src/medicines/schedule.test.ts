@@ -57,9 +57,21 @@ describe("the MAR cycle comes from the rate table", () => {
       verificationStatus: "tenant",
       source: "tenant policy",
     };
-    expect(resolveMedicinesRates([...rows, tenant], "england", "2026-10-31", "tenant-a")).toEqual({
-      orderingCycleDays: 35,
-    });
+    expect(
+      resolveMedicinesRates([...rows, tenant], "england", "2026-10-31", "tenant-a")
+        .orderingCycleDays,
+    ).toBe(35);
+  });
+
+  it("finds every medicines figure in docs/specs/rates.md for each nation", () => {
+    const rows = readRateTable();
+    for (const nation of ["england", "wales", "scotland", "northern_ireland"] as const) {
+      const resolved = resolveMedicinesRates(rows, nation, "2026-10-31", null);
+      for (const [name, key] of Object.entries(MEDICINES_RATE_KEYS)) {
+        const row = rows.find((r) => r.key === key && r.validTo === null);
+        expect(resolved[name as keyof typeof resolved], key).toBe(Number(row?.value));
+      }
+    }
   });
 
   it("fails loudly when the figure is missing rather than guessing", () => {
@@ -71,12 +83,24 @@ describe("the MAR cycle comes from the rate table", () => {
 
   it("holds no rate-table figure as a literal in the medicines rules", () => {
     const dir = fileURLToPath(new URL(".", import.meta.url));
-    const value = String(days);
+    const rows = readRateTable();
+    // Every figure of two digits or more the medicines rules read (single digits are too common
+    // in ordinary code to scan for; their rules are tested against the table instead).
+    const values = [
+      ...new Set(
+        Object.values(MEDICINES_RATE_KEYS)
+          .map((key) => String(rows.find((r) => r.key === key && r.validTo === null)?.value ?? ""))
+          .filter((v) => v.length >= 2),
+      ),
+    ];
+    expect(values).toContain(String(days));
     for (const file of readdirSync(dir).filter(
       (f) => f.endsWith(".ts") && !f.endsWith(".test.ts"),
     )) {
       const code = readFileSync(`${dir}${file}`, "utf8").replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "");
-      expect(code, file).not.toMatch(new RegExp(`\\b${value}\\b`));
+      for (const value of values) {
+        expect(code, `${file}: ${value}`).not.toMatch(new RegExp(`\\b${value}\\b`));
+      }
     }
   });
 

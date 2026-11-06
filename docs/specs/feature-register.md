@@ -12,7 +12,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Platform core | `PLAT` | 9.1 | 23 | 3 | 20 | 0 |
 | Service-user lifecycle | `PEOP` | 9.2 | 13 | 4 | 9 | 0 |
 | Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 8 | 14 | 0 |
-| Medicines | `MEDS` | 10.2-10.3 | 14 | 13 | 1 | 0 |
+| Medicines | `MEDS` | 10.2-10.3 | 14 | 9 | 5 | 0 |
 | Safety and notifications | `SAFE` | 11.1 | 16 | 0 | 16 | 0 |
 | Quality and governance | `QUAL` | 11.2 | 13 | 4 | 9 | 0 |
 | Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 6 | 5 | 2 |
@@ -21,15 +21,15 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
 | Communication and portals | `COMMS` | 15.1 | 8 | 4 | 4 | 0 |
 | Reporting and analytics | `INSI` | 15.2 | 6 | 6 | 0 | 0 |
-| Integrations | `INTG` | 15.3 | 13 | 11 | 2 | 0 |
+| Integrations | `INTG` | 15.3 | 14 | 12 | 2 | 0 |
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **136** | **95** | **2** |
+| **Total** | | | **234** | **154** | **80** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Rows | 12 | 54 | 59 | 45 | 23 | 17 | 16 | 7 |
+| Rows | 12 | 54 | 60 | 45 | 23 | 17 | 16 | 7 |
 
 Part A estimates "about 190 features". This register has more rows because it separates items that
 ship in different phases (for example the Phase 1 core charts and the Phase 5 further charts), and adds
@@ -37,6 +37,9 @@ features that appear only in sections 5.1, 9 to 17 or 19 (data-protection toolin
 supported living 13.3, day services 13.7, employee relations 12.4, disclosure requests 11.1, Kiosk
 mode, the nation packs and the children's homes module). Where Part A lists an item twice (for
 example key safe access under both 9.2 and 13), it has one row that cites both sections.
+
+Rows the owner adds after the master prompt cite the ADR that records the request: INTG-014, the
+Thapsus-HR link ([ADR-0126](../decisions/0126-thapsus-hr-link.md), 01/11/2026).
 
 ## How to update this file
 
@@ -116,10 +119,10 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | CARE-021 | Consent, MCA capacity assessment and best-interests records | 10.4 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/mca/consent.ts`, `packages/domain/src/care/mca/capacity.ts`, `packages/domain/src/care/mca/best-interests.ts`, `apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`, `packages/db/src/schema/mca.ts`, `apps/web/src/app/(shell)/people/[id]/capacity/page.tsx` (consent by decision, capacity assessments, best-interests decisions and consent records; the forms next) | `packages/domain/src/care/mca/consent.test.ts`, `packages/domain/src/care/mca/capacity.test.ts`, `packages/db/test/mca-and-incidents.test.ts`, `apps/api/test/mca.test.ts`, `apps/api/test/care-follow-ups.test.ts` (client ids, HZ-029), `apps/web/src/lib/mca.test.ts`, `apps/web/e2e/capacity.spec.ts` | [Check consent, capacity and DoLS](../user-guides/care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
 | CARE-022 | DoLS register with CQC notification and the June 2026 legal change switch (review of existing authorisations) | 10.4 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/mca/dols.ts`, `apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`, `packages/db/src/schema/mca.ts` (DoLS, the legal-change review and the expiry job), `apps/web/src/app/(shell)/people/[id]/capacity/page.tsx` (the register with its clocks; forms next) | `packages/domain/src/care/mca/dols.test.ts`, `packages/db/test/mca-and-incidents.test.ts`, `apps/api/test/mca.test.ts`, `apps/api/test/care-follow-ups.test.ts` (client ids, HZ-029), `apps/web/src/lib/mca.test.ts`, `apps/web/e2e/capacity.spec.ts` | [Check consent, capacity and DoLS](../user-guides/care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
 | MEDS-001 | dm+d-coded medicines record and reconciliation (admission, transfer, change, return from hospital) | 9.2, 10.2 | 2 | partial | [medicines](medicines.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/medicines/` (`dmd.ts`, `dose.ts`, `schedule.ts`, `mar-entry.ts`, `reconciliation.ts`, `rates.ts`; domain rules only: the dm+d tables, schema, API and screens are slices 10, 16 and 52) | `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`, `reconciliation.test.ts` | - |
-| MEDS-002 | Offline administration rounds with barcode and person confirmation, time-critical rules and the 10.3 safety rules | 10.2, 10.3 | 2 | todo | - | - | - | - |
-| MEDS-003 | PRN protocols with outcomes and psychotropic PRN report | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-002 | Offline administration rounds with barcode and person confirmation, time-critical rules and the 10.3 safety rules | 10.2, 10.3 | 2 | partial | [medicines](medicines.md#42-administration-prn-and-controlled-drugs-slice-3-built) | `packages/domain/src/medicines/administration.ts`, `timing.ts`, `intervals.ts`, `dosing-record.ts` (domain rules only: outcomes, windows, intervals, the row lock; rounds, API and screens in slices 22, 48, 53, 68 to 70) | `packages/domain/src/medicines/administration.test.ts`, `timing.test.ts`, `intervals.test.ts`, `dosing-record.test.ts` | - |
+| MEDS-003 | PRN protocols with outcomes and psychotropic PRN report | 10.2 | 2 | partial | [medicines](medicines.md#42-administration-prn-and-controlled-drugs-slice-3-built) | `packages/domain/src/medicines/intervals.ts` (the 24-hour maximum, last given, outcome follow-up; PRN protocols and the psychotropic report in slice 28) | `packages/domain/src/medicines/intervals.test.ts`, `administration.test.ts` | - |
 | MEDS-004 | Covert administration records with best-interests evidence | 10.2 | 2 | todo | - | - | - | - |
-| MEDS-005 | Electronic controlled-drugs register with two signatures and running balances | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-005 | Electronic controlled-drugs register with two signatures and running balances | 10.2 | 2 | partial | [medicines](medicines.md#42-administration-prn-and-controlled-drugs-slice-3-built) | `packages/domain/src/medicines/controlled-drugs.ts` (page key, running balance, margin corrections, witness rule, stock checks; the register in slice 34) | `packages/domain/src/medicines/controlled-drugs.test.ts` | - |
 | MEDS-006 | Self-administration risk assessment and review | 10.2 | 2 | todo | - | - | - | - |
 | MEDS-007 | Homely remedies protocols | 10.2 | 2 | todo | - | - | - | - |
 | MEDS-008 | Stock, 28-day cycle ordering and disposal records, with fridge and room temperature logs | 10.2 | 2 | todo | - | - | - | - |
@@ -127,7 +130,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | MEDS-010 | Pharmacy interface (order, MAR import, label data) | 10.2, 15.3 | 5 | todo | - | - | - | - |
 | MEDS-011 | Home-care levels of support (prompt, assist, administer; family-administered arrangements) | 10.2 | 4 | todo | - | - | - | - |
 | MEDS-012 | Medication errors and near misses with notification rules | 10.2 | 2 | todo | [safety](safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012) | `packages/domain/src/safety/medication-error.ts`, `packages/domain/src/safety/phase2-rates.ts` | `packages/domain/src/safety/medication-error.test.ts` | - |
-| MEDS-013 | Annual medication review tracker and competence gating with logged override | 10.2, 12.2 | 2 | todo | - | - | - | - |
+| MEDS-013 | Annual medication review tracker and competence gating with logged override | 10.2, 12.2 | 2 | partial | [medicines](medicines.md#42-administration-prn-and-controlled-drugs-slice-3-built) | `packages/domain/src/medicines/competence.ts` (competence from the sign-off and the override gate; the review tracker and override report in slice 45) | `packages/domain/src/medicines/competence.test.ts`, `administration.test.ts` | - |
 | MEDS-014 | Printable MAR chart and CD register exports | 10.2 | 2 | todo | - | - | - | - |
 | SAFE-001 | Incident and accident capture with body map, photos, severity and harm grading | 11.1 | 1 | partial | [safety](safety.md#5-api-and-events) | `apps/api/src/routes/incidents.ts`, `apps/api/src/routes/statutory-notifications.ts`, `apps/api/src/services/safety.ts`, `packages/db/src/schema/safety.ts`; body-map marks name their incident (`apps/api/src/routes/care.ts`); web read views of the incidents list and an incident (`apps/web/src/app/(shell)/incidents/`, `apps/web/src/lib/incidents.ts`); the web record an incident form (`apps/web/src/app/(shell)/incidents/new/`, `apps/web/src/components/safety/IncidentForm.tsx`, `apps/web/src/lib/incident-forms.ts`) | `packages/db/test/mca-and-incidents.test.ts`, `apps/api/test/incidents.test.ts`, `apps/web/src/lib/incidents.test.ts`, `apps/web/e2e/incidents.spec.ts`, `apps/web/src/lib/incident-forms.test.ts`, `apps/web/e2e/incident-forms.spec.ts` | [Record an incident](../user-guides/care-worker/record-an-incident.md), [Review and close an incident](../user-guides/registered-manager/review-and-close-an-incident.md) |
 | SAFE-002 | Notification classifier with deadline clocks and step-up submission | 11.1 | 1 | partial | [safety](safety.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/safety/classifier.ts`, `packages/domain/src/safety/questions.ts`, `packages/domain/src/safety/notifications.ts`, `packages/domain/src/safety/incident.ts`, `packages/domain/src/safety/rates.ts`, `apps/api/src/routes/incidents.ts`, `apps/api/src/routes/statutory-notifications.ts`, `apps/api/src/services/safety.ts`, `packages/db/src/schema/safety.ts` (classifier on the server, clocks, step-up submission, overdue escalation); on the web incident page, the notifications with their clocks and warnings (`apps/web/src/app/(shell)/incidents/[id]/page.tsx`, `apps/web/src/lib/incidents.ts`); the web statutory notification pages, read only (`apps/web/src/app/(shell)/notifications/statutory/`, `apps/web/src/lib/statutory-notifications.ts`); the classifier's questions answered on the web incident page (`apps/web/src/components/safety/ClassifierQuestions.tsx`); on the web, review and close an incident, and prepare, submit (step-up) or decide not required a notification (`apps/web/src/components/safety/IncidentManage.tsx`, `apps/web/src/components/safety/NotificationManage.tsx`, `apps/web/src/lib/incident-review.ts`) | `packages/domain/src/safety/classifier.test.ts`, `packages/domain/src/safety/workflows.test.ts`, `packages/db/test/mca-and-incidents.test.ts`, `apps/api/test/incidents.test.ts`, `apps/web/src/lib/incidents.test.ts`, `apps/web/e2e/incidents.spec.ts`, `apps/web/src/lib/statutory-notifications.test.ts`, `apps/web/e2e/statutory-notifications.spec.ts`, `apps/web/src/lib/incident-review.test.ts`, `apps/web/e2e/incident-review.spec.ts` | [Answer the notification questions](../user-guides/registered-manager/answer-notification-questions.md), [Read the notification clocks](../user-guides/registered-manager/read-notification-clocks.md), [Record a notification as submitted](../user-guides/registered-manager/record-a-notification-as-submitted.md) |
@@ -259,6 +262,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | INTG-011 | Communications (email, SMS gateway, Expo push, ICS calendar, click-to-call) | 15.3 | 1 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/comms/channels.ts`, `notify-plan.ts`, `notify-calendar.ts`, `notify-rates.ts`, `packages/domain/src/integrations/ports.ts`, `apps/api/src/integrations/adapters.ts` (SMTP email, ADR-0098) | `packages/domain/src/comms/channels.test.ts`, `notify-plan.test.ts`, `notify-calendar.test.ts`, `apps/api/src/integrations/smtp.test.ts` | - |
 | INTG-012 | Directories and lead sources (carehome.co.uk, Autumna, Lottie) | 15.3 | 3 | todo | - | - | - | - |
 | INTG-013 | E-signature and OCR adapters (optional DocuSign, camera scanning with OCR for paper MARs) | 15.3 | 2 | todo | - | - | - | - |
+| INTG-014 | Thapsus-HR link: staff records, leave, rota, clocking and pay shared with the provider's Thapsus-HR tenant without file exports, one owner for each kind of data (added at the owner's request on 01/11/2026, [ADR-0126](../decisions/0126-thapsus-hr-link.md)) | 15.3 | 2 | todo | [integrations](integrations.md#11-thapsus-hr-link-intg-014) | - | - | - |
 | AI-001 | AI gateway with per-tenant enablement (off by default) and provider choice | 16, 16.3 | 6 | todo | - | - | - | - |
 | AI-002 | Ask Harbour over governed data | 16.1 | 6 | todo | - | - | - | - |
 | AI-003 | Summaries and drafting (handovers, reports, letters, policies, notification wording) | 16.1 | 6 | todo | - | - | - | - |

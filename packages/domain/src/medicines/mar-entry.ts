@@ -24,7 +24,7 @@
 
 import { formatUkDateTime, formatUkTime, ukEndOfDay, ukStartOfDay } from "../shared/time";
 import { type DmdProductRef, type DmdRoute, isDmdProduct } from "./dmd";
-import { checkDose, type Dose, type DoseUnit } from "./dose";
+import { checkDose, type Dose, type DoseUnit, isDoseQuantity } from "./dose";
 import {
   checkSchedule,
   expandSchedule,
@@ -62,16 +62,59 @@ export interface MarSourceDocument {
   readonly documentId: string | null;
 }
 
-/** Regular times with a dose at each, or a when-required (PRN) medicine with its dose. */
+/**
+ * Regular times with a dose at each, or a when-required (PRN) medicine with its dose and the most
+ * the prescription or PRN protocol allows in any 24 hours, in the dose's unit (null when the source
+ * states none: the PRN status then says so, H-555). A when-required entry must carry a maximum in
+ * 24 hours or a minimum interval (`prn_limit_required`, H-1066).
+ */
 export type MarDirections =
   | { readonly kind: "regular"; readonly schedule: RegularSchedule }
-  | { readonly kind: "when_required"; readonly dose: Dose };
+  | {
+      readonly kind: "when_required";
+      readonly dose: Dose;
+      readonly maxQuantityPer24Hours: number | null;
+    };
+
+/**
+ * Tags a person sets at transcription and the second check confirms (ADR-0082). They switch on the
+ * tenant's rules for the entry; Harbour never sets one by matching ingredients:
+ * - `time_critical`: the narrower dose window (for example Parkinson's medicines, insulin);
+ * - `paracetamol`: the paracetamol minimum interval, across every entry the person tagged so;
+ * - `bisphosphonate`: the before-food instruction;
+ * - `psychotropic`: counted in the PRN psychotropic report (slice 28).
+ */
+export const MEDICINE_TAGS = [
+  "time_critical",
+  "paracetamol",
+  "bisphosphonate",
+  "psychotropic",
+] as const;
+export type MedicineTag = (typeof MEDICINE_TAGS)[number];
+
+/** The tenant's own lists of dm+d VMPs for each tag (ADR-0082: tenant-maintained, H-514). */
+export type TenantMedicineLists = Readonly<Record<MedicineTag, ReadonlySet<string>>>;
+
+/**
+ * Tags to offer the transcriber for a product: those whose tenant list holds the product's exact
+ * VMP. A suggestion only; the transcriber confirms each tag and the second check covers it. Harbour
+ * never suggests a tag from an ingredient, a name or another product.
+ */
+export function suggestedTags(
+  product: Pick<DmdProductRef, "vmpId">,
+  lists: TenantMedicineLists,
+): readonly MedicineTag[] {
+  return MEDICINE_TAGS.filter((tag) => lists[tag].has(product.vmpId));
+}
 
 export interface MarEntryDraft {
   readonly personId: string;
   readonly product: DmdProductRef;
   readonly route: DmdRoute;
   readonly directions: MarDirections;
+  readonly tags: readonly MedicineTag[];
+  /** The least time between doses that the prescription or PRN protocol states, if it states one. */
+  readonly minimumIntervalMinutes: number | null;
   /** What the medicine is for; required for a when-required medicine. */
   readonly indication: string | null;
   /** As written on the source, for example "30 minutes before breakfast". */
@@ -100,6 +143,11 @@ export type MarEntryProblem =
   | "source_required"
   | "stops_before_starts"
   | "bad_review_date"
+  | "bad_tag"
+  | "bad_minimum_interval"
+  | "bad_maximum"
+  | "maximum_below_dose"
+  | "prn_limit_required"
   | "not_awaiting_check"
   | "checker_is_transcriber"
   | "checker_not_competent"
@@ -135,6 +183,11 @@ function isCalendarDate(value: string): boolean {
   if (!match) return false;
   const d = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   return d.toISOString().slice(0, 10) === value;
+}
+
+/** The most one dose can be: the amount, or the top of a range; 0 for a variable dose. */
+function largestSingleDose(dose: Dose): number {
+  return dose.kind === "amount" ? dose.quantity : dose.kind === "range" ? dose.to : 0;
 }
 
 function checkSource(source: MarSourceDocument): readonly MarEntryIssue[] {
@@ -175,6 +228,45 @@ export function checkMarEntryDraft(
         message: "Say what the when-required medicine is for, as the prescriber wrote it.",
       });
     }
+    const max = d.maxQuantityPer24Hours;
+    if (max !== null && !isDoseQuantity(max)) {
+      issues.push({
+        problem: "bad_maximum",
+        message: "Write the most allowed in 24 hours as a number in the dose's unit.",
+      });
+    } else if (max !== null && max < largestSingleDose(d.dose)) {
+      issues.push({
+        problem: "maximum_below_dose",
+        message:
+          "The most allowed in 24 hours is less than one dose. Check both against the source document.",
+      });
+    }
+  }
+  // A when-required medicine with neither limit would take a second dose a minute after the first:
+  // the source must state one, or the prescriber is asked before it is transcribed (H-1066).
+  if (
+    d.kind === "when_required" &&
+    d.maxQuantityPer24Hours === null &&
+    draft.minimumIntervalMinutes === null
+  ) {
+    issues.push({
+      problem: "prn_limit_required",
+      message:
+        "A when-required medicine needs the least time between doses or the most allowed in 24 hours, as the prescription or PRN protocol states. If the source states neither, ask the prescriber before transcribing it.",
+    });
+  }
+  if (
+    new Set(draft.tags).size !== draft.tags.length ||
+    draft.tags.some((t) => !MEDICINE_TAGS.includes(t))
+  ) {
+    issues.push({ problem: "bad_tag", message: "Choose each tag once, from the list." });
+  }
+  const interval = draft.minimumIntervalMinutes;
+  if (interval !== null && !(Number.isInteger(interval) && interval > 0)) {
+    issues.push({
+      problem: "bad_minimum_interval",
+      message: "Write the least time between doses in whole minutes, as the source states it.",
+    });
   }
   if (blank(draft.prescriber)) {
     issues.push({
@@ -810,7 +902,7 @@ export const MAR_ENTRY_NOTICES = {
   earlierDosesToday:
     "Recorded part-way through today with today's earlier doses kept due: check with the nurse in charge whether each was given before giving it.",
   variableDose:
-    "Do not give from this entry: its dose comes from the dosing record, which is not built yet. Ask the prescriber for today's dose and record it as a new MAR entry, stopping this one first.",
+    "Variable dose: give only the dose the checked dosing record gives for the day. With none, do not give: ask the prescriber for today's dose, record it on the dosing record for a second person to check, and tell the nurse in charge.",
 } as const;
 
 export interface MarEntryStatus {
@@ -894,9 +986,13 @@ export function marEntryStatus(
   } else {
     status = { words: "Checked", mayGive: true, notice: join(null) };
   }
-  // Rule 2: no dose from a variable-dose entry until its dosing record is built and checked (slice 3).
+  // Rule 18: a variable dose comes from the checked dosing record; `checkAdministration` refuses
+  // any dose without one (`no_checked_dosing_record`), so the entry shows where the dose comes from.
   if (hasVariableDose(entry)) {
-    return { ...status, mayGive: false, notice: join(MAR_ENTRY_NOTICES.variableDose) };
+    return {
+      ...status,
+      notice: [status.notice, MAR_ENTRY_NOTICES.variableDose].filter(Boolean).join(" "),
+    };
   }
   return status;
 }
