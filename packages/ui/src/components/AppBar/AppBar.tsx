@@ -38,6 +38,8 @@ export interface AppBarProps extends HTMLAttributes<HTMLElement> {
   tenant?: AppBarSwitcher;
   /** Location (service) switcher. With one option it shows the name without a menu. */
   location?: AppBarSwitcher;
+  /** A control at the start of the bar, such as the phone's navigation menu (`NavMenu`). */
+  leading?: ReactNode;
   /** Controls at the end of the bar, such as help and the account menu. */
   actions?: ReactNode;
   /** Id of the main content element for the skip link. Pass null to leave the skip link out. */
@@ -112,6 +114,7 @@ export function AppBar({
   homeHref = "/",
   tenant,
   location,
+  leading,
   actions,
   skipLinkTarget = "main-content",
   skipLinkLabel = "Skip to main content",
@@ -128,6 +131,7 @@ export function AppBar({
         </a>
       ) : null}
       <div className="hb-appbar__inner">
+        {leading != null ? <div className="hb-appbar__leading">{leading}</div> : null}
         <Anchor href={homeHref} className="hb-appbar__brand">
           {brandLogoSrc ? (
             <img className="hb-appbar__logo" src={brandLogoSrc} alt="" height={24} />

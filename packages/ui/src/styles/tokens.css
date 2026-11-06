@@ -110,53 +110,54 @@
   --status-info: #0071e3;
   --status-on-fill: #ffffff;
 
-  /* Typography */
+  /* Typography: sizes in rem (16 px each at the default), so a browser's text size setting
+     resizes them (WCAG 1.4.4); the type scale in tokens.ts stays in px. */
   --font-stack:
     -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
 
-  --type-display-size: 80px;
+  --type-display-size: 5rem;
   --type-display-line-height: 1.05;
   --type-display-weight: 600;
   --type-display-tracking: -0.015em;
 
-  --type-headline-size: 48px;
+  --type-headline-size: 3rem;
   --type-headline-line-height: 1.08;
   --type-headline-weight: 600;
   --type-headline-tracking: -0.003em;
 
-  --type-title-size: 32px;
+  --type-title-size: 2rem;
   --type-title-line-height: 1.125;
   --type-title-weight: 600;
   --type-title-tracking: 0.004em;
 
-  --type-eyebrow-size: 24px;
+  --type-eyebrow-size: 1.5rem;
   --type-eyebrow-line-height: 1.17;
   --type-eyebrow-weight: 600;
   --type-eyebrow-tracking: 0.009em;
 
-  --type-intro-size: 21px;
+  --type-intro-size: 1.3125rem;
   --type-intro-line-height: 1.38;
   --type-intro-weight: 400;
   --type-intro-tracking: 0.011em;
 
-  --type-body-size: 17px;
+  --type-body-size: 1.0625rem;
   --type-body-line-height: 1.47;
   --type-body-weight: 400;
   --type-body-tracking: -0.022em;
 
-  /* Product shell tables use body at 15 px. */
-  --type-body-dense-size: 15px;
+  /* Product shell tables use body at 15 px (0.9375rem). */
+  --type-body-dense-size: 0.9375rem;
   --type-body-dense-line-height: 1.47;
   --type-body-dense-weight: 400;
   --type-body-dense-tracking: -0.016em;
 
-  --type-callout-size: 14px;
+  --type-callout-size: 0.875rem;
   --type-callout-line-height: 1.43;
   --type-callout-weight: 400;
   --type-callout-tracking: -0.016em;
 
-  --type-caption-size: 12px;
+  --type-caption-size: 0.75rem;
   --type-caption-line-height: 1.33;
   --type-caption-weight: 400;
   --type-caption-tracking: -0.01em;
@@ -194,13 +195,13 @@
 
   /* Navigation */
   --nav-backdrop: saturate(180%) blur(20px);
-  --nav-text-size: 12px;
-  --nav-text-size-drawer: 17px;
+  --nav-text-size: 0.75rem;
+  --nav-text-size-drawer: 1.0625rem;
 
   /* Buttons */
   --button-padding-y: 8px;
   --button-padding-x: 16px;
-  --button-font-size: 17px;
+  --button-font-size: 1.0625rem;
   --button-min-height: 44px;
 
   /* Elevation: hairline borders over shadows; one soft shadow for floating panels only. */
@@ -217,9 +218,9 @@
 
 @media (max-width: 1068px) {
   :root {
-    --type-display-size: 64px;
+    --type-display-size: 4rem;
     --type-display-line-height: 1.0625;
-    --type-headline-size: 40px;
+    --type-headline-size: 2.5rem;
     --type-headline-line-height: 1.08;
     --content-width: 692px;
   }
@@ -227,15 +228,15 @@
 
 @media (max-width: 734px) {
   :root {
-    --type-display-size: 48px;
+    --type-display-size: 3rem;
     --type-display-line-height: 1.08;
-    --type-headline-size: 32px;
+    --type-headline-size: 2rem;
     --type-headline-line-height: 1.08;
     --content-width: 87.5%;
     /* On a phone nothing a carer reads is smaller than 15 px; badges and step numbers 13 px. */
-    --type-callout-size: 15px;
+    --type-callout-size: 0.9375rem;
     --type-callout-line-height: 1.47;
-    --type-caption-size: 13px;
+    --type-caption-size: 0.8125rem;
     --type-caption-line-height: 1.38;
   }
 }

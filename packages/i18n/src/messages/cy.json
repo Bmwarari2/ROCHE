@@ -5563,5 +5563,7 @@
   "scheduling.wellbeing.survey.keep": "{move, select, open {Keep as draft} other {Keep survey open}}",
   "scheduling.wellbeing.thanks.messageTooLong": "Shorten your note to 500 characters or fewer",
   "scheduling.wellbeing.noHomes": "You are not listed at a home yet. Ask your manager.",
-  "scheduling.wellbeing.team.showing": "Showing {home}"
+  "scheduling.wellbeing.team.showing": "Showing {home}",
+  "shell.nav.menu": "Menu",
+  "shell.nav.closeMenu": "Close the menu"
 }

@@ -1,5 +1,5 @@
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { expectAccessible, signIn } from "./support";
+import { expectAccessible, openModules, signIn } from "./support";
 
 /**
  * Slice 5 web: the shift handover (care.md rule 14; COMMS-006; hazards HZ-001, HZ-008) against the
@@ -65,10 +65,7 @@ test("hazard HZ-008 the nurse compiles this shift's handover, adds a note and ac
 }) => {
   await as(context, "nurse");
   await page.goto("/");
-  await page
-    .getByRole("navigation", { name: "Modules" })
-    .getByRole("link", { name: "Handover" })
-    .click();
+  await (await openModules(page)).getByRole("link", { name: "Handover" }).click();
   await page.waitForURL((url) => url.pathname.startsWith("/handover"));
   await openThisShift(page);
   await expectAccessible(page, "handover");

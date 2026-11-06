@@ -5564,6 +5564,8 @@
     "scheduling.wellbeing.survey.keep",
     "scheduling.wellbeing.thanks.messageTooLong",
     "scheduling.wellbeing.noHomes",
-    "scheduling.wellbeing.team.showing"
+    "scheduling.wellbeing.team.showing",
+    "shell.nav.menu",
+    "shell.nav.closeMenu"
   ]
 }

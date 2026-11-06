@@ -63,6 +63,7 @@ export {
   type InspectorPanelProps,
 } from "./components/InspectorPanel/InspectorPanel";
 export { Meter, type MeterProps } from "./components/Meter/Meter";
+export { NavMenu, type NavMenuProps } from "./components/NavMenu/NavMenu";
 export { PageHeader, type PageHeaderProps } from "./components/PageHeader/PageHeader";
 export {
   RadioGroup,

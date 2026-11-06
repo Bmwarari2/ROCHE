@@ -4,13 +4,12 @@
   html {
     font-family: var(--font-stack);
     font-size: 100%;
+    /* What is scrolled into view or focused never lands under the sticky app bar (WCAG 2.4.11). */
+    scroll-padding-top: calc(var(--nav-height) + 8px);
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* A field reached from an error summary or a fragment stops below the sticky app bar, never
-       under it (WCAG 2.4.11). */
-    scroll-padding-top: calc(var(--nav-height) + 8px);
   }
 
   body {
@@ -36,6 +35,17 @@
 
   a:hover {
     text-decoration: underline;
+  }
+
+  /* Phones and touch screens: a link standing on its own in a list item, definition, cell or
+     paragraph (a person's name, a document) is a 44 px target (section 8; MOB-013). Vertical
+     padding on an inline link widens what can be pressed without moving the text. */
+  @media (max-width: 734px), (pointer: coarse) {
+    :where(li, dd, dt, p, td, th, h2, h3, h4) > a:only-child:not([class]) {
+      /* An inline link's box is its glyphs (about 19 px at 15 px type), not its line, so 13 px
+         above and below reach 44 px. */
+      padding-block: 13px;
+    }
   }
 
   :focus-visible {

@@ -34,10 +34,9 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 
 | Integrations | `INTG` | 15.3 | 13 | 10 | 3 | 0 |
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
-| Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
+| Mobile apps | `MOB` | 17 | 13 | 6 | 7 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
 | **Total** | | | **233** | **156** | **77** | **0** |
-
 | **Total** | | | **233** | **135** | **95** | **3** |
 
 | **Total** | | | **233** | **164** | **69** | **0** |
