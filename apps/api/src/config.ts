@@ -454,9 +454,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
     }
-    // Invented dm+d and competence never stand in for the real sources (HZ-001, HZ-121).
-    if (parsed.PHARMACY_ORDERS !== "off")
+    if (parsed.PHARMACY_ORDERS !== "off") {
       throw new Error("PHARMACY_ORDERS must be off in production");
+    }
+    // Once orders can go to a pharmacy, its pseudonym key must never be the public development
+    // default (security review; H-1321). Until then orders are off and the key is unused.
+    if (
+      parsed.PHARMACY_ORDERS !== "off" &&
+      parsed.PHARMACY_REF_SECRET.startsWith("local-development")
+    ) {
+      throw new Error("PHARMACY_REF_SECRET must be set in production");
+    }
+    // Invented dm+d and competence never stand in for the real sources (HZ-001, HZ-121).
     if (parsed.MEDICINES_FIXTURES === "on") {
       throw new Error("MEDICINES_FIXTURES cannot be on in production");
     }

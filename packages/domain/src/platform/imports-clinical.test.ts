@@ -106,6 +106,16 @@ describe("hazard HZ-005 imported medicines (rule 28)", () => {
       ["1:indication:indication_required"],
     ],
     ["a stop before the start", { stops_on: "31/10/2026" }, ["1:stops_on:stops_before_start"]],
+    ["known tags", { tags: "paracetamol, time_critical" }, []],
+    ["an unknown tag", { tags: "paracetamol strong" }, ["1:tags:invalid_code"]],
+    ["a tag twice", { tags: "paracetamol paracetamol" }, ["1:tags:invalid_code"]],
+    ["a four-hour interval", { min_interval_minutes: "240" }, []],
+    ["a zero interval", { min_interval_minutes: "0" }, ["1:min_interval_minutes:invalid_interval"]],
+    [
+      "an interval over 7 days",
+      { min_interval_minutes: "10081" },
+      ["1:min_interval_minutes:invalid_interval"],
+    ],
     ["an unknown source", { source_kind: "email" }, ["1:source_kind:invalid_code"]],
     ["no prescriber", { prescriber: "" }, ["1:prescriber:required"]],
   ])("%s", (_name, over, expected) => {

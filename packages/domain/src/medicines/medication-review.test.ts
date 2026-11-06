@@ -11,7 +11,7 @@ import {
 
 const figures = { intervalMonths: 12, dueSoonDays: 28 };
 
-describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
+describe("hazard HZ-133 medication reviews (slice 45, MEDS-013)", () => {
   it.each([
     ["2026-01-31", 1, "2026-02-28"],
     ["2028-01-31", 1, "2028-02-29"],
@@ -137,7 +137,7 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
   });
 });
 
-describe("hazard HZ-131 PRN and psychotropic use, information only (slice 45)", () => {
+describe("hazard HZ-133 PRN and psychotropic use, information only (slice 45)", () => {
   const dose = (
     personId: string,
     medicineId: string,

@@ -6,7 +6,7 @@ import { createHarness, type Harness } from "./support/harness";
 
 /**
  * Medication errors, reviews and reports through the API (Phase 2 slice 45; medicines.md section
- * 14; MEDS-012, MEDS-013; HZ-131). Fixtures are written as the owner role: a medication incident
+ * 14; MEDS-012, MEDS-013; HZ-133). Fixtures are written as the owner role: a medication incident
  * about Ada, a controlled drug entry tagged psychotropic, a when-required entry, and doses.
  */
 
@@ -146,7 +146,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-describe("hazard HZ-131 medication errors on the incident (slice 45)", () => {
+describe("hazard HZ-133 medication errors on the incident (slice 45)", () => {
   let error: ErrorOut;
 
   it("adds details to a medication incident, presuming a controlled drug from the medicine, with prompts", async () => {
@@ -323,7 +323,7 @@ describe("hazard HZ-131 medication errors on the incident (slice 45)", () => {
   });
 });
 
-describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
+describe("hazard HZ-133 medication reviews (slice 45, MEDS-013)", () => {
   let reviewId = "";
   let version = 1;
 
@@ -431,7 +431,7 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
   });
 });
 
-describe("hazard HZ-131 the reports are counts, information only (slice 45)", () => {
+describe("hazard HZ-133 the reports are counts, information only (slice 45)", () => {
   it("counts competence overrides against the member who gave the dose", async () => {
     const r = await json<{
       items: { memberId: string; competenceOverride: number; givenBeforeRecorded: number }[];

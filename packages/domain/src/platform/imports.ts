@@ -151,6 +151,16 @@ export const MEDICINE_IMPORT_FIELDS: ImportFields = {
   indication: { kind: "text", label: "Indication", required: false, max: 500 },
   // A when-required medicine's 24-hour maximum, in the dose unit (H-1066; batch 3b).
   max_per_24h: { kind: "text", label: "Most in 24 hours", required: false, max: 12 },
+  // Tags set at transcription (ADR-0082): time_critical, paracetamol, bisphosphonate,
+  // psychotropic, separated by spaces or commas. Fixed for the version once recorded (0123), so an
+  // imported entry carries them from the file, never added later by the second check.
+  tags: { kind: "text", label: "Tags", required: false, max: 120 },
+  min_interval_minutes: {
+    kind: "text",
+    label: "Minimum minutes between doses",
+    required: false,
+    max: 6,
+  },
   special_instructions: {
     kind: "text",
     label: "Special instructions",
@@ -311,6 +321,7 @@ export type ImportErrorCode =
   | "times_required"
   | "times_not_taken"
   | "indication_required"
+  | "invalid_interval"
   | "max_per_24h_required"
   | "max_per_24h_not_taken"
   | "stops_before_start"
@@ -400,6 +411,8 @@ function message(code: ImportErrorCode, label: string): string {
       return `A when-required medicine has no ${label.toLowerCase()}: leave the column blank.`;
     case "indication_required":
       return `Give the ${label.toLowerCase()} for a when-required medicine.`;
+    case "invalid_interval":
+      return `${label} must be a whole number of minutes from 1 to 10,080 (7 days), or blank.`;
     case "max_per_24h_required":
       return `Give the ${label.toLowerCase()} for a when-required medicine, as the prescription says: it is never imported without it.`;
     case "max_per_24h_not_taken":

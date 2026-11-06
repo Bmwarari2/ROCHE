@@ -1324,7 +1324,7 @@ person scope, and its retention class is `mar_chart`.
   (raises a medication incident whose id is the conflict's, so applying it twice raises one).
 ## 14. Medication errors, reviews and reports (slice 45; MEDS-012, MEDS-013)
 
-Hazard HZ-131; human actions H-1290 to H-1299. Builds on slice 7's `medicationErrorTriage`
+Hazard HZ-133; human actions H-1290 to H-1299. Builds on slice 7's `medicationErrorTriage`
 ([safety.md](safety.md) Phase 2 rule 7) and slice 22's administrations. Nothing here diagnoses,
 scores a person or recommends a treatment (medical-device boundary): it records what happened and
 what a named person decided, and counts records.

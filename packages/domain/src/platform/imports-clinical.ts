@@ -1,6 +1,11 @@
 import type { PcspDomain } from "../care/care-plan";
 import { isDmdId } from "../medicines/dmd";
-import type { MarEntryDraft, MarSourceKind } from "../medicines/mar-entry";
+import {
+  type MarEntryDraft,
+  type MarSourceKind,
+  MEDICINE_TAGS,
+  type MedicineTag,
+} from "../medicines/mar-entry";
 import { ukStartOfDay } from "../shared/time";
 import type {
   ComplianceDetail,
@@ -77,6 +82,25 @@ function testNumberErrors(
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DOSE = /^(?:0|[1-9]\d{0,6})(?:\.\d{1,3})?$/;
 
+/** The tags in a cell (space or comma separated, each once), [] when blank, null when unknown. */
+export function importTags(cell: string | undefined): MedicineTag[] | null {
+  const parts = (cell ?? "")
+    .split(/[\s,;]+/)
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  if (parts.some((t) => !(MEDICINE_TAGS as readonly string[]).includes(t))) return null;
+  if (new Set(parts).size !== parts.length) return null;
+  return parts as MedicineTag[];
+}
+
+/** A minimum interval in whole minutes from 1 to 10,080, or null when blank or invalid. */
+export function importInterval(cell: string | undefined): number | null {
+  const v = (cell ?? "").trim();
+  if (!/^\d{1,5}$/.test(v)) return null;
+  const n = Number(v);
+  return n >= 1 && n <= 10_080 ? n : null;
+}
+
 /** The prescribed times in a cell ("08:00 20:00", or with commas or semicolons), or null. */
 export function importTimes(cell: string | undefined): string[] | null {
   const parts = (cell ?? "")
@@ -132,6 +156,14 @@ export function validateMedicineImport(
     } else if (r.max_per_24h) {
       errors.push(err(row, "max_per_24h", "max_per_24h_not_taken", "Most in 24 hours"));
     }
+    if (raw.tags && importTags(raw.tags) === null) {
+      errors.push(err(row, "tags", "invalid_code", "Tags"));
+    }
+    if (raw.min_interval_minutes && importInterval(raw.min_interval_minutes) === null) {
+      errors.push(
+        err(row, "min_interval_minutes", "invalid_interval", "Minimum minutes between doses"),
+      );
+    }
     if (r.stops_on && r.starts_on && r.stops_on < r.starts_on) {
       errors.push(err(row, "stops_on", "stops_before_start", "Stop date"));
     }
@@ -176,9 +208,10 @@ export function medicineRowDraft(
     startsAt: ukStartOfDay(row.starts_on ?? ""),
     stopsAt: row.stops_on ? ukStartOfDay(row.stops_on) : null,
     reviewOn: null,
-    // Tags and a minimum interval are added at the second check, never guessed from a file.
-    tags: [],
-    minimumIntervalMinutes: null,
+    // Tags and the minimum interval come from the file: they are fixed for the version once recorded
+    // (0123), so the second check compares them with the source, never adds them (HZ-005).
+    tags: importTags(row.tags) ?? [],
+    minimumIntervalMinutes: importInterval(row.min_interval_minutes),
     source: {
       kind: (row.source_kind ?? "prescription") as MarSourceKind,
       reference: row.source_reference ?? "",

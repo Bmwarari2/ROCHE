@@ -70,6 +70,9 @@ describe("loadConfig", () => {
       "DOCUMENTS_LEGACY_PLAINTEXT",
     ],
     ["the OCR mock (ADR-0095)", { OCR_ENGINE: "mock" }, "OCR_ENGINE"],
+    ["the Xero payroll mock", { PAYROLL_XERO: "mock" }, "PAYROLL_XERO"],
+    ["the learning platform mock", { LMS_API: "mock" }, "LMS_API"],
+    ["the pharmacy orders mock", { PHARMACY_ORDERS: "mock" }, "PHARMACY_ORDERS"],
     ["the DocuSign mock (ADR-0095)", { DOCUSIGN: "mock" }, "DOCUSIGN"],
     [
       "one bucket for documents and exports",

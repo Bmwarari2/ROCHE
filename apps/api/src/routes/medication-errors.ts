@@ -76,7 +76,7 @@ import { mayChange, readIncident } from "./safety-shared";
 
 /**
  * Medication errors on incidents, medication reviews and the medicines reports (Phase 2 slice 45;
- * medicines.md section 14; MEDS-012, MEDS-013; HZ-131). The incident's classifier is not changed:
+ * medicines.md section 14; MEDS-012, MEDS-013; HZ-133). The incident's classifier is not changed:
  * severity, harm and statutory notifications stay there. Prompts (`medicationErrorPrompts`) are
  * returned in words; Harbour sends nothing to CQC, a local authority or an accountable officer.
  * Audit events carry ids only, never what went wrong or an outcome's words.

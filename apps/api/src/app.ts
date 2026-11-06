@@ -522,13 +522,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", medicinesRouter);
   app.route("/", medicineAdministrationsRouter);
   app.route("/", controlledDrugsRouter);
-  app.route("/", medicinesRouter);
-  app.route("/", medicineAdministrationsRouter);
-  app.route("/", controlledDrugsRouter);
   app.route("/", medicineRoundsRouter);
-  app.route("/", disclosuresRouter);
   app.route("/", medicationErrorsRouter);
-  app.route("/", medicinesRouter);
   app.route("/", medicineStockRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
@@ -546,10 +541,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", timeAttendanceRouter);
   app.route("/", medicinesDmdRouter);
   app.route("/", loneWorkerRouter);
-  app.route("/", absencesRouter);
   app.route("/", payRouter);
   app.route("/", payrollExportRouter);
-  app.route("/", loneWorkerRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
