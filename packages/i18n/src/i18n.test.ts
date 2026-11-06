@@ -112,6 +112,8 @@ describe("catalogues", () => {
       "medicines.stop.whenSubject",
       "medicines.rec.receivedSubject",
       "medicines.rec.undecided",
+      // In brackets after a former member's name on a destruction certificate.
+      "shred.certificate.memberRef",
     ]);
     for (const [key, message] of Object.entries(catalogues["en-GB"])) {
       if (continuations.has(key) || /^[{:]/.test(message)) continue;
