@@ -949,14 +949,16 @@ now, until the testing-phase review.
 
 ## Phase 2: medicines on the phone (slices 68 to 70)
 Logged by slices 68 to 70 ([medicines.md](../specs/medicines.md) section 13.8; ADR-0130) on 6
-November 2026, from the block H-1421 to H-1440 the lead assigned. Each open question takes its
-recommended answer, in force now, until the testing-phase review.
+November 2026, from the block H-1421 to H-1440 the lead assigned. By the owner's decision of 6
+November 2026, each takes its recommended answer, recorded as an owner-accepted recommendation,
+pending CSO review at the testing phase; none is a CSO signature, and the DCB0129 safety case and
+gates stay unsigned until H-20.
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
-| H-1421 | Confirm that phones hold the administrations recorded today and the two UTC days before (at least the last 48 hours), for intervals, the 24-hour maximum and the last given (`MEDS_RECENT_DAYS_BEHIND`, a product setting). Recommended: accept | CSO | ADR-0130; `packages/sync/src/client/window.ts` | None | Open, recommended answer in force |
-| H-1422 | Accept that a stopped MAR entry version syncs with its person and the phone judges the stop's time, so a stop is shown rather than the medicine vanishing, and stopped versions stay on the phone while the person is in scope. Recommended: accept | CSO | ADR-0130 | None | Open, recommended answer in force |
-| H-1423 | Confirm that the phone asks for its dm+d subset on connecting and at most hourly after (`DMD_SUBSET_REFRESH_MS`), keeping the last one offline. Recommended: accept; the round says when it was fetched (slice 69) | CSO | ADR-0130; HZ-113 | None | Open, recommended answer in force |
-| H-1424 | Confirm that a member's phone holds their own medicines competence sign-offs and withdrawals, so the round can say offline that a competence has lapsed; the server still decides when the record arrives. Recommended: accept | DPO with the CSO | records of processing (medicines on the phone) | None | Open, recommended answer in force |
+| H-1421 | Confirm that phones hold the administrations recorded today and the two UTC days before (at least the last 48 hours), for intervals, the 24-hour maximum and the last given (`MEDS_RECENT_DAYS_BEHIND`, a product setting). Recommended: accept | CSO | ADR-0130; `packages/sync/src/client/window.ts` | None | Owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1422 | Accept that a stopped MAR entry version syncs with its person and the phone judges the stop's time, so a stop is shown rather than the medicine vanishing, and stopped versions stay on the phone while the person is in scope. Recommended: accept | CSO | ADR-0130 | None | Owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1423 | Confirm that the phone asks for its dm+d subset on connecting and at most hourly after (`DMD_SUBSET_REFRESH_MS`), keeping the last one offline. Recommended: accept; the round says when it was fetched (slice 69) | CSO | ADR-0130; HZ-113 | None | Owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1424 | Confirm that a member's phone holds their own medicines competence sign-offs and withdrawals, so the round can say offline that a competence has lapsed; the server still decides when the record arrives. Recommended: accept | DPO with the CSO | records of processing (medicines on the phone) | None | Owner-accepted recommendation, pending CSO review at the testing phase |
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
