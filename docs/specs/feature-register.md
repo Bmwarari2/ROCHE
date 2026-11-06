@@ -29,6 +29,12 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 
 | **Total** | | | **233** | **135** | **96** | **2** |
 
+| Integrations | `INTG` | 15.3 | 13 | 10 | 3 | 0 |
+| AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
+| Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
+| Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
+| **Total** | | | **233** | **156** | **77** | **0** |
+
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Rows | 12 | 54 | 60 | 45 | 23 | 17 | 16 | 7 |
@@ -256,7 +262,7 @@ Thapsus-HR link ([ADR-0126](../decisions/0126-thapsus-hr-link.md), 01/11/2026).
 | INTG-003 | PDS NHS number lookup | 9.2, 15.3 | 5 | todo | - | - | - | - |
 | INTG-004 | NHS CIS2 staff authentication | 6, 15.3 | 5 | todo | - | - | - | - |
 | INTG-005 | NHSmail and National Data Sharing Arrangement | 15.3 | 5 | todo | - | - | - | - |
-| INTG-006 | dm+d dataset sync and GTIN barcode lookup | 15.3 | 2 | todo | - | - | - | - |
+| INTG-006 | dm+d dataset sync and GTIN barcode lookup | 15.3 | 2 | partial | [integrations](integrations.md#11-dmd-reference-data-intg-006-slice-10-adr-0080) (ADR-0080) | Slice 10: migration 0110 (global dm+d tables, loader functions owned by `harbour_dmd_loader`), `packages/db/src/dmd/` (XML parser and loader, `dmd:load`), `packages/domain/src/integrations/dmd-release-source.ts` (port), `apps/api/src/integrations/dmd.ts` (mock), `apps/api/src/jobs/dmd.ts` (monthly job), `apps/api/src/routes/medicines-dmd.ts` (search, product, GTIN, history); the TRUD download is slice 75 and the device subset streams slice 68 | `packages/domain/src/medicines/dmd-release.test.ts`, `dmd-subset.test.ts`; `packages/db/test/dmd.test.ts`; `apps/api/test/dmd.test.ts`, `dmd-release-source.test.ts` | - |
 | INTG-007 | Identity and vetting: right-to-work IDSP, DBS e-bulk and Update Service, NMC register lookup | 15.3 | 2 | todo | - | - | - | - |
 | INTG-008 | Nurse call and acoustic monitoring webhooks | 15.3 | 5 | todo | - | - | - | - |
 | INTG-009 | Lone-worker devices (BS 8484) | 12.3, 15.3 | 4 | todo | - | - | - | - |

@@ -321,6 +321,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | medicines.cd.stock_check_interval_days | 7 | days | 2000-01-01 | - | all | Harbour default: how often a controlled drugs register page is due a stock check (medicines.md rule 24; CQC controlled drugs in care homes asks for regular checks, with no interval); tenant default; CSO and pharmacist to confirm (H-556) | to-verify |
 | medicines.record_delay_tolerance_minutes | 30 | minutes | 2000-01-01 | - | all | Harbour default: how long after a dose a carer may record it on the round as an ordinary record (carers routinely record 10 to 20 minutes after a round); one dated further back goes by the flagged route for a dose given before it was recorded, and every rule is still judged at the dose's own time (medicines.md rule 17; HZ-004; #162 clinical review); no published figure; tenant default; CSO to confirm (H-1067) | to-verify |
 | medicines.competence_override.max_hours | 12 | hours | 2000-01-01 | - | all | Harbour default: the longest a manager's override of expired medicines competence may last, one shift (medicines.md rule 22; ADR-0085 default; HZ-119); policy value, not statutory; CSO to confirm (H-557) | to-verify |
+
+| medicines.dmd.stale_after_days | 35 | days | 2000-01-01 | - | all | Harbour default (integrations.md section 11 rule 5, ADR-0080, HZ-113): every dm+d search and lookup says the release in use is out of date once it is older than this many days; the refresh is monthly (master prompt 15.3); a national figure, never overridden by a tenant; no published figure | to-verify |
 | loler.examination_months | 6 | months | 1998-12-05 | - | uk | master prompt 13.4 (hoists, slings and passenger lifts) | master-prompt |
 | gas_safety.check_months | 12 | months | 2000-01-01 | - | uk | master prompt 13.4 | master-prompt |
 | electrical.fixed_inspection_years | 5 | years | 2000-01-01 | - | uk | master prompt 13.4 (about every 5 years) | master-prompt |
@@ -378,6 +380,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   figure (Phase 2 slice 9). The Act sets only the 30-day acknowledgement and "keep informed"; the
   DSAR warning and the import undo window are product choices. A tenant may override each; the DPO
   confirms the defaults (H-610).
+- `medicines.dmd.stale_after_days` (35): how old the dm+d release in use may be before every
+  search and lookup says it is out of date (Phase 2 slice 10, ADR-0080, HZ-113). The NHSBSA
+  publishes dm+d weekly and section 15.3 sets a monthly refresh, so 35 days is a month and a week of
+  grace for a failed download. A product default with no published figure, read from the national
+  row only (a tenant cannot quieten the warning); the CSO and a pharmacist confirm it (H-651).
 - `import.staging_expiry_days` (7): how long an uploaded import's staged rows (personal data in
   quarantine, never yet anyone's record) are kept before the nightly sweep deletes them, unless the
   batch is committed or discarded first, which deletes them at once (Phase 2 slice 26). A data

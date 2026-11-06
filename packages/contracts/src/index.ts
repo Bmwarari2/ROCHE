@@ -521,6 +521,7 @@ export * from "./data-security";
 export * from "./deaths-missing";
 export * from "./devices";
 export * from "./disclosure";
+export * from "./dmd";
 export * from "./dpia";
 export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";
 export * from "./escalation-policy";

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LOOKUP xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="lookup_v2_3.xsd">
+<!-- Invented fixture for Harbour tests (ADR-0080): not NHSBSA dm+d data. Identifiers are in an invented range with valid check digits; GTINs are in the GS1 restricted-circulation range 200. -->
+  <COMBINATION_PACK_IND>
+    <INFO>
+      <CD>1</CD>
+      <DESC>Combination pack</DESC>
+    </INFO>
+  </COMBINATION_PACK_IND>
+  <UNIT_OF_MEASURE>
+    <INFO>
+      <CD>91000381000001100</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>tablet</DESC>
+    </INFO>
+    <INFO>
+      <CD>91000391000001103</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>capsule</DESC>
+    </INFO>
+    <INFO>
+      <CD>91000401000001100</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>mg</DESC>
+    </INFO>
+    <INFO>
+      <CD>91000411000001103</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>ml</DESC>
+    </INFO>
+    <INFO>
+      <CD>91000421000001107</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>microgram</DESC>
+    </INFO>
+  </UNIT_OF_MEASURE>
+  <FORM>
+    <INFO>
+      <CD>91000431000001109</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>Tablet</DESC>
+    </INFO>
+    <INFO>
+      <CD>91000441000001102</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>Capsule</DESC>
+    </INFO>
+    <INFO>
+      <CD>91000451000001104</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>Oral solution</DESC>
+    </INFO>
+  </FORM>
+  <ROUTE>
+    <INFO>
+      <CD>91000461000001101</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>Oral</DESC>
+    </INFO>
+    <INFO>
+      <CD>91000471000001106</CD>
+      <CDDT>2000-01-01</CDDT>
+      <DESC>Gastrostomy</DESC>
+    </INFO>
+  </ROUTE>
+  <CONTROL_DRUG_CATEGORY>
+    <INFO>
+      <CD>9000</CD>
+      <DESC>No Controlled Drug Status</DESC>
+    </INFO>
+    <INFO>
+      <CD>9002</CD>
+      <DESC>Schedule 2 (CD)</DESC>
+    </INFO>
+  </CONTROL_DRUG_CATEGORY>
+  <LEGAL_CATEGORY>
+    <INFO>
+      <CD>9101</CD>
+      <DESC>POM</DESC>
+    </INFO>
+    <INFO>
+      <CD>9102</CD>
+      <DESC>P</DESC>
+    </INFO>
+    <INFO>
+      <CD>9103</CD>
+      <DESC>GSL</DESC>
+    </INFO>
+  </LEGAL_CATEGORY>
+</LOOKUP>

@@ -29,7 +29,8 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
  * staged rows when its batch closes, and undoing a committed import; migration 0088),
  * `harbour_silo_owner` (raising a named speak-up concern with its reporter, appointing the Freedom
  * to Speak Up lead, the silo guards and the audit chain check; migration 0086, ADR-0089), `harbour_quality_reader` (counting the quality
- * dashboard's records at one location; migration 0108).
+ * dashboard's records at one location; migration 0108), `harbour_dmd_loader` (the dm+d release loader's functions, the only
+ * writer of the dm+d reference tables; migration 0110, ADR-0080).
  */
 export const NOLOGIN_ROLES = [
   "harbour_membership_reader",
@@ -41,6 +42,7 @@ export const NOLOGIN_ROLES = [
   "harbour_import_owner",
   "harbour_silo_owner",
   "harbour_quality_reader",
+  "harbour_dmd_loader",
 ] as const;
 
 export type RolePasswords = Record<LoginRole, string>;
@@ -91,6 +93,7 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   await client.query("GRANT harbour_import_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_silo_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_quality_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_dmd_loader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   // PowerSync needs logical replication. Cloud SQL (with cloudsql.logical_decoding on) and plain
   // Postgres take the REPLICATION attribute; the rds_replication fallback is for Amazon RDS.
   try {
