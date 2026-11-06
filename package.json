@@ -81,6 +81,9 @@
         "GHSA-g3hv-75wg-m249",
         "GHSA-3g3m-2fjr-6pw4"
       ]
+    },
+    "patchedDependencies": {
+      "decode-uri-component@0.2.2": "patches/decode-uri-component@0.2.2.patch"
     }
   },
   "op-sqlite": {
