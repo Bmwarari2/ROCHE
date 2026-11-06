@@ -50,15 +50,16 @@ export const Platform = {
 };
 
 export const AccessibilityInfo = {
+  /** What would be read out, so a render test can check a screen reader hears it. */
+  announced: [] as string[],
+  announceForAccessibility(text: string) {
+    AccessibilityInfo.announced.push(text);
+  },
   isDarkerSystemColorsEnabled: async () => false,
   isHighTextContrastEnabled: async () => false,
   isReduceMotionEnabled: async () => false,
   addEventListener: () => ({ remove: () => undefined }),
-  announced: [] as string[],
   focused: [] as unknown[],
-  announceForAccessibility(message: string) {
-    AccessibilityInfo.announced.push(message);
-  },
   setAccessibilityFocus(node: unknown) {
     AccessibilityInfo.focused.push(node);
   },

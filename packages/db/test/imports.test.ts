@@ -491,7 +491,13 @@ describe("hazard HZ-130 undoing an import in the database (app.undo_import_batch
     expect(state).toEqual({
       batch: [{ status: "undone" }],
       commit: [{ undone_by: A.importer, ids: 2 }],
-      audit: [{ actor_tenant_user_id: A.importer, resource_id: batch, scope: { records: 2 } }],
+      audit: [
+        {
+          actor_tenant_user_id: A.importer,
+          resource_id: batch,
+          scope: { records: 2, recordType: "people" },
+        },
+      ],
     });
     await expect(asImporter(undo(batch))).rejects.toThrow(/already_undone/);
   });

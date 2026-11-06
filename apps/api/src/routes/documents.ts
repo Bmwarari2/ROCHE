@@ -264,6 +264,14 @@ export const documentsRouter = createRouter()
       if (q.category === "elearning_package") {
         throw problems.invalid("Add e-learning packages from the e-learning courses page.");
       }
+      // Training certificates go only with their training record (workforce.md section 13).
+      if (q.category === "training_certificate") {
+        throw problems.invalid("Add a training certificate from the member's training record.");
+      }
+      // A disclosure pack is written only by the disclosure release (safety.md section 12).
+      if (q.category === "disclosure_pack") {
+        throw problems.invalid("Disclosure packs are issued from the disclosure request.");
+      }
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
       // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
       if (q.category === "organisation_logo") {

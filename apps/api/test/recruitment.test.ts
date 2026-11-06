@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
- * Applicant tracking through the API (workforce.md section 2b, rules 11 to 13 and section 5;
+ * Applicant tracking through the API (workforce.md section 2c, rules 11 to 13 and section 5;
  * WORK-001; plan slice 23): workforce.recruitment.manage on every route with refusals audited; the
  * path from a job template to an accepted offer that creates the staff profile with the offer's
  * Schedule 3 conditions outstanding; stale versions refused; equality monitoring counted with

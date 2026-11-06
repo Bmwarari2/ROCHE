@@ -23,6 +23,7 @@ describe("family updates on the web (COMMS-001, HZ-022)", () => {
     ["text_required", "shared_note", "text"],
     ["needs_confirmation", "shared_note", "confirmationReason"],
     ["photo_shows_other_people", "photo", "onlyThisPerson"],
+    ["staff_not_consented", "photo", "staffShown"],
     ["photo_basis_missing", "photo", "source"],
     ["photo_not_for_feed", "photo", "source"],
     ["source_corrected", "activity", "source"],
@@ -132,6 +133,7 @@ describe("family updates on the web (COMMS-001, HZ-022)", () => {
     text: "",
     caption: "",
     onlyThisPerson: false,
+    staffShown: [],
     confirmationReason: "",
     ...change,
   });
@@ -151,7 +153,13 @@ describe("family updates on the web (COMMS-001, HZ-022)", () => {
       documentId: "s",
       caption: null,
       onlyThisPerson: true,
+      staffShown: [],
     });
+    // H-905: the staff the publisher names as shown, once each.
+    expect(publishSource(draft({ kind: "photo", staffShown: ["m1", "m2", "m1"] }))).toMatchObject({
+      staffShown: ["m1", "m2"],
+    });
+    expect(publishSource(draft({ staffShown: ["m1"] }))).not.toHaveProperty("staffShown");
   });
 
   it("finds a missing record, missing words and words too long before asking the API", () => {
@@ -159,6 +167,7 @@ describe("family updates on the web (COMMS-001, HZ-022)", () => {
       chooseSource: "Choose",
       textRequired: "Write",
       tooLong: (max: number) => `Max ${max}`,
+      staffTooMany: "Too many",
     };
     expect(draftProblems(draft({ sourceId: "" }), words)).toEqual([
       { field: "source", message: "Choose" },
@@ -168,6 +177,13 @@ describe("family updates on the web (COMMS-001, HZ-022)", () => {
       { field: "text", message: "Max 1000" },
     ]);
     expect(draftProblems(draft({ kind: "activity" }), words)).toEqual([]);
+    const many = Array.from({ length: 21 }, (_, i) => `m${i}`);
+    expect(draftProblems(draft({ kind: "photo", staffShown: many }), words)).toEqual([
+      { field: "staffShown", message: "Too many" },
+    ]);
+    expect(draftProblems(draft({ kind: "photo", staffShown: many.slice(0, 20) }), words)).toEqual(
+      [],
+    );
     expect(
       draftProblems(draft({ kind: "photo", confirmationReason: "x".repeat(501) }), words),
     ).toEqual([{ field: "confirmationReason", message: "Max 500" }]);

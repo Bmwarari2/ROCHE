@@ -116,12 +116,45 @@ export const DOCUMENT_CATEGORIES = {
     retentionClass: "organisation_document",
     inline: false,
   },
+  /**
+   * A training certificate (workforce.md section 13 rule 8; WORK-006): belongs to one training
+   * record and is read as that record is, by readers of development records and by the member it
+   * is about. Added only through the training import and record routes by holders of
+   * `workforce.training.manage`, never for their own record; never served by the general
+   * document routes.
+   */
+  training_certificate: {
+    label: "Training certificate",
+    contentTypes: [...IMAGES, "application/pdf"],
+    maxBytes: 10 * MB,
+    personRequired: false,
+    retentionClass: "training_record",
+    inline: false,
+  },
+  /**
+   * A disclosure pack exactly as it was issued (safety.md section 12 rule 42; SAFE-016): written
+   * only by the disclosure release, as JSON, kept under the disclosure's retention class rather
+   * than the exports bucket's 30-day expiry. About no person on the row (the request names them),
+   * so the general document routes never list or serve it; it is fetched only through
+   * `GET /v1/disclosures/{id}/pack`, with step-up. Never uploaded: no content type is accepted.
+   */
+  disclosure_pack: {
+    label: "Disclosure pack as issued",
+    contentTypes: [],
+    maxBytes: 50 * MB,
+    personRequired: false,
+    retentionClass: "serious_incident",
+    inline: false,
+  },
 } as const satisfies Record<string, DocumentCategory>;
 
-/** The categories the general document routes serve: not HR-only staff documents or e-learning packages. */
+/**
+ * The categories the general document routes serve: everything but those with routes of their own
+ * (HR-only staff documents, e-learning packages, training certificates and disclosure packs).
+ */
 export type GeneralDocumentCategory = Exclude<
   DocumentCategoryKey,
-  "staff_hr_document" | "elearning_package"
+  "staff_hr_document" | "elearning_package" | "training_certificate" | "disclosure_pack"
 >;
 
 export type DocumentCategoryKey = keyof typeof DOCUMENT_CATEGORIES;

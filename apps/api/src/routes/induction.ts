@@ -60,6 +60,7 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { raiseMissingBirthDateTask } from "../services/leavers";
 import { rateRows } from "../services/rates";
 import {
   fileState,
@@ -79,7 +80,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * Induction, the Care Certificate and leavers (workforce.md section 2d, rules 19 to 23 and
+ * Induction, the Care Certificate and leavers (workforce.md section 2e, rules 19 to 23 and
  * section 5; WORK-004, WORK-013; plan slice 29). Read with workforce.staff_file.read (or the
  * worker's own with workforce.self.read); written with .manage, never on one's own file; Care
  * Certificate observations by holders of workforce.competence.observe. The database enforces the
@@ -991,6 +992,8 @@ export const inductionRouter = createRouter()
           .update(staffProfile)
           .set({ leftOn: body.leavingOn })
           .where(eq(staffProfile.id, id));
+        // H-874: no date of birth, no keep-until date: HR is asked to record it.
+        if (keep === null) await raiseMissingBirthDateTask(tx, id, body.leavingOn);
         await auditFile(c, tx, access, A.leaving, id);
       });
       return c.json(detail, 201);

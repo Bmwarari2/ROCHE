@@ -13,7 +13,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { frameworkSummaries } from "./quality-framework";
 
 /**
- * Reading the audit programme (quality.md section 19; QUAL-004; migration 0081): rows into the
+ * Reading the audit programme (quality.md section 20; QUAL-004; migration 0081): rows into the
  * API's shapes, the score and findings worked out by the domain from the questions the audit
  * started with (never the template as it is now), and the last completed audit for a schedule.
  */

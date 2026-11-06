@@ -50,6 +50,7 @@ import { problems } from "../http/problem";
 import {
   deathItem,
   episodeItem,
+  finishHerbertPrepareTasks,
   finishHerbertReviewTasks,
   herbertPrefillFor,
   openDeathRecord,
@@ -57,6 +58,7 @@ import {
   readDeath,
   readEpisode,
   syncPoliceCallTask,
+  tellOnSiteNow,
 } from "../services/deaths-missing";
 import { loadPerson } from "../services/people";
 import { classifyAndStore, subjectToDolsAt } from "../services/safety";
@@ -307,7 +309,7 @@ export const deathsMissingRouter = createRouter()
       tags: ["safety"],
       summary: "Record a step of the death as done, or not needed with the reason",
       description:
-        "Append-only: the latest for a step counts. A notification step is done only in the notification centre; here it can only be recorded as not needed, with a reason of at least 20 characters. The mortality review is recorded on its own.",
+        "Append-only: the latest for a step counts. A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.",
       security,
       request: {
         params: IdParam,
@@ -358,6 +360,7 @@ export const deathsMissingRouter = createRouter()
             note: body.note ?? null,
           },
           new Date(now.getTime() + FUTURE_TOLERANCE_MS),
+          { expected: row.expected, possiblyUnnatural: row.possiblyUnnatural },
         );
         if (stepProblems.length > 0) throw problems.invalid(stepProblems.join(" "));
         await tx.insert(deathStep).values({
@@ -653,6 +656,8 @@ export const deathsMissingRouter = createRouter()
         });
         const read = await readEpisode(tx, access.tenantId, row, now);
         await syncPoliceCallTask(tx, row, read.view.policeCallDueAt, now);
+        // Told at opening, whatever the police call task (H-771; clinical review finding 4).
+        if (row.immediateRisk) await tellOnSiteNow(tx, row, now);
         await audit(c, tx, access, {
           action: "safety.missing.open",
           resourceType: "missing_episode",
@@ -917,6 +922,16 @@ export const deathsMissingRouter = createRouter()
         }
         const profileProblems = herbertProfileProblems(body, ukIsoDate(now));
         if (profileProblems.length > 0) throw problems.invalid(profileProblems.join(" "));
+        // A first profile the record prefills is saved only once each prefilled part has been
+        // checked with the person or their family (HZ-127: never taken as checked).
+        if (body.version === 0 && body.prefillChecked !== true) {
+          const prefill = await herbertPrefillFor(tx, id);
+          if (Object.values(prefill).some((v) => typeof v === "string" && v.trim() !== "")) {
+            throw problems.invalid(
+              "Check each part filled in from the record with the person or their family, and say so, before saving the profile.",
+            );
+          }
+        }
         if (body.photoDocumentId) {
           const [photo] = await tx
             .select({ id: document.id })
@@ -970,6 +985,7 @@ export const deathsMissingRouter = createRouter()
               .returning();
         if (!saved) throw problems.conflict();
         await finishHerbertReviewTasks(tx, saved.id, now);
+        await finishHerbertPrepareTasks(tx, saved.personId, now);
         await audit(c, tx, access, {
           action: "safety.herbert.save",
           resourceType: "herbert_profile",

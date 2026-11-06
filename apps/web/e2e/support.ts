@@ -25,7 +25,8 @@ export function demoPerson(n: number): string {
 /**
  * Waits for entry animations (a sheet or menu fading in) to finish, so axe measures contrast on
  * what people see once it has settled, not a half-transparent frame. Endless animations, such as
- * a spinner, are skipped.
+ * a spinner, are skipped, and so are animations on elements nobody can see: Chromium hides a
+ * closed `<details>` with content-visibility, and a transition there never runs to its end.
  */
 export async function settleAnimations(page: Page) {
   await page.evaluate(() =>
@@ -37,15 +38,25 @@ export async function settleAnimations(page: Page) {
         // animations, so waiting on them would never end; axe does not measure it either.
         .filter((animation) => {
           const target = (animation.effect as KeyframeEffect | null)?.target;
-          return !target || target.checkVisibility();
+          return !(target instanceof Element) || target.checkVisibility() !== false;
         })
         .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );
 }
 
-/** WCAG 2.2 AA with axe: no serious or critical violations. */
+/**
+ * Waits until the page has its title. A client-side navigation can leave `document.title` empty
+ * for a moment, and axe run then fails the `document-title` rule on a page that does have one (a
+ * breach journey failed this way once in CI, mid-navigation).
+ */
+export async function waitForTitle(page: Page) {
+  await page.waitForFunction(() => document.title.trim().length > 0);
+}
+
+/** WCAG 2.2 AA with axe: no serious or critical violations, once the page has its title. */
 export async function expectAccessible(page: Page, name: string) {
+  await waitForTitle(page);
   await settleAnimations(page);
   // Axe reads the whole page, but measures a target "obscured" by whatever covers it at the
   // current scroll: from the top, nothing sits under the sticky app bar by accident of where an
@@ -80,10 +91,16 @@ export async function signIn(page: Page, email: string) {
  * derivation as the seed). Step-up counts only from a second factor used in the last few minutes
  * (ADR-0072 amendment), so journeys that step up confirm with this, as a person would.
  */
-export async function addDemoPasskey(
-  page: Page,
-  who: "manager" | "owner" | "family" | "starter" = "manager",
-) {
+/** Who has the end-to-end passkey (seed-users.ts). */
+export type DemoPasskeyHolder =
+  | "manager"
+  | "owner"
+  | "family"
+  | "starter"
+  | "closing"
+  | "closingRecords";
+
+export async function addDemoPasskey(page: Page, who: DemoPasskeyHolder = "manager") {
   // The manager's labels are the original ones; the others are prefixed (seed-users.ts).
   const digest = (label: string) =>
     createHash("sha256")
@@ -124,10 +141,7 @@ export async function addDemoPasskey(
  * Signs a demo user (the manager, the owner or the family member) in with their passkey: a session
  * whose step-up is fresh.
  */
-export async function signInWithDemoPasskey(
-  page: Page,
-  who: "manager" | "owner" | "family" | "starter" = "manager",
-) {
+export async function signInWithDemoPasskey(page: Page, who: DemoPasskeyHolder = "manager") {
   await addDemoPasskey(page, who);
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();

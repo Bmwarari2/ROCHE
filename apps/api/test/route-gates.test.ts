@@ -37,12 +37,16 @@ const UNGATED: Readonly<Record<string, string>> = {
   "GET /v1/forms/templates": "the organisation's form templates; no personal data; scope 'none'",
   "GET /v1/rates/{key}": "a rate-table figure; no personal data; scope 'none'",
   "GET /v1/policies":
-    "the organisation's policies, read by every member (quality.md section 18.2); scope 'none'",
+    "the organisation's policies, read by every member (quality.md section 19.2); scope 'none'",
   "GET /v1/policies/{id}":
     "one policy and its published versions, read by every member; drafts only for holders of quality.policy.manage (migration 0087)",
   "POST /v1/policies/{id}/versions/{versionId}/signatures":
     "any member reads and signs the version in force, in their own name (migration 0087)",
   "GET /v1/me/policies": "the policies the member must sign; scope 'none'",
+  "GET /v1/me/signature-requests":
+    "the organisation documents the member is asked to sign (ADR-0095); their own requests only",
+  "POST /v1/signature-requests/{id}/sign":
+    "only the member named signs, with a fresh second factor, against the exact version (ADR-0095)",
   "GET /v1/policies/{id}/versions/{versionId}/document":
     "a policy version's PDF with its state; drafts only for holders of quality.policy.manage (migration 0087)",
   "GET /v1/notifications": "the member's own notifications (notification_recipient policy)",
@@ -64,6 +68,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "PUT /v1/workforce/cases/{id}/referrals": CASE_MEMBER,
   "PUT /v1/workforce/cases/{id}/safeguarding-link": CASE_MEMBER,
   "POST /v1/workforce/cases/{id}/notes": CASE_MEMBER,
+  "GET /v1/workforce/cases/{id}/export":
+    "a case manager's route (H-805): MFA, a fresh step-up, and row-level security opens only the cases the member is named on (migration 0101)",
   "POST /p/evidence/code":
     "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
   "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",
@@ -86,6 +92,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /operator/tenants/{tenantId}/support-access": "an operator route (support access request)",
   "POST /operator/sub-processor-notices":
     "an operator route (announcing a notice; each organisation read in its own context)",
+  "POST /operator/tenants/{tenantId}/casework-support-tickets/{ticketId}/appoint":
+    "an operator route (H-804: an approved ticket, through app.operator_appoint_case_manager)",
   "POST /operator/tenants/{tenantId}/owner-invitation":
     "an operator route (the first owner's invitation, through app.invite_first_owner)",
 };

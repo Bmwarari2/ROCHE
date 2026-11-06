@@ -248,9 +248,12 @@ checked on gov.uk, legislation.gov.uk and The Pensions Regulator on 31 October 2
    starts after it); the band is decided by age on that day (`nmw.age.*`); the apprentice rate
    applies to an apprentice under `nmw.apprentice.age_limit`, or older and within
    `nmw.apprentice.first_year_months` of starting. Pay that counts (`nmwPayFromGross`): basic
-   pay and the sleep-in allowance, less overtime and shift premiums above the basic rate, less
-   deductions for the employer's own use (a uniform the worker pays for); mileage (an expense)
-   and an on-call allowance for time at home never count. Accommodation: free accommodation adds
+   pay, less overtime and shift premiums above the basic rate, less deductions for the employer's
+   own use (a uniform the worker pays for); mileage (an expense) and an on-call allowance for time
+   at home never count. The flat sleep-in allowance does not count either until an employment
+   adviser confirms against the National Minimum Wage Regulations 2015 reg 10 and HMRC's NMW
+   Manual that it does, because an allowance not consolidated into basic pay may not count, so the
+   check errs towards flagging an underpayment (recommended answer to H-585, 31/10/2026). Accommodation: free accommodation adds
    `nmw.accommodation_offset.daily` for each day; a charge up to the offset changes nothing; a
    charge above it takes the excess off. Hours that count: `nmwMinutesIn` over the period (visits,
    travel between them, a sleep-in's awake times when sleep is expected with suitable facilities,
@@ -298,6 +301,11 @@ checked on gov.uk, legislation.gov.uk and The Pensions Regulator on 31 October 2
    partly for a covered reason. Pregnancy, maternity, adoption and paternity leave within the
    assignment's original or likely length counts as weeks worked (reg 7(6)). Jury service (up to
    28 weeks) is not modelled yet: record it as a covered break until break reasons are recorded (H-924).
+   assignment's originally intended or likely length, whichever is longer, counts as weeks worked
+   (reg 7(6); verify). Jury service (up to 28 weeks) is not modelled yet: record it as a pause (a
+   covered break) until slice 27 adds it (H-585). SSP for a spell in which the qualifying days
+   change from week to week is split by slice 36 into weeks beginning Sunday, each with its own
+   qualifying-day count (SSCBA 1992 s.157(3); rule 4; H-585).
 7. **Auto-enrolment flags** (`auto-enrolment.ts`; Pensions Act 2008 ss 1 and 3). For a pay
    reference period of a week or a month: eligible jobholder (aged
    `auto_enrolment.eligible_min_age` and under state pension age, earnings over the period's
@@ -426,10 +434,11 @@ processing. Retention: `rota_and_timesheet` (6 years), `working_time_record` (2 
   workers (rule 9); sleep-ins and home-to-first-visit travel as working time (rules 10, 11); the
   night average's C (rule 8); notice counting (rule 3).
 - Each tenant records its working-time arrangements before relying on the checks (H-581).
-- Pay: the Bradford window is a tenant default (H-583); the remaining pay readings, SSP when the
-  qualifying days change from week to week, which protected-leave weeks the AWR clock deems worked,
-  and the minimum wage treatment of the sleep-in and on-call allowances, are for the adviser
-  (H-585, with H-529). The family pay rates (H-582) and the auto-enrolment thresholds (H-584) were
+- Pay: the Bradford window is a tenant default (H-583). The remaining pay readings took their
+  recommended answers on 31/10/2026 for review at testing (H-585): SSP is split into weeks
+  beginning Sunday (slice 36), the AWR clock deems protected leave worked for the longer of the
+  intended or likely length with jury service a pause, and neither the sleep-in flat allowance nor
+  the on-call allowance counts as minimum wage pay until the adviser confirms otherwise (H-529). The family pay rates (H-582) and the auto-enrolment thresholds (H-584) were
   verified on 31 October 2026.
 - The pay decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0013, ADR-0086 to
   ADR-0088, ADR-0097) and the human actions in [human-actions.md](../plans/human-actions.md) (H-518,
@@ -679,8 +688,11 @@ audited. Outbox: `scheduling.dependency_scale_approved` (scale, version, locatio
   role data migration for the two new permissions and the sample-data removal list).
 - API: `apps/api/src/routes/scheduling-dependency.ts`; contracts in
   `packages/contracts/src/scheduling.ts`.
-- The placement's free-text `dependency_category` (Phase 1 admission form) is left as it is and is
-  not read by the requirement; whether to retire it is H-716.
+- The placement's free-text `dependency_category` (Phase 1 admission form) is retired (recommended
+  answer to H-716, 31/10/2026): the admission route no longer accepts or writes it, and
+  `GET /v1/people/{id}/dependency` shows an existing value read-only (`admissionFormCategory`)
+  until the first structured category is recorded, never prefilling it. It is not read by the
+  requirement. The column is dropped by a contract migration once no supported client sends it.
 
 ## 14. Rota builder (slice 21; SCHED-001, SCHED-002)
 
@@ -1304,6 +1316,7 @@ Audit events carry ids only (never figures): `scheduling.pay_rule_set.created`, 
   reproduces; the member reads their own locked line.
 
 ## 19. Lone-worker safety (slice 46; SCHED-012)
+## 17. Lone-worker safety (slice 46; SCHED-012)
 
 Staff who work alone (domiciliary visits, night shifts) check in on a schedule. A missed check-in,
 a call for help or a duress check-in raises an alarm to the organisation's named on-call route
@@ -1313,6 +1326,7 @@ slice 61 and the mobile app slice 71. No rota or shift table exists yet (slice 2
 stands alone: the worker starts it.
 
 ### 19.1 Schema (migration 0113)
+### 17.1 Schema (migration 0113)
 
 | Table | Kind | What it holds |
 | --- | --- | --- |
@@ -1329,6 +1343,7 @@ tenant scope), and acknowledged only by a monitor who is not the worker. History
 `record_version` is redacted (no worker, note or outcome). Records stay on the server for now.
 
 ### 19.2 Permissions and figures
+### 17.2 Permissions and figures
 
 | Permission | Who has it by default | What it allows |
 | --- | --- | --- |
@@ -1342,6 +1357,7 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
 `lone_worker.location_days`, and the existing `sync.clock_drift_flag_minutes`.
 
 ### 19.3 Rules
+### 17.3 Rules
 
 1. **Off until the route is named.** A session starts only when the organisation has saved a
    valid route under the chain key `scheduling.lone_worker.alarm`: step 1 the on-call person or
@@ -1394,6 +1410,7 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
    is audited and the others go on.
 
 ### 19.4 The offline rule
+### 17.4 The offline rule
 
 The server decides only from check-ins it has received, by the time the worker made them:
 
@@ -1412,6 +1429,7 @@ The server decides only from check-ins it has received, by the time the worker m
   that time, not now. If the worker is overdue again by now, the alarm stays open.
 
 ### 19.5 Location evidence (H-527)
+### 17.5 Location evidence (H-527)
 
 Off by default (`scheduling.lone_worker.location`, a location-level flag). When on, the device may
 attach one point to the event it sends (check-in, help, duress, finish); nothing is collected
@@ -1421,6 +1439,7 @@ erases each point (coordinates cleared, the row kept as proof of the erasure) af
 timekeeping (R22).
 
 ### 19.6 API, audit and outbox
+### 17.6 API, audit and outbox
 
 | Route | Permission | Notes |
 | --- | --- | --- |
@@ -1429,6 +1448,7 @@ timekeeping (R22).
 | `POST /v1/lone-worker/sessions` | check_in | Client id; 201 or 200 on replay; audited `session_started` |
 | `GET /v1/lone-worker/sessions/mine` | check_in | Duress shown as check-in; overdue alarm only |
 | `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in) |
+| `POST /v1/lone-worker/emergency` | check_in | Help or duress without a usable session (H-1317, slice 71): recorded in the worker's open session, else the session of their open help or duress alarm, else a new session finished as it starts, at the named session's location when it is theirs, the location given, their latest session's, or another where they work (by name); alarmed like any help or duress (the route, else the Registered Manager and owner); answers as a session's event (duress as a check-in); client UUID, a replay of the worker's own event answered before a limit of 30 in 10 minutes; audited `session_started` and `event_recorded` with `withoutSession` (duress as check-in) |
 | `GET /v1/lone-worker/board` | monitor | Open sessions with status words; audited |
 | `GET /v1/lone-worker/alarms` | monitor | Open by default; with the latest location point; audited |
 | `POST /v1/lone-worker/alarms/{id}/acknowledge` | monitor | `expected_version`; audited `alarm_acknowledged` |
@@ -1440,6 +1460,7 @@ events: `scheduling.lone_worker.alarm_raised`, `scheduling.lone_worker.alarm_res
 Notifications carry no personal data.
 
 ### 19.7 Retention and data protection
+### 17.7 Retention and data protection
 
 `lone_worker` (3 years from the session's finish) for sessions, events and alarms; location points
 are not retained beyond `lone_worker.location_days`. Records of processing B3; data standards
@@ -1496,6 +1517,7 @@ on (H-1033).
   Harbour (`readRoute`); the API checks every role and person again.
 
 ### 19.8 Test list
+### 17.8 Test list
 
 - Domain, table-driven: session checks, event acceptance offline and late, next due, status, the
   offline rule end to end, resolution, acknowledgement, re-alert, route checks, figures present.
@@ -1584,6 +1606,99 @@ share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decis
    stopping hides it again. A check-in is never a referral or a judgement. The screen points to the
    organisation's own support (its employee assistance details) and to emergency help, set by the
    organisation (H-1084).
+## 19. Payroll and pension exports (slice 76; SCHED-008; ADR-0013, ADR-0097)
+
+A locked pay run (section 18) leaves Harbour only when someone exports it, explicitly, in one of
+four ways: to Xero Payroll UK through its adapter, or as a file for Staffology, Sage or BrightPay.
+Harbour calculates nothing here. It sends the run's own figures, with the pension auto-enrolment
+flags, to the organisation's payroll provider. The provider is the organisation's own processor
+(ADR-0097; H-520), and the organisation runs payroll and pensions.
+
+### Schema (migration 0127)
+
+- `pay_profile.payroll_reference`: the organisation's own works number for the member in its
+  payroll, or the employee id the provider gives. Up to 40 characters, unique in the organisation.
+  It is the only way a line names the member in an export. It must have a digit and never be
+  shaped like a National Insurance number, so it cannot be a name, an email or an NI number.
+- `payroll_connection`:
+  - `provider` (`xero_payroll_uk`);
+  - `external_organisation_id` (the provider's id for the organisation);
+  - `secret_ref`, the name of the Secret Manager secret holding the OAuth tokens (never a token).
+    The database makes it from the organisation, the provider and the connection
+    (`payroll/{tenant}/{provider}/{connection}`), whatever a caller sends, so no organisation can
+    point a connection at another's tokens;
+  - `status` (`connected`, `disconnected`);
+  - `connected_by`, `connected_at`, `disconnected_at`;
+  - the mutable columns.
+
+  There is at most one connected row per provider. Disconnecting is final; connecting again makes
+  a new row.
+- `payroll_export`, append-only:
+  - `run_id` and `calculation` (the run's calculation exported);
+  - `format` (`xero_payroll_uk`, `staffology_csv`, `sage_csv`, `brightpay_csv`) and
+    `format_version`;
+  - `line_count` and `content_sha256` (the SHA-256 of what was produced);
+  - `reexport` (another export of the same run's calculation came before, unless it is known to
+    have failed) and `outcome` (`generated` for a file, `pending` for an API export);
+  - `payroll_references`, member id to payroll reference as exported;
+  - `exported_by`, `exported_at`.
+
+  The file itself is never stored: it is made again, identically, from the locked run and the
+  recorded references.
+- `payroll_export_result`, append-only, at most one per API export: `outcome` (`sent`, `failed`
+  for a refusal or a send that never happened, `unknown` for no answer), `external_ref` (the
+  provider's batch id, only when sent), `recorded_by`, `recorded_at`.
+
+### Rules
+
+1. **Only a locked run.** An export reads the run's lines for its current calculation and only
+   while the run is `locked`. The database refuses an export record for any other run, or for a
+   calculation that is not the run's.
+2. **Explicit, by a holder, with step-up.** Exporting needs `finance.payroll.export` for the whole
+   organisation (as section 18 rule 13), the right to read pay, and a sign-in within the step-up
+   window. Nothing exports on its own: the `scheduling.pay_run_locked` event is not consumed.
+3. **Every line needs a payroll reference.** A run with any member missing one is refused
+   (`payroll_reference_missing`). The refusal lists the members by id, so HR can add them.
+4. **What leaves.**
+   - Per line: the payroll reference, paid hours and each pay element in pence as pounds (basic,
+     premiums, sleep-ins, on-call, mileage, the minimum wage top-up, rolled-up holiday pay, SSP),
+     the total, and the holiday accrued.
+   - Pension: the auto-enrolment category (`eligible_jobholder`, `non_eligible_jobholder`,
+     `entitled_worker`) and qualifying earnings. These are flags for the organisation's own
+     pension process; Harbour makes no pension provider call.
+   - Never a name, date of birth, address, NI number, bank detail, health information or the
+     working.
+5. **Reproducible** (`buildPayrollFile`). The same locked run and format always give the same
+   content and the same SHA-256, in code-unit order of the payroll reference (never a locale's), so
+   an export can be checked later against its record. The first export of a calculation records
+   the references it used, and every later export of that calculation reuses them, so changing a
+   pay profile afterwards does not change a re-export.
+6. **Re-export is allowed, and flagged.** Exporting a run's calculation again needs
+   `confirmReexport: true` (409 `reexport_needs_confirming` otherwise). The record is marked
+   `reexport`, and the audit and the response say so, so payroll is not paid twice by mistake.
+   Exports of one run are taken one at a time under a transaction lock on the run, in the API and
+   again in the database's guard, so two at once cannot both pass as the first. Every earlier
+   export counts, pending and unknown ones too, except one known to have failed.
+7. **Formats** (`PAYROLL_FORMATS`). Each format has its own columns and version. The Staffology,
+   Sage and BrightPay layouts follow their published import guides as Harbour read them and are to
+   verify with each provider (H-1191). Each is UTF-8 CSV with a header row, and every cell is quoted
+   and escaped against spreadsheet formula injection.
+8. **Xero Payroll UK** (`XeroPayrollAdapter` behind `PayrollExportPort`).
+   - The adapter needs a connected `payroll_connection`; with none, Xero exports are refused
+     (`integration_not_connected`).
+   - It reads the tokens through the secret store by `secret_ref`, never from the database, and
+     sends one pay-run batch of timesheet and earnings lines.
+   - The export is recorded and audited as `pending` and committed before the call, which is made
+     outside any database transaction. The result is then recorded: `sent` with the provider's
+     batch id, `failed` when the provider refused it or there were no tokens, or `unknown` when no
+     answer came, which tells the person to check Xero before exporting again. The provider's own
+     words are never kept or logged.
+   - Only a contract-tested mock exists until the Xero developer app is registered and the provider
+     is assessed (H-518, H-1190). The live client is not built.
+   - The integration is off until an organisation connects it.
+9. **Connecting and disconnecting.** A holder of `finance.payroll.export` across the organisation,
+   with step-up, records a connection after the OAuth handshake. The handshake itself comes with
+   the live client (H-1190). Both are audited.
 
 ### Permissions
 
@@ -1670,3 +1785,182 @@ survey closes, with an anonymous actor and the survey only. Results views are au
 - API (`wellbeing.test.ts`): the whole flow with the anonymous audit actor. The response leaves no
   trace naming the member. Results hidden below the size and shown at it, with free text sorted.
   Recognition and check-in visibility. Another organisation's ids not found.
+| Export a locked run; list a run's exports | `finance.payroll.export` across the organisation (step-up for exporting), with `scheduling.pay.manage` or `scheduling.pay.approve` to read the run |
+| Connect or disconnect a payroll provider | `finance.payroll.export` across the organisation (step-up) |
+| Set a member's payroll reference | `scheduling.pay.manage` (the pay profile route) |
+
+`finance.payroll.export` becomes a step-up permission.
+
+### API
+
+- `GET /v1/pay-runs/{id}/exports` lists the run's exports.
+- `POST /v1/pay-runs/{id}/exports` takes `{ format, confirmReexport? }`. It returns the export
+  record. A file format also returns `{ fileName, contentType, content }`; a Xero export returns
+  the outcome and the provider's reference.
+- `GET /v1/payroll-connections`, `POST /v1/payroll-connections` and
+  `POST /v1/payroll-connections/{id}/disconnect`.
+
+### Audit
+
+Audit events carry ids only, never a figure or a reference:
+- `scheduling.payroll_export.created`, with the run, the format, the line count, `reexport` and
+  the outcome;
+- `scheduling.payroll_export.result_recorded`, with the run and the provider's outcome;
+- `.refused`, with the reason;
+- `scheduling.payroll_connection.connected` and `.disconnected`, with the provider.
+
+### Test list
+
+- Domain (`payroll-export.test.ts`, table-driven):
+  - each format's header and rows;
+  - pence as pounds, negative and zero;
+  - order by reference, in code-unit order;
+  - the same input giving the same SHA-256;
+  - formula-injection escaping;
+  - the auto-enrolment flags;
+  - a missing reference refused.
+- Database (`payroll-export.test.ts`):
+  - cross-tenant denial;
+  - an export only of a locked run's current calculation;
+  - only holders of the permission across the organisation;
+  - append-only exports and results;
+  - a result only for a pending API export, once, with a known failure not counting;
+  - two exports at once: only one is first;
+  - one connected row per provider, with the database naming its secret and no token column;
+  - the payroll reference unique, never an NI number or a name.
+- API (`payroll-export.test.ts`):
+  - the flow from a locked run to a file;
+  - step-up required;
+  - a draft run refused;
+  - a missing reference refused;
+  - a re-export needing confirmation and flagged;
+  - reproducibility (the same SHA-256 twice), and a re-export reusing the first references;
+  - two exports at once: one 201, one 409;
+  - Xero refused until connected and until tokens exist, then sent through the mock with the right
+    batch; a refusal recorded as failed and no answer as unknown;
+  - another organisation's run not found;
+  - audit with ids only.
+
+## 18. Shifts, the clock and lone working on the phone (slice 71; MOB-007, SCHED-002, SCHED-004, SCHED-012)
+
+The member's own shifts, clock and lone working in the mobile app, offline first. The phone never
+decides what the API decides: whether a clock-in is allowed (HZ-124), whether a check-in counts,
+when an alarm is raised (section 17). It saves what the member did, with the device's time and a
+client UUID, and sends it when there is a connection.
+
+### 18.1 What syncs to the phone
+
+Two streams, both scoped by the sync token alone (connection parameters are ignored; HZ-011):
+
+- `my_shifts`: the member's own published, uncancelled shifts (a published, not removed
+  `shift_assignment` for `auth.user_id()`), in the token's tenant, starting on a `shift_days` day.
+- `my_clock_events`: the member's own clock events on those days.
+
+`shift_days` is minted by `POST /v1/sync/token` only for holders of `scheduling.timesheet.self`:
+`SHIFT_DAYS_BEHIND` (2) UTC days back to `SHIFT_DAYS_AHEAD` (8) ahead, 11 in all
+(`shiftWindowDays`; product settings, not statutory figures). Without it nothing syncs (fails
+closed). Migration 0139 adds the three tables to the publication with a `harbour_sync` read policy.
+No lone-worker table syncs: the phone asks `GET /v1/lone-worker/sessions/mine`, which already shows
+duress as a check-in, and keeps its last answer, with when it came, in the encrypted device
+database (`sync_meta`, `lone-worker-mine:<tenant>`), so a restart without a connection still shows
+the session and says "Harbour last answered at 10:02." Without any answer the screen says it cannot
+tell whether the member is in a session, never that they are not.
+
+### 18.2 What the phone writes
+
+| Device table | Sent to | Notes |
+| --- | --- | --- |
+| `clock_event` (synced) | `POST /v1/me/clock-events` | Kind, location, shift, the device's time; `evidence: none` |
+| `lone_worker_outbox` (insert-only, never synced down) | `POST /v1/lone-worker/sessions` (`start`) or `POST /v1/lone-worker/sessions/{id}/events` (`event`) | The body in the API's contract shape; the row's id is the session's or the event's |
+
+Each write carries a UUIDv7 made on the phone, sent as the idempotency key, so a retry records
+once. `POST /v1/sync/upload` writes none of them. A change the phone cannot turn into a valid
+request (`shift_change_unreadable`), and every refusal from the API, goes to "needs attention" in
+the API's own words (a refused clock-in says why) and is never dropped (HZ-006). Location and shift
+for a clock-in come from the shift under way or starting within `CLOCK_IN_EARLY_MINUTES` (60, a
+product setting), else the member's only location; with neither the phone records nothing and says
+so. A break or clock-out takes the clock-in's location and shift.
+
+### 18.3 The Shifts tab
+
+Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check_in`.
+
+1. "Needs attention" first, so a refused clock-in is never out of sight.
+2. The clock: the state in words ("Not clocked in", "Clocked in at 07:02", "On a break since
+   10:15"), the shift it is for, the actions that make sense from the member's own latest event (by
+   device time), and how many events wait to send.
+3. My shifts: each not yet ended, soonest first, with the date and times in UK time, the kind, "Under
+   way", and "Changed after it was published" in words.
+4. Lone working (holders of the check-in permission): its own screen.
+
+### 18.4 Lone working on the phone (HZ-125)
+
+1. **Start**: kind of work, length (2, 4 or 8 hours) and interval (every 30 or 60 minutes), each
+   choice said in words. These are presets; the API checks the organisation's own figures (section
+   17.2) and refuses in words anything outside them. A session started offline is shown from the
+   queue until the server has it.
+2. **Check in**: one press. The next check-in due is the server's own when nothing of the worker's
+   waits to send (so a monitor's "safe confirmed" moves it), otherwise worked out on the phone as the
+   server does (section 17.3 rule 3). "Overdue" is said in words with an icon, and aloud when it
+   becomes overdue. A session known only on the phone (started offline) says that nobody is told
+   if a check-in is missed until it reaches Harbour, and that Ask for help still raises
+   the alarm with Harbour, with "call 999"; a start the API refused says lone working did not start, in the
+   same terms.
+3. **Duress**: a long press on Check in, held `DURESS_HOLD_MS` (1.5 seconds) so it does not happen
+   by accident, acting when the hold registers (so a screen reader's long press and a slow press
+   act once, and a cancelled tap never does; the answer comes while the finger is still down,
+   H-1311). It gives the same haptic, the same
+   answer, said aloud too ("Checked in at 10:02."), the same line in the session and the same count
+   waiting to send as a check-in. Nothing the phone shows or keeps in a readable table names it: a
+   queued duress press is shown as a check-in, a refused or held one is kept in "needs attention" as
+   a check-in (`screenSafePayload`, applied in `recordUploadIssue` and to held work), and no
+   lone-worker table syncs. The web never offers it. Until sent, a duress press exists only in the
+   encrypted upload queue or, if the session ended first, in the encrypted held entries, from which
+   it goes back into the queue when the owner signs in again (H-1315). A duress press the API
+   refused before reaching the event (the session unknown or refused, access withdrawn) raised no
+   alarm there, so the phone sends it again (on a 404, or a 403 about the session only) to
+   `POST /v1/lone-worker/emergency` (H-1317, section 17.6), which records it against the worker and
+   raises the alarm. The refusal is still kept under "needs attention" as a check-in, exactly as a
+   refused check-in would be, so the list never gives the press away; if the emergency route
+   refuses too (the member checks in nowhere, or no longer may), that is what stays.
+4. **Help**: one press, never held up by another press, offered with no session too (sent to the
+   emergency route, H-1317). The line says only what is true: waiting
+   (no connection: it has not reached anyone yet), being sent, refused (it did not reach anyone:
+   call 999 or the on-call person now), or with Harbour (it left the phone unrefused, or the
+   session shows it); each with
+   "If you are in danger, call 999". It never says help is on its way.
+5. **Finish**: asks first ("Finish lone working? Nobody will expect your check-ins after this.");
+   Help stays offered while the finish waits to send.
+6. Off: when the API says lone working is not switched on, the screen says so and offers no start.
+
+Not built: a reminder on the phone when a check-in falls due without a connection (H-1313), and
+help or duress from the lock screen (H-1314). A member who no longer holds the check-in permission
+anywhere cannot be recorded in lone working at all; the phone keeps such a press under "needs
+attention" with "call 999".
+
+### 18.5 Data on the device
+
+`shift` and `clock_event` are copies of the member's own rows (data standards, "Device copies").
+`lone_worker_outbox` rows exist only until sent, in the upload queue, or in `held_entry` when the
+session ended first (put back into the queue when the owner signs in again). Refused rows live in
+`upload_issue` until someone removes them with a reason, a duress press always as a check-in. The
+last answer about the member's own session is kept in `sync_meta`. All are in the encrypted device database, wiped with it.
+
+### 18.6 Test list
+
+- Sync: own shifts and clock events only, never a colleague's or another tenant's; nothing without
+  `shift_days`; device parameters ignored; no lone-worker table (`shift-streams.test.ts`); the token
+  carries the days for holders of `scheduling.timesheet.self` (`api.test.ts`).
+- Phone logic, table-driven: clock state, actions, location and shift; shift list; next due;
+  duress shown as a check-in everywhere; queued actions from the upload queue; the upload mapping
+  and its refusals (`scheduling.test.ts`); the SQL on the phone's schema (`queries.test.ts`).
+- Connector: each route, a refused clock-in in the API's words, help and duress refused by their
+  session sent to the emergency route, kept as a check-in only if that refuses too, nothing through
+  the general upload (`connector.test.ts`).
+- API: help and duress without a usable session recorded against the sender and alarmed, duress
+  answered as a check-in, a resend answered once, a repeated press re-sending the open alarm
+  (`apps/api/test/lone-worker.test.ts`, H-1317).
+- Render: the clock card, my shifts, and lone working, with a duress press drawing exactly the same
+  screen as a check-in (`shifts.render.test.ts`).
+- Maestro (demo build): `hazard-HZ-125-shifts-and-lone-working.yaml`, written, not yet run on a
+  device or emulator.

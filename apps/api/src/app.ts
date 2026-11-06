@@ -18,7 +18,19 @@ import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { TenantKeysShredded } from "./integrations/envelope";
+import { createEsignOcrServices } from "./integrations/esign-ocr";
+import {
+  LearningPlatformAdapter,
+  MemoryLearningPlatformSecrets,
+  MockLearningPlatformClient,
+} from "./integrations/lms/learning-platform";
 import { createMedicinesPorts } from "./integrations/medicines-ports";
+import {
+  MemoryPayrollSecretStore,
+  MockXeroPayrollClient,
+  XeroPayrollAdapter,
+} from "./integrations/payroll/xero";
+import { MockPharmacy } from "./integrations/pharmacy";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { absencesRouter } from "./routes/absences";
@@ -31,7 +43,10 @@ import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
 import { caseworkRouter } from "./routes/casework";
+import { caseworkSupportRouter } from "./routes/casework-support";
+import { colleaguesRouter } from "./routes/colleagues";
 import { complaintsRouter } from "./routes/complaints";
+import { controlledDrugsRouter } from "./routes/controlled-drugs";
 import { dataProtectionRouter } from "./routes/data-protection";
 import { dataSecurityRouter } from "./routes/data-security";
 import { deathsMissingRouter } from "./routes/deaths-missing";
@@ -42,6 +57,7 @@ import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
 import { dsarRouter } from "./routes/dsar";
 import { elearningLaunchRouter, elearningRouter } from "./routes/elearning";
+import { esignOcrRouter } from "./routes/esign-ocr";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
@@ -54,11 +70,18 @@ import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { invitationsRouter } from "./routes/invitations";
 import { letterTemplatesRouter } from "./routes/letter-templates";
 import { lettersRouter } from "./routes/letters";
+import { lmsImportRouter } from "./routes/lms-import";
 import { loneWorkerRouter } from "./routes/lone-worker";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { medicationErrorsRouter } from "./routes/medication-errors";
+import { medicineAdministrationsRouter } from "./routes/medicine-administrations";
+import { medicineRoundsRouter } from "./routes/medicine-rounds";
+import { medicineStockRouter } from "./routes/medicine-stock";
 import { medicinesRouter } from "./routes/medicines";
+import { medicinesAuthorityRouter } from "./routes/medicines-authority";
 import { medicinesDmdRouter } from "./routes/medicines-dmd";
+import { memberLifecycleRouter } from "./routes/member-lifecycle";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
 import { onboardingRouter } from "./routes/onboarding";
@@ -71,6 +94,7 @@ import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
 import { outbreaksRouter } from "./routes/outbreaks";
 import { payRouter } from "./routes/pay";
+import { payrollExportRouter } from "./routes/payroll-export";
 import { peopleRouter } from "./routes/people";
 import { peopleDetailsRouter } from "./routes/people-details";
 import { peopleEnquiriesRouter } from "./routes/people-enquiries";
@@ -112,6 +136,7 @@ import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
 import { timeAttendanceRouter } from "./routes/time-attendance";
+import { vettingRouter } from "./routes/vetting";
 import { wellbeingRouter } from "./routes/wellbeing";
 import { workflowsRouter } from "./routes/workflows";
 import {
@@ -166,6 +191,15 @@ export interface AppHandle {
   readonly app: ReturnType<typeof createRouter>;
   readonly services: Services;
   readonly signer: SyncTokenSigner;
+  /** What the Xero mock was handed (development and tests; scheduling.md section 19 rule 8). */
+  readonly payrollMock: MockXeroPayrollClient;
+  /** The mock's tokens by secret name (development and tests). */
+  readonly payrollSecrets: MemoryPayrollSecretStore;
+  /** The learning platform mock and its credentials (development and tests). */
+  readonly learningPlatformMock: MockLearningPlatformClient;
+  readonly learningPlatformSecrets: MemoryLearningPlatformSecrets;
+  /** What the pharmacy mock was given (development and tests). */
+  readonly pharmacyMock: MockPharmacy;
   close(): Promise<void>;
 }
 
@@ -183,6 +217,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   );
   const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
   const ssoKeys = createSsoKeyStore(config);
+  const payrollMockClient = new MockXeroPayrollClient();
+  const payrollSecrets = new MemoryPayrollSecretStore();
+  const learningPlatformMock = new MockLearningPlatformClient();
+  const learningPlatformSecrets = new MemoryLearningPlatformSecrets();
+  const pharmacyMock = new MockPharmacy();
   const services: Services = {
     config,
     logger,
@@ -198,8 +237,17 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     ssoKeys,
     txtLookup: createTxtLookup(config),
     oidcDiscovery: createOidcDiscovery(config),
+    payrollXero:
+      config.PAYROLL_XERO === "mock"
+        ? new XeroPayrollAdapter(payrollMockClient, payrollSecrets)
+        : null,
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
+    learningPlatform:
+      config.LMS_API === "mock"
+        ? new LearningPlatformAdapter(learningPlatformMock, learningPlatformSecrets)
+        : null,
+    ...createEsignOcrServices(config),
     transferPackLimiter: new RateLimiter(
       "transfer_pack",
       config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
@@ -215,12 +263,13 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
       60_000,
     ),
+    medicines: createMedicinesPorts(config.medicinesFixtures),
     adapterFor: createAdapterResolver({
       production: config.NODE_ENV === "production",
       mocks,
       smtp: config.smtp,
     }),
-    medicines: createMedicinesPorts(config.medicinesFixtures),
+    pharmacy: config.PHARMACY_ORDERS === "mock" ? pharmacyMock : null,
     mockEmail: mocks.email,
     evidenceLinkThrottles: {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
@@ -304,8 +353,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     "/v1/documents",
     "/v1/documents/*",
     "/v1/people/:id/photo",
+    "/v1/people/:id/mar-scans",
     "/v1/workforce/staff-files/:id/items/:kind/documents",
     "/v1/absences/:id/fit-notes",
+    "/v1/workforce/members/:memberId/training-records/:recordId/certificate",
   ]) {
     app.use(
       path,
@@ -339,6 +390,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
           c,
           new HttpProblem(413, "too_large", "The file is too large. Import it a home at a time."),
         ),
+    }),
+  );
+  // A learning platform's file of completions, capped as an import (workforce.md section 13).
+  app.use(
+    "/v1/workforce/lms-sources/:id/imports",
+    bodyLimit({
+      maxSize: IMPORT_MAX_BODY_BYTES,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The file is too large.")),
     }),
   );
   // The logo is small (512 KB): a larger body is refused before it is read or decoded.
@@ -386,6 +446,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
+  app.route("/", memberLifecycleRouter);
   app.route("/", peopleRouter);
   app.route("/", peopleLifecycleRouter);
   app.route("/", peopleEnquiriesRouter);
@@ -404,6 +465,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", shredRouter);
+  app.route("/", esignOcrRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);
@@ -429,8 +491,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", ldssRouter);
   app.route("/", recruitmentRouter);
   app.route("/", caseworkRouter);
+  app.route("/", caseworkSupportRouter);
+  app.route("/", vettingRouter);
   app.route("/", inductionRouter);
+  app.route("/", colleaguesRouter);
   app.route("/", developmentRouter);
+  app.route("/", lmsImportRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", elearningRouter);
   app.route("/", elearningLaunchRouter);
@@ -455,6 +521,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", disclosuresRouter);
   app.route("/", qualityDashboardRouter);
   app.route("/", medicinesRouter);
+  app.route("/", medicineAdministrationsRouter);
+  app.route("/", controlledDrugsRouter);
+  app.route("/", medicineRoundsRouter);
+  app.route("/", medicationErrorsRouter);
+  app.route("/", medicineStockRouter);
+  app.route("/", medicinesAuthorityRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
@@ -471,8 +543,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", timeAttendanceRouter);
   app.route("/", medicinesDmdRouter);
   app.route("/", loneWorkerRouter);
-  app.route("/", absencesRouter);
   app.route("/", payRouter);
+  app.route("/", payrollExportRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
@@ -528,6 +600,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     app,
     services,
     signer,
+    payrollMock: payrollMockClient,
+    payrollSecrets,
+    learningPlatformMock,
+    learningPlatformSecrets,
+    pharmacyMock,
     close: async () => {
       await Promise.all([appPool.end(), authPool.end(), operatorPool.end()]);
     },

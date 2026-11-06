@@ -1,5 +1,6 @@
 import {
   auditEvent,
+  authSession,
   type Database,
   document,
   escalationChain,
@@ -24,6 +25,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { DataKeyCache } from "../integrations/envelope";
 import type { Logger } from "../logger";
@@ -39,6 +41,7 @@ import {
 } from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import { raiseCdDiscrepancyIncident, raiseDoubleDoseIncident } from "../services/cd-incidents";
 import { raiseDataSecurityReminders } from "../services/data-security";
 import {
   draftDeathNotifications,
@@ -53,9 +56,17 @@ import { raiseDevelopmentReminders } from "../services/development";
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
-import { endLeaversAccess } from "../services/leavers";
+import {
+  type EndedLeaver,
+  endLeaversAccess,
+  NO_ROTA,
+  type RotaPort,
+  raiseStaffFileReviews,
+} from "../services/leavers";
 import { LONE_WORKER_UNROUTED_ACTION, sweepLoneWorkers } from "../services/lone-worker";
 import { raiseDolsReminders } from "../services/mca";
+import { raiseOutstandingDoseTasks } from "../services/medicine-administrations";
+import { raiseReorderPrompts } from "../services/medicine-stock";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
 import { expireImportBatches } from "../services/platform-imports";
@@ -97,6 +108,8 @@ export interface TaskDeps {
   readonly workerPool: pg.Pool;
   readonly appDb: Database;
   readonly logger: Logger;
+  /** The auth schema, for ending leavers' sign-in sessions (H-879); absent where never needed. */
+  readonly authPool?: pg.Pool;
   /** The full export's archives (the exports bucket); absent in jobs that never touch them. */
   readonly exportStorage?: DocumentStoragePort;
   /** The documents bucket, for the bytes of documents destroyed past retention. */
@@ -513,6 +526,40 @@ export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promis
 }
 
 /**
+ * Outstanding doses (medicines.md rule 15 and 13.6; HZ-003): a task for each scheduled dose whose
+ * window has ended with no outcome, time-critical doses urgent, never twice.
+ */
+export async function escalateOutstandingDoses(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "medicines-outstanding-doses", (tx, tenantId) =>
+    raiseOutstandingDoseTasks(tx, tenantId, now, (personId, error) =>
+      // Opaque ids and the error's kind only (HZ-003).
+      // The operator's failed-job alarm counts it, with the database code (review item 1).
+      deps.logger.error(
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: "medicines-outstanding-doses",
+          tenantId,
+          personId,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
+      ),
+    ),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "outstanding dose tasks raised");
+  return raised;
+}
+
+/** Medicines order prompts before each location's 28-day cycle (medicines.md section 15 rule 6). */
+export async function promptMedicineOrders(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "medicines-reorder-prompts", (tx, tenantId) =>
+    raiseReorderPrompts(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "medicines order prompts raised");
+  return raised;
+}
+
+/**
  * Staff check expiry reminders (workforce.md rule 1 and section 5): one task per reminder day
  * before each expiry or DBS re-check, never twice.
  */
@@ -525,18 +572,77 @@ export async function remindStaffFileExpiry(deps: TaskDeps, now = new Date()): P
 }
 
 /**
- * Leavers' access (workforce.md rule 22): ended from the day after the leaving date, once each.
+ * Leavers' access (workforce.md rule 22, H-873): ended at the later of the end of the leaving day
+ * and the end of a rostered shift that starts on it, once each. Then (H-879) each leaver who works
+ * for no other organisation in Harbour is signed out of every device: their Care mode sessions end,
+ * and entries not yet sent stay on the device for hand-over under the device controls (HZ-040,
+ * HZ-110), never deleted. Someone who still works elsewhere keeps their sign-in there; here their
+ * access has already ended.
  */
-export async function sweepLeaverAccess(deps: TaskDeps, now = new Date()): Promise<number> {
-  const ended = await eachTenant(deps, "leaver-access", (tx, tenantId) =>
-    endLeaversAccess(tx, tenantId, now),
-  );
+export async function sweepLeaverAccess(
+  deps: TaskDeps,
+  now = new Date(),
+  rota: RotaPort = NO_ROTA,
+): Promise<number> {
+  const endedLeavers: { tenantId: string; leaver: EndedLeaver }[] = [];
+  const ended = await eachTenant(deps, "leaver-access", async (tx, tenantId) => {
+    const leavers: EndedLeaver[] = [];
+    const count = await endLeaversAccess(tx, tenantId, now, rota, leavers);
+    for (const leaver of leavers) endedLeavers.push({ tenantId, leaver });
+    return count;
+  });
   if (ended > 0) deps.logger.info({ ended }, "leavers' access ended");
+  // H-874: files with no keep-until date come up for a person's decision, once each.
+  const reviews = await eachTenant(deps, "staff-file-reviews", (tx, tenantId) =>
+    raiseStaffFileReviews(tx, tenantId, now),
+  );
+  if (reviews > 0) deps.logger.info({ reviews }, "staff file retention reviews raised");
+  if (deps.authPool) {
+    for (const { tenantId, leaver } of endedLeavers) {
+      await endLeaverSessions(deps, deps.authPool, tenantId, leaver);
+    }
+  }
   return ended;
 }
 
+/** H-879: signs a leaver out of every device, unless they still work for another organisation. */
+async function endLeaverSessions(
+  deps: TaskDeps,
+  authPool: pg.Pool,
+  tenantId: string,
+  leaver: EndedLeaver,
+): Promise<void> {
+  if (!leaver.authUserId) return;
+  const elsewhere = await deps.appDb.execute<{ tenant_id: string }>(
+    sql`SELECT tenant_id FROM app.memberships_for_auth_user(${leaver.authUserId})`,
+  );
+  const otherOrganisation = elsewhere.rows.some((r) => r.tenant_id !== tenantId);
+  let sessions = 0;
+  if (!otherOrganisation) {
+    sessions = (
+      await drizzle(authPool)
+        .delete(authSession)
+        .where(eq(authSession.userId, leaver.authUserId))
+        .returning({ id: authSession.id })
+    ).length;
+  }
+  // Audited by opaque ids and counts only, in the organisation the member left.
+  const context = { tenantId, userId: null, scope: "tenant" as const, locationIds: [] };
+  await withRequestContext(deps.appDb, context, (tx) =>
+    tx.insert(auditEvent).values({
+      tenantId,
+      action: "workforce.leaving.sessions_ended",
+      outcome: otherOrganisation ? "denied" : "success",
+      resourceType: "tenant_user",
+      resourceId: leaver.tenantUserId,
+      ...(otherOrganisation ? { reason: "member_of_other_organisation" } : {}),
+      scope: { by: "sweep", sessions },
+    }),
+  );
+}
+
 /**
- * Policy read-and-sign reminders and review tasks (quality.md section 18.3; HZ-128).
+ * Policy read-and-sign reminders and review tasks (quality.md section 19.3; HZ-128).
  */
 export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<number> {
   const raised = await eachTenant(deps, "policy-reminders", (tx, tenantId) =>
@@ -939,7 +1045,41 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       throw error;
     }
   };
+  // A controlled drugs stock check that did not balance raises a medication incident (HZ-115).
+  const raiseCdIncident: OutboxHandler = async (event) => {
+    const p = event.payload as Record<string, unknown> | null;
+    const fields = ["stockCheckId", "personId", "locationId", "checkedBy", "checkedAt"] as const;
+    if (!p || fields.some((f) => typeof p[f] !== "string")) return;
+    await inTenant(event.tenantId, (tx) =>
+      raiseCdDiscrepancyIncident(
+        tx,
+        event.tenantId,
+        p as Parameters<typeof raiseCdDiscrepancyIncident>[2],
+        new Date(),
+      ),
+    );
+  };
+  // A dose found given twice in conflict review raises a medication incident (HZ-004; slice 48).
+  const raiseDoubleDose: OutboxHandler = async (event) => {
+    const p = event.payload as Record<string, unknown> | null;
+    const fields = ["conflictId", "personId", "locationId", "resolvedBy", "occurredAt"] as const;
+    // A malformed event fails, so it is retried and then dead-lettered, never marked done with no
+    // incident raised (re-review L2).
+    if (!p || fields.some((f) => typeof p[f] !== "string")) {
+      throw new Error("medicines.administration.double_dose: malformed payload");
+    }
+    await inTenant(event.tenantId, (tx) =>
+      raiseDoubleDoseIncident(
+        tx,
+        event.tenantId,
+        p as Parameters<typeof raiseDoubleDoseIncident>[2],
+        new Date(),
+      ),
+    );
+  };
   const handlers = new Map<string, OutboxHandler>([
+    ["medicines.cd.stock_discrepancy", raiseCdIncident],
+    ["medicines.administration.double_dose", raiseDoubleDose],
     ["platform.export.downloaded", deleteArchive],
     ["platform.export.revoked", deleteArchive],
     ["platform.document.destroyed", deleteDestroyedDocument],

@@ -38,7 +38,7 @@ a location (an outbreak) follows location scope.
 | `candour_record` | mutable, versioned | incident, threshold decision and who made it, verbal notification (who, when, apology given), written notification (date, document), enquiries and results shared, outcome, correspondence documents | `serious_incident` |
 | `investigation` | mutable, versioned | incident, lead, method (root-cause template), findings, contributing factors, actions (owner, due, status), lessons, bulletin and read receipts | `serious_incident` |
 | `death_record` (slice 37) | mutable, versioned | person, location, the exit that recorded the death (one record each), incident, time of death, the clinician's judgement (expected; whether the cause may be unnatural; whose judgement), learning disability or autism, status (`open`, `closed`, `withdrawn`), the mortality review (due date fixed at opening, findings, lessons, who and when), who closed it | `serious_incident` |
-| `death_step` (slice 37) | append-only | death record, person, step (`verification_of_death`, `family_informed`, `police_informed`, `preserve_room_and_equipment`, or a notification step recorded as not needed), outcome (`done`, or `not_needed` with a reason of at least 20 characters), when, note, police reference, who recorded it; the latest for a step counts | `serious_incident` |
+| `death_step` (slice 37) | append-only | death record, person, step (`verification_of_death`, `family_informed`, `police_informed`, `preserve_room_and_equipment`; a notification step is settled only in the notification centre and refused here, done or not needed, H-950), outcome (`done`, or `not_needed` with a reason of at least 20 characters), when, note, police reference, who recorded it; the latest for a step counts | `serious_incident` |
 | `missing_episode` (slice 37) | mutable, versioned | person, location, the missing person or absconding incident, status (`open`, `found`, `closed`), immediate risk (call the police at once), under DoLS or the Mental Health Act at opening, the Herbert Protocol profile's version at opening, who closed it; one open per person | as the incident |
 | `missing_event` (slice 37) | append-only | episode, person, kind (`last_seen`, `noticed_missing`, `search_started`, `search`, `sighting`, `police_called`, `found`, `welfare_check`, `debrief`, `note`), when, police reference, area searched, note, who recorded it; each step of the search once | as the incident |
 | `herbert_profile` (slice 37) | mutable, versioned | person (one each), photograph (one of the person's documents), what they look like (required), distinguishing features, usual clothing, medical needs, mobility, communication, where they may go (required), people they may contact, routines, phone or tracker, earlier episodes, how to approach them, who it was checked with, review date and reviewer | `care_record` |
@@ -287,9 +287,9 @@ to verify, shown as targets, never as statutory deadlines. Figures come through
    pharmacist or NHS 111) whenever it reached or may have reached the person; report a controlled drug
    incident to the area's NHS England Controlled Drugs Accountable Officer; consider safeguarding when
    deliberate or repeated. Harm and the statutory notifications come from the existing classifier
-   questions. Joining these questions to the incident classifier needs a migration
-   (`classifier_answer.question_key` is checked against the list in the database), so the module is
-   built now and wired in by a later schema slice.
+   questions. Slice 45 records these answers in their own table on the incident
+   (`medication_error`, [medicines.md](medicines.md) section 14.1) rather than as classifier
+   questions, so the classifier is unchanged.
 
 Rate keys: `safeguarding.referral_hours`, `complaint.acknowledge_working_days`,
 `complaint.response_working_days`, `lgsco.time_limit_months`,
@@ -430,7 +430,13 @@ HZ-013 and HZ-127). No web screens yet (slice 63).
    police needs their reference, ends the task, and answers the incident's `police.involved`
    question, so the classifier drafts the CQC notification (regulation 18(2)(f)) with its clock in
    the notification centre (HZ-013); found also ends the task. The episode shows the incident's
-   Herbert Protocol and CQC police notifications as the notification centre has them.
+   Herbert Protocol and CQC police notifications as the notification centre has them. An episode
+   opened with immediate risk also tells, at opening, every holder of the clinical lead or team
+   leader role at the location (no rota yet), an urgent notification that does not wait for the
+   task's escalation; nobody holding those roles falls back to the Registered Manager, then anyone
+   who manages incidents there, and nobody at all is audited (H-771, recommended answer applied
+   31/10/2026). One episode is open (still searching) per person: a found episode awaiting its
+   welfare check and debrief never stops a new one opening.
 6. **The Herbert Protocol profile**: one per person, read by `safety.incident.read`, written by
    `safety.incident.manage`, for someone living here. A new profile is **prefilled from the record**
    (the home address before moving here, communication needs and first language, allergies, and
@@ -441,7 +447,13 @@ HZ-013 and HZ-127). No web screens yet (slice 63).
    own name. The profile is out of date `herbert_protocol.review_months` after its last review (the
    slice 7 rule): a daily job gives each out-of-date profile of someone living here one review task
    for the nurse in charge, escalated by the task engine, and saving the profile finishes it. An
-   episode records the profile's version when it opened and says whether it was current.
+   episode records the profile's version when it opened and says whether it was current. A profile
+   is expected, prompted but never forced, for anyone at risk of going missing: the same daily job
+   gives a person living here with an active risk assessment for leaving without staff knowing, and
+   no profile, one task for the nurse in charge to prepare it with them or their representative,
+   due after `herbert_protocol.prepare_due_days`, again for a new assessment date, closed when no
+   longer needed; saving a profile finishes it. Dementia prompts too
+   once the record holds diagnoses (H-773, recommended answer applied 31/10/2026).
 
 Permissions: `safety.incident.read` (read), `safety.incident.report` (open an episode, add to its
 timeline), `safety.incident.manage` (the death record, the welfare check, the debrief, closing, the
@@ -914,12 +926,60 @@ and LeDeR; the medical examiner information stays labelled not statutory, with H
   and members' cases are at `/speak-up/cases`, a page at a time, with "possible flood" in words for
   the lead. The case view has the steps, messages and, for the lead, the people on the case (from
   `GET /v1/speak-up/staff`, the lead only).
+- **The lead's export** (`GET /v1/speak-up/export`, H-721, recommended answer applied 31/10/2026):
+  the Freedom to Speak Up lead alone, with a fresh step-up, exports the silo (concerns, messages,
+  case members); an anonymous concern carries nothing about who raised it and no reply code or its
+  hash leaves; audited by count. The organisation's full export leaves the silo out and its
+  manifest names this route. Concerns are kept 6 years after closing (`speak_up_concern`).
 - **The anonymous page** (`/speak-up-anonymously/{organisation}`, no sign-in): it says first what
   anonymous means here. Nothing about the person is kept: no name, IP address, device or cookie,
   and nothing in the browser's storage. What they write may still identify them. The reply code is
-  shown once and expires. The page names the National Guardian's Office and prescribed persons as
-  other routes. The page's server calls pass on only the client address, for the per-network
-  limit. The code travels only in request bodies, never an address.
+  shown once and expires. The page names the Care Quality Commission as the prescribed person and
+  Protect for free, confidential advice as other routes; the National Guardian's Office does not take
+  individual workers' concerns (H-860, recommended answer applied 31/10/2026). The page's server
+  calls pass on only the client address, for the per-network limit. The code travels only in request bodies, never an address.
+
+### Web screens (Phase 2 slice 63)
+
+- **Outbreaks** (`/outbreaks`, `safety.outbreak.manage`):
+  - The list, with the declare form.
+  - The record has the line list. Each row is marked current or superseded in words, and each
+    resident row shows the person's communication needs.
+  - A case is updated by superseding its row, never added again; the API refuses a second current
+    row for the same person, so the UKHSA figures count each person once.
+  - The UKHSA report fields show what is still missing. Staff cases read "not collected on this
+    screen" (H-955). The report itself is only linked to the notification centre.
+  - Closing with people still unwell needs the closer to say they know. The API refuses closing
+    until the report is decided, and the form shows the API's sentence.
+- **Deaths** (`/deaths`, `safety.incident.read`; recording needs `safety.incident.manage`):
+  - The record is opened from a death exit record, from the person's leaving tab.
+  - Until the clinician's judgement is recorded, the record says it assumes the safer answer, and
+    the police steps cannot be marked not needed (the domain and the API refuse it too).
+  - The regulator's notification, the medical examiner information and LeDeR are links to the
+    notification centre with their status in words, never recorded on the record.
+  - Also: the mortality review, the history and closing, with what blocks it listed.
+- **Missing persons** (`/missing`, `safety.incident.read`; opening needs `safety.incident.report`):
+  - Opened from a missing-person incident.
+  - The police call comes first, as a notice in words and an icon:
+    - due, saying "call now if you are worried", never a reason to wait;
+    - overdue;
+    - called, with the reference;
+    - missed, for someone found after the target with no call.
+  - The page refreshes every minute and turns overdue at the target on the device clock.
+  - Also: the timeline, the linked notifications and closing.
+- **Herbert Protocol profile** (the person's Herbert Protocol tab, `safety.incident.read`):
+  - Each prefilled part's source is in its field's hint.
+  - What the person looks like and where they may go are never filled in.
+  - A first profile with prefilled parts is saved only once each part is ticked as checked (the
+    API refuses it otherwise).
+- **Disclosure requests** (`/disclosures`, `safety.incident.manage` or
+  `safety.disclosure.approve`):
+  - The log and the request form.
+  - The record has the legal basis in words and the steps in order: collect, review each record,
+    prepare, decide, release, withdraw, and for a coroner the Regulation 28 report.
+  - Records, fields and values are in plain words, never table or column names.
+  - When the reader logged the request, the page says another approver must decide.
+  - The pack is shown as its summary and fingerprint (H-958).
 
 ## 6. Offline behaviour
 
@@ -982,7 +1042,7 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
 ## 11. Outbreaks and IPC audits (slice 31: SAFE-013; migration 0093)
 
 Completes SAFE-013 on the Phase 1 UKHSA draft (section 4 rule 7) and slice 19's audit programme
-([quality.md](quality.md) section 19). Spec, schema, permission matrix and test list before the
+([quality.md](quality.md) section 20). Spec, schema, permission matrix and test list before the
 code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-management.ts`.
 
 ### 11.1 Rules
@@ -1007,6 +1067,12 @@ code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-mana
    append-only: an update or correction is a new row superseding the person's current row (a
    correction gives a reason), and follows that row wherever the person is now, so an outcome
    after a discharge, move or leaving can still be recorded.
+3a. **Unnamed staff cases (H-782, recommended answer applied 31/10/2026).** Named staff on a line
+   list are the organisation's own members, agency workers registered in Harbour included. An agency
+   or bank worker who is not in Harbour is added as an unnamed staff case: onset, test and outcome
+   only, no person or member id and nothing identifying, counted once (an update supersedes that
+   same case) and included in the UKHSA report's staff figures (`unnamedStaffCases` says how many).
+   Staff rows are kept 3 years from the outbreak's closure (`outbreak_staff_case`; H-767).
 4. **Report fields** (`ukhsaReportFields`, HZ-013): the setting's name, postcode and CQC location
    ID, the illness and organism, residents and staff affected, first and latest onset, tested,
    positive and pending, in hospital, deaths, and vaccination tallies. They are counted from every
@@ -1049,7 +1115,7 @@ organisations' built-in owner, Registered Manager, deputy and clinical lead role
 | --- | --- | --- |
 | `safety.outbreak.manage` (care record, so MFA) at a location | Declare, read, update and close outbreaks there; keep the line list | Owner, Registered Manager, deputy, clinical lead |
 | `safety.outbreak.manage` or `quality.audit.manage` | Read the Code of Practice criteria | As above, and audit runners |
-| `quality.audit.manage` at the audit's location | Read an IPC audit against the criteria | As in quality.md section 19 |
+| `quality.audit.manage` at the audit's location | Read an IPC audit against the criteria | As in quality.md section 20 |
 
 ### 11.4 API
 
@@ -1089,14 +1155,14 @@ Refusals decided in the API and those the database raises are audited as denied,
   moved; residents' rows hidden from a manager who cannot see them; one outbreak per report; no
   closure without a report; no delete grant.
 
-## 11. Disclosure requests (slice 41: SAFE-016)
+## 12. Disclosure requests (slice 41: SAFE-016)
 
 Schema, API and audit for Phase 2 rule 6 (`disclosure.ts`); the screens follow later. Migration
 0103 (lane D; renumbered at merge). Collection reuses the DSAR collector of slice 15 (ADR-0090):
 the same subject map over the export catalogue, the same item review by a person, the same stored
 pack. Procedure owner: the Registered Manager with the data protection lead.
 
-### 11.1 Tables
+### 12.1 Tables
 
 All have `tenant_id`, forced RLS, the tenant policy and restrictive policies binding `harbour_app`
 and `harbour_owner`; the application never deletes. The organisation's system context (no member,
@@ -1107,7 +1173,7 @@ the whole organisation) reads them for the full export, never writes.
 | `disclosure_request` | mutable aggregate (`version`) | One request about one person: the type and the legal basis as stated when it was logged, who asked (name, organisation, their reference), what it says the information is for (police and solicitors), when it arrived and when the answer is due, the state (`DISCLOSURE_WORKFLOW`), who prepared, approved, refused, released or withdrew it with reasons, the issued pack's SHA-256 and storage key, and for a coroner the Regulation 28 report and response dates |
 | `disclosure_item` | mutable aggregate | One record found for the request and the decision a person made about it: disclose, redact named fields or withhold with a reason, bound to the record's content hash as reviewed (as `dsar_item`) |
 
-### 11.2 Rules
+### 12.2 Rules
 
 38. **Scope.** A request concerns one person. It is logged, collected, reviewed and released by a
     holder of `safety.incident.manage`, and approved or refused by a holder of
@@ -1115,10 +1181,19 @@ the whole organisation) reads them for the full export, never writes.
     location is stored with the request). The API checks this and row-level security again
     (`app.holds_role_permission_at(..., location_id)` or across the organisation).
 39. **Legal basis.** Every request records its type and the legal basis from `DISCLOSURE_TYPES`,
-    copied when logged so a later wording change never rewrites what was relied on. Police and
+    copied when logged so a later wording change never rewrites what was relied on. Each wording
+    names the UK GDPR Article 6 basis and the Article 9 condition beside the statute or exemption,
+    since a DPA 2018 Schedule 2 exemption is not a lawful basis in itself: police requests rest on
+    Article 6(1)(f) (or 6(1)(c) under a court order or warrant) with Article 9(2)(g) and Schedule 1
+    paragraph 10, relying on Schedule 2 paragraph 2 for the stated purpose; solicitors' requests on
+    Article 6(1)(f) or (c) with Article 9(2)(f), relying on Schedule 2 paragraph 5; statutory
+    requests name Article 6(1)(c) (H-821, recommended answer applied 31/10/2026). Police and
     solicitor requests also record what the request says the information is for
     (`disclosurePrepareProblems`). Access to Health Records Act requests get their due time from
-    `ahraDueAt` (`ahra.*` rates) and need the person to have died.
+    `ahraDueAt` (`ahra.*` rates), counted from the latest record of any kind added to the person's
+    record (care notes, observations, assessments, activities, visits, risk assessments, incidents
+    and documents), with the shorter period whenever that date cannot be established (H-827,
+    recommended answer applied 31/10/2026), and need the person to have died.
 40. **Collection and review.** Collect finds the person's records through the DSAR collector, in the
     organisation's context after the route has authorised the member, with tables not searched named
     with reasons. Every record is reviewed by a person: disclose, redact named fields, or withhold
@@ -1129,9 +1204,21 @@ the whole organisation) reads them for the full export, never writes.
     logged the request (database check too); refusal and withdrawal need a reason.
 42. **Issuing.** Release needs approval and a fresh step-up. The pack is built from the decisions,
     in date order (the chronology for a SAR or DHR), redacted fields reading `[redacted]` and withheld
-    records counted, hashed, stored as sent in the exports bucket (CMEK, opaque key; ADR-0098) and can be
-    fetched again exactly, with step-up. The disclosure log is the list of requests with their basis,
+    records counted, hashed and stored as sent: a document of the `disclosure_pack` category in the
+    documents bucket (CMEK, opaque key; ADR-0098), under the `serious_incident` retention class, not
+    the exports bucket, whose objects expire after 30 days. The document names no person (the request
+    does), so the general document routes never list or serve it. It can be fetched again exactly,
+    with step-up. Packs issued before this change are read from the exports bucket. The disclosure log is the list of requests with their basis,
     approver and release.
+42a. **Hand-over (H-958, recommended answer applied 31/10/2026).** The released pack leaves Harbour
+   once: a holder of `safety.incident.manage` where the person is, with a fresh step-up, downloads it
+   as a PDF built from the pack exactly as issued, its fingerprint checked first and printed on every
+   page (`GET /v1/disclosures/{id}/pack/pdf`, audited `safety.disclosure.pack_downloaded`; a second
+   download is refused and the data protection lead fetches the pack through the API). The hand-over
+   is then recorded once, in the member's own name, with its date and route: the recipient's secure
+   portal, a secure email service they name, encrypted media, by hand or recorded delivery; ordinary
+   email is not a route (`POST /v1/disclosures/{id}/hand-over`, audited `safety.disclosure.handed_over`;
+   the database holds the same rules).
 43. **Coroner tracker.** A coroner request may record a Regulation 28 prevention of future deaths
     report received on a day; the response is due `coroner.prevention_report_response_days` later
     (Coroners (Investigations) Regulations 2013 reg 29, rate table) and is recorded when sent.
@@ -1139,7 +1226,7 @@ the whole organisation) reads them for the full export, never writes.
     requester's name, purpose, reasons or record content; viewing records and the pack are audited
     as care-record views.
 
-### 11.3 Permission matrix
+### 12.3 Permission matrix
 
 | Action | Permission | Scope | Notes |
 | --- | --- | --- | --- |
@@ -1147,7 +1234,7 @@ the whole organisation) reads them for the full export, never writes.
 | Approve or refuse | `safety.disclosure.approve` | organisation or the person's location | never the person who logged it |
 | Release (issue the pack), fetch the issued pack, view a record | `safety.incident.manage` | as above | fresh step-up |
 
-### 11.4 Tests
+### 12.4 Tests
 
 - `packages/db/test/disclosure-requests.test.ts`: isolation, location scope (a manager at another
   home sees nothing), approver not the requester, checks, system read.

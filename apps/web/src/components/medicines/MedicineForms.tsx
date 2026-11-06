@@ -77,6 +77,8 @@ export const DRAFT_FIELDS = [
   "prn-quantity",
   "prn-from",
   "prn-to",
+  "prn-max",
+  "minimumInterval",
   ...Array.from({ length: TIME_SLOTS }, (_, i) => slotKeys(i + 1)).flat(),
   "prescriber",
   "startsAt",
@@ -367,7 +369,27 @@ function DraftDetails({
         error={err("directionsKind")}
       />
       {directionsKind === "when_required" ? (
-        <DoseFields ids={ids} prefix="prn-" kind={doseKind} result={result} each={true} />
+        <>
+          <DoseFields ids={ids} prefix="prn-" kind={doseKind} result={result} each={true} />
+          <TextField
+            id={ids["prn-max"]}
+            name="prn-max"
+            label={t("medicines.form.prnMax")}
+            hint={t("medicines.form.inUnit")}
+            inputMode="decimal"
+            autoComplete="off"
+            error={errorFor(result, "prn-max")}
+          />
+          <TextField
+            id={ids.minimumInterval}
+            name="minimumInterval"
+            label={t("medicines.form.minimumInterval")}
+            hint={t("medicines.form.minimumIntervalHint")}
+            inputMode="numeric"
+            autoComplete="off"
+            error={errorFor(result, "minimumInterval")}
+          />
+        </>
       ) : (
         <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
           <legend className="mb-2 font-semibold">{t("medicines.form.schedule")}</legend>

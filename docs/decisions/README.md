@@ -71,6 +71,20 @@ for an answer.
 | [0090](0090-dsar-workbench-and-disclosure-collector.md) | DSAR workbench and the disclosure collector: one collector over the export catalogue, redaction by a person | accepted | 2026-10-31 | Phase 2 |
 | [0091](0091-single-sign-on.md) | Single sign-on on the Better Auth SSO plugin: OpenID Connect, keys only in the managed store, linking only to invited or active members | accepted | 2026-10-31 | Phase 2 |
 | [0092](0092-import-wizard.md) | Import wizard: staged rows in quarantine, organisation-wide importers, whole-batch commit and undo | proposed | 2026-10-31 | Phase 2 (slice 26) |
+| [0094](0094-vetting-and-identity-integrations.md) | Vetting and identity integrations: ports with mocks, off until an organisation configures them | proposed | 2026-10-31 | Phase 2 |
+
+## Open items carried by these ADRs
+
+Items Brian may want to confirm (each ADR says how to change it):
+
+- Duty-of-candour written notification timescale (ADR-0021, marked to-verify).
+- Whether any first client employs sponsored workers (ADR-0022).
+- Whether first clients hold DSPT "Standards Met" (ADR-0023).
+- Which councils first clients invoice, so the right portal template is built first (Phase 3; no ADR
+  yet, ContrOCC CSV is the default in section 15.3).
+- Whether the Bedrock EU geography includes London (ADR-0014).
+- Supplier-pays budget versus compressing Phases 3–4 (ADR-0015).
+
 | [0098](0098-production-on-google-cloud.md) | Production on Google Cloud europe-west2, and Brian's open decisions take their defaults | accepted | 2026-10-31 | Before go-live |
 | [0126](0126-thapsus-hr-link.md) | Link Harbour to Thapsus-HR with one owner for each kind of staff data | accepted | 2026-11-01 | Phase 2 |
 | [0082](0082-medicines-rules-at-the-device-boundary.md) | Medicines rules at the medical-device boundary: tags set at transcription and checked, tenant lists as suggestions, no ingredient or allergen matching | proposed | 2026-10-31 | Phase 2 |

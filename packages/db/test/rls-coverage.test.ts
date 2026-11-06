@@ -9,12 +9,17 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  */
 
 const APPEND_ONLY_TABLES = [
+  "payroll_export",
+  "payroll_export_result",
   "staff_checklist_item",
   "shadow_shift",
   "probation_review",
   "employee_case_event",
   "staff_privacy_acknowledgement",
   "staff_image_consent",
+  "medicine_stock_item",
+  "medicine_stock_movement",
+  "medicine_temperature_reading",
   "audit_event",
   "pay_run_line",
   "agency_awr_record",
@@ -90,6 +95,8 @@ const APPEND_ONLY_TABLES = [
   "medication_schedule",
   "medication_reconciliation_source",
   "medication_reconciliation_item",
+  // Lone-worker check-ins (slice 46).
+  "lone_worker_event",
 ];
 /**
  * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the
@@ -102,6 +109,8 @@ const UNVERSIONED_SILO_TABLES = [
   "employee_case_hearing",
   "speak_up_concern",
   "speak_up_case_member",
+  "self_administration_assessment",
+  "homely_remedy_administration",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

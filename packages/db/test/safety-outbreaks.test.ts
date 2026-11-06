@@ -229,6 +229,30 @@ describe("the line list", () => {
     ).rejects.toThrow(/same person's case/);
   });
 
+  it("hazard HZ-013 takes unnamed staff cases, each its own person, naming nobody (H-782, migration 0122)", async () => {
+    const unnamed = (c: pg.PoolClient, over: { staff?: string; supersedes?: string } = {}) =>
+      c.query<{ id: string }>(
+        `INSERT INTO outbreak_case (outbreak_id, case_type, person_id, tenant_user_id, onset_on,
+           symptoms, test_result, flu_vaccinated, covid_vaccinated, outcome, supersedes_id)
+         VALUES ($1, 'staff_unnamed', NULL, $2, '2026-10-28', '{cough}', 'not_tested', 'unknown',
+           'unknown', 'unwell', $3)
+         RETURNING id`,
+        [NORTH, over.staff ?? null, over.supersedes ?? null],
+      );
+    // Two agency workers: never refused as "already on the line list".
+    const one = (await asLead((c) => unnamed(c))).rows[0]?.id as string;
+    await asLead((c) => unnamed(c));
+    // An update supersedes the same unnamed case, never a named one.
+    await asLead((c) => unnamed(c, { supersedes: one }));
+    await expect(asLead((c) => unnamed(c, { supersedes: first }))).rejects.toThrow(
+      /same person's case/,
+    );
+    // It names nobody.
+    await expect(asLead((c) => unnamed(c, { staff: a.carer }))).rejects.toThrow(
+      /outbreak_case_subject/,
+    );
+  });
+
   it("refuses a case dated in the future, and never changes or deletes one", async () => {
     await expect(
       asLead((c) => addCase(c, NORTH, { person: a.personBen, onset: "2999-01-01" })),
@@ -387,7 +411,9 @@ describe("the line list's edges (security and clinical review, round 1)", () => 
         NORTH,
       ]),
     );
-    expect(rows.rows.map((r) => r.case_type)).toEqual(["staff"]);
+    // No resident row; staff rows, named and unnamed, carry no person to hide.
+    expect(rows.rows.some((r) => r.case_type === "resident")).toBe(false);
+    expect(rows.rows.map((r) => r.case_type)).toContain("staff");
   });
 
   it("gives each report to one outbreak, and never closes one without its report", async () => {

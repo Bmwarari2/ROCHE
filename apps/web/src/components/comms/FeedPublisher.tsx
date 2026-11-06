@@ -19,6 +19,7 @@ import {
   previewRefusal,
   publishSource,
   type SourceOption,
+  STAFF_SHOWN_MAX,
 } from "@/lib/family-feed";
 import { formatDateTime } from "@/lib/format";
 import { characterCount, t } from "@/lib/i18n";
@@ -34,6 +35,7 @@ const EMPTY: Omit<FeedDraft, "kind" | "sourceId"> = {
   text: "",
   caption: "",
   onlyThisPerson: false,
+  staffShown: [],
   confirmationReason: "",
 };
 
@@ -50,10 +52,13 @@ export function FeedPublisher({
   path,
   sources,
   unreadable,
+  staff,
 }: {
   readonly personId: string;
   readonly path: string;
   readonly sources: Readonly<Record<FeedSourceKind, readonly SourceOption[]>>;
+  /** Staff the publisher may name as shown in a photo (H-905); null when the list was unreadable. */
+  readonly staff: readonly { readonly id: string; readonly name: string }[] | null;
   /** The kinds of record that could not be read: said so, never "there are none". */
   readonly unreadable: readonly FeedSourceKind[];
 }) {
@@ -64,6 +69,7 @@ export function FeedPublisher({
     "text",
     "caption",
     "onlyThisPerson",
+    "staffShown",
     "confirmationReason",
   ]);
   const [kind, setKind] = useState<FeedSourceKind>("shared_note");
@@ -115,6 +121,7 @@ export function FeedPublisher({
         chooseSource: t("comms.feed.publish.chooseSource", { kind }),
         textRequired: t("comms.feed.publish.textRequired"),
         tooLong: (max) => t("comms.feed.publish.tooLong", { max }),
+        staffTooMany: t("comms.feed.publish.staffTooMany", { max: STAFF_SHOWN_MAX }),
       }),
     );
     if (found) {
@@ -240,6 +247,46 @@ export function FeedPublisher({
               onChange={(event) => edit({ onlyThisPerson: event.target.checked })}
               error={errorFor(result, "onlyThisPerson")}
             />
+            <fieldset
+              id={ids.staffShown}
+              tabIndex={-1}
+              aria-describedby={
+                errorFor(result, "staffShown")
+                  ? `${ids.staffShown}-hint ${ids.staffShown}-error`
+                  : `${ids.staffShown}-hint`
+              }
+              className={`hb-choice${errorFor(result, "staffShown") ? " hb-choice--invalid" : ""}`}
+            >
+              <legend className="hb-choice__legend">{t("comms.feed.publish.staffShown")}</legend>
+              <p id={`${ids.staffShown}-hint`} className="hb-field__hint">
+                {t("comms.feed.publish.staffShownHint")}
+              </p>
+              {errorFor(result, "staffShown") ? (
+                <p id={`${ids.staffShown}-error`} className="hb-field__error">
+                  {errorFor(result, "staffShown")}
+                </p>
+              ) : null}
+              {staff === null ? (
+                <p className="m-0">{t("comms.feed.publish.staffUnavailable")}</p>
+              ) : (
+                staff.map((member) => (
+                  <Checkbox
+                    key={member.id}
+                    name="staffShown"
+                    value={member.id}
+                    label={member.name}
+                    checked={words.staffShown.includes(member.id)}
+                    onChange={(event) =>
+                      edit({
+                        staffShown: event.target.checked
+                          ? [...words.staffShown, member.id]
+                          : words.staffShown.filter((m) => m !== member.id),
+                      })
+                    }
+                  />
+                ))
+              )}
+            </fieldset>
           </>
         ) : null}
         {askReason ? (

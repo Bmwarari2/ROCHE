@@ -44,6 +44,7 @@ export type ExportTreatment = "tenant_rows" | "tenant_overrides_only" | "not_exp
  */
 export type ExportRetention =
   | "care_record"
+  | "controlled_drugs_register"
   | "complaint"
   | "audit_event"
   | "dpia"
@@ -61,11 +62,14 @@ export type ExportRetention =
   | "working_time_opt_out"
   | "sickness_absence"
   | "staff_file"
+  | "sponsor_record"
   | "applicant.unsuccessful"
   | "data_rights_case"
   | "mar_chart"
   | "lone_worker"
   | "lone_worker_location"
+  | "speak_up_concern"
+  | "dp_breach"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -97,6 +101,8 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.person_care_profile",
   "public.observation",
   "public.outbreak_case",
+  "public.ocr_extraction",
+  "public.ocr_field",
   "public.care_note",
   "public.body_map_mark",
   "public.assessment",
@@ -129,6 +135,22 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.medication_reconciliation_source",
   "public.medication_reconciliation_item",
   "public.medication_reconciliation_decision",
+  "public.medication_dosing_record",
+  "public.medication_administration",
+  "public.medication_administration_witness",
+  "public.medication_administration_conflict",
+  "public.controlled_drug_page",
+  "public.controlled_drug_entry",
+  "public.controlled_drug_witness_assertion",
+  "public.controlled_drug_stock_check",
+  "public.medicine_stock_item",
+  "public.medicine_stock_movement",
+  "public.medicine_disposal",
+  "public.medicine_order_line",
+  "public.covert_medication_record",
+  "public.self_administration_assessment",
+  "public.homely_remedy_protocol",
+  "public.homely_remedy_administration",
   "public.pre_admission_assessment",
   "public.admission_decision",
   "public.admission_condition",
@@ -563,7 +585,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.applicant": {
     context: "workforce",
     description:
-      "People who applied for a job (purpose B15; workforce.md section 2b): names and contact details, talent pool consent, and the date until which they are kept.",
+      "People who applied for a job (purpose B15; workforce.md section 2c): names and contact details, talent pool consent, and the date until which they are kept.",
     treatment: "tenant_rows",
     retention: "applicant.unsuccessful",
     personal: true,
@@ -1140,7 +1162,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.complaint": {
     context: "safety",
     description:
-      "Complaints under regulation 16 of the 2014 Regulations: who complained, what about, the acknowledgement and response with the Ombudsman signposted, any appeal, and pauses while waiting for the complainant (COMPLAINT_WORKFLOW).",
+      "Complaints under regulation 16 of the 2014 Regulations (processing purpose B14): who complained, what about, the acknowledgement and response with the Ombudsman signposted, any appeal, and pauses while waiting for the complainant (COMPLAINT_WORKFLOW).",
     treatment: "tenant_rows",
     retention: "complaint",
     personal: true,
@@ -1215,7 +1237,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.compliment": {
     context: "safety",
     description:
-      "Compliments received, with the staff they praise and the quality statements they are evidence for. A compliment never runs a clock.",
+      "Compliments received (processing purpose B14), with the staff they praise and the quality statements they are evidence for. A compliment never runs a clock.",
     treatment: "tenant_rows",
     retention: "complaint",
     personal: true,
@@ -1246,45 +1268,233 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.signature_request": {
+    context: "platform",
+    description:
+      "Requests for a member to sign an organisation document, in Harbour or through DocuSign (ADR-0095), with the evidence of how it was signed.",
+    treatment: "tenant_rows",
+    retention: "as_subject",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      document_id: "exported",
+      document_sha256: { description: "SHA-256 of the version the member is asked to sign." },
+      signer_tenant_user_id: { description: "The member asked to sign (tenant_user.id)." },
+      provider: { description: "in_app (Harbour) or docusign." },
+      state: { description: "requested, sent, signed, declined, cancelled or failed." },
+      envelope_id: { description: "DocuSign's envelope id; empty in Harbour." },
+      requested_by: { description: "The member who asked (tenant_user.id)." },
+      signature_id: { description: "In Harbour: the signature recorded (document_signature.id)." },
+      signed_document_id: {
+        description: "Through DocuSign: the signed document returned, stored as a new version.",
+      },
+      step_up_method: {
+        description:
+          "In Harbour: the second factor the signer used just before signing (passkey or totp).",
+      },
+      signed_at: "exported",
+      closed_reason: { description: "Why it was cancelled, declined or failed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.lms_course_map": {
+    context: "workforce",
+    description:
+      "A learning platform's course code mapped to a Harbour training topic (workforce.md section 13 rule 4).",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      source_id: { description: "The learning platform (lms_source.id)." },
+      course_code: { description: "The platform's code for the course." },
+      topic: { description: "The training topic it counts as (workforce.md rule 5)." },
+      tier: { description: "For Oliver McGowan: the tier (1 or 2).", unit: "tier" },
+      active: { description: "Whether the mapping is in use." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.lms_import": {
+    context: "workforce",
+    description:
+      "One staged import of completions from a learning platform, by file or pull, with its latest dry run (workforce.md section 13 rules 2 and 4). Holds counts and hashes, never a file.",
+    treatment: "tenant_rows",
+    retention: "training_record",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      source_id: { description: "The learning platform (lms_source.id)." },
+      format: { description: "csv, json or api (a pull through the learning platform port)." },
+      row_count: { description: "Completions in the import.", unit: "count" },
+      content_sha256: { description: "The SHA-256 of what was uploaded or pulled (hex)." },
+      status: { description: "open, closed or discarded." },
+      dry_run_number: { description: "How many dry runs it has had.", unit: "count" },
+      dry_run_at: { description: "When the latest dry run ran (UTC)." },
+      dry_run_by: { description: "Who ran it (tenant_user.id)." },
+      dry_run_counts: { description: "Rows in each class at the latest dry run." },
+      dry_run_sha256: { description: "The SHA-256 of the latest dry run's ready rows (hex)." },
+      uploaded_by: { description: "Who uploaded or pulled it (tenant_user.id)." },
+      uploaded_at: "exported",
+      closed_at: { description: "When it was closed or discarded (UTC)." },
+      closed_by: { description: "Who closed or discarded it (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.lms_import_row": {
+    context: "workforce",
+    description:
+      "One completion of a learning platform import, as checked: the platform's ids and dates, never a name, its class at the latest dry run and what became of it (workforce.md section 13).",
+    treatment: "tenant_rows",
+    retention: "training_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      import_id: { description: "The import (lms_import.id)." },
+      row_number: { description: "The row in the file, from 1.", unit: "count" },
+      learner_id: { description: "The platform's stable learner id; blank when it was not valid." },
+      course_code: { description: "The platform's course code; blank when it was not valid." },
+      completed_on: { description: "When it was completed (UK date)." },
+      expires_on: { description: "The certificate's own last valid day, if any (UK date)." },
+      record_id: { description: "The platform's id for the completion, or one derived from it." },
+      provider: { description: "Who provided the training, as the platform says." },
+      problems: { description: "What was wrong with the row, by code." },
+      class: {
+        description: "What the latest dry run made of it.",
+        codes: {
+          ready: "Ready to import.",
+          unmatched_learner: "The learner is not linked to a member of staff.",
+          unmapped_course: "The course is not mapped to a training topic.",
+          already_recorded: "The completion is already recorded.",
+          own_record: "The importer's own record: someone else imports it.",
+          invalid: "Not a valid completion.",
+        },
+      },
+      worker_id: { description: "The member of staff it is about, once linked (tenant_user.id)." },
+      topic: { description: "The training topic, once mapped." },
+      tier: { description: "For Oliver McGowan: the tier.", unit: "tier" },
+      outcome: { description: "pending, imported or skipped." },
+      training_record_id: { description: "The training record made from it (training_record.id)." },
+      skip_reason: { description: "Why it was skipped." },
+      resolved_by: { description: "Who imported or skipped it (tenant_user.id)." },
+      resolved_at: { description: "When (UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.lms_learner_link": {
+    context: "workforce",
+    description:
+      "A learning platform's stable learner id linked to a member of staff by a person, never by name (workforce.md section 13 rule 3).",
+    treatment: "tenant_rows",
+    retention: "training_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      source_id: { description: "The learning platform (lms_source.id)." },
+      learner_id: { description: "The platform's stable learner id." },
+      worker_id: { description: "The member of staff (tenant_user.id)." },
+      linked_by: { description: "Who linked them (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.lms_source": {
+    context: "workforce",
+    description:
+      "A learning platform the organisation imports training completions from, by file or through the learning platform port (workforce.md section 13 rule 1). Never a credential.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      name: { description: "The organisation's name for it." },
+      kind: { description: "file (uploads) or api (pulled through the port)." },
+      external_organisation_id: {
+        description: "For an API source: the platform's id for the organisation.",
+      },
+      secret_ref: {
+        class: "internal",
+        description:
+          "For an API source: the name of the managed secret holding its credentials, made by the database (never the credentials).",
+      },
+      status: { description: "active or ended." },
+      ended_at: { description: "When it was ended (UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.speak_up_concern": {
     context: "safety",
     description:
       "Speak-up concerns: named, confidential or anonymous, with their state and outcome.",
     treatment: "not_exported",
-    retention: "complaint",
+    retention: "speak_up_concern",
     personal: true,
     reasonNotExported:
-      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns. The Freedom to Speak Up lead alone exports it, with a fresh step-up and audited, through GET /v1/speak-up/export; anonymous concerns carry nothing about the reporter (H-721).",
     columns: {},
   },
   "public.speak_up_reporter": {
     context: "safety",
     description: "Who raised a named or confidential speak-up concern.",
     treatment: "not_exported",
-    retention: "complaint",
+    retention: "speak_up_concern",
     personal: true,
     reasonNotExported:
-      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns. The Freedom to Speak Up lead alone exports it, with a fresh step-up and audited, through GET /v1/speak-up/export; anonymous concerns carry nothing about the reporter (H-721).",
     columns: {},
   },
   "public.speak_up_case_member": {
     context: "safety",
     description: "Members the Freedom to Speak Up lead named on a speak-up case.",
     treatment: "not_exported",
-    retention: "complaint",
+    retention: "speak_up_concern",
     personal: true,
     reasonNotExported:
-      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns. The Freedom to Speak Up lead alone exports it, with a fresh step-up and audited, through GET /v1/speak-up/export; anonymous concerns carry nothing about the reporter (H-721).",
     columns: {},
   },
   "public.speak_up_message": {
     context: "safety",
     description: "Messages between the reporter and the Freedom to Speak Up lead or case members.",
     treatment: "not_exported",
-    retention: "complaint",
+    retention: "speak_up_concern",
     personal: true,
     reasonNotExported:
-      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns. The Freedom to Speak Up lead alone exports it, with a fresh step-up and audited, through GET /v1/speak-up/export; anonymous concerns carry nothing about the reporter (H-721).",
     columns: {},
   },
   "public.speak_up_intake": {
@@ -1357,6 +1567,18 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "mar_chart",
     personal: true,
     columns: {
+      tags: {
+        description:
+          "Tags a person set at transcription: time_critical, paracetamol, bisphosphonate, psychotropic (rule 13).",
+      },
+      minimum_interval_minutes: {
+        description: "The minimum interval the prescription states, in minutes (rule 13).",
+        unit: "minutes",
+      },
+      prn_max_per_24h: {
+        description: "A when-required entry's prescribed maximum in 24 hours, in its dose unit.",
+        unit: "the dose's own dm+d unit",
+      },
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
@@ -1571,6 +1793,87 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.medication_error": {
+    context: "medicines",
+    description:
+      "Medication errors and near misses on medication incidents (MEDS-012; medicines.md section 14.1): what went wrong (NRLS categories), the stage, the medicine and dose record, the triage answers and what was done.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      incident_id: { description: "The medication incident (incident.id)." },
+      person_id: "exported",
+      medication_id: {
+        description: "The version of the person's medicines entry, when known (medication.id).",
+      },
+      administration_id: {
+        description:
+          "The administration record it concerns, when there is one (medication_administration.id).",
+      },
+      kinds: {
+        description:
+          "What went wrong, from the NRLS medication incident error categories as Harbour adapts them (MEDICATION_ERROR_KINDS).",
+      },
+      stage: { description: "The stage of the medication process (MEDICATION_ERROR_STAGES)." },
+      reached_person: {
+        description: "yes, no or unsure: whether it reached the person (no: a near miss).",
+      },
+      controlled_drug: {
+        description: "yes, no or unsure: whether a controlled drug was involved, as answered.",
+      },
+      deliberate_or_repeated: {
+        description: "yes, no or unsure: whether it may be deliberate or repeated.",
+      },
+      immediate_actions: { description: "What was done straight away, as written." },
+      clinician_told_at: {
+        description: "When the prescriber or clinician was told (instant, UTC).",
+      },
+      clinician_told: { description: "Who was told, as written." },
+      advice_given: { description: "The advice given, as written." },
+      root_cause: { description: "The root cause found, as written." },
+      cd_reported_on: {
+        description:
+          "The date the controlled drug incident was reported to the Controlled Drugs Accountable Officer.",
+      },
+      cd_report_reference: { description: "The reference the accountable officer gave." },
+      retention_class: { description: "The retention class (always serious_incident)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medication_review": {
+    context: "medicines",
+    description:
+      "Medication reviews (MEDS-013; medicines.md section 14.2): scheduled, then done by a named clinician with the outcome in their words.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      due_on: { description: "The date the review is due (UK date)." },
+      done_on: { description: "The date it was done (UK date); empty while scheduled." },
+      clinician_name: { description: "The clinician who did it, as written." },
+      clinician_role: { description: "gp, pharmacist, prescriber, consultant or other." },
+      outcome: { description: "The outcome in the clinician's words." },
+      recorded_by: { description: "Who recorded it as done (tenant_user.id)." },
+      correction_reason: { description: "Why a review already done was changed." },
+      retention_class: { description: "The retention class (always mar_chart)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.medication_reconciliation_source": {
     context: "medicines",
     description: "The documents a reconciliation compares against (rule 9).",
@@ -1650,6 +1953,636 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.medication_dosing_record": {
+    context: "medicines",
+    description:
+      "A dosing record for a variable dose (medicines.md rule 18): the dose for each day and time from its source, and its second check.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      medication_id: { description: "The entry version it gives doses for (medication.id)." },
+      source_kind: { description: "The kind of source (for example clinic_letter)." },
+      source_reference: { description: "The source as written (for example the clinic's letter)." },
+      source_document_id: {
+        description: "The source document, when one was attached (document.id).",
+      },
+      doses: { description: "The doses as JSON: date, time and quantity in the entry's unit." },
+      recorded_by: { description: "Who transcribed it (tenant_user.id)." },
+      recorded_at: { description: "When it was recorded, by the server's clock (instant, UTC)." },
+      check_by: { description: "Who second-checked it (tenant_user.id)." },
+      check_at: { description: "When it was checked (instant, UTC)." },
+      check_outcome: { description: "matches_source or differs_from_source." },
+      check_difference: { description: "What differed from the source, when it did." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+    },
+  },
+  "public.medication_administration": {
+    context: "medicines",
+    description:
+      "An administration record (MEDS-002; medicines.md rules 13 to 23): what happened to a dose, append-only, with corrections as new records that name the record they correct.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: { description: "The record's id, chosen by the device or browser that made it." },
+      tenant_id: "exported",
+      person_id: "exported",
+      medication_id: {
+        description: "The entry version the dose was recorded against (medication.id).",
+      },
+      due_at: { description: "The scheduled dose's time (instant, UTC); empty for when required." },
+      outcome: {
+        description:
+          "given, refused, omitted (not given), not_available, self_administered, given_by_family or withheld.",
+      },
+      reason_code: { description: "The coded reason for the outcome, when it takes one." },
+      reason_note: { description: "The reason in words, when one was needed." },
+      quantity: {
+        description: "The amount given or taken, in the unit below.",
+        unit: "the dm+d unit in unit_code",
+      },
+      unit_code: { description: "The dm+d unit code of the amount." },
+      prescribed: { description: "The prescribed dose the amount was checked against, as JSON." },
+      dosing_record_id: {
+        description:
+          "The checked dosing record a variable dose came from (medication_dosing_record.id).",
+      },
+      amount_difference_reason: {
+        description: "Why the amount differed from the prescribed dose.",
+      },
+      timing_reason: { description: "Why the dose was early or late." },
+      interval_override_reason: {
+        description: "Why a dose was given within the minimum interval.",
+      },
+      given_before_recorded_reason: {
+        description: "Why a dose already given was recorded only later.",
+      },
+      given_at: { description: "When the dose was given or the outcome happened (instant, UTC)." },
+      device_at: { description: "The device's own clock when it sent the record, when one did." },
+      device_offset_ms: {
+        description: "The device's offset from Harbour's clock at its last sync.",
+        unit: "milliseconds",
+      },
+      administered_by: {
+        description: "Who gave the dose or saw the outcome (tenant_user.id).",
+      },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      recorded_at: { description: "When Harbour stored it (instant, UTC); the record locks then." },
+      competence_override: {
+        description: "The competence override it was recorded under, as JSON, when one was.",
+      },
+      flags: { description: "The flags the rules set (for example early, late, over_maximum)." },
+      covert: { description: "Whether the dose was given covertly (true or false)." },
+      supersedes_id: {
+        description: "The record this one corrects (medication_administration.id).",
+      },
+      correction_reason: { description: "Why the record was corrected." },
+      scan_evidence: {
+        description: "Barcode evidence, when scanning is in use (empty until then).",
+      },
+      cd_entry_id: { description: "The controlled drugs register entry (empty until slice 34)." },
+      created_at: "exported",
+    },
+  },
+  "public.medication_administration_witness": {
+    context: "medicines",
+    description: "A witness's second signature on an administration record.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      administration_id: { description: "The record witnessed (medication_administration.id)." },
+      witness_id: { description: "Who witnessed it (tenant_user.id)." },
+      witnessed_at: { description: "When they signed (instant, UTC)." },
+      method: { description: "How they signed: step_up on the web, device_factor on a device." },
+      created_at: "exported",
+    },
+  },
+  "public.covert_medication_record": {
+    context: "medicines",
+    description:
+      "Covert administration of one medicine under a best-interests decision (MEDS-004): the capacity assessment and decision it stands on, who took part, how it is given, the pharmacist's advice and its review.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      medication_id: { description: "The medicines entry version chosen (medication.id)." },
+      medicine_id: { description: "The medicine across its versions (medication.medicine_id)." },
+      capacity_assessment_id: {
+        description: "The capacity assessment it stands on (capacity_assessment.id).",
+      },
+      best_interests_decision_id: {
+        description: "The best-interests decision it stands on (best_interests_decision.id).",
+      },
+      attendees: { description: "Who took part, with their role, as JSON." },
+      method: { description: "How the medicine is given covertly, in words." },
+      pharmacist_advice: { description: "The pharmacist's advice on giving it this way." },
+      starts_on: { description: "The first day it applies (UK date)." },
+      review_on: { description: "When it is next reviewed (UK date)." },
+      reviewed_on: { description: "When it was last reviewed (UK date)." },
+      ended_on: { description: "When it ended (UK date)." },
+      ended_reason: { description: "Why it ended." },
+      change_reason: { description: "Why it was last changed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.self_administration_assessment": {
+    context: "medicines",
+    description:
+      "A self-administration assessment (MEDS-006): the person's choice, capacity, dexterity and storage, and the level of support decided, for the medicines listed.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      medicine_ids: { description: "The medicines it covers (medication.medicine_id)." },
+      choice: { description: "Whether the person wants to look after their medicines." },
+      capacity: { description: "has_capacity, lacks_capacity or assumed." },
+      capacity_assessment_id: {
+        description:
+          "The capacity assessment, when capacity was assessed (capacity_assessment.id).",
+      },
+      dexterity: { description: "able, able_with_aids or unable." },
+      storage: { description: "Whether the person has lockable storage." },
+      level: {
+        description: "self_administers, self_administers_with_support or staff_administer.",
+      },
+      notes: { description: "What was found and agreed, in words." },
+      assessed_on: { description: "When it was assessed (UK date)." },
+      review_on: { description: "When it is next reviewed (UK date)." },
+      assessed_by: { description: "Who assessed it (tenant_user.id)." },
+      recorded_at: { description: "When it was stored (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.homely_remedy_protocol": {
+    context: "medicines",
+    description:
+      "A home's homely remedy protocol agreed with a GP or pharmacist (MEDS-007): product, indication, dose, limits and the staff allowed to give it.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      product_name: { description: "The product, as written." },
+      vmp_id: { description: "The dm+d product, when coded." },
+      indication: { description: "What it is for." },
+      dose_quantity: { description: "One dose.", unit: "the unit in unit_name" },
+      unit_name: { description: "The unit of the dose." },
+      min_interval_hours: { description: "The shortest gap between doses.", unit: "hours" },
+      max_daily_quantity: {
+        description: "The most in 24 hours.",
+        unit: "the unit in unit_name",
+      },
+      max_days: { description: "Days a course may last before the GP is asked.", unit: "days" },
+      authorised_member_ids: { description: "The staff allowed to give it (tenant_user.id)." },
+      approved_by_name: { description: "The GP or pharmacist who agreed it." },
+      approved_by_role: { description: "gp or pharmacist." },
+      approved_on: { description: "When it was agreed (UK date)." },
+      review_on: { description: "When it is next reviewed (UK date)." },
+      withdrawn_at: { description: "When it was withdrawn (instant, UTC)." },
+      withdrawn_reason: { description: "Why it was withdrawn." },
+      change_reason: { description: "Why it was last changed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.homely_remedy_administration": {
+    context: "medicines",
+    description:
+      "A homely remedy dose given under the home's protocol, or a record marking one as entered in error.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      protocol_id: { description: "The protocol (homely_remedy_protocol.id)." },
+      protocol_version: {
+        description: "The protocol's version the dose was checked against.",
+        unit: "version number",
+      },
+      outcome: { description: "given or entered_in_error." },
+      quantity: { description: "The amount given.", unit: "the protocol's unit" },
+      reason: { description: "Why it was given, in words." },
+      given_at: { description: "When it was given (instant, UTC)." },
+      given_by: { description: "Who gave it (tenant_user.id)." },
+      allergies_checked: {
+        description:
+          "Whether the giver confirmed they checked the person's allergies (true or false).",
+      },
+      already_given_reason: { description: "Why a dose already given was recorded only later." },
+      flags: { description: "What the protocol check found, for a dose already given outside it." },
+      recorded_at: { description: "When it was stored (instant, UTC)." },
+      supersedes_id: {
+        description:
+          "The dose this record marks as entered in error (homely_remedy_administration.id).",
+      },
+      correction_reason: { description: "Why it was entered in error." },
+      created_at: "exported",
+    },
+  },
+  "public.medication_administration_conflict": {
+    context: "medicines",
+    description:
+      "A second record of a scheduled dose uploaded from a device after one was already held, kept as sent for the nurse in charge to review (medicines.md 15.4).",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      client_record_id: { description: "The uploaded record's own id, chosen by the device." },
+      medication_id: { description: "The entry version it was recorded against (medication.id)." },
+      due_at: { description: "The scheduled dose's time (instant, UTC)." },
+      standing_id: { description: "The record that stands (medication_administration.id)." },
+      joins_id: {
+        description:
+          "For a further upload of the same dose by the same person, the first conflict it joins.",
+      },
+      uploaded: { description: "The uploaded record as the device sent it, as JSON." },
+      problems: {
+        description: "What Harbour found wrong with the upload when it arrived (codes).",
+      },
+      device_at: { description: "The device's clock when it was recorded." },
+      device_offset_ms: {
+        description: "The device's offset from Harbour's clock at its last sync.",
+        unit: "milliseconds",
+      },
+      uploaded_by: { description: "Who recorded it on the device (tenant_user.id)." },
+      received_at: { description: "When Harbour received it (instant, UTC)." },
+      resolved_by: { description: "Who resolved it (tenant_user.id)." },
+      resolved_at: { description: "When it was resolved (instant, UTC)." },
+      resolution: { description: "first_stands, corrected or both_given (a dose given twice)." },
+      correction_id: {
+        description: "The correction made, when corrected (medication_administration.id).",
+      },
+      resolution_note: { description: "Why, in the reviewer's words." },
+      created_at: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+    },
+  },
+  "public.controlled_drug_page": {
+    context: "medicines",
+    description:
+      "A controlled drugs register page (MEDS-005; medicines.md rule 24): one per person and dm+d product (drug, form and strength).",
+    treatment: "tenant_rows",
+    retention: "controlled_drugs_register",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      vmp_id: { description: "The dm+d VMP (drug, form and strength)." },
+      product_name: { description: "The product as dm+d words it." },
+      unit_code: { description: "The dm+d unit the page counts in." },
+      unit_name: { description: "The unit in words." },
+      opened_by: { description: "Who opened the page (tenant_user.id)." },
+      opened_at: { description: "When it was opened (instant, UTC)." },
+      created_at: "exported",
+    },
+  },
+  "public.controlled_drug_entry": {
+    context: "medicines",
+    description:
+      "A controlled drugs register entry (rules 24 to 27): append-only, with the balance after it; a mistake is a correction entry naming the entry it puts right.",
+    treatment: "tenant_rows",
+    retention: "controlled_drugs_register",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      page_id: { description: "The page (controlled_drug_page.id)." },
+      seq: { description: "Its place on the page.", unit: "position (from 1)" },
+      movement: {
+        description: "receipt, administration, disposal, transfer_out, destruction or correction.",
+      },
+      quantity: {
+        description:
+          "The amount moved; for a quantity correction, the signed change; 0 for a detail correction.",
+        unit: "the page's dm+d unit",
+      },
+      balance_after: { description: "The balance after this entry.", unit: "the page's dm+d unit" },
+      corrects_id: { description: "The entry a correction puts right (controlled_drug_entry.id)." },
+      corrects: { description: "What a correction puts right: quantity or detail." },
+      reason: { description: "Why, for a correction." },
+      counterparty: { description: "Who it came from or went to (for example the pharmacy)." },
+      reference: { description: "The delivery note, returns or destruction reference." },
+      occurred_at: { description: "When it happened (instant, UTC)." },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      recorded_at: { description: "When Harbour stored it (instant, UTC)." },
+      witness_id: { description: "Who witnessed it (tenant_user.id)." },
+      witness_assertion_id: {
+        description: "The witness's signed assertion (controlled_drug_witness_assertion.id).",
+      },
+      no_witness_reason: { description: "Why no witness was available, where policy allows." },
+      flags: { description: "no_witness_for_review when there was no witness." },
+      administration_id: {
+        description: "The administration this entry records (medication_administration.id).",
+      },
+      created_at: "exported",
+    },
+  },
+  "public.controlled_drug_witness_assertion": {
+    context: "medicines",
+    description:
+      "What a witness signed for, with their own step-up, before the entry or stock check that used it.",
+    treatment: "tenant_rows",
+    retention: "controlled_drugs_register",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      page_id: { description: "The page (controlled_drug_page.id)." },
+      movement: { description: "The movement witnessed, or stock_check." },
+      quantity: { description: "The quantity witnessed.", unit: "the page's dm+d unit" },
+      administration_id: { description: "The administration witnessed, for a dose." },
+      witness_id: { description: "Who signed (tenant_user.id)." },
+      recorder_id: { description: "The member the witness watched record it (tenant_user.id)." },
+      asserted_at: { description: "When they signed (instant, UTC)." },
+      expires_at: { description: "When the signature stopped being usable (instant, UTC)." },
+      used_at: { description: "When an entry or stock check used it (instant, UTC)." },
+      created_at: "exported",
+    },
+  },
+  "public.controlled_drug_stock_check": {
+    context: "medicines",
+    description:
+      "A stock count against a register page: any difference raises a medication incident.",
+    treatment: "tenant_rows",
+    retention: "controlled_drugs_register",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      page_id: { description: "The page (controlled_drug_page.id)." },
+      counted: { description: "The count.", unit: "the page's dm+d unit" },
+      expected: { description: "The page's balance at the count.", unit: "the page's dm+d unit" },
+      difference: { description: "The count less the balance.", unit: "the page's dm+d unit" },
+      reason: { description: "Why it did not balance, when it did not." },
+      checked_by: { description: "Who counted (tenant_user.id)." },
+      checked_at: { description: "When (instant, UTC)." },
+      witness_id: { description: "Who witnessed the count (tenant_user.id)." },
+      witness_assertion_id: { description: "The witness's signed assertion." },
+      no_witness_reason: { description: "Why no witness was available, where policy allows." },
+      flags: { description: "no_witness_for_review when there was no witness." },
+      created_at: "exported",
+    },
+  },
+  "public.medicine_disposal": {
+    context: "medicines",
+    description:
+      "A disposal of a person's medicine (medicines.md section 15 rule 5), witnessed by a second member per the organisation's policy.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      item_id: { description: "The stock item (medicine_stock_item.id)." },
+      person_id: "exported",
+      location_id: { description: "The home (location.id)." },
+      quantity: { description: "How much, in the item's unit.", unit: "item unit" },
+      reason: {
+        description: "Why it was disposed of.",
+        codes: {
+          refused_dose: "A dose refused after it was prepared.",
+          dropped_or_spoilt: "Dropped or spoilt.",
+          out_of_date: "Out of date.",
+          discontinued: "Stopped by the prescriber.",
+          person_left: "The person left or died.",
+          other: "Another reason, in the note.",
+        },
+      },
+      note: { description: "More about why." },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      recorded_at: { description: "When it was recorded (instant, UTC)." },
+      witness_id: { description: "The witness (tenant_user.id)." },
+      witnessed_at: { description: "When the witness confirmed it (instant, UTC)." },
+      no_witness_reason: { description: "Where the policy allows: why no one could witness it." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medicine_order": {
+    context: "medicines",
+    description: "A home's medicines order for a cycle (medicines.md section 15 rule 7).",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: { description: "The home (location.id)." },
+      cycle_starts_on: { description: "The first day of the cycle it is for (UK date)." },
+      status: { description: "draft, submitted, part_received, received or cancelled." },
+      sent_via: { description: "manual, or pharmacy_port." },
+      pharmacy_reference: { description: "The pharmacy's reference, when sent through the port." },
+      submitted_by: { description: "Who submitted it (tenant_user.id)." },
+      submitted_at: { description: "When it was submitted (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medicine_order_cycle": {
+    context: "medicines",
+    description:
+      "A home's 28-day medicines cycle, by the first day of one cycle (medicines.md section 15 rule 6).",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: { description: "The home (location.id)." },
+      anchor_on: { description: "The first day of one cycle (UK date)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medicine_order_line": {
+    context: "medicines",
+    description:
+      "One medicine asked for in an order, for one person (medicines.md section 15 rule 7).",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      order_id: { description: "The order (medicine_order.id)." },
+      person_id: "exported",
+      medication_id: { description: "The MAR entry (medication.id)." },
+      vmp_id: { description: "The dm+d VMP (drug, form and strength)." },
+      product_name: { description: "The product as dm+d words it." },
+      quantity: { description: "How much, in the unit.", unit: "item unit" },
+      unit_code: { description: "The dm+d unit." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medicine_stock_item": {
+    context: "medicines",
+    description:
+      "A person's stock of one dm+d product (MEDS-008; medicines.md section 15 rule 1), opened from a MAR entry in its dose unit; never a controlled drug.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      medication_id: { description: "The MAR entry it was opened from (medication.id)." },
+      vmp_id: { description: "The dm+d VMP (drug, form and strength)." },
+      product_name: { description: "The product as dm+d words it." },
+      unit_code: { description: "The dm+d unit it counts in." },
+      unit_name: { description: "The unit in words." },
+      opened_by: { description: "Who opened it (tenant_user.id)." },
+      opened_at: { description: "When it was opened (instant, UTC)." },
+    },
+  },
+  "public.medicine_stock_movement": {
+    context: "medicines",
+    description:
+      "A change to a person's stock of a medicine (medicines.md section 15 rules 2 to 5): append-only, in sequence, with the balance after it.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      item_id: { description: "The stock item (medicine_stock_item.id)." },
+      person_id: "exported",
+      seq: { description: "Its place in the item's movements.", unit: "count" },
+      movement: {
+        description: "What moved the stock.",
+        codes: {
+          receipt: "Received.",
+          carried_forward: "Brought into a new cycle.",
+          administration: "A dose given.",
+          returned: "Returned to the pharmacy.",
+          disposal: "Disposed of.",
+          administration_correction: "A correction of a dose.",
+          count_adjustment: "A count that differed from the balance.",
+        },
+      },
+      change: { description: "The signed change, in the item's unit.", unit: "item unit" },
+      balance_after: {
+        description: "The balance after it, in the item's unit.",
+        unit: "item unit",
+      },
+      administration_id: { description: "The dose (medication_administration.id)." },
+      order_line_id: { description: "The order line a receipt fills (medicine_order_line.id)." },
+      disposal_id: { description: "The disposal (medicine_disposal.id)." },
+      reason: { description: "Why a count differed, or a correction." },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      recorded_at: { description: "When it was recorded (instant, UTC)." },
+    },
+  },
+  "public.medicine_storage": {
+    context: "medicines",
+    description: "A home's medicines fridge or room (medicines.md section 15 rule 8).",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: { description: "The home (location.id)." },
+      kind: { description: "fridge or room." },
+      name: { description: "The home's name for it." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.medicine_temperature_reading": {
+    context: "medicines",
+    description:
+      "A medicines storage temperature reading (medicines.md section 15 rule 8): append-only, with the range that applied from the rate table.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      storage_id: { description: "The fridge or room (medicine_storage.id)." },
+      location_id: { description: "The home (location.id)." },
+      reading_tenths: { description: "The reading.", unit: "tenths of a degree Celsius" },
+      min_tenths: {
+        description: "The minimum since the last reading.",
+        unit: "tenths of a degree Celsius",
+      },
+      max_tenths: {
+        description: "The maximum since the last reading.",
+        unit: "tenths of a degree Celsius",
+      },
+      low_tenths: {
+        description: "The lowest in range, from the rate table.",
+        unit: "tenths of a degree Celsius",
+      },
+      high_tenths: {
+        description: "The highest in range, from the rate table.",
+        unit: "tenths of a degree Celsius",
+      },
+      out_of_range: { description: "Whether it was out of range." },
+      task_id: { description: "The task it raised (task.id)." },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      recorded_at: { description: "When it was recorded (instant, UTC)." },
     },
   },
   "public.safeguarding_concern": {
@@ -1915,6 +2848,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       signed_off_recorded_by: {
         description: "Tenant user who recorded the agreement (tenant_user.id).",
       },
+      import_batch_id: {
+        description: "The import batch that created it (import_batch.id), or empty (slice 51).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -2049,7 +2985,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.competence_sign_off": {
     context: "workforce",
     description:
-      "Observed competence sign-offs (workforce.md section 2b; ADR-0085): append-only, by an observer who is not the member.",
+      "Observed competence sign-offs (workforce.md section 2c; ADR-0085): append-only, by an observer who is not the member.",
     treatment: "tenant_rows",
     retention: "training_record",
     personal: true,
@@ -2057,7 +2993,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       worker_id: { description: "The member of staff (tenant_user.id)." },
-      competence: { description: "The competence observed (workforce.md section 2b)." },
+      competence: { description: "The competence observed (workforce.md section 2c)." },
       observed_on: { description: "When it was observed (UK date)." },
       observer_id: { description: "Who observed and signed it off (tenant_user.id)." },
       valid_until: { description: "Its last valid day (UK date)." },
@@ -2600,7 +3536,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.disclosure_request": {
     context: "safety",
     description:
-      "Disclosure requests about one person (safety.md section 11): coroner, Safeguarding Adults Review, Domestic Homicide Review, police, solicitor and Access to Health Records Act requests, with the legal basis relied on, who asked and why, each step and who took it, the issued pack's hash, and a coroner's Regulation 28 dates.",
+      "Disclosure requests about one person (safety.md section 12): coroner, Safeguarding Adults Review, Domestic Homicide Review, police, solicitor and Access to Health Records Act requests, with the legal basis relied on, who asked and why, each step and who took it, the issued pack's hash, and a coroner's Regulation 28 dates.",
     treatment: "tenant_rows",
     retention: "serious_incident",
     personal: true,
@@ -2651,6 +3587,21 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       collected_at: "exported",
       prevention_report_on: { description: "When a Regulation 28 report was received." },
       prevention_responded_on: { description: "When the response to it was sent." },
+      pack_downloaded_at: { description: "When the issued pack was downloaded, once, as a PDF." },
+      pack_downloaded_by: "exported",
+      handed_over_at: { description: "When the pack was handed over to the recipient." },
+      handed_over_by: "exported",
+      handed_over_route: {
+        description: "How the pack was handed over: a secure route, never ordinary email.",
+        codes: {
+          secure_portal: "The recipient's secure portal or upload service.",
+          secure_email: "A secure email service the recipient names.",
+          encrypted_media: "Encrypted media, with the password sent separately.",
+          in_person: "By hand, to the recipient in person.",
+          recorded_delivery: "Recorded or special delivery post.",
+        },
+      },
+      handed_over_reference: { description: "The recipient's reference for the delivery." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -2745,7 +3696,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "The breach register (platform.md rules 18 to 24; UK GDPR Arts 33 and 34): every personal data breach, reportable or not, with when the organisation became aware, the factors and suggested severity (decision support only), the decision with its reasoning, the ICO report, the notice to the people affected, and closure with lessons. The ICO clock is worked out from aware_at and the rate table, never stored.",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "dp_breach",
     personal: true,
     columns: {
       id: "exported",
@@ -2807,7 +3758,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Data protection complaints (platform.md rules 9, 10 and 25; DPA 2018 as amended by the Data (Use and Access) Act 2025): who complained and about what, the acknowledgement, contacts, outcome and closure. Clocks are worked out from these dates and the rate table, never stored.",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "data_rights_case",
     personal: true,
     columns: {
       id: "exported",
@@ -3313,7 +4264,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.dspt_assertion": {
     context: "quality",
     description:
-      "DSPT assertions the organisation tracks for each financial year (quality.md section 18): the toolkit's reference, title, status, notes and owner. The DSPT status is worked out from submissions and the rate table, never stored.",
+      "DSPT assertions the organisation tracks for each financial year (quality.md section 22): the toolkit's reference, title, status, notes and owner. The DSPT status is worked out from submissions and the rate table, never stored.",
     treatment: "tenant_rows",
     retention: "audit_event",
     personal: false,
@@ -3396,7 +4347,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.employee_case": {
     context: "workforce",
     description:
-      "Employee relations cases (workforce.md section 2c; special category and allegations of criminal conduct): type, the member of staff, stage, outcome, appeal, suspension and the DBS and regulator referral decisions.",
+      "Employee relations cases (workforce.md section 2d; special category and allegations of criminal conduct): type, the member of staff, stage, outcome, appeal, suspension and the DBS and regulator referral decisions.",
     treatment: "not_exported",
     retention: "staff_file",
     personal: true,
@@ -3981,6 +4932,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       confirmation_reason: { description: "Why the flagged words could be published." },
       supersedes_item_id: { description: "The update this one corrects." },
       other_people_identifiable: { description: "For a photo: whether anyone else can be seen." },
+      staff_shown: {
+        description:
+          "For a photo: the members of staff named as shown in it, each with consent to family updates when it was published.",
+      },
       created_at: "exported",
       created_by: "exported",
     },
@@ -4656,7 +5611,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.induction_plan": {
     context: "workforce",
     description:
-      "Each new starter's induction plan (workforce.md section 2d): whether they already hold the Care Certificate, the probation end date and its decision.",
+      "Each new starter's induction plan (workforce.md section 2e): whether they already hold the Care Certificate, the probation end date and its decision.",
     treatment: "tenant_rows",
     retention: "staff_file",
     personal: true,
@@ -5275,6 +6230,94 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.payroll_connection": {
+    context: "scheduling",
+    description:
+      "The organisation's connection to its payroll provider's API (scheduling.md section 19 rule 8): the provider, its id for the organisation and the name of the secret holding the tokens, never a token.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      provider: { description: "The payroll provider (xero_payroll_uk)." },
+      external_organisation_id: { description: "The provider's own id for the organisation." },
+      secret_ref: {
+        class: "internal",
+        description:
+          "The name of the organisation's own managed secret holding the OAuth tokens, made by the database (never the tokens).",
+      },
+      status: { description: "connected or disconnected." },
+      connected_by: { description: "Who connected it (tenant_user.id)." },
+      connected_at: "exported",
+      disconnected_at: { description: "When it was disconnected (UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.payroll_export": {
+    context: "scheduling",
+    description:
+      "Each export of a locked pay run to payroll (scheduling.md section 19): the format, the line count, the payroll references used and the SHA-256 of what was produced, which the locked run reproduces. Append-only; the file itself is never kept.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      run_id: { description: "The pay run exported (pay_run.id)." },
+      calculation: { description: "The run's calculation exported.", unit: "count" },
+      format: {
+        description: "How it left Harbour.",
+        codes: {
+          xero_payroll_uk: "Sent to Xero Payroll UK through its API.",
+          staffology_csv: "A Staffology pay elements file.",
+          sage_csv: "A Sage Payroll payments file.",
+          brightpay_csv: "A BrightPay hours and pay file.",
+        },
+      },
+      format_version: { description: "The version of the format's layout.", unit: "count" },
+      line_count: { description: "Pay lines in the export.", unit: "count" },
+      content_sha256: { description: "The SHA-256 of what was produced (hex)." },
+      reexport: { description: "Another export of the same calculation came before." },
+      outcome: {
+        description: "generated (a file) or pending (an API export, until its result is recorded).",
+      },
+      payroll_references: {
+        description: "Member id to payroll reference, as exported; a re-export reuses them.",
+      },
+      exported_by: { description: "Who exported it (tenant_user.id)." },
+      exported_at: "exported",
+    },
+  },
+  "public.payroll_export_result": {
+    context: "scheduling",
+    description:
+      "The payroll provider's result for an API export (scheduling.md section 19 rule 8), recorded after the call. Append-only, one per export.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      export_id: { description: "The export (payroll_export.id)." },
+      outcome: {
+        description: "What the provider said.",
+        codes: {
+          sent: "Taken in by the provider.",
+          failed: "Refused by the provider, or never sent: nothing was taken in.",
+          unknown: "No answer came: check the provider before exporting again.",
+        },
+      },
+      external_ref: { description: "The provider's batch id, when it gave one." },
+      recorded_by: { description: "Who exported it (tenant_user.id)." },
+      recorded_at: "exported",
+    },
+  },
   "public.pay_rule_set": {
     context: "scheduling",
     description:
@@ -5348,6 +6391,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         unit: "pence",
       },
       state_pension_age_on: { description: "When state pension age is reached (UK date)." },
+      payroll_reference: {
+        description: "The organisation's works number, or the payroll provider's employee id.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -5652,7 +6698,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.job_template": {
     context: "workforce",
     description:
-      "Job templates by Care Workforce Pathway role (workforce.md section 2b): the title, the essential criteria assessed at shortlisting and the values-based interview questions.",
+      "Job templates by Care Workforce Pathway role (workforce.md section 2c): the title, the essential criteria assessed at shortlisting and the values-based interview questions.",
     treatment: "tenant_rows",
     retention: "organisation_document",
     personal: false,
@@ -6139,6 +7185,110 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
     },
   },
+  "public.ocr_extraction": {
+    context: "integrations",
+    description:
+      "Scanned MAR charts read by OCR (ADR-0095): the image document, the engine and where it ran, and whether a person released or discarded what was read.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      document_id: { description: "The scanned image, stored as the person's document." },
+      kind: { description: "What was scanned: mar (a paper MAR chart)." },
+      engine: { description: "The OCR engine that read it: google_document_ai or mock." },
+      location: { description: "Where the engine ran: europe-west2, or local for the mock." },
+      state: {
+        description:
+          "blocked (the image did not scan clean and was never read), failed, ready (waiting for a person to decide each value), released or discarded.",
+      },
+      failure: {
+        description: "Why it was not read: not_clean, engine_error, unreadable or nothing_read.",
+      },
+      requested_by: { description: "The member who scanned it (tenant_user.id)." },
+      client_ref: {
+        description: "The scanning device's id for the upload, so a retry returns the same scan.",
+      },
+      lines_counted: {
+        description: "The medicine lines the person counted on the paper chart at release.",
+        unit: "lines",
+      },
+      line_statuses: {
+        description:
+          "At release: each medicine line in force or stopped on the chart, as the person decided.",
+      },
+      chart_from: { description: "The first day the chart covers." },
+      chart_to: { description: "The last day the chart covers." },
+      person_confirmed_by: {
+        description:
+          "The member who confirmed the name and date of birth on the chart are this person's (tenant_user.id).",
+      },
+      released_by: { description: "The member who released the decided values (tenant_user.id)." },
+      released_at: {
+        description: "When the decided values were released to the medicines module.",
+      },
+      discarded_by: { description: "The member who discarded it (tenant_user.id)." },
+      discarded_at: { description: "When it was discarded." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.ocr_field": {
+    context: "integrations",
+    description:
+      "Each value OCR read from a scanned MAR chart, never a fact until a person confirmed, corrected or rejected it (HZ-005).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      extraction_id: { description: "The extraction it belongs to (ocr_extraction.id)." },
+      person_id: "exported",
+      position: { description: "Its place in the order read.", unit: "position (from 0)" },
+      line_group: {
+        description: "Which medicine line on the chart it belongs to.",
+        unit: "position (from 0)",
+      },
+      label: {
+        description:
+          "What part of the line it is: medicine, strength, dose, route, directions, prescriber or text.",
+      },
+      read_text: { description: "The text as OCR read it, unconfirmed." },
+      confidence: {
+        description: "The engine's own confidence in the reading, for information only.",
+        unit: "fraction from 0 to 1",
+      },
+      state: { description: "unconfirmed, confirmed (as read), corrected or rejected." },
+      value: { description: "The value a person decided: the text as read or their correction." },
+      decided_line_group: {
+        description: "The chart line a person decided the value belongs to.",
+        unit: "position (from 0)",
+      },
+      decided_label: { description: "The part of the line a person decided the value is." },
+      truncated: {
+        description:
+          "Whether the text read was longer than a value holds and was cut (it could only be corrected or rejected).",
+      },
+      added_by_person: {
+        description: "Whether a person typed the value for something the scan missed.",
+      },
+      decided_by: { description: "The member who decided it (tenant_user.id)." },
+      decided_at: { description: "When it was decided." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.operator_user": {
     context: "platform",
     description: "Thapsus support staff.",
@@ -6268,15 +7418,23 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.outbreak_case": {
     context: "safety",
     description:
-      "An outbreak's case line list (safety.md section 11): residents and staff with symptoms, onset, tests, vaccination and outcome. Append-only: an update supersedes the person's last row.",
+      "An outbreak's case line list (safety.md section 11): residents, staff and unnamed agency or bank workers with symptoms, onset, tests, vaccination and outcome. Append-only: an update supersedes the person's last row. Retention: residents' rows care_record, staff rows outbreak_staff_case (H-767).",
     treatment: "tenant_rows",
-    retention: "care_record",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
       tenant_id: "exported",
       outbreak_id: { description: "The outbreak (outbreak.id)." },
-      case_type: { description: "Resident or staff." },
+      case_type: {
+        description: "Whose case it is.",
+        codes: {
+          resident: "A person receiving care at the location.",
+          staff: "A member of staff in Harbour.",
+          staff_unnamed:
+            "An agency or bank worker not in Harbour, with nothing identifying (H-782).",
+        },
+      },
       person_id: "exported",
       tenant_user_id: { description: "The member of staff, for a staff case (tenant_user.id)." },
       onset_on: { description: "When symptoms started (UK calendar date)." },
@@ -6528,7 +7686,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.policy": {
     context: "quality",
     description:
-      "The organisation's policies (quality.md section 18): key, title and whether a second reviewer publishes.",
+      "The organisation's policies (quality.md section 19): key, title and whether a second reviewer publishes.",
     treatment: "tenant_rows",
     retention: "organisation_document",
     personal: false,
@@ -6570,7 +7728,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.policy_version": {
     context: "quality",
     description:
-      "Versions of each policy (quality.md section 18; HZ-128): content, the change log, who must read it, the review date and who published it. At most one published at a time.",
+      "Versions of each policy (quality.md section 19; HZ-128): content, the change log, who must read it, the review date and who published it. At most one published at a time.",
     treatment: "tenant_rows",
     retention: "organisation_document",
     personal: true,
@@ -6679,7 +7837,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Thapsus's breach notices to the organisation as processor (platform.md rule 24; Art 33(2); append-only): the nature of the breach, the data and approximate numbers affected, likely consequences, measures, what the organisation needs to do and Thapsus's contact.",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "dp_breach",
     personal: false,
     columns: {
       id: "exported",
@@ -6704,7 +7862,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Who in the organisation acknowledged each Thapsus breach notice, and when (append-only, once per notice).",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "dp_breach",
     personal: false,
     columns: {
       id: "exported",
@@ -7917,7 +9075,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Reportable changes for sponsored workers and when each was reported to the Home Office (HR only).",
     treatment: "tenant_rows",
-    retention: "staff_file",
+    retention: "sponsor_record",
     personal: true,
     columns: {
       id: "exported",
@@ -8023,6 +9181,20 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       expires_on: { description: "The last valid day of an item that expires (UK date)." },
       recheck_due_on: {
         description: "When a DBS Update Service status check is next due (UK date).",
+      },
+      evidence_source: {
+        description: "Where the evidence came from (slice 77).",
+        codes: {
+          manual: "Seen by hand, with uploaded evidence.",
+          idsp_right_to_work: "A right to work check by a certified identity service provider.",
+          dbs_application: "A DBS certificate issued through the e-bulk service.",
+          dbs_status_check: "A DBS Update Service status check.",
+          nmc_register_check: "An NMC register check.",
+        },
+      },
+      vetting_check_id: { description: "The check applied, when not by hand (vetting_check.id)." },
+      import_batch_id: {
+        description: "The import batch that created it (import_batch.id), or empty (slice 51).",
       },
       created_at: "exported",
       created_by: "exported",
@@ -8147,7 +9319,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Absences of sponsored workers, authorised or not, for the sponsor licence's absence monitoring (HR only).",
     treatment: "tenant_rows",
-    retention: "staff_file",
+    retention: "sponsor_record",
     personal: true,
     columns: {
       id: "exported",
@@ -8169,7 +9341,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Sponsored workers: certificate of sponsorship, visa expiry, pay, English language and switching evidence, and the Appendix D records held (HR only).",
     treatment: "tenant_rows",
-    retention: "staff_file",
+    retention: "sponsor_record",
     personal: true,
     columns: {
       id: "exported",
@@ -8197,6 +9369,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           degree_taught_in_english: "Degree taught in English.",
           secure_english_language_test: "Secure English language test.",
           previous_grant: "Shown in a previous grant.",
+          uk_school_qualification:
+            "UK school qualification (GCSE, A level or Scottish Higher in English) gained while under 18.",
+          professional_body_assessment:
+            "Assessed by a regulated professional body (for example the NMC) as part of registration.",
         },
       },
       switching_evidence_on: { description: "When switching evidence was checked (UK date)." },
@@ -8521,7 +9697,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.supervision_record": {
     context: "workforce",
     description:
-      "Supervisions, appraisals and spot checks held (workforce.md section 2b); notes are in supervision_note.",
+      "Supervisions, appraisals and spot checks held (workforce.md section 2c); notes are in supervision_note.",
     treatment: "tenant_rows",
     retention: "staff_file",
     personal: true,
@@ -8539,6 +9715,118 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       held_on: { description: "When it was held (UK date)." },
       held_by: { description: "Who held it (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.casework_support_ticket": {
+    context: "workforce",
+    description:
+      "Tickets for Thapsus support to appoint a case manager to a case whose case managers have all left (H-804): the case by id, the new case manager, who raised and approved it, and when support used it. Never the case's content.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      case_id: { description: "The case (employee_case.id); its content is never exported here." },
+      new_manager_id: {
+        description: "The member of staff named as the new case manager (tenant_user.id).",
+      },
+      requested_by: { description: "Who raised the ticket (tenant_user.id)." },
+      reason: { description: "Why the case needs a new case manager." },
+      approved_by: { description: "The data protection lead who approved it (tenant_user.id)." },
+      approved_at: { description: "When it was approved." },
+      used_by_operator: {
+        description: "The Thapsus operator who appointed the case manager (operator_user.id).",
+      },
+      used_at: { description: "When support appointed them." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.vetting_consent": {
+    context: "workforce",
+    description:
+      "A member of staff's consent to a DBS application or to DBS Update Service status checks (workforce.md section 2e): when it was given and withdrawn, and who recorded each.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      staff_profile_id: { description: "The staff profile (staff_profile.id)." },
+      purpose: {
+        description: "What the consent is to.",
+        codes: {
+          dbs_application: "A DBS application through the e-bulk service.",
+          dbs_update_service: "DBS Update Service status checks of their certificate.",
+        },
+      },
+      given_on: { description: "The UK date it was given." },
+      recorded_by: { description: "Who recorded it (tenant_user.id); never the worker." },
+      withdrawn_on: { description: "The UK date it was withdrawn." },
+      withdrawn_by: { description: "Who recorded the withdrawal (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.vetting_check": {
+    context: "workforce",
+    description:
+      "A check made through a vetting port (an identity service provider, DBS e-bulk, the DBS Update Service or the NMC register; workforce.md section 2e, ADR-0094): what was checked, the answer and who applied it. Never a DBS certificate's contents.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      staff_profile_id: { description: "The staff profile (staff_profile.id)." },
+      kind: {
+        description: "The check.",
+        codes: {
+          idsp_right_to_work: "Right to work, by a certified identity service provider.",
+          dbs_application: "A DBS application through the e-bulk service.",
+          dbs_status_check: "A DBS Update Service status check.",
+          nmc_register_check: "An NMC register check.",
+        },
+      },
+      provider: { description: "The adapter that made the check." },
+      consent_id: { description: "The consent it relied on (vetting_consent.id)." },
+      requested_by: { description: "Who started it (tenant_user.id)." },
+      checked: {
+        description:
+          "What was checked, as JSON: the identity document type, the DBS certificate number or the NMC PIN.",
+      },
+      state: {
+        description: "Where the check is.",
+        codes: {
+          pending: "Waiting for the provider.",
+          completed: "Answered.",
+          failed: "Not made.",
+        },
+      },
+      external_reference: { description: "The provider's reference for the check." },
+      result: {
+        description:
+          "The provider's answer, as JSON (data-standards.md): the outcome and dates, and for a DBS certificate its level, number, issue date and whether it is clear.",
+      },
+      error: { description: "Why it was not made, as a short code." },
+      completed_at: { description: "When it was answered." },
+      applied_at: { description: "When it was applied to the staff file." },
+      applied_by: { description: "Who applied it (tenant_user.id); never the worker." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -8757,7 +10045,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       privacy_notice_url: { description: "Where its privacy notice is published (https)." },
       dpa_signed_on: { description: "The UK date it signed the data processing agreement." },
       staff_privacy_notice_version: {
-        description: "The version of the staff privacy notice in force.",
+        description:
+          "The staff privacy notice in force, as members acknowledge it: the notice document's id, or an earlier free-text label.",
+      },
+      staff_privacy_notice_document_id: {
+        description: "The organisation document that is the staff privacy notice in force.",
       },
       uses_data_beyond_direct_care: {
         description:
@@ -8893,14 +10185,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       id: "exported",
       tenant_id: "exported",
-      status: { description: "Pending, approved or cancelled." },
+      status: { description: "Pending, shredding, approved, cancelled or refused." },
       reason: { description: "Why the organisation's records are to be shredded." },
       export_id: { description: "The downloaded full export the shred follows." },
       requested_by: { description: "Member who asked (opaque id)." },
       requested_at: { description: "When it was asked." },
-      decided_by: { description: "Member who approved (a different person) or cancelled it." },
-      decided_at: { description: "When it was approved or cancelled." },
+      decided_by: {
+        description: "Member who approved or refused it (a different person), or cancelled it.",
+      },
+      decided_at: { description: "When it was approved, refused or cancelled." },
       certificate_id: { description: "The destruction certificate issued on approval." },
+      decision_reason: { description: "Why it was refused (a refusal only)." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -8944,7 +10239,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   },
   "public.training_record": {
     context: "workforce",
-    description: "Training a member of staff completed (workforce.md section 2b).",
+    description: "Training a member of staff completed (workforce.md section 2c).",
     treatment: "tenant_rows",
     retention: "training_record",
     personal: true,
@@ -8957,6 +10252,16 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       completed_on: { description: "When it was completed (UK date)." },
       expires_on: { description: "A certificate's own last valid day, if it has one (UK date)." },
       provider: { description: "Who provided the training." },
+      source: {
+        description: "Where the record came from.",
+        codes: {
+          harbour: "Recorded in Harbour.",
+          lms: "Imported from a learning platform (workforce.md section 13).",
+        },
+      },
+      lms_source_id: { description: "The learning platform it was imported from (lms_source.id)." },
+      lms_import_row_id: { description: "The import row it was made from (lms_import_row.id)." },
+      external_record_id: { description: "The learning platform's own id for the completion." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -8968,7 +10273,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.training_requirement": {
     context: "workforce",
     description:
-      "The organisation's training matrix (workforce.md section 2b): which topics each role needs, with the organisation's own refresh where it sets one.",
+      "The organisation's training matrix (workforce.md section 2c): which topics each role needs, with the organisation's own refresh where it sets one.",
     treatment: "tenant_rows",
     retention: "tenant_configuration",
     personal: false,
@@ -8991,7 +10296,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.vacancy": {
     context: "workforce",
     description:
-      "Vacancies (workforce.md section 2b): the template, where the job is, how many positions, the dates and the status.",
+      "Vacancies (workforce.md section 2c): the template, where the job is, how many positions, the dates and the status.",
     treatment: "tenant_rows",
     retention: "organisation_document",
     personal: false,

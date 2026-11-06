@@ -13,6 +13,9 @@ export const LOGIN_ROLES = [
   "harbour_sync",
   "harbour_operator",
   "harbour_worker",
+  // The dm+d release job (slice 75): calls the loader's functions and reads the dm+d tables, and
+  // nothing else, since it parses an archive fetched from the internet (migration 0131).
+  "harbour_dmd_job",
 ] as const;
 
 export type LoginRole = (typeof LOGIN_ROLES)[number];
@@ -32,7 +35,9 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
  * `harbour_silo_owner` (raising a named speak-up concern with its reporter, appointing the Freedom
  * to Speak Up lead, the silo guards and the audit chain check; migration 0086, ADR-0089), `harbour_quality_reader` (counting the quality
  * dashboard's records at one location; migration 0108), `harbour_dmd_loader` (the dm+d release loader's functions, the only
- * writer of the dm+d reference tables; migration 0110, ADR-0080).
+ * writer of the dm+d reference tables; migration 0110, ADR-0080), `harbour_member_owner` (suspending,
+ * reinstating and ending a membership, unlinking its sign-in, and counting the sign-in's memberships
+ * elsewhere; migration 0129, H-566).
  */
 export const NOLOGIN_ROLES = [
   "harbour_membership_reader",
@@ -46,6 +51,7 @@ export const NOLOGIN_ROLES = [
   "harbour_silo_owner",
   "harbour_quality_reader",
   "harbour_dmd_loader",
+  "harbour_member_owner",
 ] as const;
 
 export type RolePasswords = Record<LoginRole, string>;
@@ -58,6 +64,7 @@ export const LOCAL_ROLE_PASSWORDS: RolePasswords = {
   harbour_sync: "harbour_sync_local",
   harbour_operator: "harbour_operator_local",
   harbour_worker: "harbour_worker_local",
+  harbour_dmd_job: "harbour_dmd_job_local",
 };
 
 const quoteLiteral = (value: string): string => `'${value.replaceAll("'", "''")}'`;
@@ -98,6 +105,7 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   await client.query("GRANT harbour_silo_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_quality_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_dmd_loader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_member_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   // PowerSync needs logical replication. Cloud SQL (with cloudsql.logical_decoding on) and plain
   // Postgres take the REPLICATION attribute; the rds_replication fallback is for Amazon RDS.
   try {

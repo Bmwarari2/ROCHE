@@ -407,7 +407,7 @@ export const outbreaksRouter = createRouter()
       tags: ["safety"],
       summary: "Add a case to the line list, or update one",
       description:
-        "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff working there (a current role at the location or across the organisation), once per outbreak: a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.",
+        "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see), an active member of staff working there (a current role at the location or across the organisation), once per outbreak, or an unnamed staff case for an agency or bank worker not in Harbour (no person or member, nothing identifying; H-782): a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.",
       security,
       request: {
         params: IdParam,
@@ -500,6 +500,25 @@ export const outbreaksRouter = createRouter()
           }
         }
         const existing = await allOutbreakCases(tx, id);
+        // One current row per person (HZ-013): a second would count them twice in the UKHSA report
+        // and keep an old "unwell" row open; a change is recorded by superseding the current row.
+        if (!body.supersedesId) {
+          const already = currentCases(existing.map(domainCase)).some(
+            (r) =>
+              (body.personId !== null && r.personId === body.personId) ||
+              (body.tenantUserId !== null && r.tenantUserId === body.tenantUserId),
+          );
+          if (already) {
+            throw refused(
+              problems.invalid(
+                "This person is already on the line list. Update their existing row instead.",
+              ),
+              A.caseRecorded,
+              id,
+              "person_already_listed",
+            );
+          }
+        }
         if (body.supersedesId) {
           const latest = currentCases(existing.map(domainCase)).some(
             (r) => r.id === body.supersedesId,

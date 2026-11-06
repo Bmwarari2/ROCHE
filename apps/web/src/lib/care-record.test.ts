@@ -48,12 +48,14 @@ describe("record tabs", () => {
       "notes",
       "charts",
       "medicines",
+      "controlled-drugs",
       "body-map",
       "advance-care",
       "capacity",
       "dependency",
       "activities",
       "reviews",
+      "herbert",
       "safeguarding",
       "hospital",
       "pre-admission",
@@ -95,6 +97,11 @@ describe("record tabs", () => {
     // The medicines record opens to any of its three readers (medicines.md section 13).
     expect(visibleTabs(PERSON, ["medicines.emar.administer"]).map((v) => v.tab)).toEqual([
       "medicines",
+      "controlled-drugs",
+    ]);
+    // The controlled drugs register opens to any of its readers (medicines.md section 15).
+    expect(visibleTabs(PERSON, ["medicines.cd.witness"]).map((v) => v.tab)).toEqual([
+      "controlled-drugs",
     ]);
     // Letters only for those who make them (comms.letter.manage), never from reading the record.
     expect(

@@ -284,6 +284,50 @@ shows it; upload and remove a logo; axe in light and dark).
   sign in again and that unsent entries stay on it until then; HZ-006, HZ-110); for `staff_left`
   or `suspended`, the holds on those devices fall due at once and the manager is told, as after a
   device revocation (`hurryRevokedHold`).
+- Suspending and ending a membership, and erasing the sign-in (recommended answer to H-566,
+  31/10/2026; `checkMembershipChange` in `packages/domain/src/platform/membership.ts`,
+  `apps/api/src/routes/member-lifecycle.ts`). Each needs `platform.user.manage` with step-up,
+  reaches only the members the admin sign-out reaches (anyone else reads as not found), never the
+  manager's own membership (409 `own_membership`), and is audited by opaque id and code, refusals
+  too. `POST /v1/members/{tenantUserId}/suspend` (a coded reason, `MEMBERSHIP_CHANGE_REASONS`)
+  makes the membership `suspended`: the tenant middleware admits active memberships only, so access
+  ends at once and open invitations end; with entries waiting on the member's devices it needs
+  `confirmEntriesWaiting`, and the holds fall due at once so the entries are handed over; every
+  session of the sign-in ends unless the person has a membership elsewhere that has not ended
+  (suspended included) or the sign-in is a Harbour operator's (audited `platform.member.suspended`
+  before the sessions end). `POST .../end` ends only a suspended
+  membership (409 `suspend_first`), keeping the member row, display name and job title so care
+  records stay attributable (Regulation 17). `POST .../sign-in/erase` erases the sign-in identity
+  of an ended membership (409 `membership_not_ended`) once it has no membership in any other
+  organisation that has not ended (invited, active or suspended: erasing would orphan it) and is
+  not a Harbour operator's (409 `sign_in_in_use`): the auth user with its address, password hash,
+  passkeys, TOTP secret and backup codes, sessions, and every verification token naming it
+  (password resets, passkey challenges, session second-factor records), in one transaction of the
+  auth role, audited (`platform.member.sign_in_erased`, listing exactly what was removed and that
+  the member row, with the organisation's own copy of the address, stays under `staff_file`)
+  before it goes; the member row is then unlinked and an open account deletion request task closes
+  as done (`platform.account_deletion.completed`, with the outcome). Retries change nothing.
+  The database holds the line (migration 0129, ADR-0002): the application role cannot change a
+  member's status or sign-in link itself (a restrictive policy and the `tenant_user_membership_guard`
+  trigger refuse it); `app.change_membership`, a definer function owned by the NOLOGIN role
+  `harbour_member_owner`, suspends, reinstates, ends and unlinks, for an active holder of
+  `platform.user.manage` acting on someone else, one change at a time in an organisation (an
+  advisory lock, then both rows locked in id order, so two managers cannot suspend each other at
+  once), and never suspends the organisation's last active member who manages users through a role
+  (409 `last_user_manager`; an acting-up grant never counts, as in `app.end_leaver_access`). The
+  trigger allows only the transitions a membership can make (linking an invited member once;
+  suspending; reinstating; ending; removing the link of an ended membership) and never relinks a
+  sign-in; harbour_owner (migrations and `app.end_leaver_access`, which the leavers sweep runs with
+  no member) is not held by it. `app.sign_in_memberships_elsewhere` gives the count of memberships
+  elsewhere that have not ended, to a holder of `platform.user.manage` only. The database checks
+  that permission anywhere in the organisation, which is broader than the API's per-home reach
+  (`memberReached`); the API checks the reach first, so the database backs the permission, not the
+  reach. A NULL member or action is refused. Every function that changes a member's status or
+  sign-in link (`app.change_membership`, `app.accept_invitation`, `app.link_sso_member`,
+  `app.end_leaver_access`) takes the same per-organisation lock first and then its row locks in id
+  order, so a suspension never deadlocks with an invitation being accepted and a leaver's access is
+  never ended while they suspend the last other user manager. Reinstating has no route yet; the
+  web screens for these routes are a follow-up.
 - Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
 ## Invitations and MFA enrolment (PLAT-004)
@@ -925,6 +969,85 @@ requester eligibility, reads fail after a shred, certificate contents and signat
 failure completed by the worker); `packages/db/test/crypto-shred.test.ts` (isolation, the
 same-person check, the state guard, expiry, no DELETE, certificate insert policy).
 
+### Crypto-shredding screens and certificates (PLAT-012 part 2)
+
+Finishes PLAT-012: the web screens for the whole-organisation shred, a refusal, and the destruction
+certificate as a page and a PDF. For tenant-wide holders of `platform.retention.manage`; every write
+needs a fresh step-up, as the API asks.
+
+**Rules**
+
+7. **Request** (`/settings/retention/shred`, titled "Destroy the organisation's stored files", since
+   care records are not removed by it). The page says in plain words what a shred does before
+   the form: every stored document, export and data request bundle stops opening at once, the keys
+   are destroyed for good after 30 days, nobody (Thapsus included) can recover them after that,
+   database records are not removed by it (they follow the retention schedule) and backups hold
+   deleted rows until the date the certificate gives. Active legal holds are listed as blockers,
+   each with the retention page linked, and the form is not offered while any is in force. The form
+   offers only the organisation's full exports downloaded within 30 days, newest first, none chosen
+   by default (`GET /v1/retention/shred-exports`, so a holder without the export permission can
+   still choose one); with none, it says to download one and links to the export page. The reason
+   is 20 to 1,000 characters with no names. An acknowledgement ("I understand this cannot be
+   undone") is required. One open request at a time: while one is open the form is not offered.
+8. **Approve or refuse** (`/settings/retention/shred/{id}`). Shown only to a holder other than the
+   requester, while the request is pending and within 7 days. The page restates the consequences,
+   then asks for a typed confirmation (the word `shred`, any case) and the acknowledgement before
+   **Approve the shred**; **Refuse the shred** needs a reason (10 to 500 characters) and comes
+   first, so the destructive form is not the first reached by keyboard. The requester sees **Cancel this
+   request** instead; anyone sees **Withdraw this request** once it has lapsed.
+9. **Refusal** (new). `POST /v1/retention/shred-requests/{id}/refuse`: a different member from the
+   requester, step-up, tenant-wide, while pending and within 7 days, with a reason of 10 to 500
+   characters (no names). Status `refused`, final. The database refuses a refusal by the requester,
+   a late one, and any change after it (migration 0130: the status, `decision_reason`, the decide
+   policy and the guard).
+10. **Status**, as an icon and a word: **Waiting for approval** (pending), **Lapsed** (pending and
+    more than 7 days old: `lapsed`, computed by the API), **Shredding** (approved, keys being
+    destroyed), **Shredded** (approved, with its certificate), **Refused**, **Cancelled**. Each
+    request shows who asked and who decided by name (the API returns their display names; one it
+    cannot name shows as "A former member"), when, the reason, and when it lapses. Names are for
+    the screens only: certificates keep opaque ids (ADR-0109).
+11. **Certificates** (`/settings/retention/certificates/{id}`). The retention page's list links to
+    each. The page shows every field the certificate states, its signature check (**Signature
+    checked**, **Signature does not match** or **Not signed**, as the verification route answers),
+    the signing key version and algorithm, the SHA-256, the key versions and their destroy times,
+    and when backups expire; a link to the verification route's JSON; and **Download as PDF**.
+12. **The PDF** (`GET /v1/destruction-certificates/{id}/pdf`). Built on request by the API's PDF
+    writer (`services/pdf.ts`, as the evidence and transfer packs are), never stored: after a
+    whole-organisation shred the organisation's document store no longer opens, so a stored copy
+    would be unreadable (retention-and-deletion.md section 5 updated). It carries the statements
+    above, the signature check made when it was built, the signer key version, the algorithm, the
+    SHA-256, the signature, the exact signed body, when backups expire, and how to check it
+    independently. Opaque ids and the reason only; no names. Audited
+    (`platform.destruction_certificate.download`), `Cache-Control: no-store`.
+
+**API** (additive): `POST /v1/retention/shred-requests/{id}/refuse`;
+`GET /v1/retention/shred-exports`; `GET /v1/destruction-certificates/{id}`;
+`GET /v1/destruction-certificates/{id}/pdf`; `ShredRequestItem` gains `refused` in its status,
+`decisionReason`, `expiresAt`, `lapsed`, `requestedByName` and `decidedByName`.
+Audited as `platform.retention.shred_refused` (refusals too), `platform.destruction_certificate.view`
+and `platform.destruction_certificate.download`.
+
+**Permission matrix** (additions)
+
+| Action | Permission |
+| --- | --- |
+| Refuse a shred (not the requester) | `platform.retention.manage`, step-up, tenant-wide |
+| Open a certificate or download its PDF | `platform.retention.manage`, tenant-wide; no step-up (opaque ids and the reason only) |
+
+**Tests (written first)**: `packages/db/test/crypto-shred.test.ts` (a refusal by the requester, a
+late one and a change after it refused); `apps/api/test/crypto-shred.test.ts` (refusal rules and
+audit; `lapsed`; the certificate read and PDF, with its signature check and no names);
+`apps/api/src/services/certificate-pdf.test.ts` (the signature check, signer, hash, signed body,
+backup expiry, no names); `apps/web/src/lib/shred.test.ts` (status words, what each person may
+do, the request, approval and refusal forms read); `apps/web/e2e/retention-shred.spec.ts`
+(request, refuse, request again, approve as a second person, the certificate page, its PDF and its
+check as data; axe in light and dark), run in Closing Example Care, an invented organisation the
+e2e seed adds, so approving never touches the demo organisation's documents.
+
+**Not covered end to end**: legal holds shown as blockers (a hold cannot be placed once a shred has
+started, so the closing organisation cannot show one); the API tests cover the refusal and the
+page lists the holds the API returns.
+
 ## Statutory figures (PLAT-021)
 
 - `rate_table` seeded from [rates.md](rates.md), `retention_class` from
@@ -1077,8 +1200,12 @@ Act 2025; ICO guidance on time limits):
 7. Every breach is recorded, reportable or not (Art 33(5)). The assessment is decision support only:
    it suggests a severity from the factors in breach-response.md section 4 (special category or
    safeguarding data, the location of a person at risk, how many people, whether they can be
-   identified, consequences, vulnerability, containment) and says what to consider. It never
-   decides. The decision (report to the ICO or not; tell individuals or not) is a person's, with
+   identified, consequences, vulnerability, containment) and says what to consider. An
+   identifiable disclosure outside the organisation about anyone receiving care suggests at least
+   medium (consider reporting to the ICO), even for one person with no special category data,
+   because the ICO's breach guidance treats the vulnerability of the people affected as raising the
+   risk and receiving care itself reveals health; several people, or special category data, make
+   it high (recommended answer to H-611, 31/10/2026). It never decides. The decision (report to the ICO or not; tell individuals or not) is a person's, with
    written reasoning of at least `BREACH_REASONING_MIN` characters; deciding not to report a breach
    suggested as medium or above, or not to tell individuals when the risk is suggested high, needs
    an explicit acknowledgement that the suggestion was considered.
@@ -1334,8 +1461,12 @@ slice 15, which also uses it). Row-level security counts the permission through 
 (`app.holds_role_permission_somewhere`), so a time-boxed grant of it alone reads an empty register:
 grant it through a role.
 
-**Retention**: interim `audit_event` (8 years from creation) for all four tables until the DPO sets
-periods (H-670; retention.md already lists them as open).
+**Retention** (recommended answer to H-670, 31/10/2026, for the DPO to review at testing):
+`dp_breach`, `processor_breach_notice` and `processor_breach_notice_ack` are kept 6 years from
+closure of the breach (`dp_breach`; Limitation Act 1980 ss.2 and 5); `dp_complaint` follows
+`data_rights_case`, 3 years from closure. Only a legal hold while an ICO case or claim is open
+extends either. The export catalogue carries the class per table, which the DSAR workbench's
+erasure assessment reads.
 
 **Tests**
 
@@ -1558,6 +1689,94 @@ organisation.
   and a commit refused without `acceptNoUndo`; allergy status checks raised, paired by NHS number
   or local identifier, replayed and removed by an undo; test NHS numbers; sample data; the expiry
   sweep.
+
+### Importing medicines, care plans and staff files (slice 51)
+
+Phase 2 slice 51 (PLAT-014, WORK-013) adds three record types to the import wizard: `medicines`,
+`care_plans` and `staff_files`. The upload, staging, dry run, commit, undo window, expiry and
+"nothing echoed" rules above apply unchanged; these rules add what each type needs. Code:
+`packages/domain/src/platform/imports-clinical.ts`, the field sets in
+`packages/domain/src/platform/imports.ts`, migration 0136, `apps/api/src/routes/platform-imports.ts`
+and `apps/api/src/services/platform-imports-clinical.ts`. Hazards: HZ-130, HZ-005 (medicines),
+HZ-024 (care plans), HZ-124 (staff files), HZ-072 (sample data).
+
+**Schema** (migration 0136):
+
+| Table or column | Change | Rules |
+| --- | --- | --- |
+| `import_batch.record_type` | Adds `medicines`, `care_plans`, `staff_files` | The batch's home (`location_id`) is where the rate table is read for the undo window; the records keep their own people and files |
+| `medication.import_batch_id` | Already added by migration 0111; now a foreign key to its batch, with the people guard's rule | Set only as the medicine is created by its batch's commit, never changed; `origin = 'import'` exactly when it is set |
+| `care_plan.import_batch_id` | New | The same rule; set only on a draft |
+| `compliance_item.import_batch_id` | New | The same rule; set only on an unverified item |
+| `app.import_reachable` | Per type | Medicines: `medicines.record.manage` and `people.person.read`. Care plans: `care.plan.write` and `people.person.read`. Staff files: `workforce.staff_file.manage`. All with `platform.import.run`, across the organisation |
+| `app.undo_import_batch` | Per type | Medicines are withdrawn, never deleted (the medicines record is append-only); care plan drafts and staff file checks are removed. Each only while unchanged |
+| `app.sample_removal_tables()` | Redefined | The union of migrations 0099's and 0111's lists, so every table either added is removed with a sample person (HZ-072) |
+
+**Rules that are easy to get wrong** (continuing the numbering above):
+
+27. **The types and who imports them.** Each type has its own field set (`IMPORT_FIELDS`), its
+    own permissions (the table above, checked by the API and again by `app.import_reachable`)
+    and its own audit action per record created (`medicines.entry.imported`,
+    `care.plan.imported`, `workforce.compliance_item.imported`). Every type is matched to its
+    record by identifier only: a person by NHS number (a 999-range number only in test
+    environments), a staff file by the member's work email. A row whose person or file Harbour
+    does not hold is refused, never matched by name (HZ-130).
+28. **Medicines arrive not yet checked and are held until checked** (H-548, HZ-005). The medicine
+    is the dm+d product its VMP code (and optional AMP code) names: the code must have the
+    dm+d shape and check digit and be held by the reference data, and the stored name is
+    dm+d's. The file has no name column, so a typed name never becomes a medicine. The route and
+    dose unit must be ones dm+d gives for the product, and the medicines rules
+    (`transcribeMarEntry`) run on each row as for one transcribed by hand: one entry per product
+    for a person (rule 6), a when-required medicine's indication, a regular one's times (every
+    day; any other pattern is transcribed by hand). Each arrives with `origin = 'import'` and
+    state "not yet checked": `marEntryStatus` shows it on the MAR as "Imported, not yet checked"
+    and no dose may be given from it until a second person competent in medicines checks it
+    against its source, whatever the organisation's policy for other unchecked entries (H-550). A
+    change made before that check keeps the hold (the new version is `origin = 'import'` too).
+    Each person gets an urgent task (`medicines.import_check`) to have them checked before their
+    next round (HZ-003). An undo withdraws the batch's medicines ("Withdrawn: the import that
+    added it was undone"), only while none of them has been checked or changed.
+29. **Care plans arrive as drafts** (HZ-024). One row is one need domain for a person; a person's
+    rows become one draft plan with a section for each, at the person's home. A person who already
+    has a draft is refused (one draft per person). Nothing is published: a person reviews
+    each draft, adds actions and sign-off, and publishes it as for one written by hand. An undo
+    removes the drafts only while every one is unchanged and unpublished, with no section added
+    since the commit.
+30. **Staff file checks arrive unverified** (HZ-124). One row is one check of a member's staff
+    file: identity, DBS (level, issue date, number and result together, or only the barred list
+    check date), right to work, professional registration, references or qualifications. Health,
+    employment history and conduct are never imported, nor a DBS certificate's contents. A check
+    the file already holds is refused (it is changed on the staff file), as is a row for the
+    importer's own file. Each arrives with no verifier: it counts only once a holder of
+    `workforce.staff_file.manage` who has seen the evidence verifies it on the staff file. An undo
+    removes the checks only while none has been verified or changed.
+31. **The dry run shows every row's outcome** (`clinicalDryRun`): `rowOutcomes` lists each row as
+    `creates` or `refused`, with the errors by row and column; `createsCount` says how many
+    records committing creates; the words say what happens to them. There are no possible
+    duplicates to acknowledge (rows are matched by identifier only). Commit and undo are as
+    rules 23 and 24, by type.
+
+**Tests (written before the code)**:
+
+- `packages/domain/src/platform/imports-clinical.test.ts`: every field and type rule of each
+  type, table-driven (`hazard HZ-005 imported medicines`, `hazard HZ-024 imported care plans
+  arrive as drafts`, `hazard HZ-124 imported staff file checks are never verified`); what a row
+  becomes; every row's outcome.
+- `packages/domain/src/medicines/mar-entry.test.ts`: `H-548` an imported entry is never given
+  before its second check, under either policy.
+- `packages/db/test/imports-clinical.test.ts`: the record types; `app.import_reachable` per
+  type; a record tied to its batch only as it commits; the per-type undo (medicines withdrawn,
+  refused once checked; drafts and checks removed, refused once changed); the sample removal
+  list.
+- `apps/api/test/imports-clinical.test.ts`: each type end to end over HTTP (upload, dry run with
+  every row's outcome, commit with step-up, undo), the refusals of rules 27 to 30, an imported
+  medicine held off the MAR until checked, nothing echoed.
+- `apps/web/e2e/import-clinical.spec.ts`: the record type chosen on upload, every row's outcome
+  in words with an icon, with axe in light and dark.
+
+**Web.** The upload step asks what the file holds and offers that type's fields for each column;
+the check lists every row's outcome; the allergy section shows for people only. Human actions:
+H-1300 to H-1309 (each with its recommended answer, applied until the testing-phase review).
 
 ## Phase 2: single sign-on (PLAT-005)
 

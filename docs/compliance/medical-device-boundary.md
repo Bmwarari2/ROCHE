@@ -126,6 +126,18 @@ medicine. Allergies in the sources are compared with the recorded allergies by t
 confirms it; Harbour matches no allergen (the section 6 grey area, decided in ADR-0082 with slice 3).
 The time-critical and minimum-interval rules (ADR-0082) are slice 3's and are not in this slice.
 
+**Importing medicines, care plans and staff files (Phase 2, slice 51)**: re-checked; still inside
+the boundary. The import stores what the file says, through the same rules as a record entered by
+hand: medicines by dm+d code with dm+d's own facts and the medicines rules unchanged, held until a
+second person checks them; care plans as drafts; staff file checks unverified. It adds no
+calculation, suggestion, score or comparison.
+
+**Medicines record and reconciliation storage and API (Phase 2, slice 16)**: re-checked; still inside
+the boundary. The tables store what was transcribed and the database refuses rewriting it; the API
+runs the slice 2 rules unchanged and adds no calculation, suggestion or ingredient comparison. The
+MAR route lists the prescribed doses the domain expands; dm+d facts (permitted routes and units)
+come from the reference data, and with none loaded nothing is transcribed rather than guessed.
+
 **Administration, PRN and controlled drugs (Phase 2, slice 3)**: these stay inside the boundary
 (`packages/domain/src/medicines/`; [medicines.md](../specs/medicines.md) rules 13 to 27;
 ADR-0082). Harbour compares the amount recorded with the dose on the entry, or on its checked dosing
@@ -150,6 +162,7 @@ observed sign-off, not an assessment. The controlled drugs register checks arith
 signatures, not the medicine.
 
 **Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). Slice 21 (the rota builder, [scheduling.md](../specs/scheduling.md) section 14) re-checked this: the rota's check counts the care minutes of assigned shifts and the staff holding each skill from workforce records, then calls the same `compareStaffing`; publishing asks the manager to read and acknowledge its warnings and never blocks on it; it adds no score, prediction or recommendation of who to roster. The rostering rule (DBS, right to work, registration, competence) is an employment and regulatory check, not clinical reasoning. Slice 27 (bank and agency workers) re-checked it: agency nurses count on the same comparison from the agency's confirmation, and the cost, the AWR clock and the access window are operational and legal, with no score or recommendation. Slice 36 (pay calculation runs, [scheduling.md](../specs/scheduling.md) section 18) re-checked it: a pay run reads approved time, recorded sickness dates and the staff file's date of birth and writes only pay records; it changes no rota, shift, clock-in or care record, and its minimum wage band and auto-enrolment category are statutory classifications of pay shown with their working, never a clinical judgement (the CSO confirms under H-1106). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
+**Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). Slice 21 (the rota builder, [scheduling.md](../specs/scheduling.md) section 14) re-checked this: the rota's check counts the care minutes of assigned shifts and the staff holding each skill from workforce records, then calls the same `compareStaffing`; publishing asks the manager to read and acknowledge its warnings and never blocks on it; it adds no score, prediction or recommendation of who to roster. The rostering rule (DBS, right to work, registration, competence) is an employment and regulatory check, not clinical reasoning. The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 
 **Outbreaks and IPC audits (Phase 2, slice 31)**: these stay inside the boundary and add no score
 about a person. The outbreak's illness is declared by a person, never derived; Harbour's
@@ -177,8 +190,65 @@ never matched to the medicine; the screens say people compare them. A dose is th
 dm+d's unit; nothing is calculated or converted. In reconciliation nothing is decided or inferred: a
 line that says stop changes nothing until a person decides it, and completion applies only the
 people's decisions.
+**Administrations storage and API (Phase 2, slice 22)**: re-checked; still inside the boundary.
+The API runs slice 3's rules unchanged on the facts it stores and adds no calculation of its own:
+the windows, intervals and maximum are the prescriber's and the tenant's figures from the entries
+and the rate table; a variable dose comes only from a dosing record a person transcribed and
+another checked. Escalations and outstanding-dose tasks say what was recorded or not recorded, in
+fixed words, and leave what follows to the organisation's policy and the prescriber.
+
+**Rounds, escalation and conflict review (Phase 2, slice 48)**: re-checked; still inside the
+boundary. The round lists the prescribed doses in a time slot and their state in words, from the
+windows the organisation sets in the rate table; its order (late, due, not yet due, recorded;
+time-critical first) is a fixed display rule, not a priority score about the person. Escalation
+and handover reuse the task engine. A second record of a dose from a device is kept for a person
+to decide; Harbour never picks which record is right, and a dose found given twice raises an
+incident for people to investigate. Nothing suggests a dose, a change or a treatment.
+
+**Controlled drugs register (Phase 2, slice 34)**: re-checked; still inside the boundary. The
+register records movements people make and checks arithmetic and signatures (the running balance,
+a witness who is a second person, a count against the page); it says nothing about the medicine,
+its dose or whether it should be given. A count that does not balance raises an incident for
+people to investigate.
+
+**dm+d release download (Phase 2, slice 75; re-checked)**: no change to the boundary. The download fetches the NHSBSA's release from TRUD, checks its integrity and loads it through the same loader; the daily check and its alert are about the age of the data (`medicines.dmd.stale_after_days`), never about a medicine, a dose or a person ([integrations.md](../specs/integrations.md) section 11, "Release download").
+**Medication errors, reviews and reports (Phase 2, slice 45)**: checked; inside the boundary.
+The error record stores what staff found (kinds and stages from the NRLS categories, named as the
+source) and what named people did and advised. The prompts are fixed words shown beside the record
+(tell a clinician, report to the CDAO, consider safeguarding, CQC only through the classifier),
+cleared by recorded evidence, never sent and never a judgement of harm: harm stays the incident's
+grading by a person. The controlled drug presumption reads the prescriber's CD schedule on the
+entry, a recorded fact. Medication reviews record a date the tenant set or the tenant's interval
+from the last done; Harbour never suggests a change, and the outcome is the clinician's words. The
+PRN and psychotropic report counts records and says it does not judge the person or the
+prescribing (H-1297); no threshold, rate or score is applied to any person.
+**Controlled drugs register screens (Phase 2, slice 54)**: re-checked; still inside the boundary.
+The screens show the balance, the entries and each count's result in the API's own words and add
+nothing: no balance is worked out in the browser, and no count, trend or discrepancy is scored or
+interpreted. A count that does not match says a medication incident has been raised, for people
+to investigate. The print view is a copy of the page as recorded.
+**Covert administration, self-administration and homely remedies (Phase 2, slice 38)**: checked;
+inside the boundary. A covert record stores a decision people made (the capacity assessment, the
+best-interests decision, who took part, the method and the pharmacist's advice in their words);
+Harbour checks that the record is complete and current, never whether covert administration or a
+method is right. A self-administration assessment stores what a person found and the level they
+decided; Harbour applies fixed rules to those answers (no self-administering without the person's
+choice, capacity, dexterity and lockable storage) and suggests nothing. A homely remedy dose is
+checked only against the home's own protocol, agreed with a GP or pharmacist: its dose, gap, most
+in 24 hours and days before referral, and an exact dm+d product match with a current entry. No
+ingredient is compared (ADR-0082), no dose is calculated, and no remedy is suggested.
 
 **Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
+**OCR of scanned MAR charts and e-signature (Phase 2, slice 79; ADR-0095)**: these stay inside the
+boundary. OCR transcribes the text on a photographed chart and nothing more: it never interprets a
+value, chooses a dm+d product, a dose unit or a schedule, or compares what it read with anything.
+The engine's confidence is never shown to the person deciding (only a "check carefully" flag)
+and never decides anything; the engine's grouping of values into lines and parts is a proposal a
+person decides; every value is unconfirmed until a person confirms, corrects or rejects it, and released lines arrive "not yet
+checked" for the transcriber and a second competent member (HZ-005;
+[integrations.md](../specs/integrations.md) section 11). An e-signature records who agreed to which
+version of a document; it is a records control, not a clinical one.
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built

@@ -17,11 +17,13 @@ import {
   can,
   type DocumentStoragePort,
   type EffectiveAccess,
+  type ExternalSignaturePort,
   IDLE_TIMEOUT_KEY_PREFIX,
   idleExpired,
   idleTimeoutMinutes,
   type MalwareScanPort,
   narrowestScope,
+  type OcrPort,
   type Permission,
   type PermissionScope,
   requiresMfa,
@@ -45,7 +47,10 @@ import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
 import type { DataKeyCache } from "../integrations/envelope";
+import type { LearningPlatformAdapter } from "../integrations/lms/learning-platform";
 import type { MedicinesPorts } from "../integrations/medicines-ports";
+import type { XeroPayrollAdapter } from "../integrations/payroll/xero";
+import type { PharmacyOrderPort } from "../integrations/pharmacy";
 import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
@@ -91,6 +96,8 @@ export interface Services {
   readonly txtLookup: TxtLookup;
   /** OpenID discovery when a connection is saved (ADR-0091). */
   readonly oidcDiscovery: OidcDiscovery;
+  /** Xero Payroll UK, or null when it is off (scheduling.md section 19 rule 8). */
+  readonly payrollXero: XeroPayrollAdapter | null;
   /** Feature flags through OpenFeature (catalogue, the organisation's rows, optional Flagsmith). */
   readonly flags: FlagService;
   readonly storage: DocumentStoragePort;
@@ -103,6 +110,14 @@ export interface Services {
   readonly tenantKeys: TenantKeyPort;
   /** Unwrapped data keys in memory, forgotten for an organisation when it is shredded. */
   readonly dataKeyCache: DataKeyCache;
+  /** Pulls from learning platforms (workforce.md section 13), or null while off. */
+  readonly learningPlatform: LearningPlatformAdapter | null;
+  /** OCR of scanned MAR charts, or null when none is configured (ADR-0095). */
+  readonly ocr: OcrPort | null;
+  /** DocuSign, or null when off: signing is then in Harbour only (ADR-0095). */
+  readonly docusign: ExternalSignaturePort | null;
+  /** Orders to the pharmacy (medicines.md section 15), or null while off: submitted by hand. */
+  readonly pharmacy: PharmacyOrderPort | null;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */
@@ -178,6 +193,12 @@ export interface TenantAccess {
   /** How long a factor's use counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
   readonly stepUpWindowSeconds: number;
   readonly deviceId: string | null;
+  /**
+   * True only for a bearer (mobile) request naming a device the session was already bound to
+   * before this request and not revoked: the header alone never makes a request an upload
+   * (slice 48 security re-review M1).
+   */
+  readonly deviceBound?: boolean;
   readonly ip: string | null;
   /**
    * True when the session is bound to a device a manager has revoked: only its device report gets
@@ -479,6 +500,7 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     stepUpFresh: factor.stepUpFresh,
     stepUpWindowSeconds: services.config.STEP_UP_WINDOW_SECONDS,
     deviceId,
+    deviceBound: deviceId !== null && sessionBound && !onRevokedDevice && bearerRequest(c),
     ip: clientIp(c),
     ...(onRevokedDevice ? { sessionOnRevokedDevice: true } : {}),
   };

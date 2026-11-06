@@ -1,0 +1,56 @@
+# Demo build (EXPO_PUBLIC_DEMO_MODE=1, no API): the Shifts tab with the demo's invented shifts
+# (scheduling.md section 18; SCHED-002, SCHED-004, SCHED-012). Clock in is saved on the phone and
+# waits to send (in demo mode it always does, since nothing uploads). Lone working starts, and a
+# check-in and a duress press (a long press on Check in) answer in exactly the same words, with
+# nothing on screen naming duress (HZ-125). Not yet run on a device or emulator: no emulator was
+# available when it was written.
+appId: uk.co.thapsus.harbour
+name: Shifts and lone working in demo mode
+tags:
+  - demo
+---
+- runFlow: sign-in.yaml
+- tapOn:
+    id: "tab-shifts"
+- extendedWaitUntil:
+    visible:
+      id: "shifts-screen"
+    timeout: 15000
+- assertVisible:
+    text: "Not clocked in"
+- assertVisible:
+    text: "Changed after it was published"
+- tapOn:
+    id: "clock-in"
+- extendedWaitUntil:
+    visible:
+      text: "Saved on this phone.*"
+    timeout: 10000
+- assertVisible:
+    text: "1 clock event is waiting to send.*"
+- tapOn:
+    id: "shifts-lone-working"
+- extendedWaitUntil:
+    visible:
+      id: "lone-working-screen"
+    timeout: 10000
+- tapOn:
+    id: "lone-start"
+- extendedWaitUntil:
+    visible:
+      id: "lone-check-in"
+    timeout: 10000
+- tapOn:
+    id: "lone-check-in"
+- extendedWaitUntil:
+    visible:
+      text: "Checked in at .*\\."
+    timeout: 10000
+- longPressOn:
+    id: "lone-check-in"
+- extendedWaitUntil:
+    visible:
+      text: "Checked in at .*\\."
+    timeout: 10000
+- assertNotVisible:
+    text: ".*[Dd]uress.*"

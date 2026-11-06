@@ -3,6 +3,7 @@ import {
   draft,
   entry,
   PRODUCT,
+  storedEntry,
   TABLET_FACTS,
   TRANSCRIBER,
   UNIT,
@@ -234,7 +235,7 @@ describe("hazard HZ-004 enforces the PRN maximum in 24 hours", () => {
     ];
     expect(prnMaximumExceeded(prn, only(prn), other, 2, at(16))).toBeNull();
     expect(prnMaximumExceeded(entry(), new Set(["entry-1"]), history, 100, at(16))).toBeNull();
-    const noMax = entry(
+    const noMax = storedEntry(
       {
         directions: { ...prnDirections, maxQuantityPer24Hours: null },
         minimumIntervalMinutes: 240,
@@ -284,7 +285,7 @@ describe("hazard HZ-004 shows the last-given time for every when-required medici
       PRN_NOTICES.notSynced,
     ],
   ] as const)("says so when %s", (_name, directions, history, notice) => {
-    const e = entry({ directions, minimumIntervalMinutes: 240 }, "entry-prn");
+    const e = storedEntry({ directions, minimumIntervalMinutes: 240 }, "entry-prn");
     expect(prnStatus(e, only(e), history, at(13), rates).notices).toEqual([notice]);
   });
 

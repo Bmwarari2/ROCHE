@@ -26,7 +26,7 @@ const MEWS_TWIN_B = "0194d000-0000-7000-8600-000000000152";
 /** An invented resident who left the Mews nine years ago, for the retention journey (PLAT-012). */
 const MEWS_LEFT = "0194d000-0000-7000-8600-000000000153";
 
-type PasskeyHolder = "manager" | "owner" | "family" | "starter";
+type PasskeyHolder = "manager" | "owner" | "family" | "starter" | "closing" | "closingRecords";
 
 /**
  * A second, empty organisation and its own owner, for the sample data journey
@@ -42,6 +42,36 @@ const STARTER = {
   locationId: "0194f000-0000-7000-8000-0000000001e2",
   memberId: "0194f000-0000-7000-8000-0000000003e2",
   roleId: "0194f000-0000-7000-8000-0000000004e2",
+} as const;
+
+/**
+ * An organisation that is leaving Harbour, for the shred journey (platform.md, Crypto-shredding
+ * screens; PLAT-012 part 2): two members who may manage retention across it, each with the
+ * end-to-end passkey, so one asks and the other refuses or approves, and a full export recorded
+ * as downloaded when this runs (no file: the shred checks the record), so a shred may be asked for
+ * within 30 days of seeding. Approving shreds only this organisation's keys, so the journey never
+ * touches the demo organisation's documents; it can run again, since an approved shred leaves no
+ * request open. Local testing only, with HARBOUR_DEMO_E2E_PASSKEY=1. Invented names and
+ * example.invalid addresses; no people.
+ */
+const CLOSING = {
+  tenantId: "0194f200-0000-7000-8000-000000000001",
+  locationId: "0194f200-0000-7000-8000-000000000101",
+  roleId: "0194f200-0000-7000-8000-000000000401",
+  members: [
+    {
+      holder: "closing" as const,
+      id: "0194f200-0000-7000-8000-000000000301",
+      email: "closing.owner@example.invalid",
+      name: "Cass Closing",
+    },
+    {
+      holder: "closingRecords" as const,
+      id: "0194f200-0000-7000-8000-000000000302",
+      email: "closing.records@example.invalid",
+      name: "Remy Records",
+    },
+  ],
 } as const;
 
 /**
@@ -210,6 +240,77 @@ async function seedStarterOrganisation(): Promise<string> {
     client.release();
   }
   return authUserId;
+}
+
+/** The closing organisation and its two members; rerunnable. Returns each member's sign-in. */
+async function seedClosingOrganisation(): Promise<[PasskeyHolder, string][]> {
+  const signIns: [PasskeyHolder, string][] = [];
+  for (const member of CLOSING.members) {
+    try {
+      await services.auth.api.signUpEmail({
+        body: { email: member.email, password, name: member.name },
+      });
+    } catch {
+      // Already there from an earlier run.
+    }
+    const { rows } = await services.authPool.query<{ id: string }>(
+      "UPDATE auth.user SET email_verified = true WHERE email = $1 RETURNING id",
+      [member.email],
+    );
+    const authUserId = rows[0]?.id;
+    if (!authUserId) throw new Error(`Could not create or find ${member.holder}`);
+    signIns.push([member.holder, authUserId]);
+  }
+  const client = await owner.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [CLOSING.tenantId],
+    );
+    await client.query(
+      `INSERT INTO tenant (id, name, legal_name, legal_form, status)
+       VALUES ($1, 'Closing Example Care', 'Closing Example Care Ltd', 'limited_company', 'active')
+       ON CONFLICT (id) DO NOTHING`,
+      [CLOSING.tenantId],
+    );
+    await client.query(
+      "INSERT INTO location (id, name) VALUES ($1, 'Closing House') ON CONFLICT (id) DO NOTHING",
+      [CLOSING.locationId],
+    );
+    await client.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ($1, 'closing_records', 'Records lead', 'tenant',
+               '{platform.retention.manage,platform.export.create}')
+       ON CONFLICT (id) DO NOTHING`,
+      [CLOSING.roleId],
+    );
+    for (const [index, member] of CLOSING.members.entries()) {
+      await client.query(
+        `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status, mfa_required)
+         VALUES ($1, $2, $3, $4, 'active', false)
+         ON CONFLICT (id) DO UPDATE SET auth_user_id = EXCLUDED.auth_user_id`,
+        [member.id, signIns[index]?.[1], member.name, member.email],
+      );
+      await client.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, reason)
+         SELECT $1, $2, 'Demo seed'
+          WHERE NOT EXISTS (SELECT 1 FROM role_assignment WHERE tenant_user_id = $1)`,
+        [member.id, CLOSING.roleId],
+      );
+    }
+    const first = CLOSING.members[0].id;
+    await client.query(
+      `INSERT INTO tenant_export (kind, status, requested_by, ready_at, downloaded_at, downloaded_by)
+       VALUES ('full', 'expired', $1, now(), now(), $1)`,
+      [first],
+    );
+    await client.query("COMMIT");
+    console.log("Closing Example Care is in place for the shred journey");
+  } finally {
+    client.release();
+  }
+  return signIns;
 }
 
 /**
@@ -405,6 +506,7 @@ try {
   if (process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
     passkeyHolders.push(["family", await seedFamilyMember()]);
     passkeyHolders.push(["starter", await seedStarterOrganisation()]);
+    passkeyHolders.push(...(await seedClosingOrganisation()));
     await seedSharedCoordinator();
   }
   for (const [key, authUserId] of passkeyHolders) {
@@ -461,6 +563,30 @@ try {
                    'no_known_allergies', now() - interval '9 years')
            ON CONFLICT (id) DO NOTHING`,
           [MEWS_LEFT, MEWS_LOCATION],
+        );
+      }
+      // A morphine entry on Frank Dummy's MAR with dm+d's controlled drug schedule (slice 10
+      // sets it from dm+d; the API does not yet), for the controlled drugs register journey
+      // (medicines.md section 15). End-to-end only; invented, rerunnable.
+      if (process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
+        const morphine = "0194d000-0000-7000-8900-000000000001";
+        const frank = "0194d000-0000-7000-8600-000000000006";
+        await client.query(
+          `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+             route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+             source_reference, transcribed_by, transcribed_at, cd_schedule)
+           VALUES ($1, $2, $1, 1, 'transcribed', '90000081000001109', 'Morphine sulfate 10mg tablets',
+             '26643006', 'Oral', 'regular', 'every_day', 'Dr A Example', now(), 'prescription',
+             'Prescription (demo)', $3, now(), '2')
+           ON CONFLICT (id) DO NOTHING`,
+          [morphine, frank, DEMO.users.manager.id],
+        );
+        await client.query(
+          `INSERT INTO medication_schedule (medication_id, person_id, position, time, dose_kind,
+             quantity, unit_code, unit_name)
+           SELECT $1, $2, 0, '22:00', 'amount', 1, '428673006', 'tablet'
+            WHERE NOT EXISTS (SELECT 1 FROM medication_schedule WHERE medication_id = $1)`,
+          [morphine, frank],
         );
       }
       await client.query("COMMIT");

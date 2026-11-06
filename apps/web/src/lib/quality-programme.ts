@@ -16,7 +16,7 @@ import type { FieldErrors } from "./outcome";
 import { readDateField } from "./uk-time";
 
 /**
- * The compliance framework, evidence library and audit programme screens (quality.md section 20;
+ * The compliance framework, evidence library and audit programme screens (quality.md section 21;
  * QUAL-001, QUAL-002, QUAL-004). Pure helpers: who sees what, statuses as an icon and a word,
  * and reading the forms into the API's bodies. The API checks every rule again.
  */

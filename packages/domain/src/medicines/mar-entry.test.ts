@@ -17,6 +17,7 @@ import {
   type ChangeMeta,
   changeMarEntry,
   checkMarEntryDraft,
+  IMPORT_UNDONE_REASON,
   lastDueDose,
   MAR_ENTRY_NOTICES,
   type MarEntry,
@@ -150,7 +151,7 @@ describe("a MAR entry is a dm+d product with structured doses and its source doc
         directions: {
           kind: "when_required",
           dose: { kind: "amount", quantity: 10, unit: UNIT.ml },
-          maxQuantityPer24Hours: null,
+          maxQuantityPer24Hours: 40,
         },
         minimumIntervalMinutes: 240,
       },
@@ -210,7 +211,7 @@ describe("a MAR entry is a dm+d product with structured doses and its source doc
   });
 });
 
-describe("hazard HZ-004 a when-required entry states a minimum interval or a 24-hour maximum at transcription", () => {
+describe("hazard HZ-004 a when-required entry states its 24-hour maximum at transcription", () => {
   const noMax = { ...prn, maxQuantityPer24Hours: null };
   it.each<[string, Partial<MarEntryDraft>, MarEntryProblem[]]>([
     [
@@ -218,7 +219,12 @@ describe("hazard HZ-004 a when-required entry states a minimum interval or a 24-
       { directions: noMax },
       ["prn_limit_required"],
     ],
-    ["a minimum interval only", { directions: noMax, minimumIntervalMinutes: 240 }, []],
+    // An interval can be overridden with a reason and caps no daily total (batch 3b clinical review).
+    [
+      "a minimum interval only",
+      { directions: noMax, minimumIntervalMinutes: 240 },
+      ["prn_limit_required"],
+    ],
     ["a 24-hour maximum only", { directions: prn }, []],
     ["both", { directions: prn, minimumIntervalMinutes: 240 }, []],
     ["neither, for a regular medicine (its times are its limit)", {}, []],
@@ -250,8 +256,36 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
       });
       if (result.ok)
         expect(marEntryStatus(result.entry, inForce, "give_with_notice").words).toBe(
-          "Not yet checked",
+          origin === "import" ? "Imported, not yet checked" : "Not yet checked",
         );
+    },
+  );
+
+  it.each<[string, "give_with_notice" | "hold_until_checked", boolean]>([
+    ["a transcribed entry, give with notice", "give_with_notice", true],
+    ["a transcribed entry, hold until checked", "hold_until_checked", false],
+  ])("H-548: %s may be given: %s", (_name, policy, mayGive) => {
+    const result = transcribeMarEntry(draft(), TABLET_FACTS, { ...newMeta, id: "entry-10" });
+    if (!result.ok) throw new Error("not transcribed");
+    expect(marEntryStatus(result.entry, inForce, policy).mayGive).toBe(mayGive);
+  });
+
+  it.each(["give_with_notice", "hold_until_checked"] as const)(
+    "hazard HZ-005 an imported or scanned entry is never givable before its second check (%s)",
+    (policy) => {
+      const result = transcribeMarEntry(draft(), TABLET_FACTS, {
+        ...newMeta,
+        id: "entry-import",
+        origin: "import",
+      });
+      if (!result.ok) throw new Error("not transcribed");
+      expect(marEntryStatus(result.entry, inForce, policy)).toEqual({
+        words: "Imported, not yet checked",
+        mayGive: false,
+        notice: MAR_ENTRY_NOTICES.importedHold,
+      });
+      const imported = { ...checked(), origin: "import" as const };
+      expect(marEntryStatus(imported, inForce, policy).mayGive).toBe(true);
     },
   );
 
@@ -267,6 +301,48 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
     expect(marEntryStatus(e, inForce, "hold_until_checked")).toEqual({
       words: "Checked",
       mayGive: true,
+      notice: null,
+    });
+  });
+
+  it.each(["give_with_notice", "hold_until_checked"] as const)(
+    "H-548: a change to an imported entry nobody has checked is still imported and never given (policy %s)",
+    (policy) => {
+      const imported = transcribeMarEntry(draft(), TABLET_FACTS, {
+        ...newMeta,
+        id: "entry-12",
+        origin: "import",
+      });
+      if (!imported.ok) throw new Error("not transcribed");
+      const result = changeMarEntry(
+        [imported.entry],
+        draft({ startsAt: midnight(6), directions: prn }),
+        TABLET_FACTS,
+        meta(at(5, 10)),
+      );
+      if (!result.ok) throw new Error(result.issues.map((i) => i.message).join(" "));
+      expect(result.next.origin).toBe("import");
+      expect(marEntryStatus(result.next, at(6, 9), policy)).toMatchObject({
+        words: "Imported, not yet checked",
+        mayGive: false,
+      });
+    },
+  );
+
+  it("an import undone reads as withdrawn by the undo, never as before it started", () => {
+    const imported = transcribeMarEntry(draft(), TABLET_FACTS, {
+      ...newMeta,
+      id: "entry-13",
+      origin: "import",
+    });
+    if (!imported.ok) throw new Error("not transcribed");
+    const undone = {
+      ...imported.entry,
+      withdrawn: { by: TRANSCRIBER, at: checkedAt, reason: IMPORT_UNDONE_REASON },
+    };
+    expect(marEntryStatus(undone, inForce, "give_with_notice")).toEqual({
+      words: "Withdrawn: the import that added it was undone",
+      mayGive: false,
       notice: null,
     });
   });

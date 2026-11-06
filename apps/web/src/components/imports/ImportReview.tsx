@@ -7,7 +7,15 @@ import type {
   ImportRecordType,
 } from "@harbour/contracts";
 import { Button, Card, Checkbox, Sheet, SheetClose } from "@harbour/ui";
-import { CircleAlert, ListChecks, Trash2, TriangleAlert, Undo2, Upload } from "lucide-react";
+import {
+  CircleAlert,
+  CircleCheck,
+  ListChecks,
+  Trash2,
+  TriangleAlert,
+  Undo2,
+  Upload,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState, useTransition } from "react";
@@ -89,6 +97,49 @@ function Rows({ kind, rows }: { readonly kind: string; readonly rows: readonly n
   );
 }
 
+/** How many rows of a list are shown at most, as the errors are (IMPORT_REPORT_MAX_ITEMS). */
+const MAX_ROWS_LISTED = 500;
+
+/**
+ * What happens to each row (rule 31): a count of the rows that will be added and those that will
+ * not, then only the rows that will not, capped, each in words with an icon (never colour alone).
+ */
+function RowOutcomes({
+  outcomes,
+  idPrefix,
+}: {
+  readonly outcomes: readonly { readonly row: number; readonly outcome: "creates" | "refused" }[];
+  readonly idPrefix: string;
+}) {
+  const refused = outcomes.filter((r) => r.outcome === "refused");
+  const creates = outcomes.length - refused.length;
+  return (
+    <section aria-labelledby={`${idPrefix}-rows`} className="flex flex-col gap-2">
+      <h3 id={`${idPrefix}-rows`} className="m-0 text-body font-semibold">
+        {t("import.report.rowsTitle")}
+      </h3>
+      <p className="m-0 flex items-center gap-2">
+        {refused.length > 0 ? (
+          <CircleAlert {...icon} className="shrink-0" />
+        ) : (
+          <CircleCheck {...icon} className="shrink-0" />
+        )}
+        {t("import.report.rowsSummary", { creates, refused: refused.length })}
+      </p>
+      {refused.length > 0 ? (
+        <ul className="m-0 flex flex-col gap-1 pl-5">
+          {refused.slice(0, MAX_ROWS_LISTED).map((r) => (
+            <li key={r.row}>{t("import.report.row", { row: r.row })}</li>
+          ))}
+        </ul>
+      ) : null}
+      {refused.length > MAX_ROWS_LISTED ? (
+        <p className="m-0">{t("import.report.rowsTruncated", { count: MAX_ROWS_LISTED })}</p>
+      ) : null}
+    </section>
+  );
+}
+
 /** The dry run's report: counts, what committing does, errors and the warnings to acknowledge. */
 function Report({
   report,
@@ -127,7 +178,7 @@ function Report({
       </p>
       <section aria-labelledby={`${idPrefix}-what`} className="flex flex-col gap-2">
         <h3 id={`${idPrefix}-what`} className="m-0 text-body font-semibold">
-          {t("import.report.whatHappens")}
+          {t("import.report.whatHappens", { type: recordType })}
         </h3>
         <ul className="m-0 flex max-w-prose flex-col gap-2 pl-5">
           {report.whatHappens.map((words) => (
@@ -155,6 +206,9 @@ function Report({
           </ul>
           {report.truncated ? <p className="m-0">{t("import.report.truncated")}</p> : null}
         </section>
+      ) : null}
+      {report.rowOutcomes && report.rowOutcomes.length > 0 ? (
+        <RowOutcomes outcomes={report.rowOutcomes} idPrefix={idPrefix} />
       ) : null}
       {report.warnings.length > 0 ? (
         <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
@@ -191,29 +245,37 @@ function Report({
         </fieldset>
       ) : null}
       {report.recordMatchesCapped ? <p className="m-0">{t("import.report.capped")}</p> : null}
-      <section aria-labelledby={`${idPrefix}-allergy`} className="flex flex-col gap-2">
-        <h3 id={`${idPrefix}-allergy`} className="m-0 text-body font-semibold">
-          {t("import.report.allergyTitle")}
-        </h3>
-        <p className="m-0 max-w-prose">{t("import.report.allergyAbout")}</p>
-        <ul className="m-0 flex flex-col gap-1 pl-5">
-          <Rows kind="nka" rows={report.noKnownAllergiesStatedRows} />
-          <Rows kind="has" rows={report.hasAllergiesStatedRows} />
-          <Rows kind="blank" rows={report.allergyStatusNotStatedRows} />
-        </ul>
-      </section>
+      {recordType !== "people" ? null : (
+        <section aria-labelledby={`${idPrefix}-allergy`} className="flex flex-col gap-2">
+          <h3 id={`${idPrefix}-allergy`} className="m-0 text-body font-semibold">
+            {t("import.report.allergyTitle")}
+          </h3>
+          <p className="m-0 max-w-prose">{t("import.report.allergyAbout")}</p>
+          <ul className="m-0 flex flex-col gap-1 pl-5">
+            <Rows kind="nka" rows={report.noKnownAllergiesStatedRows} />
+            <Rows kind="has" rows={report.hasAllergiesStatedRows} />
+            <Rows kind="blank" rows={report.allergyStatusNotStatedRows} />
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
 
 /** After the commit: the allergy status checks it raised, each person and task linked (HZ-007). */
-export function CommitDone({ result }: { readonly result: ImportCommitResult }) {
+export function CommitDone({
+  result,
+  recordType,
+}: {
+  readonly result: ImportCommitResult;
+  readonly recordType: ImportRecordType;
+}) {
   return (
-    <Card as="section" title={t("import.commit.doneTitle")} headingLevel={2}>
+    <Card as="section" title={t("import.commit.doneTitle", { type: recordType })} headingLevel={2}>
       <div className="flex flex-col gap-3">
         <p className="m-0 flex items-center gap-2">
           <ListChecks {...icon} className="shrink-0" />
-          {t("import.commit.done", { records: result.records })}
+          {t("import.commit.done", { type: recordType, records: result.records })}
         </p>
         {result.allergyStatusToConfirm.length > 0 ? (
           <section aria-labelledby="import-allergy-tasks" className="flex flex-col gap-2">
@@ -260,7 +322,7 @@ export function ImportSteps({ batch }: { readonly batch: ImportBatch }) {
 
   // Kept across the refresh after committing (the page renders this component in every state), so
   // the allergy status checks stay listed once the batch reads as committed.
-  if (committed) return <CommitDone result={committed} />;
+  if (committed) return <CommitDone result={committed} recordType={batch.recordType} />;
   if (batch.status !== "staged") return null;
 
   const runCheck = () =>
@@ -376,7 +438,10 @@ export function ImportSteps({ batch }: { readonly batch: ImportBatch }) {
                   <Button type="submit" icon={<Upload {...icon} />} disabled={commit.pending}>
                     {commit.pending
                       ? t("import.commit.sending")
-                      : t("import.commit.submit", { rows: report.validRows })}
+                      : t("import.commit.submit", {
+                          type: batch.recordType,
+                          rows: report.createsCount ?? report.validRows,
+                        })}
                   </Button>
                 </div>
               </div>

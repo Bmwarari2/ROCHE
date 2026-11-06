@@ -185,6 +185,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | mortality_review.due_days | 28 | days | 2000-01-01 | - | all | Tenant target: no statutory figure for care providers (H-590) | to-verify |
 | missing_person.police_call_minutes | 30 | minutes | 2000-01-01 | - | all | Tenant target: the tenant's missing person policy and risk assessment; call at once when they say so (H-591) | to-verify |
 | herbert_protocol.review_months | 6 | months | 2000-01-01 | - | all | Tenant target: the Herbert Protocol forms ask for regular updates but set no interval (H-591) | to-verify |
+| herbert_protocol.prepare_due_days | 7 | days | 2000-01-01 | - | all | Harbour default (H-773, recommended answer applied 31/10/2026; HZ-127): a prompt to prepare a Herbert Protocol profile with the person or their representative is due this many days after it is raised, so it is prompted, never forced; tenant default; CSO to confirm | to-verify |
 | ahra.response_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5) (40 days) and the Northern Ireland Order 1993 | to-verify |
 | ahra.recent_record_response_days | 21 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) (21 days where the record was made in the 40 days before the application) | to-verify |
 | ahra.recent_record_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) | to-verify |
@@ -257,6 +258,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
 | people.return_checks_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour default for the checks after a return from hospital (people.md rule 10): each check is a task due this many hours after the return, escalated by the task engine when overdue; no published figure; CSO to confirm (H-85); tenant default | to-verify |
+| sharing.decision_max_months | 12 | months | 2000-01-01 | - | all | Harbour default: the longest a sharing decision may last before it is renewed at review, or less where the authority it rests on ends sooner (people.md rule 13; recommended answer to H-38, 31/10/2026; UK GDPR Art 5(1)(c) and (e); no statutory figure); tenant default | to-verify |
 | exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
 | downtime_pack.valid_hours | 36 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 36 hours from its information's time, longer than the nightly interval so one failed night does not leave a home with only an out-of-date pack (master prompt 13.4 "nightly"); tenant default; CSO to confirm (H-101) | to-verify |
 | downtime_pack.requests_per_hour | 30 | count | 2000-01-01 | - | all | Harbour security policy default, not a statutory figure: a member opens, prints or builds downtime packs at most 30 times an hour, as each is a whole-home record (operations.md section 12; #45 review round 1); tenant default | to-verify |
@@ -310,6 +312,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | medicines.paracetamol.min_interval_hours | 4 | hours | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
 | medicines.bisphosphonate.before_food_minutes | 30 | minutes | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
 | medicines.review_interval_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2 (annual medication review) | master-prompt |
+| medicines.review_due_soon_days | 28 | days | 2000-01-01 | - | all | Harbour default (medicines.md section 14.2, to verify): how soon before a medication review is due the tracker shows it as due soon; tenant default (H-1293) | to-verify |
+| medicines.report_max_days | 366 | days | 2000-01-01 | - | all | Harbour default (medicines.md section 14.3, to verify): the longest period one medicines report covers, so a single request never reads every record of a home; tenant default (H-1296) | to-verify |
 | medicines.ordering_cycle_days | 28 | days | 2000-01-01 | - | all | master prompt 10.2 | master-prompt |
 | medicines.fridge_min_celsius | 2 | celsius | 2000-01-01 | - | all | master prompt 10.2 | master-prompt |
 | medicines.fridge_max_celsius | 8 | celsius | 2000-01-01 | - | all | master prompt 10.2 | master-prompt |
@@ -321,8 +325,16 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | medicines.prn.outcome_check_minutes | 60 | minutes | 2000-01-01 | - | all | Harbour default: when the outcome of a when-required dose falls due (medicines.md rule 20; CQC when-required medicines asks that the outcome is recorded, with no time); tenant default; CSO to confirm (H-555) | to-verify |
 | medicines.cd.stock_check_interval_days | 7 | days | 2000-01-01 | - | all | Harbour default: how often a controlled drugs register page is due a stock check (medicines.md rule 24; CQC controlled drugs in care homes asks for regular checks, with no interval); tenant default; CSO and pharmacist to confirm (H-556) | to-verify |
 | medicines.record_delay_tolerance_minutes | 30 | minutes | 2000-01-01 | - | all | Harbour default: how long after a dose a carer may record it on the round as an ordinary record (carers routinely record 10 to 20 minutes after a round); one dated further back goes by the flagged route for a dose given before it was recorded, and every rule is still judged at the dose's own time (medicines.md rule 17; HZ-004; #162 clinical review); no published figure; tenant default; CSO to confirm (H-1067) | to-verify |
+| medicines.cd.witness_assertion_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour default: how long a controlled drugs witness's signed assertion of what they witnessed stays usable by the recorder's entry (medicines.md 14.2; ADR-0084); short, so a signature is made at the time; no published figure; tenant default; CSO to confirm (H-1201) | to-verify |
 | medicines.competence_override.max_hours | 12 | hours | 2000-01-01 | - | all | Harbour default: the longest a manager's override of expired medicines competence may last, one shift (medicines.md rule 22; ADR-0085 default; HZ-119); policy value, not statutory; CSO to confirm (H-557) | to-verify |
 | medicines.dmd.stale_after_days | 35 | days | 2000-01-01 | - | all | Harbour default (integrations.md section 12 rule 5, ADR-0080, HZ-113): every dm+d search and lookup says the release in use is out of date once it is older than this many days; the refresh is monthly (master prompt 15.3); a national figure, never overridden by a tenant; no published figure | to-verify |
+| medicines.order.prompt_days_before | 7 | days | 2000-01-01 | - | all | Harbour default: how many days before a location's 28-day cycle starts the "medicines order due" task is raised (medicines.md section 15 rule 6); no published figure; tenant default; CSO and pharmacist to confirm (H-1324) | to-verify |
+| medicines.disposal.witness_required | 1 | flag | 2000-01-01 | - | all | Harbour default: 1 when a disposal of a person's medicine must be witnessed by a second member, 0 when the organisation's policy allows a recorded reason instead (medicines.md section 15 rule 5; NICE SC1 asks for a policy on disposal); tenant default; CSO to confirm (H-1326) | to-verify |
+| medicines.covert.review_max_days | 90 | days | 2000-01-01 | - | all | Harbour default (medicines.md section 15.1, to verify): the longest a covert administration record may run before its review with the prescriber and pharmacist (NICE SC1 (2014) 1.15 asks for regular review but sets no interval); tenant default (H-1352) | to-verify |
+| medicines.self_admin.review_max_days | 182 | days | 2000-01-01 | - | all | Harbour default (medicines.md section 15.2, to verify): the longest before a self-administration assessment is reviewed (NICE SC1 (2014) 1.13 sets no interval); tenant default (H-1353) | to-verify |
+| medicines.homely_remedy.max_days_ceiling | 3 | days | 2000-01-01 | - | all | Harbour default (medicines.md section 15.3, to verify): the most days a home's protocol may allow a course before the person's GP is asked; a protocol sets its own days within it; tenant default (H-1355) | to-verify |
+| medicines.homely_remedy.review_max_days | 365 | days | 2000-01-01 | - | all | Harbour default (medicines.md section 15.3, to verify): the longest before a homely remedy protocol is reviewed with the GP or pharmacist; tenant default (H-1355) | to-verify |
+| medicines.homely_remedy.course_gap_hours | 24 | hours | 2000-01-01 | - | all | Harbour default (medicines.md section 15.3, to verify): a gap between homely remedy doses longer than this starts a new course for counting the days before the GP is asked; tenant default (H-1355) | to-verify |
 | loler.examination_months | 6 | months | 1998-12-05 | - | uk | master prompt 13.4 (hoists, slings and passenger lifts) | master-prompt |
 | gas_safety.check_months | 12 | months | 2000-01-01 | - | uk | master prompt 13.4 | master-prompt |
 | electrical.fixed_inspection_years | 5 | years | 2000-01-01 | - | uk | master prompt 13.4 (about every 5 years) | master-prompt |
@@ -375,6 +387,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
 
 ## Notes on to-verify items
 
+- `sharing.decision_max_months` (12): every decision to share a person's record with a family
+  member, representative, professional or link ends within this many months of its start, and no
+  later than the end date of the legal authority it rests on, and is renewed at review (H-38). A
+  Harbour default with no statutory figure; a tenant may set a shorter period. The DPO confirms it
+  at the testing phase.
 - `dp_complaint.acknowledge_target_working_days` (3), `dp_complaint.update_interval_months` (1),
   `dsar.due_soon_days` (7) and `import.undo_window_days` (7): Harbour defaults with no statutory
   figure (Phase 2 slice 9). The Act sets only the 30-day acknowledgement and "keep informed"; the

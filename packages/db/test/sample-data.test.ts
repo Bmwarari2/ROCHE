@@ -395,6 +395,9 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
 // Data security evidence (migration 0094) refers only to organisation documents, never a person's
 // (the API refuses one), so it never holds up a removal in practice; listed so a document it cites
 // is never removed with a sample.
+// disclosure (migration 0103). A signature request (migration 0133) is only ever for an
+// organisation document, never a person's (the API refuses one), so like data security evidence it
+// never holds up a removal in practice; listed so a document it names is never removed with a sample.
 const BLOCKS_REMOVAL = [
   "complaint",
   "compliment",
@@ -411,6 +414,9 @@ const BLOCKS_REMOVAL = [
   "outbreak",
   "policy_version",
   "security_certificate",
+  // The organisation's staff privacy notice is one of its own documents (H-940), never sample data.
+  "tenant",
+  "signature_request",
 ];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {

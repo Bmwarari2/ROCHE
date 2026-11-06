@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ComplianceItemKind, RegistrationBody } from "./workforce";
 
 /**
- * Applicant tracking (workforce.md section 2b, rules 11 to 13 and section 5; WORK-001; plan
+ * Applicant tracking (workforce.md section 2c, rules 11 to 13 and section 5; WORK-001; plan
  * slice 23). Dates are UK dates (yyyy-mm-dd). Codes mirror packages/domain
  * (`workforce/recruitment.ts`).
  */

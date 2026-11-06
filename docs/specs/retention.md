@@ -40,10 +40,12 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | riddor_report | 3 | years | created | RIDDOR 2013 (statutory minimum); master prompt 5.1 | The RIDDOR record and submission evidence. The underlying incident keeps its own (longer) class. |
 | staff_file.after_leaving | 6 | years | employment_ended_or_75th_birthday | NHS Records Management Code of Practice; master prompt 5.1, 12 | Tenant option: 6 years after employment ends. The tenant selects this row or the next one for all staff files. |
 | staff_file.to_75th_birthday | 0 | years | employment_ended_or_75th_birthday | NHS Records Management Code of Practice; master prompt 5.1, 12 | Default option (section 12 rules say staff files to the 75th birthday): kept until the person's 75th birthday, so the period after that trigger is 0. Never destroyed before employment has ended. |
+| casework_no_sanction | 6 | years | record_closed | Limitation Act 1980 s 5 (six-year period for contract claims); ICO employment practices guidance; H-806 recommended answer, 31/10/2026 | Employee relations cases that ended without a sanction, dismissal or referral and concerned no safeguarding: grievances, cases with no case to answer and withdrawn cases. Counted from the case's closing date (record_closed). Set by the database as the case closes; subject to legal hold. Reviewed at testing. |
 | right_to_work_copy | 2 | years | record_closed | https://www.gov.uk/check-job-applicant-right-to-work (statutory guidance); master prompt 12.1 | Copies of right-to-work documents and check results, kept during employment and for 2 years after it ends (record_closed is the employment end date). |
 | sickness_absence | 6 | years | record_closed | Limitation Act 1980 s 5 (contract claims); HMRC guidance on keeping sick pay records; master prompt 5.1, 12 | Sickness absences, fit notes, return to work records and SSP workings, counted from the end of the absence. Health data: special category (H-973). |
 | applicant.unsuccessful | 6 | months | record_closed | ICO Employment Practices Code, recruitment and selection (keep only as long as needed to answer a claim); Equality Act 2010 s.123 (six-month claim window for most claims, plus early conciliation); master prompt 12.1 | Applicants whose last application closed without being hired: their details, applications, stage history, interviews and offers. Counted from the closing date of their last application (record_closed). Equality monitoring forms follow it from the vacancy's closing date. A hired applicant's record follows the staff file instead. Harbour default for the DPO to confirm (H-732). |
 | applicant.talent_pool | 12 | months | created | UK GDPR Art 6(1)(a) and 7 (consent, withdrawable at any time); Art 5(1)(e); master prompt 12.1 | The talent pool: an applicant who agreed is kept until 12 months after the consent was recorded (created), or until they withdraw it, if later than their applicant.unsuccessful date. Harbour default for the DPO to confirm (H-732). |
+| sponsor_record | 2 | years | record_closed | Home Office workers and temporary workers guidance for sponsors, part 3 and Appendix D (record keeping; verify, H-901, which supersedes the 1 year of the recommended answer to H-525); master prompt 12.1 | Sponsored worker records, absence monitoring and reportable changes. Kept for a year after sponsorship ends (verify) and never less than the 2 years after employment ends kept for right to work copies, whichever is later. Sponsorship never outlasts the employment, so the period counts 2 years from record_closed, the later of the two end dates. An adviser checks Appendix D at testing, including National Insurance number and payslip evidence. Recommended answer applied 31/10/2026 (review at testing). |
 | training_record | 10 | years | created | Master prompt 5.1 | From the date the training or competence sign-off was completed. |
 | staff_wellbeing | 2 | years | created | Harbour default (scheduling.md section 20); no statutory period | Pulse surveys and who took part, anonymous survey responses, recognition notes and wellbeing check-ins: kept 2 years from when they were made (a survey from when it closed), then destroyed; survey results already shown are not kept apart from the responses. DPO to confirm (H-1082). |
 | rota_and_timesheet | 6 | years | created | National Minimum Wage record-keeping; master prompt 5.1, 12 | Rotas, timesheets, clock-in events, sleep-in and travel-time records, pay calculations with their inputs. Counted from the end of the pay reference period. |
@@ -58,19 +60,33 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | cctv | 0 | months | tenant_policy | Master prompt 5.1 (CCTV per the tenant's policy); ICO CCTV guidance | No product default. The tenant sets the period in its CCTV policy and DPIA (starter template in 11.2) before any CCTV still or clip is attached to a record. |
 | audit_event | 8 | years | created | NHS Records Management Code of Practice (record-keeping evidence); master prompt 5.3, 5.5 | Default for every audit event (logins, permission changes, exports, views, sync). Chosen so the audit trail supports a care record for its full Records Code period, well above the 6-month security-log minimum in section 5.3. |
 | audit_event.care_record | 8 | years | care_ended | NHS Records Management Code of Practice; master prompt 5.5 | Audit events about a person's record are kept at least as long as that record (longest period wins), so the history view and signed exports for inspectors, coroners and courts stay complete. |
-| security_log | 6 | months | created | Master prompt 5.3; NCSC logging guidance | Floor for security logs outside `audit_event` (authentication service, Cloud Armor and the load balancer, infrastructure). In production they sit in a locked Cloud Logging bucket in europe-west2, kept 400 days by default ([ADR-0098](../decisions/0098-production-on-google-cloud.md)). Logs carry opaque IDs only, never personal data. |
+| security_log | 6 | months | created | Master prompt 5.3; NCSC logging guidance | Floor for security logs outside `audit_event` (authentication service, Cloud Armor and the load balancer, infrastructure), and the search audit events that showed no person receiving care, which carry `scope.retentionClass` `security_log` (recommended answer to H-121, 31/10/2026). In production they sit in a locked Cloud Logging bucket in europe-west2, kept 400 days by default ([ADR-0098](../decisions/0098-production-on-google-cloud.md)). Logs carry opaque IDs only, never personal data. |
 | ai_interaction_log | 12 | months | created | Master prompt 16.2 | Pseudonymised prompts, context sets, model and version, outputs and user actions from the AI gateway. |
 | dpia | 8 | years | record_closed | Interim: as audit_event (UK GDPR Art 5(2) and 35 accountability evidence); #81 security review | DPIA versions: the prefill, the organisation's answers, residual risks, the preparers and the signature bound to the version read. Counted from when a later signed version supersedes it (record_closed), so the DPIA in force is never offered for destruction. Interim period: the DPO sets it (H-115). |
 | invitation | 12 | months | created | Harbour default for data minimisation (UK GDPR Art 5(1)(c) and (e)); #43 review M4 | Invitations to join an organisation. The address is cleared as soon as the invitation is accepted, revoked or lapses (a nightly sweep), so a closed invitation holds opaque ids and times only; the audit trail keeps who was given access, by whom and when, for its own period. DPO to confirm (H-355). |
-| data_rights_case | 3 | years | record_closed | NHS Records Management Code of Practice 2023 (subject access requests and disclosure correspondence: 3 years after closure); ADR-0090 | Data subject requests (`dsar_case`, `dsar_item`): the request, identity check (how, never the document), clock dates, decisions and reasons per record, the outcome and the bundle's hash. Counted from the response or withdrawal (record_closed). The case holds table and record ids; the bundle as issued is kept in the exports bucket under `dsar/`, which the exports' 30-day expiry does not reach, and destroyed with the case. A case under complaint to the ICO or in litigation is kept longer by a legal hold. DPO to confirm (H-613). |
 | lone_worker | 3 | years | record_closed | Limitation Act 1980 s.11 (three years for a personal injury claim, as the basis for keeping the record of a lone worker's safety); Harbour default, slice 46 | Lone-working sessions, their check-in, help, duress and finish events, and their alarms with how each ended (`lone_worker_session`, `lone_worker_event`, `lone_worker_alarm`; [scheduling.md](scheduling.md) section 19). Counted from when the session finished (record_closed). An alarm that led to an incident is kept with that incident too, by the incident's own class (a serious incident's 20 years). Employee monitoring: never used to judge performance (H-527). DPO to confirm in the employee-monitoring DPIA (H-1033). |
+| speak_up_concern | 6 | years | record_closed | Limitation Act 1980 (six years for claims; a whistleblowing detriment claim reaches the employment tribunal much sooner); verify against the NHS Records Management Code of Practice 2023 | Speak-up concerns, their messages, reporters and case members (`speak_up_concern`, `speak_up_message`, `speak_up_reporter`, `speak_up_case_member`; ADR-0089). Counted from when the concern closed. A legal hold keeps any concern under a claim or tribunal. Replaces the 10 years borrowed from `complaint` (H-721, recommended answer applied 31/10/2026; DPO to confirm at testing). |
+| outbreak_staff_case | 3 | years | record_closed | RIDDOR 2013 regulation 12 (3 years) and the 3-year personal injury limitation period (Limitation Act 1980 s.11) | Staff rows on an outbreak's line list (`outbreak_case` of type `staff` or `staff_unnamed`), counted from the outbreak's closure. `care_record`'s trigger never fires for a member of staff, so staff rows needed their own class (H-767, recommended answer applied 31/10/2026). Residents' rows stay `care_record`. |
+| data_rights_case | 3 | years | record_closed | NHS Records Management Code of Practice 2023 (subject access requests and disclosure correspondence: 3 years after closure); ADR-0090 | Data subject requests (`dsar_case`, `dsar_item`): the request, identity check (how, never the document), clock dates, decisions and reasons per record, the outcome and the bundle's hash. Counted from the response or withdrawal (record_closed). The case holds table and record ids; the bundle as issued is kept in the exports bucket under `dsar/`, which the exports' 30-day expiry does not reach, and destroyed with the case. A case under complaint to the ICO or in litigation is kept longer by a legal hold. Data protection complaints (`dp_complaint`) and the disclosure log (slice 41) use this class too (recommended answers to H-525 and H-670, 31/10/2026). DPO to confirm (H-613). |
+| enquiry_not_assessed | 12 | months | record_closed | No statutory period (recommended answer to H-39, 31/10/2026; DPO reviews at testing, verify): the Local Government and Social Care Ombudsman's 12-month time limit (Local Government Act 1974 s.34D(4)); UK GDPR Art 5(1)(e) | An enquiry about a person that closed without a pre-admission assessment (the `person` row and its contacts while the person stays at `enquiry`), counted from when the enquiry closed. A legal hold while a complaint about it is open. |
+| pre_admission_not_admitted | 3 | years | record_closed | No statutory period (recommended answer to H-39, 31/10/2026; verify): Limitation Act 1980 s.11 (three years for personal injury), which also covers an Equality Act 2010 claim (s.118, six months) and the Ombudsman's 12 months | A pre-admission assessment and the decision not to admit (`pre_admission_assessment`, `admission_decision` and its conditions) of a person who was never admitted, counted from the decision not to admit or the withdrawal (record_closed). A person who is later admitted moves to care_record. A legal hold while a complaint is open. |
+| family_notification_delivery | 12 | months | created | Harbour default for data minimisation (UK GDPR Art 5(1)(c) and (e)); recommended answer to H-106, 31/10/2026 (verify) | Delivery logs of family notifications (address, template id, channel, status; never update content), counted from sending. Opt-outs and bounce suppressions are not in this class: they stay with the contact (care_record) for as long as the address is held, so an opted-out address is never sent to again, and are deleted with the contact. |
+| dp_breach | 6 | years | record_closed | Limitation Act 1980 ss.2 and 5 (six years, covering ICO action and UK GDPR Art 82 claims); recommended answer to H-670, 31/10/2026 (verify) | Breach register entries (`dp_breach`), Thapsus breach notices (`processor_breach_notice`) and their acknowledgements (`processor_breach_notice_ack`), counted from closure of the breach (for a notice, the breach it reports; with no register entry, its acknowledgement). Extended only by a legal hold while an ICO case or claim is open. |
+| whistleblowing | 6 | years | record_closed | Limitation Act 1980 ss.2 and 5 (six years for a claim); recommended answer to H-525, 31/10/2026 (verify) | Concerns raised under speaking up (slice 24), their messages and outcome, counted from closure. Replaces the interim `complaint` class (H-721) when slice 24 lands. |
+| medicines_stock_log | 2 | years | created | Misuse of Drugs Regulations 2001 reg 23 (two years, the controlled drugs register minimum, applied by analogy); recommended answer to H-525, 31/10/2026 (verify) | Medicines stock counts and receipts (Phase 2 eMAR), counted from the entry. Controlled drug entries keep controlled_drugs_register; an administration keeps mar_chart (longest wins). |
+| medicines_disposal_log | 3 | years | created | Hazardous Waste (England and Wales) Regulations 2005 reg 49 (consignment notes kept three years); recommended answer to H-525, 31/10/2026 (verify) | Medicines disposal and returns, with the consignment note reference, counted from the entry. |
+| temperature_log | 2 | years | created | As medicines_stock_log (two years, by analogy with the controlled drugs register minimum); recommended answer to H-525, 31/10/2026 (verify) | Medicines fridge and room temperature readings, counted from the reading. Water system temperatures stay water_hygiene_record. |
+| quality_audit | 5 | years | record_closed | NHS Records Management Code of Practice 2023 (clinical audit records, 5 years); recommended answer to H-525, 31/10/2026 (verify) | Audits (slice 19): the audit, its answers, findings and actions, counted from completion. |
+| staff_survey_response | 12 | months | record_closed | Harbour default for data minimisation (UK GDPR Art 5(1)(c) and (e)); recommended answer to H-525, 31/10/2026 (verify) | Individual staff survey responses, counted from the survey's close. The results are kept as organisation_document. |
+| lone_worker_check_in | 3 | months | created | Harbour default for data minimisation (UK GDPR Art 5(1)(c) and (e); employee monitoring); recommended answer to H-525, 31/10/2026 (verify) | Routine lone-worker check-ins with no alert, counted from the check-in. A check-in an alert or incident attaches to is kept with that alert or incident under its own class. |
+| payroll_export | 6 | years | created | National Minimum Wage Regulations 2015 reg 59 (six years from the end of the pay reference period); recommended answer to H-525, 31/10/2026 | The record of each payroll export (who, when, period, counts, file hash), counted from the end of the pay reference period. The export file itself is deleted when its link expires and is never kept as a record. |
 
 ## Mapping of Phase 0 and Phase 1 tables to record classes
 
 | Table or record | Record class |
 | --- | --- |
 | `person`, `contact`, `allergy`, `placement`, `about_me` | care_record |
-| `pre_admission_assessment`, `admission_decision`, `admission_condition`, `bed_occupancy`, `welcome_checklist_item`, `property_item`, `key_issue`, `care_plan_change`, `review_record`, `hospital_transfer`, `exit_record`, `exit_checklist_item`, `sharing_decision`, `about_me_share_link` ([people.md](people.md)) | care_record |
+| `pre_admission_assessment`, `admission_decision`, `admission_condition` of a person who is admitted, `bed_occupancy`, `welcome_checklist_item`, `property_item`, `key_issue`, `care_plan_change`, `review_record`, `hospital_transfer`, `exit_record`, `exit_checklist_item`, `sharing_decision`, `about_me_share_link` ([people.md](people.md)) | care_record |
 | `break_glass_event`, `break_glass_weekly_report` | audit_event |
 | `device_binding`, `device_session`, `device_discard_entry`, `handed_over_entry` (Care mode devices, the sessions bound to them, the entries their deletions listed and the entries hand-overs sent; [care.md](care.md) section 6) | audit_event |
 | `refused_entry` (the server copy of an entry the API refused from a device) | care_record |
@@ -79,24 +95,42 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `discard_reason`, `escalation_policy_link` (the organisation's coded deletion reasons and the escalation policy each validated tool's result links; [care.md](care.md) section 5) | tenant configuration, kept while current; each change kept in `record_version` and the audit trail |
 | `care_plan`, `care_plan_item`, `assessment`, `risk_assessment`, `care_note`, `observation` | care_record |
 | `consent_record`, `capacity_assessment`, `best_interests_decision`, `dols_authorisation`, `dols_legal_change_review` | care_record |
+| An enquiry that closed without an assessment; a pre-admission assessment, decision and conditions of a person never admitted (H-39) | enquiry_not_assessed; pre_admission_not_admitted |
 | `safeguarding_concern` (the safeguarding log; [safety.md](safety.md) "Safeguarding log"; DPO to confirm, H-596) | serious_incident |
 | `incident` with `retention_class` `care_record` (no notification applies), and its `incident_person`, `classifier_answer` and `investigation` rows | care_record |
 | `incident` with `retention_class` `serious_incident` (set once any notification applies), its people, answers, `candour_record` and `investigation`, and `statutory_notification` | serious_incident |
 | `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
+| `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_administration_conflict`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision`, `covert_medication_record`, `self_administration_assessment`, `homely_remedy_protocol`, `homely_remedy_administration` | mar_chart |
+| `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
+| `controlled_drug_page`, `controlled_drug_witness_assertion`, `controlled_drug_stock_check` | controlled_drugs_register |
+| `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
 | `outbreak` ([safety.md](safety.md) section 11) | serious_incident, as its UKHSA report |
-| `outbreak_case` | care_record for residents; staff cases follow it for now, to be confirmed by the DPO (H-767) |
+| `outbreak_case` | care_record for residents; outbreak_staff_case for staff, named or unnamed (H-767) |
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `medication`, `medication_schedule`, `medication_administration`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `medication_error` (slice 45; one per medication incident, kept with its incident) | serious_incident |
+| `medication_review` (slice 45) | mar_chart |
+| `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `medication`, `medication_schedule`, `medication_administration`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `outbreak` ([safety.md](safety.md) section 11) | serious_incident, as its UKHSA report |
+| `outbreak_case` | care_record for residents; staff cases follow it for now, to be confirmed by the DPO (H-767) |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item` | staff_file (tenant's chosen row) |
+| `vetting_consent`, `vetting_check` (identity and vetting adapters, slice 77; [workforce.md](workforce.md) section 2e) | staff_file (tenant's chosen row), as the staff file they belong to; a check's result holds no certificate content |
 | `induction_plan`, `staff_checklist_item`, `shadow_shift`, `probation_review`, `care_certificate_progress`, `leaver_record`, `reference_request` (induction and leavers, slice 29; [workforce.md](workforce.md) section 2d) | staff_file (tenant's chosen row), from the leaving date; `leaver_record.staff_file_retain_until` holds the date worked out when the leaving is recorded (rule 23; the birthday age is `retention.staff_file.birthday_age`, H-874, H-875) |
-| `employee_case`, `employee_case_member`, `employee_case_hearing`, `employee_case_event` (employee relations casework, slice 39; [workforce.md](workforce.md) section 2c) | staff_file (tenant's chosen row), from the end of the employment of the member of staff the case is about; a warning that has stopped counting (`warning_expires_on`) is kept as the record of the decision, never used again; a shorter period for some cases is open (H-806). A restricted silo: the retention engine's destruction batches reach it as the system, and its certificates carry ids only |
+| `employee_case`, `employee_case_member`, `employee_case_hearing`, `employee_case_event` (employee relations casework, slice 39; [workforce.md](workforce.md) section 2c) | staff_file (tenant's chosen row), from the end of the employment of the member of staff the case is about; a warning that has stopped counting (`warning_expires_on`) is kept as the record of the decision, never used again; a grievance, a case with no case to answer and a withdrawn case take `casework_no_sanction` (6 years after closure) instead, as the database sets `employee_case.retention_class` when the case closes (H-806, migration 0121); a case ending in a sanction, dismissal or referral, or concerning safeguarding, stays with the staff file. `casework_support_ticket` (H-804) follows the staff file. A restricted silo: the retention engine's destruction batches reach it as the system, and its certificates carry ids only |
+| `induction_plan`, `staff_checklist_item`, `shadow_shift`, `probation_review`, `care_certificate_progress`, `leaver_record`, `reference_request` (induction and leavers, slice 29; [workforce.md](workforce.md) section 2e) | staff_file (tenant's chosen row), from the leaving date; `leaver_record.staff_file_retain_until` holds the date worked out when the leaving is recorded (rule 23; the birthday age is `retention.staff_file.birthday_age`, H-874, H-875) |
+| `employee_case`, `employee_case_member`, `employee_case_hearing`, `employee_case_event` (employee relations casework, slice 39; [workforce.md](workforce.md) section 2d) | staff_file (tenant's chosen row), from the end of the employment of the member of staff the case is about; a warning that has stopped counting (`warning_expires_on`) is kept as the record of the decision, never used again; a shorter period for some cases is open (H-806). A restricted silo: the retention engine's destruction batches reach it as the system, and its certificates carry ids only |
 | `applicant`, `application`, `application_event`, `interview`, `job_offer` (slice 23) | applicant.unsuccessful, or applicant.talent_pool when later; a hired applicant's records follow the staff file |
 | `equality_monitoring` (slice 23) | applicant.unsuccessful, from the vacancy's closing date |
 | `job_template`, `vacancy` (slice 23) | organisation_document |
+| `controlled_drug_page`, `controlled_drug_witness_assertion`, `controlled_drug_stock_check` | controlled_drugs_register |
+| `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
 | `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
 | `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |
-| `sponsored_worker`, `sponsor_absence`, `sponsor_report`, `staff_privacy_acknowledgement`, `staff_image_consent`, `ldss_claim` (slice 35) | staff_file (tenant's chosen row); as Harbour reads the guidance for sponsors, sponsor records must be kept for at least a year after sponsorship ends, which the staff file rows outlast (to confirm, H-901) |
+| `sponsored_worker`, `sponsor_absence`, `sponsor_report` (slice 35) | sponsor_record (2 years after employment ends, never less than right to work copies; H-901 recommended answer, review at testing) |
+| `staff_privacy_acknowledgement`, `staff_image_consent`, `ldss_claim` (slice 35) | staff_file (tenant's chosen row) |
 | `training_record`, `competence` | training_record |
 | `competence_sign_off`, `competence_withdrawal`, `revalidation_evidence` (slice 17) | training_record |
 | `elearning_attempt`, `elearning_statement` (slice 43) | training_record |
@@ -118,6 +152,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `audit_event` | audit_event, extended by audit_event.care_record |
 | `document` | by category: photos, care attachments and documents about a person follow `care_record`; organisation documents `organisation_document` |
 | `document_signature` | the class of the signed document |
+| `signature_request` ([integrations.md](integrations.md) section 11, slice 79) | the class of the document asked to be signed (organisation documents: `organisation_document`) |
+| `ocr_extraction`, `ocr_field` ([integrations.md](integrations.md) section 11, slice 79) | care_record: the scanned MAR chart and the values a person decided from it are part of the person's medicines record, kept with the image document |
 | `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
 | `handover`, `handover_item`, `handover_note`, `handover_acknowledgement` ([care.md](care.md) rule 8) | care_record: a handover is a record of the care handed over at a location, kept as long as the care records it lists |
@@ -131,7 +167,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `dependency_assessment` (a person's dependency category) | care_record |
 | `letter` | `retention_class` per row: serious_incident for an incident or candour letter about an incident graded serious, otherwise care_record (`letterRetentionClass`; migration 0059) |
 | `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
-| `policy`, `policy_version` ([quality.md](quality.md) section 18) | organisation_document |
+| `policy`, `policy_version` ([quality.md](quality.md) section 19) | organisation_document |
 | `policy_signature` (read-and-sign records) | training_record (from signing; H-742) |
 | `quality_indicator_target` ([quality.md](quality.md) section 22) | organisation_document (no personal data) |
 | `task` of kind `quality.policy_read_and_sign` or `quality.policy_review` | as the policy version it concerns |
@@ -139,7 +175,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `feed_item`, `feed_item_withdrawal`, `visit_booking` ([comms.md](comms.md)) | care_record; photo updates and their photo documents stay care_record after photo consent is withdrawn (taken down from the feed, kept as the history of what was shared) |
 | `feed_view` (what a family member saw, under which decision) | audit_event.care_record |
 | `family_channel`, `family_notification_setting` | care_record, with the contact; push tokens are deleted when the device signs out, not retained |
-| `family_notification` and its deliveries | the class of the record they relate to (care_record) until the DPO sets a shorter period (H-106) |
+| `family_notification` and its deliveries | family_notification_delivery (12 months from sending; H-106); an opt-out or bounce suppression stays with the contact (care_record) |
 | `visit_booking_setting` | tenant configuration, kept while current |
 | `family_portal_user` | care_record, with the contact |
 | `location_visit_restriction` | care_record |
@@ -151,12 +187,16 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `sub_processor_response`, `tenant_setting_decision`, `retention_decision` | audit_event (interim: accountability evidence; H-115) |
 | `sub_processor_notice` (Thapsus's, the same for every organisation) | audit_event (kept while any response refers to it) |
 | Search audit events that showed people | audit_event.care_record: they record views of those people's care records, so they are kept as long as those records |
-| Other search audit events (staff, organisation documents, no results, refusals) | audit_event for now; whether they may use security_log is for the DPO (H-121) |
+| Other search audit events (staff, organisation documents, no results, refusals) | security_log (6 months; H-121): they record no view of a care record. Each event carries its class in `scope.retentionClass` (`searchAuditRetentionClass`) |
 | Break-glass search records (the typed reason) | audit_event, as other break-glass records |
 | Sample data load and removal events | audit_event; sample records themselves are removed on demand, never retained |
+| `dp_breach`, `processor_breach_notice`, `processor_breach_notice_ack` (slice 20, migration 0082) | dp_breach (6 years from closure of the breach; H-670) |
+| `dp_complaint` (slice 20) | data_rights_case (3 years from closure; H-670) |
+| The disclosure log (`disclosure_request`, `disclosure_item`; slice 41, migration 0103) | data_rights_case (3 years from closure), unless it belongs to a serious incident (serious_incident) (H-525). Built as serious_incident for every request: the table has no per-row class yet, so the longer period applies until one is added (follow-up) |
 | `import_batch`, `import_commit` (the import wizard's record of each upload and commit; [platform.md](platform.md) rules 18 to 26, ADR-0092) | audit_event: opaque ids, counts and times only |
 | `lone_worker_session`, `lone_worker_event`, `lone_worker_alarm` ([scheduling.md](scheduling.md) section 19; migration 0113) | lone_worker |
 | `lone_worker_location` (one point attached to one lone-worker event, only while the organisation's flag is on; H-527) | Not retained: the point is erased (its coordinates cleared, the row kept as proof of the erasure, holding nothing) by the per-minute sweep at `lone_worker.location_days` (30 days by default, rates.md) after it was captured; the shortest that lets an alarm be reviewed. The DPO confirms the period (H-1033) |
+| `speak_up_concern`, `speak_up_message`, `speak_up_reporter`, `speak_up_case_member` ([safety.md](safety.md), speaking up; ADR-0089) | speak_up_concern (H-721) |
 | `import_row` (an upload's staged rows in quarantine: personal data that is not yet anyone's record) | Not retained: deleted, every row of the batch, in the transaction that commits, discards or expires it, and at the latest within the hour after `import.staging_expiry_days` (7 days by default, rates.md) from upload, by the hourly expiry sweep; never exported. Committed rows live on as the records they became (`person`: care_record). The DPO confirms the period (H-681) |
 | People created by an import | care_record, as any person; an undo within `import.undo_window_days` removes them outright (they were never meant to be there), and the audit events about them keep the audit_event class |
 
@@ -166,27 +206,20 @@ These record types have no period in the master prompt, so no row exists yet. Ea
 spec decision (with its source) before its module ships; until then the engine treats them as the class
 of the record they attach to.
 
-- Enquiries and pre-admission assessments of people who are never admitted (Phase 1 people lifecycle;
-  human action H-39). Until a period is set they follow care_record, counted from the date the
-  enquiry closed.
-- Family notification delivery logs and channel opt-out and bounce records (Phase 1 family feed;
-  human action H-106). They hold an address, a template id and a status, never update content;
-  until a period is set they follow care_record with the contact. An opt-out must be remembered for
-  as long as the address is held, so it is never sent to again.
-- DBS certificate information: settled for slice 11 as a spec decision ([workforce.md](workforce.md)
-  section 2a), for the DPO to confirm (H-575). Following the DBS code of practice, Harbour keeps no
-  copy of a certificate and nothing of what it disclosed; the record of the check (level, issue date,
-  certificate number, clear or disclosed, Update Service status, the barred list check date and the
-  risk assessment decision) is part of the staff file and kept under `staff_file`. An upload of a
-  DBS certificate copy is refused.
-- DSAR cases, breach register entries and data-protection complaints (Phase 2).
-- DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
-  confirm the period before the Phase 2 pre-employment file stores them.
-- Breach register entries and data-protection complaints (Phase 2). DSAR cases have their own
-  class, data_rights_case (ADR-0090).
-- DSAR cases (Phase 2, slice 15), breach register entries, Thapsus breach notices and their
-  acknowledgements, and data-protection complaints (slice 20, migration 0082): interim audit_event
-  (8 years from creation) until the DPO sets periods (H-670).
+Settled on 31/10/2026 by the owner's instruction that every open question takes its recommended
+answer (`docs/plans/recommended-answers.md`, on `docs/production-google-cloud` until it merges), each reviewed by the DPO at the
+testing phase: enquiries and pre-admission assessments of people never admitted (H-39), family
+notification delivery logs (H-106), search audit events that showed no person (H-121), the breach
+register, Thapsus breach notices and data protection complaints (H-670), and the Phase 2 gaps in
+H-525 (whistleblowing, medicines stock, disposal and temperature logs, audits, staff surveys,
+lone-worker check-ins, sponsor records, payroll exports and the disclosure log). Unsuccessful
+applicants (6 months), DBS check details (with the staff file, no certificate copy; H-575),
+safeguarding (serious_incident; H-596), casework (with the staff file) and import batches
+(audit_event) stay as built. Rows marked "verify" carry a period the DPO confirms against its
+source before a real tenant relies on it.
+
+Still open:
+
 - DSPT assertions, evidence links and submissions, and Cyber Essentials and ICO registration records
   (slice 32, migration 0094): interim audit_event (8 years from creation) until the DPO sets periods
   (H-810).

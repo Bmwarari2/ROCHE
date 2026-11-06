@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   DMD_LOAD_LIMITS,
   DmdReleaseFileError,
@@ -17,7 +18,7 @@ import {
   MockDmdReleaseSource,
   UnconfiguredDmdReleaseSource,
 } from "../src/integrations/dmd";
-import { DMD_WORK_OPTIONS, dmdLoadLimits, dmdQueueOptions } from "../src/jobs/dmd";
+import { dmdLoadLimits, RETIRED_DMD_QUEUE } from "../src/jobs/dmd";
 
 /**
  * The dm+d release source port's contract (integrations.md sections 4 and 11; ADR-0080): what
@@ -93,7 +94,7 @@ describe("the dm+d release source port (contract)", () => {
   });
 });
 
-describe("hazard HZ-113 the dm+d job's limits and queue (security review)", () => {
+describe("hazard HZ-113 the dm+d job's limits and process (security review, slice 75)", () => {
   it("takes its limits from configuration, with bounds", () => {
     const defaults = loadConfig({ NODE_ENV: "test" });
     expect(dmdLoadLimits(defaults)).toEqual({
@@ -118,12 +119,13 @@ describe("hazard HZ-113 the dm+d job's limits and queue (security review)", () =
     }
   });
 
-  it("runs on its own queue, one job at a time, expiring only after its time limit", () => {
-    expect(dmdQueueOptions(60)).toEqual({
-      policy: "exclusive",
-      expireInSeconds: 3900,
-      retryLimit: 1,
-    });
-    expect(DMD_WORK_OPTIONS).toEqual({ localConcurrency: 1, batchSize: 1 });
+  it("runs the load as its own job, never in the shared worker (slice 75)", () => {
+    const worker = readFileSync(new URL("../src/jobs/worker.ts", import.meta.url), "utf8");
+    expect(worker).not.toMatch(/loadLatestDmdRelease|runDmdReleaseJob/);
+    // The schedule an earlier release stored is removed, so no load queues up in the worker.
+    expect(worker).toContain("boss.unschedule(RETIRED_DMD_QUEUE)");
+    expect(RETIRED_DMD_QUEUE).toBe("dmd-release-load");
+    const build = readFileSync(new URL("../build.mjs", import.meta.url), "utf8");
+    expect(build).toContain('outfile: "dist/dmd-job.js"');
   });
 });

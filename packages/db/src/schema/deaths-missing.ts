@@ -218,9 +218,11 @@ export const missingEpisode = pgTable(
   (t) => [
     unique("missing_episode_tenant_id_id_key").on(t.tenantId, t.id),
     unique("missing_episode_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
+    // One episode still searching per person; a found episode awaiting its welfare check and
+    // debrief never blocks opening a new one if the person goes missing again (HZ-127).
     uniqueIndex("missing_episode_one_open")
       .on(t.tenantId, t.personId)
-      .where(sql`status <> 'closed' AND deleted_at IS NULL`),
+      .where(sql`status = 'open' AND deleted_at IS NULL`),
     index("missing_episode_incident_idx").on(t.tenantId, t.incidentId),
     foreignKey({
       name: "missing_episode_person_fk",

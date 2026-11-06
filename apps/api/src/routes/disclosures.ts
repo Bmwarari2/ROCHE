@@ -10,13 +10,14 @@ import {
   DisclosureVersioned,
   DsarItemDecisionInput,
   LogDisclosureRequest,
+  RecordDisclosureHandOver,
   RecordPreventionReport,
   WithdrawDisclosure,
 } from "@harbour/contracts";
 import {
-  careNote,
   disclosureItem,
   disclosureRequest,
+  document,
   person,
   rateTable,
   type Transaction,
@@ -28,12 +29,15 @@ import {
   bundleReadiness,
   checkItemDecision,
   type DisclosureType,
+  DOCUMENT_CATEGORIES,
   type DsarItemDecision,
-  disclosurePackStorageKey,
   disclosurePrepareProblems,
+  documentStorageKey,
   dsarNotSearched,
   dsarNotSearchedOf,
   findThirdPartyNames,
+  HAND_OVER_PROBLEM_MESSAGES,
+  handOverProblems,
   legalBasis,
   type Permission,
   type RateNation,
@@ -43,7 +47,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, max } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -56,6 +60,10 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import {
+  renderDisclosurePackPdf,
+  type StoredDisclosurePack,
+} from "../services/disclosure-pack-pdf";
+import {
   asOrganisation,
   type CaseRow,
   collectRecords,
@@ -65,6 +73,7 @@ import {
   SUBJECT_MAP,
   thirdPartyNames,
 } from "../services/dsar";
+import { rateNumber } from "../services/rates";
 import { canonical, recordSha256, stringsIn } from "./dsar";
 import {
   conflictResponse,
@@ -77,7 +86,7 @@ import {
 import { dbCode } from "./people-shared";
 
 /**
- * Disclosure requests (SAFE-016; safety.md section 11, rules 38 to 44): one person's records for a
+ * Disclosure requests (SAFE-016; safety.md section 12, rules 38 to 44): one person's records for a
  * coroner, a Safeguarding Adults Review, a Domestic Homicide Review, the police, a solicitor or an
  * Access to Health Records Act request, each with its legal basis. Collection reuses the DSAR
  * collector in the organisation's context after the route has authorised the member (ADR-0090);
@@ -159,6 +168,66 @@ async function inTx<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>): Promise<
     if (code === "42501") throw problems.forbidden();
     throw error;
   }
+}
+
+/** Append-only person records: when each was received. */
+const RECEIVED_TABLES = [
+  "care_note",
+  "observation",
+  "body_map_mark",
+  "assessment",
+  "activity_record",
+  "visit_log",
+  "death_step",
+  "capacity_assessment",
+  "best_interests_decision",
+] as const;
+/** Person records that change: their latest change counts, a review included. */
+const CHANGED_TABLES = [
+  "risk_assessment",
+  "care_plan",
+  "care_plan_section",
+  "care_plan_change",
+  "advance_care_record",
+  "dols_authorisation",
+  "hospital_transfer",
+  "death_record",
+  "safeguarding_concern",
+] as const;
+/** Person records written once, with no received time of their own. */
+const CREATED_TABLES = ["consent_record", "handover_note"] as const;
+
+/**
+ * The latest record of any kind added to or changed in a person's record, for the Access to
+ * Health Records Act clock (H-827; clinical review of the recommended answers, finding 6): notes,
+ * charts, assessments, care plans and their changes, risk assessments and their reviews, consent,
+ * capacity and DoLS records, hospital transfers, the death record and its steps, safeguarding
+ * concerns, handover notes, incidents they are named in and their documents. Medicines join when
+ * the eMAR tables do. Read in the organisation's context, so no reader's scope leaves a class
+ * out. Null when none is found, which the clock treats as recent (the shorter time).
+ */
+async function latestRecordAdded(tx: Tx, personId: string): Promise<Date | null> {
+  const parts = [
+    ...RECEIVED_TABLES.map(
+      (t) =>
+        sql`SELECT max(recorded_at) AS at FROM ${sql.identifier(t)} WHERE person_id = ${personId}`,
+    ),
+    ...CHANGED_TABLES.map(
+      (t) =>
+        sql`SELECT max(greatest(created_at, updated_at)) FROM ${sql.identifier(t)} WHERE person_id = ${personId}`,
+    ),
+    ...CREATED_TABLES.map(
+      (t) => sql`SELECT max(created_at) FROM ${sql.identifier(t)} WHERE person_id = ${personId}`,
+    ),
+    sql`SELECT max(greatest(i.created_at, i.updated_at)) FROM incident i
+        JOIN incident_person ip ON ip.incident_id = i.id WHERE ip.person_id = ${personId}`,
+    sql`SELECT max(created_at) FROM document WHERE subject_type = 'person' AND subject_id = ${personId}`,
+  ];
+  const { rows } = await tx.execute<{ at: Date | string | null }>(
+    sql`SELECT max(at) AS at FROM (${sql.join(parts, sql` UNION ALL `)}) latest`,
+  );
+  const at = rows[0]?.at;
+  return at ? new Date(at) : null;
 }
 
 async function loadRequest(tx: Tx, id: string): Promise<RequestRow> {
@@ -246,6 +315,17 @@ async function requestOut(tx: Tx, access: TenantAccess, row: RequestRow) {
     releasedBy: row.releasedBy,
     releasedAt: row.releasedAt?.toISOString() ?? null,
     packSha256: row.packSha256,
+    packDownloadedAt: row.packDownloadedAt?.toISOString() ?? null,
+    packDownloadedBy: row.packDownloadedBy,
+    handOver:
+      row.handedOverAt && row.handedOverBy && row.handedOverRoute
+        ? {
+            at: row.handedOverAt.toISOString(),
+            by: row.handedOverBy,
+            route: row.handedOverRoute as z.infer<typeof RecordDisclosureHandOver>["route"],
+            reference: row.handedOverReference,
+          }
+        : null,
     collectedAt: row.collectedAt?.toISOString() ?? null,
     notSearched: row.notSearched.map((t) => dsarNotSearchedOf(t)),
     items: {
@@ -358,7 +438,7 @@ export const disclosuresRouter = createRouter()
       tags,
       summary: "Log a disclosure request about a person",
       description:
-        "safety.incident.manage at the person's location or across the organisation. Stores the legal basis for the type as stated now. An Access to Health Records Act request needs the person to have died, and its answer is due by ahraDueAt (ahra.* rates, counting from the person's latest care note). Audited (safety.disclosure.logged) with the type, never who asked or why.",
+        "safety.incident.manage at the person's location or across the organisation. Stores the legal basis for the type as stated now. An Access to Health Records Act request needs the person to have died, and its answer is due by ahraDueAt (ahra.* rates, counting from the latest record of any kind added to the person's record; the shorter time when none is found). Audited (safety.disclosure.logged) with the type, never who asked or why.",
       security,
       request: { body: { content: { "application/json": { schema: LogDisclosureRequest } } } },
       responses: {
@@ -392,12 +472,12 @@ export const disclosuresRouter = createRouter()
           .from(person)
           .where(eq(person.id, body.personId));
         if (!p) return null;
-        const [latest] = await tx
-          .select({ at: max(careNote.recordedAt) })
-          .from(careNote)
-          .where(eq(careNote.personId, body.personId));
-        const [t] = await tx.select({ nation: tenant.nation }).from(tenant);
-        return { ...p, latestNoteAt: latest?.at ?? null, nation: t?.nation ?? "england" };
+        const t = await tx.select({ nation: tenant.nation }).from(tenant);
+        return {
+          ...p,
+          latestRecordAt: await latestRecordAdded(tx, body.personId),
+          nation: t[0]?.nation ?? "england",
+        };
       });
       if (!subject) throw problems.notFound();
       requireReach(access, MANAGE, subject.locationId);
@@ -428,7 +508,7 @@ export const disclosuresRouter = createRouter()
             access.tenantId,
           );
         });
-        dueAt = ahraDueAt(receivedAt, subject.latestNoteAt ?? new Date(0), rates).dueAt;
+        dueAt = ahraDueAt(receivedAt, subject.latestRecordAt, rates).dueAt;
       }
       const out = await inTx(c, async (tx) => {
         const [row] = await tx
@@ -917,14 +997,30 @@ export const disclosuresRouter = createRouter()
         notSearched: row.notSearched.map((t) => dsarNotSearchedOf(t)),
         sha256,
       };
-      const storage = c.get("services").exportStorage;
-      const storageKey = disclosurePackStorageKey(access.tenantId, id, randomUUID());
-      await storage.put(
-        storageKey,
-        new TextEncoder().encode(JSON.stringify(pack)),
-        "application/json",
-      );
+      // Kept as a document under the disclosure's retention class, in the documents bucket, not
+      // the exports bucket, whose objects expire after 30 days (safety.md section 12 rule 42).
+      const storage = c.get("services").storage;
+      const documentId = randomUUID();
+      const storageKey = documentStorageKey(access.tenantId, documentId);
+      const bytes = new TextEncoder().encode(JSON.stringify(pack));
+      await storage.put(storageKey, bytes, "application/json");
       const out = await inTx(c, async (tx) => {
+        await tx.insert(document).values({
+          id: documentId,
+          category: "disclosure_pack",
+          title: "Disclosure pack as issued",
+          retentionClass: DOCUMENT_CATEGORIES.disclosure_pack.retentionClass,
+          storageKey,
+          contentType: "application/json",
+          sizeBytes: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          // About no person on the row, so no general document route lists or serves it.
+          personId: null,
+          subjectType: "disclosure_request",
+          subjectId: id,
+          status: "available",
+          scanStatus: "not_scanned",
+        });
         const saved = await change(tx, await loadRequest(tx, id), expectedVersion, ["approved"], {
           state: "released",
           releasedBy: access.tenantUserId,
@@ -974,13 +1070,161 @@ export const disclosuresRouter = createRouter()
         await audit(c, tx, access, "pack_fetched", id, { sha256: r.packSha256 });
         return r;
       });
-      const bytes = await c.get("services").exportStorage.get(row.packStorageKey as string);
+      const key = row.packStorageKey as string;
+      // Packs issued before they were kept as documents are still read from the exports bucket.
+      const bytes = await (key.startsWith(`tenants/${access.tenantId}/documents/`)
+        ? c.get("services").storage
+        : c.get("services").exportStorage
+      ).get(key);
       if (!bytes) throw problems.notFound();
       c.header("cache-control", "private, no-store");
       return c.json(
         JSON.parse(new TextDecoder().decode(bytes)) as z.infer<typeof DisclosurePack>,
         200,
       );
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/disclosures/{id}/pack/pdf",
+      tags,
+      summary: "Download the released pack once, as a PDF carrying its fingerprint (H-958)",
+      description:
+        "safety.incident.manage reaching the person's location, with a fresh step-up, once the request is released. Built from the pack exactly as issued, whose fingerprint is checked first (409 disclosure_pack_changed if the stored pack no longer matches); the fingerprint is printed on every page. Once only: a second download is refused (409 disclosure_pack_already_downloaded) and the data protection lead uses GET /v1/disclosures/{id}/pack instead. Audited (safety.disclosure.pack_downloaded) with the fingerprint. Then record the hand-over.",
+      security,
+      request: { params: IdParam },
+      responses: {
+        200: {
+          description: "The pack as a PDF",
+          content: { "application/pdf": { schema: z.string().meta({ format: "binary" }) } },
+        },
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, MANAGE);
+      requireStepUp(access);
+      const { id } = c.req.valid("param");
+      const first = await inTx(c, async (tx) => {
+        const r = await loadRequest(tx, id);
+        requireReach(access, MANAGE, r.locationId);
+        if (r.state !== "released" || !r.packStorageKey || !r.releasedAt) {
+          throw new HttpProblem(409, "disclosure_wrong_state", `This request is ${r.state}.`);
+        }
+        if (r.packDownloadedAt) {
+          throw new HttpProblem(
+            409,
+            "disclosure_pack_already_downloaded",
+            "This pack has already been downloaded. Record how it was handed over, or ask the data protection lead.",
+          );
+        }
+        return r;
+      });
+      // Kept as a document since 0137; packs issued before are still in the exports bucket.
+      const packKey = first.packStorageKey as string;
+      const bytes = await (packKey.startsWith(`tenants/${access.tenantId}/documents/`)
+        ? c.get("services").storage
+        : c.get("services").exportStorage
+      ).get(packKey);
+      if (!bytes) throw problems.notFound();
+      const pack = JSON.parse(new TextDecoder().decode(bytes)) as StoredDisclosurePack;
+      const fingerprint = createHash("sha256")
+        .update(
+          canonical({
+            records: pack.records,
+            redactedCount: pack.redactedCount,
+            withheldCount: pack.withheldCount,
+          }),
+        )
+        .digest("hex");
+      if (fingerprint !== first.packSha256 || pack.sha256 !== first.packSha256) {
+        throw new HttpProblem(
+          409,
+          "disclosure_pack_changed",
+          "The stored pack does not match its fingerprint, so it cannot be handed over. Tell the data protection lead.",
+        );
+      }
+      const downloadedAt = new Date();
+      // Recorded once, in the downloader's own name, before any byte leaves (the guard holds it).
+      await inTx(c, async (tx) => {
+        const [marked] = await tx
+          .update(disclosureRequest)
+          .set({ packDownloadedAt: downloadedAt, packDownloadedBy: access.tenantUserId })
+          .where(and(eq(disclosureRequest.id, id), isNull(disclosureRequest.packDownloadedAt)))
+          .returning({ id: disclosureRequest.id });
+        if (!marked) {
+          throw new HttpProblem(
+            409,
+            "disclosure_pack_already_downloaded",
+            "This pack has already been downloaded. Record how it was handed over, or ask the data protection lead.",
+          );
+        }
+        await audit(c, tx, access, "pack_downloaded", id, { sha256: first.packSha256 });
+      });
+      const pdf = renderDisclosurePackPdf(pack, {
+        recipientOrganisation: first.requesterOrganisation,
+        releasedAt: first.releasedAt as Date,
+        downloadedAt,
+      });
+      return new Response(pdf, {
+        status: 200,
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": `attachment; filename="disclosure-pack-${id}.pdf"`,
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/disclosures/{id}/hand-over",
+      tags,
+      summary: "Record how and when the released pack was handed over (H-958)",
+      description:
+        "safety.incident.manage reaching the person's location, once the pack has been downloaded. The route is a secure one (the recipient's portal, a secure email service they name, encrypted media, by hand or recorded delivery); ordinary email is not offered. Not before the release, not in the future; recorded once, in the member's own name. Audited (safety.disclosure.handed_over) with the route.",
+      security,
+      request: versioned(RecordDisclosureHandOver),
+      responses: requestResponses,
+    }),
+    async (c) => {
+      const access = await requirePermission(c, MANAGE);
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const now = new Date();
+      const out = await inTx(c, async (tx) => {
+        const r = await loadRequest(tx, id);
+        requireReach(access, MANAGE, r.locationId);
+        const driftMinutes = await rateNumber(tx, access.tenantId, "sync.clock_drift_flag_minutes");
+        const found = handOverProblems(
+          r,
+          { at: new Date(body.at), reference: body.reference ?? null },
+          now,
+          driftMinutes * 60_000,
+        );
+        if (found.length > 0) {
+          const conflict = found.includes("not_released") || found.includes("already_handed_over");
+          throw new HttpProblem(
+            conflict ? 409 : 422,
+            conflict ? "disclosure_wrong_state" : "invalid",
+            found.map((p) => HAND_OVER_PROBLEM_MESSAGES[p]).join(" "),
+          );
+        }
+        const saved = await change(tx, r, body.expectedVersion, ["released"], {
+          handedOverAt: new Date(Math.min(new Date(body.at).getTime(), now.getTime())),
+          handedOverBy: access.tenantUserId,
+          handedOverRoute: body.route,
+          handedOverReference: body.reference?.trim() || null,
+        });
+        await audit(c, tx, access, "handed_over", id, { route: body.route });
+        return requestOut(tx, access, saved);
+      });
+      return c.json(out, 200);
     },
   )
   .openapi(

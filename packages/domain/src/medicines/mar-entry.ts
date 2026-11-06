@@ -65,8 +65,9 @@ export interface MarSourceDocument {
 /**
  * Regular times with a dose at each, or a when-required (PRN) medicine with its dose and the most
  * the prescription or PRN protocol allows in any 24 hours, in the dose's unit (null when the source
- * states none: the PRN status then says so, H-555). A when-required entry must carry a maximum in
- * 24 hours or a minimum interval (`prn_limit_required`, H-1066).
+ * states none: the PRN status then says so, H-555, for entries recorded before 0123). A new or
+ * changed when-required entry must carry its maximum in 24 hours (`prn_limit_required`; the safer
+ * reading of H-1066 until the CSO decides, batch 3b clinical review).
  */
 export type MarDirections =
   | { readonly kind: "regular"; readonly schedule: RegularSchedule }
@@ -242,17 +243,15 @@ export function checkMarEntryDraft(
       });
     }
   }
-  // A when-required medicine with neither limit would take a second dose a minute after the first:
-  // the source must state one, or the prescriber is asked before it is transcribed (H-1066).
-  if (
-    d.kind === "when_required" &&
-    d.maxQuantityPer24Hours === null &&
-    draft.minimumIntervalMinutes === null
-  ) {
+  // A when-required medicine needs its maximum in 24 hours, the one limit never overridden on the
+  // round. An interval alone can be overridden with a reason and caps no daily total, so a
+  // paracetamol-type entry given round the clock would pass (H-1066, batch 3b clinical review: the
+  // safer reading until the CSO decides). The figure comes from the source, never from Harbour.
+  if (d.kind === "when_required" && d.maxQuantityPer24Hours === null) {
     issues.push({
       problem: "prn_limit_required",
       message:
-        "A when-required medicine needs the least time between doses or the most allowed in 24 hours, as the prescription or PRN protocol states. If the source states neither, ask the prescriber before transcribing it.",
+        "A when-required medicine needs the most allowed in 24 hours, as the prescription or PRN protocol states. If the source states none, ask the prescriber before transcribing it.",
     });
   }
   if (
@@ -747,8 +746,12 @@ export function changeMarEntry(
       (a, b) => (a === null || b.effectiveAt.getTime() < a.effectiveAt.getTime() ? b : a),
       null,
     );
+  // H-548 (slice 51 clinical review): a change to an imported entry nobody has checked stays an
+  // imported, unchecked entry, so it is still never given before its second check: what the
+  // file said (product, dose, route) is carried into the change unchecked.
+  const importHold = current.origin === "import" && current.secondCheck === null;
   const next: MarEntry = {
-    ...newEntry(draft, meta),
+    ...newEntry(draft, importHold ? { ...meta, origin: "import" } : meta),
     version: latest.version + 1,
     replacesId: current.id,
     reanchor: count.reanchor,
@@ -884,6 +887,9 @@ export function marEntryTimesBeforeRecorded(
   );
 }
 
+/** The withdrawal reason an import's undo records (migration 0136, `app.undo_import_batch`). */
+export const IMPORT_UNDONE_REASON = "The import that added it was undone";
+
 /** Tenant policy for entries awaiting their second check (H-550). */
 export type UncheckedEntryPolicy = "give_with_notice" | "hold_until_checked";
 
@@ -901,6 +907,8 @@ export const MAR_ENTRY_NOTICES = {
   beforeRecorded: "Before this entry was recorded: not due",
   earlierDosesToday:
     "Recorded part-way through today with today's earlier doses kept due: check with the nurse in charge whether each was given before giving it.",
+  importedHold:
+    "Imported or scanned, not yet checked: do not give until a second person competent in medicines has checked it against the source document, whatever the home's usual rule. Tell the nurse in charge.",
   variableDose:
     "Variable dose: give only the dose the checked dosing record gives for the day. With none, do not give: ask the prescriber for today's dose, record it on the dosing record for a second person to check, and tell the nurse in charge.",
 } as const;
@@ -928,7 +936,15 @@ export function marEntryStatus(
   policy: UncheckedEntryPolicy,
 ): MarEntryStatus {
   if (entry.withdrawn !== null) {
-    return { words: "Withdrawn before it started", mayGive: false, notice: null };
+    // An import undone withdraws its entries whenever they started (slice 51, platform.md rule 28).
+    const undone = entry.origin === "import" && entry.withdrawn.reason === IMPORT_UNDONE_REASON;
+    return {
+      words: undone
+        ? "Withdrawn: the import that added it was undone"
+        : "Withdrawn before it started",
+      mayGive: false,
+      notice: null,
+    };
   }
   if (now.getTime() < entry.startsAt.getTime()) {
     return {
@@ -968,7 +984,16 @@ export function marEntryStatus(
   const join = (notice: string | null) =>
     [notice, dayNotice, ending].filter(Boolean).join(" ") || null;
   let status: MarEntryStatus;
-  if (entry.secondCheck === null) {
+  if (entry.secondCheck === null && entry.origin === "import") {
+    // An imported or scanned entry (slice 51, slice 79 OCR) is held until its second check under
+    // either policy: no person transcribed it from the source, so the check is the first person to
+    // compare it (H-548; ADR-0095; HZ-005).
+    status = {
+      words: "Imported, not yet checked",
+      mayGive: false,
+      notice: join(MAR_ENTRY_NOTICES.importedHold),
+    };
+  } else if (entry.secondCheck === null) {
     status =
       policy === "give_with_notice"
         ? { words: "Not yet checked", mayGive: true, notice: join(MAR_ENTRY_NOTICES.notYetChecked) }

@@ -69,6 +69,11 @@ describe("loadConfig", () => {
       { DOCUMENTS_LEGACY_PLAINTEXT: "on" },
       "DOCUMENTS_LEGACY_PLAINTEXT",
     ],
+    ["the OCR mock (ADR-0095)", { OCR_ENGINE: "mock" }, "OCR_ENGINE"],
+    ["the Xero payroll mock", { PAYROLL_XERO: "mock" }, "PAYROLL_XERO"],
+    ["the learning platform mock", { LMS_API: "mock" }, "LMS_API"],
+    ["the pharmacy orders mock", { PHARMACY_ORDERS: "mock" }, "PHARMACY_ORDERS"],
+    ["the DocuSign mock (ADR-0095)", { DOCUSIGN: "mock" }, "DOCUSIGN"],
     [
       "one bucket for documents and exports",
       { GCS_EXPORTS_BUCKET: "harbour-dev-documents" },
@@ -258,5 +263,24 @@ describe("SMTP sender domains (#164 security review, L2)", () => {
     expect(loadConfig({ NODE_ENV: "development" }).smtp?.allowedFromDomains).toEqual([
       "example.invalid",
     ]);
+  });
+});
+
+describe("the TRUD settings (slice 75)", () => {
+  it("defaults to TRUD's own host and item 24, with no key", () => {
+    const config = loadConfig({ NODE_ENV: "test" });
+    expect(config.TRUD_BASE_URL).toBe("https://isd.digital.nhs.uk/trud/api/v1");
+    expect(config.TRUD_ALLOWED_HOSTS).toEqual(["isd.digital.nhs.uk"]);
+    expect(config.TRUD_DMD_ITEM).toBe(24);
+    expect(config.TRUD_API_KEY).toBeUndefined();
+  });
+
+  it.each([
+    ["a plain-http address", { TRUD_BASE_URL: "http://isd.digital.nhs.uk/trud/api/v1" }],
+    ["an address off the allowed hosts", { TRUD_BASE_URL: "https://example.invalid/trud/api/v1" }],
+    ["a key with a path in it", { TRUD_API_KEY: "abc/def/0123456789abcdef" }],
+    ["a key too short to be one", { TRUD_API_KEY: "short" }],
+  ])("refuses %s", (_case, env) => {
+    expect(() => loadConfig({ NODE_ENV: "test", ...env })).toThrow();
   });
 });

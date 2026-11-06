@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // The API mints the offline window into the token, so it needs the same day list as the streams.
-export { isValidWindowDays, OFFLINE_WINDOW_RATE_KEY, offlineWindowDays } from "../client/window";
+export {
+  isValidWindowDays,
+  OFFLINE_WINDOW_RATE_KEY,
+  offlineWindowDays,
+  shiftWindowDays,
+} from "../client/window";
 
 /** Absolute path of the sync streams definition mounted into the PowerSync service. */
 export const SYNC_CONFIG_PATH = fileURLToPath(new URL("./sync-config.yaml", import.meta.url));
@@ -65,6 +70,11 @@ export interface SyncTokenClaims {
    * `mobile.offline_window_days` in the rate table. Without it no point-of-care entries sync.
    */
   readonly offline_days: readonly string[];
+  /**
+   * The UTC days of the member's own shifts and clock events (`shift_days`, scheduling.md section
+   * 18): empty unless the member holds `scheduling.timesheet.self`, so no shift syncs (fails closed).
+   */
+  readonly shift_days?: readonly string[];
   /**
    * The day and night shift start times (minutes after midnight, UK time) of each nation the
    * organisation has homes in (`england`, `wales` and so on), from the rate table, sent where the

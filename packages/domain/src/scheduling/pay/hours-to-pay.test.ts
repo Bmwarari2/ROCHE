@@ -54,11 +54,12 @@ const SET: PayRuleSet = {
   onCallFlatPence: 0,
 };
 
-/** Pay for the visits and the travel between them at the role rate, the sleep-in and mileage. */
+/** Pay for the visits and the travel between them at the role rate, the sleep-in, on call and mileage. */
 function payFor(set: PayRuleSet) {
   const entries: TimesheetEntry[] = [
     { kind: "work", role: "care_worker", minutes: 4.5 * HOUR, enhancements: [] },
     { kind: "sleep_in" },
+    { kind: "on_call" },
     { kind: "mileage", miles: 12 },
   ];
   return grossPay(set, entries);
@@ -77,7 +78,9 @@ describe("slice 5's hours feed slice 6's minimum wage check", () => {
   });
 
   it.each([
-    ["the sleep-in allowance covers the awake hour", SET, true, 0],
+    // H-585: the flat sleep-in allowance does not count as minimum wage pay until an adviser
+    // confirms it does, so the awake hour shows as unpaid whether or not the allowance is paid.
+    ["the sleep-in allowance does not cover the awake hour", SET, true, null],
     [
       "no sleep-in allowance leaves the awake hour unpaid",
       { ...SET, sleepInFlatPence: 0 },
@@ -106,10 +109,25 @@ describe("slice 5's hours feed slice 6's minimum wage check", () => {
     expect(result.compliant).toBe(shortfall === 0);
   });
 
-  it("never counts mileage, an expense, as pay for the minimum wage", () => {
-    const gross = payFor(SET);
-    expect(gross.mileagePence).toBe(12 * SET.mileagePencePerMile);
-    expect(nmwPayFromGross(gross).payPence).toBe(gross.totalPence - gross.mileagePence);
+  it.each<[string, Partial<PayRuleSet>, (g: ReturnType<typeof payFor>) => number]>([
+    ["never counts mileage, an expense", {}, (g) => g.totalPence - g.mileagePence - g.sleepInPence],
+    [
+      "never counts the flat sleep-in allowance until an adviser confirms it (H-585)",
+      { mileagePencePerMile: 0 },
+      (g) => g.totalPence - g.sleepInPence,
+    ],
+    [
+      "never counts an on-call allowance for time at home",
+      { onCallFlatPence: 2_500, mileagePencePerMile: 0, sleepInFlatPence: 0 },
+      (g) => {
+        expect(g.onCallPence).toBe(2_500);
+        return g.totalPence - g.onCallPence;
+      },
+    ],
+  ])("%s as pay for the minimum wage", (_name, change, expected) => {
+    const gross = payFor({ ...SET, ...change });
+    expect(nmwPayFromGross(gross).payPence).toBe(expected(gross));
+    expect(nmwPayFromGross(gross).payPence).toBe(gross.basicPence + gross.premiumPence);
   });
 
   it("counts only this employer's hours, clipped to the pay reference period", () => {

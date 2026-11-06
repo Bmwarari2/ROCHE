@@ -35,6 +35,13 @@ needs the DPA check, the DPIA update and tenant notice before it processes famil
 | Expo (650 Industries) | Expo push notification service | The same notice in the family app mode (MOB-004, Phase 4), and push receipts | Family member's device push token (an online identifier); the approved generic line, no name and no update content | United States | `[UK Extension to the EU-US Data Privacy Framework, or IDTA - DPO to confirm for family members, human action H-112]` | Pending: extends the Expo entry above to family members; not switched on until the safeguard is confirmed and the DPIA covers family members (H-106, H-112) |
 | Apple (APNs) and Google (Firebase Cloud Messaging) | Platform push delivery, reached through Expo | Final delivery of the family notice to the device | Family member's device push token; content as above | United States and global | As above `[DPO to confirm, human action H-112]` | Pending, as above |
 
+### Pending: e-signature and OCR (Phase 2, slice 79; ADR-0095)
+
+| Sub-processor | Service | Purpose | Personal data | Where processed | Transfer safeguard | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Google Cloud EMEA Limited (already listed above) | Document AI, processor location europe-west2 | Reading the text of photographed paper MAR charts so a person can check each value | The photograph of a person's MAR chart (health data) and the text read from it | United Kingdom (europe-west2; the OCR allowlist refuses any other location) | None needed (UK) | Covered by the Google Cloud entry once H-1262 confirms Document AI's data terms for europe-west2 (no retention of documents, no use for training); the adapter is not built yet, so no data is sent today |
+| Docusign, Inc. or its UK entity `[to confirm - H-540]` | DocuSign eSignature | Collecting a member's signature on an organisation document, only for an organisation that asks for it | An organisation document (never a staff HR or person document), its hash, the signer's name and the email they sign in with (for bank or agency staff possibly personal); the provider's audit trail of the signing | `[to confirm: DocuSign's UK or EU data residency - H-540]` | `[UK, or adequacy, or the IDTA - H-540]` | Off by default; the adapter is a no-network mock and production refuses it until H-540 (account, DPA, this register, the DPIA) |
+
 ## 2. Self-hosted components (not separate sub-processors)
 
 | Component | Why it is not a sub-processor |
@@ -47,6 +54,11 @@ Download sources are not sub-processors either. The NHSBSA dm+d release, downloa
 England) for the medicines reference data, is national reference data Harbour fetches; TRUD receives
 only Thapsus's account credentials, never tenant or personal data ([ADR-0080](../decisions/0080-dmd-reference-data.md);
 H-510, H-511).
+### 2a. The organisation's own processors (not Thapsus sub-processors)
+
+| Service | Why it is not a Thapsus sub-processor | Status |
+| --- | --- | --- |
+| A learning platform the organisation imports training completions from (workforce.md section 13; ADR-0102) | The organisation chooses and contracts the platform; Harbour receives its completions (a file the organisation uploads, or a pull through the learning platform port with the organisation's own credentials) and sends it nothing but the request. Whether a platform holds data in the UK, or under an adequacy decision or the IDTA, is the organisation's to check, and the DPO confirms this treatment (H-520, H-1254) | No live client: mock only (H-1250) |
 
 ## 3. Optional AI providers (off by default, enabled per tenant)
 
@@ -71,6 +83,21 @@ Sources: [Bedrock model and region support](https://docs.aws.amazon.com/bedrock/
 | Supabase | If an ADR uses Supabase London for dev, staging or pilot tenants | London region |
 | WorkOS | If used for enterprise SAML or OIDC SSO | `[to confirm - human action]` |
 
+### Pending: vetting and identity providers (Phase 2, slice 77; ADR-0094)
+
+The staff file's vetting ports are built with mocks only and are off for every organisation. No
+provider is chosen (H-521 to H-523). Before any provider is added to this build, the DPO decides
+whether it is the organisation's own processor or a Thapsus sub-processor (H-520), checks where it
+holds data, its Article 28 terms and security assurance (H-793), and it joins this register (or the
+organisation's own records) and the DPIA. The mock is refused in production.
+
+| Port | Would receive | Never receives | Status |
+| --- | --- | --- | --- |
+| `workforce.idsp` (certified identity service provider, right to work) | The check's opaque reference, the worker's name as the organisation knows it, their work email and the document type (British or Irish passport, Irish passport card); the worker then gives their own document to the provider | Anything else in the staff file | Not chosen (H-521, H-1120) |
+| `workforce.dbs_ebulk` (DBS registered or umbrella body) | The check's reference, the worker's name and email for the invitation, the level, the workforce and the job title; the worker completes the application with the provider | Anything else in the staff file | Not chosen (H-522, H-1121) |
+| `workforce.dbs_update_service` (DBS) | The check's reference, the certificate number, the surname typed by the checker and the date of birth, only with the worker's consent in force | Anything else; the DBS is the controller of its own records | Not chosen (H-522, H-1122) |
+| `workforce.nmc_register` (NMC) | The check's reference and the PIN | Anything else | No API exists; never scraped (H-523, H-1123) |
+
 ## 5. Change log
 
 | Date | Change | Notice given to tenants |
@@ -78,3 +105,9 @@ Sources: [Bedrock model and region support](https://docs.aws.amazon.com/bedrock/
 | 11 October 2026 | Register created (Phase 0) | Not applicable (no live tenants) |
 | 11 October 2026 | Pending entries for family notifications: SES for family email and a UK SMS gateway (Phase 1, slice 12) | Not applicable (no live tenants); notice due before they process family data |
 | 31 October 2026 | The NHSBSA dm+d release from TRUD recorded as a download source, not a sub-processor (Phase 2 slice 10, ADR-0080) | Not applicable (no personal data) |
+| 31 October 2026 | Pending entries for the vetting and identity ports (Phase 2, slice 77; ADR-0094); none switched on | Not applicable (no provider chosen) |
+
+## Payroll providers (Phase 2, slice 76; ADR-0097)
+
+An organisation's payroll provider (Xero Payroll UK, Staffology, Sage or BrightPay) is the organisation's own processor, under the organisation's own contract with it: not a Thapsus sub-processor (H-520 recommended answer, applied 31/10/2026; the DPO confirms it at testing). Harbour sends a locked pay run's figures to it only when someone in the organisation exports them, with step-up. A file export is downloaded by that person and moved by the organisation. The Xero Payroll UK adapter sends over its API to the organisation's own Xero account, with tokens the organisation granted, kept in the managed secret store. Before the adapter is switched on, the DPO records where Xero processes the data and the transfer mechanism if it is outside the UK (H-1192). What leaves is the payroll reference, hours, pay elements, the total, holiday accrued and the auto-enrolment flags: never a name, date of birth, NI number, bank detail or health information.
+

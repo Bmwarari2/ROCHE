@@ -1,9 +1,10 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ageSession, createHarness, type Harness, OTHER } from "./support/harness";
+import { pdfText } from "./support/pdf-text";
 
 /**
- * Disclosure requests through the API (SAFE-016; safety.md section 11, rules 38 to 44; migration
+ * Disclosure requests through the API (SAFE-016; safety.md section 12, rules 38 to 44; migration
  * 0103; hazard HZ-011): a legal basis on every request; the DSAR collector; a person decides each
  * record; the approver is never the requester; release needs a fresh step-up and stores the pack
  * as issued; a coroner's Regulation 28 report and its response date from the rate table.
@@ -164,6 +165,69 @@ describe("SAFE-016 rule 38: every request carries its legal basis", () => {
     expect(await codeOf(r)).toBe("person_not_deceased");
   });
 
+  it("H-827 counts the Access to Health Records Act clock from the latest record of any kind", async () => {
+    // A person who has died, with no care note at all: the shorter time applies.
+    const [p] = await owner<{ id: string }>(
+      `INSERT INTO person (location_id, given_name, family_name, date_of_birth, status)
+       SELECT location_id, 'Edna', 'Example', DATE '1930-01-01', 'deceased'
+         FROM person WHERE id = $1
+       RETURNING id`,
+      [ada],
+    );
+    const received = new Date();
+    const r = await post("/v1/disclosures", {
+      personId: p?.id,
+      type: "access_to_health_records",
+      requester: { name: "Personal representative", organisation: "Example executors" },
+      receivedAt: received.toISOString(),
+    });
+    expect(r.status).toBe(201);
+    const req = (await r.json()) as Request;
+    const days = (new Date(req.dueAt ?? 0).getTime() - received.getTime()) / 86_400_000;
+    // The 21-day period (rate table), never the 40-day one, when no record date is found.
+    expect(days).toBeLessThan(25);
+    expect(req.legalBasis).toMatch(/Access to Health Records Act 1990/);
+
+    // Only an old care note: the longer period. Then a recent review of a risk assessment, not a
+    // care note, brings the shorter one (clinical review finding 6).
+    const [q] = await owner<{ id: string; location_id: string }>(
+      `INSERT INTO person (location_id, given_name, family_name, date_of_birth, status)
+       SELECT location_id, 'Ernest', 'Example', DATE '1931-01-01', 'deceased'
+         FROM person WHERE id = $1
+       RETURNING id, location_id`,
+      [ada],
+    );
+    await owner(
+      `INSERT INTO care_note (person_id, location_id, occurred_at, recorded_at, category, body)
+       VALUES ($1, $2, now() - interval '100 days', now() - interval '100 days', 'other',
+         'Settled evening.')`,
+      [q?.id, q?.location_id],
+    );
+    const dueIn = async () => {
+      const at = new Date();
+      const response = await post("/v1/disclosures", {
+        personId: q?.id,
+        type: "access_to_health_records",
+        requester: { name: "Personal representative", organisation: "Example executors" },
+        receivedAt: at.toISOString(),
+      });
+      expect(response.status, await response.clone().text()).toBe(201);
+      const out = (await response.json()) as Request;
+      return Math.round((new Date(out.dueAt ?? 0).getTime() - at.getTime()) / 86_400_000);
+    };
+    const longer = await dueIn();
+    expect(longer).toBeGreaterThan(30);
+    await owner(
+      `INSERT INTO risk_assessment (person_id, template_key, template_version, hazard, who_at_risk,
+         assessed_on, review_due_on)
+       VALUES ($1, 'falls', '1', 'Falls', 'The person', current_date, current_date + 30)`,
+      [q?.id],
+    );
+    const shorter = await dueIn();
+    expect(shorter).toBeLessThan(longer);
+    expect(shorter).toBeLessThan(25);
+  });
+
   it("police requests need a stated purpose before they are prepared", async () => {
     const req = await logRequest({
       type: "police",
@@ -281,6 +345,30 @@ describe("SAFE-016 rules 42 and 43: release with step-up, the pack as issued", (
     expect(pack.sha256).toBe(released.packSha256);
     expect(pack.records.length).toBe(released.items.total);
     expect(pack.legalBasis).toBe(req.legalBasis);
+    // Kept as a document under the disclosure's retention class, in the documents bucket, never
+    // the exports bucket's 30-day prefix, and about no person, so no general route serves it.
+    const [doc] = await owner<{
+      id: string;
+      category: string;
+      retention_class: string;
+      person_id: string | null;
+      storage_key: string;
+      subject_type: string;
+      subject_id: string;
+    }>(
+      "SELECT id, category, retention_class, person_id, storage_key, subject_type, subject_id FROM document WHERE subject_id = $1",
+      [req.id],
+    );
+    expect(doc).toMatchObject({
+      category: "disclosure_pack",
+      retention_class: "serious_incident",
+      person_id: null,
+      subject_type: "disclosure_request",
+      subject_id: req.id,
+    });
+    expect(doc?.storage_key).toBe(`tenants/${DEMO.tenantId}/documents/${doc?.id}`);
+    expect((await get(`/v1/documents/${doc?.id}`)).status).toBe(404);
+    expect((await get(`/v1/documents/${doc?.id}/content`)).status).toBe(404);
     const w = await post(`/v1/disclosures/${req.id}/withdraw`, {
       expectedVersion: released.version,
       reason: "Changed our mind.",
@@ -292,6 +380,116 @@ describe("SAFE-016 rules 42 and 43: release with step-up, the pack as issued", (
     );
     expect(audit).toHaveLength(1);
     expect(JSON.stringify(audit[0]?.scope)).not.toMatch(/Coroner|Example/);
+  });
+});
+
+describe("SAFE-016 H-958: the released pack leaves once, as a fingerprinted PDF, by a secure route", () => {
+  async function released(): Promise<Request> {
+    const req = await toApproved();
+    const r = await post(`/v1/disclosures/${req.id}/release`, { expectedVersion: req.version });
+    expect(r.status).toBe(200);
+    return (await r.json()) as Request;
+  }
+  const handOver = (id: string, body: Record<string, unknown>) =>
+    post(`/v1/disclosures/${id}/hand-over`, body);
+
+  it("refuses the download without a fresh step-up, and before release", async () => {
+    const approved = await toApproved();
+    expect((await get(`/v1/disclosures/${approved.id}/pack/pdf`)).status).toBe(409);
+    const req = await released();
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.manager?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      expect((await get(`/v1/disclosures/${req.id}/pack/pdf`)).status).toBe(403);
+    } finally {
+      await ageSession(auth, session, 0);
+    }
+    expect((await current(req.id)).packSha256).toBe(req.packSha256);
+  });
+
+  it("downloads once, with the fingerprint on the pack, audited; then records the hand-over once", async () => {
+    const req = await released();
+    // No hand-over before the pack has left.
+    const early = await handOver(req.id, {
+      expectedVersion: req.version,
+      route: "secure_portal",
+      at: new Date().toISOString(),
+    });
+    expect(early.status).toBe(422);
+    expect(await early.text()).toMatch(/Download the pack/);
+    const r = await get(`/v1/disclosures/${req.id}/pack/pdf`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("application/pdf");
+    expect(r.headers.get("cache-control")).toMatch(/no-store/);
+    const text = pdfText(new Uint8Array(await r.arrayBuffer()));
+    expect(text).toContain(req.packSha256 ?? "missing");
+    expect(text).toContain("never by ordinary email");
+    // Once only.
+    const again = await get(`/v1/disclosures/${req.id}/pack/pdf`);
+    expect(again.status).toBe(409);
+    expect(await codeOf(again)).toBe("disclosure_pack_already_downloaded");
+    const audit = await owner<{ scope: Record<string, unknown> }>(
+      "SELECT scope FROM audit_event WHERE action = 'safety.disclosure.pack_downloaded' AND resource_id = $1",
+      [req.id],
+    );
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.scope.sha256).toBe(req.packSha256);
+    // Ordinary email is not a route; the time cannot be in the future.
+    const latest = await current(req.id);
+    expect(
+      (
+        await handOver(req.id, {
+          expectedVersion: latest.version,
+          route: "email",
+          at: new Date().toISOString(),
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await handOver(req.id, {
+          expectedVersion: latest.version,
+          route: "secure_email",
+          at: new Date(Date.now() + 3_600_000).toISOString(),
+        })
+      ).status,
+    ).toBe(422);
+    const done = await handOver(req.id, {
+      expectedVersion: latest.version,
+      route: "secure_email",
+      at: new Date().toISOString(),
+      reference: "Coroner's case 2026/123",
+    });
+    expect(done.status).toBe(200);
+    const out = (await done.json()) as Request & {
+      handOver: { route: string; reference: string | null } | null;
+      packDownloadedAt: string | null;
+    };
+    expect(out.handOver?.route).toBe("secure_email");
+    expect(out.packDownloadedAt).not.toBeNull();
+    // Recorded once.
+    const twice = await handOver(req.id, {
+      expectedVersion: out.version,
+      route: "in_person",
+      at: new Date().toISOString(),
+    });
+    expect(twice.status).toBe(409);
+  });
+});
+
+describe("SAFE-016 rule 42: a disclosure pack is never uploaded", () => {
+  it("refuses the category on the general upload route", async () => {
+    const r = await h.request(
+      `/v1/documents?${new URLSearchParams({ category: "disclosure_pack", title: "Pack" })}`,
+      {
+        token: h.tokens.owner,
+        tenant: DEMO.tenantId,
+        method: "POST",
+        raw: { bytes: new TextEncoder().encode("{}"), contentType: "application/json" },
+      },
+    );
+    expect(r.status).toBe(422);
   });
 });
 

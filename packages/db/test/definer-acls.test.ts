@@ -18,11 +18,12 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     ["harbour_app"],
   "app.auth_user_has_membership(text)": ["harbour_invitation_owner"],
   // The agency access window (ADR-0088, migration 0104), read by row-level security.
-  // The agency window binds the definer owners that read role rows too (migration 0118).
+  // The agency window binds the definer owners that read role rows too (migrations 0118, 0139).
   "app.agency_access_open(uuid, uuid)": [
     "harbour_app",
     "harbour_import_owner",
     "harbour_invitation_owner",
+    "harbour_member_owner",
     "harbour_quality_reader",
     "harbour_sample_owner",
     "harbour_silo_owner",
@@ -32,6 +33,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     "harbour_app",
     "harbour_import_owner",
     "harbour_invitation_owner",
+    "harbour_member_owner",
     "harbour_quality_reader",
     "harbour_sample_owner",
     "harbour_silo_owner",
@@ -62,6 +64,10 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Supervision notes (slice 57, migration 0114): read rule of supervision_note.
   "app.supervises_member(uuid)": ["harbour_app"],
   "app.supervision_in_force(uuid)": ["harbour_app"],
+  // H-804 (migration 0121): Thapsus support appoints a case manager on an approved ticket.
+  "app.operator_appoint_case_manager(uuid, uuid)": ["harbour_operator"],
+  // H-805 (migration 0121): the cases a staff subject access request must collect, by id.
+  "app.casework_for_subject_access(uuid)": ["harbour_app"],
   // The round gate data (migration 0071): called only by its own definer trigger functions.
   "app.refresh_earlier_plan(uuid, uuid[])": [],
   "app.task_from_earlier_plan(uuid, uuid)": [],
@@ -75,6 +81,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.staff_profile_worker(uuid)": ["harbour_app"],
   "app.induction_policy_signing(uuid)": ["harbour_app"],
   "app.end_leaver_access(uuid)": ["harbour_app"],
+  // Membership changes held by the database (migration 0129, H-566).
+  "app.change_membership(uuid, text)": ["harbour_app"],
+  "app.sign_in_memberships_elsewhere(uuid)": ["harbour_app"],
   "app.sweep_expired_invitations()": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins()": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).
@@ -106,14 +115,15 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.sso_sign_in_facts(text, text)": ["harbour_app"],
   "app.link_sso_member(text, text)": ["harbour_app"],
   "app.sso_key_ref(text)": ["harbour_app"],
-  // The dm+d release loader (Phase 2 slice 10, migration 0110, ADR-0080): the worker's job and a
-  // manual run by the owner; never the application.
-  "app.dmd_begin_release(text, date, text, text, jsonb)": ["harbour_owner", "harbour_worker"],
-  "app.dmd_load_rows(uuid, text, jsonb)": ["harbour_owner", "harbour_worker"],
-  "app.dmd_finish_release(uuid)": ["harbour_owner", "harbour_worker"],
+  // The dm+d release loader (Phase 2 slice 10, migration 0110, ADR-0080): the dm+d job's own
+  // role (migration 0131, slice 75) and a manual run by the owner; never the application or the
+  // worker.
+  "app.dmd_begin_release(text, date, text, text, jsonb)": ["harbour_dmd_job", "harbour_owner"],
+  "app.dmd_load_rows(uuid, text, jsonb)": ["harbour_dmd_job", "harbour_owner"],
+  "app.dmd_finish_release(uuid)": ["harbour_dmd_job", "harbour_owner"],
   "app.dmd_record_refusal(text, date, text, text, text, jsonb, jsonb, integer)": [
+    "harbour_dmd_job",
     "harbour_owner",
-    "harbour_worker",
   ],
 };
 

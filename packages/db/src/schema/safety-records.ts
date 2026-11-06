@@ -26,6 +26,8 @@ import { document, location, tenantUser } from "./platform";
  * Local Government and Social Care Ombudsman. A compliment never runs a clock and may be tagged
  * with the quality statements it is evidence for (the evidence library, slice 14, links from it).
  * Reading and writing need `safety.complaint.manage` where the record is (migration 0080).
+ * Processing purpose B14, complaints and compliments (records of processing; H-700): complaints
+ * Art 6(1)(c) under Regulation 16, compliments Art 6(1)(f). Retention class `complaint`.
  */
 
 export const COMPLAINT_STATES = [
@@ -225,7 +227,8 @@ export const speakUpConcern = pgTable(
     replyTokenHash: text("reply_token_hash"),
     /** When the reply token stops opening the concern (`speak_up.reply_token_days` from receipt). */
     replyTokenExpiresAt: timestamp("reply_token_expires_at", { withTimezone: true }),
-    retentionClass: text("retention_class").notNull().default("complaint"),
+    /** Its own class, 6 years after the concern closes (H-721; retention.md). */
+    retentionClass: text("retention_class").notNull().default("speak_up_concern"),
     ...mutableColumns(),
   },
   (t) => [
@@ -244,7 +247,7 @@ export const speakUpConcern = pgTable(
       "speak_up_concern_token_expiry",
       sql`(reply_token_hash IS NULL) = (reply_token_expires_at IS NULL)`,
     ),
-    check("speak_up_concern_retention_class", sql`retention_class = 'complaint'`),
+    check("speak_up_concern_retention_class", sql`retention_class = 'speak_up_concern'`),
     check(
       "speak_up_concern_closed",
       sql`(state = 'closed') = (closed_at IS NOT NULL AND closed_reason IS NOT NULL)`,

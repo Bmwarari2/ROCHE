@@ -1,6 +1,7 @@
 import {
   aboutMe,
   allergy,
+  auditEvent,
   deathRecord,
   deathStep,
   exitRecord,
@@ -8,6 +9,7 @@ import {
   location,
   type missingEpisode,
   missingEvent,
+  notification,
   person,
   statutoryNotification,
   type Transaction,
@@ -33,7 +35,9 @@ import {
 } from "@harbour/domain";
 import { and, asc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { notificationsForExit } from "./death-notifications";
-import { rateRows } from "./rates";
+import { rateNumber, rateRows } from "./rates";
+import { roleHolders } from "./role-holders";
+import { permissionHolders } from "./safety";
 
 /**
  * Deaths and missing persons (Phase 2 slice 37; SAFE-014, SAFE-015; safety.md slice 37; HZ-013,
@@ -51,6 +55,10 @@ type EpisodeRow = typeof missingEpisode.$inferSelect;
 export const POLICE_CALL_TASK_KIND = "safety.missing_police_call";
 /** The task to review a Herbert Protocol profile that is out of date (HZ-127). */
 export const HERBERT_REVIEW_TASK_KIND = "safety.herbert_profile_review";
+/** Prompts a Herbert Protocol profile for someone at risk of going missing (H-773). */
+export const HERBERT_PREPARE_TASK_KIND = "safety.herbert_profile_prepare";
+/** How long a prompt to prepare a profile has before it is due (rates.md). */
+export const HERBERT_PREPARE_RATE_KEY = "herbert_protocol.prepare_due_days";
 
 /** The Phase 2 safety figures in force on a date, for a nation (England until the nation packs). */
 export async function phase2Rates(
@@ -375,6 +383,64 @@ export async function syncPoliceCallTask(
   });
 }
 
+/** The roles told at once when an episode opens with immediate risk (H-771). */
+export const IMMEDIATE_RISK_ROLES = ["clinical_lead", "team_leader"] as const;
+export const MISSING_IMMEDIATE_KIND = "safety.missing.immediate_risk";
+export const MISSING_IMMEDIATE_UNROUTED_ACTION = "safety.missing.immediate_risk_unrouted";
+
+/**
+ * An episode opened with immediate risk tells, at once, through the notification centre and
+ * without waiting for the police call task's escalation, every holder of the clinical lead or
+ * team leader role at the location (H-771, recommended answer applied 31/10/2026; HZ-127). No rota
+ * exists yet, so "on site" means holding the role there, not being on shift (CSO decision logged
+ * under H-771). Nobody holding those roles falls back to the Registered Manager, then to anyone who
+ * manages incidents there; nobody at all is audited as unrouted, never passed over silently
+ * (clinical review finding 1). Urgent, so quiet hours never hold it; generic words only, the link
+ * opens the episode. Staff call 999 themselves: the target is never a reason to wait. Returns how
+ * many were told.
+ */
+export async function tellOnSiteNow(tx: Transaction, row: EpisodeRow, now: Date): Promise<number> {
+  let recipients = await roleHolders(tx, IMMEDIATE_RISK_ROLES, [row.locationId], now);
+  if (recipients.length === 0) {
+    recipients = await roleHolders(tx, ["registered_manager"], [row.locationId], now);
+  }
+  if (recipients.length === 0) {
+    recipients = await permissionHolders(tx, "safety.incident.manage", row.locationId, now);
+  }
+  if (recipients.length === 0) {
+    await tx.insert(auditEvent).values({
+      tenantId: row.tenantId,
+      action: MISSING_IMMEDIATE_UNROUTED_ACTION,
+      outcome: "error",
+      resourceType: "missing_episode",
+      resourceId: row.id,
+      reason: "no_recipient",
+      scope: { reasonCode: "no_recipient", locationId: row.locationId },
+    });
+    return 0;
+  }
+  for (const recipient of recipients) {
+    await tx
+      .insert(notification)
+      .values({
+        recipientTenantUserId: recipient,
+        kind: MISSING_IMMEDIATE_KIND,
+        severity: "urgent",
+        title: "A person is missing and at immediate risk",
+        body: "Call 999 now if no one has. Open the episode to see what is known.",
+        link: `/missing/${row.id}`,
+        channels: ["in_app", "push"],
+        sourceType: "missing_episode",
+        sourceId: row.id,
+        personId: row.personId,
+        locationId: row.locationId,
+        dedupeKey: `missing_immediate:${row.id}:${recipient}`,
+      })
+      .onConflictDoNothing();
+  }
+  return recipients.length;
+}
+
 // ------------------------------------------------------------------------------------------------
 // The Herbert Protocol profile
 // ------------------------------------------------------------------------------------------------
@@ -413,6 +479,105 @@ export async function herbertPrefillFor(tx: Transaction, personId: string) {
     },
     allergies: allergies.map((a) => a.substance),
   });
+}
+
+/** Marks the person's prompt to prepare a profile done once one is saved (H-773). */
+export async function finishHerbertPrepareTasks(
+  tx: Transaction,
+  personId: string,
+  now: Date,
+): Promise<void> {
+  await tx
+    .update(task)
+    .set({ status: "done", completedAt: now, statusReason: "A profile was prepared" })
+    .where(
+      and(
+        eq(task.kind, HERBERT_PREPARE_TASK_KIND),
+        eq(task.personId, personId),
+        inArray(task.status, ["open", "in_progress"]),
+      ),
+    );
+}
+
+/**
+ * A Herbert Protocol profile is expected, prompted but never forced, for anyone whose record shows
+ * a risk of going missing (H-773, recommended answer applied 31/10/2026; HZ-127): a person living
+ * here with an active risk assessment for leaving without staff knowing (`absconding`) and no
+ * profile gets one task for the nurse in charge, to prepare it with them or their representative.
+ * It is raised once per assessment date, so a review prompts again but a correction does not, and
+ * a task closed without a profile is never raised every day; it is due after
+ * `herbert_protocol.prepare_due_days`, and closed when no longer needed. Dementia is not yet a structured field in
+ * the record; until it is, the risk assessment is what prompts (H-773 note). Returns the tasks
+ * raised.
+ */
+export async function raiseHerbertPreparations(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+): Promise<number> {
+  const atRisk = await tx.execute<{
+    person_id: string;
+    location_id: string;
+    assessed_on: string;
+  }>(sql`
+    SELECT p.id AS person_id, p.location_id, max(r.assessed_on) AS assessed_on
+      FROM risk_assessment r
+      JOIN person p ON p.id = r.person_id
+     WHERE r.template_key = 'absconding' AND r.status = 'active' AND r.deleted_at IS NULL
+       AND p.deleted_at IS NULL
+       AND p.status::text IN (${sql.join(
+         LIVE_PERSON_STATUSES.map((status) => sql`${status}`),
+         sql`, `,
+       )})
+       AND NOT EXISTS (SELECT 1 FROM herbert_profile h
+                        WHERE h.person_id = p.id AND h.deleted_at IS NULL)
+     GROUP BY p.id, p.location_id`);
+  const dueDays = await rateNumber(tx, tenantId, HERBERT_PREPARE_RATE_KEY);
+  let raised = 0;
+  for (const row of atRisk.rows) {
+    // Once per assessment date: a correction to the same assessment never prompts again.
+    const assessedFrom = new Date(`${String(row.assessed_on).slice(0, 10)}T00:00:00Z`);
+    const [already] = await tx
+      .select({ id: task.id })
+      .from(task)
+      .where(
+        and(
+          eq(task.kind, HERBERT_PREPARE_TASK_KIND),
+          eq(task.personId, row.person_id),
+          isNull(task.deletedAt),
+          sql`${task.createdAt} >= ${assessedFrom}`,
+        ),
+      )
+      .limit(1);
+    if (already) continue;
+    await tx.insert(task).values({
+      kind: HERBERT_PREPARE_TASK_KIND,
+      title: "Prepare a Herbert Protocol profile with the person or their representative",
+      requiredPermission: "safety.incident.manage",
+      locationId: row.location_id,
+      personId: row.person_id,
+      sourceType: "person",
+      sourceId: row.person_id,
+      assigneeRoleKey: "clinical_lead",
+      // Prompted, never forced: due after the organisation's period, not overdue at once.
+      dueAt: new Date(now.getTime() + dueDays * 86_400_000),
+      priority: "routine",
+    });
+    raised++;
+  }
+  // Prompts no longer needed (the person left, or the risk assessment closed) are closed.
+  await tx.execute(sql`
+    UPDATE task SET status = 'cancelled', status_reason = 'No longer needed: the person left or the risk assessment closed'
+     WHERE kind = ${HERBERT_PREPARE_TASK_KIND} AND status IN ('open', 'in_progress') AND deleted_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM risk_assessment r JOIN person p ON p.id = r.person_id
+          WHERE r.person_id = task.person_id AND r.template_key = 'absconding' AND r.status = 'active'
+            AND r.deleted_at IS NULL AND p.deleted_at IS NULL
+            AND p.status::text IN (${sql.join(
+              LIVE_PERSON_STATUSES.map((status) => sql`${status}`),
+              sql`, `,
+            )}))`);
+  return raised;
 }
 
 /** Marks a profile's review task done once the profile is reviewed. */
@@ -467,7 +632,7 @@ export async function raiseHerbertReviews(
         ),
       ),
     );
-  let raised = 0;
+  let raised = await raiseHerbertPreparations(tx, tenantId, now);
   for (const p of profiles) {
     if (herbertReviewDueOn(p.reviewedOn, rates.herbertProtocolReviewMonths) > today) continue;
     const [open] = await tx

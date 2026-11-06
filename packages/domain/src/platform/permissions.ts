@@ -180,6 +180,10 @@ export const PERMISSIONS = {
     description: "Manage stock, ordering and disposal",
     careRecord: true,
   },
+  "medicines.covert.manage": {
+    description: "Record and end covert administration agreed in a best-interests decision",
+    careRecord: true,
+  },
   "medicines.override.approve": {
     description: "Approve overrides such as expired competence",
     careRecord: true,
@@ -356,7 +360,11 @@ export const PERMISSIONS = {
     stepUp: true,
   },
   "finance.reporting.read": { description: "Read location P&L and fee analytics" },
-  "finance.payroll.export": { description: "Export approved timesheets to payroll" },
+  "finance.payroll.export": {
+    description:
+      "Export a locked pay run to the organisation's payroll provider, and connect or disconnect the provider",
+    stepUp: true,
+  },
   // comms
   "comms.message.send": { description: "Send internal messages and announcements" },
   "comms.portal.family": { description: "Use the family portal for one person" },

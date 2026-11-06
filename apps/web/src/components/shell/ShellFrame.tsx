@@ -14,8 +14,10 @@ import {
   Archive,
   Banknote,
   Bell,
+  Biohazard,
   BookCheck,
   BookOpen,
+  Briefcase,
   CalendarClock,
   CalendarDays,
   CalendarOff,
@@ -23,15 +25,18 @@ import {
   ClipboardList,
   CloudOff,
   FileLock,
+  FileOutput,
   FileSearch,
   FileSpreadsheet,
   FileText,
   FileUp,
+  Flower2,
   FolderLock,
   Gauge,
   GraduationCap,
   HeartHandshake,
   House,
+  IdCard,
   ListChecks,
   ListTodo,
   Lock,
@@ -46,11 +51,14 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  ShieldEllipsis,
   Stamp,
   Timer,
   TriangleAlert,
+  UserCheck,
   UserPlus,
   UserRoundCheck,
+  UserSearch,
   Users,
   Wallet,
 } from "lucide-react";
@@ -83,6 +91,13 @@ export interface ShellFrameLabels {
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
+  /** Shown only to holders of safety.outbreak.manage (SAFE-013). */
+  readonly outbreaks?: string | undefined;
+  /** Shown only to people who may read incidents (SAFE-014, SAFE-015). */
+  readonly deaths?: string | undefined;
+  readonly missing?: string | undefined;
+  /** Shown only to holders of safety.incident.manage or safety.disclosure.approve (SAFE-016). */
+  readonly disclosures?: string | undefined;
   /** Shown only to holders of safety.safeguarding.manage (SAFE-006). */
   readonly safeguarding?: string | undefined;
   /**
@@ -108,6 +123,10 @@ export interface ShellFrameLabels {
   readonly search?: string | undefined;
   /** Shown only to people who write, approve or send from letter templates. */
   readonly letters?: string | undefined;
+  /** Workforce (plan slice 58): recruitment, staff (induction and leaving), employee relations. */
+  readonly recruitment?: string | undefined;
+  readonly staff?: string | undefined;
+  readonly cases?: string | undefined;
   /** Shown only to holders of quality.evidence_pack.compose or .release (QUAL-003). */
   readonly evidencePacks?: string | undefined;
   /** Shown only to those who write, approve or send the statement of purpose (QUAL-009). */
@@ -159,6 +178,12 @@ export interface ShellFrameLabels {
   readonly onboarding?: string | undefined;
   /** Shown to staff and training leads: e-learning courses (ADR-0093). */
   readonly elearning?: string | undefined;
+  /** Shown to holders of workforce.staff_file.read or .manage. */
+  readonly staffFiles?: string | undefined;
+  /** Where the staff nav item goes: staff files, or sponsored workers for sponsor-only HR. */
+  readonly staffFilesHref?: string | undefined;
+  /** Shown to staff (workforce.self.read): their privacy notice and image consent. */
+  readonly privacy?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -200,6 +225,10 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
   }
+  if (pathname.startsWith("/outbreaks")) return "outbreaks";
+  if (pathname.startsWith("/deaths")) return "deaths";
+  if (pathname.startsWith("/missing")) return "missing";
+  if (pathname.startsWith("/disclosures")) return "disclosures";
   if (pathname.startsWith("/safeguarding")) return "safeguarding";
   if (pathname.startsWith("/complaints")) return "complaints";
   if (pathname.startsWith("/speak-up")) return "speak-up";
@@ -209,8 +238,18 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/wellbeing")) return "wellbeing";
   if (pathname.startsWith("/approvals")) return "approvals";
   if (pathname.startsWith("/letters")) return "letters";
+  if (
+    pathname.startsWith("/workforce/vacancies") ||
+    pathname.startsWith("/workforce/applications") ||
+    pathname.startsWith("/workforce/job-templates")
+  ) {
+    return "recruitment";
+  }
+  if (pathname.startsWith("/workforce/staff")) return "staff";
+  if (pathname.startsWith("/workforce/cases")) return "cases";
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/documents")) return "documents";
+  if (pathname.startsWith("/training/elearning")) return "elearning";
   if (pathname.startsWith("/training")) return "training";
   if (pathname.startsWith("/my-time")) return "my-time";
   if (pathname.startsWith("/my-pay")) return "my-pay";
@@ -219,7 +258,7 @@ function currentSection(pathname: string): string {
   if (pathname === "/pay" || pathname.startsWith("/pay/")) return "pay";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
-  if (pathname.startsWith("/training/elearning")) return "elearning";
+  if (pathname.startsWith("/staff")) return "staff-files";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/import")) return "import";
@@ -345,6 +384,32 @@ export function ShellFrame({
             label: labels.incidents,
             href: "/incidents",
             icon: <TriangleAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.outbreaks
+      ? [
+          {
+            id: "outbreaks",
+            label: labels.outbreaks,
+            href: "/outbreaks",
+            icon: <Biohazard {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.deaths
+      ? [{ id: "deaths", label: labels.deaths, href: "/deaths", icon: <Flower2 {...icon} /> }]
+      : []),
+    ...(labels.missing
+      ? [{ id: "missing", label: labels.missing, href: "/missing", icon: <UserSearch {...icon} /> }]
+      : []),
+    ...(labels.disclosures
+      ? [
+          {
+            id: "disclosures",
+            label: labels.disclosures,
+            href: "/disclosures",
+            icon: <FileOutput {...icon} />,
           },
         ]
       : []),
@@ -485,6 +550,29 @@ export function ShellFrame({
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
       : []),
+    ...(labels.recruitment
+      ? [
+          {
+            id: "recruitment",
+            label: labels.recruitment,
+            href: "/workforce/vacancies",
+            icon: <Briefcase {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.staff
+      ? [{ id: "staff", label: labels.staff, href: "/workforce/staff", icon: <IdCard {...icon} /> }]
+      : []),
+    ...(labels.cases
+      ? [
+          {
+            id: "cases",
+            label: labels.cases,
+            href: "/workforce/cases",
+            icon: <ShieldEllipsis {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.evidencePacks
       ? [
           {
@@ -512,6 +600,16 @@ export function ShellFrame({
             label: labels.elearning,
             href: "/training/elearning",
             icon: <GraduationCap {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.staffFiles
+      ? [
+          {
+            id: "staff-files",
+            label: labels.staffFiles,
+            href: labels.staffFilesHref ?? "/staff",
+            icon: <IdCard {...icon} />,
           },
         ]
       : []),
@@ -699,6 +797,16 @@ export function ShellFrame({
       href: "/settings/security",
       icon: <ShieldCheck {...menuIcon} />,
     },
+    ...(labels.privacy
+      ? [
+          {
+            id: "privacy",
+            label: labels.privacy,
+            href: "/settings/privacy",
+            icon: <UserCheck {...menuIcon} />,
+          },
+        ]
+      : []),
     {
       id: "sign-out",
       label: labels.signOut,

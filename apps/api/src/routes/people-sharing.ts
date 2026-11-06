@@ -37,6 +37,7 @@ import { type AppEnv, requirePermission, type TenantAccess, withTenant } from ".
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import { loadPerson, requireVersion, requireWrite } from "../services/people";
+import { rateNumber } from "../services/rates";
 import {
   decisionsWithLinks,
   personDecisions,
@@ -62,6 +63,8 @@ import { audit, invalidOnForeignKey, PersonParam, requireOwnDocument } from "./p
  */
 
 const DecisionParams = PersonParam.extend({ decisionId: z.uuid() });
+/** The longest a sharing decision may last (rates.md; H-38). */
+const SHARING_MAX_MONTHS_KEY = "sharing.decision_max_months";
 
 const SHARING_MESSAGES: Record<SharingDecisionProblem, string> = {
   no_sections: "Choose what is shared.",
@@ -70,6 +73,10 @@ const SHARING_MESSAGES: Record<SharingDecisionProblem, string> = {
   care_plan_domains_without_care_plan: "Care plan domains are shared only with the care plan.",
   expiry_before_start: "The decision must end after it starts.",
   expiry_in_past: "The decision must end in the future.",
+  expiry_beyond_maximum:
+    "A sharing decision lasts at most the organisation's maximum period: choose an earlier end date and renew it at review.",
+  expiry_beyond_authority:
+    "The decision cannot last longer than the authority it rests on: end it on or before the authority's end date.",
   person_record_not_live: "Nothing is shared once the person has left the service or died.",
   consent_giver_required: "Say who gave consent: the person, or someone with authority for them.",
   person_lacks_capacity:
@@ -193,7 +200,7 @@ export const peopleSharingRouter = createRouter()
       tags: ["people"],
       summary: "Record a decision to share sections with one recipient (HZ-022)",
       description:
-        "checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. The authority must be held by the contact named (a deputy within their deputyship and the sections their order covers; an appointee benefits only); a reference, evidence or end date left out is taken from the contact. A capacity finding names an assessment of the sharing decision. Publishes people.sharing.changed.",
+        "checkSharingDecision: known sections, an expiry no later than `sharing.decision_max_months` after the start and the end of any authority relied on (H-38), and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. The authority must be held by the contact named (a deputy within their deputyship and the sections their order covers; an appointee benefits only); a reference, evidence or end date left out is taken from the contact. A capacity finding names an assessment of the sharing decision. Publishes people.sharing.changed.",
       security,
       request: {
         params: PersonParam,
@@ -269,6 +276,8 @@ export const peopleSharingRouter = createRouter()
         const check = checkSharingDecision(decision, {
           personStatus: p.status as PersonStatus,
           now,
+          // Every decision is renewed at review within this many months (H-38).
+          maxMonths: await rateNumber(tx, access.tenantId, SHARING_MAX_MONTHS_KEY),
         });
         if (!check.ok) {
           throw problems.invalid(

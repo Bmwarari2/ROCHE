@@ -98,6 +98,18 @@ const ProfileFields = {
   qualifyingWeekdays: z.array(z.number().int().min(1).max(7)).max(7).default([]),
   sspAverageWeeklyEarningsPence: pence.nullable().default(null),
   statePensionAgeOn: isoDate.nullable().default(null),
+  /**
+   * The organisation's works number, or the payroll provider's employee id: the only way an export
+   * names the member (scheduling.md section 19 rule 3). Unique in the organisation. Never a name,
+   * an email or a National Insurance number: it has a digit and no NI number's shape.
+   */
+  payrollReference: z
+    .string()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$/, "Letters, digits, dots, dashes and slashes")
+    .regex(/[0-9]/, "A works number or employee id has a digit")
+    .refine((v) => !/^[a-z]{2}[0-9]{6}[a-d]?$/i.test(v), "Never a National Insurance number")
+    .nullable()
+    .default(null),
 };
 
 export const PutPayProfile = z
@@ -117,6 +129,7 @@ export const PayProfileItem = z
     qualifyingWeekdays: z.array(z.number()),
     sspAverageWeeklyEarningsPence: z.number().nullable(),
     statePensionAgeOn: isoDate.nullable(),
+    payrollReference: z.string().nullable(),
   })
   .meta({ id: "PayProfileItem" });
 

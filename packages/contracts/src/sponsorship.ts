@@ -22,6 +22,8 @@ export const EnglishEvidence = z
     "degree_taught_in_english",
     "secure_english_language_test",
     "previous_grant",
+    "uk_school_qualification",
+    "professional_body_assessment",
   ])
   .meta({ id: "EnglishEvidence" });
 export const AppendixDItem = z
@@ -148,9 +150,21 @@ export const ImagePurpose = z
   .enum(["newsletter", "website", "social_media", "family_feed"])
   .meta({ id: "ImagePurpose" });
 
+/**
+ * The staff privacy notice in force (H-940): an organisation document in the document store. The
+ * label members acknowledge is that document's id, so each new version is asked about afresh.
+ */
 export const SetStaffPrivacyNotice = z
-  .object({ version: z.string().trim().min(1).max(40) })
+  .object({ documentId: uuid })
   .meta({ id: "SetStaffPrivacyNotice" });
+
+export const StaffPrivacyNotice = z
+  .object({
+    documentId: uuid,
+    title: z.string(),
+    documentVersion: z.number().int(),
+  })
+  .meta({ id: "StaffPrivacyNotice" });
 
 export const AcknowledgeStaffPrivacyNotice = z
   .object({ noticeVersion: z.string().trim().min(1).max(40) })
@@ -164,6 +178,8 @@ export const StaffPrivacy = z
   .object({
     tenantUserId: uuid,
     currentNoticeVersion: z.string().nullable(),
+    /** The notice document, when the version in force is one (null for an earlier label). */
+    notice: StaffPrivacyNotice.nullable(),
     acknowledged: z.boolean(),
     acknowledgedVersions: z.array(z.string()),
     imageConsent: z.array(

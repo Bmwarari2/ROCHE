@@ -18,8 +18,14 @@ export const demoMe: Me = {
   tenant: { id: DEMO_TENANT_ID, name: "Example Care (demo)" },
   tenantUserId: "00000000-0000-4000-8000-00000000d202",
   locations: [{ id: DEMO_LOCATION_ID, name: "Example House" }],
-  // care.handover.manage shows the handover tab with the demo handover.
-  permissions: ["people.person.read", "care.handover.manage"],
+  // care.handover.manage shows the handover tab with the demo handover; the scheduling permissions
+  // show the Shifts tab with the demo shifts, the clock and lone working.
+  permissions: [
+    "people.person.read",
+    "care.handover.manage",
+    "scheduling.timesheet.self",
+    "scheduling.lone_worker.check_in",
+  ],
 };
 
 interface DemoPerson {
@@ -158,6 +164,7 @@ export function demoSeedStatements(seededAt: Date): SqlStatement[] {
     });
   }
   statements.push(...demoCareStatements(seededAt));
+  statements.push(...demoShiftStatements(seededAt));
   statements.push({
     sql: "INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
     params: ["00000000-0000-4000-8000-00000000d501", DEMO_SEEDED_AT_KEY, now],
@@ -192,6 +199,30 @@ function insert(table: string, row: Record<string, string | number | null>): Sql
     sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
     params: columns.map((c) => row[c] ?? null),
   };
+}
+
+/**
+ * The demo member's own shifts (scheduling.md section 18): one under way since half an hour before
+ * seeding, so Clock in is offered, and one tomorrow, changed after it was published.
+ */
+export function demoShiftStatements(seededAt: Date): SqlStatement[] {
+  const at = (hours: number) => new Date(seededAt.getTime() + hours * 3_600_000).toISOString();
+  const shift = (id: string, label: string, from: number, changed: string | null) =>
+    insert("shift", {
+      id,
+      tenant_id: DEMO_TENANT_ID,
+      location_id: DEMO_LOCATION_ID,
+      label,
+      kind: "work",
+      starts_at: at(from),
+      ends_at: at(from + 8),
+      break_minutes: 30,
+      changed_after_publish_at: changed,
+    });
+  return [
+    shift("00000000-0000-4000-8000-00000000de01", "Day shift", -0.5, null),
+    shift("00000000-0000-4000-8000-00000000de02", "Day shift", 23.5, at(-24)),
+  ];
 }
 
 /**

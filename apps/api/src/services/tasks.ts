@@ -514,7 +514,7 @@ export const OWNER_TASK_KINDS: readonly string[] = ["safety.investigation_action
 
 /**
  * Task kinds only their evidence completes, never a transition: a read-and-sign reminder is done
- * when its member signs the version in force (quality.md section 18.3; HZ-128), so nobody marks it
+ * when its member signs the version in force (quality.md section 19.3; HZ-128), so nobody marks it
  * done or skipped without the signature.
  */
 export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = [
@@ -524,6 +524,9 @@ export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = [
   "people.return_check.medicines_reconciled",
   // Completed only by referring the concern or recording why not (HZ-126).
   "safety.safeguarding_referral",
+  // A disposal's witness task is done only by the witness confirming it (medicines.md section 15
+  // rule 5), never marked done while the disposal is unwitnessed (slice 42 clinical review 6).
+  "medicines.disposal.witness",
 ];
 
 /** Whether a task's assignee completes it whatever they hold (a general task or an owner's). */

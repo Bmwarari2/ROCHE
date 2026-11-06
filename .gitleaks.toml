@@ -17,6 +17,11 @@ regexes = [
   '''harbour_[a-z]+_local''',
   '''harbour_admin_ci''',
   '''local-development-secret-change-me-[0-9]+''',
+  # Invented TRUD API keys in the dm+d download tests (apps/api/test/dmd-trud.test.ts and the
+  # path-shaped key refused in apps/api/test/config.test.ts). Whole-value matches only: a real key
+  # never takes these shapes.
+  '''^(test|wrong)-trud-key-[0-9a-f]+$''',
+  '''^abc/def/0123456789abcdef$''',
 ]
 
 [[allowlists]]

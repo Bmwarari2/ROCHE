@@ -26,6 +26,7 @@ export type RecordTab =
   | "dependency"
   | "activities"
   | "reviews"
+  | "herbert"
   | "safeguarding"
   | "hospital"
   | "pre-admission"
@@ -33,6 +34,7 @@ export type RecordTab =
   | "property"
   | "letters"
   | "medicines"
+  | "controlled-drugs"
   | "family-updates"
   | "leaving"
   | "sharing"
@@ -49,11 +51,14 @@ type TabPermission =
   | "medicines.record.manage"
   | "medicines.emar.administer"
   | "care.note.read"
+  | "safety.incident.read"
   | "people.person.read"
   | "people.movement.record"
   | "comms.letter.manage"
   | "comms.feed.publish"
-  | "people.sharing.manage";
+  | "people.sharing.manage"
+  | "medicines.cd.administer"
+  | "medicines.cd.witness";
 
 /**
  * In the order the tabs appear: who the person is (personal details and About me), the plan and
@@ -73,6 +78,17 @@ export const RECORD_TABS: readonly TabDefinition[] = [
     tab: "medicines",
     needs: ["medicines.record.manage", "medicines.emar.administer", "care.plan.read"],
   },
+  // The controlled drugs register (MEDS-005; medicines.md section 15): the API's readers.
+  {
+    tab: "controlled-drugs",
+    needs: [
+      "medicines.cd.administer",
+      "medicines.cd.witness",
+      "medicines.record.manage",
+      "medicines.emar.administer",
+      "care.plan.read",
+    ],
+  },
   { tab: "body-map", needs: "care.note.read" },
   { tab: "advance-care", needs: "care.plan.read" },
   { tab: "capacity", needs: "care.plan.read" },
@@ -80,6 +96,8 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "dependency", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
   { tab: "reviews", needs: "care.plan.read" },
+  // The Herbert Protocol profile handed to the police if the person goes missing (SAFE-015).
+  { tab: "herbert", needs: "safety.incident.read" },
   // The protective measures of open safeguarding concerns, for carers (SAFE-006; HZ-126).
   { tab: "safeguarding", needs: "care.plan.read" },
   { tab: "hospital", needs: "people.movement.record" },

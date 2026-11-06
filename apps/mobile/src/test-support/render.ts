@@ -36,6 +36,8 @@ export interface Rendered {
   find(testID: string): { readonly props: Record<string, unknown> } | null;
   /** Presses the host element with this test id. */
   press(testID: string): Promise<void>;
+  /** Holds a press on the host element with this test id (its `onLongPress`). */
+  longPress(testID: string): Promise<void>;
   /** Types into the text input with this test id. */
   typeInto(testID: string, text: string): Promise<void>;
   unmount(): void;
@@ -94,6 +96,7 @@ export async function render(element: ReactElement): Promise<Rendered> {
     texts: () => textsOf(nodes()),
     find,
     press: (testID) => call(testID, "onPress", {}),
+    longPress: (testID) => call(testID, "onLongPress", {}),
     typeInto: (testID, text) => call(testID, "onChangeText", text),
     unmount: () => current().unmount(),
   };

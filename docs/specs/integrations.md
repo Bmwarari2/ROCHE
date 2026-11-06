@@ -54,8 +54,10 @@ To be written by each slice. dm+d search, product, GTIN and release history (sli
 
 ## 6. Offline behaviour
 
-The device holds the dm+d subset for its assigned people's medicines (section 17.1); scanning with
-OCR happens on the phone camera (section 15.3, documents).
+The device holds the dm+d subset for its assigned people's medicines (section 17.1). Scanning a
+paper MAR chart needs a connection: the phone takes the photograph and the server reads it with an
+allowlisted engine in europe-west2 (ADR-0095 changes the earlier "OCR on the phone camera"); the
+phone keeps nothing it read.
 
 ## 7. Clinical safety
 
@@ -113,7 +115,7 @@ A tenant without the link keeps every Harbour module as it is.
 | Approved units by pay code | Harbour to Thapsus-HR | Timesheet approved; pay period closed | Not available: a pay inputs route and scope needed |
 | Hourly rates and pay periods | Thapsus-HR to Harbour | Daily, and on `employee.changed` | Not available: a narrow pay read needed |
 
-### 11.3 Schema (slice 87, migration 0139)
+### 11.3 Schema (slice 87, migration 0141)
 
 Every table has `tenant_id`, forced RLS and a policy:
 - **The connection** is a row in `integration_connection` with:
@@ -142,7 +144,7 @@ Every table has `tenant_id`, forced RLS and a policy:
 | `integrations.hr_link.review` | Confirm or reject matches; clear quarantined items | owner, registered_manager, deputy_manager, hr |
 | `integrations.hr_link.read` | See sync health, staleness and drift | the roles above, and rota managers |
 
-New permissions reach existing tenants' built-in roles through a backfill in migration 0139, which
+New permissions reach existing tenants' built-in roles through a backfill in migration 0141, which
 the ratchet test checks.
 
 ### 11.5 Rules that are easy to get wrong
@@ -432,7 +434,7 @@ organisation rows), and `rls-coverage.test.ts` lists them as national reference 
    to the event loop between them, never read whole; and the whole load, reading and writing, stops
    after `DMD_LOAD_TIMEOUT_MINUTES` (60; each statement may run only for the time left), failing as
    `timed_out` with the release in use unchanged. The job has its own queue holding one job, queued
-   or running, worked one at a time; a process of its own for the load is slice 75's.
+   or running, worked one at a time; since slice 75 the load runs as its own job ("Release download" rule 6).
    **The invented fixture** (security review): a release named `fixture_...` or loaded as `fixture`
    is refused (`fixture_not_allowed`), by the loader and by `app.dmd_begin_release`, unless the
    database is marked `dev` or `test` in `app.database_environment`, whatever the operator's shell
@@ -507,9 +509,101 @@ the latest release's name, date, source and files, or null; `health()`. Each fil
 developer's machine, CI or the shared dev environment; with `NODE_ENV=production`, or `HARBOUR_ENV`
 naming staging, pilot or production, there is no source (`unconfigured`) until slice 75 builds the
 TRUD adapter, which must pass the same contract (`apps/api/test/dmd-release-source.test.ts`)
-against a mock TRUD. The worker's `dmd-release-load` queue runs monthly (early on the 3rd) and logs
-`dmd.release.loaded`, `already_loaded`, `refused`, `failed` or `none` with the release's name, date,
-counts and problem codes; slice 75 alerts on them.
+against a mock TRUD. Slice 75 moves the monthly load out of the shared worker into its own job
+("Release download" below), which logs `dmd.release.loaded`, `already_loaded`, `refused`, `failed`
+or `none` with the release's name, date, counts and problem codes, and alerts on them.
+
+### Release download (slice 75)
+
+The TRUD adapter (`TrudDmdReleaseSource`, `apps/api/src/integrations/trud.ts`) implements the
+release source port; the rules it follows are pure functions in
+`packages/domain/src/integrations/trud.ts`. **Status: built against a mock TRUD; not yet run against
+the real service (H-1240 to H-1243).**
+
+1. **Discovery.** `GET {TRUD_BASE_URL}/keys/{key}/items/{TRUD_DMD_ITEM}/releases?latest` (item 24,
+   the NHSBSA dm+d release). The answer is accepted only when it names one release with an archive
+   file name of the form `<release name>.zip` whose release name carries its date
+   (`nhsbsa_dmd_10.1.0_20261026000001.zip`), an `https` archive address on an allowed host
+   (`TRUD_ALLOWED_HOSTS`, `isd.digital.nhs.uk` by default), a size above zero and within
+   `DMD_ARCHIVE_MAX_BYTES`, and a SHA-256 of 64 hexadecimal characters; anything else is refused as
+   `trud_response_invalid`, and nothing is downloaded (`checkTrudRelease`).
+2. **Not twice.** A release already loaded under that name is not downloaded again
+   (`already_loaded`). A refused release is downloaded and checked again at the next run, so a
+   corrected parser can load it.
+3. **Download.** Over HTTPS only. The archive address and every redirect (at most three) must be
+   on an allowed host (`trudUrlAllowed`), so a changed answer cannot point the job elsewhere. The
+   archive streams into a private directory (mode 0700) and stops as soon as it passes the size it
+   declared or the limit (`DMD_ARCHIVE_MAX_BYTES`, 256 MiB). Its SHA-256 must equal the one
+   declared (`checksum_mismatch` otherwise). It is checked as it streams, then again through the
+   same open file the archive is unpacked from, so nothing can swap it in between. On any failure,
+   or when the job is stopped (SIGTERM), the files are deleted and nothing is loaded. The whole run
+   has one deadline (`DMD_LOAD_TIMEOUT_MINUTES`), and TRUD's answer has 30 seconds within it. The
+   SHA-256 comes from the same answer as the address: it proves the archive arrived whole, not that
+   TRUD's answer is genuine, because TRUD publishes no independent signature (HZ-113 residual risk).
+4. **Unpacking.** At most `DMD_RELEASE_MAX_FILES` files are kept, and at most four times as many
+   entries are read, skipped ones included (`archive_too_large`). Each entry's name must be a plain
+   file name (`dmdArchiveEntryName`), and its type a regular file: an encrypted entry, a symbolic
+   link or a device is refused (`archive_unsafe`). An absolute path, `..`, a backslash, a nested folder
+   other than the release's own, or a duplicate name is refused (`archive_unsafe`). Only `.xml`
+   files are kept, plus `.zip` files nested one level deep and unpacked under the same rules (the
+   GTIN file may come nested; H-654). Bytes are counted as they inflate, and the whole release is
+   held to `DMD_RELEASE_MAX_BYTES` (`archive_too_large`), so a small archive cannot fill the disk.
+   The directory is then read as a manual run reads one (`readDmdReleaseDirectory`: no symbolic
+   links, regular files only, the same limits) and loaded through the release loader (rules 1 to 4).
+5. **Credentials.** The TRUD API key (`TRUD_API_KEY`) comes from Secret Manager, as the job's
+   environment (H-510, H-1240). It appears only in the request path. It is never in a log line, an
+   error message, the release history or an audit event: errors carry a code and an HTTP status
+   only (`TrudError`).
+6. **Its own process and role.** The download and load run as a Cloud Run job, `node
+   dist/dmd-job.js` (`apps/api/src/jobs/dmd-job.ts`), not in the shared worker. It connects as its
+   own database role, `harbour_dmd_job` (`DATABASE_DMD_URL`, migration 0131). That role may call
+   the loader's functions and read the dm+d tables, and nothing else: no organisation's rows, no
+   outbox, no notifications, so a flaw in parsing an archive from the internet reaches nothing else.
+   The worker may no longer call the loader. Where real people work the job refuses to start on the
+   local default address. Cloud Scheduler starts it monthly,
+   early on the 3rd, with one execution at a time, and it exits non-zero when a release is refused,
+   fails or cannot be downloaded. The job's Terraform waits for the Google Cloud integration (H-1241).
+   `pnpm --filter @harbour/api dmd:run` runs it once on a developer's machine, against the mock.
+   The shared worker no longer loads dm+d; it keeps the daily freshness check (rule 7).
+7. **Alerts** (HZ-113). Each line carries the release's name and date and the problem codes, never
+   the key. Each event has a log-based alert to the operator (H-1241):
+   - `dmd.release.refused` and `dmd.release.failed`, from the loader;
+   - `dmd.download.failed`, with the code: `trud_unreachable`, `trud_refused` (an HTTP status such
+     as 401 for a lapsed key), `trud_response_invalid`, `checksum_mismatch`, `archive_unsafe`,
+     `archive_too_large`, `download_too_large`, or `trud_unconfigured` (no key where real people
+     work, which also fails the job rather than passing quietly);
+   - `dmd.release.late`, from the worker's daily check, once the release in use is older than
+     `medicines.dmd.stale_after_days` (35 days, the same figure every screen uses), or when no
+     release is loaded where real people work.
+8. **Where it runs.** The fixture environments are listed, never the real ones
+   (`realPeopleEnvironment`): a developer's machine (`HARBOUR_ENV` unset), `local`, `ci`, `dev` and
+   `test` keep the mock and never call TRUD. Any other name, or `NODE_ENV=production`, counts as an
+   environment where real people work. There the TRUD adapter is used when `TRUD_API_KEY` is set, and
+   otherwise there is no source and the job fails (`trud_unconfigured`). A new environment's name
+   therefore fails safe. The invented fixture stays refused outside dev and test databases (rule 1).
+
+**Schema** (migration 0131):
+- the login role `harbour_dmd_job` (created by `db:bootstrap`) receives EXECUTE on the four loader
+  functions, granted by their owner `harbour_dmd_loader`, and SELECT on the dm+d tables and
+  `app.database_environment`;
+- `harbour_worker` loses EXECUTE on the loader;
+- `harbour_worker` may read the national rows of `rate_table` (a restrictive policy keeps it to
+  `tenant_id IS NULL`), so the daily check reads the same figure as the screens. No new table: each download's outcome is in the job's log lines, and each load is in
+`dmd_release`.
+
+**Test list (slice 75)**:
+- Domain (`packages/domain/src/integrations/trud.test.ts`), table-driven: the TRUD answer accepted
+  or refused field by field; allowed and refused addresses; entry names accepted and refused.
+- API (`apps/api/test/dmd-trud.test.ts`), against a mock TRUD on 127.0.0.1:
+  - the port's contract, and a release loaded end to end;
+  - already loaded, so not downloaded again;
+  - a checksum mismatch, an oversized download and a redirect off the allowed hosts refused;
+  - path traversal, too many entries, a zip bomb and a nested zip;
+  - a 401 reported without the key;
+  - the job's exit status and log events;
+  - the late check at, before and after 35 days.
+- Database (`packages/db/test/dmd.test.ts`): the worker reads the national rate rows and no
+  organisation's.
 
 ### API (`apps/api/src/routes/medicines-dmd.ts`)
 
@@ -548,3 +642,128 @@ not audited one by one; refusals are audited as every refusal is, and each load 
   quietened by a tenant's row; invalid products and mistyped codes; withdrawn and ended GTINs not
   matched; an invalid GTIN refused; members without a medicines permission refused; the port's
   contract.
+The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0013, ADR-0080, ADR-0094,
+ADR-0095, ADR-0097) and the human actions in [human-actions.md](../plans/human-actions.md) (H-510,
+H-511, H-518 to H-523, H-532, H-540).
+
+## 11. E-signature and OCR adapters (slice 79, INTG-013, ADR-0095)
+
+Two ports, each with a mock and a contract test (`apps/api/src/integrations/esign-ocr.test.ts`).
+Domain rules: `packages/domain/src/integrations/esign-ocr.ts`. Schema: migration 0133
+(`packages/db/src/schema/esign-ocr.ts`). API: `apps/api/src/routes/esign-ocr.ts`.
+
+### 11.1 E-signature (`documents.signature`)
+
+1. A member with `platform.document.manage` asks a named, active member to sign the **current
+   version** of an **organisation document** (category `organisation_document`; its SHA-256 must
+   match). A staff HR document, a logo and a person's document are refused (not found).
+   A person receiving care, or their representative, signs with the existing typed-name flow and a
+   recorded capacity.
+2. **In Harbour** (provider `in_app`, every organisation's default): only the member named signs,
+   only while the request is open, only the exact bytes asked for (the hash they read must match
+   the request and the current version), and only with a second factor used within the step-up
+   window (ADR-0072). The typed-name `document_signature` row and the request's evidence (the
+   signature, the time, that step-up was met) are written in one transaction. Someone else's
+   request answers "not found".
+3. **DocuSign** (provider `docusign`) only when the organisation chose it in
+   `integration_connection` (port `documents.signature`) and the adapter is on (`DOCUSIGN`; today a
+   no-network mock, refused in production until H-540). The envelope carries the document, its
+   hash, a generic subject ("A document to sign") and the signer's name and the email they sign
+   in with, nothing else. A send that fails or throws marks the request failed. Refreshing a request asks the provider where it stands: declined and voided close it; a
+   completed envelope's signed copy is stored as a **new version** of the document through the
+   storage port (malware scan first: an infected copy is never stored; the original's retention
+   class), stored once however often it is refreshed, and only a copy that scanned clean marks the
+   request signed (`envelopeTransition`). Cancelling checks the version first, then voids the
+   envelope with a fixed reason, never the member's words.
+4. A finished request (signed, declined, cancelled, failed) never changes, and its document, hash,
+   signer and provider never change (database trigger).
+
+### 11.2 OCR of scanned MAR charts (`documents.ocr`)
+
+5. **Engines**: `OCR_ENGINES` lists those allowed and the only location each may run in:
+   `google_document_ai` in `europe-west2` (Document AI, under the Google Cloud sub-processor entry,
+   ADR-0098; the adapter waits for H-1262) and `mock` locally. Configuration refuses any other, the
+   database refuses an extraction naming any other (`ocr_extraction_engine`), and production
+   refuses the mock. With none configured, scanning answers "switched off".
+6. OCR is switched on per organisation: `integration_connection` with port `documents.ocr` and
+   the configured engine as provider, after the organisation's DPIA covers it (H-548, H-1261);
+   otherwise scanning answers "switched off". `OCR_ENGINE` is `none` unless set; the mock reads
+   nothing from an image without test instructions.
+7. A member with `medicines.record.manage` that reaches the person uploads the photograph (capped
+   before it is read, like every upload), optionally with an `Idempotency-Key` (a UUID): a retry
+   with the same key returns the first scan. It is stored first as the person's document
+   (`person_document`: malware scan, care record retention); an image that does not scan clean is
+   never read. The allowlist is checked again just before the engine is called. A result with a
+   line outside 0 to 199 or a part Harbour does not know is refused whole (`unreadable`), never
+   coerced.
+8. Every value read is **unconfirmed**. A person confirms it as read, corrects it, or rejects it;
+   confirming or correcting also decides **which chart line and which part** it is (the engine's
+   are a proposal; `decidedLine`, `decidedLabel`). A text longer than a value holds is cut and
+   marked truncated: corrected or rejected, never confirmed. A person can add a value the scan
+   missed (`addedByPerson`). The engine's confidence is never sent to the screen: only a "check
+   carefully" flag below `OCR_LOW_CONFIDENCE`. A decided value and the text as read never change.
+9. **Release** (`releaseRefusal`) needs: every value decided; no part standing twice on one line
+   (never joined); no line's values without its medicine (never dropped); at least one medicine
+   line; the person's own count of medicine lines on the paper chart (typed, never prefilled)
+   matching; every medicine line marked `active` or `stopped` on the chart (`cannot_tell` blocks
+   release until the prescriber or pharmacy is asked); the name and date of birth on the chart
+   confirmed as the person's (HZ-130); the chart's period, and that it is the chart in use now.
+   It emits `integrations.ocr_mar_released` with ids and a line count only.
+10. The medicines module (slice 51) reads `GET /v1/ocr-extractions/{id}/medicine-lines`: lines in
+    force only, each part with how it was decided (confirmed, corrected, added by a person) or
+    null; notes kept with their line and chart notes kept apart; stopped lines listed by number;
+    the photograph's id; who decided values and who released, none of whom may be the second
+    checker (slice 51). Each line is origin `import`, **not yet checked**, and **held** ("do not
+    give") until its second check whatever the organisation's usual rule (`marEntryStatus`;
+    HZ-005, H-548). OCR never writes a MAR entry and never chooses a dm+d product, a dose unit or
+    a schedule.
+11. A scan can be discarded instead; nothing it read is then used. The image stays the person's
+    document.
+12. Screen rules for the later web and mobile slices (H-1266; HZ-005 controls): the photograph
+    beside every value; no bulk confirm; the correction box never prefilled; the engine's number
+    never shown; a released scan shown as "Released: waiting to be added to the MAR" until slice
+    51 has transcribed it.
+
+### 11.3 Permissions
+
+No new permissions (so no role backfill): `platform.document.manage` asks for, cancels and
+refreshes signature requests; any member signs requests naming them (step-up);
+`integrations.connection.manage` chooses the provider; `medicines.record.manage`, where it reaches
+the person, scans, decides, releases and reads lines.
+
+### 11.4 API
+
+| Route | Purpose |
+| --- | --- |
+| `POST /v1/documents/{id}/signature-requests` | Ask a member to sign (sends the envelope through DocuSign when chosen) |
+| `GET /v1/documents/{id}/signature-requests` | A document's requests |
+| `GET /v1/me/signature-requests` | What I am asked to sign |
+| `POST /v1/signature-requests/{id}/sign` | Sign in Harbour (step-up) |
+| `POST /v1/signature-requests/{id}/cancel` | Cancel with a reason |
+| `POST /v1/signature-requests/{id}/refresh` | Ask DocuSign where it stands; store a clean signed copy |
+| `POST /v1/people/{id}/mar-scans` | Scan a paper MAR chart (the body is the photograph) |
+| `GET /v1/people/{id}/ocr-extractions` | A person's scans |
+| `GET /v1/ocr-extractions/{id}` | A scan with each value (view audited) |
+| `POST /v1/ocr-extractions/{id}/fields/{fieldId}/decision` | Confirm, correct or reject a value, deciding its line and part |
+| `POST /v1/ocr-extractions/{id}/fields` | Add a value the scan missed |
+| `POST /v1/ocr-extractions/{id}/release` | Release a fully accounted-for scan (count, line statuses, person, period) |
+| `POST /v1/ocr-extractions/{id}/discard` | Discard a scan |
+| `GET /v1/ocr-extractions/{id}/medicine-lines` | A released scan's lines, for slice 51 |
+
+Audit events: `platform.signature.requested`, `.sent`, `.failed`, `.signed`, `.cancelled`,
+`.refreshed`; `integrations.ocr.blocked`, `.read`, `.viewed`, `.decided`, `.added`, `.released`,
+`.discarded`, `.lines_read`. None carries a value read or typed.
+
+### 11.5 Data protection and retention
+
+Signature requests: who is asked to sign which organisation document, and how it was signed;
+retained with the document (`as_subject`). OCR extractions and fields: health data about the
+person, in the person's scope (history included), retained as the care record. Records of
+processing, data standards, retention, the sub-processor register and the DPIA (R25) are updated
+with this slice.
+
+### 11.6 Tests
+
+Domain (`esign-ocr.test.ts`), adapter contracts (`apps/api/src/integrations/esign-ocr.test.ts`),
+database (`packages/db/test/esign-ocr.test.ts`) and API (`apps/api/test/esign-ocr.test.ts`).
+Web and mobile screens for scanning and signing are later slices (H-1266).

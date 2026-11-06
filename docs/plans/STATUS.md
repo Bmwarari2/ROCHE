@@ -7,6 +7,15 @@ gate passes on `main` (section 19, definition of complete).
 **Overall: 1% done** (3 of 234 register rows `done`; 103 `partial`, 128 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
+**Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
+`partial`). It adds the TRUD download, which checks TRUD's answer, the archive's SHA-256 and its
+names before loading, and runs as its own Cloud Run job with alerts on refused, failed and late
+releases. Migration 0131; human actions H-1240 to H-1245. The job's Terraform waits for #164
+(H-1241).
+
+**Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
+only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
@@ -18,6 +27,16 @@ screens (#128, `docs/user-guides/`).
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
+
+## Merge batch 3b (06/11/2026)
+
+`integration/phase-2-batch-3b`, from batch 3a: migrations 0120 to 0140 (slice 38 renumbered from
+0142 to 0140) with web-cd-register, slices 72 and 86. When-required medicines are recorded again
+with their limits; imported medicines bring their tags, interval and maximum from the file. Hazard
+ids separated: speak-up HZ-131, Thapsus-HR HZ-133, medication errors HZ-134. The Thapsus-HR link
+takes 0141 and 0142, slice 28 takes 0143. Batch 3a merged (#171); main merged in. Two deliberate
+API contract changes (H-876, H-940) recorded for oasdiff. PR to main open, not merged. See
+`docs/changelog-dev/2026-11-06-integration-phase-2-batch-3b.md`.
 
 ## Paused 01/11/2026: where to resume
 
@@ -120,7 +139,7 @@ Phases 3 to 7 are not started.
 
 **Added to the plan on 01/11/2026**: the Thapsus-HR link (INTG-014, ADR-0126), so a provider using
 both products shares rota, time, pay and staff records without exports. It is Phase 2 slices 86 to 90
-on `docs/plan-thapsus-hr-link`, and takes migration 0139 (0140 if needed), H-1340 to H-1345, HZ-133
+on `docs/plan-thapsus-hr-link`, and takes migration 0141 (0142 if needed), H-1340 to H-1345, HZ-133
 and DPIA risk R30.
 
 **Next free numbers**: migration 0141, human actions block H-1350, hazard HZ-134, ADR-0127.
@@ -150,6 +169,70 @@ H-482, H-543, H-551 and H-595. Left open, each with a note in
   on the safeguarding log (on `main` since slice 13), so it is not used by a live tenant until then.
 - The ratings applied here (H-543, H-595, H-267) are recommended ratings, not the CSO's; the CSO
   rates them, and signs safety case v0.1 (H-381), at the testing phase.
+**Recommended answers applied, platform items** (`fix/recommended-answers-platform`, 31/10/2026;
+each reviewed at the testing phase): sharing decisions last at most `sharing.decision_max_months`
+or to the authority's end (H-38, HZ-022); retention classes for people never admitted (H-39),
+family notification deliveries (H-106), search events that showed no one (`security_log`, H-121),
+the breach register and data protection complaints (H-670) and the Phase 2 gaps (H-525); the
+sleep-in allowance no longer counts as minimum wage pay (H-585); an identifiable disclosure outside
+the organisation suggests at least medium (H-611); B1 keeps the care record under Regulation
+17(2)(c) (H-612) and complaints have purpose B14 (H-700); the free-text dependency category is no
+longer written (H-716; the column drop is a later contract migration). H-566 has its domain rules
+and API routes (suspend, end, erase the sign-in), held in the database by migration 0129
+(`app.change_membership`, a restrictive policy and a guard trigger on `tenant_user`, the last user
+manager kept); its web screens and a reinstate route are still to build.
+
+**Phase 2 slice 48, rounds, escalation and conflict review** (`feat/meds-rounds`, MEDS-002, from
+slice 34 with #162's final head (559440bb) merged in): migration 0134 adds
+`medication_administration_conflict`. The API gives the round for a location by time slot (late
+doses first, earlier late doses included, time-critical first, when-required medicines with when
+last given), keeps a bound device's second record of a dose as a conflict with an urgent review
+task when it matters, and lets the nurse in charge resolve it once (`first_stands`, `corrected` or
+`both_given`, which raises a medication incident). Outstanding doses escalate through the existing
+worker job and reach the shift handover as tasks. The API supplies `competenceAtRecording` and the
+delay tolerance to #162's rules. 0134 also restores 0099's sample-removal tables (H-1278). API only;
+screens are slice 53. Next for medicines: slice 50 (printable page), slice 28, slice 53. Open:
+H-1270 to H-1279.
+**Pushed on 01/11/2026, not merged: slice 54, the controlled drugs register screens**
+(`feat/web-cd-register`, MEDS-005 and MEDS-014 `partial`, from slice 34; medicines.md section 15).
+The register tab and page, witness first in their own session with step-up (ADR-0084 on the web),
+receipts, returns, disposals and destruction, corrections under the entry they correct, counts
+that raise an incident when they do not match, and a plain print view until slice 50. Two read
+routes added (recorders, waiting signatures). Playwright with axe in light and dark. Open: H-1330
+to H-1334. The tab change in `apps/web/src/lib/care-record.ts` overlaps slice 52's.
+
+**Phase 2 slice 34, the controlled drugs register** (`feat/meds-cd-register`, MEDS-005, from
+slice 22 with #162's latest head merged in): migration 0128 adds pages, append-only entries with the
+running balance checked by the database, witness signatures (the witness's own step-up, for the
+recorder and what they watched, used once) and stock checks; a count that does not balance raises a
+medication incident through the safety module. A controlled drug given writes its register entry
+with the administration; corrections are margin entries. Next for medicines: slice 50 (printable
+page), slice 28, slice 48 and the screens. Open: H-1200 to H-1209.
+
+**Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
+with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
+UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the
+MAR entry. The API runs `checkAdministration` and `checkCorrection` on every record under the
+person's lock, at the server's time; a dose recorded after it was given needs an earlier time, a
+reason and the recorder's competence, and is always flagged and escalated. Escalations and
+outstanding doses become tasks for the nurse in charge. The round stream is a contract until slice
+68. Also fixed slice 16's weekly schedules (weekday codes). Next for medicines: slice 17's
+competence port, slice 28 (PRN protocols), slice 34 (controlled drugs), slice 48 (escalation
+chain) and the screens. Open: H-1160 to H-1168.
+
+**Phase 2 slice 16, the medicines record and reconciliation** (`feat/meds-record-schema`, MEDS-001):
+migration 0111 and the API on the slice 2 rules (transcribe, change, check, stop, the MAR for a
+cycle, and reconciliation applied in one transaction, completing a return's medicines check). dm+d
+codes are stored by shape until slice 10 (a test asks for the foreign key once a VMP table exists);
+competence and dm+d facts are ports that fail closed in production until slices 17 and 10. Next for
+medicines: slice 10's reference data and the foreign key (expand step), slice 17's competence port,
+then the screens (slice 52). Open: H-1020, H-1022 to H-1025 (CSO), H-1021 (DPO).
+**Phase 2 clean-ups** (`chore/phase-2-cleanups`, 01/11/2026): migration 0137 backfills the
+workforce grants and the speak-up and employee relations roles that existing tenants missed, with
+a ratchet test (`packages/db/test/builtin-role-backfill.test.ts`) so a built-in role cannot gain a
+permission without a backfill. Disclosure packs are now documents (`disclosure_pack`, kept under
+`serious_incident`). Section numbers in quality.md, workforce.md and safety.md are unique again,
+and phase-2.md lists the migration and ADR numbers in use.
 
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or
@@ -211,6 +294,46 @@ second check by another person, stopping with a reason and a source, and reconci
 and lines to each person's decision and completion; the person and their allergies beside every
 form. A dm+d product search on the API's port (`GET /v1/medicines/products`). Self-administration is
 not in slice 16's API (H-1281). Open: H-1280 to H-1287.
+**Phase 2 slice 34, the controlled drugs register** (`feat/meds-cd-register`, MEDS-005, from
+slice 22 with #162's latest head merged in): migration 0128 adds pages, append-only entries with the
+running balance checked by the database, witness signatures (the witness's own step-up, for the
+recorder and what they watched, used once) and stock checks; a count that does not balance raises a
+medication incident through the safety module. A controlled drug given writes its register entry
+with the administration; corrections are margin entries. Next for medicines: slice 50 (printable
+page), slice 28, slice 48 and the screens. Open: H-1200 to H-1209.
+**Phase 2 slice 45, medication errors, reviews and reports** (`feat/meds-errors-reviews`, MEDS-012,
+MEDS-013, from slice 22; migration 0135; HZ-134; H-1290 to H-1299, recommended answers applied):
+error details on medication incidents (NRLS kinds and stages, CD presumption, prompts that clear on
+evidence, access as the incident with MFA), medication reviews (booked or by interval, moved or
+cancelled with a reason), and the override, PRN and psychotropic, and error trend reports. Clinical
+and security review findings of 01/11/2026 fixed on 06/11/2026. Next: the web screens (H-1299).
+Lands through merge batch 3b.
+**Phase 2 slice 38, covert, self-administration and homely remedies** (`feat/meds-covert-self-admin`,
+MEDS-004, MEDS-006, MEDS-007, from slice 22; migration 0140; HZ-026 extended, HZ-120 added; H-1350
+to H-1359, recommended answers applied): per-medicine covert records on the capacity assessment and
+best-interests decision, with review and end; covert and self-administered doses marked and
+escalated, never refused; self-administration assessments; homely remedy protocols per home and
+doses checked against them. New permission `medicines.covert.manage`, backfilled to built-in roles.
+Next: the web screens (slices 52, 53, 55). Lands through a merge batch.
+
+**Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
+with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
+UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the
+MAR entry. The API runs `checkAdministration` and `checkCorrection` on every record under the
+person's lock, at the server's time; a dose recorded after it was given needs an earlier time, a
+reason and the recorder's competence, and is always flagged and escalated. Escalations and
+outstanding doses become tasks for the nurse in charge. The round stream is a contract until slice
+68. Also fixed slice 16's weekly schedules (weekday codes). Next for medicines: slice 17's
+competence port, slice 28 (PRN protocols), slice 34 (controlled drugs), slice 48 (escalation
+chain) and the screens. Open: H-1160 to H-1168.
+
+**Phase 2 slice 16, the medicines record and reconciliation** (`feat/meds-record-schema`, MEDS-001):
+migration 0111 and the API on the slice 2 rules (transcribe, change, check, stop, the MAR for a
+cycle, and reconciliation applied in one transaction, completing a return's medicines check). dm+d
+codes are stored by shape until slice 10 (a test asks for the foreign key once a VMP table exists);
+competence and dm+d facts are ports that fail closed in production until slices 17 and 10. Next for
+medicines: slice 10's reference data and the foreign key (expand step), slice 17's competence port,
+then the screens (slice 52). Open: H-1020, H-1022 to H-1025 (CSO), H-1021 (DPO).
 
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
@@ -255,8 +378,15 @@ field reaches the address before hydration (`apps/web/src/forms.test.ts`); #136 
 Every stored object is now envelope-encrypted under one Cloud KMS key per organisation, a
 whole-organisation shred needs two people, and destruction certificates are signed (ADR-0109,
 migration 0117, human actions H-1110 to H-1118). It is cut from `feat/api-google-cloud-adapters`
-and merges after it. Still to do on PLAT-012: the shred screens in `apps/web`, and certificates as
-signed PDFs (retention-and-deletion.md section 5).
+and merges after it.
+
+**Pushed on 01/11/2026, not merged:** `feat/web-retention-shred`, cut from
+`feat/platform-crypto-shred` and merging after it, finishes PLAT-012: the shred screens (ask,
+approve or refuse, cancel or withdraw, each state as an icon and a word), a refusal (migration 0130),
+the usable exports and both people's names in the API, and destruction certificates as a page and as
+a PDF built on request with its signature check (platform.md, Crypto-shredding screens rules 7 to
+12; human actions H-1220 to H-1225). The e2e seed adds Closing Example Care, so the journey's
+approval never touches the demo organisation.
 
 **Paused at 15:10 on 31/10/2026** for the account's usage limit; every builder was asked to push
 its work in progress (`wip(...)` commits) and stop. Resume by reading this section.
@@ -339,6 +469,24 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   at either time kept; the flagged route checked when recorded too, urgent where the times differ.
   Next in lane A: slice 10 (dm+d reference data).
 
+**Slice 10, dm+d reference data** (lane A; MEDS-001 and INTG-006 `partial`): pushed on
+`feat/meds-dmd-reference`, pull request not yet opened. Migration 0110 (moved from 0072, which can no
+longer apply after 0088; slice 76 moves to 0111): global dm+d tables with no `tenant_id`, read by
+every role, written only by the loader's functions owned by the new no-login role
+`harbour_dmd_loader` (bootstrap first, H-656); a loader for the NHSBSA XML from an invented fixture
+(whole or nothing, never backwards, nothing disappears, GTINs withdrawn); the release source port
+with a mock and a monthly worker job (the TRUD download is slice 75); search, product, GTIN and
+release history routes that always say whether the data is out of date
+(`medicines.dmd.stale_after_days`); the device subset rule for slice 68. ADR-0080 (proposed), HZ-113,
+human actions H-650 to H-656 (H-657 to H-659 spare); [integrations.md](../specs/integrations.md)
+section 11. Security review round 2 fixed: the fixture refused by the database unless it is marked
+dev or test (`app.database_environment`); file, byte and time limits with streamed reads and no
+symbolic links; releases dated ahead of today refused; finish deriving the release from the rows
+written; `pg_temp` last in the loader functions' search path. Follow-ups: run the dm+d load in a
+process of its own (slice 75 moves it into its own Cloud Run job on `feat/integrations-dmd-download`),
+and add `pg_temp` to the other definer functions' search path (a separate chore). Next in lane A:
+slice 3 (stacked on #135), then slice 16 (the medicines record).
+
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
 `feat/work-staff-profile` slice 11 (0073) on #131; `feat/quality-framework-library` slice 14 (0076)
 on #138; `feat/safety-complaints` slice 18 (0080) on #137.
@@ -351,7 +499,10 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 17 training and competence, `feat/work-training-competence` (0079; H-690 to H-699);
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
+- slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
+- slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
+- slice 71 shifts, clock and lone working on the phone, `feat/mobile-shifts-checkins` (0139; HZ-125; H-1310 to H-1319): streams, phone screens, offline queue; MOB-007 partial;
 - slice 23 applicant tracking offered (0085; H-730 to H-739), not started.
 
 **Numbering in use:** migrations: 0071 is #123; each Phase 2 schema branch writes one

@@ -180,6 +180,47 @@ export const SetSpeakUpLead = z
   .object({ tenantUserId: uuid, appoint: z.boolean() })
   .meta({ id: "SetSpeakUpLead" });
 
+/**
+ * The silo as the Freedom to Speak Up lead exports it (H-721, recommended answer applied
+ * 31/10/2026): every concern with its messages and case members, read by the lead alone with a
+ * fresh step-up and audited. An anonymous concern carries nothing about who raised it; no reply
+ * code or its hash is ever exported.
+ */
+export const SpeakUpExport = z
+  .object({
+    exportedAt: z.iso.datetime({ offset: true }),
+    concerns: z.array(
+      z.object({
+        id: z.uuid(),
+        identity: z.enum(["named", "confidential", "anonymous"]),
+        category: z.string(),
+        summary: z.string(),
+        receivedOn: z.iso.date(),
+        state: z.string(),
+        acknowledgedAt: z.iso.datetime({ offset: true }).nullable(),
+        outcome: z.string().nullable(),
+        outcomeSharedAt: z.iso.datetime({ offset: true }).nullable(),
+        closedReason: z.string().nullable(),
+        closedAt: z.iso.datetime({ offset: true }).nullable(),
+        retentionClass: z.string(),
+        /** Who raised it, for a named or confidential concern; always null for an anonymous one. */
+        reporterTenantUserId: z.uuid().nullable(),
+        memberTenantUserIds: z.array(z.uuid()),
+        messages: z.array(
+          z.object({
+            id: z.uuid(),
+            fromReporter: z.boolean(),
+            authorTenantUserId: z.uuid().nullable(),
+            body: z.string(),
+            createdAt: z.iso.datetime({ offset: true }),
+          }),
+        ),
+      }),
+    ),
+  })
+  .meta({ id: "SpeakUpExport" });
+export type SpeakUpExport = z.infer<typeof SpeakUpExport>;
+
 export const SpeakUpLeadChanged = z
   .object({ changed: z.boolean() })
   .meta({ id: "SpeakUpLeadChanged" });

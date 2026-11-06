@@ -345,9 +345,11 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     `paracetamol`, `bisphosphonate`, `psychotropic`. Harbour offers a tag only when the tenant's
     own list for it holds the product's exact VMP; never by ingredient or name. An entry also
     carries the minimum interval the prescription or PRN protocol states, and a when-required entry
-    its maximum in 24 hours (the PRN status says when none is recorded). A when-required entry
-    with neither a minimum interval nor a maximum is refused at transcription
-    (`prn_limit_required`): the transcriber asks the prescriber (H-1066; #162 clinical review).
+    its maximum in 24 hours (the PRN status says when none is recorded, for entries from before
+    0123). A new or changed when-required entry without its maximum in 24 hours is refused at
+    transcription and import (`prn_limit_required`): the transcriber asks the prescriber. An
+    interval alone is refused too, since it can be overridden and caps no daily total (H-1066;
+    #162 and batch 3b clinical reviews).
 14. **Dose windows** (HZ-003, HZ-004, HZ-009; `timing.ts`). A scheduled dose's own window opens
     `medicines.dose_window.early_minutes` before its time and ends
     `medicines.dose_window.late_minutes` after; an entry tagged time-critical has the narrower
@@ -737,8 +739,8 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   for an early or late dose, and when an outstanding dose escalates.
 - H-555 (CSO with a pharmacist): the when-required rules: the rolling 24 hours containing the
   dose, no override over the maximum, an override reason inside the interval, the outcome check
-  after 60 minutes, and a when-required entry transcribed with no maximum recorded (now only with
-  a minimum interval, H-1066).
+  after 60 minutes, and a when-required entry transcribed with no maximum recorded (now refused,
+  H-1066).
 - H-1060 to H-1066 (CSO; #162 clinical review): whether a newer dosing record replaces older ones
   from its first date (default: the newest record covering the day decides); a member never signed
   off is never overridable (default built); how a dose taken over the maximum is recorded
@@ -947,3 +949,867 @@ reconciliation forms read into the contract, doses kept exactly as entered);
 `apps/api/test/medicines.test.ts` (the product search); `apps/web/e2e/medicines.spec.ts`
 (transcribe, second check by another person, stop, and a reconciliation from sources to
 completion; axe in light and dark).
+  (27), with the `MEDICINES_FIXTURES` cases in `apps/api/test/config.test.ts`.
+
+## 13. Administrations (slice 22, schema and API)
+
+Migration 0123, schema `packages/db/src/schema/medicines.ts`, contracts
+`packages/contracts/src/medicines.ts`, routes `apps/api/src/routes/medicine-administrations.ts`.
+Slice 3's rules decide every write (`checkAdministration`, `checkCorrection`); the API reads the
+facts they need and stores the outcome. MEDS-002, with HZ-001 to HZ-005, HZ-116 and HZ-119.
+
+### 13.1 The entry fields slice 3 added
+
+Slice 3 added three fields to a MAR entry: its tags (rule 13), the minimum interval, and a
+when-required entry's 24-hour maximum. Migration 0123 adds them to `medication` (`tags`,
+`minimum_interval_minutes`, `prn_max_per_24h`). They are part of what a version says, so the
+write-once trigger keeps them fixed. Entries recorded before 0123 have no tags and no interval or
+maximum; a when-required entry with neither keeps the PRN status notice "no maximum recorded" until
+it is changed (H-1160).
+
+### 13.2 Tables
+
+| Table | Kind | Key columns | Retention class |
+| --- | --- | --- | --- |
+| `medication_administration` | Append-only: no UPDATE or DELETE for the application; a correction is a new row with `supersedes_id` | `id` (the client's UUID, so a resend is idempotent), person, the entry version (`medication_id`), `due_at` (null for a when-required dose), `outcome`, coded `reason_code` and `reason_note`, amount (quantity and unit code), the prescribed dose it was checked against, the dosing record used, the reasons the rules asked for (amount difference, timing, interval override, given before recorded), `given_at` (drift-corrected), the device time and offset, `administered_by` (who gave it: the recorder unless recorded after giving by someone else), `recorded_by`, `recorded_at` (the server's clock), the competence override used, the flags, `supersedes_id` and the correction reason, the scan evidence (ADR-0081, a hook until barcodes land) and the controlled drugs entry (a hook for slice 34) | `mar_chart` |
+| `medication_administration_witness` | Append-only, at most one per record | the administration, the witness, when, how they signed (`step_up` on the web; `device_factor` from slice 70) | `mar_chart` |
+| `medication_dosing_record` | The record never changes; its second check is set once | person, the entry version, source (kind, reference, document), the doses (date, time, quantity in the entry's unit), recorded by and at, second check (by, at, outcome, difference) | `mar_chart` |
+
+Database rules:
+- Forced RLS by tenant and `person_child_scope` on all three tables. Composite keys tie each row to
+  one person: the entry version, the dosing record, the record a correction supersedes, the
+  witnessed record and every document.
+- One original record per scheduled dose: a unique key on (entry version, `due_at`) where
+  `supersedes_id` is null. One correction per record: a unique key on `supersedes_id`.
+- A correction stays with its record's person, entry version and due time (the database checks
+  them; the API also checks a when-required dose's MAR day by `checkCorrection`).
+- A witness is never the recorder or the giver.
+- Weekdays are stored as the domain's codes (`mon` to `sun`), never full names.
+- One original per dose is keyed on the entry version and due time; across versions of one
+  medicine the API checks it under the person's lock.
+- `recorded_at` is the server's clock (`now()`), never the request's.
+
+### 13.3 Recording a dose
+
+`POST /v1/people/{id}/medicine-administrations`, with `medicines.emar.administer`. The body carries
+the client's id, the entry, the due time or none, the outcome, the reason, the amount, the reasons
+the rules ask for, and, for a record made after the event, `givenBeforeRecorded` with `givenAt` and
+why.
+- **Idempotent**: a resend of the same id with the same content returns the stored record (200);
+  the same id with other content is a 409.
+- **Serialised**: the per-person lock of section 12, so two doses for one person are tried one
+  after the other against the stored history.
+- **The facts**: every version of the person's entries, the doses already recorded, the dosing
+  records, the competence of the signed-in member from the competence port (and any override in
+  force, from the same port), and the rates from the rate table for the person's nation.
+- **The time**: a dose is recorded at the server's time; a request may send its own time only for
+  a dose recorded after it was given (security review M1). How a device's offline records are
+  uploaded, and checked at their drift-corrected time, is decided with slices 68 and 69 (H-1164).
+- **Given before recorded** (#162, slice 3's rules): `givenAt` (drift-corrected when the device
+  sends its offset) strictly before the server's `recordedAt`, a reason of at least
+  `GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH` characters, the recorder's current competence now (or
+  an override of an expired one), and the giver (`givenBy`, the recorder by default) checked at the
+  time given. The rules always flag it `given_before_recorded` (and `given_by_someone_else` when
+  another member gave it) and escalate it, urgently when it broke a rule.
+- **Controlled drugs** (from slice 34, section 14.4): a dose of an entry whose dm+d controlled drug
+  schedule is set, given, writes its register entry with the record, with a fresh step-up and the
+  witness's signature; other outcomes move no stock.
+- **Refused** records are audited as `denied` with the problem codes, outside the refused
+  transaction.
+
+### 13.4 Corrections and the row lock
+
+A record is locked once stored on the server (`marRowLocked`): there is no edit route. A
+correction is `POST /v1/medicine-administrations/{id}/corrections` with a reason and what the
+record should say (`correctionReason`, the outcome and its time, never later than now, and
+`givenBy` when the giver differs from the record's), by its author or a holder of
+`medicines.record.manage`, checked by `checkCorrection` (the latest record for the dose only; the
+person and dose never move). The facts it reads are what stands now less the record corrected, so
+a correction of a correction never counts the record the first correction replaced. Reads show
+the corrected record struck through beside its correction.
+
+### 13.5 Witness and second signature
+
+The witness is a second signed-in member (ADR-0084, as phase-2.md records it; the ADR is written
+with slice 34). On the web the witness signs with their own session and a fresh step-up:
+`POST /v1/medicine-administrations/{id}/witness`, under the person's lock. The witness needs
+`medicines.emar.administer` and current competence, is never the recorder or the giver, and
+signs only the latest record for the dose (never one a correction replaced). A missing step-up is
+refused and audited. There is no time limit on signing yet (H-1166). A device witness
+(`device_factor`) is slice 70.
+Controlled drugs: when the entry's product is a controlled drug, slice 34 writes the register
+entry and links it (`cd_entry_id`); until then the hook is empty and slice 22 records nothing in
+a register.
+
+### 13.6 Escalation through the task engine
+
+- **Each escalation** the rules return raises a task for the nurse in charge (`clinical_lead`),
+  urgent or routine as the rules say, named for its reason in fixed words that name no medicine:
+  over the 24-hour maximum, given with no checked dose to compare it with, or a record to review
+  (every dose recorded after it was given is one). The escalation's own words are returned to the
+  recorder; the record is the task's source. Slice 48 adds the notification chain.
+- **An outstanding dose**: the worker job `medicines-outstanding-doses` (every 5 minutes, looking
+  back 3 days, under each person's lock) raises one task per scheduled dose whose escalation time
+  (`escalationAt`, the end of its window) has passed with no outcome, for people at the home
+  (status `active`; in hospital or on leave, the doses are recorded as away instead, H-1165),
+  time-critical doses urgent, never twice. The task is closed when an outcome is recorded; nothing
+  makes a missed dose due again.
+
+### 13.7 Reads
+
+- `GET /v1/people/{id}/medicine-administrations?from=&to=`: the records with corrections
+  linked, at most 31 days at a time.
+- `GET /v1/people/{id}/medicine-round?at=`: the doses due around a time with their state
+  (`scheduledDoseState`), notices, and each when-required entry's status (`prnStatus`).
+
+### 13.8 Sync stream contract (slices 68 and 69)
+
+The round reaches devices through a stream specified here as a contract only. It is not in
+`sync-config.yaml` until slice 68, and a test fails if a medicines table appears there before the
+stream's isolation tests exist.
+- **Stream `location_medicines_round`**: for members holding `medicines.emar.administer` at a
+  location, the live people there.
+  - Their checked or not-yet-checked entry versions in force or starting within the cycle, with
+    their schedule times.
+  - Dosing records covering the next 7 UK days.
+  - Administrations in the last 48 hours (for intervals, the 24-hour maximum and the last given).
+  - The member's own competence reading.
+- **Rules**: the same person scope as the care streams (replication bypasses RLS, so the stream
+  query carries the scope itself); no stopped or withdrawn versions after their end; no documents.
+- **Uploads**: decided with slices 68 and 69 (H-1164): a record made offline is recorded after the
+  event, so it is checked at its drift-corrected time, idempotent by id, and a refusal comes back
+  to the device as a conflict for the nurse in charge (slice 70). Today the API takes a request's
+  own time only through the given-before-recorded route.
+
+### 13.9 Audit and outbox
+
+Audit actions, carrying ids, outcomes, flags and problem codes, never the medicine or the dose:
+- `medicines.administration.recorded`, `.corrected`, `.witnessed`, `.viewed`;
+- `medicines.dosing_record.recorded`, `.checked`.
+
+Outbox events, with ids only: `medicines.administration.recorded` and
+`medicines.administration.corrected`.
+
+### 13.10 Dosing records
+
+A variable dose is given only from a checked dosing record (rule 18).
+- **Recording**: `POST /v1/medicines/{entryId}/dosing-records`, with `medicines.record.manage`,
+  checked by `recordDosingRecord`.
+- **Checking**: `POST /v1/dosing-records/{id}/check`, by a second person with current competence,
+  checked by `checkDosingRecord`.
+- **Reading**: `GET /v1/medicines/{entryId}/dosing-records`.
+- **Database**: the record's content never changes, and the check is set once.
+
+## 14. Controlled drugs register (slice 34, schema and API)
+
+Migration 0128, schema `packages/db/src/schema/medicines.ts`, routes
+`apps/api/src/routes/controlled-drugs.ts`. Slice 3's rules decide every entry (`checkCdEntry`,
+`cdBalanceAfter`, `cdStockCheck`, `defaultCdWitnessPolicy`; rules 24 to 27). MEDS-005, ADR-0083
+and ADR-0084 as phase-2.md records them, with HZ-009, HZ-115, HZ-116 and HZ-119.
+
+### 14.1 Tables
+
+| Table | Kind | Key columns | Retention class |
+| --- | --- | --- | --- |
+| `controlled_drug_page` | Never changes | person, dm+d `vmp_id` (drug, form and strength) with dm+d's name and the unit, opened by and at; one page per person and VMP | `controlled_drugs_register` |
+| `controlled_drug_entry` | Append-only | page, `seq` (its place on the page), movement (`receipt`, `administration`, `disposal`, `transfer_out`, `destruction`, `correction`), quantity (signed for a quantity correction, 0 for a detail correction), `balance_after`, the entry a correction puts right and what it corrects, the reason, who it came from or went to and the reference (for example the pharmacy's delivery note), when it happened, recorded by and at (the server's clock), the witness and the assertion they signed, or why no witness was available, flags, and the administration it records | `controlled_drugs_register` (and `mar_chart` for administrations) |
+| `controlled_drug_witness_assertion` | Created by the witness, used once | page, the movement and quantity witnessed, the administration when there is one, the witness, the recorder they watched, when, when it expires (`medicines.cd.witness_assertion_minutes`), and the entry or stock check that used it | `controlled_drugs_register` |
+| `controlled_drug_stock_check` | Append-only | page, the count, the balance expected, the difference, who counted, the witness and their assertion, or why no witness was available (flagged for manager review), when, and the reason when it did not balance | `controlled_drugs_register` |
+
+Database rules:
+- Forced RLS by tenant and person scope on all four tables. Composite keys tie every row to one
+  person and page.
+- **Running balance**: on every entry, `seq` is the next on its page and `balance_after` is the
+  previous balance plus a receipt or correction and less every other movement. It is never below
+  zero, and an entry is never earlier than the one before it. The database checks this, as well as
+  the rules.
+- **Corrections**: a correction names an entry on the same page and says whether it corrects the
+  quantity or a detail. No other movement names an entry.
+- **Witness**: a witness is never the recorder, nor, for a dose, the member who gave it.
+  Destruction is always witnessed. An assertion is used once, before it expires, by an entry made
+  by the recorder the witness named, whose page, movement, quantity and administration match it.
+- **Never edited**: entries, pages and stock checks have no UPDATE or DELETE for the application.
+  An assertion changes only by being used, once.
+- `recorded_at` and `checked_at` are the server's clock.
+
+### 14.2 The second signature (ADR-0084 on the web)
+
+1. The witness, signed in with their own session and a fresh step-up, records what they
+   witnessed: `POST /v1/controlled-drugs/pages/{pageId}/witness-assertions` with the movement and
+   quantity, the administration for a dose, and the member they watched record it. Only that
+   member's entry may use the signature. This needs `medicines.cd.witness` and current
+   medicines competence. It returns an assertion that expires after
+   `medicines.cd.witness_assertion_minutes`.
+2. The recorder, also with a fresh step-up, records the entry naming that assertion. The witness
+   is never the recorder, and the assertion must match what is recorded.
+3. Where the tenant's policy is `where_available` (by default home care, supported living,
+   live-in, complex care and day services), a lone worker may instead say why no witness was
+   available. The entry is then flagged for manager review. Destruction is always witnessed.
+
+The policy is the strictest of the location's services (`defaultCdWitnessPolicy`). A device
+witness, who signs on the same device with their own factor, is slice 70.
+
+### 14.3 Routes
+
+- `GET /v1/people/{id}/controlled-drugs`: the person's pages, each with its balance, its last stock
+  check and when the next is due. A page never checked is due from when it was opened. No task
+  raises an overdue check yet (H-1206).
+- `POST /v1/people/{id}/controlled-drugs/pages`: opens the page for a MAR entry whose dm+d product
+  is a controlled drug. The page takes that product and its dose unit.
+- `GET /v1/controlled-drugs/pages/{pageId}`: the page's entries in order. Each correction is shown
+  beside the entry it puts right. The page also shows its stock checks.
+- `POST /v1/controlled-drugs/pages/{pageId}/entries`: a receipt, disposal, transfer out,
+  destruction or correction, checked by `checkCdEntry` under the person's lock. The recorder needs
+  `medicines.cd.administer` and a fresh step-up.
+- `POST /v1/controlled-drugs/pages/{pageId}/stock-checks`, with `medicines.cd.administer` or
+  `medicines.stock.manage`: a count, witnessed under the same rules.
+  `cdStockCheck` compares it with the page. A count that does not balance needs a reason and
+  publishes `medicines.cd.stock_discrepancy`, which the safety module turns into a medication
+  incident. The incident's id is the stock check's, so the event is never applied twice. The count
+  never changes the balance: a correction entry does that.
+
+### 14.4 Administrations of a controlled drug (slice 22's hook)
+
+Slice 22's refusal is removed. Recording a dose from a MAR entry whose product is a controlled drug
+(`cd_schedule` set) works as follows:
+- **Given**: writes, in the same transaction, an `administration` entry on the person's page for
+  that product (opened if needed) for the amount given, in the page's unit. It needs
+  `medicines.cd.administer`, a fresh step-up and a witness assertion for that administration, or,
+  where the policy allows, why no witness was available. The member who gave it records it, and
+  the witness is neither of them.
+- **A dose recorded after it was given**, older than the page's last entry, is entered when it is
+  recorded, with a reference to the administration that holds the time given. This keeps the
+  register in time order and never leaves the dose off the MAR (H-1204).
+- **Taken by the person themselves or given by family**: refused for a controlled drug until the
+  CSO decides whether such doses move the home's stock (H-1202). The administration's `cd_entry_id` names the entry, and the entry names
+  the administration.
+- **Any other outcome** (refused, not given, not available, withheld): moves no stock and writes
+  no entry.
+- **A correction** that changes how much was given: writes a quantity correction on the page,
+  witnessed under the same rules, naming the chain's register entry. A correction of only the time
+  writes a detail correction. A correction to "given" from another outcome writes an
+  administration entry at the time given. A correction that moves no stock carries the chain's
+  entry forward, so a later correction corrects it. A correction from "given" to another outcome
+  puts the dose back in stock (H-1203 asks whether it should be a disposal instead).
+- The page's unit is the MAR entry's dose unit when the page opens (H-1205). Patch site rotation
+  is not in this slice (H-1209).
+
+The printable per-page export is slice 50.
+
+### 14.5 Audit and outbox
+
+Audit actions carry ids, movements and problem codes, never the drug or the count:
+- `medicines.cd.page_opened`, `.entry_recorded`, `.witness_asserted`, `.stock_checked`, `.viewed`;
+- refusals are audited as `denied`.
+
+Outbox events, with ids only: `medicines.cd.entry_recorded` and `medicines.cd.stock_discrepancy`.
+
+## 15. Rounds, escalation and conflict review (slice 48, API)
+
+Migration 0134, routes `apps/api/src/routes/medicine-rounds.ts`. MEDS-002, with HZ-001, HZ-003,
+HZ-004, HZ-006, HZ-008 and HZ-010. The screens are slice 53.
+
+### 15.1 The round for a location
+
+`GET /v1/locations/{id}/medicine-round?from=&to=` needs `medicines.emar.administer` and covers at
+most 12 hours. For each person living at the location whom the caller may see (status `active`;
+RLS and person scope), it gives:
+- the scheduled doses in the slot, each with its window, its state in words (`Not due yet`, `Due
+  now`, `Late: no outcome recorded`, `Outcome recorded`) and the notices its tags switch on.
+  Doses are ordered by state (late, due now, not due yet, recorded), time-critical first within
+  each state, then by due time. Any dose since the same UK clock time the day before the slot
+  that is still late or due is included (a UK day back, not 24 hours, so a clock change moves
+  nothing out of reach), so an earlier dose never drops off the round. Each dose carries its
+  weekday for a pattern that is not every day and any clock change that skips or repeats its
+  time (rule 5, H-553). A dose with an open conflict says "Recorded twice on different devices:
+  waiting for review" (`reviewPending`). The person view inherits this.
+- each when-required medicine that may be given now, with when it was last given, by whom, the
+  24-hour total, what remains and when the interval allows the next (`prnStatus`).
+
+People are ordered by room and then name, so the round follows the building. When one person's
+round cannot be worked out (no medicines rates for their nation, a schedule that cannot be read),
+everyone else's round is still given; that person's entry has no doses and says in words
+(`unavailable`) to check their MAR chart before giving anything and tell the person in charge. The
+log carries their id only. Each person's rates
+(windows, tolerance) come from their own nation's rate table. The person view
+(`GET /v1/people/{id}/medicine-round`) and the location view use the same function.
+
+### 15.2 Escalation of outstanding doses
+
+The worker job `medicines-outstanding-doses` (section 13.6) raises one task per dose whose window
+has ended with no outcome. Time-critical doses are urgent. The task is closed when an outcome is
+recorded. Each person is worked out on their own: when one person's doses cannot be worked out
+(no rates for their nation, an unreadable schedule), the job still raises everyone else's tasks,
+logs that person by id only and raises one urgent task (`medicines.dose.check_failed`, one open
+per person) saying their missed doses could not be checked. These tasks are ordinary task-engine tasks, so the task engine's escalation (unanswered
+tasks escalate up the location's chain) and the handover pick them up with no medicines-specific
+path.
+
+### 15.3 Handover of outstanding doses
+
+The shift handover reads every open task at the location due by the end of the shift (care.md
+rule 8). An outstanding dose's task therefore appears on the handover as an overdue or unfinished
+task, in its own words, and stays there until an outcome is recorded. Nothing makes the dose due
+again.
+
+### 15.4 Conflict review (two devices, one dose)
+
+A record uploaded from a bound device (a bearer request whose `x-harbour-device` header names a
+device the session was already bound to before the request, and not revoked; the header alone is
+not enough) for a scheduled dose that already has a record on the server is never dropped. On the
+web, with no device, the second record is refused in words, because the person is there to see it.
+- It is stored as a conflict (`medication_administration_conflict`): the uploaded record as sent,
+  what the server found wrong with it (`problems`, codes), the record that stands, the device's time
+  and who sent it.
+- One open conflict per dose and uploader (a partial unique index enforces it). A further upload of
+  the same dose by the same person is kept as its own row joining the first (`joins_id`), with its
+  own client id and payload, so a resend finds it; it raises no further task, is audited
+  (`conflict_joined`) and is resolved with the first.
+- A review task for the nurse in charge is raised. It is urgent, and due at once, when the dose is
+  time-critical or when the two records disagree (one says taken, the other not), because until it
+  is reviewed the MAR shows only the first; a later upload that disagrees makes it urgent.
+  Otherwise it is routine and due within 8 hours, because escalation runs from the due time
+  whatever the priority (H-1271). The task names no medicine.
+- The upload gets `202 Accepted` with the conflict's id, so the device stops resending it.
+  Resending the same client id returns the same conflict; the same id sent for another person,
+  dose or outcome is refused (`409`).
+
+Device refusals other than a duplicate (for example a dose over the maximum recorded offline) are
+still refused with their problem; whether to keep them for review too is human action H-1272.
+
+A round record may carry `givenAt` up to `medicines.record_delay_tolerance_minutes` before it is
+recorded (section 13; #162); a time in the future beyond the clock drift allowance is refused.
+
+`GET /v1/medicine-administration-conflicts?locationId=` (or `?personId=`; one is required) lists
+first conflicts, open ones first (at most 200, with `truncated` when more match), each with the
+uploads that joined it; the reviewer sees every field
+the device sent. `GET
+/v1/medicine-administration-conflicts/{id}` shows both records side by side. `POST .../resolve`,
+with `medicines.record.manage`, records the decision and why. Its outcome is either:
+- `first_stands`: the record on the server stands and the upload was a duplicate; or
+- `corrected`: the nurse in charge corrected the record that stands through the corrections
+  route, and the correction's id is named. The correction must supersede the record that stood
+  (directly or through its chain) and be recorded after the upload arrived; or
+- `both_given`: the dose was given twice. A medication incident is raised for the person through
+  the outbox (`medicines.administration.double_dose`, handled by safety; its words name no
+  medicine). The second dose stays on the conflict and the incident; it is not added to the MAR
+  history, so when-required totals do not count it (human action H-1270).
+
+The decision must fit the records: `both_given` only when both say the dose was taken (given,
+self-administered or given by family); `first_stands` is refused when an upload says taken and the
+record that stands does not, so the reviewer corrects the record instead. Someone who recorded or
+uploaded the dose may still decide, so a lone nurse at night never leaves a conflict waiting: the
+decision is audited as a self-review and raises a routine retrospective review task for the
+Registered Manager (the provider when the Registered Manager decided), due within 8 hours
+(H-1270). Nobody who decided, recorded, gave, corrected or uploaded the dose may close that review.
+A controlled drug's conflict is always decided by someone who did none of these, and its permission
+and step-up are checked before the decision's transaction opens, so its scope limits what the
+decider can see. The checks read what the record that stands
+says now, after any correction. A controlled drug's conflict also needs
+`medicines.cd.administer` and a fresh step-up, and `both_given` on one raises an urgent task to
+enter the second dose on the register, witnessed. The incident's time is the device's time given
+when it sent one.
+
+A conflict is resolved once, never edited, and its task is closed. Every refusal, including a
+second attempt to resolve, is audited. The upload itself never
+becomes an administration record without a person's decision.
+
+The table is append-only, apart from the resolution, which is set once. It has forced RLS and
+person scope, and its retention class is `mar_chart`.
+
+### 15.5 Audit and outbox
+
+- Audit actions, carrying ids only: `medicines.round.viewed` (with the person ids shown),
+  `medicines.administration.conflict_raised`, `.conflict_joined`, `.conflict_viewed` (with the
+  conflict and person ids), `.conflict_resolved`.
+- Outbox events: `medicines.administration.conflict_raised`; `medicines.administration.double_dose`
+  (raises a medication incident whose id is the conflict's, so applying it twice raises one).
+## 14. Medication errors, reviews and reports (slice 45; MEDS-012, MEDS-013)
+
+Hazard HZ-134; human actions H-1290 to H-1299. Builds on slice 7's `medicationErrorTriage`
+([safety.md](safety.md) Phase 2 rule 7) and slice 22's administrations. Nothing here diagnoses,
+scores a person or recommends a treatment (medical-device boundary): it records what happened and
+what a named person decided, and counts records.
+
+### 14.1 Medication errors and near misses on the incident
+
+A medication incident (incident `type` `medication`) may carry one **medication error record**
+(`medication_error`, one per incident, mutable with `expected_version`), about one person on the
+incident:
+
+- **What went wrong**: one or more kinds from Harbour's list, which follows the NRLS medication
+  incident error categories (National Reporting and Learning System, NHS England; kept by Learn
+  from Patient Safety Events) as the source, with the source named in the code
+  (`MEDICATION_ERROR_SOURCE`): omitted dose, wrong dose or strength, wrong frequency, wrong
+  medicine, wrong person, wrong time, wrong route, wrong formulation, wrong quantity, given after
+  it was stopped, known allergy or contraindication, expired medicine, wrong storage, monitoring not
+  done, record unclear or missing, other (H-1290 confirms the list).
+- **The stage** (NRLS stage of the medication process): prescribing, transcribing, dispensing or
+  supply, administration, monitoring, storage, other.
+- **The medicine and the dose record**, each optional: a version of one of the person's medicines
+  entries (`medication_id`), and an administration record (`administration_id`) for that person.
+  Both are checked to belong to the person on the incident, and to be of one medicines entry: a
+  dose record of another medicine is refused.
+- **Slice 7's questions**: whether it reached the person (`yes`, `no`, `unsure`; a near miss when
+  no), whether a controlled drug was involved, and whether it may be deliberate or repeated. A
+  controlled drug is presumed `yes` when the chosen medicine, or the dose record's medicine,
+  carries a CD schedule, and an explicit "no" against a CD-scheduled medicine is refused (H-1294).
+  An omitted dose counts as having reached the person, never as a near miss.
+- **Dates**: the clinician cannot be told before the incident happened, and a controlled drug
+  report cannot be dated in the future.
+- **What was done**: immediate actions (text), the prescriber or clinician told (when, and who, as
+  text), the advice given (text), the root cause found (text, once known), the controlled drug
+  report (the date and the reference the area's Controlled Drugs Accountable Officer gave).
+
+Severity, harm and the statutory notifications stay on the incident and its classifier, which
+this slice does not change. The **prompts** (`medicationErrorTriage`) are returned with the record
+and shown, never sent anywhere by Harbour:
+
+- **Clinical advice** whenever it reached or may have reached the person, or a dose was omitted,
+  with "if the person is unwell, call 999", until who was told, when, and their advice are all
+  recorded.
+- **Controlled drug report** to the area's NHS England Controlled Drugs Accountable Officer when a
+  controlled drug was or may have been involved (H-594 recommended answer), until its date and
+  reference are recorded.
+- **Safeguarding**: answer the incident's own safeguarding question (`safeguarding.concern`) when
+  the error may be deliberate or repeated, caused significant harm, the harm is not yet graded, or
+  a dose was omitted (H-549 recommended answer; whether near misses that risked harm also prompt is
+  H-1292). It clears once that question is answered. A person decides; nothing is referred
+  automatically.
+- **CQC**: a medication error is notifiable only through what it caused or shows (for example a
+  death, an injury meeting regulation 18(2)(a) or (b), abuse or neglect, or police involvement),
+  which the classifier already decides; the record says so in words and never raises a
+  notification itself.
+
+Access follows the incident (security review, 01/11/2026): reading, adding and changing need MFA,
+as the incident itself does; an incident about a person the reader cannot see is refused whole;
+a deleted incident is not found. Adding needs the right to change the incident (its raiser, or a
+manager of incidents at its home); changing needs that or to have added the record. A closed
+incident's record cannot be added to or changed (H-1299 asks whether a manager may correct it with
+a reason). The record takes its incident's retention class.
+
+### 14.2 Medication reviews (MEDS-013)
+
+A **medication review** (`medication_review`, mutable with `expected_version`) is scheduled for a
+person (`due_on`) and recorded as done (`done_on`) by a named clinician (`clinician_name`,
+`clinician_role`: GP, pharmacist, nurse or other prescriber, consultant, other), with the outcome in
+the clinician's words (`outcome`, text). Harbour never suggests a change. Once done, it cannot be
+changed except by a correction with a reason. A review not yet done can be moved to another date
+or cancelled, each with a reason (kept in history). The tracker (`reviewStatus`) shows for each
+person on medicines: the last review done, the earliest booked review, the date due by the interval
+(last done plus `medicines.review_interval_months`), and the next due as the earlier of the two,
+saying when a booking is later than the interval allows. The status in words: overdue, due soon
+(within `medicines.review_due_soon_days`), review booked, due by the interval and not yet booked,
+not scheduled (no review ever done or booked). Scheduling follows the person's lifecycle as a care
+plan change; recording one done follows it as a care note on the day it was done.
+
+### 14.3 Reports (information only)
+
+- **Competence overrides and doses recorded after they were given** (`overrideCounts`): per member
+  and period, at a location, from the latest version of each administration record's flags (a
+  superseded record is not counted). A competence override and a dose given while competence was
+  not current count against the member who gave the dose; a dose recorded after it was given counts
+  against the member who recorded it (HZ-119, H-1067, H-1295).
+- **PRN and psychotropic use** (slice 28's report, built here because slice 28's PRN protocols are
+  not built): per person and period, the doses given of when-required entries, of entries tagged
+  `psychotropic`, and of both, with the medicine names, counted from the records only. The report
+  says it is a count of records for a clinician's review, never a judgement of the person or the
+  prescribing. Each dose is classed by the version of the entry it was given against; a record
+  superseded by a correction is not counted, wherever the correction falls (H-1297).
+- **Medication error trend**: per location and UK calendar month (every month in the period shown,
+  empty months as zero), errors, near misses and those not yet known, by kind and stage.
+- Every report period is in UK dates, inclusive, and at most `medicines.report_max_days` long
+  (H-1296). People are counted at their current home (H-1298): a person who moved is counted at the
+  new home for the whole period.
+
+### 14.4 Permissions
+
+| Action | Permission |
+| --- | --- |
+| Add a medication error record to an incident one can see | `safety.incident.report` |
+| Change it (actions, prescriber told, root cause, CD report) | the member who added it, the incident's raiser, or `safety.incident.manage` at its home; with MFA |
+| Read it | `safety.incident.read` (with the incident's own scope), with MFA |
+| Schedule, move, cancel and record reviews; read the tracker | `medicines.record.manage` |
+| Read the reports | `medicines.record.manage` at the location |
+
+### 14.5 Schema (migration 0135)
+
+`medication_error` and `medication_review`: `tenant_id`, forced row-level security, the person's
+scope (and for an error the incident's: `app.incident_visible`), history in `record_version`,
+retention as their incident for errors (`care_record` or `serious_incident`, copied by the guard)
+and `mar_chart` for reviews. The error guard refuses a deleted or non-medication incident, a
+person not on it, and a dose record of another medicine; the review guard needs a new reason to
+change a review once done, and to move or cancel one not yet done.
+
+### 14.6 Test list
+
+- Domain, table-driven: the error kinds and stages, the checks on an error record, the triage with
+  the controlled drug presumption, the review status at, before and after the due dates, the
+  next-due arithmetic over month ends, the PRN and psychotropic counts, the trend.
+- Database: isolation for both tables; an error only on a visible incident about one of its
+  people; the medicine and dose record of that person only; a done review fixed.
+- API: add, read and change an error record with its prompts; the CD report clearing its prompt;
+  refusals in words; a member who may not change the incident; a closed incident; reviews
+  scheduled, done, moved and cancelled; the tracker; the three reports on fixed dates; the period
+  cap. MFA uses the shared refusal (`mfaRefusal`) proved in `mfa-session-factor.test.ts`.
+## 15. Stock, ordering, disposal and temperatures (slice 42, schema and API)
+
+Plan slice 42 (MEDS-008; migration 0138; ADR-0103). Medicines in a care home are dispensed for
+each person, so stock is kept per person and per product. Controlled drugs keep their own register
+(section 14): this section never moves their stock, and shows their balance from the register. The
+pharmacy is reached only through a contract-tested mock port (H-517). Nothing here says whether a
+medicine is still fit to use: after a temperature out of range, that is the pharmacist's call, and
+Harbour says so in those words (medical-device boundary).
+
+### 15.1 Tables
+
+- `medicine_stock_item`: one per person and dm+d product (`vmp_id`), opened from a MAR entry
+  (`medication_id`) in that entry's dose unit, by whom and when. Append-only. The database refuses
+  an item for a controlled drug (the entry's `cd_schedule` set).
+- `medicine_stock_movement`: append-only, in sequence per item, each with its signed `change` and
+  `balance_after` (the database checks it follows from the last). The movements are:
+  - `receipt` (with the order line it fills, when there is one) and `carried_forward` (stock
+    brought into a new cycle), both positive;
+  - `administration` (slice 22's hook, naming the administration) and `returned` (to the
+    pharmacy), both negative;
+  - `disposal` (naming the disposal record), negative;
+  - `administration_correction` (a correction of a dose's amount or outcome), either sign;
+  - `count_adjustment` (a count that differs from the balance), either sign, with a reason.
+  A balance may go below zero: a dose is never blocked by stock, and the count is asked for
+  instead (rule 3).
+- `medicine_disposal`: a quantity of a person's item disposed of, with a reason code and note,
+  who recorded it, and its witness: a second member who confirms it themselves, or, where the
+  organisation's policy allows, why no one witnessed it. The witness is set once.
+- `medicine_order_cycle`: a location's 28-day cycle, by the first day of a cycle (`anchor_on`).
+  Its length is `medicines.ordering_cycle_days` from the rate table.
+- `medicine_order` and `medicine_order_line`: a location's order for a cycle. The order has a
+  status (`draft`, `submitted`, `part_received`, `received`, `cancelled`), how it was sent
+  (`manual` or `pharmacy_port`) and the port's reference. Each line has a person, a MAR entry,
+  the product, the quantity and the unit. Lines are fixed once the order is submitted.
+- `medicine_storage`: a location's fridge or medicines room or cupboard, with a name.
+- `medicine_temperature_reading`: append-only. A reading in tenths of a degree, with the minimum
+  and maximum since the last reading when the thermometer gives them. It stores the range that
+  applied, from the rate table (`medicines.fridge_min_celsius` and `medicines.fridge_max_celsius`
+  for a fridge; `medicines.room_max_celsius` for a room), and whether it was out of range. The
+  database works both out from the rate table itself.
+
+### 15.2 Rules (`packages/domain/src/medicines/stock.ts`, table-driven tests)
+
+1. **Per person, per product.** An item is opened from one of the person's MAR entries, in its dose
+   unit, once per product. A controlled drug has no item: its stock is the register's, shown
+   beside the others with the register's balance and a link to the page, never counted twice.
+2. **Receipts and returns.** A receipt adds a positive quantity, naming its order line when it
+   fills one. A return to the pharmacy takes a positive quantity off.
+3. **Administrations decrement stock** (slice 22's hook). A dose recorded as given, from an entry
+   whose product has an item and is not a controlled drug, writes an `administration` movement
+   for the amount given in the same transaction, when the amount's unit is the item's.
+   - With no item, or a different unit, no movement is written; the dose is never refused.
+   - The hook runs in a savepoint: if moving the stock fails, it is undone, a routine count task
+     asks the person in charge to check the stock, and the dose stands.
+   - "Not available: out of stock" raises one urgent task per person and product, outside the
+     savepoint, so a stock failure never takes it away; further doses not available join the open
+     task.
+   - A balance that goes below zero raises one routine task, "Medicines stock count needed", for
+     the person in charge.
+   - A correction writes the difference between what the chain now says left stock and what has
+     already left, as an `administration_correction`. A dose first recorded before its item was
+     opened was never counted in it, so its corrections move nothing; one recorded after moves the
+     difference (a dose first refused and then corrected to given takes its amount).
+4. **Counts.** A count that matches writes nothing but the audit. One that differs writes a
+   `count_adjustment` to the count, with a reason.
+5. **Disposal, witnessed per the organisation's policy.** `medicines.disposal.witness_required` is
+   1 by default; an organisation may set 0 in the rate table.
+   - The recorder names a witness, who confirms the disposal themselves, from their own session.
+     The witness is never the recorder, and must be an active member holding
+     `medicines.stock.manage` at the person's home, so that they can confirm it (the database
+     checks it too).
+   - Until it is confirmed, the disposal is `awaiting_witness`, and a routine task, assigned to
+     the witness, asks them to confirm it. Only the confirmation closes the task.
+   - Where the policy allows, the recorder may instead give why no one could witness it.
+   - The stock leaves when the disposal is recorded.
+   - The destruction of a controlled drug is the register's (section 14), never here.
+6. **The 28-day cycle and reorder prompts.** A location's cycle starts on its anchor date and every
+   `medicines.ordering_cycle_days` after it.
+   - The daily job `medicines-reorder-prompts` raises one routine task, "Medicines order due",
+     `medicines.order.prompt_days_before` days before a cycle starts, unless the location already
+     has an order for it.
+   - Figures come only from the rate table.
+7. **Order status.** The steps are `draft`, then `submitted` (by hand, or through the pharmacy
+   port, which gives a reference), then `part_received` and `received` as receipts fill its lines;
+   or `cancelled` while not yet received.
+   - Lines change only while the order is a draft.
+   - Submitting needs access to everyone at the home, so no line is left out unseen. The order
+     stays locked while the pharmacy is called, so it is never sent twice; the pharmacy has 15
+     seconds to answer. The port receives the order's id to treat as idempotent, and each person
+     as a keyed pseudonym (an HMAC with `PHARMACY_REF_SECRET`) stable within the organisation, never
+     Harbour's id or a name.
+   - A receipt never fills more than a line asked for without saying so (an over-receipt is
+     allowed, flagged).
+8. **Temperatures.** A reading is out of range below the minimum or above the maximum for its kind
+   of storage (a room has no minimum here), and the database decides it, from the rate table.
+   - A reading has at most one decimal place, so one at a range's edge is never rounded into it.
+   - An out-of-range reading raises an urgent task for the person in charge (`clinical_lead`),
+     due at once. The task engine escalates it `task.overdue_escalation_minutes` after the
+     reading if nobody has completed it.
+   - While that task is open, further readings out of range for the same storage join it.
+   - Its words never say whether the medicines can be used: "Medicines storage out of range.
+     Check the storage, and ask the pharmacist whether the medicines in it can still be used."
+   - The task ends when someone completes it; readings are never edited.
+
+### 15.3 Permissions
+
+| Action | Permission |
+| --- | --- |
+| Open an item; record a receipt, return, count or disposal; set a cycle; make, submit, cancel and receive orders; add storage | `medicines.stock.manage` |
+| Witness a disposal | `medicines.stock.manage`, never the recorder |
+| Record a temperature reading | `medicines.stock.manage` or `medicines.emar.administer` |
+| Read stock and movements | `medicines.record.manage`, `medicines.emar.administer` or `medicines.stock.manage`, for people in scope |
+| Read orders, storage and readings | The same permissions, at locations in scope |
+
+Person tables follow the person's scope (`app.person_visible`). Location tables follow the
+location's (`app.handover_location_visible`).
+
+### 15.4 API
+
+- `GET /v1/people/{id}/medicine-stock`: each item with its balance and last movements, and each
+  controlled drug's register page with its balance (the register's, marked as such).
+- `POST /v1/people/{id}/medicine-stock`: open an item from a MAR entry.
+- `POST /v1/medicine-stock/{itemId}/receipts`, `/returns`, `/counts` and `/disposals`.
+- `POST /v1/medicine-disposals/{id}/witness`.
+- `GET` and `PUT /v1/locations/{id}/medicine-cycle`.
+- `GET` and `POST /v1/locations/{id}/medicine-orders`.
+- `GET /v1/medicine-orders/{id}`, and `POST` to its `submit` and `cancel`.
+- `GET` and `POST /v1/locations/{id}/medicine-storage`.
+- `GET` and `POST /v1/medicine-storage/{id}/readings`.
+
+### 15.5 Audit and outbox
+
+Audit events carry ids, movements, counts of lines and whether a reading was out of range; never a
+product or a figure:
+- `medicines.stock.item_opened`, `.received`, `.returned`, `.counted`, `.disposed`,
+  `.disposal_witnessed`;
+- `medicines.order.created`, `.submitted`, `.cancelled`;
+- `medicines.cycle.set`;
+- `medicines.storage.added`;
+- `medicines.temperature.recorded`.
+
+Outbox events, with ids only: `medicines.temperature.out_of_range` and
+`medicines.stock.below_zero`.
+
+### 15.6 Tests
+
+- Domain (`stock.ts`):
+  - the sign of each movement and the balance after;
+  - the correction difference;
+  - when the hook moves stock;
+  - count adjustments;
+  - the disposal witness rules;
+  - cycle starts and reorder prompts across clock changes;
+  - order steps;
+  - temperature ranges at the edges.
+- Database:
+  - append-only movements with a following balance, and no item for a controlled drug;
+  - the witness set once and never the recorder;
+  - the temperature range from the rate table;
+  - person and location scope, and cross-tenant denial.
+- API:
+  - receipts, returns, counts and disposals;
+  - the administration hook on a given dose and its correction, a controlled drug untouched and
+    shown from its register;
+  - a reorder prompt once;
+  - an order submitted through the mock;
+  - an out-of-range reading raising an urgent task that escalates when overdue, with words that
+    give no advice on use.
+
+### 15.7 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| Household remedies and stock not dispensed for one person | H-1320 |
+| No live pharmacy client; only the mock | H-517, H-1321 |
+| No reminder when a temperature reading is missed for the day | H-1322 |
+| The printable stock and temperature records | Slice 50 |
+| A dose's amount in a unit other than the item's moves no stock | H-1323 |
+## 15. Controlled drugs register screens (slice 54, MEDS-005 and MEDS-014)
+
+The person record's **Controlled drugs** tab and a page per drug, for the API's readers; recording
+needs `medicines.cd.administer` (or `medicines.stock.manage` for a count) and signing as witness
+needs `medicines.cd.witness`, each with a fresh step-up, as the API asks. Every page sits inside the
+record frame, so the point-of-care header (name, photo, date of birth, NHS number, allergies) is
+above the register.
+
+**Rules**
+
+1. **The tab** (`/people/{id}/controlled-drugs`): one row per register page (drug, form and strength,
+   as dm+d names it), with the balance **as the API reports it** (never added up in the browser),
+   the unit, the last stock check's result in words and when the next count is due (with an
+   "overdue" word and icon when it has passed). A holder of `medicines.cd.administer` opens a page
+   for a medicine on the MAR; the API refuses one that is not a controlled drug, in its words.
+2. **A register page** (`/people/{id}/controlled-drugs/{pageId}`): every entry in order (its number
+   on the page, date and time, movement, quantity, who it came from or went to and the reference,
+   the balance after it as the API recorded it, who recorded it and who witnessed it, or why no
+   witness was available). A correction is shown directly under the entry it corrects, and the
+   entry it corrects says it was corrected (never struck through or hidden: the register is never
+   changed). Flags (for example "no witness, for manager review") are words with an icon. The stock
+   checks follow, each with its result in words.
+3. **Witness first** (ADR-0084 on the web): the witness, in their own session, opens the page and
+   signs for what they saw: the movement, the quantity and the member they watched record it
+   (`GET .../recorders` lists those who may record at the person's home, never the witness). The
+   page says the signature lasts `medicines.cd.witness_assertion_minutes` and is used once.
+4. **Recording** a receipt (from the pharmacy), a return to the pharmacy (`transfer_out`), a
+   disposal or a destruction: the movement, the quantity in the page's unit, when it happened
+   (now if left empty), who it came from or went to, and the reference. The witness is chosen from
+   the signatures waiting for the signed-in recorder on this page (`GET .../witness-assertions`,
+   with the witness's name, movement and quantity); none waiting says so and how to get one. Where
+   the policy is `where_available` and the movement is not a destruction, a lone worker may instead
+   say why no witness was available, which flags the entry for review. The API checks the
+   signature matches what is recorded.
+5. **Corrections**: chosen from the page's entries, correcting the quantity (a signed change) or a
+   detail (no change of stock), with a reason, witnessed the same way. Never an edit.
+6. **Stock checks**: the count, witnessed the same way. A count that does not match the balance
+   needs a reason; the result says how many over or short, in the API's words, and that a
+   medication incident has been raised. A count never changes the balance: a correction does.
+7. **Printing** (`/people/{id}/controlled-drugs/{pageId}/print`): slice 50's printable register
+   format does not exist yet, so a plain print view lists the page heading (the person, the drug,
+   form, strength and unit), every entry with its signatures (recorder and witness by name, or why
+   none) and corrections under the entry they correct, and the stock checks, with the date and time
+   printed and "Page n of m" from the browser. Printing is audited by the page read (H-1331).
+8. **Separation of duties** on screen: the witness form never offers the witness as recorder; the
+   recorder only sees signatures naming them; the API refuses the same person twice.
+
+**API added in this slice**: `GET /v1/controlled-drugs/pages/{pageId}/recorders` (`medicines.cd.witness`)
+and `GET /v1/controlled-drugs/pages/{pageId}/witness-assertions` (`medicines.cd.administer` or
+`medicines.stock.manage`; unused, unexpired, naming the caller).
+
+**Tests**: `apps/api/test/controlled-drugs.test.ts` (the two routes); `apps/web/src/lib/controlled-drugs.test.ts`
+(the forms read into the contract, movements and results in words, corrections placed under their
+entry); `apps/web/e2e/controlled-drugs.spec.ts` (a witness signs, the manager records a receipt with
+that signature, a correction, a stock check that does not balance, and the print view; axe in light
+and dark).
+## 15. Covert administration, self-administration and homely remedies (slice 38; MEDS-004, MEDS-006, MEDS-007)
+
+Hazards HZ-026 and HZ-120; human actions H-1350 to H-1359. Section 14 is slice 45's (on its own
+branch). Harbour records and applies the organisation's decisions: it never recommends covert
+administration, a method, a level of self-administration or a remedy (medical-device boundary).
+Every limit is the rate table's or the home's own protocol's, never a literal.
+
+### 15.1 Covert administration (MEDS-004)
+
+A **covert record** (`covert_medication_record`, mutable with `expected_version`, history kept) is
+per medicine (the stable `medicine_id`, copied by the database from the entry version chosen). It
+stands on:
+
+- the person's **capacity assessment** for the decision `covert_medicines` finding a lack of
+  capacity (NICE SC1 (2014) 1.15.1: never covertly to a person who has capacity), not corrected
+  since;
+- the **best-interests decision** after that assessment, not corrected since (NICE SC1 1.15.3);
+- **who took part**, by role and name, which must include the prescriber and a pharmacist;
+- **how it is given** and the **pharmacist's advice** on giving it that way (crushing, food,
+  timing), in their words;
+- a start date, not before the decision, and a **review date** within
+  `medicines.covert.review_max_days` (H-1352).
+
+One open record per medicine. A **review** records the same evidence again with the date reviewed,
+the next review date (within the rate table's days from the review) and a reason; an **end** records
+the date and reason. Every change needs a new reason; an ended record is closed (database guard).
+A record whose capacity assessment or best-interests decision has since been corrected, or whose
+person a later assessment of covert medicines finds to have capacity, shows as needing review
+(`basis_changed`) and no longer covers a dose (NICE SC1 1.15.1).
+Writing needs `medicines.covert.manage` at the person's home, in the API and in row-level security.
+
+**On the MAR**: a dose that was given may be marked **covert** (`medication_administration.covert`),
+shown on the record; covert on any other outcome is refused. Showing the record's status, method
+and advice beside the entry on the round is the round view's (slice 53, H-1354). A covert dose is never refused, because it has happened and the record must say so
+(HZ-004): with no current record for the medicine it carries `covert_without_record` and an urgent
+task for the nurse in charge; while the record's review is overdue it carries
+`covert_review_overdue` and a task (H-1351).
+
+### 15.2 Self-administration (MEDS-006)
+
+A **self-administration assessment** (`self_administration_assessment`, append-only; a review is a
+new assessment) records, for the medicines it lists (the person's own, checked by the database):
+the person's **choice**, **capacity** (assumed, as the Act requires, or a linked assessment that
+says so), **dexterity**, **storage**, the **level** decided (looks after and takes them; takes them
+with support; staff give them), notes, the date and a review date within
+`medicines.self_admin.review_max_days` (H-1353). A level other than staff giving needs the person's
+choice, capacity not lacking, dexterity and lockable storage (domain and database). A linked
+capacity assessment must be the person's current one and say what the assessment records; it is
+not yet tied to a self-administration decision kind, which needs its own migration (H-1354). The
+latest
+assessment listing a medicine decides its status: current, review overdue or not assessed.
+
+A dose recorded as **taken by the person** (`self_administered`) is never refused: with no current
+assessment that has them self-administering it carries `self_admin_not_assessed` and a task; while
+the review is overdue, `self_admin_review_overdue` (H-1353).
+
+### 15.3 Homely remedies (MEDS-007)
+
+A **homely remedy protocol** (`homely_remedy_protocol`, per home, mutable with history) holds the
+product (dm+d VMP when coded), what it is for, one dose and its unit, the shortest gap in hours, the
+most in 24 hours, the days a course may last before the person's GP is asked (within
+`medicines.homely_remedy.max_days_ceiling`), the staff allowed to give it, the GP or pharmacist who
+agreed it and when, and a review date within `medicines.homely_remedy.review_max_days` (H-1355).
+Changing it needs a new reason; a withdrawn protocol is closed.
+
+A **homely remedy dose** (`homely_remedy_administration`, append-only, client UUID) needs the giver
+to confirm they checked the person's allergies (Harbour never matches them: HZ-007, ADR-0082), and
+is recorded by the member who gives it (database). It can be checked first without recording
+(`POST .../homely-remedy-doses/check`). It is refused in words when (H-1356):
+
+- the protocol is withdrawn or past its review date;
+- the member is not named on it;
+- the dose is not the protocol's;
+- it is sooner than the shortest gap, or would exceed the most in 24 hours;
+- the course (doses with gaps no longer than `medicines.homely_remedy.course_gap_hours`) has
+  lasted the protocol's days: the GP is asked first;
+- the person has the same dm+d product on a current entry (another product with the same
+  ingredient is not caught: ADR-0082, H-1357);
+- the person does not live at the protocol's home (database guard).
+
+Doses of the same product under other protocols at the home (the same dm+d product, or the same
+name when not coded) count too, so a replaced protocol never starts afresh. Gaps, the 24 hours and
+the course are elapsed hours, not calendar days, so a clock change neither adds nor removes time
+(H-1355). A dose **already given** is recorded with when and why: what the check finds is recorded
+as flags and escalated urgently, never refused (HZ-004; H-1356); a time in the future is refused.
+
+A dose recorded in error is marked by a new record with a reason; it stays, struck through, and no
+longer counts.
+
+### 15.4 Permissions
+
+| Action | Permission | Scope |
+| --- | --- | --- |
+| Read covert records, assessments, protocols and homely remedy doses | `medicines.record.manage`, `medicines.emar.administer` or `care.plan.read` | The person; the home |
+| Record, review and end a covert record | `medicines.covert.manage` (new: owner, Registered Manager, deputy, clinical lead; backfilled to existing tenants' built-in roles by migration 0140) | The person's home |
+| Record a self-administration assessment | `medicines.record.manage` | The person |
+| Add, change and withdraw a homely remedy protocol | `medicines.record.manage` | The home |
+| Give a homely remedy | `medicines.emar.administer`, and named on the protocol | The person, at the protocol's home |
+| Mark a homely remedy dose entered in error | The member who gave it, or `medicines.record.manage` | The person |
+
+All are care-record permissions (MFA). Audited with ids only.
+
+### 15.5 Schema (migration 0140)
+
+`covert_medication_record`, `self_administration_assessment`, `homely_remedy_protocol` and
+`homely_remedy_administration`, each with `tenant_id`, forced row-level security and the tenant
+policy; the person's scope on the three about a person; the home's scope on protocols; history
+(`capture_version`) on the two mutable tables; append-only triggers and no UPDATE or DELETE grant
+on the other two; no DELETE on any. `medication_administration` gains `covert` (default false:
+expand only) and four flags. Retention `mar_chart`. Sample data removal lists the new person tables.
+Not sent to devices yet (the round stream is a contract until slice 68).
+
+### 15.6 Test list
+
+- Domain, table-driven: every covert record problem and status; the covert dose marks; every
+  self-administration problem, the status from several assessments, the dose marks; every protocol
+  problem, every homely remedy dose refusal, the course gap.
+- Database: isolation and scope; the covert guard (lack of capacity for covert medicines, the
+  decision after it, prescriber and pharmacist, another person's medicine, a new reason for every
+  change, closed once ended); the covert write policy; self-administration of the person's own
+  medicines only, append-only; protocol writes by home, a dose only by a named member at the home
+  on the current version, entered in error, append-only; the role backfill, idempotent and audited.
+- API: covert permission, refusals in words, one open record per medicine, a covert dose marked,
+  review with the version read, end and the urgent escalation after it; self-administration
+  refusals, the flag and escalation before an assessment and none after; protocol refusals, a dose
+  by a named member once per id, refusals in words, entered in error, a prescribed product,
+  withdrawal.

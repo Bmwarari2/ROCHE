@@ -106,3 +106,17 @@ export function entry(overrides: Partial<MarEntryDraft> = {}, id = "entry-1"): M
   if (!result.ok) throw new Error(result.issues.map((i) => i.message).join(" "));
   return result.entry;
 }
+
+/**
+ * An entry as stored, which may carry no 24-hour maximum: one recorded before 0123 (H-1160), which a
+ * new transcription can no longer make (prn_limit_required). Transcribed with a maximum, then given
+ * the stored directions.
+ */
+export function storedEntry(overrides: Partial<MarEntryDraft> = {}, id = "entry-1"): MarEntry {
+  const d = overrides.directions;
+  if (d?.kind !== "when_required" || d.maxQuantityPer24Hours !== null) return entry(overrides, id);
+  return {
+    ...entry({ ...overrides, directions: { ...d, maxQuantityPer24Hours: 8 } }, id),
+    directions: d,
+  };
+}

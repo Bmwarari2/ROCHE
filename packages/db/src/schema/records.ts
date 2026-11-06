@@ -63,6 +63,8 @@ export const documentSignature = pgTable(
       foreignColumns: [tenantUser.tenantId, tenantUser.id],
     }),
     index("document_signature_document_idx").on(t.tenantId, t.documentId),
+    // For a composite reference from a signature request (migration 0133; ADR-0002).
+    unique("document_signature_tenant_document_id_key").on(t.tenantId, t.documentId, t.id),
   ],
 );
 
@@ -155,12 +157,18 @@ export const tenantShredRequest = pgTable(
     decidedBy: uuid("decided_by"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     certificateId: uuid("certificate_id"),
+    /** A refusal's reason (migration 0130); no other decision carries one. */
+    decisionReason: text("decision_reason"),
     ...mutableColumns(),
   },
   (t) => [
     check(
       "tenant_shred_request_status",
-      sql`${t.status} IN ('pending', 'shredding', 'approved', 'cancelled')`,
+      sql`${t.status} IN ('pending', 'shredding', 'approved', 'cancelled', 'refused')`,
+    ),
+    check(
+      "tenant_shred_request_refusal",
+      sql`(${t.status} = 'refused') = (${t.decisionReason} IS NOT NULL) AND (${t.status} <> 'refused' OR (${t.decidedBy} IS NOT NULL AND ${t.decidedAt} IS NOT NULL AND ${t.decidedBy} <> ${t.requestedBy} AND char_length(btrim(${t.decisionReason})) BETWEEN 10 AND 500))`,
     ),
     check("tenant_shred_request_reason", sql`char_length(btrim(${t.reason})) >= 20`),
     // The approver is never the requester (a cancel's rules are in the decide policy).

@@ -31,7 +31,6 @@ import {
   retentionClass,
   staffProfile,
   type Transaction,
-  tenantUser,
   vacancy,
 } from "@harbour/db";
 import {
@@ -58,6 +57,7 @@ import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { allColleagues } from "../services/staff";
 import {
   conflictResponse,
   createRouter,
@@ -69,7 +69,7 @@ import {
 import { audit, dbCode } from "./people-shared";
 
 /**
- * Applicant tracking (workforce.md section 2b, rules 11 to 13 and section 5; WORK-001; plan
+ * Applicant tracking (workforce.md section 2c, rules 11 to 13 and section 5; WORK-001; plan
  * slice 23). Everything needs workforce.recruitment.manage (MFA); accepting an offer also needs
  * workforce.staff_file.manage, as it creates the staff profile. The database enforces the same
  * (migration 0085). Audit events carry opaque ids and codes only: never names, contact details,
@@ -913,11 +913,7 @@ export const recruitmentRouter = createRouter()
             "held_in_future",
           );
         }
-        const members = await tx
-          .select({ id: tenantUser.id })
-          .from(tenantUser)
-          .where(inArray(tenantUser.id, body.panel));
-        if (new Set(members.map((m) => m.id)).size !== new Set(body.panel).size) {
+        if (!(await allColleagues(tx, body.panel))) {
           throw refused(
             problems.invalid("Choose the panel from this organisation's members of staff."),
             A.interview,

@@ -813,7 +813,8 @@ export const RecordAdmission = z
     trialEndsOn: isoDate.optional(),
     localAuthorityFunded: z.boolean().default(false),
     nhsFunded: z.boolean().default(false),
-    dependencyCategory: text(20).optional(),
+    // The free-text dependency category is retired (H-716): it is no longer accepted and a
+    // client that still sends it has it dropped (unknown keys are stripped).
     /** The bed, for residential and nursing placements. */
     roomId: uuid.optional(),
     bed: z.number().int().min(1).max(20).default(1),

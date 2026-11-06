@@ -1,3 +1,4 @@
+import { trudUrlAllowed } from "@harbour/domain";
 import { z } from "zod";
 
 /**
@@ -44,6 +45,13 @@ const Env = z.object({
   DATABASE_WORKER_URL: z
     .string()
     .default("postgres://harbour_worker:harbour_worker_local@localhost:5432/harbour"),
+  /**
+   * harbour_dmd_job: the dm+d release job only (slice 75, migration 0131), which may call the
+   * loader and read the dm+d tables and nothing else. Never given to the API or the worker.
+   */
+  DATABASE_DMD_URL: z
+    .string()
+    .default("postgres://harbour_dmd_job:harbour_dmd_job_local@localhost:5432/harbour"),
   BETTER_AUTH_SECRET: z.string().min(32).default("local-development-secret-change-me-0123456789"),
   BETTER_AUTH_URL: z.url().default("http://localhost:4000"),
   /** Comma-separated origins allowed to call the API with credentials (the web app). */
@@ -85,6 +93,40 @@ const Env = z.object({
     .max(16 * 1024 ** 3)
     .default(2 * 1024 ** 3),
   DMD_LOAD_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(240).default(60),
+  /**
+   * The TRUD download of each dm+d release (integrations.md section 11, "Release download"; slice
+   * 75). The API key is a secret: in deployed environments it reaches the dm+d job's environment
+   * from Secret Manager (H-510, H-1240), and it is never logged. Without it, staging, pilot and
+   * production have no release source and say so.
+   */
+  TRUD_API_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9-]{16,128}$/)
+    .optional(),
+  TRUD_BASE_URL: z.url().default("https://isd.digital.nhs.uk/trud/api/v1"),
+  TRUD_DMD_ITEM: z.coerce.number().int().positive().default(24),
+  /** Hosts the download may reach, the archive's address and every redirect (comma separated). */
+  TRUD_ALLOWED_HOSTS: z
+    .string()
+    .default("isd.digital.nhs.uk")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((h) => h.trim().toLowerCase())
+        .filter((h) => h !== ""),
+    ),
+  /**
+   * The largest archive the job downloads: a real release is tens of megabytes; this bounds the
+   * job's disk and memory (Cloud Run's /tmp is memory) with headroom (H-1243; not statutory).
+   */
+  DMD_ARCHIVE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024 * 1024)
+    .max(8 * 1024 ** 3)
+    .default(256 * 1024 ** 2),
+  /** Where the job unpacks a release (a private directory under it, deleted after); the OS temp. */
+  DMD_WORK_DIR: z.string().optional(),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
@@ -202,6 +244,19 @@ const Env = z.object({
    * stored in the database.
    */
   SSO_KEY_STORE: z.enum(["gcp", "memory"]).default("memory"),
+  /**
+   * Payroll export to Xero Payroll UK (scheduling.md section 19 rule 8): `mock` records batches and
+   * calls nothing, with tokens held in memory under each connection's own secret name;
+   * `off` (the default) refuses every API export. The live client is not built yet (H-1190), so
+   * production accepts only `off`.
+   */
+  PAYROLL_XERO: z.enum(["off", "mock"]).default("off"),
+  /**
+   * Pulls from a learning platform's API (workforce.md section 13 rule 1): `mock` answers from
+   * memory and calls nothing; `off` (the default) refuses every pull. No live client is built yet
+   * (H-1250), so production accepts only `off`. File imports need neither.
+   */
+  LMS_API: z.enum(["off", "mock"]).default("off"),
   SSO_TEST_KEYS: z.string().default("{}"),
   /**
    * DNS proofs and OpenID discovery: the network, or in tests SSO_MOCK_TXT (JSON map of record
@@ -213,6 +268,14 @@ const Env = z.object({
   SSO_TEST_IDP_ORIGINS: z.string().default(""),
   /** Malware scanning of uploads: ClamAV, the EICAR-aware mock (tests), or none (quarantine all). */
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
+  /**
+   * OCR of scanned MAR charts (ADR-0095): the mock (development and tests) or none (OCR is
+   * unavailable, the default everywhere: the mock is set explicitly, so a pilot holding real people
+   * never reads a chart with it). The Document AI adapter, in europe-west2, waits for H-1262.
+   */
+  OCR_ENGINE: z.enum(["mock", "none"]).default("none"),
+  /** DocuSign (ADR-0095, H-540): the no-network mock (tests) or off (signing in Harbour only). */
+  DOCUSIGN: z.enum(["mock", "off"]).default("off"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
   CLAMD_PORT: z.coerce.number().int().default(3310),
   /**
@@ -242,6 +305,17 @@ const Env = z.object({
    * checked against invented reference data; it fails closed until slices 10 and 17 land.
    */
   MEDICINES_FIXTURES: z.enum(["off", "on"]).optional(),
+  /**
+   * Orders to the pharmacy (medicines.md section 15 rule 7): `mock` answers from memory and calls
+   * nothing; `off` (the default) means orders are submitted by hand. No live client exists yet
+   * (H-517, H-1321), so production accepts only `off`.
+   */
+  PHARMACY_ORDERS: z.enum(["off", "mock"]).default("off"),
+  /**
+   * The key for each person's pharmacy pseudonym (an HMAC of the organisation and person ids). The
+   * live client takes it from the managed secret store (H-1321); the local default is for the mock.
+   */
+  PHARMACY_REF_SECRET: z.string().min(16).default("local-development-pharmacy-ref"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -297,6 +371,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error("SMTP_ALLOWED_FROM_DOMAINS must list domain names only");
     }
   }
+  // The dm+d download reaches TRUD over HTTPS only, on an allowed host (slice 75, rule 3).
+  if (!trudUrlAllowed(parsed.TRUD_BASE_URL, parsed.TRUD_ALLOWED_HOSTS)) {
+    throw new Error("TRUD_BASE_URL must be https on one of TRUD_ALLOWED_HOSTS");
+  }
   if (parsed.NODE_ENV === "production") {
     if (parsed.BETTER_AUTH_SECRET.startsWith("local-development")) {
       throw new Error("BETTER_AUTH_SECRET must be set in production");
@@ -312,6 +390,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");
+    if (parsed.LMS_API !== "off") throw new Error("LMS_API must be off in production");
     // A live organisation's DCB0160 assessment must cover the release it runs (HZ-014 and the
     // clinical risk management plan section 7), so the local default is never assumed.
     if (!env.SAFETY_CASE_VERSION) throw new Error("SAFETY_CASE_VERSION must be set in production");
@@ -363,6 +442,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       }
     }
     if (parsed.SSO_KEY_STORE !== "gcp") throw new Error("SSO_KEY_STORE must be gcp in production");
+    if (parsed.PAYROLL_XERO !== "off") throw new Error("PAYROLL_XERO must be off in production");
     if (parsed.SSO_LOOKUPS !== "system")
       throw new Error("SSO_LOOKUPS must be system in production");
     if (parsed.SSO_TEST_IDP_ORIGINS !== "") {
@@ -374,9 +454,26 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
     }
+    if (parsed.PHARMACY_ORDERS !== "off") {
+      throw new Error("PHARMACY_ORDERS must be off in production");
+    }
+    // Once orders can go to a pharmacy, its pseudonym key must never be the public development
+    // default (security review; H-1321). Until then orders are off and the key is unused.
+    if (
+      parsed.PHARMACY_ORDERS !== "off" &&
+      parsed.PHARMACY_REF_SECRET.startsWith("local-development")
+    ) {
+      throw new Error("PHARMACY_REF_SECRET must be set in production");
+    }
     // Invented dm+d and competence never stand in for the real sources (HZ-001, HZ-121).
     if (parsed.MEDICINES_FIXTURES === "on") {
       throw new Error("MEDICINES_FIXTURES cannot be on in production");
+    }
+    if (parsed.OCR_ENGINE === "mock") {
+      throw new Error("OCR_ENGINE cannot be mock in production");
+    }
+    if (parsed.DOCUSIGN === "mock") {
+      throw new Error("DOCUSIGN cannot be mock in production");
     }
     // Signing a browser out mid-entry loses the form (HZ-111): off until its controls exist.
     if (parsed.SESSION_IDLE_TIMEOUT === "on") {

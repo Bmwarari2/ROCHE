@@ -35,9 +35,11 @@ import { roundShown } from "@/lib/round";
 import { safeguardingShown } from "@/lib/safeguarding";
 import { searchShown } from "@/lib/search";
 import { speakUpShown } from "@/lib/speak-up";
+import { privacyShown, SPONSOR_PAGE, STAFF_PAGE, sponsorShown, staffFilesShown } from "@/lib/staff";
 import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
 import { wellbeingNavShown } from "@/lib/wellbeing";
+import { caseworkShown, recruitmentShown, staffShown } from "@/lib/workforce";
 
 /** "CQC location 1-000000001", for the location switcher. */
 function locationDescription(location: LocationSummary): string | undefined {
@@ -102,6 +104,18 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         speakUp: speakUpShown(me.permissions, isFamilyMember(me))
           ? t("shell.nav.speakUp")
           : undefined,
+        outbreaks: me.permissions.includes("safety.outbreak.manage")
+          ? t("shell.nav.outbreaks")
+          : undefined,
+        deaths: me.permissions.includes("safety.incident.read") ? t("shell.nav.deaths") : undefined,
+        missing: me.permissions.includes("safety.incident.read")
+          ? t("shell.nav.missing")
+          : undefined,
+        disclosures:
+          me.permissions.includes("safety.incident.manage") ||
+          me.permissions.includes("safety.disclosure.approve")
+            ? t("shell.nav.disclosures")
+            : undefined,
         approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
         loneWorking: loneWorkerNavShown(me.permissions) ? t("shell.nav.loneWorking") : undefined,
@@ -116,6 +130,10 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         absences: absencesShown(me.permissions) ? t("shell.nav.absences") : undefined,
         pay: payShown(me.permissions) ? t("shell.nav.pay") : undefined,
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
+        recruitment: recruitmentShown(me.permissions) ? t("shell.nav.recruitment") : undefined,
+        staff: staffShown(me.permissions) ? t("shell.nav.staff") : undefined,
+        // A restricted silo (ADR-0089): only holders of the silo permission see it here.
+        cases: caseworkShown(me.permissions) ? t("shell.nav.cases") : undefined,
         evidencePacks: evidencePacksShown(me.permissions)
           ? t("shell.nav.evidencePacks")
           : undefined,
@@ -123,6 +141,13 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           ? t("shell.nav.statementOfPurpose")
           : undefined,
         elearning: elearningShown(me.permissions) ? t("shell.nav.elearning") : undefined,
+        // Sponsor-only HR still reaches sponsored workers from the menu (review M4).
+        staffFiles:
+          staffFilesShown(me.permissions) || sponsorShown(me.permissions)
+            ? t("shell.nav.staffFiles")
+            : undefined,
+        staffFilesHref: staffFilesShown(me.permissions) ? STAFF_PAGE : SPONSOR_PAGE,
+        privacy: privacyShown(me.permissions) ? t("shell.nav.privacy") : undefined,
         framework: frameworkShown(me.permissions) ? t("shell.nav.framework") : undefined,
         audits: auditsShown(me.permissions) ? t("shell.nav.audits") : undefined,
         policies: t("shell.nav.policies"),

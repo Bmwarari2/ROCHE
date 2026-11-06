@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Induction, the Care Certificate and leavers (workforce.md section 2d, rules 19 to 23 and
+ * Induction, the Care Certificate and leavers (workforce.md section 2e, rules 19 to 23 and
  * section 5; WORK-004, WORK-013; plan slice 29). Dates are UK dates (yyyy-mm-dd). Codes mirror
  * packages/domain (`workforce/induction.ts`).
  */
@@ -205,15 +205,24 @@ export const RecordExitInterview = z
   })
   .meta({ id: "RecordExitInterview" });
 export const RecordReferenceRequest = z
-  .object({ requestedOn: isoDate, requester: text(2, 200), kind: z.enum(["factual", "conduct"]) })
+  .object({
+    requestedOn: isoDate,
+    requester: text(2, 200),
+    /** H-876: a conduct reference unless a factual one is chosen on purpose. */
+    kind: z.enum(["factual", "conduct"]).default("conduct"),
+  })
   .meta({ id: "RecordReferenceRequest" });
 export const AnswerReferenceRequest = z
   .object({
     expectedVersion: version,
     state: z.enum(["sent", "declined"]),
     sentOn: isoDate.nullable().default(null),
+    /**
+     * H-876: references rest on legitimate interests, never consent, so "no consent to share" is
+     * no longer a reason to decline (requests declined with it before stay as they were).
+     */
     declinedReason: z
-      .enum(["no_consent_to_share", "not_employed_here", "duplicate_request"])
+      .enum(["not_employed_here", "duplicate_request", "requester_not_verified"])
       .nullable()
       .default(null),
   })

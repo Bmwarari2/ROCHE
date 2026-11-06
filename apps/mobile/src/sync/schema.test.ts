@@ -32,8 +32,12 @@ describe("schema bridge", () => {
       handover_note: false,
       handover_acknowledgement: false,
       handover_staff_acknowledgement: false,
+      shift: false,
+      clock_event: false,
+      lone_worker_outbox: false,
       upload_issue: true,
       held_entry: true,
+      elearning_outbox: false,
     });
   });
 

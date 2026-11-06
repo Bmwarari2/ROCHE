@@ -659,3 +659,117 @@ describe("hazard HZ-125: one failing alarm never holds up the others (review rou
     }
   });
 });
+
+describe("hazard HZ-125: help and duress without a usable session (H-1317)", () => {
+  const emergency = (user: keyof Harness["tokens"], body: Partial<Record<string, unknown>>) =>
+    as(user, "/v1/lone-worker/emergency", {
+      method: "POST",
+      body: { id: crypto.randomUUID(), kind: "help", deviceAt: iso(0), ...body },
+    });
+  /** How many people other than the carer were told about an alarm. */
+  const toldAbout = (alarmId: string) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ n: string }>(
+        `SELECT count(*) AS n FROM notification WHERE source_id = $1
+          AND kind = 'scheduling.lone_worker.alarm' AND recipient_tenant_user_id <> $2`,
+        [alarmId, DEMO.users.carer.id],
+      );
+      return Number(rows[0]?.n ?? 0);
+    });
+  const alarmOfEvent = (eventId: string) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{
+        id: string;
+        reason: string;
+        state: string;
+        session_id: string;
+      }>(
+        "SELECT id, reason, state, session_id FROM lone_worker_alarm WHERE trigger_event_id = $1",
+        [eventId],
+      );
+      return rows[0] ?? null;
+    });
+
+  it("records and alarms a duress press for a session the API does not know, answering as a check-in", async () => {
+    const id = crypto.randomUUID();
+    const response = await emergency("carer", {
+      id,
+      kind: "duress",
+      sessionId: crypto.randomUUID(),
+      locationId: DEMO.locationId,
+    });
+    expect(response.status).toBe(201);
+    const answer = await json<LoneWorkerEventResult>(response);
+    expect(answer.kind).toBe("check_in");
+    expect(answer.message).toBe("Thank you. You are checked in.");
+    const alarm = await alarmOfEvent(id);
+    expect(alarm).toMatchObject({ reason: "duress", state: "open" });
+    // Someone other than the worker is told, by the route or its fallback.
+    expect(await toldAbout(alarm?.id ?? "")).toBeGreaterThan(0);
+    // The worker's own screen shows nothing of it: no open session, no notification.
+    const own = await notificationsOf(DEMO.users.carer.id);
+    expect(own.some((n) => n.source_id === alarm?.id)).toBe(false);
+  });
+
+  it("never answers with another worker's event, even to a monitor who guesses its id (security review of H-1317)", async () => {
+    const id = crypto.randomUUID();
+    expect((await emergency("carer", { id, kind: "duress" })).status).toBe(201);
+    const guess = await emergency("manager", { id, kind: "duress" });
+    expect(guess.status).toBe(409);
+    expect(JSON.stringify(await guess.json())).not.toContain(id);
+  });
+
+  it("answers a resend of the same press once, without a second alarm", async () => {
+    const id = crypto.randomUUID();
+    expect((await emergency("carer", { id, kind: "duress" })).status).toBe(201);
+    const again = await emergency("carer", { id, kind: "duress" });
+    expect(again.status).toBe(200);
+    expect((await json<LoneWorkerEventResult>(again)).message).toBe(
+      "Thank you. You are checked in.",
+    );
+  });
+
+  it("records a help press for another worker's session against the sender, and says who was told", async () => {
+    const theirs = crypto.randomUUID();
+    const id = crypto.randomUUID();
+    const response = await emergency("carer", { id, sessionId: theirs });
+    expect(response.status).toBe(201);
+    expect((await json<LoneWorkerEventResult>(response)).message).toMatch(
+      /^Help has been asked for\. /,
+    );
+    // Its own alarm, or the worker's help alarm already open (a repeated press re-sends that one).
+    const alarm =
+      (await alarmOfEvent(id)) ??
+      (await asDemoTenant(async (c) => {
+        const { rows } = await c.query<{
+          id: string;
+          reason: string;
+          state: string;
+          session_id: string;
+        }>(
+          `SELECT id, reason, state, session_id FROM lone_worker_alarm
+            WHERE worker_tenant_user_id = $1 AND reason = 'help' AND state = 'open'`,
+          [DEMO.users.carer.id],
+        );
+        return rows[0] ?? null;
+      }));
+    expect(alarm?.reason).toBe("help");
+    expect(await toldAbout(alarm?.id ?? "")).toBeGreaterThan(0);
+    const worker = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ worker: string }>(
+        "SELECT worker_tenant_user_id AS worker FROM lone_worker_session WHERE id = $1",
+        [alarm?.session_id],
+      );
+      return rows[0]?.worker;
+    });
+    expect(worker).toBe(DEMO.users.carer.id);
+    expect(alarm?.session_id).not.toBe(theirs);
+    // A second press goes to the same open alarm, re-sent at most once a minute, never a new one.
+    const second = crypto.randomUUID();
+    expect((await emergency("carer", { id: second })).status).toBe(201);
+    expect(await alarmOfEvent(second)).toBeNull();
+    expect(
+      (await alarmsOfSession(alarm?.session_id ?? "")).filter((a) => a.reason === "help"),
+    ).toHaveLength(1);
+  });
+});

@@ -50,7 +50,7 @@ import {
 } from "./openapi";
 
 /**
- * Data security evidence (QUAL-012; quality.md section 18): the DSPT assertion tracker with its
+ * Data security evidence (QUAL-012; quality.md section 22): the DSPT assertion tracker with its
  * evidence, DSPT submissions, Cyber Essentials and ICO registration records, and an overview that
  * links them to the breach register and complaints. Everything needs `quality.dsar.manage` across
  * the whole organisation (as slice 20), which row-level security checks again. Statuses are worked

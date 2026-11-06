@@ -9,6 +9,7 @@ import {
   DEVICE_WRITABLE_TABLES,
   type OfflineWindowTable,
   ROUND_WRITABLE_TABLES,
+  SHIFT_WRITABLE_TABLES,
 } from "@harbour/sync/client";
 import { usePowerSync, useQuery } from "@powersync/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -322,7 +323,10 @@ export function useQueuedChanges(): number {
     // A write made on this device also changes the count before any status change.
     const disposeChange = db.onChange(
       { onChange: refresh },
-      { tables: [...DEVICE_WRITABLE_TABLES, ...ROUND_WRITABLE_TABLES], throttleMs: 250 },
+      {
+        tables: [...DEVICE_WRITABLE_TABLES, ...ROUND_WRITABLE_TABLES, ...SHIFT_WRITABLE_TABLES],
+        throttleMs: 250,
+      },
     );
     return () => {
       active = false;

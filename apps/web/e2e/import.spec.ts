@@ -88,7 +88,7 @@ test("the manager is offered no import", async ({ page, context }) => {
   await context.addCookies(manager);
   await page.goto("/");
   await expect(
-    page.getByRole("navigation", { name: "Modules" }).getByRole("link", { name: "Import people" }),
+    page.getByRole("navigation", { name: "Modules" }).getByRole("link", { name: "Import records" }),
   ).toHaveCount(0);
   await page.goto("/settings/import");
   await expect(main(page)).toContainText("You do not have access to this");
@@ -101,7 +101,7 @@ test("hazard HZ-130 the owner maps, checks, acknowledges, commits and undoes an 
   test.setTimeout(180_000);
   await signInWithDemoPasskey(page, "owner");
   await page.goto("/settings/import");
-  await expect(page.getByRole("heading", { level: 1, name: "Import people" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Import records" })).toBeVisible();
   await accessibleInBothThemes(page, "import page");
 
   // Step 1: the home and the file. Step 2: the columns.

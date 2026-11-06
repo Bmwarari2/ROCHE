@@ -68,3 +68,33 @@ export function nextWindowChange(now: Date): Date {
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   return new Date(today + DAY_MS);
 }
+
+/**
+ * The shift days (scheduling.md section 18): which days of a member's own shifts and clock events
+ * their phone keeps, in the `shift_days` claim the API mints with the token, never from the device.
+ * A shift or clock event stays while the first ten characters of its start (UTC) are in the list.
+ */
+export const SHIFT_DAYS_CLAIM = "shift_days";
+
+/**
+ * Days behind today: a night shift that started yesterday, and its clock events, stay on the phone
+ * until it has ended and a day more. A product bound, not a statutory figure.
+ */
+export const SHIFT_DAYS_BEHIND = 2;
+
+/**
+ * Days ahead of today: a week of the member's own published shifts, and a day more because a UK
+ * day can start in the previous UTC day. A product bound on the buckets each device holds, not a
+ * statutory figure.
+ */
+export const SHIFT_DAYS_AHEAD = 8;
+
+/** The UTC days of a member's shifts at `now`, oldest first. */
+export function shiftWindowDays(now: Date): string[] {
+  if (Number.isNaN(now.getTime())) throw new RangeError("The current time is not a valid date");
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const days: string[] = [];
+  for (let d = -SHIFT_DAYS_BEHIND; d <= SHIFT_DAYS_AHEAD; d += 1)
+    days.push(utcDay(today + d * DAY_MS));
+  return days;
+}

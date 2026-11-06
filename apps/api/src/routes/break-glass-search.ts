@@ -174,12 +174,12 @@ export const breakGlassSearchRouter = createRouter().openapi(
             limitReached = true;
             return null;
           }
-          const event = searchRefusalAuditEvent(checked.problem, ["person"]);
+          const event = searchRefusalAuditEvent(checked.problem, ["person"], { breakGlass: true });
           throw new AuditedRefusal(problemFor(checked.problem, checked.message, access), {
             action: event.action,
             outcome: event.outcome,
             resourceType: event.resourceType,
-            scope: { ...event.scope, breakGlass: true },
+            scope: event.scope,
           });
         }
         const plan = checked.plan;
@@ -340,12 +340,12 @@ async function refuseAtLimit(
         .onConflictDoNothing();
     }
   });
-  const event = searchRefusalAuditEvent("rate_limited", ["person"]);
+  const event = searchRefusalAuditEvent("rate_limited", ["person"], { breakGlass: true });
   await writeAudit(c.get("services").appPool, access, {
     action: event.action,
     outcome: event.outcome,
     resourceType: event.resourceType,
-    scope: { ...event.scope, breakGlass: true },
+    scope: event.scope,
     requestId: c.get("requestId"),
   });
   throw new HttpProblem(

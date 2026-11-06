@@ -205,6 +205,17 @@ export const ComplianceItemView = z
     riskAssessmentSignedBy: StaffName.nullable(),
     expiresOn: isoDate.nullable(),
     recheckDueOn: isoDate.nullable(),
+    /** Where the evidence came from: by hand, or a vetting check applied (slice 77). */
+    evidenceSource: z
+      .enum([
+        "manual",
+        "idsp_right_to_work",
+        "dbs_application",
+        "dbs_status_check",
+        "nmc_register_check",
+      ])
+      .meta({ id: "EvidenceSource" }),
+    vettingCheckId: uuid.nullable(),
     notes: z.array(ComplianceNote),
   })
   .meta({ id: "ComplianceItemView" });
@@ -294,6 +305,12 @@ export const StaffFileItem = z
   })
   .meta({ id: "StaffFileItem" });
 export type StaffFileItem = z.infer<typeof StaffFileItem>;
+
+export const StaffMemberList = z.object({ items: z.array(StaffName) }).meta({
+  id: "StaffMemberList",
+  description: "The organisation's staff, by name and job title, to choose from on HR forms",
+});
+export type StaffMemberList = z.infer<typeof StaffMemberList>;
 
 // ------------------------------------------------------------------------------------------------
 // Training, competence, supervision and revalidation (workforce.md sections 2b and 5; slice 17)
