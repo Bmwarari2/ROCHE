@@ -1250,7 +1250,7 @@ fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice`
   `downtime_pack.valid_hours`), using the round's rules, so a dose since the same UK time the day
   before that is still open is included. Each dose has dose, route, due time, time-critical and
   `due`, `given` or `not_given` (only `due` is kept). A dose still open from before is
-  `outstanding: true`, listed first and printed "Not given when the list was made: …, was due …".
+  `outstanding: true`, listed first and printed "No outcome recorded when the list was made: …, was due …".
   A dose of an entry that may not be given now (a check that found a difference) is `onHold: true`
   and prints "On hold on the eMAR, not to be given: …". The entry's notice (not yet checked, a
   variable dose, a change tomorrow) is `notice` and prints on the next line. When-required medicines

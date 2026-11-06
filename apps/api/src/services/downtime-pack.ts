@@ -39,7 +39,7 @@ import {
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { medicinesRates } from "./medicine-administrations";
-import { downtimeMedicinesFrom, emarFacts, hasEmarEntries } from "./medicines-outputs";
+import { downtimeMedicinesFrom, emarFacts } from "./medicines-outputs";
 import { rateNumber, rateRows } from "./rates";
 import { allergyStatementOf, communicationStatementOf, currentAllergiesOf } from "./transfer-pack";
 
@@ -129,7 +129,6 @@ async function packMedicines(
     try {
       const statement = await tx.transaction(async (sp) => {
         const t = sp as unknown as Transaction;
-        if (!(await hasEmarEntries(t, id))) return null;
         rates ??= await medicinesRates(t, tenantId, place.nation as Nation, ukIsoDate(asAt));
         const facts = await emarFacts(t, tenantId, id, asAt, rates);
         return facts ? downtimeMedicinesFrom(facts, asAt, until, asAt) : null;

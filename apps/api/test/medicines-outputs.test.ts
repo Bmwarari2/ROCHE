@@ -185,7 +185,7 @@ describe("hazard HZ-021 the downtime pack lists doses due from the eMAR", () => 
       .flat()
       .join(" ");
     expect(text).toContain("This is not the live record");
-    expect(text).toContain("Not given when the list was made: Paracetamol");
+    expect(text).toContain("No outcome recorded when the list was made: Paracetamol");
   });
 
   it("hazard HZ-021 goes stale, and is built again, once a dose on it is recorded", async () => {

@@ -101,9 +101,9 @@ function medicinesLines(m: Json<DowntimeMedicinesContent> | null): string[] {
       const what = `${d.name} ${d.dose} ${d.route}${d.timeCritical ? " (time-critical)" : ""}`;
       const when = ukDateTime(d.dueAt);
       const line = d.onHold
-        ? `On hold on the eMAR, not to be given: ${what}, was due ${when}.`
+        ? `On hold on the eMAR, not to be given: ${what}, ${d.outstanding ? "was due" : "due"} ${when}.`
         : d.outstanding
-          ? `Not given when the list was made: ${what}, was due ${when}.`
+          ? `No outcome recorded when the list was made: ${what}, was due ${when}.`
           : `Due ${when}: ${what}.`;
       return d.notice ? [line, d.notice] : [line];
     }),

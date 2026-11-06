@@ -60,11 +60,6 @@ export async function emarFacts(
   };
 }
 
-/** Whether the person has any entry on the eMAR (to tell an unreadable eMAR from none). */
-export async function hasEmarEntries(tx: Transaction, personId: string): Promise<boolean> {
-  return (await personEntries(tx, personId)).length > 0;
-}
-
 const routeWords = (route: DmdRoute) => route.name || "route not recorded";
 
 /** HZ-021: the doses due from `from` to `until`, those still outstanding from before, and PRNs. */

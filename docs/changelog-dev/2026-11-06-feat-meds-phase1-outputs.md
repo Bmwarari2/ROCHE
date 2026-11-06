@@ -6,7 +6,7 @@ migration.
 ## What changed
 
 - **Downtime pack (HZ-021, H-102)**: doses due while the pack is valid (`downtime_pack.valid_hours`)
-  come from the eMAR. Any dose still open is listed first ("Not given when the list was made"), a held
+  come from the eMAR. Any dose still open is listed first ("No outcome recorded when the list was made"), a held
   entry's doses print as on hold, each with the entry's notice, and when-required medicines show when
   last given. An empty list says so. A person whose eMAR cannot be read gets an `unreadable` section
   and a `medicines_unreadable` warning; the person ids are logged and audited, the nightly build
@@ -29,7 +29,8 @@ migration.
 
 - Not yet on the handover: refused doses (need a new `handover_item` source, a migration), and
   medicines not available (no task is raised for them yet).
-- Residual risk for the CSO: a printed or cached copy of the downtime pack still lists a dose given
-  after it was made as not given.
+- Residual risk for the CSO (H-102, reworded): a printed or cached copy of the downtime pack lists a
+  dose recorded after it was made as having no outcome recorded.
 - H-82, H-102 and H-151 stay open for the CSO; the eMAR now answers their medicines part.
-- The administration history is read in full per person; bounding it is a follow-up.
+- Follow-ups for the lead: bound the administration history read per person (security review),
+  and show held when-required medicines on the downtime pack as on hold rather than leaving them off.
