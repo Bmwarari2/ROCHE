@@ -821,7 +821,7 @@ describe("hazard HZ-003 one person's records that cannot be worked out never tak
     expect(
       await count(
         `SELECT count(*)::text AS n FROM audit_event
-          WHERE action = 'medicines.dose_check.failed' AND resource_id = $1`,
+          WHERE action = 'medicines.dose_check.failed' AND outcome = 'error' AND resource_id = $1`,
         CARL,
       ),
     ).toBeGreaterThan(0);

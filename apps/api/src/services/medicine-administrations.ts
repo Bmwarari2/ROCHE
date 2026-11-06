@@ -449,13 +449,6 @@ export async function raiseOutstandingDoseTasks(
       // savepoint, so a failure here never rolls back everyone else's tasks (review item 2).
       try {
         raised += await tx.transaction(async (sp) => {
-          await sp.insert(auditEvent).values({
-            tenantId,
-            action: DOSE_CHECK_FAILED_ACTION,
-            resourceType: "person",
-            resourceId: personId,
-            scope: { job: "medicines-outstanding-doses" },
-          });
           const [open] = await sp
             .select({ id: task.id })
             .from(task)
@@ -482,6 +475,21 @@ export async function raiseOutstandingDoseTasks(
             priority: "urgent",
             details: { from: new Date(now.getTime() - LOOKBACK_MS).toISOString() },
           });
+          // Audited when the task is raised, as a failure, and never able to block the task.
+          try {
+            await sp.transaction((audit) =>
+              audit.insert(auditEvent).values({
+                tenantId,
+                action: DOSE_CHECK_FAILED_ACTION,
+                outcome: "error",
+                resourceType: "person",
+                resourceId: personId,
+                scope: { job: "medicines-outstanding-doses" },
+              }),
+            );
+          } catch (auditError) {
+            onFailure(personId, auditError);
+          }
           return 1;
         });
       } catch (fallbackError) {
