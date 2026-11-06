@@ -65,9 +65,14 @@ describe("hazard HZ-005 imported medicines (rule 28)", () => {
       [],
     ],
     [
-      "a when-required medicine with no 24-hour maximum",
+      "a when-required medicine with neither a 24-hour maximum nor a minimum interval",
       { directions: "when_required", times: "", indication: "Pain" },
       ["1:max_per_24h:max_per_24h_required"],
+    ],
+    [
+      "a when-required medicine with a minimum interval and no 24-hour maximum (H-555)",
+      { directions: "when_required", times: "", indication: "Pain", min_interval_minutes: "240" },
+      [],
     ],
     [
       "a regular medicine with a 24-hour maximum",

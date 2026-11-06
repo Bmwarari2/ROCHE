@@ -6203,6 +6203,7 @@
     "medicines.form.indication",
     "medicines.form.prnMax",
     "medicines.form.prnMaxError",
+    "medicines.form.prnLimitRequired",
     "medicines.form.minimumInterval",
     "medicines.form.minimumIntervalHint",
     "medicines.form.minimumIntervalError",

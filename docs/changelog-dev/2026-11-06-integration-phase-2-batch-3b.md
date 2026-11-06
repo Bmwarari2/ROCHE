@@ -18,9 +18,10 @@ in). The PR to `main` opens once batch 3a's has merged and this branch is green 
 - 0140's administration flag check holds every flag from 0123 to 0140 (its branch carried 0123's
   list). No migration already on `main` changed; 0113 kept as batch 3a has it.
 - When-required medicines are recorded again (batch 3a refused them until 0123): the API takes the
-  limits, tags and interval; the web form requires the 24-hour maximum and offers the minimum
-  interval; the clinical import requires `max_per_24h` for a when-required row and takes optional
-  `tags` and `min_interval_minutes` (fixed for the version once recorded, so never added at the
+  limits, tags and interval; the web form and the clinical import refuse a when-required entry
+  with neither a 24-hour maximum nor a minimum interval, as the domain's `prn_limit_required`
+  (H-1066), and accept an interval alone (H-555); the import takes optional `tags` and
+  `min_interval_minutes` (fixed for the version once recorded, so never added at the
   second check).
 - Imported medicines read "Imported, not yet checked" and are held under either policy, with the
   notice that also covers scanned entries.
@@ -91,6 +92,6 @@ in). The PR to `main` opens once batch 3a's has merged and this branch is green 
 ## For the CSO and DPO
 
 - H-1400: how imported medicines get their tags and minimum interval.
-- Whether a when-required entry must have a 24-hour maximum everywhere (the web form and import
-  require it; the API and domain accept an interval alone).
+- Whether a when-required entry with an interval but no 24-hour maximum is acceptable (H-1066,
+  H-555): web, import, API and domain all accept it now and refuse an entry with neither.
 - Rate HZ-134 (H-1291) and accept the corrected HZ-124 and HZ-125 residual risks.

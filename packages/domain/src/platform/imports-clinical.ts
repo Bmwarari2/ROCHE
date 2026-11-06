@@ -147,9 +147,12 @@ export function validateMedicineImport(
     if (r.directions === "when_required") {
       if (!timesBlank) errors.push(err(row, "times", "times_not_taken", "Times"));
       if (!r.indication) errors.push(err(row, "indication", "indication_required", "Indication"));
-      // Never imported without its 24-hour maximum (H-1066; batch 3b).
+      // Never imported with neither a 24-hour maximum nor a minimum interval, as the domain's
+      // prn_limit_required (H-1066); an interval alone is allowed, as built (H-555).
       if (!r.max_per_24h) {
-        errors.push(err(row, "max_per_24h", "max_per_24h_required", "Most in 24 hours"));
+        if (!r.min_interval_minutes) {
+          errors.push(err(row, "max_per_24h", "max_per_24h_required", "Most in 24 hours"));
+        }
       } else if (!DOSE.test(r.max_per_24h) || Number(r.max_per_24h) <= 0) {
         errors.push(err(row, "max_per_24h", "invalid_dose", "Most in 24 hours"));
       }
