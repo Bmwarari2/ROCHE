@@ -105,3 +105,6 @@ Branch `feat/meds-rounds`, from `feat/meds-cd-register` (slice 34), with #162's 
   The controlled drug witness is not yet counted.
 - Test strengthened: a correction author who did not decide is refused closing the retrospective
   review.
+- The missed-dose job works out each person in a savepoint: one person who cannot be worked out
+  is logged by id and gets one urgent `medicines.dose.check_failed` task; everyone else's tasks are
+  still raised (HZ-003). Tested, including a second run raising nothing new.

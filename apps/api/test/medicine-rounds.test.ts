@@ -769,4 +769,46 @@ describe("hazard HZ-003 one person's records that cannot be worked out never tak
     expect(others.every((p) => p.unavailable === null)).toBe(true);
     expect(others.some((p) => p.doses.length > 0)).toBe(true);
   });
+
+  it("keeps raising missed-dose tasks for everyone else, and asks a person to look at the one that failed", async () => {
+    // A good schedule for another person, with a dose three hours ago and no outcome.
+    const good = randomUUID();
+    const due = new Date(Date.now() - 3 * 60 * MINUTE);
+    await asDemo(async (c) => {
+      await c.query(
+        `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+           route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+           source_reference, transcribed_by, transcribed_at)
+         VALUES ($1, $2, $1, 1, 'transcribed', $3, 'Lactulose', '26643006', 'Oral', 'regular',
+           'every_day', 'Dr A Example', now() - interval '2 days', 'prescription', 'Prescription',
+           $4, now() - interval '2 days')`,
+        [good, BEN, LACTULOSE.vmpId, DEMO.users.manager.id],
+      );
+      await c.query(
+        `INSERT INTO medication_schedule (medication_id, person_id, position, time, dose_kind,
+           quantity, unit_code, unit_name)
+         VALUES ($1, $2, 0, $3, 'amount', 15, '258773002', 'ml')`,
+        [good, BEN, ukTime(due)],
+      );
+    });
+    const deps = {
+      workerPool: h.db.pool("harbour_worker"),
+      appDb: createDatabase(h.db.pool("harbour_app")),
+      logger: createLogger("silent"),
+    };
+    const count = (sql: string, id: string) =>
+      asDemo(async (c) => Number((await c.query<{ n: string }>(sql, [id])).rows[0]?.n ?? 0));
+    const outstanding = `SELECT count(*)::text AS n FROM task
+      WHERE kind = 'medicines.dose.outstanding' AND source_id = $1`;
+    const failed = `SELECT count(*)::text AS n FROM task
+      WHERE kind = 'medicines.dose.check_failed' AND source_id = $1 AND priority = 'urgent'`;
+    await escalateOutstandingDoses(deps);
+    expect(await count(outstanding, good)).toBeGreaterThan(0);
+    expect(await count(failed, CARL)).toBe(1);
+    // Run again: nothing new is raised for either.
+    const before = await count(outstanding, good);
+    await escalateOutstandingDoses(deps);
+    expect(await count(outstanding, good)).toBe(before);
+    expect(await count(failed, CARL)).toBe(1);
+  });
 });

@@ -1148,7 +1148,10 @@ log carries their id only. Each person's rates
 
 The worker job `medicines-outstanding-doses` (section 13.6) raises one task per dose whose window
 has ended with no outcome. Time-critical doses are urgent. The task is closed when an outcome is
-recorded. These tasks are ordinary task-engine tasks, so the task engine's escalation (unanswered
+recorded. Each person is worked out on their own: when one person's doses cannot be worked out
+(no rates for their nation, an unreadable schedule), the job still raises everyone else's tasks,
+logs that person by id only and raises one urgent task (`medicines.dose.check_failed`, one open
+per person) saying their missed doses could not be checked. These tasks are ordinary task-engine tasks, so the task engine's escalation (unanswered
 tasks escalate up the location's chain) and the handover pick them up with no medicines-specific
 path.
 

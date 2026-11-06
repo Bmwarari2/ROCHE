@@ -497,7 +497,13 @@ export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promis
  */
 export async function escalateOutstandingDoses(deps: TaskDeps, now = new Date()): Promise<number> {
   const raised = await eachTenant(deps, "medicines-outstanding-doses", (tx, tenantId) =>
-    raiseOutstandingDoseTasks(tx, tenantId, now),
+    raiseOutstandingDoseTasks(tx, tenantId, now, (personId, error) =>
+      // Opaque ids and the error's kind only (HZ-003).
+      deps.logger.error(
+        { tenantId, personId, code: error instanceof Error ? error.name : "unknown" },
+        "missed doses could not be checked for one person",
+      ),
+    ),
   );
   if (raised > 0) deps.logger.info({ raised }, "outstanding dose tasks raised");
   return raised;
