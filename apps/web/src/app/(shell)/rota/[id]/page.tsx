@@ -2,13 +2,8 @@ import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  AddShiftForm,
-  ApplyPatternForm,
-  AssignShift,
-  CancelShiftButton,
-  RemoveAssignmentButton,
-} from "@/components/rota/RotaForms";
+import { HrLinkStaleness } from "@/components/rota/HrLinkStaleness";
+import { AddShiftForm, ApplyPatternForm, AssignShift, CancelShiftButton, RemoveAssignmentButton } from "@/components/rota/RotaForms";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
@@ -16,19 +11,7 @@ import { isUuid } from "@/lib/context-cookies";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { firstParam } from "@/lib/record-metadata";
-import {
-  instantTimes,
-  mayCheck,
-  mayManageRota,
-  mayOverride,
-  rotaCheckPage,
-  rotaChip,
-  rotaHomePage,
-  rotaPage,
-  rotaShown,
-  shiftChip,
-  shiftsByDate,
-} from "@/lib/rota";
+import { instantTimes, mayCheck, mayManageRota, mayOverride, rotaCheckPage, rotaChip, rotaHomePage, rotaPage, rotaShown, shiftChip, shiftsByDate } from "@/lib/rota";
 
 export const metadata: Metadata = { title: t("rota.builder.title") };
 
@@ -114,6 +97,7 @@ export default async function RotaBuilderPage({
           open,
         })}
       />
+      <HrLinkStaleness api={api} />
       {done && DONE.has(done) ? (
         <RecordedArrival message={t("rota.done", { done })} param="done" />
       ) : null}

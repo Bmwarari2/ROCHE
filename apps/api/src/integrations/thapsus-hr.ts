@@ -1,21 +1,4 @@
-import {
-  type HealthResult,
-  type HrAbsence,
-  type HrCapability,
-  type HrClockEvent,
-  type HrEmployee,
-  type HrLocation,
-  type HrPage,
-  type HrPayUnit,
-  type HrRate,
-  type HrResult,
-  type HrShift,
-  type HrStarter,
-  type HrWorkspace,
-  type OutboundFlow,
-  outboundProblems,
-  type ThapsusHrPort,
-} from "@harbour/domain";
+import { type HealthResult, type HrAbsence, type HrCapability, type HrClockEvent, type HrEmployee, type HrLocation, type HrPage, type HrPayUnit, type HrRate, type HrResult, type HrShift, type HrStarter, type HrWorkspace, type OutboundFlow, outboundProblems, type ThapsusHrPort } from "@harbour/domain";
 
 /**
  * Thapsus-HR mock (Phase 2 slice 86; INTG-014; ADR-0126; integrations.md section 11). No network.
@@ -149,6 +132,13 @@ export class MockThapsusHr implements ThapsusHrPort {
   async upsertShift(shift: HrShift, idempotencyKey: string) {
     // Available today; partner ownership (read-only to others, 409 partnerManaged) is K2, planned.
     return this.limited() ?? this.idempotent("shift", idempotencyKey, "POST /v1/shifts", shift);
+  }
+
+  async cancelShift(harbourRef: string, idempotencyKey: string) {
+    return (
+      this.limited() ??
+      this.idempotent("shift", idempotencyKey, "DELETE /v1/shifts", { harbourRef })
+    );
   }
 
   async postClockEvent(event: HrClockEvent, idempotencyKey: string) {

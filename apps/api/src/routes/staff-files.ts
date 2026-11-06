@@ -1,64 +1,19 @@
-import {
-  ComplianceItemKind,
-  CreateStaffFile,
-  RecordComplianceItem,
-  SignDbsRiskAssessment,
-  StaffFileItem,
-  StaffFileList,
-  StaffHrDocument,
-  StaffMemberList,
-  UpdateStaffFile,
-} from "@harbour/contracts";
+import { ComplianceItemKind, CreateStaffFile, RecordComplianceItem, SignDbsRiskAssessment, StaffFileItem, StaffFileList, StaffHrDocument, StaffMemberList, UpdateStaffFile } from "@harbour/contracts";
 import { complianceItem, document, staffProfile, type Transaction } from "@harbour/db";
 import { type ComplianceDetail, complianceItemView, ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
-import {
-  type AppEnv,
-  refusalOf,
-  requireAnyPermission,
-  requirePermission,
-  type TenantAccess,
-  withTenant,
-} from "../http/context";
+import { type AppEnv, refusalOf, requireAnyPermission, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import {
-  contentHeaders,
-  destroyingOnFailure,
-  imagePrintableOf,
-  readDocumentContent,
-  storeDocument,
-} from "../services/documents";
+import { hrManagedFields } from "../integrations/hr-link";
+import { contentHeaders, destroyingOnFailure, imagePrintableOf, readDocumentContent, storeDocument } from "../services/documents";
 import { sameStored } from "../services/record-history";
-import {
-  COMPLIANCE_ITEM_SOURCE,
-  type ComplianceItemRow,
-  currentStaff,
-  endItemReminders,
-  hrDocuments,
-  isCurrentStaff,
-  loadStaffFile,
-  namesFor,
-  nationOf,
-  profileFacts,
-  STAFF_FILE_SOURCE,
-  type StaffProfileRow,
-  staffFileItem,
-  staffFileSummary,
-  storedItem,
-  workforceRates,
-} from "../services/staff-files";
+import { COMPLIANCE_ITEM_SOURCE, type ComplianceItemRow, currentStaff, endItemReminders, hrDocuments, isCurrentStaff, loadStaffFile, namesFor, nationOf, profileFacts, STAFF_FILE_SOURCE, type StaffProfileRow, staffFileItem, staffFileSummary, storedItem, workforceRates } from "../services/staff-files";
+import { withSystemRights } from "../services/system-rights";
 import { fileBody, fileResponse } from "./documents";
-import {
-  conflictResponse,
-  createRouter,
-  errorResponses,
-  jsonBody,
-  notFoundResponse,
-  security,
-} from "./openapi";
+import { conflictResponse, createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 import { audit, dbCode } from "./people-shared";
 
 /**
@@ -390,6 +345,37 @@ export const staffFilesRouter = createRouter()
           version: body.expectedVersion,
           notOwnOf: access.tenantUserId,
         });
+        // Rule 2 of the Thapsus-HR link (HZ-133): fields Thapsus-HR owns are changed there, never
+        // here, and a leaving it gave is never moved later or cleared here. Asked with the system's
+        // rights, as a manager need not see the link itself.
+        const managed = await withSystemRights(tx, () => hrManagedFields(tx, id));
+        if (managed.size > 0) {
+          const [now] = await tx
+            .select({
+              jobTitle: staffProfile.jobTitle,
+              startsOn: staffProfile.startsOn,
+              leftOn: staffProfile.leftOn,
+            })
+            .from(staffProfile)
+            .where(eq(staffProfile.id, id));
+          const later = now?.leftOn != null && (body.leftOn == null || body.leftOn > now.leftOn);
+          if (
+            (managed.has("job_title") && body.jobTitle !== now?.jobTitle) ||
+            (managed.has("start_date") && (body.startsOn ?? null) !== (now?.startsOn ?? null)) ||
+            (managed.has("leaving_date") && later)
+          ) {
+            throw refused(
+              new HttpProblem(
+                409,
+                "managed_in_thapsus_hr",
+                "Managed in Thapsus-HR. Change it there; this file follows at the next sync.",
+              ),
+              A.updated,
+              id,
+              "managed_in_thapsus_hr",
+            );
+          }
+        }
         const [row] = await tx
           .update(staffProfile)
           .set({

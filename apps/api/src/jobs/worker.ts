@@ -2,11 +2,8 @@ import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
 import { realPeopleEnvironment } from "../integrations/dmd";
-import {
-  assertStorageReady,
-  createDocumentServices,
-  createExportStorage,
-} from "../integrations/documents";
+import { assertStorageReady, createDocumentServices, createExportStorage } from "../integrations/documents";
+import { createHrLinkServices } from "../integrations/hr-link";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { backupDays } from "../services/certificates";
@@ -14,41 +11,7 @@ import { sweepInvitations } from "../services/invitations";
 import { checkDmdFreshness, RETIRED_DMD_QUEUE } from "./dmd";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
-import {
-  buildDowntimePacks,
-  closeEndedSurveysJob,
-  compileHandovers,
-  detectOutbreaks,
-  endExpiredAssignments,
-  escalateOutstandingDoses,
-  escalateSafeguardingReferrals,
-  escalateStatementsOfPurpose,
-  escalateStatutoryNotifications,
-  escalateTasks,
-  expireImportsJob,
-  generatePlanTaskSeries,
-  materialiseTaskSeries,
-  outboxHandlers,
-  processDeliveries,
-  promptMedicineOrders,
-  raiseCandourBlocked,
-  raiseCareReviews,
-  raiseHerbertProfileReviews,
-  raiseReviews,
-  relayOutbox,
-  remindDataSecurityRenewals,
-  remindDevelopmentExpiry,
-  remindDolsExpiry,
-  remindPolicies,
-  remindStaffFileExpiry,
-  reportBreakGlass,
-  reportUnroutedDaily,
-  retryUnroutedTasks,
-  runEscalations,
-  sweepEvidenceBundlesJob,
-  sweepLeaverAccess,
-  sweepLoneWorkersJob,
-} from "./tasks";
+import { buildDowntimePacks, closeEndedSurveysJob, compileHandovers, detectOutbreaks, endExpiredAssignments, escalateOutstandingDoses, escalateSafeguardingReferrals, escalateStatementsOfPurpose, escalateStatutoryNotifications, escalateTasks, expireImportsJob, generatePlanTaskSeries, materialiseTaskSeries, outboxHandlers, processDeliveries, promptMedicineOrders, raiseCandourBlocked, raiseCareReviews, raiseHerbertProfileReviews, raiseReviews, relayOutbox, remindDataSecurityRenewals, remindDevelopmentExpiry, remindDolsExpiry, remindPolicies, remindStaffFileExpiry, reportBreakGlass, reportUnroutedDaily, retryUnroutedTasks, runEscalations, sweepEvidenceBundlesJob, sweepLeaverAccess, sweepLoneWorkersJob, syncHrLinks } from "./tasks";
 
 /**
  * Worker process: pg-boss queues and schedules (at-least-once delivery, idempotent handlers).
@@ -75,6 +38,10 @@ const deps = {
   authPool,
   exportStorage: createExportStorage(config),
   // The documents bucket: the export reads it, and destroyed documents' bytes are deleted from it.
+  hrLink: createHrLinkServices({
+    production: config.NODE_ENV === "production",
+    domain: config.THAPSUS_HR_DOMAIN ?? null,
+  }),
   storage: documents.storage,
   // Completes approved crypto-shreds the API could not finish (PLAT-012, ADR-0109).
   tenantKeys: documents.tenantKeys,
@@ -104,6 +71,7 @@ const QUEUES = {
   policyReminders: "policy-reminders",
   developmentExpiry: "development-expiry-reminders",
   leaverAccess: "leaver-access",
+  hrLinkSync: "hr-link-sync",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
   candourBlocked: "candour-blocked-incidents",
@@ -192,6 +160,9 @@ await work(QUEUES.developmentExpiry, async () => {
 });
 await work(QUEUES.leaverAccess, async () => {
   await sweepLeaverAccess(deps);
+});
+await work(QUEUES.hrLinkSync, async () => {
+  await syncHrLinks(deps);
 });
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
@@ -307,6 +278,10 @@ await boss.schedule(QUEUES.developmentExpiry, "21 * * * *");
 // Leavers' access (workforce.md rule 22), hourly at 7 past: ended within the first hour of the
 // day after the leaving date.
 await boss.schedule(QUEUES.leaverAccess, "7 * * * *");
+// The Thapsus-HR link (integrations.md section 11.2): employees, absences and the rota every 5
+// minutes, inside the 10-minute floor of the staleness limit, so a quiet link is not shown as out
+// of date (rule 9).
+await boss.schedule(QUEUES.hrLinkSync, "*/5 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
 await boss.schedule(QUEUES.herbertReviews, "31 4 * * *");

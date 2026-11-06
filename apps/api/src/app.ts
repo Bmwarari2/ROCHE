@@ -19,6 +19,7 @@ import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { TenantKeysShredded } from "./integrations/envelope";
 import { createEsignOcrServices } from "./integrations/esign-ocr";
+import { createHrLinkServices } from "./integrations/hr-link";
 import {
   LearningPlatformAdapter,
   MemoryLearningPlatformSecrets,
@@ -64,6 +65,9 @@ import { exportsRouter } from "./routes/exports";
 import { familyFeedRouter } from "./routes/family-feed";
 import { feedPublishRouter } from "./routes/feed-publish";
 import { handoversRouter } from "./routes/handovers";
+import { hrLinkInboundRouter, hrLinkRouter } from "./routes/hr-link";
+import { hrLinkAbsencesRouter } from "./routes/hr-link-absences";
+import { hrLinkLeaversRouter } from "./routes/hr-link-leavers";
 import { incidentsRouter } from "./routes/incidents";
 import { inductionRouter } from "./routes/induction";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
@@ -271,6 +275,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     }),
     pharmacy: config.PHARMACY_ORDERS === "mock" ? pharmacyMock : null,
     mockEmail: mocks.email,
+    hrLink: createHrLinkServices({
+      production: config.NODE_ENV === "production",
+      domain: config.THAPSUS_HR_DOMAIN ?? null,
+    }),
     evidenceLinkThrottles: {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
       link: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK, 60_000),
@@ -509,6 +517,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", devicesRouter);
   app.route("/", createRefusedEntriesRouter());
   app.route("/", integrationsRouter);
+  app.route("/", hrLinkRouter);
+  app.route("/", hrLinkLeaversRouter);
+  app.route("/", hrLinkAbsencesRouter);
+  app.route("/", hrLinkInboundRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);
   app.route("/", invitationsRouter);

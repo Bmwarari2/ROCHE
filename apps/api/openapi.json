@@ -37836,6 +37836,570 @@
           "problems"
         ]
       },
+      "HrLinkStaleness": {
+        "type": "object",
+        "properties": {
+          "linked": {
+            "type": "boolean"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "lastGoodSyncAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limitMinutes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "linked",
+          "stale",
+          "lastGoodSyncAt",
+          "limitMinutes"
+        ]
+      },
+      "HrLinkStatus": {
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "workspaceSlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "apiBaseUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owners": {
+            "$ref": "#/components/schemas/HrLinkOwners"
+          },
+          "stalenessMinutes": {
+            "type": "integer"
+          },
+          "hasWebhookSecret": {
+            "type": "boolean"
+          },
+          "staleness": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "stale": {
+                "type": "boolean"
+              },
+              "lastGoodSyncAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lastErrorCode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "failures": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "stale",
+              "lastGoodSyncAt",
+              "lastErrorCode",
+              "failures"
+            ]
+          },
+          "matchesToReview": {
+            "type": "integer"
+          },
+          "leaversNotEnded": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "connected",
+          "status",
+          "version",
+          "workspaceSlug",
+          "apiBaseUrl",
+          "owners",
+          "stalenessMinutes",
+          "hasWebhookSecret",
+          "staleness",
+          "matchesToReview",
+          "leaversNotEnded"
+        ]
+      },
+      "HrLinkOwners": {
+        "type": "object",
+        "properties": {
+          "employee_record": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "leavers": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "pay_rates_and_periods": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "leave_and_sickness": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "care_shifts": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "clocking": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "timesheets_and_pay_units": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "recruitment_and_vetting": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "training_and_competence": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          }
+        },
+        "required": [
+          "employee_record",
+          "leavers",
+          "pay_rates_and_periods",
+          "leave_and_sickness",
+          "care_shifts",
+          "clocking",
+          "timesheets_and_pay_units",
+          "recruitment_and_vetting",
+          "training_and_competence"
+        ],
+        "additionalProperties": false
+      },
+      "HrLinkSyncResult": {
+        "type": "object",
+        "properties": {
+          "linked": {
+            "type": "integer"
+          },
+          "review": {
+            "type": "integer"
+          },
+          "leavers": {
+            "type": "integer"
+          },
+          "drift": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "absences": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "copied": {
+                "type": "integer"
+              },
+              "changed": {
+                "type": "integer"
+              },
+              "cancelled": {
+                "type": "integer"
+              },
+              "coverNeeds": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "held": {
+                "type": "integer"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "copied",
+              "changed",
+              "cancelled",
+              "coverNeeds",
+              "failed",
+              "held",
+              "error"
+            ]
+          },
+          "deliveries": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sent": {
+                "type": "integer"
+              },
+              "cancelled": {
+                "type": "integer"
+              },
+              "refused": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "sent",
+              "cancelled",
+              "refused",
+              "failed",
+              "error"
+            ]
+          }
+        },
+        "required": [
+          "linked",
+          "review",
+          "leavers",
+          "drift",
+          "failed",
+          "error",
+          "absences",
+          "deliveries"
+        ]
+      },
+      "HrLinkConnect": {
+        "type": "object",
+        "properties": {
+          "workspaceSlug": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,63}$"
+          },
+          "owners": {
+            "$ref": "#/components/schemas/HrLinkOwners"
+          },
+          "stalenessMinutes": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 60
+          },
+          "secretRef": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$",
+            "default": null
+          }
+        },
+        "required": [
+          "workspaceSlug"
+        ],
+        "additionalProperties": false
+      },
+      "HrLinkChange": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer"
+          },
+          "owners": {
+            "$ref": "#/components/schemas/HrLinkOwners"
+          },
+          "stalenessMinutes": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 60
+          },
+          "secretRef": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "HrLinkLocations": {
+        "type": "object",
+        "properties": {
+          "harbour": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "hrLocationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "locationId",
+                "name",
+                "hrLocationId"
+              ]
+            }
+          },
+          "thapsusHr": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "harbour",
+          "thapsusHr"
+        ]
+      },
+      "HrLinkMatch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "hrEmployeeId": {
+            "type": "string"
+          },
+          "employeeNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "candidateStaffProfileId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "hrName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hrWorkEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leavingOn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "hrEmployeeId",
+          "employeeNumber",
+          "reason",
+          "candidateStaffProfileId",
+          "hrName",
+          "hrWorkEmail",
+          "leavingOn"
+        ]
+      },
+      "HrLinkDelivery": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "harbourRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hrId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "lastErrorCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sentAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "harbourRef",
+          "hrId",
+          "state",
+          "attempts",
+          "lastErrorCode",
+          "sentAt"
+        ]
+      },
+      "HrLeavingWithdrawn": {
+        "type": "object",
+        "properties": {
+          "withdrawn": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "accessRestored": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "withdrawn",
+          "accessRestored"
+        ]
+      },
+      "HrCopiesReleased": {
+        "type": "object",
+        "properties": {
+          "released": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "drift",
+              "disconnected"
+            ]
+          }
+        },
+        "required": [
+          "released",
+          "mode"
+        ]
+      },
       "SupportAccessRequest": {
         "type": "object",
         "properties": {
@@ -103345,6 +103909,1496 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/staleness": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Whether the HR platform's data on the rota is out of date (for rota screens)",
+        "description": "For anyone who reads or builds a rota: no personal data, only whether the link is on and when it last synced in full (rule 9).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staleness",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkStaleness"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The Thapsus-HR link: status, owners and whether its data is out of date",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Link status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Connect to the organisation's Thapsus-HR workspace (UK only; step-up)",
+        "description": "Checks the workspace is in the UK and reached on its UK address, records the link, then pulls employees and matches them (employee number, then work email with date of birth; never by name).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HrLinkConnect"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Connected; first pull done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkSyncResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Change the owners, staleness limit or webhook secret (step-up)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HrLinkChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "version"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Disconnect: sync stops; links and leaving dates are kept for audit (step-up)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Disconnected"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/test": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Check the link: reachable, and still a UK workspace on its UK address",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "code": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "code"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/sync": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Pull and reconcile employees now (as the nightly reconciliation does)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pulled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkSyncResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/locations": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "This organisation's locations beside Thapsus-HR's, with the mapping",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Locations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkLocations"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/locations/{locationId}": {
+      "put": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Map a location to a Thapsus-HR location, or clear its mapping (step-up)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "locationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hrLocationId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                  }
+                },
+                "required": [
+                  "hrLocationId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Saved"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/matches": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The match review queue: employees that could not be linked safely",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matches to review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HrLinkMatch"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/matches/{id}/confirm": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Confirm a match to a staff file (never your own; step-up)",
+        "description": "The staff file must be one the reviewer can see. When Thapsus-HR already gave a leaving date, only someone who manages that staff file may confirm, because confirming ends the member's access after that day.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "staffProfileId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expectedVersion": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "staffProfileId",
+                  "expectedVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Linked"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/matches/{id}/reject": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Reject a match: the employee stays unlinked and is neither rostered nor sent",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "expectedVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Rejected"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/deliveries": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "What was sent to Thapsus-HR, and what failed",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deliveries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HrLinkDelivery"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/starters/{staffProfileId}": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Create a starter hired here as an employee in Thapsus-HR, once (step-up)",
+        "description": "Sends only the starter's listed fields: names, work email, date of birth, job title, location, contracted hours and start date. A retry returns the same employee.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "staffProfileId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "givenName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "familyName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "givenName",
+                  "familyName"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Delivery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string"
+                    },
+                    "hrId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "error": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "hrId",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/leavers/{staffProfileId}/withdraw": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Withdraw a wrong leaving date from the HR platform (step-up)",
+        "description": "Refused while Thapsus-HR still gives the date (raised for review instead). When access has already ended, gives back sign-in and the roles that leaving ended, from now.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "staffProfileId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "date_entered_in_error",
+                      "leaving_cancelled",
+                      "invalid_date_from_hr_platform",
+                      "other_recorded_in_staff_file"
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLeavingWithdrawn"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/absences/release": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Release absence copies the HR platform no longer lists (step-up)",
+        "description": "While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected, cancels every copy still in force; refused while it is connected but turned off. Refused, with the current number, when the copies differ from expectedHrIds.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedHrIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                    },
+                    "minItems": 1,
+                    "maxItems": 10000
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "checked_in_hr_platform",
+                      "link_ended",
+                      "other_recorded_in_review"
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedHrIds",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrCopiesReleased"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/p/integrations/thapsus-hr/{tenantId}": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Thapsus-HR's signed employee webhooks (no session)",
+        "description": "The body is `{ id, type, employeeId, occurredAt }`, signed in the `Thapsus-Signature` header as `t=<unix seconds>,v1=<hex HMAC-SHA256 of t.body>`, within 5 minutes.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "accepted",
+                        "quarantined",
+                        "duplicate"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed by this organisation's link"
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says"
+          },
+          "503": {
+            "description": "The employee could not be fetched; send the event again"
           }
         }
       }

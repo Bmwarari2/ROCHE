@@ -1,82 +1,16 @@
-import {
-  AnswerReferenceRequest,
-  CareCertificateView,
-  DecideProbation,
-  InductionDetail,
-  LeavingDetail,
-  RecordCareCertificateStep,
-  RecordExitInterview,
-  RecordLeaving,
-  RecordProbationReview,
-  RecordReferenceRequest,
-  RecordShadowShift,
-  SetInductionPlan,
-  TickItem,
-} from "@harbour/contracts";
-import {
-  careCertificateProgress as careCertificateTable,
-  inductionPlan,
-  leaverRecord,
-  probationReview,
-  referenceRequest,
-  retentionClass,
-  shadowShift,
-  staffChecklistItem,
-  staffProfile,
-  type Transaction,
-} from "@harbour/db";
-import {
-  CARE_CERTIFICATE_STANDARDS,
-  type CareCertificateStandardId,
-  careCertificateProgress,
-  checkExitInterview,
-  checkLeaving,
-  checkProbationDecision,
-  checkStandardChange,
-  checkSupervisedEntry,
-  type ExitInterviewState,
-  type InductionItemKind,
-  inductionState,
-  type LeaverItemKind,
-  leaverState,
-  type ProbationOutcome,
-  resolveRate,
-  type StandardProgress,
-  staffFileRetainUntil,
-  ukIsoDate,
-} from "@harbour/domain";
+import { AnswerReferenceRequest, CareCertificateView, DecideProbation, InductionDetail, LeavingDetail, RecordCareCertificateStep, RecordExitInterview, RecordLeaving, RecordProbationReview, RecordReferenceRequest, RecordShadowShift, SetInductionPlan, TickItem } from "@harbour/contracts";
+import { careCertificateProgress as careCertificateTable, inductionPlan, leaverRecord, probationReview, referenceRequest, retentionClass, shadowShift, staffChecklistItem, staffProfile, type Transaction } from "@harbour/db";
+import { CARE_CERTIFICATE_STANDARDS, type CareCertificateStandardId, careCertificateProgress, checkExitInterview, checkLeaving, checkProbationDecision, checkStandardChange, checkSupervisedEntry, type ExitInterviewState, type InductionItemKind, inductionState, type LeaverItemKind, leaverState, type ProbationOutcome, resolveRate, type StandardProgress, staffFileRetainUntil, ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
-import {
-  type AppEnv,
-  refusalOf,
-  requireAnyPermission,
-  requirePermission,
-  stepUpFresh,
-  stepUpRefusal,
-  type TenantAccess,
-  withTenant,
-} from "../http/context";
+import { type AppEnv, refusalOf, requireAnyPermission, requirePermission, stepUpFresh, stepUpRefusal, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { raiseMissingBirthDateTask } from "../services/leavers";
 import { rateRows } from "../services/rates";
-import {
-  fileState,
-  loadStaffFile,
-  nationOf,
-  type StaffProfileRow,
-  workforceRates,
-} from "../services/staff-files";
-import {
-  conflictResponse,
-  createRouter,
-  errorResponses,
-  jsonBody,
-  notFoundResponse,
-  security,
-} from "./openapi";
+import { fileState, loadStaffFile, nationOf, type StaffProfileRow, workforceRates } from "../services/staff-files";
+import { conflictResponse, createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 import { audit, dbCode } from "./people-shared";
 
 /**
@@ -418,7 +352,7 @@ async function leavingOf(tx: Transaction, profileId: string): Promise<LeavingDet
  * `staff_file.after_leaving` row when it set one, else the default to the 75th birthday; H-874),
  * and the birthday age from the rate table.
  */
-async function retainUntil(
+export async function retainUntil(
   tx: Transaction,
   tenantId: string,
   profile: StaffProfileRow,

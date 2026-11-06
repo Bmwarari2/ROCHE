@@ -37503,6 +37503,1343 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/integrations/hr-link/staleness": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Whether the HR platform's data on the rota is out of date (for rota screens)
+     * @description For anyone who reads or builds a rota: no personal data, only whether the link is on and when it last synced in full (rule 9).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Staleness */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrLinkStaleness"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The Thapsus-HR link: status, owners and whether its data is out of date */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Link status */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrLinkStatus"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Connect to the organisation's Thapsus-HR workspace (UK only; step-up)
+     * @description Checks the workspace is in the UK and reached on its UK address, records the link, then pulls employees and matches them (employee number, then work email with date of birth; never by name).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["HrLinkConnect"];
+        };
+      };
+      responses: {
+        /** @description Connected; first pull done */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrLinkSyncResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /** Disconnect: sync stops; links and leaving dates are kept for audit (step-up) */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Disconnected */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    /** Change the owners, staleness limit or webhook secret (step-up) */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["HrLinkChange"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              version: number;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/test": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Check the link: reachable, and still a UK workspace on its UK address */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Checked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              ok: boolean;
+              code: string | null;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/sync": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pull and reconcile employees now (as the nightly reconciliation does) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Pulled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrLinkSyncResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/locations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** This organisation's locations beside Thapsus-HR's, with the mapping */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Locations */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrLinkLocations"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/locations/{locationId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Map a location to a Thapsus-HR location, or clear its mapping (step-up) */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          locationId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            hrLocationId: string | null;
+          };
+        };
+      };
+      responses: {
+        /** @description Saved */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/matches": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The match review queue: employees that could not be linked safely */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Matches to review */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              items: components["schemas"]["HrLinkMatch"][];
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/matches/{id}/confirm": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirm a match to a staff file (never your own; step-up)
+     * @description The staff file must be one the reviewer can see. When Thapsus-HR already gave a leaving date, only someone who manages that staff file may confirm, because confirming ends the member's access after that day.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            staffProfileId: string;
+            expectedVersion: number;
+          };
+        };
+      };
+      responses: {
+        /** @description Linked */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/matches/{id}/reject": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reject a match: the employee stays unlinked and is neither rostered nor sent */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            expectedVersion: number;
+          };
+        };
+      };
+      responses: {
+        /** @description Rejected */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/deliveries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What was sent to Thapsus-HR, and what failed */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Deliveries */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              items: components["schemas"]["HrLinkDelivery"][];
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/starters/{staffProfileId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Create a starter hired here as an employee in Thapsus-HR, once (step-up)
+     * @description Sends only the starter's listed fields: names, work email, date of birth, job title, location, contracted hours and start date. A retry returns the same employee.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          staffProfileId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            givenName: string;
+            familyName: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Delivery */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              state: string;
+              hrId: string | null;
+              error: string | null;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/leavers/{staffProfileId}/withdraw": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Withdraw a wrong leaving date from the HR platform (step-up)
+     * @description Refused while Thapsus-HR still gives the date (raised for review instead). When access has already ended, gives back sign-in and the roles that leaving ended, from now.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          staffProfileId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            reason:
+              | "date_entered_in_error"
+              | "leaving_cancelled"
+              | "invalid_date_from_hr_platform"
+              | "other_recorded_in_staff_file";
+          };
+        };
+      };
+      responses: {
+        /** @description Withdrawn */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrLeavingWithdrawn"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/absences/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Release absence copies the HR platform no longer lists (step-up)
+     * @description While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected, cancels every copy still in force; refused while it is connected but turned off. Refused, with the current number, when the copies differ from expectedHrIds.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            expectedHrIds: string[];
+            /** @enum {string} */
+            reason: "checked_in_hr_platform" | "link_ended" | "other_recorded_in_review";
+          };
+        };
+      };
+      responses: {
+        /** @description Released */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrCopiesReleased"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/p/integrations/thapsus-hr/{tenantId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Thapsus-HR's signed employee webhooks (no session)
+     * @description The body is `{ id, type, employeeId, occurredAt }`, signed in the `Thapsus-Signature` header as `t=<unix seconds>,v1=<hex HMAC-SHA256 of t.body>`, within 5 minutes.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Taken */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** @enum {string} */
+              status: "accepted" | "quarantined" | "duplicate";
+            };
+          };
+        };
+        /** @description Not signed by this organisation's link */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Too many requests; wait as Retry-After says */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description The employee could not be fetched; send the event again */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/support-access": {
     parameters: {
       query?: never;
@@ -72114,6 +73451,134 @@ export interface components {
         path: string;
         message: string;
       }[];
+    };
+    HrLinkStaleness: {
+      linked: boolean;
+      stale: boolean;
+      lastGoodSyncAt: string | null;
+      limitMinutes: number;
+    };
+    HrLinkStatus: {
+      connected: boolean;
+      status: string | null;
+      version: number | null;
+      workspaceSlug: string | null;
+      apiBaseUrl: string | null;
+      owners: components["schemas"]["HrLinkOwners"];
+      stalenessMinutes: number;
+      hasWebhookSecret: boolean;
+      staleness: {
+        stale: boolean;
+        lastGoodSyncAt: string | null;
+        lastErrorCode: string | null;
+        failures: number;
+      } | null;
+      matchesToReview: number;
+      leaversNotEnded: number;
+    };
+    HrLinkOwners: {
+      /** @enum {string} */
+      employee_record: "harbour" | "thapsus_hr";
+      /** @enum {string} */
+      leavers: "harbour" | "thapsus_hr";
+      /** @enum {string} */
+      pay_rates_and_periods: "harbour" | "thapsus_hr";
+      /** @enum {string} */
+      leave_and_sickness: "harbour" | "thapsus_hr";
+      /** @enum {string} */
+      care_shifts: "harbour" | "thapsus_hr";
+      /** @enum {string} */
+      clocking: "harbour" | "thapsus_hr";
+      /** @enum {string} */
+      timesheets_and_pay_units: "harbour" | "thapsus_hr";
+      /** @enum {string} */
+      recruitment_and_vetting: "harbour" | "thapsus_hr";
+      /** @enum {string} */
+      training_and_competence: "harbour" | "thapsus_hr";
+    };
+    HrLinkSyncResult: {
+      linked: number;
+      review: number;
+      leavers: number;
+      drift: number;
+      failed: number;
+      error: string | null;
+      absences: {
+        copied: number;
+        changed: number;
+        cancelled: number;
+        coverNeeds: number;
+        failed: number;
+        held: number;
+        error: string | null;
+      } | null;
+      deliveries: {
+        sent: number;
+        cancelled: number;
+        refused: number;
+        failed: number;
+        error: string | null;
+      } | null;
+    };
+    HrLinkConnect: {
+      workspaceSlug: string;
+      owners?: components["schemas"]["HrLinkOwners"];
+      stalenessMinutes?: number;
+      /** @default null */
+      secretRef: string | null;
+    };
+    HrLinkChange: {
+      expectedVersion: number;
+      owners?: components["schemas"]["HrLinkOwners"];
+      stalenessMinutes?: number;
+      secretRef?: string | null;
+    };
+    HrLinkLocations: {
+      harbour: {
+        /** Format: uuid */
+        locationId: string;
+        name: string;
+        hrLocationId: string | null;
+      }[];
+      thapsusHr: {
+        id: string;
+        name: string;
+      }[];
+    };
+    HrLinkMatch: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      hrEmployeeId: string;
+      employeeNumber: string | null;
+      reason: string;
+      /** Format: uuid */
+      candidateStaffProfileId: string | null;
+      hrName: string | null;
+      hrWorkEmail: string | null;
+      leavingOn: string | null;
+    };
+    HrLinkDelivery: {
+      /** Format: uuid */
+      id: string;
+      kind: string;
+      /** Format: uuid */
+      harbourRef: string;
+      hrId: string | null;
+      state: string;
+      attempts: number;
+      lastErrorCode: string | null;
+      sentAt: string | null;
+    };
+    HrLeavingWithdrawn: {
+      /** @enum {boolean} */
+      withdrawn: true;
+      accessRestored: boolean;
+    };
+    HrCopiesReleased: {
+      released: number;
+      /** @enum {string} */
+      mode: "drift" | "disconnected";
     };
     SupportAccessRequest: {
       /** Format: uuid */

@@ -1,88 +1,20 @@
 import { createHash } from "node:crypto";
-import {
-  AbsenceDetail,
-  AbsenceItem,
-  AbsenceList,
-  AbsenceListQuery,
-  BradfordResult,
-  CancelAbsence,
-  DecideAbsence,
-  EndAbsence,
-  ExcludeFromBradford,
-  FitNoteItem,
-  FitNoteQuery,
-  NewAbsence,
-  NewReturnToWork,
-  ReturnToWorkItem,
-  SspQuery,
-  SspResultItem,
-} from "@harbour/contracts";
-import {
-  absence,
-  document,
-  fitNote,
-  returnToWork,
-  shift,
-  shiftAssignment,
-  shiftCoverNeed,
-  type Transaction,
-  tenant,
-} from "@harbour/db";
-import {
-  ABSENCE_RATE_KEYS,
-  type AbsenceKind,
-  type AbsenceState,
-  absenceDays,
-  bradfordDays,
-  bradfordFactor,
-  can,
-  carersLeaveTaken,
-  checkAbsenceMove,
-  checkNewAbsence,
-  fitNoteNeeded,
-  PAY_RATE_KEYS,
-  type Permission,
-  periodsOfIncapacity,
-  qualifyingDaysIn,
-  type RateNation,
-  resolveAbsenceRates,
-  resolvePayRates,
-  scopeFor,
-  sickPay,
-  ukIsoDate,
-} from "@harbour/domain";
+import { AbsenceDetail, AbsenceItem, AbsenceList, AbsenceListQuery, BradfordResult, CancelAbsence, DecideAbsence, EndAbsence, ExcludeFromBradford, FitNoteItem, FitNoteQuery, NewAbsence, NewReturnToWork, ReturnToWorkItem, SspQuery, SspResultItem } from "@harbour/contracts";
+import { absence, document, fitNote, returnToWork, shift, shiftAssignment, shiftCoverNeed, type Transaction, tenant } from "@harbour/db";
+import { ABSENCE_RATE_KEYS, type AbsenceKind, type AbsenceState, absenceDays, bradfordDays, bradfordFactor, can, carersLeaveTaken, checkAbsenceMove, checkNewAbsence, fitNoteNeeded, PAY_RATE_KEYS, type Permission, periodsOfIncapacity, qualifyingDaysIn, type RateNation, resolveAbsenceRates, resolvePayRates, scopeFor, sickPay, ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { withAuditedRefusal } from "../http/audit";
-import {
-  type AppEnv,
-  requireAnyPermission,
-  requirePermission,
-  type TenantAccess,
-  withTenant,
-} from "../http/context";
+import { type AppEnv, requireAnyPermission, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { raiseCoverNeeds, resolveCoverNeeds } from "../services/absence";
-import {
-  contentHeaders,
-  destroyingOnFailure,
-  imagePrintableOf,
-  readDocumentContent,
-  storeDocument,
-} from "../services/documents";
+import { contentHeaders, destroyingOnFailure, imagePrintableOf, readDocumentContent, storeDocument } from "../services/documents";
 import { rateRows } from "../services/rates";
 import { staffNames } from "../services/staff";
 import { withSystemRights } from "../services/system-rights";
 import { fileBody, fileResponse } from "./documents";
-import {
-  conflictResponse,
-  createRouter,
-  errorResponses,
-  jsonBody,
-  notFoundResponse,
-  security,
-} from "./openapi";
+import { conflictResponse, createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 import { audit, dbCode, requireLocationInScope } from "./people-shared";
 
 /**
@@ -167,9 +99,18 @@ async function inTx<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>): Promise<
   }
 }
 
-async function loadAbsence(tx: Tx, id: string): Promise<AbsenceRow> {
+async function loadAbsence(tx: Tx, id: string, forChange = false): Promise<AbsenceRow> {
   const [row] = await tx.select().from(absence).where(eq(absence.id, id));
   if (!row) throw problems.notFound();
+  // A copy of an absence in the provider's HR platform is read-only here: it is corrected there
+  // (integrations.md section 11.5 rule 2; migration 0142).
+  if (forChange && row.source === "thapsus_hr") {
+    throw new HttpProblem(
+      409,
+      "managed_in_thapsus_hr",
+      "Managed in the HR platform. Change it there; this copy follows at the next sync.",
+    );
+  }
   return row;
 }
 
@@ -554,7 +495,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         requireLocationInScope(access, row.locationId);
         const to =
           body.decision === "approve"
@@ -596,7 +537,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         if (row.memberId !== access.tenantUserId) requireLocationInScope(access, row.locationId);
         const saved = await move(tx, access, row, body.version, "cancelled", body.reason ?? null);
         const resolved = await resolveCoverNeeds(tx, { absenceId: id }, "absence_ended");
@@ -629,7 +570,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         requireLocationInScope(access, row.locationId);
         if (
           row.kind !== "sickness" ||
@@ -689,7 +630,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         requireLocationInScope(access, row.locationId);
         // HR's at the home, never for one's own absence (the database checks it too).
         if (!holdsAt(access, HR, row.locationId) || row.memberId === access.tenantUserId) {
@@ -754,7 +695,7 @@ export const absencesRouter = createRouter()
       const { scanner } = c.get("services");
       const out = await destroyingOnFailure(c.get("services").storage, (storage) =>
         inTx(c, async (tx) => {
-          const row = await loadAbsence(tx, id);
+          const row = await loadAbsence(tx, id, true);
           requireLocationInScope(access, row.locationId);
           if (row.kind !== "sickness") throw problems.invalid("A fit note is for a sickness.");
           if (row.memberId === access.tenantUserId) throw problems.forbidden();
@@ -866,7 +807,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         requireLocationInScope(access, row.locationId);
         if (row.kind !== "sickness" || row.endsOn === null) {
           throw new HttpProblem(409, "absence_not_ended", "Record the sickness's last day first.");

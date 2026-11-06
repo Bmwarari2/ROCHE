@@ -2,20 +2,14 @@ import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { HrLinkStaleness } from "@/components/rota/HrLinkStaleness";
 import { PublishRota } from "@/components/rota/PublishRota";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import {
-  comparisonChip,
-  hoursWords,
-  mayCheck,
-  periodKey,
-  rotaCheckPage,
-  rotaPage,
-} from "@/lib/rota";
+import { comparisonChip, hoursWords, mayCheck, periodKey, rotaCheckPage, rotaPage } from "@/lib/rota";
 
 export const metadata: Metadata = { title: t("rota.check.title") };
 
@@ -80,6 +74,7 @@ export default async function RotaCheckPage({ params }: { readonly params: Param
         title={title}
         description={t("rota.check.description", { asAt: formatDateTime(check.asAt) ?? "" })}
       />
+      <HrLinkStaleness api={api} />
       <p className="m-0">
         <Link href={rotaPage(id)} className="inline-flex min-h-target items-center underline">
           {t("rota.check.back")}

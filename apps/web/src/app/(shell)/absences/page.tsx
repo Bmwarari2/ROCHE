@@ -2,19 +2,13 @@ import { Card, EmptyState, PageHeader } from "@harbour/ui";
 import { CalendarOff } from "lucide-react";
 import type { Metadata } from "next";
 import { DecisionForm, LeaveRequestForm } from "@/components/pay-time/PayTimeForms";
+import { HrLinkStaleness } from "@/components/rota/HrLinkStaleness";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import {
-  absenceChip,
-  absencesShown,
-  coverChip,
-  ROTA_APPROVE,
-  ROTA_MANAGE,
-  SELF,
-} from "@/lib/pay-time";
+import { absenceChip, absencesShown, coverChip, ROTA_APPROVE, ROTA_MANAGE, SELF } from "@/lib/pay-time";
 import { addDays, ukToday } from "@/lib/uk-time";
 
 export const metadata: Metadata = { title: t("payTime.absences.title") };
@@ -60,6 +54,7 @@ export default async function AbsencesPage() {
         title={title}
         description={t("payTime.absences.description")}
       />
+      <HrLinkStaleness api={api} />
       <SiloStatus />
       {canAsk ? (
         <Card as="section" headingLevel={2} title={t("payTime.absences.askTitle")}>

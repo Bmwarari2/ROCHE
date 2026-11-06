@@ -1387,6 +1387,23 @@ is exported. Dates are UK dates; times are instants in UTC, shown in UK time, 24
 | `homely_remedy_administration.outcome` | Harbour | `given`, `entered_in_error` | A record entered in error stays, struck through, and no longer counts. |
 | `homely_remedy_administration.allergies_checked`, `already_given_reason`, `flags` | Harbour | Boolean; text; array of `HomelyDoseProblem` codes | Flags only on a dose already given outside the protocol, with its reason. |
 
+## Integrations: Thapsus-HR link (Phase 2, slice 87)
+
+Fields for [integrations.md](integrations.md#11-thapsus-hr-link-intg-014) section 11 (migration
+0141). Identifiers only: Thapsus-HR's names, emails and dates of birth are read to match and never
+stored. Exported in the full tenant export with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `hr_person_link.hr_employee_id`, `employee_number` | Thapsus-HR (the employee's identifier and number) | `^[A-Za-z0-9_-]{1,64}$`; `^[A-Za-z0-9_/-]{1,40}$` | One link per Thapsus-HR employee; one linked employee per staff file |
+| `hr_person_link.state`, `match_method`, `review_reason` | Harbour | `linked`, `review`, `rejected`; `employee_number`, `email_and_birth_date`, `manual`, `starter`; `conflict`, `ambiguous`, `already_linked`, `no_match` | Never matched by name (rule 3); `manual` needs who confirmed it and when |
+| `hr_person_link.leaving_on` | Thapsus-HR | `YYYY-MM-DD` | The earliest leaving date given; never moved later (rule 8) |
+| `hr_location_link.hr_location_id` | Thapsus-HR | `^[A-Za-z0-9_-]{1,64}$` | One each way |
+| `hr_sync_state.kind`, `last_error_code` | Harbour | `employees`, `locations`, `absences`, `rates`; `^[a-z_]{1,40}$` | An opaque code, never a message |
+| `hr_delivery.kind`, `state` | Harbour | `starter`, `shift`, `clock_event`, `pay_units`; `pending`, `sent`, `failed`, `refused` | The idempotency key is a UUID; sent only with Thapsus-HR's identifier |
+| `hr_delivery.payload_sha256` | Harbour | 64 lower-case hex characters | Digest of what was last sent (slice 88, migration 0142) |
+| `absence.source`, `absence.hr_id` | Harbour; Thapsus-HR | `harbour` or `thapsus_hr`; `^[A-Za-z0-9_-]{1,64}$` | A Thapsus-HR copy is annual leave, sickness or other, recorded or cancelled, with no decider (slice 88, migration 0142) |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

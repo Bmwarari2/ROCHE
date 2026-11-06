@@ -14,7 +14,7 @@ import {
   ukEndOfDay,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { withSystemRights } from "./system-rights";
 
 /**
@@ -116,6 +116,75 @@ export async function endLeaversAccess(
         resourceType: "staff_profile",
         resourceId: leaver.staffProfileId,
         reason: `sweep_${code}`,
+        scope: { by: "sweep" },
+      });
+    }
+  }
+  return ended + (await endRelinkedLeaversAccess(tx, tenantId, today));
+}
+
+/**
+ * Rule 8 of the HR link after a withdrawn leaving (integrations.md section 11; HZ-133): a member
+ * reinstated after a wrong leaving date was withdrawn, whose leaving Thapsus-HR then gave again,
+ * loses access once that day is over, through `app.end_relinked_leaver_access` (the leaver guard
+ * keeps the first ending as it was). Each in a savepoint; audited by the staff file's id.
+ */
+async function endRelinkedLeaversAccess(
+  tx: Transaction,
+  tenantId: string,
+  today: string,
+): Promise<number> {
+  const due = await tx
+    .select({ staffProfileId: leaverRecord.staffProfileId })
+    .from(leaverRecord)
+    .innerJoin(
+      staffProfile,
+      and(
+        eq(staffProfile.tenantId, leaverRecord.tenantId),
+        eq(staffProfile.id, leaverRecord.staffProfileId),
+      ),
+    )
+    .innerJoin(
+      tenantUser,
+      and(
+        eq(tenantUser.tenantId, staffProfile.tenantId),
+        eq(tenantUser.id, staffProfile.tenantUserId),
+      ),
+    )
+    .where(
+      and(
+        isNotNull(leaverRecord.accessRemovedAt),
+        isNull(leaverRecord.deletedAt),
+        lt(leaverRecord.leavingOn, today),
+        ne(tenantUser.status, "left"),
+      ),
+    );
+  let ended = 0;
+  for (const leaver of due) {
+    try {
+      const done = await tx.transaction(async (sp) => {
+        const result = await sp.execute<{ ended: boolean }>(
+          sql`SELECT app.end_relinked_leaver_access(${leaver.staffProfileId}::uuid) AS ended`,
+        );
+        return result.rows[0]?.ended === true;
+      });
+      if (!done) continue;
+      ended += 1;
+      await tx.insert(auditEvent).values({
+        tenantId,
+        action: "workforce.leaving.access_ended",
+        resourceType: "staff_profile",
+        resourceId: leaver.staffProfileId,
+        scope: { by: "sweep", after: "withdrawn_leaving" },
+      });
+    } catch {
+      await tx.insert(auditEvent).values({
+        tenantId,
+        action: "workforce.leaving.access_ended",
+        outcome: "denied",
+        resourceType: "staff_profile",
+        resourceId: leaver.staffProfileId,
+        reason: "sweep_relinked",
         scope: { by: "sweep" },
       });
     }

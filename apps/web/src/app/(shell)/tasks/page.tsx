@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TaskEvidenceBadge } from "@/components/care/LifecycleBadges";
 import { TaskDetails } from "@/components/care/TaskDetails";
+import { HrLinkStaleness } from "@/components/rota/HrLinkStaleness";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
@@ -17,21 +18,7 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { firstParam } from "@/lib/record-metadata";
-import {
-  isOpen,
-  isReviewTask,
-  onlyReviews,
-  shownCount,
-  sortTasks,
-  splitByWindow,
-  TASK_MANAGE,
-  TASK_PAGE_SIZE,
-  type TasksQuery,
-  taskChip,
-  tasksHref,
-  tasksQuery,
-  taskWindow,
-} from "@/lib/tasks";
+import { isOpen, isReviewTask, onlyReviews, shownCount, sortTasks, splitByWindow, TASK_MANAGE, TASK_PAGE_SIZE, type TasksQuery, taskChip, tasksHref, tasksQuery, taskWindow } from "@/lib/tasks";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -228,6 +215,7 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader eyebrow={me.tenant.name} title={title} description={t("tasks.description")} />
+      <HrLinkStaleness api={api} />
       {done && DONE.has(done) ? (
         <RecordedArrival message={t("tasks.done", { done })} param="done" />
       ) : null}
