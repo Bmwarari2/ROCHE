@@ -273,18 +273,16 @@ export async function clearUserCodeAttempts(authPool: pg.Pool, authUserId: strin
 }
 
 /**
- * The organisation an SSO session belongs to, from the session row itself (written in the same
- * insert as the session; #33 re-check H1), or null for a session that is not from SSO.
+ * The organisation an SSO session belongs to, or null for a session that is not from SSO. Read
+ * from the session Better Auth has just resolved (`ssoTenantId` is a session field, written in
+ * the same insert as the session; #33 re-check H1), never from a second read of the row: a
+ * request racing a sign-out or `endSsoSession` would find no row there and be taken for a
+ * session that is not from SSO, skipping the flag check, the organisation binding and the
+ * operator refusal (#33 re-check 3, L).
  */
-export async function sessionSsoTenant(
-  authPool: pg.Pool,
-  sessionId: string,
-): Promise<string | null> {
-  const { rows } = await authPool.query<{ sso_tenant_id: string | null }>(
-    "SELECT sso_tenant_id FROM auth.session WHERE id = $1",
-    [sessionId],
-  );
-  return rows[0]?.sso_tenant_id ?? null;
+export function ssoTenantOf(session: object): string | null {
+  const value = (session as { ssoTenantId?: unknown }).ssoTenantId;
+  return typeof value === "string" && value !== "" ? value : null;
 }
 
 /**
