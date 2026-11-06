@@ -961,3 +961,88 @@ A variable dose is given only from a checked dosing record (rule 18).
   checked by `checkDosingRecord`.
 - **Reading**: `GET /v1/medicines/{entryId}/dosing-records`.
 - **Database**: the record's content never changes, and the check is set once.
+
+## 16. PRN protocols, outcomes and the psychotropic report (slice 28; MEDS-003)
+
+Hazard HZ-117; human actions H-1380 to H-1389. Sections 14 and 15 are slices 45 and 38 (on their
+own branches). Harbour counts, compares with the protocol and displays; it never recommends a
+dose, a medicine or an alternative (medical-device boundary).
+
+### 16.1 PRN protocols
+
+A **PRN protocol** (`prn_protocol`, mutable with `expected_version`, every version kept in
+`record_version`) is the home's guidance for one of the person's current when-required entries
+(the stable `medicine_id`, copied by the database): what it is for, the **signs** that mean it may
+be needed (at least one), the **non-drug alternatives** to try first, the **order of use** among
+the person's medicines for the same purpose (a group and a place, one medicine per place), the
+expected effect, the prescriber or pharmacist it was **agreed** with and when, and a **review** date
+within `medicines.prn_protocol.review_max_days` (H-1382). One open protocol per medicine.
+
+The **dose, the most in 24 hours and the minimum interval stay the prescriber's**, on the entry
+(migration 0123, rule 13): a protocol shows them from the latest version of the entry and never
+holds a second copy, so a changed prescription is always what staff see (H-1381). Changing a
+protocol needs a new reason; a withdrawn protocol is closed. Statuses: in use, review overdue,
+withdrawn.
+
+### 16.2 Outcomes
+
+The **outcome** of a when-required dose that was given or taken (`prn_outcome`, append-only,
+client UUID): it helped, it helped a little, it did not help, the person was asleep, could not
+tell; a note; when it was seen (after the dose, never in the future). One outcome per dose; a
+correction names the outcome it corrects, with a reason. Doses whose outcome is due
+(`medicines.prn.outcome_check_minutes` after the dose, `prnOutcomeDueAt`) and not recorded are
+listed for the person (H-1383).
+
+### 16.3 The organisation's medicine lists and the PRN frequency report
+
+The organisation's **medicine lists** (`medicine_list_item`) hold exact dm+d products (VMPs) for
+each tag (`time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic`; ADR-0082, H-514); never
+an ingredient or a name. A removal is kept with its reason. They feed rule 13's tag suggestions and
+the psychotropic count (H-1384).
+
+The **PRN frequency report** (`GET /v1/locations/{id}/medicines/prn-frequency`) counts, for each
+person and when-required medicine in a period (UK dates, inclusive, at most
+`medicines.prn_report.max_days`, H-1385): doses given or taken (latest records only; a record a
+correction replaced never counts), UK days with doses, the most on one day, doses given with no
+protocol in use, outcomes by kind and those outstanding. A medicine is psychotropic when the
+dose's own entry version is tagged so or its product is on the organisation's psychotropic list;
+the report can show those alone. It always carries the note that it is a count for the
+prescriber and pharmacist, never a judgement (H-1386). People are counted at their current home.
+The path differs from slice 45's usage report, which this report extends (H-1387).
+
+### 16.4 Permissions
+
+| Action | Permission | Scope |
+| --- | --- | --- |
+| Read a person's protocols and outstanding outcomes | `medicines.record.manage`, `medicines.emar.administer` or `care.plan.read` | The person |
+| Record, change and withdraw a protocol | `medicines.record.manage` | The person |
+| Record or correct an outcome | `medicines.emar.administer` or `medicines.record.manage` | The person |
+| Read a medicine list | `medicines.list.manage`, `medicines.record.manage` or `medicines.emar.administer` | The organisation |
+| Add to or remove from a medicine list | `medicines.list.manage` (new: owner, Registered Manager, deputy; backfilled by migration 0143) | The organisation |
+| Read the PRN frequency report | `medicines.record.manage` | The home |
+
+All are care-record permissions (MFA). Audited with ids only.
+
+### 16.5 Schema (migration 0143)
+
+`medicine_list_item`, `prn_protocol` and `prn_outcome`, each with `tenant_id`, forced row-level
+security and the tenant policy; the person's scope on protocols and outcomes; write policies (lists:
+`medicines.list.manage`; protocols: `medicines.record.manage` at the person's home; outcomes:
+either permission, including a care worker's assigned role, through `app.may_record_for_person`,
+the same function slice 38 defines); history on lists and protocols; append-only outcomes with
+the recorder checked as the member signed in; no delete. Retention `mar_chart` (lists:
+`organisation_document`). Sample data removal lists protocols and outcomes. Not sent to devices
+yet (slice 68).
+
+### 16.6 Test list
+
+- Domain, table-driven: every protocol problem and status; every outcome problem; the report's
+  counts across the clock change; the list check.
+- Database: list writes by permission, closed once removed; a protocol only for a current
+  when-required entry, at the person's home, one open per medicine, a new reason for every change,
+  closed once withdrawn; outcomes for a when-required dose by the recorder, once per dose,
+  corrections, append-only; isolation; the role backfill.
+- API: list permission and duplicates; a protocol showing the entry's limits and the psychotropic
+  list, one open per medicine, a taken place, changes with the version read; outstanding outcomes,
+  refusals in words, idempotent resend, correction; the report's counts, filter, period cap and
+  permission.

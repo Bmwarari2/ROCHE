@@ -170,6 +170,15 @@ Retention class `mar_chart`. Escalations become tasks for the nurse in charge, t
 that name no medicine. No new recipient or sub-processor; administrations are not yet sent to
 devices (the round stream is a contract until slice 68).
 
+PRN protocols and outcomes (Phase 2 slice 28, migration 0143): B1 now also covers PRN protocols
+(what a when-required medicine is for, the signs, the alternatives to try first, the order of use,
+the prescriber or pharmacist it was agreed with, reviews and changes with their reasons) and the
+outcome of each when-required dose (how it went, a note, when it was seen, who recorded it).
+Signs and notes may describe the person's behaviour and condition, including distress. The PRN
+frequency report counts these records for the home's managers and the person's prescriber and
+pharmacist; it holds no new data. The organisation's medicine lists hold no personal data.
+Retention class `mar_chart`. No new recipient or sub-processor; not sent to devices yet.
+
 Notes:
 
 - The photo in the point-of-care header (B1) is a safety control against wrong-person selection (hazard HZ-001), not an optional feature, so it is not consent-based. Photos shared with families (B8) are.

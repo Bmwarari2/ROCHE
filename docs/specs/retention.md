@@ -78,7 +78,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `incident` with `retention_class` `care_record` (no notification applies), and its `incident_person`, `classifier_answer` and `investigation` rows | care_record |
 | `incident` with `retention_class` `serious_incident` (set once any notification applies), its people, answers, `candour_record` and `investigation`, and `statutory_notification` | serious_incident |
 | `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
-| `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision`, `prn_protocol`, `prn_outcome` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
 | `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
@@ -99,6 +99,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `evidence_pack`, `evidence_pack_item`, `evidence_pack_link`, `evidence_pack_link_code` ([quality.md](quality.md)) | evidence_pack; the rendered bundle is deleted when the link ends |
 | `evidence_pack_bundle` | deleted (content cleared) when the link ends or the pack is revoked or discarded (migration 0057); the row stays as proof of the deletion under evidence_pack |
 | `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
+| `medicine_list_item` ([medicines.md](medicines.md) section 16) | organisation_document |
 | `dependency_scale`, `dependency_scale_version` ([scheduling.md](scheduling.md) section 13) | organisation_document; a version a rota rests on is kept at least as long as that rota (rota_and_timesheet) until the DPO decides (H-711) |
 | `dependency_assessment` (a person's dependency category) | care_record |
 | `letter` | `retention_class` per row: serious_incident for an incident or candour letter about an incident graded serious, otherwise care_record (`letterRetentionClass`; migration 0059) |

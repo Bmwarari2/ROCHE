@@ -853,6 +853,21 @@ is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/
 | `medication.tags` | Harbour (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |
 | `medication.minimum_interval_minutes`, `prn_max_per_24h` | Harbour | Minutes; numeric in the dose's unit | As the prescription states. |
 
+## PRN protocols and outcomes (Phase 2, slice 28)
+
+Migration 0143 ([medicines.md](medicines.md) section 16). Retention class `mar_chart` (medicine
+lists: `organisation_document`); every column is exported.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `medicine_list_item.list`, `vmp_id` | Harbour (ADR-0082); dm+d VMP | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic`; SNOMED CT concept id | Exact products only. |
+| `prn_protocol.triggers`, `non_drug_alternatives` | Harbour | Arrays of text | Staff's words; never Harbour's suggestion. |
+| `prn_protocol.purpose_group`, `order_of_use` | Harbour | Text; integer from 1 | One medicine per place in a group. |
+| `prn_protocol.agreed_with_role` | Harbour | `prescriber`, `pharmacist` | |
+| `prn_protocol.agreed_on`, `review_on`, `withdrawn_on` | ISO 8601 date | UK date | Review within `medicines.prn_protocol.review_max_days`. |
+| `prn_outcome.outcome` | Harbour; PRSB eMAR (not yet coded) | `effective`, `partly_effective`, `not_effective`, `person_asleep`, `could_not_assess` | Shown in words (`PRN_OUTCOME_WORDS`). |
+| `prn_outcome.observed_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

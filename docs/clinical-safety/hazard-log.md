@@ -69,6 +69,7 @@
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
 | [HZ-116](#hz-116-a-two-person-check-done-by-one-person-or-not-genuinely-witnessed) | A two-person check (witness, second signature, transcription check) done by one person or not genuinely witnessed | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
+| [HZ-117](#hz-117-a-when-required-medicine-given-outside-its-protocol-without-the-protocol-shown-or-without-the-outcome-recorded) | A when-required medicine given outside its protocol, without the protocol shown, or without the outcome recorded | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1380) | Open | None (Phase 2) | Phase 2 (slices 28, 53, 69) |
 | [HZ-119](#hz-119-expired-competence-does-not-block-administration-or-the-manager-override-becomes-routine) | Expired competence does not block administration, or the manager override becomes routine | Major / Medium / 3 | Major / Low / 3 until the override report exists (slice 45), then Very low / 2 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 | [HZ-121](#hz-121-medicines-not-reconciled-after-admission-transfer-or-return-from-hospital) | Medicines not reconciled after admission, transfer or return from hospital | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 | [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Major / Very low / 2 (engineering proposal; the CSO rates it, H-710) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
@@ -77,7 +78,7 @@
 | [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
 | [HZ-130](#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person) | Imported records mis-mapped, duplicated or attached to the wrong person | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-543 and H-680) | Open | None (Phase 2) | Phase 2 (slices 26, 51, 67, 79) |
 
-Eighteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-112 until its mobile control is built, HZ-119 until its override report is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Nineteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-117, HZ-121, HZ-112 until its mobile control is built, HZ-119 until its override report is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed. HZ-113 to HZ-130 are assigned to Phase 2 slices in [phase-2.md](../plans/phase-2.md) and are added by the slice the plan names, so they arrive out of order (HZ-121 with slice 2, HZ-116 and HZ-119 with slice 3).
 
@@ -3091,6 +3092,51 @@ person receiving care.
 | `packages/domain/src/medicines/competence.test.ts`: `refuses an override approved by the member themselves` (in `hazard HZ-119 expired medicines competence blocks an administration unless someone else overrides it`) | Passing (Phase 2 slice 3) |
 | `apps/api`: `hazard HZ-116 a witness on the same device must sign in with their own factor, and the server re-verifies it` | Planned, Phase 2 (slices 34, 70) |
 | `packages/db/test/medicine-administrations.test.ts`: `hazard HZ-116 a second signature is a second person` (never the recorder or the giver; once per record); `apps/api/test/medicine-administrations.test.ts`: `hazard HZ-116 takes a witness's second signature, never the recorder's, never on a corrected record and only after step-up` and `hazard HZ-116 controlled drugs wait for the register (slice 34)` (a controlled drug's dose refused here, H-1167). No time limit on signing yet (H-1166) | Passing (Phase 2 slice 22) |
+
+---
+
+## HZ-117 A when-required medicine given outside its protocol, without the protocol shown, or without the outcome recorded
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-117 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `medicines` module (lead engineer) |
+| Source | Master prompt 10.2 (MEDS-003); [phase-2.md](../plans/phase-2.md) slice 28; [medicines.md](../specs/medicines.md) section 16; [NICE SC1](https://www.nice.org.uk/guidance/sc1) (2014) 1.14 (when-required medicines); STOMP (stopping over-medication of people with a learning disability, autism or both); related to HZ-004 and HZ-005 (administration), HZ-119 (competence) |
+
+**Description**: a when-required medicine is given when the person's protocol says it is not needed, before the alternatives to try first, in the wrong order among the person's medicines for the same purpose, from a protocol that is out of date or has drifted from the prescription; or it is given and nobody records whether it helped, so repeated or ineffective use, notably of psychotropic medicines, is not seen by the prescriber.
+
+**Causes**: no protocol, or a protocol never reviewed; a protocol holding its own copy of the dose or limits that the prescription has since changed; signs written so loosely that any behaviour triggers it; alternatives not recorded; two medicines for the same purpose with no order; outcomes not prompted or not recorded; a report that counts superseded records, misses psychotropic medicines not tagged, or covers a period nobody reads; a psychotropic list built from names or ingredients.
+
+**Effects**: over-medication (STOMP), sedation, falls; under-treatment of pain or constipation; a medicine kept when it does not help; restrictive practice by medication.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | A PRN protocol per current when-required entry: purpose, at least one sign, alternatives to try first, the order of use in a group (one medicine per place), the agreement with the prescriber or pharmacist, a review within `medicines.prn_protocol.review_max_days`; one open per medicine; changes need a new reason; withdrawn is closed (`checkPrnProtocol`, the database guard; H-1381, H-1382) | Phase 2 slice 28 (web screens slice 53) |
+| Design | The dose, most in 24 hours and minimum interval are shown from the latest version of the entry and never copied into the protocol, so a changed prescription is what staff see (H-1381) | Phase 2 slice 28 |
+| Design | The outcome of each when-required dose given or taken is recorded once (corrections with a reason), seen after the dose and never in the future, by the member signed in; doses whose outcome is due and not recorded are listed for the person (`checkPrnOutcome`, `prnOutcomeDueAt`; H-1383) | Phase 2 slice 28 |
+| Design | The PRN frequency report counts per person and medicine: doses, days, the most on one day, doses with no protocol in use, outcomes and those outstanding; latest records only; psychotropic by the dose's own entry tag or the organisation's list of exact dm+d products; a period within `medicines.prn_report.max_days`; always with its note that it is a count, never a judgement (`prnFrequency`; H-1384 to H-1386) | Phase 2 slice 28 |
+| Design | Recording a when-required dose does not yet check that a protocol is in use, nor show the protocol on the round; the round and administration screens show it (slice 53), and devices receive it (slice 68) (H-1388) | Planned, slices 53 and 68 |
+| Process | Deployer control: the tenant's PRN policy, who writes and reviews protocols with the prescriber, and a monthly review of the PRN frequency report with the prescriber or pharmacist (STOMP) (DCB0160 template) | Before each real tenant |
+| Test | See Verification | Phase 2 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-1380).
+
+**Justification for level 3**: the protocol and the outcomes are recorded and counted, but until the round shows the protocol at the point of giving (slice 53) staff must open it, and whether a dose was clinically needed stays a person's judgement that Harbour does not make.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/medicines/prn-protocol.test.ts`: `hazard HZ-117 a PRN protocol for a when-required medicine (slice 28)`, `hazard HZ-117 the outcome of a when-required dose (slice 28)`, `hazard HZ-117 the PRN frequency report counts, never judges (slice 28)` (across the clock change), `hazard HZ-117 the tenant's medicine lists hold exact products (slice 28, ADR-0082)` | Passing (Phase 2 slice 28) |
+| `packages/db/test/prn-protocols.test.ts`: `hazard HZ-117 the organisation's medicine lists (migration 0143)`, `hazard HZ-117 PRN protocols in the database (migration 0143)`, `hazard HZ-117 PRN outcomes in the database (migration 0143)` and the role backfill | Passing (Phase 2 slice 28) |
+| `apps/api/test/prn-protocols.test.ts`: `hazard HZ-117 the organisation's medicine lists hold exact products (slice 28)`, `hazard HZ-117 PRN protocols show the prescriber's limits and never copy them (slice 28)`, `hazard HZ-117 the outcome of a when-required dose is followed up (slice 28)`, `hazard HZ-117 the PRN frequency report counts, never judges (slice 28)` | Passing (Phase 2 slice 28) |
+| `apps/web` Playwright: `hazard HZ-117 the round shows the PRN protocol before a dose` | Planned, Phase 2 slice 53 |
 
 ---
 
