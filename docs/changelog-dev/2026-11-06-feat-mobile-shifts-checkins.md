@@ -42,6 +42,10 @@ Branch `feat/mobile-shifts-checkins`, slice 71 (no PR yet).
 - Phone: help or duress refused by its session (403, 404) goes there; help is offered with no
   session; the help line says when Harbour has it; "nobody is told" now covers missed check-ins
   only.
+- Review of H-1317: a duress press accepted by the emergency route still leaves its refusal under
+  needs attention as a check-in; the replay finds only the worker's own events; the phone tries
+  the route only on a 404 or a 403 about the session; the new session takes the worker's latest
+  session's location before name order; "Ask for help" quoted and set apart from Start.
 
 ## What is next
 

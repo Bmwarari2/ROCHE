@@ -524,10 +524,16 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     } catch (error) {
       if (!(error instanceof UploadRejectedError)) throw error;
       // Help or duress its session could not take still raises the alarm (H-1317).
-      const emergency = emergencyRequest(request, error.status);
+      const emergency = emergencyRequest(request, error.status, error.code);
       if (emergency) {
         try {
           await this.postChange(emergency, clientId);
+          // A check-in refused here stays under "needs attention"; so must a duress press, as a
+          // check-in, or one item fewer would give it away (clinical review of H-1317, M1).
+          if (request.body.kind === "duress") {
+            await park(error.status, error.code, error.reason ?? t("mobile.issues.unknownReason"));
+            this.options.onRefused?.();
+          }
           return;
         } catch (second) {
           if (!(second instanceof UploadRejectedError)) throw second;

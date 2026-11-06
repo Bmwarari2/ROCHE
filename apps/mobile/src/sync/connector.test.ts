@@ -1492,7 +1492,7 @@ describe("uploadData: clock events and lone working go to their own routes (sche
     },
   );
 
-  it.each([["help"], ["duress"]])(
+  it.each([["help"]])(
     "hazard HZ-125 records a %s press whose session is unknown through the emergency route, with nothing left needing attention (H-1317)",
     async (kind) => {
       const { fetch, calls } = fakeFetch([
@@ -1513,6 +1513,46 @@ describe("uploadData: clock events and lone working go to their own routes (sche
       expect(queue.state.completed).toBe(1);
     },
   );
+
+  it("hazard HZ-125 leaves needs attention the same after a duress press as after a check-in, when the session is refused (clinical review of H-1317)", async () => {
+    const asCheckIn = fakeQueue([loneEvent("check_in")]);
+    await connector(fakeFetch([problem(404, "not_found", "Not found.")]).fetch).instance.uploadData(
+      asCheckIn.source,
+    );
+    const asDuress = fakeQueue([loneEvent("duress")]);
+    await connector(
+      fakeFetch([
+        problem(404, "not_found", "Not found."),
+        json({ id: EVENT, kind: "check_in", message: "Thank you. You are checked in." }, 201),
+      ]).fetch,
+    ).instance.uploadData(asDuress.source);
+    expect(asDuress.issues()).toEqual(asCheckIn.issues());
+  });
+
+  it("never tries the emergency route for a 403 about the device or the sign-in", async () => {
+    const { fetch, calls } = fakeFetch([problem(403, "device_revoked", "Device revoked.")]);
+    const queue = fakeQueue([loneEvent("help")]);
+    await connector(fetch)
+      .instance.uploadData(queue.source)
+      .catch(() => undefined);
+    expect(calls.map((c) => c.url)).not.toContain(`${API}/v1/lone-worker/emergency`);
+  });
+
+  it("keeps a help press queued while the emergency route asks it to wait (429)", async () => {
+    const { fetch } = fakeFetch([
+      problem(404, "not_found", "Not found."),
+      problem(429, "rate_limited", "Too many requests."),
+      problem(429, "rate_limited", "Too many requests."),
+      problem(429, "rate_limited", "Too many requests."),
+      problem(429, "rate_limited", "Too many requests."),
+    ]);
+    const queue = fakeQueue([loneEvent("help")]);
+    await connector(fetch)
+      .instance.uploadData(queue.source)
+      .catch(() => undefined);
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(0);
+  });
 
   it("never sends a check-in to the emergency route", async () => {
     const { fetch, calls } = fakeFetch([problem(404, "not_found", "Not found.")]);

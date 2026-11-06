@@ -928,12 +928,19 @@ export const loneWorkerRouter = createRouter()
           status,
         );
       // A replay is answered before the limit, so a resend from an offline queue is never refused.
+      // Only the worker's own events: a monitor never learns of another's by guessing an id.
       const replay = await withTenant(c, async (tx) => {
         const [existing] = await tx
-          .select()
+          .select({ event: loneWorkerEvent })
           .from(loneWorkerEvent)
-          .where(eq(loneWorkerEvent.id, body.id));
-        return existing ?? null;
+          .innerJoin(loneWorkerSession, eq(loneWorkerSession.id, loneWorkerEvent.sessionId))
+          .where(
+            and(
+              eq(loneWorkerEvent.id, body.id),
+              eq(loneWorkerSession.workerTenantUserId, access.tenantUserId),
+            ),
+          );
+        return existing?.event ?? null;
       });
       if (replay) {
         if (replay.kind !== body.kind) throw problems.invalid("That event id is already used.");
@@ -941,7 +948,8 @@ export const loneWorkerRouter = createRouter()
       }
       await requireWithinLimit(c.get("services").db, access, EMERGENCY_LIMIT);
       // Where it is recorded: the session's location when the session is the worker's own, else
-      // the location given, else another where they work (by name).
+      // the location given, else that of the worker's latest session, else another where they
+      // work (by name), so the alarm goes to the people who know where they are.
       const where = await asSystem(c, access, async (tx) => {
         const rows = await accessRowsOfMember(tx, access.tenantUserId);
         const [named] = body.sessionId
@@ -953,6 +961,12 @@ export const loneWorkerRouter = createRouter()
               .from(loneWorkerSession)
               .where(eq(loneWorkerSession.id, body.sessionId))
           : [];
+        const [latest] = await tx
+          .select({ locationId: loneWorkerSession.locationId })
+          .from(loneWorkerSession)
+          .where(eq(loneWorkerSession.workerTenantUserId, access.tenantUserId))
+          .orderBy(desc(loneWorkerSession.startedAt))
+          .limit(1);
         const places = await tx
           .select({ id: location.id })
           .from(location)
@@ -961,6 +975,7 @@ export const loneWorkerRouter = createRouter()
         const candidates = [
           named && named.worker === access.tenantUserId ? named.locationId : null,
           body.locationId ?? null,
+          latest?.locationId ?? null,
           ...places.map((p) => p.id),
         ].filter((id): id is string => id !== null);
         return candidates.find((id) => worksAt(rows, id, now)) ?? null;

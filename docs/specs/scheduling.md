@@ -1171,7 +1171,7 @@ timekeeping (R22).
 | `POST /v1/lone-worker/sessions` | check_in | Client id; 201 or 200 on replay; audited `session_started` |
 | `GET /v1/lone-worker/sessions/mine` | check_in | Duress shown as check-in; overdue alarm only |
 | `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in) |
-| `POST /v1/lone-worker/emergency` | check_in | Help or duress without a usable session (H-1317, slice 71): recorded in the worker's open session, else the session of their open help or duress alarm, else a new session finished as it starts, at the named session's location when it is theirs, the location given, or another where they work; alarmed like any help or duress (the route, else the Registered Manager and owner); answers as a session's event (duress as a check-in); client UUID, replay answered before a limit of 30 in 10 minutes; audited `session_started` and `event_recorded` with `withoutSession` (duress as check-in) |
+| `POST /v1/lone-worker/emergency` | check_in | Help or duress without a usable session (H-1317, slice 71): recorded in the worker's open session, else the session of their open help or duress alarm, else a new session finished as it starts, at the named session's location when it is theirs, the location given, their latest session's, or another where they work (by name); alarmed like any help or duress (the route, else the Registered Manager and owner); answers as a session's event (duress as a check-in); client UUID, a replay of the worker's own event answered before a limit of 30 in 10 minutes; audited `session_started` and `event_recorded` with `withoutSession` (duress as check-in) |
 | `GET /v1/lone-worker/board` | monitor | Open sessions with status words; audited |
 | `GET /v1/lone-worker/alarms` | monitor | Open by default; with the latest location point; audited |
 | `POST /v1/lone-worker/alarms/{id}/acknowledge` | monitor | `expected_version`; audited `alarm_acknowledged` |
@@ -1275,9 +1275,11 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    encrypted upload queue or, if the session ended first, in the encrypted held entries, from which
    it goes back into the queue when the owner signs in again (H-1315). A duress press the API
    refused before reaching the event (the session unknown or refused, access withdrawn) raised no
-   alarm there, so the phone sends it again to `POST /v1/lone-worker/emergency` (H-1317, section
-   17.6), which records it against the worker and raises the alarm; only if that refuses too (the
-   member checks in nowhere, or no longer may) is it kept as a check-in under "needs attention".
+   alarm there, so the phone sends it again (on a 404, or a 403 about the session only) to
+   `POST /v1/lone-worker/emergency` (H-1317, section 17.6), which records it against the worker and
+   raises the alarm. The refusal is still kept under "needs attention" as a check-in, exactly as a
+   refused check-in would be, so the list never gives the press away; if the emergency route
+   refuses too (the member checks in nowhere, or no longer may), that is what stays.
 4. **Help**: one press, never held up by another press, offered with no session too (sent to the
    emergency route, H-1317). The line says only what is true: waiting
    (no connection: it has not reached anyone yet), being sent, refused (it did not reach anyone:

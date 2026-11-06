@@ -183,8 +183,11 @@ export function screenSafePayload(
 export function emergencyRequest(
   request: ShiftUploadRequest,
   status: number,
+  /** The refusal's code: only a plain 403 is about the session; a device or sign-in one is not. */
+  code = "forbidden",
 ): ShiftUploadRequest | null {
-  if (request.table !== "lone_worker_outbox" || (status !== 403 && status !== 404)) return null;
+  if (request.table !== "lone_worker_outbox") return null;
+  if (status !== 404 && !(status === 403 && code === "forbidden")) return null;
   const match = /^\/v1\/lone-worker\/sessions\/([^/]+)\/events$/.exec(request.path);
   const kind = request.body.kind;
   if (!match || (kind !== "help" && kind !== "duress")) return null;
