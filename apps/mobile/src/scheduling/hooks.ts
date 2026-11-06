@@ -26,7 +26,12 @@ import {
   type QueuedAction,
   queuedActions,
 } from "./lone-worker-view";
-import { MY_CLOCK_EVENTS_SQL, MY_SHIFTS_SQL, QUEUED_LONE_WORKER_SQL } from "./queries";
+import {
+  DEMO_QUEUED_LONE_WORKER_SQL,
+  MY_CLOCK_EVENTS_SQL,
+  MY_SHIFTS_SQL,
+  QUEUED_LONE_WORKER_SQL,
+} from "./queries";
 
 export const TIMESHEET_SELF = "scheduling.timesheet.self";
 export const LONE_WORKER_CHECK_IN = "scheduling.lone_worker.check_in";
@@ -125,7 +130,9 @@ function useQueuedLoneWorker(): { readonly queued: QueuedAction[]; readonly rere
   const db = usePowerSync();
   const [queued, setQueued] = useState<QueuedAction[]>([]);
   const reread = useCallback(() => {
-    db.getAll<{ data: string | null }>(QUEUED_LONE_WORKER_SQL)
+    db.getAll<{ data: string | null }>(
+      appEnv.demoMode ? DEMO_QUEUED_LONE_WORKER_SQL : QUEUED_LONE_WORKER_SQL,
+    )
       .then((rows) => setQueued(queuedActions(rows)))
       .catch(() => undefined);
   }, [db]);

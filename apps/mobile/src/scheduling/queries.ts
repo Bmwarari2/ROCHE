@@ -18,3 +18,11 @@ export const INSERT_CLOCK_EVENT_SQL = `INSERT INTO clock_event (id, tenant_id, w
 
 export const INSERT_LONE_WORKER_SQL = `INSERT INTO lone_worker_outbox (id, tenant_id, action,
   session_id, body, queued_at) VALUES (?, ?, ?, ?, ?, ?)`;
+
+/**
+ * The demo database is local-only, so nothing reaches the upload queue: its lone-working actions
+ * stay in the table, read in the queue's own shape.
+ */
+export const DEMO_QUEUED_LONE_WORKER_SQL = `SELECT json_object('op', 'PUT', 'type',
+  'lone_worker_outbox', 'id', id, 'data', json_object('action', action, 'session_id', session_id,
+  'body', body)) AS data FROM lone_worker_outbox ORDER BY queued_at`;

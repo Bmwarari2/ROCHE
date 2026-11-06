@@ -1375,3 +1375,113 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     expect(queue.issues()).toMatchObject([{ id: TASK, code: "round_change_unreadable" }]);
   });
 });
+
+describe("uploadData: clock events and lone working go to their own routes (scheduling.md section 18)", () => {
+  const CLOCK = "0199d000-0000-7000-8000-000000000501";
+  const SESSION = "0199d000-0000-7000-8000-000000000601";
+  const EVENT = "0199d000-0000-7000-8000-000000000602";
+  const LOCATION = "0199d000-0000-7000-8000-000000000401";
+  const clockIn = (): CrudEntryLike => ({
+    op: "PUT",
+    table: "clock_event",
+    id: CLOCK,
+    opData: {
+      tenant_id: TENANT,
+      worker_id: "0199d000-0000-7000-8000-000000000701",
+      kind: "in",
+      shift_id: null,
+      location_id: LOCATION,
+      device_time: "2026-10-11T06:58:00.000Z",
+      recorded_at: null,
+      flags: "[]",
+    },
+  });
+  const loneEvent = (kind: string): CrudEntryLike => ({
+    op: "PUT",
+    table: "lone_worker_outbox",
+    id: EVENT,
+    opData: {
+      tenant_id: TENANT,
+      action: "event",
+      session_id: SESSION,
+      body: JSON.stringify({ id: EVENT, kind, deviceAt: "2026-10-11T10:02:00.000Z" }),
+      queued_at: "2026-10-11T10:02:00.000Z",
+    },
+  });
+
+  it("sends a clock-in with the device's time, keyed by its own id", async () => {
+    const { fetch, calls } = fakeFetch([json({}, 201)]);
+    const queue = fakeQueue([clockIn()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls[0]?.url).toBe(`${API}/v1/me/clock-events`);
+    expect(new Headers(calls[0]?.init?.headers).get("idempotency-key")).toBe(CLOCK);
+    expect(new Headers(calls[0]?.init?.headers).get(TENANT_HEADER)).toBe(TENANT);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      id: CLOCK,
+      kind: "in",
+      locationId: LOCATION,
+      shiftId: null,
+      deviceTime: "2026-10-11T06:58:00.000Z",
+      evidence: "none",
+      nfcTagRef: null,
+    });
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("hazard HZ-124 keeps a refused clock-in as needs attention, in the API's own words", async () => {
+    const words =
+      "You cannot clock in to this shift: your organisation's rule on the day does not allow it.";
+    const { fetch } = fakeFetch([problem(422, "clock_in_refused", words)]);
+    const queue = fakeQueue([clockIn()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(queue.issues()).toEqual([
+      expect.objectContaining({
+        id: CLOCK,
+        tenantId: TENANT,
+        personId: null,
+        table: "clock_event",
+        httpStatus: 422,
+        code: "clock_in_refused",
+        message: expect.stringContaining("You cannot clock in"),
+      }),
+    ]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("sends a lone-working check-in to the session's events route", async () => {
+    const { fetch, calls } = fakeFetch([json({}, 201)]);
+    const queue = fakeQueue([loneEvent("check_in")]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls[0]?.url).toBe(`${API}/v1/lone-worker/sessions/${SESSION}/events`);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      id: EVENT,
+      kind: "check_in",
+      deviceAt: "2026-10-11T10:02:00.000Z",
+    });
+  });
+
+  it("hazard HZ-125 sends a duress press as duress, and keeps a refused one only as a check-in", async () => {
+    const words = "This session has finished, so the check-in was not recorded.";
+    const { fetch, calls } = fakeFetch([problem(422, "session_finished", words)]);
+    const queue = fakeQueue([loneEvent("duress")]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(JSON.parse(String(calls[0]?.init?.body)).kind).toBe("duress");
+    const kept = queue.issues();
+    expect(kept).toHaveLength(1);
+    expect(JSON.stringify(kept)).not.toContain("duress");
+    expect(JSON.parse(String(kept[0]?.payload.body)).kind).toBe("check_in");
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("never sends a clock event or lone-working action through the general upload", async () => {
+    const bad = { ...clockIn(), opData: { ...clockIn().opData, location_id: "not-a-uuid" } };
+    const { fetch, calls } = fakeFetch([]);
+    const queue = fakeQueue([bad]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls).toEqual([]);
+    expect(queue.issues()).toEqual([
+      expect.objectContaining({ id: CLOCK, table: "clock_event", code: "shift_change_unreadable" }),
+    ]);
+  });
+});
