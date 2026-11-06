@@ -24,6 +24,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 45, medication errors, reviews and reports** (`feat/meds-errors-reviews`, MEDS-012,
+MEDS-013, from slice 22; migration 0135; HZ-131; H-1290 to H-1299, recommended answers applied):
+error details on medication incidents (NRLS kinds and stages, CD presumption, prompts that clear on
+evidence, access as the incident with MFA), medication reviews (booked or by interval, moved or
+cancelled with a reason), and the override, PRN and psychotropic, and error trend reports. Clinical
+and security review findings of 01/11/2026 fixed on 06/11/2026. Next: the web screens (H-1299).
+Lands through merge batch 3b.
+
 **Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
 with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
 UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the

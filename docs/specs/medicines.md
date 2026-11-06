@@ -986,10 +986,15 @@ incident:
   supply, administration, monitoring, storage, other.
 - **The medicine and the dose record**, each optional: a version of one of the person's medicines
   entries (`medication_id`), and an administration record (`administration_id`) for that person.
-  Both are checked to belong to the person on the incident.
+  Both are checked to belong to the person on the incident, and to be of one medicines entry: a
+  dose record of another medicine is refused.
 - **Slice 7's questions**: whether it reached the person (`yes`, `no`, `unsure`; a near miss when
   no), whether a controlled drug was involved, and whether it may be deliberate or repeated. A
-  controlled drug is presumed `yes` when the chosen medicine carries a CD schedule.
+  controlled drug is presumed `yes` when the chosen medicine, or the dose record's medicine,
+  carries a CD schedule, and an explicit "no" against a CD-scheduled medicine is refused (H-1294).
+  An omitted dose counts as having reached the person, never as a near miss.
+- **Dates**: the clinician cannot be told before the incident happened, and a controlled drug
+  report cannot be dated in the future.
 - **What was done**: immediate actions (text), the prescriber or clinician told (when, and who, as
   text), the advice given (text), the root cause found (text, once known), the controlled drug
   report (the date and the reference the area's Controlled Drugs Accountable Officer gave).
@@ -998,16 +1003,28 @@ Severity, harm and the statutory notifications stay on the incident and its clas
 this slice does not change. The **prompts** (`medicationErrorTriage`) are returned with the record
 and shown, never sent anywhere by Harbour:
 
-- **Clinical advice** whenever it reached or may have reached the person, or a dose was omitted.
-- **Controlled drug report** to the area's NHS England Controlled Drugs Accountable Officer for
-  every controlled drug incident or concern (H-594 recommended answer), until its date and
+- **Clinical advice** whenever it reached or may have reached the person, or a dose was omitted,
+  with "if the person is unwell, call 999", until who was told, when, and their advice are all
+  recorded.
+- **Controlled drug report** to the area's NHS England Controlled Drugs Accountable Officer when a
+  controlled drug was or may have been involved (H-594 recommended answer), until its date and
   reference are recorded.
 - **Safeguarding**: answer the incident's own safeguarding question (`safeguarding.concern`) when
-  the error may be deliberate or repeated, caused or risked significant harm, or suggests neglect
-  (H-549 recommended answer). A person decides; nothing is referred automatically.
-- **CQC**: a medication error is notifiable only through what it caused or shows (a death, an injury
-  meeting regulation 18(2)(a) or (b), abuse or neglect), which the classifier already decides; the
-  record says so in words and never raises a notification itself.
+  the error may be deliberate or repeated, caused significant harm, the harm is not yet graded, or
+  a dose was omitted (H-549 recommended answer; whether near misses that risked harm also prompt is
+  H-1292). It clears once that question is answered. A person decides; nothing is referred
+  automatically.
+- **CQC**: a medication error is notifiable only through what it caused or shows (for example a
+  death, an injury meeting regulation 18(2)(a) or (b), abuse or neglect, or police involvement),
+  which the classifier already decides; the record says so in words and never raises a
+  notification itself.
+
+Access follows the incident (security review, 01/11/2026): reading, adding and changing need MFA,
+as the incident itself does; an incident about a person the reader cannot see is refused whole;
+a deleted incident is not found. Adding needs the right to change the incident (its raiser, or a
+manager of incidents at its home); changing needs that or to have added the record. A closed
+incident's record cannot be added to or changed (H-1299 asks whether a manager may correct it with
+a reason). The record takes its incident's retention class.
 
 ### 14.2 Medication reviews (MEDS-013)
 
@@ -1015,37 +1032,52 @@ A **medication review** (`medication_review`, mutable with `expected_version`) i
 person (`due_on`) and recorded as done (`done_on`) by a named clinician (`clinician_name`,
 `clinician_role`: GP, pharmacist, nurse or other prescriber, consultant, other), with the outcome in
 the clinician's words (`outcome`, text). Harbour never suggests a change. Once done, it cannot be
-changed except by a correction with a reason. The tracker (`reviewStatus`) shows for each person on
-medicines: the last review done, the next due (the scheduled date, or the last done plus
-`medicines.review_interval_months`, or "not scheduled" when there is neither), and a status in
-words: overdue, due within `medicines.review_due_soon_days`, scheduled, not scheduled.
+changed except by a correction with a reason. A review not yet done can be moved to another date
+or cancelled, each with a reason (kept in history). The tracker (`reviewStatus`) shows for each
+person on medicines: the last review done, the earliest booked review, the date due by the interval
+(last done plus `medicines.review_interval_months`), and the next due as the earlier of the two,
+saying when a booking is later than the interval allows. The status in words: overdue, due soon
+(within `medicines.review_due_soon_days`), review booked, due by the interval and not yet booked,
+not scheduled (no review ever done or booked). Scheduling follows the person's lifecycle as a care
+plan change; recording one done follows it as a care note on the day it was done.
 
 ### 14.3 Reports (information only)
 
-- **Competence overrides and doses recorded after they were given** (`countReportedFlags`): per
-  member and period, at a location, from administration records' flags (HZ-119, H-1067).
+- **Competence overrides and doses recorded after they were given** (`overrideCounts`): per member
+  and period, at a location, from the latest version of each administration record's flags (a
+  superseded record is not counted). A competence override and a dose given while competence was
+  not current count against the member who gave the dose; a dose recorded after it was given counts
+  against the member who recorded it (HZ-119, H-1067, H-1295).
 - **PRN and psychotropic use** (slice 28's report, built here because slice 28's PRN protocols are
   not built): per person and period, the doses given of when-required entries, of entries tagged
   `psychotropic`, and of both, with the medicine names, counted from the records only. The report
   says it is a count of records for a clinician's review, never a judgement of the person or the
-  prescribing.
-- **Medication error trend**: per location and month, errors and near misses by kind and stage.
+  prescribing. Each dose is classed by the version of the entry it was given against; a record
+  superseded by a correction is not counted, wherever the correction falls (H-1297).
+- **Medication error trend**: per location and UK calendar month (every month in the period shown,
+  empty months as zero), errors, near misses and those not yet known, by kind and stage.
+- Every report period is in UK dates, inclusive, and at most `medicines.report_max_days` long
+  (H-1296). People are counted at their current home (H-1298): a person who moved is counted at the
+  new home for the whole period.
 
 ### 14.4 Permissions
 
 | Action | Permission |
 | --- | --- |
 | Add a medication error record to an incident one can see | `safety.incident.report` |
-| Change it (actions, prescriber told, root cause, CD report) | `safety.incident.manage`, or the member who added it |
-| Read it | `safety.incident.read` (with the incident's own scope) |
-| Schedule and record reviews; read the tracker | `medicines.record.manage` |
+| Change it (actions, prescriber told, root cause, CD report) | the member who added it, the incident's raiser, or `safety.incident.manage` at its home; with MFA |
+| Read it | `safety.incident.read` (with the incident's own scope), with MFA |
+| Schedule, move, cancel and record reviews; read the tracker | `medicines.record.manage` |
 | Read the reports | `medicines.record.manage` at the location |
 
 ### 14.5 Schema (migration 0135)
 
 `medication_error` and `medication_review`: `tenant_id`, forced row-level security, the person's
 scope (and for an error the incident's: `app.incident_visible`), history in `record_version`,
-retention `serious_incident` for errors (as their incident) and `mar_chart` for reviews.
+retention as their incident for errors (`care_record` or `serious_incident`, copied by the guard)
+and `mar_chart` for reviews. The error guard refuses a deleted or non-medication incident, a
+person not on it, and a dose record of another medicine; the review guard needs a new reason to
+change a review once done, and to move or cancel one not yet done.
 
 ### 14.6 Test list
 
@@ -1055,4 +1087,6 @@ retention `serious_incident` for errors (as their incident) and `mar_chart` for 
 - Database: isolation for both tables; an error only on a visible incident about one of its
   people; the medicine and dose record of that person only; a done review fixed.
 - API: add, read and change an error record with its prompts; the CD report clearing its prompt;
-  refusals in words; reviews scheduled and done; the tracker; the three reports.
+  refusals in words; a member who may not change the incident; a closed incident; reviews
+  scheduled, done, moved and cancelled; the tracker; the three reports on fixed dates; the period
+  cap. MFA uses the shared refusal (`mfaRefusal`) proved in `mfa-session-factor.test.ts`.
