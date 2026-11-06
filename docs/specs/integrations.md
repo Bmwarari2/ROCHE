@@ -115,7 +115,7 @@ A tenant without the link keeps every Harbour module as it is.
 | Approved units by pay code | Harbour to Thapsus-HR | Timesheet approved; pay period closed | Not available: a pay inputs route and scope needed |
 | Hourly rates and pay periods | Thapsus-HR to Harbour | Daily, and on `employee.changed` | Not available: a narrow pay read needed |
 
-### 11.3 Schema (slice 87, migration 0139)
+### 11.3 Schema (slice 87, migration 0140)
 
 Every table has `tenant_id`, forced RLS and a policy:
 - **The connection** is a row in `integration_connection` with:
@@ -144,7 +144,7 @@ Every table has `tenant_id`, forced RLS and a policy:
 | `integrations.hr_link.review` | Confirm or reject matches; clear quarantined items | owner, registered_manager, deputy_manager, hr |
 | `integrations.hr_link.read` | See sync health, staleness and drift | the roles above, and rota managers |
 
-New permissions reach existing tenants' built-in roles through a backfill in migration 0139, which
+New permissions reach existing tenants' built-in roles through a backfill in migration 0140, which
 the ratchet test checks.
 
 ### 11.5 Rules that are easy to get wrong
