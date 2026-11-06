@@ -98,6 +98,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `sponsored_worker`, `sponsor_absence`, `sponsor_report`, `staff_privacy_acknowledgement`, `staff_image_consent`, `ldss_claim` (slice 35) | staff_file (tenant's chosen row); as Harbour reads the guidance for sponsors, sponsor records must be kept for at least a year after sponsorship ends, which the staff file rows outlast (to confirm, H-901) |
 | `training_record`, `competence` | training_record |
 | `competence_sign_off`, `competence_withdrawal`, `revalidation_evidence` (slice 17) | training_record |
+| `elearning_attempt`, `elearning_statement` (slice 43) | training_record |
+| `elearning_course` and its `document` of category `elearning_package` (slice 43) | organisation_document (organisation material, not personal data) |
 | `supervision_record` (slice 17) | staff_file (tenant's chosen row) |
 | `training_requirement` (slice 17) | tenant configuration, kept while current; each change kept in `record_version` |
 | `task` of kind `workforce.training_expiry` or `workforce.competence_expiry` | training_record, as the record it concerns |

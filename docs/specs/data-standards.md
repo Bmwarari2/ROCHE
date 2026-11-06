@@ -921,6 +921,25 @@ names.
 | `medication_reconciliation.trigger` | Harbour; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
 | `medication_reconciliation_item.says` | Harbour | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
 
+## Workforce: e-learning (Phase 2, slice 43)
+
+Code lists for [workforce.md](workforce.md) section 14 (migration 0112; ADR-0093). SCORM 1.2 and
+2004 (ADL) and xAPI 1.0.3 (ADL) define the data model and statements; Harbour keeps the subset
+below, exported with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `elearning_course.standard` | ADL SCORM, xAPI | `scorm_1_2`, `scorm_2004`, `xapi` | From the manifest's schema version, or `tincan.xml` |
+| `elearning_course.topic`, `tier` | `TRAINING_TOPICS` (rule 5) | As `training_record` | What a completion records |
+| `elearning_course.launch_path`, `launch_query` | IMS content packaging `href` | A relative path inside the package (no `..`, no leading slash), at most 240 characters; query at most 500 | |
+| `elearning_attempt.status` | SCORM `lesson_status`; `completion_status` and `success_status`; xAPI verbs | `in_progress`, `completed`, `passed`, `failed` | Only moves forward |
+| `elearning_attempt.score` | `cmi.core.score.*` (1.2), `cmi.score.scaled` (2004), xAPI `result.score.scaled` | 0 to 1, four decimal places | |
+| `elearning_attempt.location`, `suspend_data` | `cmi.core.lesson_location` / `cmi.location`; `cmi.suspend_data` | At most 1,000 and 64,000 characters | To resume |
+| `elearning_attempt.total_seconds` | `cmi.core.session_time` (HHHH:MM:SS.SS), `cmi.session_time` (ISO 8601 duration) | Whole seconds | Counted when the content finishes |
+| `elearning_statement.statement` | xAPI statement | JSON, at most 16 KB | Kept as sent, once per `statement_id` |
+| `elearning_course.package_index` | ZIP central directory (PKWARE APPNOTE) | JSON array, one entry per file: `p` path, `o` data offset, `c` packed size, `u` unpacked size, `k` CRC-32, `m` method (0 stored, 8 deflate) | Written once at upload, after every file was checked; no personal data |
+| `elearning_attempt.launch_nonce` | Harbour | UUID | Replaced at every start or resume; only the latest launch token works |
+
 ## Rota builder (Phase 2, slice 21)
 
 Code lists for [scheduling.md](scheduling.md) section 14. No national standard defines a care

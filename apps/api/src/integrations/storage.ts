@@ -85,6 +85,17 @@ export class LocalDocumentStorage implements DocumentStoragePort {
     return createReadStream(path);
   }
 
+  async getRange(key: string, start: number, end: number) {
+    const path = this.path(key);
+    try {
+      await stat(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+    return createReadStream(path, { start, end });
+  }
+
   async health(): Promise<HealthResult> {
     await mkdir(this.root, { recursive: true });
     return { ok: true, detail: "local disk" };
@@ -178,6 +189,17 @@ export class GcsDocumentStorage implements DocumentStoragePort {
     const file = this.file(key);
     const [exists] = await file.exists();
     return exists ? file.createReadStream() : null;
+  }
+
+  /** Bytes `start` to `end`, inclusive, as Cloud Storage reads a range (ADR-0093). */
+  async getRange(
+    key: string,
+    start: number,
+    end: number,
+  ): Promise<AsyncIterable<Uint8Array> | null> {
+    const file = this.file(key);
+    const [exists] = await file.exists();
+    return exists ? file.createReadStream({ start, end }) : null;
   }
 
   /**

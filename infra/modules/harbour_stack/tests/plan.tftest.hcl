@@ -443,3 +443,89 @@ run "prod_like" {
     error_message = "Every Cloud Armor rule must use its pinned version."
   }
 }
+
+# The e-learning content origin (ADR-0093): its own host and certificate on another registrable
+# domain, `/learn/*` only to the web tier, a fixed 404 for anything else, no X-Frame-Options and no
+# referrer; its records listed when its zone is not in this project.
+run "elearning_origin" {
+  command = plan
+
+  variables {
+    elearning_domain_name = "harbour-learning.example.invalid"
+  }
+
+  assert {
+    condition     = module.load_balancer.learn_hostname == "learn.harbour-learning.example.invalid"
+    error_message = "The e-learning content host must be learn.<elearning_domain_name>."
+  }
+
+  assert {
+    condition = (
+      module.load_balancer.rule_expressions["150"] ==
+      "request.headers['host'].lower() == 'learn.harbour-learning.example.invalid' && !request.path.startsWith('/learn/')"
+    )
+    error_message = "Cloud Armor must answer every path but /learn/ on the content host with a fixed 404 (security review M4)."
+  }
+
+  assert {
+    condition = (
+      contains(module.load_balancer.learn_response_headers, "Referrer-Policy: no-referrer") &&
+      length([for h in module.load_balancer.learn_response_headers : h if startswith(lower(h), "x-frame-options")]) == 0
+    )
+    error_message = "The content host sends no referrer and adds no X-Frame-Options (the app frames its runtime page)."
+  }
+
+  assert {
+    condition     = output.manual_elearning_dns_records != null
+    error_message = "Without a Cloud DNS zone for the content domain the stack must list its records."
+  }
+
+  assert {
+    condition     = output.hosts.learn == "learn.harbour-learning.example.invalid"
+    error_message = "The content host must be listed with the stack's hosts."
+  }
+}
+
+run "elearning_dns_in_this_project" {
+  command = plan
+
+  variables {
+    elearning_domain_name   = "harbour-learning.example.invalid"
+    elearning_dns_zone_name = "harbour-learning"
+  }
+
+  assert {
+    condition     = length(google_dns_record_set.learn) == 1 && output.manual_elearning_dns_records == null
+    error_message = "With the content domain's zone in this project its records are managed here, not listed."
+  }
+
+  assert {
+    condition     = google_dns_record_set.learn[0].name == "learn.harbour-learning.example.invalid."
+    error_message = "The content host's record must be learn.<elearning_domain_name>."
+  }
+}
+
+run "elearning_off_by_default" {
+  command = plan
+
+  assert {
+    condition     = module.load_balancer.learn_hostname == null && output.manual_elearning_dns_records == null
+    error_message = "Without elearning_domain_name there is no content host."
+  }
+
+  assert {
+    condition     = !contains(keys(module.load_balancer.rule_expressions), "150")
+    error_message = "Without a content host there is no content host rule."
+  }
+}
+
+# Under the app's domain, package script would be the same site as Harbour (security review H1).
+run "elearning_under_the_app_domain_is_refused" {
+  command = plan
+
+  variables {
+    elearning_domain_name = "courses.dev.harbour.example.invalid"
+  }
+
+  expect_failures = [check.elearning_is_another_site]
+}

@@ -403,6 +403,8 @@ const BLOCKS_REMOVAL = [
   "dp_complaint",
   "dsar_case",
   "dspt_evidence",
+  // An e-learning course's package is an organisation document, never a person's (slice 43).
+  "elearning_course",
   "escalation_policy_link",
   "fit_note",
   "outage",

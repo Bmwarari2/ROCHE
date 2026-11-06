@@ -29045,6 +29045,535 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/elearning/courses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * E-learning courses
+     * @description workforce.self.read or workforce.training.manage. The organisation's active courses (training leads also see retired ones), each with the reader's own latest attempt.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Courses */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningCourseList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add an e-learning course from a package
+     * @description workforce.training.manage. A SCORM 1.2, SCORM 2004 or xAPI zip of at most 100 MB. Every entry is checked before anything is unpacked (no path leaving the package, no links, no encrypted entries, only allowlisted file types, at most 5,000 files and 500 MB unpacked, no entry unpacking more than 100 times its size), the launch page is found from the manifest, and the archive is scanned for malware and kept in the document store. Audited.
+     */
+    post: {
+      parameters: {
+        query: {
+          title: string;
+          topic: string;
+          tier?: number;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/zip": string;
+          "application/octet-stream": string;
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningCourse"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/elearning/courses/{id}/retire": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Retire an e-learning course
+     * @description workforce.training.manage. Staff are no longer offered it; attempts and training records are kept. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Retired */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningCourse"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/elearning/courses/{id}/attempts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Attempts at an e-learning course
+     * @description workforce.training.manage. Every member's attempts, newest first.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Attempts */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningAttemptList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Start or resume my attempt
+     * @description workforce.self.read. Resumes the member's attempt in progress, or starts one, and gives a launch token for the content origin (signed, for this attempt only, expiring). Audited when an attempt starts.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Ready to launch */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningLaunch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/elearning/attempts/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Save what the runtime reported
+     * @description workforce.self.read, the member's own attempt. The SCORM data model elements the runtime committed (allowlisted, bounded); the attempt's status only moves forward, and a completion or pass becomes a training record once. Not for xAPI courses (their statements settle them).
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ElearningCommit"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ElearningAttempt"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/e/launch/{token}/files/{path}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A file of a launched course (content origin only)
+     * @description No session: the launch token names one attempt. `path` is the file's path inside the package, URL-encoded as one segment. Only the package's own files of allowlisted types are served, never a folder; the web tier serves them only on the content origin, with its own Content-Security-Policy.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          token: string;
+          path: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The file */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/octet-stream": string;
+          };
+        };
+        /** @description No such file, or the link has ended */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/e/launch/{token}/statements": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Keep a launched course's xAPI statements (content origin only)
+     * @description No session: the launch token names one attempt. One statement or up to 50, each at most 16 KB, kept as sent (once per statement id); a completed, passed or failed verb settles an xAPI course's attempt, and a completion or pass becomes a training record once. Returns the statement ids, as an xAPI learning record store does.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          token: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      responses: {
+        /** @description Kept */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": string[];
+          };
+        };
+        /** @description Not statements Harbour can keep */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description The link has ended */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/merge-fields": {
     parameters: {
       query?: never;
@@ -47438,7 +47967,8 @@ export interface components {
       | "person_document"
       | "organisation_document"
       | "organisation_logo"
-      | "staff_hr_document";
+      | "staff_hr_document"
+      | "elearning_package";
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {
@@ -55852,6 +56382,73 @@ export interface components {
     EvidenceLinkVerify: {
       token: string;
       code: string;
+    };
+    ElearningCourseList: {
+      items: components["schemas"]["ElearningCourse"][];
+    };
+    ElearningCourse: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      title: string;
+      topic: string;
+      tier: number | null;
+      standard: components["schemas"]["ElearningStandard"];
+      /** @enum {string} */
+      status: "active" | "retired";
+      fileCount: number;
+      myAttempt: {
+        /** Format: uuid */
+        id: string;
+        status: components["schemas"]["ElearningAttemptStatus"];
+        score: number | null;
+      } | null;
+    };
+    /** @enum {string} */
+    ElearningStandard: "scorm_1_2" | "scorm_2004" | "xapi";
+    /** @enum {string} */
+    ElearningAttemptStatus: "in_progress" | "completed" | "passed" | "failed";
+    ElearningAttemptList: {
+      items: components["schemas"]["ElearningAttempt"][];
+    };
+    ElearningAttempt: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      courseId: string;
+      /** Format: uuid */
+      workerId: string;
+      status: components["schemas"]["ElearningAttemptStatus"];
+      score: number | null;
+      totalSeconds: number;
+      /** Format: date-time */
+      finishedAt: string | null;
+      /** Format: uuid */
+      trainingRecordId: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    ElearningLaunch: {
+      /** Format: uuid */
+      attemptId: string;
+      /** Format: uuid */
+      courseId: string;
+      title: string;
+      standard: components["schemas"]["ElearningStandard"];
+      status: components["schemas"]["ElearningAttemptStatus"];
+      token: string;
+      launchPath: string;
+      launchQuery: string;
+      location: string | null;
+      suspendData: string | null;
+      /** @enum {string} */
+      entry: "ab-initio" | "resume";
+    };
+    ElearningCommit: {
+      cmi: {
+        [key: string]: string;
+      };
+      finished: boolean;
     };
     MergeFieldList: {
       items: components["schemas"]["MergeFieldItem"][];

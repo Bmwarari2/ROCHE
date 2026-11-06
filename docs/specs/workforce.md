@@ -943,3 +943,98 @@ pay or date of absence. Screens follow with slice 56.
 | Unauthorised absence is not drawn from the rota or leave records | Rota and leave (slice 36 onward) |
 | The family feed does not yet check staff image consent before a staff photo is published | Feed publishing checks (slice 56, H-905) |
 | Sponsor records follow the staff file's retention row; any sponsor-specific minimum is unconfirmed | H-901 |
+
+## 14. E-learning runtime (slice 43, migration 0112; ADR-0093)
+
+Register row WORK-006. SCORM 1.2, SCORM 2004 and xAPI packages run on a separate content origin;
+completions become slice 17 training records. The decision, its threat model and the options are
+in [ADR-0093](../decisions/0093-elearning-runtime.md).
+
+### 14.1 Records
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `elearning_course` | `title`, `topic` and `tier` (what a completion records), `standard`, `document_id` (the `elearning_package` document), `package_sha256`, `launch_path` and `launch_query` (from the manifest), `package_identifier`, `file_count`, `unpacked_bytes`, `package_index` (each file's path, data offset, sizes, CRC and method, read and checked once at upload), `status` (`active`, `retired`) | Read by staff and training leads; written by `workforce.training.manage`; the package must be an `elearning_package` document (trigger); mutable with history, never deleted |
+| `elearning_attempt` | `course_id`, `worker_id`, `status` (`in_progress`, `completed`, `passed`, `failed`), `score` (0 to 1), `location`, `suspend_data` (to resume), `total_seconds`, `finished_at`, `training_record_id`, `launch_nonce` (replaced at every start or resume, so only the latest launch token works) | The member's own (started, resumed and saved by them); read by those who read development records; keeps its member and course; only the system links the training record; a settled outcome (completed, passed or failed) is never changed: a retake is a new attempt |
+| `elearning_statement` | `attempt_id`, `statement_id` (once per attempt), `verb`, `statement` (as sent, at most 16 KB) | Append-only; the member's own attempt |
+
+### 14.2 Rules (`packages/domain/src/workforce/elearning.ts`, table-driven tests)
+
+1. A package is checked from its central directory before anything is unpacked: entry names
+   (`entryNameProblem`: no controls, separators or bidirectional overrides, normal form C only),
+   links, encryption, compression method, file types (`contentTypeOf`), duplicates, counts and
+   sizes, and the unpacked-to-packed ratio (`archiveProblem`, `ARCHIVE_LIMITS`: 5,000 entries,
+   500 MB, 200 MB an entry, 100 times). The archive must read the same to every reader: the end
+   record last, no ZIP64 locator, each local header matching its central entry, and the entries
+   tiling the file with no overlap or hidden bytes. Every file is then inflated once and its size
+   and CRC checked, before the course is kept (security review M3, H2).
+2. The launch page is the manifest's, resolved under the package (`launchPathOf`): SCORM from the
+   default organisation's first item with a resource (`xml:base` honoured), xAPI from
+   `tincan.xml`. It must be an HTML file the package holds.
+3. Only `CMI_ELEMENTS` are kept, each bounded (`cmiProblem`); the outcome comes from
+   `lesson_status` (1.2) or `success_status` then `completion_status` (2004), with the score
+   scaled 0 to 1 (`attemptOutcome`). xAPI completed, passed and failed verbs settle an xAPI
+   course (`xapiOutcome`).
+4. An attempt's status only moves forward (`nextAttemptStatus`), and a settled one (completed,
+   passed or failed) is final for that attempt; a completion or pass makes one training record
+   (`completesTraining`), audited in the same transaction whether the member's session or a
+   launch token reported it; a fail never does.
+5. Session time counts when the content finishes (`sessionSeconds`).
+
+### 14.3 Permissions
+
+| Action | Permission | Database |
+| --- | --- | --- |
+| Add a course from a package, retire one, see every attempt | `workforce.training.manage` | Course insert and update policies; attempts read through `app.reads_development` |
+| See active courses, start or resume one's own attempt, save it | `workforce.self.read` | Own attempts only (`app.reads_own_development`); the member never writes a training record |
+| Read a course's files and send its statements (the content origin) | A launch token for that attempt (no session) | Read and written as the token's member, who must still hold a staff role |
+
+### 14.4 API and web
+
+- `GET`/`POST /v1/workforce/elearning/courses`, `POST .../courses/{id}/retire`,
+  `GET`/`POST .../courses/{id}/attempts`, `PATCH /v1/workforce/elearning/attempts/{id}`;
+  `GET /e/launch/{token}/files/{path}` and `POST /e/launch/{token}/statements` (no session).
+  Audited: course added (or refused, with the problem code) and retired, attempt started and
+  completed (in the completion's own transaction, with how it arrived), with ids only.
+- Files are served by a ranged read of just their own bytes from the stored archive, inflated as
+  a stream and checked against the index, at most 16 at once an instance; the stored document
+  must still be available. Calls are throttled per attempt (files, statements, commits), an
+  attempt keeps at most 5,000 statements, a commit that changes nothing writes nothing, and the
+  runtime sends commits at most every 5 seconds (security review H2, M7). A launch token expires
+  after `ELEARNING_LAUNCH_MINUTES` (120 by default), is replaced by the next launch, and stops
+  working when the course is retired (M6).
+- The content origin is another registrable domain from the app's (`contentOrigin` refuses one on
+  the app's own site; Terraform's `elearning_domain_name`), and the Google Cloud load balancer
+  forwards only `/learn/*` on it to the web tier, Cloud Armor answering any other path there with a
+  fixed 404; the web proxy refuses every other path there, prefetches and route handlers
+  included (H1, M4). The package is told the member's first name only (M8).
+- Web: `/training/elearning` (courses; add and retire for training leads), the player at
+  `/training/elearning/{id}`, the upload route `/api/elearning/upload` (titles in headers), and the
+  content origin's `/learn/{token}` (runtime page, its script, package files, xAPI statements).
+
+### 14.5 Offline (mobile slice 72)
+
+Not built. The phone would need the stored archive, the allowlisted file list and a local runtime
+page under its own origin, with commits queued like other entries; statements and completions
+would sync on reconnect (H-1018).
+
+### 14.6 Tests
+
+`packages/domain/src/workforce/elearning.test.ts`, `packages/db/test/elearning.test.ts`,
+`apps/api/test/elearning-package.test.ts`, `apps/api/test/elearning.test.ts`,
+`apps/web/src/lib/elearning.test.ts`, `apps/web/src/lib/elearning-runtime.test.ts`,
+`apps/web/e2e/elearning.spec.ts` (a real SCORM package through the runtime to a training record,
+with axe in light and dark).
+
+### 14.7 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| A completion is self-reported by content in the member's browser | Optional confirmation by a training lead per course (H-1013) |
+| xAPI state and activity profile documents are not kept, so xAPI content cannot resume | A small state store per attempt, if courses need it (H-1016) |
+| SCORM interactions, objectives and comments are not kept | Only if a course's reporting needs them (H-1016) |
+| One content origin serves every organisation and course, so packages on one device share its storage | One origin per launch or per organisation under a wildcard certificate (security review M5; H-1017) |
+| The launch token travels in URL paths, which access logs keep | Exchange it for a first-party cookie on the content origin at first load (M6; H-1017) |
+| The app's session cookie is `__Secure-harbour.session_token`, which a subdomain could shadow | Rename it `__Host-` (one sign-out for everyone; H-1017) |
+| Restrictive policies target `harbour_app` only, as migration 0079 does, not `harbour_owner` as ADR-0002 asks | Align both migrations together (L7) |
+| Offline courses on the phone | Mobile slice 72 (H-1018) |

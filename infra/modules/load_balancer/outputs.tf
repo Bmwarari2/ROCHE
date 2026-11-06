@@ -52,3 +52,17 @@ output "allowlisted_hosts" {
   description = "Hosts reached only from their allowlist."
   value       = sort(keys(var.allowlisted_hosts))
 }
+
+output "learn_dns_authorization_record" {
+  description = "The CNAME record Certificate Manager needs in the e-learning content domain, or null."
+  value       = var.learn == null ? null : google_certificate_manager_dns_authorization.learn[0].dns_resource_record
+}
+
+output "learn_hostname" {
+  value = var.learn == null ? null : var.learn.hostname
+}
+
+output "learn_response_headers" {
+  description = "Headers the e-learning content host's backend adds."
+  value       = var.learn == null ? [] : google_compute_backend_service.learn[0].custom_response_headers
+}

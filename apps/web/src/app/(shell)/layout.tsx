@@ -13,6 +13,7 @@ import { dataRightsShown } from "@/lib/data-rights";
 import { dataSecurityShown } from "@/lib/data-security";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
+import { elearningShown } from "@/lib/elearning";
 import { evidencePacksShown } from "@/lib/evidence-packs";
 import { exportShown } from "@/lib/exports";
 import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
@@ -100,6 +101,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         statementOfPurpose: statementShown(me.permissions)
           ? t("shell.nav.statementOfPurpose")
           : undefined,
+        elearning: elearningShown(me.permissions) ? t("shell.nav.elearning") : undefined,
         framework: frameworkShown(me.permissions) ? t("shell.nav.framework") : undefined,
         audits: auditsShown(me.permissions) ? t("shell.nav.audits") : undefined,
         policies: t("shell.nav.policies"),

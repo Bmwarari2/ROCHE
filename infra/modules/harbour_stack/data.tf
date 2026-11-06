@@ -24,6 +24,7 @@ locals {
       "db-server-ca"                 = "The Cloud SQL server CA certificates (PEM) the services verify"
       "api-auth-secret"              = "Better Auth secret"
       "api-evidence-link-secret"     = "HMAC key for evidence pack codes and link sessions (ADR-0050)"
+      "api-elearning-launch-secret"  = "HMAC key for e-learning launch tokens (ADR-0093)"
       "api-speak-up-throttle-secret" = "Key for the network hash in the public speak-up limits (ADR-0089)"
       "api-sync-signing-key-pem"     = "Private key that signs PowerSync tokens"
       "api-sync-signing-key-id"      = "Key ID of the PowerSync signing key"

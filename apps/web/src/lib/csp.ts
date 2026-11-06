@@ -5,7 +5,11 @@
  * inline attributes because Radix positions menus and tooltips with style attributes. Pure, unit
  * tested; applied per request by `src/proxy.ts`.
  */
-export function contentSecurityPolicy(nonce: string, isDev: boolean): string {
+export function contentSecurityPolicy(
+  nonce: string,
+  isDev: boolean,
+  frameOrigins: readonly string[] = [],
+): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -16,7 +20,8 @@ export function contentSecurityPolicy(nonce: string, isDev: boolean): string {
     "media-src 'self'",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
-    "frame-src 'none'",
+    // Nothing is framed but the e-learning content origin, on the course player only (ADR-0093).
+    frameOrigins.length > 0 ? `frame-src ${frameOrigins.join(" ")}` : "frame-src 'none'",
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'none'",

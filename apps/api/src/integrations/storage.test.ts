@@ -90,9 +90,15 @@ function bucketDouble(): BucketDouble {
     async exists() {
       return [Boolean(latest(key))];
     },
-    createReadStream() {
+    createReadStream(range: { start?: number; end?: number } = {}) {
       const found = latest(key);
-      return Readable.from(found ? [found.bytes] : []);
+      if (!found) return Readable.from([]);
+      // Cloud Storage's range is inclusive at both ends.
+      const bytes = found.bytes.subarray(
+        range.start ?? 0,
+        (range.end ?? found.bytes.length - 1) + 1,
+      );
+      return Readable.from([bytes]);
     },
     createWriteStream(writeOptions: Record<string, unknown>) {
       writes.push({ key, kmsKeyName: options.kmsKeyName, options: writeOptions });
@@ -178,6 +184,15 @@ describe.each(adapters)("DocumentStoragePort contract: %s", (_name, make) => {
     const stream = await storage.getStream(EXPORT_KEY);
     expect(stream).not.toBeNull();
     expect(await readAll(stream as AsyncIterable<Uint8Array>)).toBe("part one, part two");
+  });
+
+  it("reads a range of bytes, inclusive at both ends, and nothing for a key never written", async () => {
+    const storage = await make();
+    await storage.put(KEY, new TextEncoder().encode("0123456789"), "application/zip");
+    const range = await storage.getRange(KEY, 2, 5);
+    expect(range).not.toBeNull();
+    expect(await readAll(range as AsyncIterable<Uint8Array>)).toBe("2345");
+    expect(await storage.getRange(OTHER, 0, 1)).toBeNull();
   });
 
   it("destroys an object, leaving the others", async () => {

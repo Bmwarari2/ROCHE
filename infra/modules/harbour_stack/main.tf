@@ -21,7 +21,10 @@ locals {
     api   = "api.${var.domain_name}"
     sync  = "sync.${var.domain_name}"
     flags = "flags.${var.domain_name}"
+    # The e-learning content origin (ADR-0093): another registrable domain, served by the web tier.
+    learn = var.elearning_domain_name == null ? null : "learn.${var.elearning_domain_name}"
   }
+  learn_enabled = var.elearning_domain_name != null
 
   default_sizes = {
     api       = { cpu = "1", memory = "1Gi", min = 1, max = 4 }
@@ -43,6 +46,21 @@ locals {
   # Write-once locks are irreversible, so they are on in prod only unless set otherwise.
   lock_audit_archive = coalesce(var.lock_audit_archive, local.is_prod)
   lock_security_logs = coalesce(var.lock_security_logs, local.is_prod)
+}
+
+# The content origin must be another site from the app, or package script would share its cookies
+# and storage (ADR-0093, security review H1).
+check "elearning_is_another_site" {
+  assert {
+    condition = (
+      var.elearning_domain_name == null ? true : (
+        var.elearning_domain_name != var.domain_name &&
+        !endswith(var.elearning_domain_name, ".${var.domain_name}") &&
+        !endswith(var.domain_name, ".${var.elearning_domain_name}")
+      )
+    )
+    error_message = "elearning_domain_name must be another registrable domain from domain_name (ADR-0093, security review H1)."
+  }
 }
 
 # A lock outside prod would make a dev or staging bucket impossible to delete for a year.

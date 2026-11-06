@@ -46,7 +46,13 @@ export default defineConfig({
       url: `${WEB_URL}/api/health`,
       reuseExistingServer: !CI,
       timeout: 120_000,
-      env: { API_URL, PUBLIC_WEB_URL: WEB_URL, NEXT_TELEMETRY_DISABLED: "1" },
+      // The e-learning content origin: the same server under another host name (ADR-0093).
+      env: {
+        API_URL,
+        PUBLIC_WEB_URL: WEB_URL,
+        ELEARNING_ORIGIN: process.env.ELEARNING_ORIGIN ?? "http://127.0.0.1:3000",
+        NEXT_TELEMETRY_DISABLED: "1",
+      },
       stdout: "ignore",
       stderr: "pipe",
     },

@@ -33,6 +33,29 @@ resource "google_certificate_manager_certificate" "this" {
   }
 }
 
+# The e-learning content host is on its own registrable domain (ADR-0093, security review H1), so
+# its own DNS authorisation and certificate, for that one host.
+resource "google_certificate_manager_dns_authorization" "learn" {
+  count = var.learn == null ? 0 : 1
+
+  project = var.project_id
+  name    = "${var.name_prefix}-learn-dns-auth"
+  domain  = var.learn.domain
+}
+
+resource "google_certificate_manager_certificate" "learn" {
+  count = var.learn == null ? 0 : 1
+
+  project = var.project_id
+  name    = "${var.name_prefix}-learn-cert"
+  scope   = "DEFAULT"
+
+  managed {
+    domains            = [var.learn.hostname]
+    dns_authorizations = [google_certificate_manager_dns_authorization.learn[0].id]
+  }
+}
+
 resource "google_certificate_manager_certificate_map" "this" {
   project = var.project_id
   name    = "${var.name_prefix}-certs"
@@ -46,6 +69,16 @@ resource "google_certificate_manager_certificate_map_entry" "hosts" {
   map          = google_certificate_manager_certificate_map.this.name
   certificates = [google_certificate_manager_certificate.this.id]
   hostname     = each.value
+}
+
+resource "google_certificate_manager_certificate_map_entry" "learn" {
+  count = var.learn == null ? 0 : 1
+
+  project      = var.project_id
+  name         = "${var.name_prefix}-learn"
+  map          = google_certificate_manager_certificate_map.this.name
+  certificates = [google_certificate_manager_certificate.learn[0].id]
+  hostname     = var.learn.hostname
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -74,6 +107,25 @@ resource "google_compute_security_policy" "this" {
       match {
         expr {
           expression = "request.headers['host'].lower().startsWith('${rule.key}.') && (${join(" || ", [for p in var.restricted_paths[rule.key] : "request.path.lower().startsWith('${lower(p)}')"])})"
+        }
+      }
+    }
+  }
+
+  # The e-learning content host answers its course paths only: anything else there is a fixed 404,
+  # so no app page, route handler or static file is ever served from that origin (security review
+  # M4). The host is matched whole, never as a prefix of another.
+  dynamic "rule" {
+    for_each = var.learn == null ? [] : [var.learn]
+
+    content {
+      action      = "deny(404)"
+      priority    = 150
+      description = "Only ${rule.value.path_prefix} on the e-learning content host"
+
+      match {
+        expr {
+          expression = "request.headers['host'].lower() == '${lower(rule.value.hostname)}' && !request.path.startsWith('${rule.value.path_prefix}')"
         }
       }
     }
@@ -209,6 +261,35 @@ resource "google_compute_backend_service" "this" {
   }
 }
 
+# The e-learning content host's own backend: the same service, with headers for an origin whose
+# runtime page the app frames (ADR-0093). No caching, as for the app.
+resource "google_compute_backend_service" "learn" {
+  count = var.learn == null ? 0 : 1
+
+  project               = var.project_id
+  name                  = "${var.name_prefix}-learn"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "HTTPS"
+  security_policy       = google_compute_security_policy.this.id
+  enable_cdn            = false
+
+  custom_response_headers = [
+    "Referrer-Policy: no-referrer",
+    "Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    "X-Content-Type-Options: nosniff",
+    "Strict-Transport-Security: max-age=63072000; includeSubDomains",
+  ]
+
+  backend {
+    group = google_compute_region_network_endpoint_group.this[var.learn.backend].id
+  }
+
+  log_config {
+    enable      = true
+    sample_rate = var.log_sample_rate
+  }
+}
+
 # Static files only: the same web service, through Cloud CDN, for cdn_paths alone. Pages never
 # go through this backend, so nothing with personal data can be cached at the edge.
 resource "google_compute_backend_service" "static" {
@@ -253,6 +334,32 @@ resource "google_compute_url_map" "https" {
     content {
       hosts        = [host_rule.value]
       path_matcher = host_rule.key
+    }
+  }
+
+  dynamic "host_rule" {
+    for_each = var.learn == null ? [] : [var.learn]
+
+    content {
+      hosts        = [host_rule.value.hostname]
+      path_matcher = "learn"
+    }
+  }
+
+  # Course paths go to the learn backend; Cloud Armor answers every other path on the host with a
+  # fixed 404 before it reaches any backend, and the default here is the same backend so nothing
+  # on this host ever reaches the app's.
+  dynamic "path_matcher" {
+    for_each = var.learn == null ? [] : [var.learn]
+
+    content {
+      name            = "learn"
+      default_service = google_compute_backend_service.learn[0].id
+
+      path_rule {
+        paths   = ["${path_matcher.value.path_prefix}*"]
+        service = google_compute_backend_service.learn[0].id
+      }
     }
   }
 

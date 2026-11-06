@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createDatabase, createPool } from "@harbour/db";
+import { DOCUMENT_CATEGORIES, XAPI_STATEMENT_MAX_BYTES } from "@harbour/domain";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
@@ -39,6 +40,7 @@ import { disclosuresRouter } from "./routes/disclosures";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
 import { dsarRouter } from "./routes/dsar";
+import { elearningLaunchRouter, elearningRouter } from "./routes/elearning";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
@@ -117,6 +119,10 @@ import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
+/** An e-learning package's limit (the `elearning_package` category). */
+const ELEARNING_PACKAGE_MAX_BYTES = DOCUMENT_CATEGORIES.elearning_package.maxBytes;
+/** A batch of xAPI statements: 50 of 16 KB, plus headroom. */
+const ELEARNING_STATEMENTS_MAX_BYTES = 50 * XAPI_STATEMENT_MAX_BYTES + 64 * 1024;
 /** Largest import upload (CSV text or JSON rows) accepted (platform.md rule 19). */
 export const IMPORT_MAX_BODY_BYTES = 12 * 1024 * 1024;
 /** Largest body any /v1/sync route accepts (security review round 4, M4). */
@@ -305,6 +311,19 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // E-learning packages (ADR-0093): the category's 100 MB plus headroom, refused before it is read.
+  app.use(
+    "/v1/workforce/elearning/courses",
+    bodyLimit({
+      maxSize: ELEARNING_PACKAGE_MAX_BYTES + 64 * 1024,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The package is too large.")),
+    }),
+  );
+  // The e-learning launch routes take no session; statements are small JSON (50 of 16 KB at most).
+  app.use("/e/*", capped(ELEARNING_STATEMENTS_MAX_BYTES));
+  // A commit carries the allowlisted data model only (suspend data at most 64,000 characters).
+  app.use("/v1/workforce/elearning/attempts/*", capped(128 * 1024));
   // An import upload is CSV text or JSON rows, capped before it is read (platform.md rule 19).
   app.use(
     "/v1/imports",
@@ -407,6 +426,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", inductionRouter);
   app.route("/", developmentRouter);
   app.route("/", evidenceLinkRouter);
+  app.route("/", elearningRouter);
+  app.route("/", elearningLaunchRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
   app.route("/", feedPublishRouter);

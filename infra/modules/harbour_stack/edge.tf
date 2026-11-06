@@ -32,6 +32,15 @@ module "load_balancer" {
   allowlisted_hosts = var.enable_flagsmith ? {
     flags = concat([for ip in module.network.nat_addresses : "${ip}/32"], var.flags_admin_ranges)
   } : {}
+
+  # The e-learning content origin (ADR-0093): its own host and certificate on another registrable
+  # domain, to the web tier, `/learn/*` only; every other path on it is a fixed 404 (M4).
+  learn = local.learn_enabled ? {
+    hostname    = local.hosts.learn
+    domain      = var.elearning_domain_name
+    backend     = "app"
+    path_prefix = "/learn/"
+  } : null
 }
 
 # Prod pins every Cloud Armor preconfigured rule (OWASP CRS) to a version, so a rule set never
@@ -66,4 +75,41 @@ module "dns" {
   hosts                    = module.load_balancer.hosts
   ip_address               = module.load_balancer.ip_address
   dns_authorization_record = module.load_balancer.dns_authorization_record
+}
+
+# ---------------------------------------------------------------------------------------------
+# DNS for the e-learning content domain (its own zone, ADR-0093)
+# ---------------------------------------------------------------------------------------------
+
+locals {
+  manage_learn_dns = local.learn_enabled && var.elearning_dns_zone_name != null
+}
+
+data "google_dns_managed_zone" "learn" {
+  count = local.manage_learn_dns ? 1 : 0
+
+  project = var.project_id
+  name    = var.elearning_dns_zone_name
+}
+
+resource "google_dns_record_set" "learn" {
+  count = local.manage_learn_dns ? 1 : 0
+
+  project      = var.project_id
+  managed_zone = data.google_dns_managed_zone.learn[0].name
+  name         = "${local.hosts.learn}."
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [module.load_balancer.ip_address]
+}
+
+resource "google_dns_record_set" "learn_dns_authorization" {
+  count = local.manage_learn_dns ? 1 : 0
+
+  project      = var.project_id
+  managed_zone = data.google_dns_managed_zone.learn[0].name
+  name         = module.load_balancer.learn_dns_authorization_record[0].name
+  type         = module.load_balancer.learn_dns_authorization_record[0].type
+  ttl          = 300
+  rrdatas      = [module.load_balancer.learn_dns_authorization_record[0].data]
 }

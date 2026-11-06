@@ -12,6 +12,10 @@ module "stack" {
   dns_zone_name   = var.dns_zone_name
   create_dns_zone = var.create_dns_zone
 
+  # The e-learning content origin's own registrable domain (ADR-0093, security review H1).
+  elearning_domain_name   = var.elearning_domain_name
+  elearning_dns_zone_name = var.elearning_dns_zone_name
+
   safety_case_version = var.safety_case_version
 
   release_service_account = var.release_service_account
