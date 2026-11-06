@@ -24,6 +24,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 38, covert, self-administration and homely remedies** (`feat/meds-covert-self-admin`,
+MEDS-004, MEDS-006, MEDS-007, from slice 22; migration 0142; HZ-026 extended, HZ-120 added; H-1350
+to H-1359, recommended answers applied): per-medicine covert records on the capacity assessment and
+best-interests decision, with review and end; covert and self-administered doses marked and
+escalated, never refused; self-administration assessments; homely remedy protocols per home and
+doses checked against them. New permission `medicines.covert.manage`, backfilled to built-in roles.
+Next: the web screens (slices 52, 53, 55). Lands through a merge batch.
+
 **Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
 with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
 UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the

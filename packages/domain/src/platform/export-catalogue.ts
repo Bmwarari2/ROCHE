@@ -1552,7 +1552,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       assessed_on: { description: "When it was assessed (UK date)." },
       review_on: { description: "When it is next reviewed (UK date)." },
       assessed_by: { description: "Who assessed it (tenant_user.id)." },
-      recorded_at: { description: "When Harbour stored it (instant, UTC)." },
+      recorded_at: { description: "When it was stored (instant, UTC)." },
       created_at: "exported",
       created_by: "exported",
     },
@@ -1616,7 +1616,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       reason: { description: "Why it was given, in words." },
       given_at: { description: "When it was given (instant, UTC)." },
       given_by: { description: "Who gave it (tenant_user.id)." },
-      recorded_at: { description: "When Harbour stored it (instant, UTC)." },
+      recorded_at: { description: "When it was stored (instant, UTC)." },
       supersedes_id: {
         description:
           "The dose this record marks as entered in error (homely_remedy_administration.id).",
