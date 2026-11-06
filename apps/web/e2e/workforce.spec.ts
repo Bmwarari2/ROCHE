@@ -18,6 +18,8 @@ const API_URL = process.env.API_URL ?? "http://localhost:4000";
 const TENANT = "0194d000-0000-7000-8000-000000000001";
 /** The demo carer (packages/db/src/seed/demo.ts). */
 const CARER = "0194d000-0000-7000-8000-000000000304";
+/** Harbour House: the wellbeing journey makes the same file there, whichever runs first. */
+const DEMO_LOCATION = "0194d000-0000-7000-8000-000000000101";
 const RUN = Date.now().toString(36);
 const TEMPLATE = `Care worker ${RUN}`;
 const VACANCY = `Night care worker ${RUN}`;
@@ -185,7 +187,7 @@ test("the owner reads the staff list, a member's induction and their leaving", a
     headers: { "x-harbour-tenant": TENANT },
     data: {
       tenantUserId: CARER,
-      locationId: null,
+      locationId: DEMO_LOCATION,
       jobTitle: "Care worker",
       pathwayCategory: "care_worker",
       registrationBody: null,
