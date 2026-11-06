@@ -234,9 +234,11 @@ How slice 88 applies the rules:
   is raised, the run does no drift and is not a good sync. A copy already over goes at once (it
   cannot change the rota); more than 5 current copies dropping out at once are held, still
   blocking, and raised to the link's managers, who release them with a fresh step-up, a coded
-  reason and the number they saw: the list is read again from Thapsus-HR then, and a different
-  number releases nothing (`POST /v1/integrations/hr-link/absences/release`). Once the link is
-  disconnected or off, the same action ends the copies still in force. An approved absence for a member whose match is not confirmed
+  reason and the Thapsus-HR ids they reviewed: the list is read again from Thapsus-HR then, under
+  the sync's lock, and any other set releases nothing (`POST /v1/integrations/hr-link/absences/release`).
+  Once the link is disconnected, the same action ends the copies still in force; while it is
+  connected but turned off it is refused, as Thapsus-HR may still list them. The release runs with
+  the sync's rights across the organisation, as `integrations.hr_link.manage` already does. An approved absence for a member whose match is not confirmed
   is raised, never copied. A member with no home in the staff file takes the home of their oldest
   live role, else is raised. Cover needs are raised on the member's rostered shifts at any home
   (HZ-123). A person here cannot change a copy ("Managed in the HR platform").

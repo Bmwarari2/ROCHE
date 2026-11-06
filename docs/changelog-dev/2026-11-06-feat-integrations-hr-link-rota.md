@@ -58,12 +58,17 @@ Behind `integrations.thapsus_hr`, off by default. Harbour keeps the rota.
   - `delivery_refused` goes to rota managers.
 - Clinical safety reviewer, second pass, request changes (fixed):
   - held drift now has a release: `POST /v1/integrations/hr-link/absences/release`, for the link's
-    managers with step-up, a coded reason and the number they saw, re-read from Thapsus-HR; it also
+    managers with step-up, a coded reason and the ids they reviewed, re-read from Thapsus-HR; it also
     ends copies after a disconnect (H-1345 answers (6) and (8) updated);
   - copies already over no longer count towards the guard and go at once;
   - the note states the time once, in UK time, in its `<time>` line (also accessibility H1).
-- Security reviewer, second pass, approve; its N1 is fixed: a new delivery attempt (including a
-  return to an earlier payload) gets a new key, and a retry of the same attempt keeps its key.
+- Security reviewer, second pass, approve; its N1 is fixed: the key is the payload since the last
+  good send, so a return to an earlier payload gets a new key and a retry of a failed or lost
+  attempt keeps its key.
+- Security reviewer on the release route, request changes (fixed): ending every copy only once
+  disconnected, never with the flag off while connected; the sync's lock is taken before the link
+  is read; the reviewed ids, not a count; reasons fit the mode; the alert closes in both modes and
+  the copies record who released them.
 
 ## Left
 

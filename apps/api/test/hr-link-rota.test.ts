@@ -177,6 +177,33 @@ describe("hazard HZ-133 shifts go out with their listed fields only, once, and a
     expect(last.breakMinutes).toBe(20);
   });
 
+  it("retries a failed change with the same key while no other send has succeeded", async () => {
+    const key = async () =>
+      (
+        await sql<{ idempotency_key: string }>(
+          "SELECT idempotency_key FROM hr_delivery WHERE kind = 'shift' AND harbour_ref = $1",
+          [assignmentId],
+        )
+      )[0]?.idempotency_key;
+    const upsert = mock.upsertShift.bind(mock);
+    const used: string[] = [];
+    mock.upsertShift = async (_shift, k) => {
+      used.push(k);
+      return { ok: false, error: "unavailable" } as never;
+    };
+    try {
+      await sql("UPDATE shift SET break_minutes = 35 WHERE id = $1", [shiftId]);
+      await sync();
+      await sync();
+    } finally {
+      mock.upsertShift = upsert;
+    }
+    expect(used).toHaveLength(2);
+    expect(used[1]).toBe(used[0]);
+    await sync();
+    expect(await key()).toBe(used[0]);
+  });
+
   it("is sent when the rota is published, without waiting for the sync", async () => {
     await sql("UPDATE shift SET break_minutes = 60 WHERE id = $1", [shiftId]);
     const before = mock.writes.length;
@@ -275,11 +302,9 @@ describe("hazard HZ-123 an absence from Thapsus-HR blocks the rota and raises co
 });
 
 describe("hazard HZ-133 many copies dropping out at once are held until a person releases them (rule 13)", () => {
-  const release = (expectedCount: number, who = "manager") =>
-    send("POST", "/v1/integrations/hr-link/absences/release", who, {
-      expectedCount,
-      reason: "checked_in_hr_platform",
-    });
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `held_${i + 1}`);
+  const release = (expectedHrIds: string[], who = "manager", reason = "checked_in_hr_platform") =>
+    send("POST", "/v1/integrations/hr-link/absences/release", who, { expectedHrIds, reason });
   const states = async () =>
     (
       await sql<{ hr_id: string; state: string }>(
@@ -314,12 +339,28 @@ describe("hazard HZ-133 many copies dropping out at once are held until a person
     expect(((await sync()).absences as unknown as { held: number }).held).toBe(7);
   });
 
-  it("refuses someone without the link's manage permission", async () => {
-    expect((await release(7, "carer")).status).toBe(403);
+  it("refuses ending every copy while the link is connected but turned off", async () => {
+    await sql("UPDATE feature_flag SET enabled = false WHERE flag_key = 'integrations.thapsus_hr'");
+    try {
+      const r = await send("POST", "/v1/integrations/hr-link/absences/release", "manager", {
+        expectedHrIds: ["abs_1"],
+        reason: "link_ended",
+      });
+      expect(r.status).toBe(409);
+      expect(((await r.json()) as { code: string }).code).toBe("hr_link_off_while_connected");
+    } finally {
+      await sql(
+        "UPDATE feature_flag SET enabled = true WHERE flag_key = 'integrations.thapsus_hr'",
+      );
+    }
   });
 
-  it("releases nothing when the number the person saw is no longer right", async () => {
-    const r = await release(6);
+  it("refuses someone without the link's manage permission", async () => {
+    expect((await release(ids(7), "carer")).status).toBe(403);
+  });
+
+  it("releases nothing when the copies the person saw are no longer the ones held", async () => {
+    const r = await release([...ids(6), "held_9"]);
     expect(r.status).toBe(409);
     expect(((await r.json()) as { code: string }).code).toBe("hr_link_drift_changed");
     expect(await states()).toEqual(Array(7).fill("recorded"));
@@ -335,8 +376,9 @@ describe("hazard HZ-133 many copies dropping out at once are held until a person
       endsOn: inDays(42),
       status: "approved",
     } as never);
-    expect((await release(7)).status).toBe(409);
-    const r = await release(6);
+    expect((await release(ids(7))).status).toBe(409);
+    expect((await release(ids(6), "manager", "link_ended")).status).toBe(422);
+    const r = await release(ids(6));
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ released: 6, mode: "drift" });
     expect(await states()).toEqual([...Array(6).fill("cancelled"), "recorded"]);
@@ -507,15 +549,17 @@ describe("hazard HZ-133 the rota still says so when the link stops but its absen
        VALUES ($1, $2, 'other', $3, 'recorded', 'thapsus_hr', 'after_1')`,
       [CARER, LOC, inDays(60)],
     );
-    const [{ n } = { n: 0 }] = await sql<{ n: number }>(
-      "SELECT count(*)::int AS n FROM absence WHERE source = 'thapsus_hr' AND state <> 'cancelled'",
-    );
+    const live = (
+      await sql<{ hr_id: string }>(
+        "SELECT hr_id FROM absence WHERE source = 'thapsus_hr' AND state <> 'cancelled'",
+      )
+    ).map((r) => r.hr_id);
     const r = await send("POST", "/v1/integrations/hr-link/absences/release", "manager", {
-      expectedCount: n,
+      expectedHrIds: live,
       reason: "link_ended",
     });
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ released: n, mode: "disconnected" });
+    expect(await r.json()).toEqual({ released: live.length, mode: "disconnected" });
     const left = await sql(
       "SELECT 1 FROM absence WHERE source = 'thapsus_hr' AND state <> 'cancelled'",
     );

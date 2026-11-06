@@ -257,10 +257,10 @@ export async function pullAbsences(
   port: ThapsusHrPort,
   now: Date,
   /**
-   * A person's release of held drift (HZ-133): the number of current copies they saw and agreed
-   * may be cancelled. A different number now cancels nothing and returns `drift_changed`.
+   * A person's release of held drift (HZ-133): the Thapsus-HR ids of the current copies they saw
+   * and agreed may be cancelled. Any other set now cancels nothing and returns `drift_changed`.
    */
-  release?: { readonly expected: number; readonly by: string },
+  release?: Release,
 ): Promise<AbsenceOutcome> {
   const out = { copied: 0, changed: 0, cancelled: 0, coverNeeds: 0, failed: 0, held: 0 };
   const { linked, waiting } = await members(tx);
@@ -391,7 +391,7 @@ export async function pullAbsences(
   ).filter((c) => !(c.hrId && seen.has(c.hrId)));
   const current = gone.filter((c) => c.endsOn === null || c.endsOn >= today);
   const past = gone.filter((c) => !current.includes(c));
-  if (release && release.expected !== current.length) {
+  if (release && !sameIds(release.expected, current)) {
     return { ...out, held: current.length, error: "drift_changed" };
   }
   if (!release && current.length > DRIFT_GUARD) {
@@ -424,6 +424,21 @@ export async function pullAbsences(
   return { ...out, error: null };
 }
 
+/** What a person releases: the Thapsus-HR ids they reviewed, and who they are. */
+export interface Release {
+  readonly expected: readonly string[];
+  readonly by: string;
+}
+
+function sameIds(expected: readonly string[], copies: readonly { readonly hrId: string | null }[]) {
+  const want = new Set(expected);
+  return (
+    want.size === expected.length &&
+    want.size === copies.length &&
+    copies.every((c) => c.hrId !== null && want.has(c.hrId))
+  );
+}
+
 /**
  * Cancels Thapsus-HR copies and resolves their cover needs, one audit event each with the
  * person who released them when a person did (HZ-133). Returns how many.
@@ -438,7 +453,7 @@ async function cancelCopies(
   for (const c of copies) {
     await tx
       .update(absence)
-      .set({ state: "cancelled", updatedBy: null })
+      .set({ state: "cancelled", updatedBy: by ?? null })
       .where(eq(absence.id, c.id));
     await resolveCoverNeeds(tx, { absenceId: c.id }, "absence_ended");
     await audit(tx, tenantId, action, "absence", c.id, by ? { releasedBy: by } : undefined);
@@ -481,15 +496,10 @@ async function deliver(
   ) {
     return "skipped";
   }
-  // A retry of the same attempt keeps its key; a new attempt (a change, or a return to an earlier
-  // payload) gets a key of its own, from the row's version, so Thapsus-HR never replays an older
-  // answer (rule 5).
-  const key =
-    known &&
-    known.payloadSha256 === digest &&
-    (known.state === "pending" || known.state === "failed")
-      ? known.idempotencyKey
-      : deliveryKey(kind, harbourRef, `${digest}:${known?.version ?? 0}`);
+  // The key is the payload since the last good send: a retry of the same attempt (failed, lost
+  // answer or not) keeps its key, and a payload after another good send, even one seen before,
+  // gets a new one, so Thapsus-HR never replays an older answer (rule 5).
+  const key = deliveryKey(kind, harbourRef, `${digest}:${known?.sentAt?.toISOString() ?? ""}`);
   // Pending first, with what is about to be sent (the key and digest), before any call.
   const goodBefore = known?.state === "sent" ? known : null;
   if (known) {
@@ -535,8 +545,8 @@ async function deliver(
   await tx
     .update(hrDelivery)
     .set({
-      // A failed change after a good send keeps the record of the good one; a failure keeps the
-      // digest out so the retry goes again with the same key.
+      // A failed change after a good send keeps the good one's digest (so the change is sent
+      // again, with the same key while no other send succeeds); a refusal is not sent again.
       ...(goodBefore
         ? { payloadSha256: refused ? digest : goodBefore.payloadSha256 }
         : { state: refused ? "refused" : "failed" }),
@@ -717,6 +727,11 @@ export async function deliverRota(
  * a workspace no longer in the UK, or not answering, gets nothing and sends nothing in. Each part
  * in a savepoint; anything unexpected is recorded and never rolls back the rest.
  */
+/** One rota sync or release per organisation at a time (re-entrant within a transaction). */
+export async function lockRota(tx: Transaction, tenantId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`hr_link_rota:${tenantId}`}))`);
+}
+
 export async function syncRotaSafely(
   tx: Transaction,
   tenantId: string,
@@ -728,7 +743,7 @@ export async function syncRotaSafely(
   readonly absences: AbsenceOutcome | null;
   readonly deliveries: DeliveryOutcome | null;
 }> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`hr_link_rota:${tenantId}`}))`);
+  await lockRota(tx, tenantId);
   const refusal = await ukRefusal(port, settings);
   if (refusal) {
     await audit(
@@ -770,18 +785,18 @@ export async function syncRotaSafely(
 
 /**
  * A person's release of copies the link can no longer keep right (HZ-133): while connected, the
- * drift the guard held, re-read from Thapsus-HR now; once disconnected (or the flag is off), every
- * copy still in force. `expected` is the number the person saw; any other number now cancels
- * nothing. Returns the outcome; `error` is `drift_changed` when the number differs.
+ * drift the guard held, re-read from Thapsus-HR now; once disconnected (never merely with the
+ * flag off), every copy still in force. `expected` is the ids the person saw; any other set now
+ * cancels nothing. Returns the outcome; `error` is `drift_changed` when the set differs.
  */
 export async function releaseHrCopies(
   tx: Transaction,
   tenantId: string,
   link: { readonly port: ThapsusHrPort; readonly settings: HrLinkSettings } | null,
   now: Date,
-  release: { readonly expected: number; readonly by: string },
+  release: Release,
 ): Promise<AbsenceOutcome> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`hr_link_rota:${tenantId}`}))`);
+  await lockRota(tx, tenantId);
   const none = { copied: 0, changed: 0, cancelled: 0, coverNeeds: 0, failed: 0, held: 0 };
   if (link) {
     const refusal = await ukRefusal(link.port, link.settings);
@@ -789,10 +804,10 @@ export async function releaseHrCopies(
     return pullAbsences(tx, tenantId, link.port, now, release);
   }
   const copies = await tx
-    .select({ id: absence.id })
+    .select({ id: absence.id, hrId: absence.hrId })
     .from(absence)
     .where(and(eq(absence.source, "thapsus_hr"), ne(absence.state, "cancelled")));
-  if (copies.length !== release.expected) {
+  if (!sameIds(release.expected, copies)) {
     return { ...none, held: copies.length, error: "drift_changed" };
   }
   const cancelled = await cancelCopies(
@@ -802,6 +817,8 @@ export async function releaseHrCopies(
     "integrations.hr_link.drift_released",
     release.by,
   );
+  const connection = await connectionId(tx);
+  if (connection) await closeHrAlert(tx, "absence_drift_held", connection, now, release.by);
   return { ...none, cancelled, error: null };
 }
 

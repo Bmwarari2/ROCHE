@@ -33934,7 +33934,7 @@ export interface paths {
     put?: never;
     /**
      * Release absence copies the HR platform no longer lists (step-up)
-     * @description While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected or off, cancels every copy still in force. Refused with the current number when it differs from expectedCount.
+     * @description While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected, cancels every copy still in force; refused while it is connected but turned off. Refused, with the current number, when the copies differ from expectedHrIds.
      */
     post: {
       parameters: {
@@ -33946,7 +33946,7 @@ export interface paths {
       requestBody?: {
         content: {
           "application/json": {
-            expectedCount: number;
+            expectedHrIds: string[];
             /** @enum {string} */
             reason: "checked_in_hr_platform" | "link_ended" | "other_recorded_in_review";
           };

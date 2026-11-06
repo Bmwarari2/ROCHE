@@ -91370,7 +91370,7 @@
           "integrations"
         ],
         "summary": "Release absence copies the HR platform no longer lists (step-up)",
-        "description": "While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected or off, cancels every copy still in force. Refused with the current number when it differs from expectedCount.",
+        "description": "While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected, cancels every copy still in force; refused while it is connected but turned off. Refused, with the current number, when the copies differ from expectedHrIds.",
         "security": [
           {
             "bearerAuth": []
@@ -91385,10 +91385,14 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "expectedCount": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 10000
+                  "expectedHrIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                    },
+                    "minItems": 1,
+                    "maxItems": 10000
                   },
                   "reason": {
                     "type": "string",
@@ -91400,7 +91404,7 @@
                   }
                 },
                 "required": [
-                  "expectedCount",
+                  "expectedHrIds",
                   "reason"
                 ],
                 "additionalProperties": false
