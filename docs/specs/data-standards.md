@@ -869,6 +869,7 @@ is exported. Dates are UK dates; times are instants in UTC, shown in UK time, 24
 | `homely_remedy_protocol.vmp_id` | dm+d VMP | SNOMED CT concept id (6 to 18 digits) | Optional; an exact match with a current entry is refused at the dose. |
 | `homely_remedy_protocol.dose_quantity`, `max_daily_quantity`, `min_interval_hours`, `max_days` | Harbour | Numeric in `unit_name`; hours; days | The home's figures, agreed with a GP or pharmacist; `max_days` within `medicines.homely_remedy.max_days_ceiling`. |
 | `homely_remedy_administration.outcome` | Harbour | `given`, `entered_in_error` | A record entered in error stays, struck through, and no longer counts. |
+| `homely_remedy_administration.allergies_checked`, `already_given_reason`, `flags` | Harbour | Boolean; text; array of `HomelyDoseProblem` codes | Flags only on a dose already given outside the protocol, with its reason. |
 
 ## Platform operational tables (not part of the MODS export)
 

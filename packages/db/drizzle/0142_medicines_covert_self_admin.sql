@@ -40,6 +40,9 @@ CREATE TABLE "homely_remedy_administration" (
 	"reason" text,
 	"given_at" timestamp with time zone NOT NULL,
 	"given_by" uuid NOT NULL,
+	"allergies_checked" boolean DEFAULT false NOT NULL,
+	"already_given_reason" text,
+	"flags" text[] DEFAULT '{}'::text[] NOT NULL,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"supersedes_id" uuid,
 	"correction_reason" text,
@@ -47,7 +50,8 @@ CREATE TABLE "homely_remedy_administration" (
 	CONSTRAINT "homely_remedy_administration_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "homely_remedy_administration_tenant_person_id_key" UNIQUE("tenant_id","person_id","id"),
 	CONSTRAINT "homely_remedy_administration_outcome" CHECK ((outcome = 'given' AND quantity > 0 AND supersedes_id IS NULL AND correction_reason IS NULL
-           AND length(btrim(coalesce(reason, ''))) > 0)
+           AND length(btrim(coalesce(reason, ''))) > 0 AND allergies_checked
+           AND (cardinality(flags) = 0 OR length(btrim(coalesce(already_given_reason, ''))) > 0))
        OR (outcome = 'entered_in_error' AND quantity IS NULL AND supersedes_id IS NOT NULL
            AND supersedes_id <> id AND length(btrim(coalesce(correction_reason, ''))) > 0))
 );
@@ -198,6 +202,48 @@ CREATE POLICY homely_remedy_protocol_change ON public.homely_remedy_protocol AS 
   USING (app.holds_permission_at('medicines.record.manage', location_id))
   WITH CHECK (app.holds_permission_at('medicines.record.manage', location_id));
 --> statement-breakpoint
+-- Who may write the records about a person, in the database as well as the API (security review,
+-- 06/11/2026): the permission at the person's home, or through an assigned role (care workers),
+-- whose people the person scope policy already limits. An assessment needs
+-- medicines.record.manage; a homely remedy dose needs medicines.emar.administer; marking one entered
+-- in error needs either.
+CREATE OR REPLACE FUNCTION app.may_record_for_person(p_permission text, p_person_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT app.current_user_id() IS NOT NULL AND (
+    app.holds_permission_at(p_permission,
+      (SELECT p.location_id FROM public.person p
+        WHERE p.tenant_id = app.current_tenant_id() AND p.id = p_person_id))
+    OR EXISTS (
+      SELECT 1
+      FROM public.role_assignment ra
+      JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
+      WHERE ra.tenant_id = app.current_tenant_id()
+        AND ra.tenant_user_id = app.current_user_id()
+        AND ra.deleted_at IS NULL
+        AND r.archived_at IS NULL
+        AND ra.valid_from <= now()
+        AND (ra.valid_to IS NULL OR ra.valid_to > now())
+        AND r.scope_kind::text = 'assigned'
+        AND NOT (r.permissions && ARRAY['comms.portal.family', 'comms.portal.self', 'comms.feed.read',
+          'comms.notification.subscribe', 'comms.visit_booking.request']::text[])
+        AND p_permission = ANY (r.permissions)))
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.may_record_for_person(text, uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.may_record_for_person(text, uuid) TO harbour_app;
+--> statement-breakpoint
+CREATE POLICY self_administration_assessment_write ON public.self_administration_assessment
+  AS RESTRICTIVE FOR INSERT TO harbour_app
+  WITH CHECK (app.may_record_for_person('medicines.record.manage', person_id));
+--> statement-breakpoint
+CREATE POLICY homely_remedy_administration_write ON public.homely_remedy_administration
+  AS RESTRICTIVE FOR INSERT TO harbour_app
+  WITH CHECK (app.may_record_for_person('medicines.emar.administer', person_id)
+    OR (outcome = 'entered_in_error'
+        AND app.may_record_for_person('medicines.record.manage', person_id)));
+--> statement-breakpoint
 
 -- A covert record stands on the person's capacity assessment for covert medicines that found a
 -- lack of capacity, and the best-interests decision after it, made with the prescriber and a
@@ -263,6 +309,10 @@ CREATE OR REPLACE FUNCTION app.self_administration_assessment_guard() RETURNS tr
 LANGUAGE plpgsql AS $$
 BEGIN
   NEW.recorded_at := now();
+  IF NEW.assessed_by IS DISTINCT FROM app.current_user_id() THEN
+    RAISE EXCEPTION 'self_administration_assessment_not_the_assessor'
+      USING ERRCODE = 'check_violation';
+  END IF;
   IF EXISTS (SELECT 1 FROM unnest(NEW.medicine_ids) AS x(medicine_id)
               WHERE NOT EXISTS (SELECT 1 FROM public.medication m
                                  WHERE m.tenant_id = NEW.tenant_id AND m.person_id = NEW.person_id
@@ -329,11 +379,19 @@ DECLARE pr public.homely_remedy_protocol;
 DECLARE original public.homely_remedy_administration;
 BEGIN
   NEW.recorded_at := now();
+  -- The member recording is the member named: never another member's id.
+  IF NEW.given_by IS DISTINCT FROM app.current_user_id() THEN
+    RAISE EXCEPTION 'homely_remedy_administration_not_the_recorder'
+      USING ERRCODE = 'check_violation';
+  END IF;
   SELECT * INTO pr FROM public.homely_remedy_protocol h
    WHERE h.tenant_id = NEW.tenant_id AND h.id = NEW.protocol_id;
   IF NEW.outcome = 'given' THEN
-    IF NOT FOUND OR pr.version <> NEW.protocol_version OR pr.withdrawn_at IS NOT NULL
-       OR pr.deleted_at IS NOT NULL OR NOT (NEW.given_by = ANY (pr.authorised_member_ids))
+    -- A dose given within the protocol carries no flags; one already given outside it is recorded
+    -- with what the check found, and its reason (the API escalates it).
+    IF NOT FOUND OR pr.version <> NEW.protocol_version
+       OR (cardinality(NEW.flags) = 0 AND (pr.withdrawn_at IS NOT NULL OR pr.deleted_at IS NOT NULL
+           OR NOT (NEW.given_by = ANY (pr.authorised_member_ids))))
        OR NOT EXISTS (SELECT 1 FROM public.person p WHERE p.tenant_id = NEW.tenant_id
                         AND p.id = NEW.person_id AND p.location_id = pr.location_id) THEN
       RAISE EXCEPTION 'homely_remedy_administration_outside_protocol'
@@ -343,7 +401,11 @@ BEGIN
     SELECT * INTO original FROM public.homely_remedy_administration o
      WHERE o.tenant_id = NEW.tenant_id AND o.id = NEW.supersedes_id;
     IF NOT FOUND OR original.outcome <> 'given' OR original.person_id <> NEW.person_id
-       OR original.protocol_id <> NEW.protocol_id THEN
+       OR original.protocol_id <> NEW.protocol_id
+       -- Marked by the member who gave it, or by a holder of medicines.record.manage there.
+       OR NOT (original.given_by = NEW.given_by OR app.holds_permission_at('medicines.record.manage',
+         (SELECT p.location_id FROM public.person p
+           WHERE p.tenant_id = NEW.tenant_id AND p.id = NEW.person_id))) THEN
       RAISE EXCEPTION 'homely_remedy_administration: a correction stays with its dose'
         USING ERRCODE = 'check_violation';
     END IF;

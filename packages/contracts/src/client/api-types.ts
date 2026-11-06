@@ -28863,7 +28863,7 @@ export interface paths {
     put?: never;
     /**
      * Record a homely remedy dose under the home's protocol
-     * @description medicines.emar.administer, by a member the protocol names, for a person at the protocol's home. Refused in words when it is outside the protocol: withdrawn or past review, another dose, too soon, over the most in 24 hours, the protocol's days used (ask the GP), or the same product prescribed. Resending the same id returns the same record. Audited with ids only.
+     * @description medicines.emar.administer, by a member the protocol names, for a person at the protocol's home, with the person's allergies checked. Refused in words when it is outside the protocol: withdrawn or past review, another dose, too soon, over the most in 24 hours, the protocol's days used (ask the GP), or the same product prescribed; doses of the same product under other protocols at the home count. A dose already given (`alreadyGiven`, with when and why) is recorded with what the check found as flags and escalated urgently. Resending the same id returns the same record. Audited with ids only.
      */
     post: {
       parameters: {
@@ -28951,6 +28951,87 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/homely-remedy-doses/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Check a homely remedy dose against the protocol before giving it
+     * @description medicines.emar.administer. Says in words whether the dose is within the protocol now; records nothing.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CheckHomelyDose"];
+        };
+      };
+      responses: {
+        /** @description What the check found */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyDoseCheck"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/homely-remedy-doses/{id}/entered-in-error": {
     parameters: {
       query?: never;
@@ -28962,7 +29043,7 @@ export interface paths {
     put?: never;
     /**
      * Mark a homely remedy dose as entered in error
-     * @description The member who gave it (medicines.emar.administer) or medicines.record.manage, with a reason. A new record marks the dose; the dose stays, struck through, and no longer counts. Audited with ids only.
+     * @description The member who gave it (medicines.emar.administer) or medicines.record.manage at the person's home, with a reason. A new record marks the dose; the dose stays, struck through, and no longer counts. Resending the same id returns the same record. Audited with ids only.
      */
     post: {
       parameters: {
@@ -28979,6 +29060,15 @@ export interface paths {
         };
       };
       responses: {
+        /** @description Already marked with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyDose"];
+          };
+        };
         /** @description Marked */
         201: {
           headers: {
@@ -40734,7 +40824,7 @@ export interface components {
       | "advocate"
       | "other";
     /** @enum {string} */
-    CovertStatus: "not_started" | "current" | "review_overdue" | "ended";
+    CovertStatus: "not_started" | "current" | "review_overdue" | "basis_changed" | "ended";
     NewCovertRecord: {
       /** Format: uuid */
       medicationId: string;
@@ -40934,6 +41024,9 @@ export interface components {
       givenAt: string;
       /** Format: uuid */
       givenBy: string;
+      allergiesChecked: boolean;
+      alreadyGivenReason: string | null;
+      flags: string[];
       /** Format: date-time */
       recordedAt: string;
       /** Format: uuid */
@@ -40942,6 +41035,17 @@ export interface components {
       /** Format: uuid */
       enteredInErrorBy: string | null;
     };
+    HomelyDoseCheck: {
+      problems: {
+        problem: string;
+        message: string;
+      }[];
+    };
+    CheckHomelyDose: {
+      /** Format: uuid */
+      protocolId: string;
+      quantity: number;
+    };
     RecordHomelyDose: {
       /** Format: uuid */
       id: string;
@@ -40949,6 +41053,14 @@ export interface components {
       protocolId: string;
       quantity: number;
       reason: string;
+      /** @enum {boolean} */
+      allergiesChecked: true;
+      /** @default null */
+      alreadyGiven: {
+        /** Format: date-time */
+        givenAt: string;
+        reason: string;
+      } | null;
     };
     HomelyDoseEnteredInError: {
       /** Format: uuid */

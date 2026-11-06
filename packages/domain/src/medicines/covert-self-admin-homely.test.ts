@@ -125,7 +125,13 @@ describe("hazard HZ-026 a covert record stands on a capacity assessment and best
     expect(checkCovertRecord({ ...good, reviewOn: "2027-02-04" }, ctx)).toEqual([]);
   });
 
-  it.each<[string, { startsOn: string; reviewOn: string; endedOn: string | null }, string]>([
+  it.each<
+    [
+      string,
+      { startsOn: string; reviewOn: string; endedOn: string | null; basisChanged?: boolean },
+      string,
+    ]
+  >([
     [
       "before it starts",
       { startsOn: "2026-11-07", reviewOn: "2026-12-01", endedOn: null },
@@ -137,6 +143,11 @@ describe("hazard HZ-026 a covert record stands on a capacity assessment and best
       "after its review date",
       { startsOn: "2026-10-01", reviewOn: "2026-11-05", endedOn: null },
       "review_overdue",
+    ],
+    [
+      "after its basis changed",
+      { startsOn: "2026-10-01", reviewOn: "2026-12-01", endedOn: null, basisChanged: true },
+      "basis_changed",
     ],
     ["once ended", { startsOn: "2026-10-01", reviewOn: "2026-12-01", endedOn: today }, "ended"],
     [
@@ -156,6 +167,11 @@ describe("hazard HZ-026 a covert record stands on a capacity assessment and best
       { flag: "covert_review_overdue", urgent: false },
     ],
     ["no record", [], { flag: "covert_without_record", urgent: true }],
+    [
+      "only a record whose basis changed",
+      ["basis_changed"],
+      { flag: "covert_without_record", urgent: true },
+    ],
     [
       "only an ended record",
       ["ended", "not_started"],
@@ -431,6 +447,11 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
     ["another dose", { quantity: 1 }, ["dose_differs"]],
     ["a dose too soon", { earlier: [{ at: hoursBefore(3.9), quantity: 2 }] }, ["too_soon"]],
     [
+      "a dose recorded later, just before another",
+      { earlier: [{ at: new Date(now.getTime() + 3_600_000), quantity: 2 }] },
+      ["too_soon"],
+    ],
+    [
       "a fifth dose in 24 hours",
       { earlier: [5, 10, 15, 20].map((h) => ({ at: hoursBefore(h), quantity: 2 })) },
       ["over_daily_maximum"],
@@ -448,6 +469,20 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
     ["a time in the future", { at: new Date(now.getTime() + 60_000) }, ["given_in_future"]],
   ])("refuses %s", (_name, change, problems) => {
     expect(checkHomelyDose({ ...dose, ...change }, dctx)).toEqual(problems);
+  });
+
+  it("counts the course and the 24 hours in elapsed hours across the clock change", () => {
+    // 25/10/2026: the clocks go back at 02:00 BST, so the UK day is 25 hours long.
+    const at = new Date("2026-10-26T12:00:00Z");
+    const hours = (h: number) => new Date(at.getTime() - h * 3_600_000);
+    const earlier = [6, 20, 34, 47].map((h) => ({ at: hours(h), quantity: 2 }));
+    expect(checkHomelyDose({ ...dose, at, now: at, onDate: "2026-10-26", earlier }, dctx)).toEqual(
+      [],
+    );
+    const course = [6, 20, 34, 48].map((h) => ({ at: hours(h), quantity: 2 }));
+    expect(
+      checkHomelyDose({ ...dose, at, now: at, onDate: "2026-10-26", earlier: course }, dctx),
+    ).toEqual(["refer_to_gp"]);
   });
 
   it("starts a new course after a gap longer than the rate table's", () => {

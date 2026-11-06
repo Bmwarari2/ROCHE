@@ -147,21 +147,33 @@ export function checkCovertRecord(
   return problems;
 }
 
-export type CovertStatus = "not_started" | "current" | "review_overdue" | "ended";
+export type CovertStatus = "not_started" | "current" | "review_overdue" | "basis_changed" | "ended";
 
 export const COVERT_STATUS_WORDS: Record<CovertStatus, string> = {
   not_started: "Covert record not started yet",
   current: "Covert administration agreed",
   review_overdue: "Covert record review overdue",
+  basis_changed:
+    "The capacity assessment or best-interests decision behind this record has changed: review it now",
   ended: "Covert record ended",
 };
 
-/** The status of one covert record on a UK date. */
+/**
+ * The status of one covert record on a UK date. `basisChanged` is true when its capacity
+ * assessment or best-interests decision has since been corrected, or a later assessment of covert
+ * medicines finds capacity: the record no longer covers a dose (NICE SC1 1.15.1; HZ-026).
+ */
 export function covertStatus(
-  record: { readonly startsOn: string; readonly reviewOn: string; readonly endedOn: string | null },
+  record: {
+    readonly startsOn: string;
+    readonly reviewOn: string;
+    readonly endedOn: string | null;
+    readonly basisChanged?: boolean;
+  },
   today: string,
 ): CovertStatus {
   if (record.endedOn !== null && record.endedOn <= today) return "ended";
+  if (record.basisChanged) return "basis_changed";
   if (today < record.startsOn) return "not_started";
   if (today > record.reviewOn) return "review_overdue";
   return "current";

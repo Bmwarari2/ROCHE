@@ -298,6 +298,9 @@ async function store(
   },
 ) {
   const i = args.input;
+  if (args.covert && i.outcome !== "given") {
+    throw problems.invalid("Only a dose that was given can be marked as given covertly.");
+  }
   // Covert and self-administered doses are marked, never refused (slice 38; HZ-026, HZ-120).
   const marks = await authorityMarks(tx, {
     personId: args.personId,

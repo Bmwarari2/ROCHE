@@ -1,8 +1,10 @@
 import {
   ChangeHomelyProtocol,
+  CheckHomelyDose,
   CovertRecordList,
   CovertRecordOut,
   EndCovertRecord,
+  HomelyDoseCheck,
   HomelyDoseEnteredInError,
   HomelyDoseList,
   HomelyDoseOut,
@@ -26,6 +28,7 @@ import {
   medication,
   selfAdministrationAssessment,
   type Transaction,
+  task,
   tenantUser,
 } from "@harbour/db";
 import {
@@ -34,7 +37,6 @@ import {
   COVERT_RECORD_PROBLEM_WORDS,
   COVERT_STATUS_WORDS,
   type CovertAttendee,
-  can,
   checkCovertRecord,
   checkHomelyDose,
   checkHomelyProtocol,
@@ -43,6 +45,7 @@ import {
   HOMELY_DOSE_PROBLEM_WORDS,
   HOMELY_PROTOCOL_PROBLEM_WORDS,
   HOMELY_RATE_KEYS,
+  type HomelyDoseProblem,
   homelyProtocolStatus,
   SELF_ADMIN_LEVEL_WORDS,
   SELF_ADMIN_PROBLEM_WORDS,
@@ -54,7 +57,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -66,6 +69,7 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { lockPerson } from "../services/medicines";
+import { covertBasisChanged } from "../services/medicines-authority";
 import { loadPerson, requireWrite } from "../services/people";
 import { rateNumber } from "../services/rates";
 import {
@@ -165,8 +169,13 @@ async function medicineNames(
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 
-function covertOut(r: CovertRow, name: string, today: string): z.infer<typeof CovertRecordOut> {
-  const status = covertStatus(r, today);
+function covertOut(
+  r: CovertRow,
+  name: string,
+  today: string,
+  basisChanged = false,
+): z.infer<typeof CovertRecordOut> {
+  const status = covertStatus({ ...r, basisChanged }, today);
   const attendees = r.attendees as CovertAttendee[];
   return {
     id: r.id,
@@ -311,6 +320,9 @@ function doseOut(r: DoseRow, protocol: ProtocolRow | undefined, rows: readonly D
     reason: r.reason,
     givenAt: r.givenAt.toISOString(),
     givenBy: r.givenBy,
+    allergiesChecked: r.allergiesChecked,
+    alreadyGivenReason: r.alreadyGivenReason,
+    flags: [...r.flags],
     recordedAt: r.recordedAt.toISOString(),
     supersedesId: r.supersedesId,
     correctionReason: r.correctionReason,
@@ -417,7 +429,15 @@ export const medicinesAuthorityRouter = createRouter()
           scope: { personId: id, count: rows.length },
         });
         const today = ukIsoDate(new Date());
-        return { items: rows.map((r) => covertOut(r, names.get(r.medicationId) ?? "", today)) };
+        const changed = await covertBasisChanged(
+          tx,
+          rows.map((r) => r.id),
+        );
+        return {
+          items: rows.map((r) =>
+            covertOut(r, names.get(r.medicationId) ?? "", today, changed.has(r.id)),
+          ),
+        };
       });
       return c.json(out, 200);
     },
@@ -638,6 +658,7 @@ export const medicinesAuthorityRouter = createRouter()
       const out = await withTenant(c, async (tx) => {
         const current = await loadCovert(tx, id);
         const person = await loadPerson(tx, current.personId);
+        requireWrite(person, "care_plan");
         if (!scopeReachesLocation(scopeFor(access.effective, COVERT), person.locationId)) {
           throw problems.forbidden();
         }
@@ -1079,11 +1100,59 @@ export const medicinesAuthorityRouter = createRouter()
   .openapi(
     createRoute({
       method: "post",
+      path: "/v1/people/{id}/homely-remedy-doses/check",
+      tags,
+      summary: "Check a homely remedy dose against the protocol before giving it",
+      description:
+        "medicines.emar.administer. Says in words whether the dose is within the protocol now; records nothing.",
+      security,
+      request: {
+        params: IdParam,
+        body: { content: { "application/json": { schema: CheckHomelyDose } } },
+      },
+      responses: {
+        200: jsonBody(HomelyDoseCheck, "What the check found"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, ADMINISTER);
+      const { id: personId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const now = new Date();
+      const out = await withTenant(c, async (tx) => {
+        const person = await loadPerson(tx, personId);
+        const protocol = await protocolFor(tx, body.protocolId);
+        if (protocol.locationId !== person.locationId) {
+          throw refused("homely_other_home", ["This protocol is for another home."]);
+        }
+        const rows = await personDoses(tx, personId);
+        const found = await homelyProblems(
+          tx,
+          access,
+          person,
+          protocol,
+          rows,
+          body.quantity,
+          now,
+          now,
+        );
+        return {
+          problems: found.map((p) => ({ problem: p, message: HOMELY_DOSE_PROBLEM_WORDS[p] })),
+        };
+      });
+      return c.json(out, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
       path: "/v1/people/{id}/homely-remedy-doses",
       tags,
       summary: "Record a homely remedy dose under the home's protocol",
       description:
-        "medicines.emar.administer, by a member the protocol names, for a person at the protocol's home. Refused in words when it is outside the protocol: withdrawn or past review, another dose, too soon, over the most in 24 hours, the protocol's days used (ask the GP), or the same product prescribed. Resending the same id returns the same record. Audited with ids only.",
+        "medicines.emar.administer, by a member the protocol names, for a person at the protocol's home, with the person's allergies checked. Refused in words when it is outside the protocol: withdrawn or past review, another dose, too soon, over the most in 24 hours, the protocol's days used (ask the GP), or the same product prescribed; doses of the same product under other protocols at the home count. A dose already given (`alreadyGiven`, with when and why) is recorded with what the check found as flags and escalated urgently. Resending the same id returns the same record. Audited with ids only.",
       security,
       request: {
         params: IdParam,
@@ -1111,7 +1180,9 @@ export const medicinesAuthorityRouter = createRouter()
           if (
             resent.protocolId !== body.protocolId ||
             resent.outcome !== "given" ||
-            Number(resent.quantity) !== body.quantity
+            Number(resent.quantity) !== body.quantity ||
+            resent.givenBy !== access.tenantUserId ||
+            resent.reason !== body.reason
           ) {
             throw problems.conflict(
               "This record id cannot be used. Read the record again and resend.",
@@ -1120,71 +1191,42 @@ export const medicinesAuthorityRouter = createRouter()
           const p = await protocolsById(tx, [resent.protocolId]);
           return { status: 200 as const, dose: doseOut(resent, p.get(resent.protocolId), rows) };
         }
-        requireWrite(person, "care_note", now);
+        const at = body.alreadyGiven ? new Date(body.alreadyGiven.givenAt) : now;
+        requireWrite(person, "care_note", at);
         const protocol = await protocolFor(tx, body.protocolId);
         if (protocol.locationId !== person.locationId) {
           throw refused("homely_other_home", ["This protocol is for another home."]);
         }
-        const marked = new Set(
-          rows.map((r) => r.supersedesId).filter((x): x is string => x !== null),
+        const found = await homelyProblems(
+          tx,
+          access,
+          person,
+          protocol,
+          rows,
+          body.quantity,
+          at,
+          now,
         );
-        const earlier = rows
-          .filter((r) => r.protocolId === protocol.id && r.outcome === "given" && !marked.has(r.id))
-          .map((r) => ({ at: r.givenAt, quantity: Number(r.quantity) }));
-        const current = await tx
-          .select({ vmpId: medication.vmpId })
-          .from(medication)
-          .where(
-            and(
-              eq(medication.personId, personId),
-              inArray(medication.state, ["not_yet_checked", "checked", "difference_found"]),
-            ),
-          );
-        const found = checkHomelyDose(
-          {
-            at: now,
-            now,
-            memberId: access.tenantUserId,
-            quantity: body.quantity,
-            protocol: {
-              doseQuantity: Number(protocol.doseQuantity),
-              minIntervalHours: Number(protocol.minIntervalHours),
-              maxDailyQuantity: Number(protocol.maxDailyQuantity),
-              maxDays: protocol.maxDays,
-              authorisedMemberIds: protocol.authorisedMemberIds,
-              withdrawn: protocol.withdrawnAt !== null,
-              reviewOn: protocol.reviewOn,
-              vmpId: protocol.vmpId,
-            },
-            onDate: ukIsoDate(now),
-            earlier,
-            prescribedVmpIds: current.map((m) => m.vmpId).filter((v): v is string => v !== null),
-          },
-          {
-            courseGapHours: await rateNumber(
-              tx,
-              access.tenantId,
-              HOMELY_RATE_KEYS.courseGapHours,
-              person.nation,
-            ),
-          },
-        );
-        if (found.length > 0) {
+        const deny = async (problemsFound: readonly HomelyDoseProblem[]) => {
           await audit(c, tx, access, {
             action: "medicines.homely_dose.recorded",
             outcome: "denied",
             resourceType: "homely_remedy_administration",
             resourceId: body.id,
-            scope: { personId, protocolId: protocol.id, problems: found },
+            scope: { personId, protocolId: protocol.id, problems: [...problemsFound] },
           });
           return {
             status: 422 as const,
             problem: refused(
-              `homely_${found[0]}`,
-              found.map((p) => HOMELY_DOSE_PROBLEM_WORDS[p]),
+              `homely_${problemsFound[0]}`,
+              problemsFound.map((p) => HOMELY_DOSE_PROBLEM_WORDS[p]),
             ),
           };
-        }
+        };
+        // A time in the future is never recorded; otherwise a dose already given is recorded with
+        // what the check found (HZ-004), and one not yet given is refused (H-1356).
+        if (found.includes("given_in_future")) return deny(["given_in_future"]);
+        if (found.length > 0 && !body.alreadyGiven) return deny(found);
         const [row] = await inSavepoint(
           tx,
           () =>
@@ -1198,18 +1240,36 @@ export const medicinesAuthorityRouter = createRouter()
                 outcome: "given",
                 quantity: String(body.quantity),
                 reason: body.reason,
-                givenAt: now,
+                givenAt: at,
                 givenBy: access.tenantUserId,
+                allergiesChecked: body.allergiesChecked,
+                alreadyGivenReason: body.alreadyGiven?.reason ?? null,
+                flags: found,
               })
               .returning(),
           "This record id cannot be used. Read the record again and resend.",
         );
         const stored = row as DoseRow;
+        if (found.length > 0) {
+          await tx.insert(task).values({
+            kind: HOMELY_REVIEW_TASK,
+            title: "A homely remedy was given outside its protocol: review now",
+            requiredPermission: MANAGE,
+            personId,
+            locationId: person.locationId,
+            sourceType: "homely_remedy_administration",
+            sourceId: stored.id,
+            assigneeRoleKey: "clinical_lead",
+            dueAt: now,
+            priority: "urgent",
+            details: { problems: found },
+          });
+        }
         await audit(c, tx, access, {
           action: "medicines.homely_dose.recorded",
           resourceType: "homely_remedy_administration",
           resourceId: stored.id,
-          scope: { personId, protocolId: protocol.id },
+          scope: { personId, protocolId: protocol.id, flags: found },
         });
         return { status: 201 as const, dose: doseOut(stored, protocol, [...rows, stored]) };
       });
@@ -1224,13 +1284,14 @@ export const medicinesAuthorityRouter = createRouter()
       tags,
       summary: "Mark a homely remedy dose as entered in error",
       description:
-        "The member who gave it (medicines.emar.administer) or medicines.record.manage, with a reason. A new record marks the dose; the dose stays, struck through, and no longer counts. Audited with ids only.",
+        "The member who gave it (medicines.emar.administer) or medicines.record.manage at the person's home, with a reason. A new record marks the dose; the dose stays, struck through, and no longer counts. Resending the same id returns the same record. Audited with ids only.",
       security,
       request: {
         params: IdParam,
         body: { content: { "application/json": { schema: HomelyDoseEnteredInError } } },
       },
       responses: {
+        200: jsonBody(HomelyDoseOut, "Already marked with this id"),
         201: jsonBody(HomelyDoseOut, "Marked"),
         ...errorResponses,
         ...notFoundResponse,
@@ -1241,19 +1302,36 @@ export const medicinesAuthorityRouter = createRouter()
       const access = await requireAnyPermission(c, [ADMINISTER, MANAGE]);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      const out = await withTenant(c, async (tx) => {
+      const result = await withTenant(c, async (tx) => {
         const [original] = await tx
           .select()
           .from(homelyRemedyAdministration)
           .where(eq(homelyRemedyAdministration.id, id));
         if (!original) throw problems.notFound();
-        if (original.givenBy !== access.tenantUserId && !can(access.effective, MANAGE)) {
-          throw problems.forbidden();
+        const person = await loadPerson(tx, original.personId);
+        const manages = scopeReachesLocation(scopeFor(access.effective, MANAGE), person.locationId);
+        if (original.givenBy !== access.tenantUserId && !manages) throw problems.forbidden();
+        await lockPerson(tx, original.personId);
+        const p = await protocolsById(tx, [original.protocolId]);
+        const [resent] = await tx
+          .select()
+          .from(homelyRemedyAdministration)
+          .where(eq(homelyRemedyAdministration.id, body.id));
+        if (resent) {
+          if (resent.supersedesId !== original.id || resent.outcome !== "entered_in_error") {
+            throw problems.conflict(
+              "This record id cannot be used. Read the record again and resend.",
+            );
+          }
+          return {
+            status: 200 as const,
+            dose: doseOut(resent, p.get(original.protocolId), [original, resent]),
+          };
         }
+        requireWrite(person, "care_note");
         if (original.outcome !== "given") {
           throw refused("homely_not_a_dose", ["Only a dose can be marked as entered in error."]);
         }
-        await lockPerson(tx, original.personId);
         const [row] = await inSavepoint(
           tx,
           () =>
@@ -1273,7 +1351,7 @@ export const medicinesAuthorityRouter = createRouter()
                 correctionReason: body.reason,
               })
               .returning(),
-          "This dose is already marked, or the id is in use.",
+          "This dose is already marked.",
         );
         const stored = row as DoseRow;
         await audit(c, tx, access, {
@@ -1282,12 +1360,87 @@ export const medicinesAuthorityRouter = createRouter()
           resourceId: stored.id,
           scope: { personId: original.personId, supersedesId: original.id },
         });
-        const p = await protocolsById(tx, [original.protocolId]);
-        return doseOut(stored, p.get(original.protocolId), [original, stored]);
+        return {
+          status: 201 as const,
+          dose: doseOut(stored, p.get(original.protocolId), [original, stored]),
+        };
       });
-      return c.json(out, 201);
+      return c.json(result.dose, result.status);
     },
   );
+
+const HOMELY_REVIEW_TASK = "medicines.homely_remedy.review";
+
+/**
+ * What the protocol check finds for a dose at `at`. Earlier doses count under every protocol at the
+ * home for the same product (the same dm+d product, or the same name when not coded), so a
+ * replaced or second protocol never starts a fresh gap, day or course (clinical review, 06/11/2026).
+ */
+async function homelyProblems(
+  tx: Transaction,
+  access: TenantAccess,
+  person: { readonly id: string; readonly nation: Parameters<typeof rateNumber>[3] },
+  protocol: ProtocolRow,
+  rows: readonly DoseRow[],
+  quantity: number,
+  at: Date,
+  now: Date,
+): Promise<HomelyDoseProblem[]> {
+  const same = await tx
+    .select({ id: homelyRemedyProtocol.id })
+    .from(homelyRemedyProtocol)
+    .where(
+      and(
+        eq(homelyRemedyProtocol.locationId, protocol.locationId),
+        protocol.vmpId !== null
+          ? eq(homelyRemedyProtocol.vmpId, protocol.vmpId)
+          : sql`lower(${homelyRemedyProtocol.productName}) = lower(${protocol.productName})`,
+      ),
+    );
+  const ids = new Set([protocol.id, ...same.map((x) => x.id)]);
+  const marked = new Set(rows.map((r) => r.supersedesId).filter((x): x is string => x !== null));
+  const earlier = rows
+    .filter((r) => ids.has(r.protocolId) && r.outcome === "given" && !marked.has(r.id))
+    .map((r) => ({ at: r.givenAt, quantity: Number(r.quantity) }));
+  const current = await tx
+    .select({ vmpId: medication.vmpId })
+    .from(medication)
+    .where(
+      and(
+        eq(medication.personId, person.id),
+        inArray(medication.state, ["not_yet_checked", "checked", "difference_found"]),
+      ),
+    );
+  return checkHomelyDose(
+    {
+      at,
+      now,
+      memberId: access.tenantUserId,
+      quantity,
+      protocol: {
+        doseQuantity: Number(protocol.doseQuantity),
+        minIntervalHours: Number(protocol.minIntervalHours),
+        maxDailyQuantity: Number(protocol.maxDailyQuantity),
+        maxDays: protocol.maxDays,
+        authorisedMemberIds: protocol.authorisedMemberIds,
+        withdrawn: protocol.withdrawnAt !== null,
+        reviewOn: protocol.reviewOn,
+        vmpId: protocol.vmpId,
+      },
+      onDate: ukIsoDate(at),
+      earlier,
+      prescribedVmpIds: current.map((m) => m.vmpId).filter((v): v is string => v !== null),
+    },
+    {
+      courseGapHours: await rateNumber(
+        tx,
+        access.tenantId,
+        HOMELY_RATE_KEYS.courseGapHours,
+        person.nation,
+      ),
+    },
+  );
+}
 
 function selfAdminOut(
   r: typeof selfAdministrationAssessment.$inferSelect,

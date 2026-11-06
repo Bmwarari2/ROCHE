@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  boolean,
   check,
   date,
   foreignKey,
@@ -244,6 +245,12 @@ export const homelyRemedyAdministration = pgTable(
     reason: text("reason"),
     givenAt: timestamp("given_at", { withTimezone: true }).notNull(),
     givenBy: uuid("given_by").notNull(),
+    /** The giver confirmed they checked the person's allergies (HZ-007; never matched by Harbour). */
+    allergiesChecked: boolean("allergies_checked").notNull().default(false),
+    /** Why a dose already given outside the protocol is recorded (flagged and escalated). */
+    alreadyGivenReason: text("already_given_reason"),
+    /** What the protocol check found, for a dose recorded after it was given. */
+    flags: text("flags").array().notNull().default(sql`'{}'::text[]`),
     recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
     supersedesId: uuid("supersedes_id"),
     correctionReason: text("correction_reason"),
@@ -271,7 +278,8 @@ export const homelyRemedyAdministration = pgTable(
     check(
       "homely_remedy_administration_outcome",
       sql`(outcome = 'given' AND quantity > 0 AND supersedes_id IS NULL AND correction_reason IS NULL
-           AND length(btrim(coalesce(reason, ''))) > 0)
+           AND length(btrim(coalesce(reason, ''))) > 0 AND allergies_checked
+           AND (cardinality(flags) = 0 OR length(btrim(coalesce(already_given_reason, ''))) > 0))
        OR (outcome = 'entered_in_error' AND quantity IS NULL AND supersedes_id IS NOT NULL
            AND supersedes_id <> id AND length(btrim(coalesce(correction_reason, ''))) > 0)`,
     ),

@@ -15698,6 +15698,26 @@
           "primaryKey": false,
           "notNull": true
         },
+        "allergies_checked": {
+          "name": "allergies_checked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "already_given_reason": {
+          "name": "already_given_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flags": {
+          "name": "flags",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "recorded_at": {
           "name": "recorded_at",
           "type": "timestamp with time zone",
@@ -15864,7 +15884,7 @@
       "checkConstraints": {
         "homely_remedy_administration_outcome": {
           "name": "homely_remedy_administration_outcome",
-          "value": "(outcome = 'given' AND quantity > 0 AND supersedes_id IS NULL AND correction_reason IS NULL\n           AND length(btrim(coalesce(reason, ''))) > 0)\n       OR (outcome = 'entered_in_error' AND quantity IS NULL AND supersedes_id IS NOT NULL\n           AND supersedes_id <> id AND length(btrim(coalesce(correction_reason, ''))) > 0)"
+          "value": "(outcome = 'given' AND quantity > 0 AND supersedes_id IS NULL AND correction_reason IS NULL\n           AND length(btrim(coalesce(reason, ''))) > 0 AND allergies_checked\n           AND (cardinality(flags) = 0 OR length(btrim(coalesce(already_given_reason, ''))) > 0))\n       OR (outcome = 'entered_in_error' AND quantity IS NULL AND supersedes_id IS NOT NULL\n           AND supersedes_id <> id AND length(btrim(coalesce(correction_reason, ''))) > 0)"
         }
       },
       "isRLSEnabled": false

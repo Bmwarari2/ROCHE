@@ -28,7 +28,7 @@ export const CovertAttendeeRole = z
   ])
   .meta({ id: "CovertAttendeeRole" });
 export const CovertStatus = z
-  .enum(["not_started", "current", "review_overdue", "ended"])
+  .enum(["not_started", "current", "review_overdue", "basis_changed", "ended"])
   .meta({ id: "CovertStatus" });
 
 const Attendees = z
@@ -198,8 +198,29 @@ export const RecordHomelyDose = z
     quantity,
     /** Why it is given, in words (the symptom). */
     reason: words(500),
+    /** The giver checked the person's allergies against the remedy (HZ-007). */
+    allergiesChecked: z.literal(true),
+    /**
+     * A dose already given, recorded afterwards: when it was given and why it is recorded only
+     * now. Problems the check finds are then recorded as flags and escalated, never refused.
+     */
+    alreadyGiven: z
+      .strictObject({ givenAt: isoDateTime, reason: words(500) })
+      .nullable()
+      .default(null),
   })
   .meta({ id: "RecordHomelyDose" });
+
+export const CheckHomelyDose = z
+  .strictObject({ protocolId: uuid, quantity })
+  .meta({ id: "CheckHomelyDose" });
+
+export const HomelyDoseCheck = z
+  .object({
+    /** Empty when the dose is within the protocol now. */
+    problems: z.array(z.object({ problem: z.string(), message: z.string() })),
+  })
+  .meta({ id: "HomelyDoseCheck" });
 
 export const HomelyDoseEnteredInError = z
   .strictObject({ id: uuid, reason: words(500) })
@@ -218,6 +239,10 @@ export const HomelyDoseOut = z
     reason: z.string().nullable(),
     givenAt: isoDateTime,
     givenBy: uuid,
+    allergiesChecked: z.boolean(),
+    alreadyGivenReason: z.string().nullable(),
+    /** What the protocol check found, for a dose recorded after it was given. */
+    flags: z.array(z.string()),
     recordedAt: isoDateTime,
     supersedesId: uuid.nullable(),
     correctionReason: z.string().nullable(),

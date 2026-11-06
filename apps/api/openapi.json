@@ -32009,6 +32009,7 @@
           "not_started",
           "current",
           "review_overdue",
+          "basis_changed",
           "ended"
         ]
       },
@@ -32873,6 +32874,21 @@
             "type": "string",
             "format": "uuid"
           },
+          "allergiesChecked": {
+            "type": "boolean"
+          },
+          "alreadyGivenReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "recordedAt": {
             "type": "string",
             "format": "date-time"
@@ -32910,11 +32926,59 @@
           "reason",
           "givenAt",
           "givenBy",
+          "allergiesChecked",
+          "alreadyGivenReason",
+          "flags",
           "recordedAt",
           "supersedesId",
           "correctionReason",
           "enteredInErrorBy"
         ]
+      },
+      "HomelyDoseCheck": {
+        "type": "object",
+        "properties": {
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "problem": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "problem",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "problems"
+        ]
+      },
+      "CheckHomelyDose": {
+        "type": "object",
+        "properties": {
+          "protocolId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          }
+        },
+        "required": [
+          "protocolId",
+          "quantity"
+        ],
+        "additionalProperties": false
       },
       "RecordHomelyDose": {
         "type": "object",
@@ -32936,13 +33000,43 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          },
+          "allergiesChecked": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "alreadyGiven": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "givenAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "default": null,
+            "required": [
+              "givenAt",
+              "reason"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
           "id",
           "protocolId",
           "quantity",
-          "reason"
+          "reason",
+          "allergiesChecked"
         ],
         "additionalProperties": false
       },
@@ -69286,7 +69380,7 @@
           "medicines"
         ],
         "summary": "Record a homely remedy dose under the home's protocol",
-        "description": "medicines.emar.administer, by a member the protocol names, for a person at the protocol's home. Refused in words when it is outside the protocol: withdrawn or past review, another dose, too soon, over the most in 24 hours, the protocol's days used (ask the GP), or the same product prescribed. Resending the same id returns the same record. Audited with ids only.",
+        "description": "medicines.emar.administer, by a member the protocol names, for a person at the protocol's home, with the person's allergies checked. Refused in words when it is outside the protocol: withdrawn or past review, another dose, too soon, over the most in 24 hours, the protocol's days used (ask the GP), or the same product prescribed; doses of the same product under other protocols at the home count. A dose already given (`alreadyGiven`, with when and why) is recorded with what the check found as flags and escalated urgently. Resending the same id returns the same record. Audited with ids only.",
         "security": [
           {
             "bearerAuth": []
@@ -69389,13 +69483,102 @@
         }
       }
     },
+    "/v1/people/{id}/homely-remedy-doses/check": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Check a homely remedy dose against the protocol before giving it",
+        "description": "medicines.emar.administer. Says in words whether the dose is within the protocol now; records nothing.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckHomelyDose"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the check found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyDoseCheck"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/homely-remedy-doses/{id}/entered-in-error": {
       "post": {
         "tags": [
           "medicines"
         ],
         "summary": "Mark a homely remedy dose as entered in error",
-        "description": "The member who gave it (medicines.emar.administer) or medicines.record.manage, with a reason. A new record marks the dose; the dose stays, struck through, and no longer counts. Audited with ids only.",
+        "description": "The member who gave it (medicines.emar.administer) or medicines.record.manage at the person's home, with a reason. A new record marks the dose; the dose stays, struck through, and no longer counts. Resending the same id returns the same record. Audited with ids only.",
         "security": [
           {
             "bearerAuth": []
@@ -69425,6 +69608,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Already marked with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyDose"
+                }
+              }
+            }
+          },
           "201": {
             "description": "Marked",
             "content": {

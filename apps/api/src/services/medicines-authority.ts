@@ -13,7 +13,36 @@ import {
   selfAdminDoseFlags,
   selfAdminStatus,
 } from "@harbour/domain";
-import { and, arrayContains, eq, isNull } from "drizzle-orm";
+import { and, arrayContains, eq, isNull, sql } from "drizzle-orm";
+
+/**
+ * Covert records whose basis has changed since they were written: their capacity assessment or
+ * best-interests decision has been corrected, or a later assessment of covert medicines finds the
+ * person has capacity (NICE SC1 1.15.1; HZ-026). Such a record no longer covers a dose.
+ */
+export async function covertBasisChanged(
+  tx: Transaction,
+  ids: readonly string[],
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const result = await tx.execute<{ id: string }>(sql`
+    SELECT r.id::text AS id FROM public.covert_medication_record r
+     WHERE r.id IN (${sql.join(
+       ids.map((i) => sql`${i}::uuid`),
+       sql`, `,
+     )})
+       AND (EXISTS (SELECT 1 FROM public.capacity_assessment s
+                     WHERE s.tenant_id = r.tenant_id AND s.supersedes_id = r.capacity_assessment_id)
+         OR EXISTS (SELECT 1 FROM public.best_interests_decision s
+                     WHERE s.tenant_id = r.tenant_id AND s.supersedes_id = r.best_interests_decision_id)
+         OR EXISTS (SELECT 1 FROM public.capacity_assessment c
+                      JOIN public.capacity_assessment l
+                        ON l.tenant_id = c.tenant_id AND l.person_id = c.person_id
+                     WHERE c.tenant_id = r.tenant_id AND c.id = r.capacity_assessment_id
+                       AND l.decision_kind = 'covert_medicines' AND l.outcome = 'has_capacity'
+                       AND l.assessed_at > c.assessed_at))`);
+  return new Set(result.rows.map((r) => r.id));
+}
 
 /**
  * The marks a dose carries from the person's covert records and self-administration assessments
@@ -44,6 +73,7 @@ export async function authorityMarks(
   if (input.covert) {
     const records = await tx
       .select({
+        id: covertMedicationRecord.id,
         startsOn: covertMedicationRecord.startsOn,
         reviewOn: covertMedicationRecord.reviewOn,
         endedOn: covertMedicationRecord.endedOn,
@@ -56,7 +86,13 @@ export async function authorityMarks(
           isNull(covertMedicationRecord.deletedAt),
         ),
       );
-    const statuses: CovertStatus[] = records.map((r) => covertStatus(r, input.today));
+    const changed = await covertBasisChanged(
+      tx,
+      records.map((r) => r.id),
+    );
+    const statuses: CovertStatus[] = records.map((r) =>
+      covertStatus({ ...r, basisChanged: changed.has(r.id) }, input.today),
+    );
     const mark = covertDoseFlags(statuses);
     if (mark) {
       flags.push(mark.flag);

@@ -1616,6 +1616,12 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       reason: { description: "Why it was given, in words." },
       given_at: { description: "When it was given (instant, UTC)." },
       given_by: { description: "Who gave it (tenant_user.id)." },
+      allergies_checked: {
+        description:
+          "Whether the giver confirmed they checked the person's allergies (true or false).",
+      },
+      already_given_reason: { description: "Why a dose already given was recorded only later." },
+      flags: { description: "What the protocol check found, for a dose already given outside it." },
       recorded_at: { description: "When it was stored (instant, UTC)." },
       supersedes_id: {
         description:

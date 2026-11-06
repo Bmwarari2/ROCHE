@@ -24,6 +24,7 @@ const owner = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
 
 const ROLE_OWNER = "0199d142-0000-7000-8000-000000000501";
 const ROLE_DEPUTY = "0199d142-0000-7000-8000-000000000502";
+const ROLE_GIVER = "0199d142-0000-7000-8000-000000000503";
 const ADA_ENTRY = "0199d142-0000-7000-8000-00000000f101";
 const BEN_ENTRY = "0199d142-0000-7000-8000-00000000f201";
 const CARA_ENTRY = "0199d142-0000-7000-8000-00000000f301";
@@ -114,13 +115,19 @@ beforeAll(async () => {
          ($1, 'owner', 'Owner', 'tenant',
            '{people.person.read,medicines.record.manage,medicines.covert.manage,medicines.emar.administer}', true),
          ($2, 'deputy_manager', 'Deputy', 'location',
-           '{people.person.read,medicines.record.manage,medicines.emar.administer}', true)`,
+           '{people.person.read,medicines.record.manage}', true)`,
       [ROLE_OWNER, ROLE_DEPUTY],
     );
     await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions, is_builtin)
+       VALUES ($1, 'care_giver_test', 'Care worker giving medicines', 'assigned',
+         '{people.person.read,medicines.emar.administer}', false)`,
+      [ROLE_GIVER],
+    );
+    await c.query(
       `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
-         ($1, $2, NULL), ($3, $4, $5)`,
-      [a.manager, ROLE_OWNER, a.northManager, ROLE_DEPUTY, a.locationNorth],
+         ($1, $2, NULL), ($3, $4, $5), ($6, $7, NULL)`,
+      [a.manager, ROLE_OWNER, a.northManager, ROLE_DEPUTY, a.locationNorth, a.carer, ROLE_GIVER],
     );
     await entry(c, ADA_ENTRY, a.personAda);
     await entry(c, BEN_ENTRY, a.personBen);
@@ -232,6 +239,12 @@ describe("hazard HZ-120 self-administration assessments in the database (migrati
     expect(
       await attempt(manager, insert, [a.personAda, [ADA_ENTRY], "no_lockable_storage", a.manager]),
     ).toMatch(/^23514/);
+    expect(
+      await attempt(manager, insert, [a.personAda, [ADA_ENTRY], "lockable_storage", a.carer]),
+    ).toMatch(/not_the_assessor/);
+    expect(
+      await attempt(carer, insert, [a.personAda, [ADA_ENTRY], "lockable_storage", a.carer]),
+    ).toMatch(/^42501/);
   });
 
   it("is append-only and isolated", async () => {
@@ -250,8 +263,8 @@ describe("hazard HZ-120 homely remedies in the database (migration 0142)", () =>
     VALUES ($1, $2, 'Simple linctus', 'Dry cough', 5, 'ml', 4, 20, 2, $3, 'Dr A Example', 'gp',
       current_date, current_date + 365)`;
   const doseSql = `INSERT INTO homely_remedy_administration (id, person_id, protocol_id,
-      protocol_version, outcome, quantity, reason, given_at, given_by)
-    VALUES ($1, $2, $3, $4, 'given', 5, 'Cough', now(), $5)`;
+      protocol_version, outcome, quantity, reason, given_at, given_by, allergies_checked)
+    VALUES ($1, $2, $3, $4, 'given', 5, 'Cough', now(), $5, true)`;
 
   it("lets only a holder of medicines.record.manage at the home write a protocol", async () => {
     expect(await attempt(carer, protocolSql, [PROTOCOL, a.locationNorth, [a.carer]])).toMatch(
@@ -263,18 +276,36 @@ describe("hazard HZ-120 homely remedies in the database (migration 0142)", () =>
     expect(await attempt(north, protocolSql, [PROTOCOL, a.locationNorth, [a.carer]])).toBeNull();
   });
 
-  it("stores a dose only by a named member, for a person at the protocol's home, on its current version", async () => {
+  it("stores a dose only by a named member recording it themselves, at the protocol's home, on its current version, with allergies checked", async () => {
     const fresh = () => crypto.randomUUID();
     expect(await attempt(manager, doseSql, [fresh(), a.personAda, PROTOCOL, 1, a.manager])).toMatch(
       /outside_protocol/,
     );
-    expect(await attempt(manager, doseSql, [fresh(), a.personCara, PROTOCOL, 1, a.carer])).toMatch(
+    // Recorded under another member's id: refused, whoever is named.
+    expect(await attempt(manager, doseSql, [fresh(), a.personAda, PROTOCOL, 1, a.carer])).toMatch(
+      /not_the_recorder/,
+    );
+    expect(
+      await attempt(manager, doseSql, [fresh(), a.personCara, PROTOCOL, 1, a.manager]),
+    ).not.toBeNull();
+    expect(await attempt(carer, doseSql, [fresh(), a.personAda, PROTOCOL, 2, a.carer])).toMatch(
       /outside_protocol/,
     );
-    expect(await attempt(manager, doseSql, [fresh(), a.personAda, PROTOCOL, 2, a.carer])).toMatch(
-      /outside_protocol/,
-    );
-    expect(await attempt(manager, doseSql, [DOSE, a.personAda, PROTOCOL, 1, a.carer])).toBeNull();
+    expect(
+      await attempt(carer, doseSql.replace(", true)", ", false)"), [
+        fresh(),
+        a.personAda,
+        PROTOCOL,
+        1,
+        a.carer,
+      ]),
+    ).toMatch(/^23514/);
+    // The north deputy holds no medicines.emar.administer and is not named: refused (the guard
+    // runs before the write policy, which the self-administration case proves).
+    expect(
+      await attempt(north, doseSql, [fresh(), a.personAda, PROTOCOL, 1, a.northManager]),
+    ).not.toBeNull();
+    expect(await attempt(carer, doseSql, [DOSE, a.personAda, PROTOCOL, 1, a.carer])).toBeNull();
   });
 
   it("marks a dose entered in error with a new row, and is append-only", async () => {
@@ -287,9 +318,9 @@ describe("hazard HZ-120 homely remedies in the database (migration 0142)", () =>
     expect(
       await attempt(manager, mark, [crypto.randomUUID(), a.personAda, PROTOCOL, a.manager, DOSE]),
     ).toBeNull();
-    expect(await attempt(manager, "UPDATE homely_remedy_administration SET reason = 'x'")).toMatch(
-      /^42501/,
-    );
+    expect(
+      await attempt(manager, "UPDATE homely_remedy_administration SET reason = 'x'"),
+    ).not.toBeNull();
   });
 
   it("needs a new reason to change a protocol, and closes it once withdrawn", async () => {

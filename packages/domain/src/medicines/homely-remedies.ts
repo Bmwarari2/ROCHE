@@ -149,8 +149,12 @@ export function checkHomelyDose(
   const before = input.earlier
     .filter((d) => d.at.getTime() <= input.at.getTime())
     .sort((a, b) => b.at.getTime() - a.at.getTime());
-  const last = before[0];
-  if (last && input.at.getTime() - last.at.getTime() < p.minIntervalHours * HOUR)
+  // The gap holds both ways: a dose already given and recorded later may fall just before another.
+  if (
+    input.earlier.some(
+      (d) => Math.abs(input.at.getTime() - d.at.getTime()) < p.minIntervalHours * HOUR,
+    )
+  )
     problems.push("too_soon");
   const inDay = before
     .filter((d) => input.at.getTime() - d.at.getTime() < 24 * HOUR)

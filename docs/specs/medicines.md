@@ -988,10 +988,14 @@ stands on:
 One open record per medicine. A **review** records the same evidence again with the date reviewed,
 the next review date (within the rate table's days from the review) and a reason; an **end** records
 the date and reason. Every change needs a new reason; an ended record is closed (database guard).
+A record whose capacity assessment or best-interests decision has since been corrected, or whose
+person a later assessment of covert medicines finds to have capacity, shows as needing review
+(`basis_changed`) and no longer covers a dose (NICE SC1 1.15.1).
 Writing needs `medicines.covert.manage` at the person's home, in the API and in row-level security.
 
-**On the MAR**: a dose may be marked **covert** (`medication_administration.covert`), shown on the
-record. A covert dose is never refused, because it has happened and the record must say so
+**On the MAR**: a dose that was given may be marked **covert** (`medication_administration.covert`),
+shown on the record; covert on any other outcome is refused. Showing the record's status, method
+and advice beside the entry on the round is the round view's (slice 53, H-1354). A covert dose is never refused, because it has happened and the record must say so
 (HZ-004): with no current record for the medicine it carries `covert_without_record` and an urgent
 task for the nurse in charge; while the record's review is overdue it carries
 `covert_review_overdue` and a task (H-1351).
@@ -1004,7 +1008,10 @@ the person's **choice**, **capacity** (assumed, as the Act requires, or a linked
 says so), **dexterity**, **storage**, the **level** decided (looks after and takes them; takes them
 with support; staff give them), notes, the date and a review date within
 `medicines.self_admin.review_max_days` (H-1353). A level other than staff giving needs the person's
-choice, capacity not lacking, dexterity and lockable storage (domain and database). The latest
+choice, capacity not lacking, dexterity and lockable storage (domain and database). A linked
+capacity assessment must be the person's current one and say what the assessment records; it is
+not yet tied to a self-administration decision kind, which needs its own migration (H-1354). The
+latest
 assessment listing a medicine decides its status: current, review overdue or not assessed.
 
 A dose recorded as **taken by the person** (`self_administered`) is never refused: with no current
@@ -1020,8 +1027,10 @@ most in 24 hours, the days a course may last before the person's GP is asked (wi
 agreed it and when, and a review date within `medicines.homely_remedy.review_max_days` (H-1355).
 Changing it needs a new reason; a withdrawn protocol is closed.
 
-A **homely remedy dose** (`homely_remedy_administration`, append-only, client UUID) is checked
-before it is given (`checkHomelyDose`), and refused in words when (H-1356):
+A **homely remedy dose** (`homely_remedy_administration`, append-only, client UUID) needs the giver
+to confirm they checked the person's allergies (Harbour never matches them: HZ-007, ADR-0082), and
+is recorded by the member who gives it (database). It can be checked first without recording
+(`POST .../homely-remedy-doses/check`). It is refused in words when (H-1356):
 
 - the protocol is withdrawn or past its review date;
 - the member is not named on it;
@@ -1032,6 +1041,12 @@ before it is given (`checkHomelyDose`), and refused in words when (H-1356):
 - the person has the same dm+d product on a current entry (another product with the same
   ingredient is not caught: ADR-0082, H-1357);
 - the person does not live at the protocol's home (database guard).
+
+Doses of the same product under other protocols at the home (the same dm+d product, or the same
+name when not coded) count too, so a replaced protocol never starts afresh. Gaps, the 24 hours and
+the course are elapsed hours, not calendar days, so a clock change neither adds nor removes time
+(H-1355). A dose **already given** is recorded with when and why: what the check finds is recorded
+as flags and escalated urgently, never refused (HZ-004; H-1356); a time in the future is refused.
 
 A dose recorded in error is marked by a new record with a reason; it stays, struck through, and no
 longer counts.

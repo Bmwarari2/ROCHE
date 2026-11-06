@@ -251,6 +251,49 @@ describe("hazard HZ-026 covert administration under a best-interests decision (s
   });
 });
 
+describe("hazard HZ-026 a covert record stops covering doses once its basis changes (slice 38)", () => {
+  it("refuses covert on a dose that was not given", async () => {
+    const r = await dose("refused", true);
+    expect(r.status).toBe(422);
+  });
+
+  it("shows the record as needing review, and flags covert doses urgently, once a later assessment finds capacity", async () => {
+    const made = await send("manager", `/v1/people/${ADA}/covert-medicines`, {
+      method: "POST",
+      body: {
+        medicationId: entryId,
+        capacityAssessmentId: covertCapacity,
+        bestInterestsDecisionId: bestInterests,
+        attendees: [
+          { role: "prescriber", name: "Dr A Example" },
+          { role: "pharmacist", name: "B Example" },
+        ],
+        method: "In yoghurt",
+        pharmacistAdvice: "May be crushed",
+        startsOn: today(),
+        reviewOn: addDaysToDate(today(), 30),
+      },
+    });
+    expect(made.status, await made.clone().text()).toBe(201);
+    await asDemo((c) =>
+      c.query(
+        `INSERT INTO capacity_assessment (person_id, decision, decision_kind, assessed_at,
+           assessor_tenant_user_id, stage1_impairment, stage2, outcome, reason)
+         VALUES ($1, 'whether to take medicines hidden in food', 'covert_medicines', now(), $2,
+           false, '{}', 'has_capacity', 'Recorded')`,
+        [ADA, DEMO.users.manager.id],
+      ),
+    );
+    const list = await json<{ items: { status: string }[] }>(
+      await send("manager", `/v1/people/${ADA}/covert-medicines`),
+    );
+    expect(list.items.map((i) => i.status)).toContain("basis_changed");
+    const given = await json<Recorded>(await dose("given", true));
+    expect(given.administration.flags).toContain("covert_without_record");
+    expect(given.escalations.map((e) => e.severity)).toEqual(["urgent"]);
+  });
+});
+
 describe("hazard HZ-120 self-administration is assessed before it is relied on (slice 38)", () => {
   const assessment = () => ({
     medicineIds: [medicineId],
@@ -334,7 +377,14 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
   const give = (user: string, body: Record<string, unknown> = {}) =>
     send(user, `/v1/people/${ADA}/homely-remedy-doses`, {
       method: "POST",
-      body: { id: randomUUID(), protocolId, quantity: 5, reason: "Coughing at night", ...body },
+      body: {
+        id: randomUUID(),
+        protocolId,
+        quantity: 5,
+        reason: "Coughing at night",
+        allergiesChecked: true,
+        ...body,
+      },
     });
 
   it("refuses a carer adding a protocol, and more days than the rate table allows", async () => {
@@ -383,12 +433,52 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
     expect(JSON.stringify(await soon.json())).toMatch(/too soon/);
   });
 
-  it("marks a dose entered in error, after which it no longer counts", async () => {
-    const r = await send("carer", `/v1/homely-remedy-doses/${firstDose}/entered-in-error`, {
+  it("says before giving whether a dose is within the protocol, recording nothing", async () => {
+    const r = await send("carer", `/v1/people/${ADA}/homely-remedy-doses/check`, {
       method: "POST",
-      body: { id: randomUUID(), reason: "Recorded for the wrong person" },
+      body: { protocolId, quantity: 5 },
+    });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(
+      (await json<{ problems: { problem: string }[] }>(r)).problems.map((p) => p.problem),
+    ).toEqual(["too_soon"]);
+  });
+
+  it("records a dose already given outside the protocol with its flags, escalated urgently", async () => {
+    const noAllergyCheck = await give("carer", { allergiesChecked: false });
+    expect(noAllergyCheck.status).toBe(422);
+    const r = await give("carer", {
+      alreadyGiven: {
+        givenAt: new Date(Date.now() - 60_000).toISOString(),
+        reason: "Given at night before checking the record",
+      },
     });
     expect(r.status, await r.clone().text()).toBe(201);
+    const out = await json<{ id: string; flags: string[] }>(r);
+    expect(out.flags).toEqual(["too_soon"]);
+    const tasks = await asDemo((c) =>
+      c.query("SELECT priority FROM task WHERE source_id = $1", [out.id]),
+    );
+    expect(tasks.rows.map((t) => t.priority)).toEqual(["urgent"]);
+    // It counts like any dose: the next is refused as too soon. Mark it entered in error after.
+    await send("manager", `/v1/homely-remedy-doses/${out.id}/entered-in-error`, {
+      method: "POST",
+      body: { id: randomUUID(), reason: "Test record" },
+    });
+  });
+
+  it("marks a dose entered in error, after which it no longer counts", async () => {
+    const mark = { id: randomUUID(), reason: "Recorded for the wrong person" };
+    const r = await send("carer", `/v1/homely-remedy-doses/${firstDose}/entered-in-error`, {
+      method: "POST",
+      body: mark,
+    });
+    expect(r.status, await r.clone().text()).toBe(201);
+    const again = await send("carer", `/v1/homely-remedy-doses/${firstDose}/entered-in-error`, {
+      method: "POST",
+      body: mark,
+    });
+    expect(again.status).toBe(200);
     const list = await json<{ items: { id: string; enteredInErrorBy: string | null }[] }>(
       await send("manager", `/v1/people/${ADA}/homely-remedy-doses`),
     );
@@ -410,7 +500,13 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
     const para = await json<{ id: string }>(r);
     const given = await send("carer", `/v1/people/${ADA}/homely-remedy-doses`, {
       method: "POST",
-      body: { id: randomUUID(), protocolId: para.id, quantity: 2, reason: "Headache" },
+      body: {
+        id: randomUUID(),
+        protocolId: para.id,
+        quantity: 2,
+        reason: "Headache",
+        allergiesChecked: true,
+      },
     });
     expect(given.status).toBe(422);
     expect(JSON.stringify(await given.json())).toMatch(/has this product prescribed/);
@@ -429,5 +525,15 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
       await send("carer", `/v1/locations/${LOC}/homely-remedies`),
     );
     expect(list.items.find((i) => i.id === protocolId)?.status).toBe("withdrawn");
+    // A replacement protocol for the same product does not start a fresh gap.
+    const replacement = await json<{ id: string }>(
+      await send("manager", `/v1/locations/${LOC}/homely-remedies`, {
+        method: "POST",
+        body: protocol(),
+      }),
+    );
+    const soon = await give("carer", { protocolId: replacement.id });
+    expect(soon.status).toBe(422);
+    expect(JSON.stringify(await soon.json())).toMatch(/too soon/);
   });
 });
