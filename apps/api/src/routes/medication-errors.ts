@@ -832,6 +832,7 @@ export const medicationErrorsRouter = createRouter()
         if (!current) throw problems.notFound();
         if (current.doneOn !== null)
           throw problems.invalid("A review already done is corrected, not cancelled.");
+        requireWrite(await loadPerson(tx, current.personId), "care_plan");
         const row = await reviewChange(tx, () =>
           tx
             .update(medicationReview)

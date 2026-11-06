@@ -19,6 +19,8 @@ const CD_ENTRY = randomUUID();
 const PRN_ENTRY = randomUUID();
 const DOSE = randomUUID();
 const CLOSED = randomUUID();
+/** About Ada, with no incident_person row: restricted to everyone (security review M2). */
+const RESTRICTED = randomUUID();
 /** Fixed dates, so the tests do not depend on the clock (UK midnight, the 1st of the month). */
 const DAY = "2026-10-15";
 const PERIOD = `from=${DAY}&to=${DAY}`;
@@ -79,8 +81,9 @@ beforeAll(async () => {
       `INSERT INTO incident (id, location_id, type, occurred_at, description, raised_by, person_ids)
        VALUES ($1, $3, 'medication', '2026-10-15T18:00:00Z', 'Evening dose given late', $4, $5),
               ($2, $3, 'fall', '2026-10-15T17:00:00Z', 'Slipped in the lounge', $4, $5),
-              ($6, $3, 'medication', '2026-10-15T16:00:00Z', 'Dose missed', $4, $5)`,
-      [INCIDENT, FALL, LOC, DEMO.users.carer.id, [ADA], CLOSED],
+              ($6, $3, 'medication', '2026-10-15T16:00:00Z', 'Dose missed', $4, $5),
+              ($7, $3, 'medication', '2026-10-15T15:00:00Z', 'Dose dropped', $4, $5)`,
+      [INCIDENT, FALL, LOC, DEMO.users.carer.id, [ADA], CLOSED, RESTRICTED],
     );
     for (const incident of [INCIDENT, FALL, CLOSED]) {
       await c.query(
@@ -242,6 +245,22 @@ describe("hazard HZ-131 medication errors on the incident (slice 45)", () => {
       body: { ...blank, version: 9 },
     });
     expect(r.status).toBe(403);
+  });
+
+  it("refuses a restricted incident whole: no read, add or change, and no record in the body", async () => {
+    const read = await send("manager", `/v1/incidents/${RESTRICTED}/medication-error`);
+    expect(read.status).toBe(403);
+    expect(await read.text()).not.toMatch(/Dose dropped|kinds/);
+    const add = await send("manager", `/v1/incidents/${RESTRICTED}/medication-error`, {
+      method: "POST",
+      body: { ...blank, personId: ADA },
+    });
+    expect(add.status).toBe(403);
+    const change = await send("manager", `/v1/incidents/${RESTRICTED}/medication-error`, {
+      method: "PATCH",
+      body: { ...blank, version: 1 },
+    });
+    expect(change.status).toBe(403);
   });
 
   it("refuses details on a closed incident", async () => {
