@@ -190,6 +190,12 @@ export interface TenantAccess {
   /** How long a factor's use counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
   readonly stepUpWindowSeconds: number;
   readonly deviceId: string | null;
+  /**
+   * True only for a bearer (mobile) request naming a device the session was already bound to
+   * before this request and not revoked: the header alone never makes a request an upload
+   * (slice 48 security re-review M1).
+   */
+  readonly deviceBound?: boolean;
   readonly ip: string | null;
   /**
    * True when the session is bound to a device a manager has revoked: only its device report gets
@@ -491,6 +497,7 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     stepUpFresh: factor.stepUpFresh,
     stepUpWindowSeconds: services.config.STEP_UP_WINDOW_SECONDS,
     deviceId,
+    deviceBound: deviceId !== null && sessionBound && !onRevokedDevice && bearerRequest(c),
     ip: clientIp(c),
     ...(onRevokedDevice ? { sessionOnRevokedDevice: true } : {}),
   };

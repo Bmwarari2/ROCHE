@@ -215,10 +215,11 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
   });
 
   it("refuses a controlled drug from someone without medicines.cd.administer, and one taken by the person themselves", async () => {
-    const round = await json<{ doses: { entryId: string; dueAt: string }[] }>(
+    const round = await json<{ doses: { entryId: string; dueAt: string; state: string }[] }>(
       await send("manager", `/v1/people/${ADA}/medicine-round`),
     );
-    const dueAt = round.doses.find((d) => d.entryId === entryId)?.dueAt;
+    // Today's dose: the round also carries any earlier dose still late (medicines.md 15.1).
+    const dueAt = round.doses.find((d) => d.entryId === entryId && d.state !== "late")?.dueAt;
     const carer = await send("carer", `/v1/people/${ADA}/medicine-administrations`, {
       method: "POST",
       body: {
@@ -248,10 +249,11 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
   });
 
   it("records a controlled drug given with its register entry, witnessed, in one transaction", async () => {
-    const round = await json<{ doses: { entryId: string; dueAt: string }[] }>(
+    const round = await json<{ doses: { entryId: string; dueAt: string; state: string }[] }>(
       await send("manager", `/v1/people/${ADA}/medicine-round`),
     );
-    const dueAt = round.doses.find((d) => d.entryId === entryId)?.dueAt;
+    // Today's dose: the round also carries any earlier dose still late (medicines.md 15.1).
+    const dueAt = round.doses.find((d) => d.entryId === entryId && d.state !== "late")?.dueAt;
     const id = randomUUID();
     const give = (controlledDrug: unknown) =>
       send("manager", `/v1/people/${ADA}/medicine-administrations`, {

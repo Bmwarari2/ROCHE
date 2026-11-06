@@ -45095,6 +45095,27 @@
           "withheld"
         ]
       },
+      "AdministrationConflictRaised": {
+        "type": "object",
+        "properties": {
+          "conflictId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "standingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "conflictId",
+          "standingId",
+          "message"
+        ]
+      },
       "RecordAdministration": {
         "type": "object",
         "properties": {
@@ -45449,6 +45470,9 @@
                   "type": "string",
                   "format": "uuid"
                 },
+                "productName": {
+                  "type": "string"
+                },
                 "dueAt": {
                   "type": "string",
                   "format": "date-time"
@@ -45459,6 +45483,23 @@
                 },
                 "time": {
                   "type": "string"
+                },
+                "dayName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "clockChange": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "time_skipped",
+                    "time_repeated",
+                    null
+                  ]
                 },
                 "doseInWords": {
                   "type": "string"
@@ -45477,6 +45518,15 @@
                 },
                 "stateInWords": {
                   "type": "string"
+                },
+                "reviewPending": {
+                  "type": "boolean"
+                },
+                "reviewInWords": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "opensAt": {
                   "type": "string",
@@ -45517,13 +45567,18 @@
               },
               "required": [
                 "entryId",
+                "productName",
                 "dueAt",
                 "date",
                 "time",
+                "dayName",
+                "clockChange",
                 "doseInWords",
                 "timeCritical",
                 "state",
                 "stateInWords",
+                "reviewPending",
+                "reviewInWords",
                 "opensAt",
                 "lateAfter",
                 "notices",
@@ -45539,6 +45594,9 @@
                 "entryId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "productName": {
+                  "type": "string"
                 },
                 "lastGiven": {
                   "type": [
@@ -45595,6 +45653,7 @@
               },
               "required": [
                 "entryId",
+                "productName",
                 "lastGiven",
                 "givenInLast24Hours",
                 "maxPer24Hours",
@@ -46413,6 +46472,533 @@
         "required": [
           "counted",
           "witness"
+        ]
+      },
+      "LocationMedicineRound": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "room": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "doses": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "entryId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "productName": {
+                        "type": "string"
+                      },
+                      "dueAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "date": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "time": {
+                        "type": "string"
+                      },
+                      "dayName": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "clockChange": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "time_skipped",
+                          "time_repeated",
+                          null
+                        ]
+                      },
+                      "doseInWords": {
+                        "type": "string"
+                      },
+                      "timeCritical": {
+                        "type": "boolean"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "not_yet_due",
+                          "due",
+                          "late",
+                          "recorded"
+                        ]
+                      },
+                      "stateInWords": {
+                        "type": "string"
+                      },
+                      "reviewPending": {
+                        "type": "boolean"
+                      },
+                      "reviewInWords": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "opensAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lateAfter": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "notices": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "entryStatus": {
+                        "type": "object",
+                        "properties": {
+                          "words": {
+                            "type": "string"
+                          },
+                          "mayGive": {
+                            "type": "boolean"
+                          },
+                          "notice": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "words",
+                          "mayGive",
+                          "notice"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "entryId",
+                      "productName",
+                      "dueAt",
+                      "date",
+                      "time",
+                      "dayName",
+                      "clockChange",
+                      "doseInWords",
+                      "timeCritical",
+                      "state",
+                      "stateInWords",
+                      "reviewPending",
+                      "reviewInWords",
+                      "opensAt",
+                      "lateAfter",
+                      "notices",
+                      "entryStatus"
+                    ]
+                  }
+                },
+                "whenRequired": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "entryId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "productName": {
+                        "type": "string"
+                      },
+                      "lastGiven": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "by": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "synced": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "by",
+                          "synced"
+                        ]
+                      },
+                      "givenInLast24Hours": {
+                        "type": "number"
+                      },
+                      "maxPer24Hours": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "remaining": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "nextAllowedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "notices": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "entryId",
+                      "productName",
+                      "lastGiven",
+                      "givenInLast24Hours",
+                      "maxPer24Hours",
+                      "remaining",
+                      "nextAllowedAt",
+                      "notices"
+                    ]
+                  }
+                },
+                "unavailable": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "personId",
+                "room",
+                "doses",
+                "whenRequired",
+                "unavailable"
+              ]
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "people"
+        ]
+      },
+      "AdministrationConflictList": {
+        "type": "object",
+        "properties": {
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdministrationConflict"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "conflicts",
+          "truncated"
+        ]
+      },
+      "AdministrationConflict": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "standing": {
+            "$ref": "#/components/schemas/Administration"
+          },
+          "uploaded": {
+            "$ref": "#/components/schemas/UploadedAdministration"
+          },
+          "joined": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadedAdministration"
+            }
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deviceAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolution": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "first_stands",
+                  "corrected",
+                  "both_given"
+                ]
+              },
+              "correctionId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "note": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "outcome",
+              "correctionId",
+              "note",
+              "by",
+              "at"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "entryId",
+          "dueAt",
+          "standing",
+          "uploaded",
+          "joined",
+          "problems",
+          "deviceAt",
+          "uploadedBy",
+          "receivedAt",
+          "resolution"
+        ]
+      },
+      "UploadedAdministration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AdministrationOutcome"
+          },
+          "amount": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "quantity": {
+                "type": "number"
+              },
+              "unitCode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "quantity",
+              "unitCode"
+            ]
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "note"
+            ]
+          },
+          "givenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "timingReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amountDifferenceReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "givenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "givenBeforeRecordedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deviceAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "outcome",
+          "amount",
+          "reason",
+          "givenAt",
+          "timingReason",
+          "amountDifferenceReason",
+          "givenBy",
+          "givenBeforeRecordedReason",
+          "problems",
+          "deviceAt",
+          "uploadedBy",
+          "receivedAt"
+        ]
+      },
+      "ResolveAdministrationConflict": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "first_stands",
+              "corrected",
+              "both_given"
+            ]
+          },
+          "correctionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "outcome",
+          "note"
         ]
       },
       "SubProcessorOverview": {
@@ -107967,6 +108553,16 @@
               }
             }
           },
+          "202": {
+            "description": "A device's second record of a dose already recorded: kept for the nurse in charge to review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationConflictRaised"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Not signed in",
             "content": {
@@ -109148,6 +109744,365 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StockCheckRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/medicine-round": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "The medicines round for a location in a time slot",
+        "description": "For each person living at the location whom you may see: the scheduled doses in the slot (at most 12 hours) with their state in words, time-critical first, and each when-required medicine with when it was last given. People by room, then name. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The round",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationMedicineRound"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-administration-conflicts": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Conflicts for the nurse in charge to review",
+        "description": "A device's second record of a dose already recorded, with the record that stands. Open ones by default. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "personId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "all",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationConflictList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-administration-conflicts/{id}": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A conflict: both records side by side",
+        "description": "Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationConflict"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-administration-conflicts/{id}/resolve": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Resolve a conflict: the record that stands, or the correction made",
+        "description": "With medicines.record.manage. first_stands: the record on the server stands and the upload was the same dose sent twice. corrected: the record was corrected through the corrections route, naming the correction, which must supersede the record that stood and be made after the upload. both_given: the dose was given twice; a medication incident is raised. Resolved once, with why; its task is closed. Audited, refusals included.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveAdministrationConflict"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resolved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationConflict"
                 }
               }
             }

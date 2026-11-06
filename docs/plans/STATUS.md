@@ -172,6 +172,44 @@ and API routes (suspend, end, erase the sign-in), held in the database by migrat
 (`app.change_membership`, a restrictive policy and a guard trigger on `tenant_user`, the last user
 manager kept); its web screens and a reinstate route are still to build.
 
+**Phase 2 slice 48, rounds, escalation and conflict review** (`feat/meds-rounds`, MEDS-002, from
+slice 34 with #162's final head (559440bb) merged in): migration 0134 adds
+`medication_administration_conflict`. The API gives the round for a location by time slot (late
+doses first, earlier late doses included, time-critical first, when-required medicines with when
+last given), keeps a bound device's second record of a dose as a conflict with an urgent review
+task when it matters, and lets the nurse in charge resolve it once (`first_stands`, `corrected` or
+`both_given`, which raises a medication incident). Outstanding doses escalate through the existing
+worker job and reach the shift handover as tasks. The API supplies `competenceAtRecording` and the
+delay tolerance to #162's rules. 0134 also restores 0099's sample-removal tables (H-1278). API only;
+screens are slice 53. Next for medicines: slice 50 (printable page), slice 28, slice 53. Open:
+H-1270 to H-1279.
+
+**Phase 2 slice 34, the controlled drugs register** (`feat/meds-cd-register`, MEDS-005, from
+slice 22 with #162's latest head merged in): migration 0128 adds pages, append-only entries with the
+running balance checked by the database, witness signatures (the witness's own step-up, for the
+recorder and what they watched, used once) and stock checks; a count that does not balance raises a
+medication incident through the safety module. A controlled drug given writes its register entry
+with the administration; corrections are margin entries. Next for medicines: slice 50 (printable
+page), slice 28, slice 48 and the screens. Open: H-1200 to H-1209.
+
+**Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
+with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
+UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the
+MAR entry. The API runs `checkAdministration` and `checkCorrection` on every record under the
+person's lock, at the server's time; a dose recorded after it was given needs an earlier time, a
+reason and the recorder's competence, and is always flagged and escalated. Escalations and
+outstanding doses become tasks for the nurse in charge. The round stream is a contract until slice
+68. Also fixed slice 16's weekly schedules (weekday codes). Next for medicines: slice 17's
+competence port, slice 28 (PRN protocols), slice 34 (controlled drugs), slice 48 (escalation
+chain) and the screens. Open: H-1160 to H-1168.
+
+**Phase 2 slice 16, the medicines record and reconciliation** (`feat/meds-record-schema`, MEDS-001):
+migration 0111 and the API on the slice 2 rules (transcribe, change, check, stop, the MAR for a
+cycle, and reconciliation applied in one transaction, completing a return's medicines check). dm+d
+codes are stored by shape until slice 10 (a test asks for the foreign key once a VMP table exists);
+competence and dm+d facts are ports that fail closed in production until slices 17 and 10. Next for
+medicines: slice 10's reference data and the foreign key (expand step), slice 17's competence port,
+then the screens (slice 52). Open: H-1020, H-1022 to H-1025 (CSO), H-1021 (DPO).
 **Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
 while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or
 security change rather than a web one:

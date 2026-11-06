@@ -41,7 +41,7 @@ import {
 } from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
-import { raiseCdDiscrepancyIncident } from "../services/cd-incidents";
+import { raiseCdDiscrepancyIncident, raiseDoubleDoseIncident } from "../services/cd-incidents";
 import { raiseDataSecurityReminders } from "../services/data-security";
 import {
   draftDeathNotifications,
@@ -530,7 +530,20 @@ export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promis
  */
 export async function escalateOutstandingDoses(deps: TaskDeps, now = new Date()): Promise<number> {
   const raised = await eachTenant(deps, "medicines-outstanding-doses", (tx, tenantId) =>
-    raiseOutstandingDoseTasks(tx, tenantId, now),
+    raiseOutstandingDoseTasks(tx, tenantId, now, (personId, error) =>
+      // Opaque ids and the error's kind only (HZ-003).
+      // The operator's failed-job alarm counts it, with the database code (review item 1).
+      deps.logger.error(
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: "medicines-outstanding-doses",
+          tenantId,
+          personId,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
+      ),
+    ),
   );
   if (raised > 0) deps.logger.info({ raised }, "outstanding dose tasks raised");
   return raised;
@@ -1036,8 +1049,27 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       ),
     );
   };
+  // A dose found given twice in conflict review raises a medication incident (HZ-004; slice 48).
+  const raiseDoubleDose: OutboxHandler = async (event) => {
+    const p = event.payload as Record<string, unknown> | null;
+    const fields = ["conflictId", "personId", "locationId", "resolvedBy", "occurredAt"] as const;
+    // A malformed event fails, so it is retried and then dead-lettered, never marked done with no
+    // incident raised (re-review L2).
+    if (!p || fields.some((f) => typeof p[f] !== "string")) {
+      throw new Error("medicines.administration.double_dose: malformed payload");
+    }
+    await inTenant(event.tenantId, (tx) =>
+      raiseDoubleDoseIncident(
+        tx,
+        event.tenantId,
+        p as Parameters<typeof raiseDoubleDoseIncident>[2],
+        new Date(),
+      ),
+    );
+  };
   const handlers = new Map<string, OutboxHandler>([
     ["medicines.cd.stock_discrepancy", raiseCdIncident],
+    ["medicines.administration.double_dose", raiseDoubleDose],
     ["platform.export.downloaded", deleteArchive],
     ["platform.export.revoked", deleteArchive],
     ["platform.document.destroyed", deleteDestroyedDocument],

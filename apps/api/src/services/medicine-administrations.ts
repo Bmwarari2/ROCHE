@@ -1,5 +1,6 @@
 import type { AdministrationOut, DosingRecordOut } from "@harbour/contracts";
 import {
+  auditEvent,
   medication,
   medicationAdministration,
   medicationAdministrationWitness,
@@ -358,10 +359,15 @@ export async function closeOutstandingDoseTask(
  * charge, time-critical doses urgent, never twice. The dose stays outstanding until someone
  * records what happened; nothing makes it due again.
  */
+/** One person's missed doses could not be checked by the job (HZ-003, slice 48). */
+export const DOSE_CHECK_FAILED_TASK = "medicines.dose.check_failed";
+const DOSE_CHECK_FAILED_ACTION = "medicines.dose_check.failed";
+
 export async function raiseOutstandingDoseTasks(
   tx: Transaction,
   tenantId: string,
   now: Date,
+  onFailure: (personId: string, error: unknown) => void = () => {},
 ): Promise<number> {
   const people = await tx
     .selectDistinct({ personId: medication.personId })
@@ -376,55 +382,118 @@ export async function raiseOutstandingDoseTasks(
     if (!person || isClosedRecord(person.status as PersonStatus) || person.status !== "active") {
       continue;
     }
-    // Serialised with recording, so a dose recorded meanwhile is seen (security review L7).
-    await lockPerson(tx, personId);
-    const rates =
-      ratesByNation.get(person.nation) ??
-      (await medicinesRates(tx, tenantId, person.nation, ukIsoDate(now)));
-    ratesByNation.set(person.nation, rates);
-    const entries = (await personEntries(tx, personId)).map((s) => s.entry);
-    const recorded = effective(await personAdministrations(tx, personId));
-    for (const entry of entries) {
-      const versionIds = entryVersionIds(entry, entries);
-      // Three days back, so a worker outage of a day or two still escalates what it missed.
-      const doses = marEntryDoses(entry, { from: new Date(now.getTime() - LOOKBACK_MS), to: now });
-      for (const dose of doses) {
-        const window = doseWindow(dose.dueAt, isTimeCritical(entry), rates);
-        if (escalationAt(window).getTime() > now.getTime()) continue;
-        const done = recorded.some(
-          (r) => versionIds.has(r.medicationId) && r.dueAt?.getTime() === dose.dueAt.getTime(),
-        );
-        if (done) continue;
-        const [already] = await tx
-          .select({ id: task.id })
-          .from(task)
-          .where(
-            and(
-              eq(task.kind, OUTSTANDING_DOSE_TASK),
-              eq(task.sourceType, "medication"),
-              inArray(task.sourceId, [...versionIds]),
-              eq(task.dueAt, dose.dueAt),
-            ),
-          )
-          .limit(1);
-        if (already) continue;
-        await tx.insert(task).values({
-          kind: OUTSTANDING_DOSE_TASK,
-          title: window.timeCritical
-            ? "A time-critical dose has no outcome: find out what happened and record it"
-            : "A dose has no outcome: find out what happened and record it",
-          requiredPermission: "medicines.emar.administer",
-          personId,
-          locationId: person.locationId,
-          sourceType: "medication",
-          sourceId: entry.id,
-          assigneeRoleKey: "clinical_lead",
-          dueAt: dose.dueAt,
-          windowEnd: window.lateAfter,
-          priority: window.timeCritical ? "urgent" : "routine",
-          details: { dueAt: dose.dueAt.toISOString(), timeCritical: window.timeCritical },
+    // Each person in a savepoint: one person whose doses cannot be worked out (no rates for their
+    // nation, an unreadable schedule) never stops the tasks for anyone else (HZ-003, slice 48).
+    try {
+      raised += await tx.transaction(async (sp) => {
+        let count = 0;
+        // Serialised with recording, so a dose recorded meanwhile is seen (security review L7).
+        await lockPerson(sp, personId);
+        const rates =
+          ratesByNation.get(person.nation) ??
+          (await medicinesRates(sp, tenantId, person.nation, ukIsoDate(now)));
+        ratesByNation.set(person.nation, rates);
+        const entries = (await personEntries(sp, personId)).map((s) => s.entry);
+        const recorded = effective(await personAdministrations(sp, personId));
+        for (const entry of entries) {
+          const versionIds = entryVersionIds(entry, entries);
+          // Three days back, so a worker outage of a day or two still escalates what it missed.
+          const doses = marEntryDoses(entry, {
+            from: new Date(now.getTime() - LOOKBACK_MS),
+            to: now,
+          });
+          for (const dose of doses) {
+            const window = doseWindow(dose.dueAt, isTimeCritical(entry), rates);
+            if (escalationAt(window).getTime() > now.getTime()) continue;
+            const done = recorded.some(
+              (r) => versionIds.has(r.medicationId) && r.dueAt?.getTime() === dose.dueAt.getTime(),
+            );
+            if (done) continue;
+            const [already] = await sp
+              .select({ id: task.id })
+              .from(task)
+              .where(
+                and(
+                  eq(task.kind, OUTSTANDING_DOSE_TASK),
+                  eq(task.sourceType, "medication"),
+                  inArray(task.sourceId, [...versionIds]),
+                  eq(task.dueAt, dose.dueAt),
+                ),
+              )
+              .limit(1);
+            if (already) continue;
+            await sp.insert(task).values({
+              kind: OUTSTANDING_DOSE_TASK,
+              title: window.timeCritical
+                ? "A time-critical dose has no outcome: find out what happened and record it"
+                : "A dose has no outcome: find out what happened and record it",
+              requiredPermission: "medicines.emar.administer",
+              personId,
+              locationId: person.locationId,
+              sourceType: "medication",
+              sourceId: entry.id,
+              assigneeRoleKey: "clinical_lead",
+              dueAt: dose.dueAt,
+              windowEnd: window.lateAfter,
+              priority: window.timeCritical ? "urgent" : "routine",
+              details: { dueAt: dose.dueAt.toISOString(), timeCritical: window.timeCritical },
+            });
+            count += 1;
+          }
+        }
+        return count;
+      });
+    } catch (error) {
+      onFailure(personId, error);
+      // A person looks instead: one open task per person, so the job stays idempotent. In its own
+      // savepoint, so a failure here never rolls back everyone else's tasks (review item 2).
+      try {
+        raised += await tx.transaction(async (sp) => {
+          const [open] = await sp
+            .select({ id: task.id })
+            .from(task)
+            .where(
+              and(
+                eq(task.kind, DOSE_CHECK_FAILED_TASK),
+                eq(task.sourceId, personId),
+                inArray(task.status, ["open", "in_progress"]),
+              ),
+            )
+            .limit(1);
+          if (open) return 0;
+          await sp.insert(task).values({
+            kind: DOSE_CHECK_FAILED_TASK,
+            title:
+              "This person's missed doses could not be checked: look at their MAR chart for the last three days now",
+            requiredPermission: "medicines.emar.administer",
+            personId,
+            locationId: person.locationId,
+            sourceType: "person",
+            sourceId: personId,
+            assigneeRoleKey: "clinical_lead",
+            dueAt: now,
+            priority: "urgent",
+            details: { from: new Date(now.getTime() - LOOKBACK_MS).toISOString() },
+          });
+          // Audited when the task is raised, as a failure, and never able to block the task.
+          try {
+            await sp.transaction((audit) =>
+              audit.insert(auditEvent).values({
+                tenantId,
+                action: DOSE_CHECK_FAILED_ACTION,
+                outcome: "error",
+                resourceType: "person",
+                resourceId: personId,
+                scope: { job: "medicines-outstanding-doses" },
+              }),
+            );
+          } catch (auditError) {
+            onFailure(personId, auditError);
+          }
+          return 1;
         });
-        raised += 1;
+      } catch (fallbackError) {
+        onFailure(personId, fallbackError);
       }
     }
   }

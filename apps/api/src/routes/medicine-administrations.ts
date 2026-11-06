@@ -4,6 +4,7 @@ import {
   AdministrationRecorded,
   AdministrationsQuery,
   CheckDosingRecord,
+  ConflictRaised,
   CorrectAdministration,
   DosingRecordList,
   DosingRecordOut,
@@ -29,20 +30,12 @@ import {
   checkAdministration,
   checkCorrection,
   checkDosingRecord,
-  doseNotices,
-  doseWindow,
   driftCorrectedTime,
   entryVersionIds,
-  formatDose,
-  isTimeCritical,
   type MarEntry,
   type MedicinesCompetence,
   marEntryDoses,
-  marEntryStatus,
-  prnStatus,
   recordDosingRecord,
-  SCHEDULED_DOSE_WORDS,
-  scheduledDoseState,
   ukIsoDate,
   variableDoseFor,
 } from "@harbour/domain";
@@ -82,6 +75,12 @@ import {
   supersededBy,
   witnessesFor,
 } from "../services/medicine-administrations";
+import {
+  conflictForClientRecord,
+  pendingConflicts,
+  raiseConflict,
+  roundFor,
+} from "../services/medicine-rounds";
 import {
   guardConcurrent,
   lockPerson,
@@ -153,7 +152,7 @@ async function competenceOf(
 }
 
 /** What the rules need about the person, read under their lock. */
-async function factsFor(tx: Transaction, personId: string, tenantId: string, now: Date) {
+export async function factsFor(tx: Transaction, personId: string, tenantId: string, now: Date) {
   const person = await loadPerson(tx, personId);
   const stored = await personEntries(tx, personId);
   const entries = stored.map((s) => s.entry);
@@ -404,6 +403,10 @@ export const medicineAdministrationsRouter = createRouter()
       responses: {
         200: jsonBody(AdministrationRecorded, "Already recorded with this id"),
         201: jsonBody(AdministrationRecorded, "Recorded"),
+        202: jsonBody(
+          ConflictRaised,
+          "A device's second record of a dose already recorded: kept for the nurse in charge to review",
+        ),
         ...errorResponses,
         ...notFoundResponse,
         ...conflictResponse,
@@ -438,6 +441,23 @@ export const medicineAdministrationsRouter = createRouter()
             }
             return { status: 200 as const, administration: await outFor(tx, resent, facts.rows) };
           }
+          // A device's upload is never dropped: a resend of a record kept as a conflict finds it.
+          // Only a bearer request from a device the session was already bound to counts as an
+          // upload (security review H1, re-review M1), and any request with a kept record's id
+          // finds that conflict (L5).
+          const upload = access.deviceBound === true;
+          const kept = await conflictForClientRecord(tx, body.id, {
+            personId,
+            entryId: body.entryId,
+            dueAt: body.dueAt,
+            outcome: body.outcome,
+          });
+          if (kept === "mismatch") {
+            throw problems.conflict(
+              "This record id cannot be used. Read the record again and resend.",
+            );
+          }
+          if (kept) return { status: 202 as const, conflict: kept };
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
           // A controlled drug given moves stock: its register entry is written with the record, with
@@ -464,12 +484,16 @@ export const medicineAdministrationsRouter = createRouter()
           // recorded after it was given carries its own time, which slice 3's rules require to be
           // before the server's (#162); devices send theirs from slice 68 (security review M1).
           const gbr = body.givenBeforeRecorded;
-          if (!gbr && (body.givenAt || body.givenBy)) {
+          // Only a dose recorded after the event names another giver. A round record may carry the
+          // time it happened, up to `medicines.record_delay_tolerance_minutes` earlier (#162's
+          // rules refuse older ones and judge every record at the time given and when recorded,
+          // so a typed time cannot hide a flag); never a time to come.
+          if (!gbr && body.givenBy) {
             throw deny([
               {
-                problem: "given_at_only_after_giving",
+                problem: "given_by_only_after_giving",
                 message:
-                  "On the round a dose is recorded at the time it is given. If it was given earlier, record it as given before it was recorded, with why.",
+                  "Name who gave it only when recording a dose after it was given, with why.",
               },
             ]);
           }
@@ -479,18 +503,25 @@ export const medicineAdministrationsRouter = createRouter()
           let at = now;
           let deviceAt: Date | null = null;
           let drifted = false;
-          if (gbr && body.givenAt) {
+          if (body.givenAt) {
             deviceAt = new Date(body.givenAt);
             const corrected = driftCorrectedTime(deviceAt, body.deviceOffsetMs, facts.rates);
             at = corrected.at;
             drifted = corrected.drifted;
+          }
+          if (at.getTime() > now.getTime() + facts.rates.clockDriftMinutes * 60_000) {
+            throw deny([
+              { problem: "given_at_in_future", message: "Record what has happened, at its time." },
+            ]);
           }
           // Who gave it: the recorder, or (recorded after giving) the member named, whose
           // competence then the rules check; the recorder's competence now is checked too.
           const giverId = gbr ? (body.givenBy ?? access.tenantUserId) : access.tenantUserId;
           const giver = {
             id: giverId,
-            ...(gbr ? await competenceOf(c, access.tenantId, giverId, at) : me),
+            ...(at.getTime() !== now.getTime()
+              ? await competenceOf(c, access.tenantId, giverId, at)
+              : me),
           };
           const { input, versionIds } = inputFor({
             personId,
@@ -500,9 +531,12 @@ export const medicineAdministrationsRouter = createRouter()
             at,
             recordedAt: now,
             administrator: giver,
-            competenceAtRecording: await c
-              .get("services")
-              .medicines.competence.forMember(access.tenantId, giver.id, now),
+            competenceAtRecording:
+              giverId === access.tenantUserId
+                ? me.competence
+                : await c
+                    .get("services")
+                    .medicines.competence.forMember(access.tenantId, giverId, now),
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,
@@ -518,7 +552,36 @@ export const medicineAdministrationsRouter = createRouter()
               : null,
           });
           const checked = checkAdministration(input, facts.rates);
-          if (!checked.ok) throw deny(checked.issues);
+          if (!checked.ok) {
+            // Two devices recorded the same dose offline: the second is kept for review, never
+            // silently dropped (medicines.md 15.4; HZ-004).
+            const standing =
+              upload && input.dueAt && checked.issues.some((x) => x.problem === "already_recorded")
+                ? effective(facts.rows).find(
+                    (r) =>
+                      versionIds.has(r.medicationId) &&
+                      r.dueAt?.getTime() === (input.dueAt as Date).getTime(),
+                  )
+                : undefined;
+            if (standing) {
+              const conflict = await raiseConflict(c, tx, access, {
+                personId,
+                locationId: facts.person.locationId,
+                clientRecordId: body.id,
+                entry,
+                dueAt: input.dueAt as Date,
+                standing,
+                // The whole record as the device sent it, for the nurse in charge (clinical M7).
+                uploaded: body,
+                problems: checked.issues.map((x) => x.problem),
+                deviceAt,
+                deviceOffsetMs: body.deviceOffsetMs,
+                rates: facts.rates,
+              });
+              return { status: 202 as const, conflict };
+            }
+            throw deny(checked.issues);
+          }
           const { stored, escalations } = await store(c, tx, access, {
             id: body.id,
             personId,
@@ -530,7 +593,8 @@ export const medicineAdministrationsRouter = createRouter()
             escalations: checked.escalations,
             givenBeforeRecordedReason: gbr?.reason ?? null,
             deviceAt,
-            deviceOffsetMs: gbr ? body.deviceOffsetMs : null,
+            // The offset used whenever the request carried its own time (clinical M6).
+            deviceOffsetMs: body.givenAt ? body.deviceOffsetMs : null,
             administeredBy: giverId,
             overrides: checked.flags.includes("competence_override")
               ? [giver.override, gbr ? me.override : null].filter(
@@ -567,6 +631,7 @@ export const medicineAdministrationsRouter = createRouter()
           };
         }),
       );
+      if (result.status === 202) return c.json(result.conflict, 202);
       return c.json(
         { administration: result.administration, escalations: result.escalations ?? [] },
         result.status,
@@ -668,7 +733,7 @@ export const medicineAdministrationsRouter = createRouter()
             administrator: giver,
             competenceAtRecording: await c
               .get("services")
-              .medicines.competence.forMember(access.tenantId, giver.id, now),
+              .medicines.competence.forMember(access.tenantId, giverId, now),
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,
@@ -941,70 +1006,16 @@ export const medicineAdministrationsRouter = createRouter()
       const at = query.at ? new Date(query.at) : now;
       const out = await withTenant(c, async (tx) => {
         const facts = await factsFor(tx, personId, access.tenantId, at);
-        const eff = effective(facts.rows);
-        const history = givenDoses(facts.rows, facts.byId);
         const range = {
           from: new Date(at.getTime() - 12 * HOUR_MS),
           to: new Date(at.getTime() + 12 * HOUR_MS),
         };
-        const doses = facts.entries
-          .flatMap((entry) => {
-            const versionIds = entryVersionIds(entry, facts.entries);
-            const status = marEntryStatus(entry, at, UNCHECKED_POLICY);
-            return marEntryDoses(entry, range).map((d) => {
-              const window = doseWindow(d.dueAt, isTimeCritical(entry), facts.rates);
-              const recorded = eff.some(
-                (r) => versionIds.has(r.medicationId) && r.dueAt?.getTime() === d.dueAt.getTime(),
-              );
-              const state = scheduledDoseState(window, recorded, now);
-              return {
-                entryId: entry.id,
-                dueAt: d.dueAt.toISOString(),
-                date: d.date,
-                time: d.time,
-                doseInWords: formatDose(d.dose),
-                timeCritical: window.timeCritical,
-                state,
-                stateInWords: SCHEDULED_DOSE_WORDS[state],
-                opensAt: window.opensAt.toISOString(),
-                lateAfter: window.lateAfter.toISOString(),
-                notices: [...doseNotices(entry, facts.rates)],
-                entryStatus: status,
-              };
-            });
-          })
-          .sort((a, b) => a.dueAt.localeCompare(b.dueAt));
-        const whenRequired = facts.entries
-          .filter(
-            (e) =>
-              e.directions.kind === "when_required" &&
-              e.withdrawn === null &&
-              marEntryStatus(e, at, UNCHECKED_POLICY).mayGive,
-          )
-          .map((entry) => {
-            const s = prnStatus(
-              entry,
-              entryVersionIds(entry, facts.entries),
-              history,
-              at,
-              facts.rates,
-            );
-            return {
-              entryId: entry.id,
-              lastGiven: s.lastGiven
-                ? {
-                    at: s.lastGiven.at.toISOString(),
-                    by: s.lastGiven.by,
-                    synced: s.lastGiven.synced,
-                  }
-                : null,
-              givenInLast24Hours: s.givenInLast24Hours,
-              maxPer24Hours: s.maxPer24Hours,
-              remaining: s.remaining,
-              nextAllowedAt: s.nextAllowedAt?.toISOString() ?? null,
-              notices: [...s.notices],
-            };
-          });
+        const { doses, whenRequired } = roundFor(
+          { ...facts, pending: await pendingConflicts(tx, personId) },
+          range,
+          at,
+          now,
+        );
         await audit(c, tx, access, {
           action: "medicines.administration.viewed",
           resourceType: "person",
@@ -1205,7 +1216,7 @@ export const medicineAdministrationsRouter = createRouter()
   );
 
 /** Whether the entry's dm+d product is a controlled drug (its schedule comes from slice 10). */
-async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {
+export async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {
   const [row] = await tx
     .select({ cd: medication.cdSchedule })
     .from(medication)
