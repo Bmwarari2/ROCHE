@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { medsRecentDays } from "../src/client/window";
+import { medsRecentDays, medsRecentMonths } from "../src/client/window";
 import { readSyncConfig, type SyncTokenClaims } from "../src/streams/index";
 import { compile, ids, type SourceRows, syncFor } from "./support/simulator";
 
@@ -22,6 +22,7 @@ const NORTH = "loc-a-north";
 const SOUTH = "loc-a-south";
 const NOW = new Date("2026-11-06T10:00:00Z");
 const DAYS = medsRecentDays(NOW);
+const MONTHS = medsRecentMonths(NOW);
 
 const person = (id: string, tenant: string, location: string, status = "active") => ({
   id,
@@ -64,10 +65,19 @@ const medication = (id: string, tenant: string, personId: string, state = "check
   deleted_at: null,
 });
 
+const HOMES: Record<string, string> = {
+  ada: NORTH,
+  bea: NORTH,
+  cal: NORTH,
+  dee: SOUTH,
+  eve: NORTH,
+};
+
 const administration = (id: string, tenant: string, personId: string, recordedAt: string) => ({
   id,
   tenant_id: tenant,
   person_id: personId,
+  location_id: HOMES[personId] ?? null,
   medication_id: "m-ada",
   due_at: recordedAt,
   outcome: "given",
@@ -285,6 +295,8 @@ const source: SourceRows = {
     administration("a-ada-two-days", A, "ada", "2026-11-04 08:00:00+00"),
     administration("a-ada-month", A, "ada", "2026-10-03 08:00:00+00"),
     administration("a-ada-old", A, "ada", "2026-10-02 23:59:00+00"),
+    administration("a-ada-september", A, "ada", "2026-09-30 23:59:00+00"),
+    administration("a-dee-today", A, "dee", "2026-11-06 08:00:00+00"),
     administration("a-bea-today", A, "bea", "2026-11-06 08:00:00+00"),
     administration("a-eve-today", B, "eve", "2026-11-06 08:00:00+00"),
   ],
@@ -345,6 +357,7 @@ const claims = (overrides: Partial<SyncTokenClaims> = {}): Partial<SyncTokenClai
   meds_location_ids: [],
   meds_assigned: true,
   meds_recent_days: DAYS,
+  meds_recent_months: MONTHS,
   ...overrides,
 });
 
@@ -386,14 +399,35 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     ]);
   });
 
-  it("gives administrations recorded on the token's days only (35 UTC days, for monthly medicines)", async () => {
+  it("gives an assigned person's administrations recorded in the token's months (covering the 35 days)", async () => {
     const device = await syncFor(hydrated, source, claims());
     expect(ids(device, "medication_administration")).toEqual([
       "a-ada-month",
+      "a-ada-old",
       "a-ada-today",
       "a-ada-two-days",
     ]);
-    const none = await syncFor(hydrated, source, claims({ meds_recent_days: [] }));
+    const none = await syncFor(hydrated, source, claims({ meds_recent_months: [] }));
+    expect(ids(none, "medication_administration")).toEqual([]);
+  });
+
+  it("gives the administrations at the token's homes recorded on the token's days, by the row's own home", async () => {
+    const device = await syncFor(
+      hydrated,
+      source,
+      claims({ sub: "nurse", meds_assigned: false, meds_location_ids: [SOUTH] }),
+    );
+    expect(ids(device, "medication_administration")).toEqual(["a-dee-today"]);
+    const none = await syncFor(
+      hydrated,
+      source,
+      claims({
+        sub: "nurse",
+        meds_assigned: false,
+        meds_location_ids: [SOUTH],
+        meds_recent_days: [],
+      }),
+    );
     expect(ids(none, "medication_administration")).toEqual([]);
   });
 
@@ -445,6 +479,7 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       meds_assigned: true,
       meds_location_ids: [NORTH, SOUTH],
       meds_recent_days: ["2026-11-01"],
+      meds_recent_months: ["2026-09"],
       tenant_id: B,
     });
     expect(ids(device, "medication")).toEqual([
@@ -456,6 +491,7 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     ]);
     expect(ids(device, "medication_administration")).toEqual([
       "a-ada-month",
+      "a-ada-old",
       "a-ada-today",
       "a-ada-two-days",
     ]);
@@ -482,6 +518,32 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       // One bucket per person in scope (at most four people here), whatever the versions.
       expect(meds.length).toBeLessThanOrEqual(4);
     }
+  });
+
+  it("keeps the administrations buckets per home and day, or per assigned person and month, at a 120-bed home (ADR-0130)", async () => {
+    const beds = Array.from({ length: 120 }, (_, i) => person(`r${i}`, A, NORTH));
+    const big: SourceRows = {
+      person: beds,
+      person_assignment: beds.map((p, i) => ({
+        id: `ra${i}`,
+        tenant_id: A,
+        person_id: p.id,
+        tenant_user_id: "carer",
+        deleted_at: null,
+      })),
+    };
+    const count = (buckets: readonly string[]) =>
+      buckets.filter((b) => /_medicine_administrations\|/.test(b)).length;
+    const nurse = await syncFor(
+      hydrated,
+      big,
+      claims({ sub: "nurse", meds_assigned: false, meds_location_ids: [NORTH] }),
+    );
+    expect(count(nurse.buckets)).toBe(DAYS.length);
+    // Assigned to every resident: at most three months each, never 35 days each.
+    const carer = await syncFor(hydrated, big, claims());
+    expect(count(carer.buckets)).toBeLessThanOrEqual(120 * MONTHS.length);
+    expect(MONTHS.length).toBeLessThanOrEqual(3);
   });
 
   it("hazard HZ-002 sends medicines and allergies first", () => {
@@ -515,5 +577,13 @@ describe("the medicines window", () => {
     expect(days.at(-1)).toBe(last);
     expect(new Set(days).size).toBe(35);
     expect([...days].sort()).toEqual(days);
+  });
+
+  it.each([
+    ["mid-month", "2026-11-20T09:00:00Z", ["2026-10", "2026-11"]],
+    ["early March after February", "2027-03-01T09:00:00Z", ["2027-01", "2027-02", "2027-03"]],
+    ["across a year", "2027-01-10T09:00:00Z", ["2026-12", "2027-01"]],
+  ])("names the months that cover the 35 days (%s)", (_case, now, months) => {
+    expect(medsRecentMonths(new Date(now))).toEqual(months);
   });
 });

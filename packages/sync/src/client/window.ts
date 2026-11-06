@@ -114,3 +114,13 @@ export function medsRecentDays(now: Date): string[] {
   }
   return days;
 }
+
+/**
+ * The UTC months that cover `medsRecentDays` (`meds_recent_months`; at most three): the assigned
+ * medicines streams sync administrations per person and month, not per person and day, so a phone
+ * stays far under PowerSync's buckets per connection (ADR-0130). Assigned people's phones may hold
+ * up to the start of the earliest month; the phone counts only the 35 days.
+ */
+export function medsRecentMonths(now: Date): string[] {
+  return [...new Set(medsRecentDays(now).map((d) => d.slice(0, 7)))];
+}

@@ -11,11 +11,14 @@ Branch `feat/mobile-meds-sync`, slice 68 (no PR yet), on `integration/phase-2-ba
   streams (HZ-002); administrations recorded today and the 34 days before; the member's own
   medicines competence. Isolation tests per person, location, member and tenant; the slice 22
   contract test is replaced by them.
-- The sync token carries `meds_location_ids`, `meds_assigned` and `meds_recent_days`.
+- The sync token carries `meds_location_ids`, `meds_assigned`, `meds_recent_days` and
+  `meds_recent_months`. Migration 0150 gives each administration the person's home, so
+  administrations sync per home and day (per person and month for assigned people), keeping a
+  phone under PowerSync's buckets per connection.
 - `GET /v1/medicines/device-subset` gives the dm+d rows the member's MARs need; the phone keeps
   them in local-only tables, replaced whole on connecting, when the MAR products change and at most hourly (ADR-0130).
 - Docs: medicines.md section 13.8, ADR-0130, HZ-002 and HZ-113, data standards, records of
-  processing, register, H-1421 to H-1425.
+  processing, register, H-1421 to H-1427.
 
 ## What is next
 

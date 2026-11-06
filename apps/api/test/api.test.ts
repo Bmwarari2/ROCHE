@@ -14,6 +14,7 @@ import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import {
   medsRecentDays,
+  medsRecentMonths,
   offlineWindowDays,
   SYNC_TOKEN_AUDIENCE,
   SYNC_TOKEN_ISSUER,
@@ -619,6 +620,7 @@ describe("offline sync", () => {
     expect(carer.payload.meds_assigned).toBe(true);
     expect(carer.payload.meds_location_ids).toEqual([]);
     expect(carer.payload.meds_recent_days).toEqual(medsRecentDays(new Date()));
+    expect(carer.payload.meds_recent_months).toEqual(medsRecentMonths(new Date()));
     // An owner who does not give medicines receives none.
     const owner = await jwtVerify(
       (await json<SyncToken>(await demo("owner", "/v1/sync/token", { method: "POST" }))).token,
@@ -629,6 +631,7 @@ describe("offline sync", () => {
       (owner.payload.meds_location_ids as string[]).length === 0
     ) {
       expect(owner.payload.meds_recent_days).toEqual([]);
+      expect(owner.payload.meds_recent_months).toEqual([]);
     }
   });
 

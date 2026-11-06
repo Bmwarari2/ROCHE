@@ -2,7 +2,7 @@
 status: "accepted"
 date: 2026-11-06
 decision-makers: engineering (Claude Code sessions), for the lead of Phase 2 batch 3b
-consulted: clinical safety officer (HZ-002, HZ-003, HZ-113; H-1421 to H-1424), data protection officer (H-1425)
+consulted: clinical safety officer (HZ-002, HZ-003, HZ-113; H-1421 to H-1424), data protection officer (H-1425, H-1426)
 informed: Registered Managers in the pilot
 ---
 
@@ -52,6 +52,17 @@ Option 2.
   before, minted by the API), so the last given of a monthly or weekly medicine, an interval of up
   to 34 days and the 24-hour maximum are always on the phone (clinical review, M3; H-1421). A
   longer interval needs the server, which still checks every record when it arrives.
+- **Buckets per connection**: PowerSync refuses a connection over its buckets limit (1,000 by
+  default). A stream keyed by person and day made 2,100 administrations buckets for one phone at a
+  60-bed home. Administrations at the token's homes are keyed by home and day instead: the row
+  carries the person's home when stored (`location_id`, set by the database, migration 0150), and
+  the location stream filters on it with no join to the person, so a person discharged in the
+  last 35 days keeps their administrations on that home's phones until the days pass (H-1426).
+  Assigned people's administrations are keyed by person and calendar month (`meds_recent_months`,
+  at most three), so their phones may hold up to about three months; the phone counts only the 35
+  days. A test bounds the medicines buckets at a 120-bed home. The Phase 1 care, task and handover
+  streams have the same pattern and are over the limit on their own; that is with the lead
+  (H-1427).
 - **Priority**: the medicines streams and the allergy streams have priority 1, so a stop or an
   allergy change reaches the phone first whenever it syncs (HZ-002).
 - **dm+d**: `GET /v1/medicines/device-subset` runs `selectDmdDeviceSubset` on the products named
@@ -81,4 +92,4 @@ Option 2.
 
 Migration 0149; `packages/sync/src/streams/sync-config.yaml`; `medicines-streams.test.ts`;
 `apps/api/src/services/dmd.ts` (`dmdDeviceRows`); `apps/mobile/src/medicines/dmd-subset.ts`.
-Questions for people: H-1421 to H-1425.
+Questions for people: H-1421 to H-1427.

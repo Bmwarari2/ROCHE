@@ -71,6 +71,7 @@ export class SyncTokenSigner {
       meds_location_ids: [...(claims.meds_location_ids ?? [])],
       meds_assigned: claims.meds_assigned === true,
       meds_recent_days: [...(claims.meds_recent_days ?? [])],
+      meds_recent_months: [...(claims.meds_recent_months ?? [])],
       ...(claims.handover_shifts ? { handover_shifts: { ...claims.handover_shifts } } : {}),
     })
       .setProtectedHeader({ alg: "ES256", kid: this.keyId })

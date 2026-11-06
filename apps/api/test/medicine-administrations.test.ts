@@ -661,6 +661,23 @@ describe("hazard HZ-011 audit by id only", () => {
   });
 });
 
+describe("administrations carry the person's home (migration 0150; ADR-0130)", () => {
+  it("stores every administration with the person's home, set by the database", async () => {
+    const rows = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ total: string; wrong: string }>(
+            `SELECT count(*) AS total,
+                    count(*) FILTER (WHERE a.location_id IS DISTINCT FROM p.location_id) AS wrong
+               FROM medication_administration a JOIN person p ON p.id = a.person_id`,
+          )
+        ).rows[0],
+    );
+    expect(Number(rows?.total)).toBeGreaterThan(0);
+    expect(Number(rows?.wrong)).toBe(0);
+  });
+});
+
 describe("hazard HZ-113 the dm+d rows a phone needs (slice 68; ADR-0130)", () => {
   it("gives the products the MAR entries name, with their packs and barcodes, or says which the data lacks", async () => {
     // Ada's paracetamol is on the MAR from the tests above.

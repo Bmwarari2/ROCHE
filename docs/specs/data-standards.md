@@ -977,6 +977,7 @@ is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/
 | `medication_administration.outcome` | Harbour; PRSB eMAR administration outcome (not yet coded) | `given`, `refused`, `omitted`, `not_available`, `self_administered`, `given_by_family`, `withheld` | Words from `OUTCOME_WORDS`. |
 | `medication_administration.reason_code` | Harbour (`OUTCOME_REASONS`) | For example `declined`, `asleep`, `nil_by_mouth`, `out_of_stock`, `prescriber_instruction`, `other` | "Other" and "withheld" carry words. |
 | `medication_administration.quantity`, `unit_code` | dm+d unit of measure | Numeric, more than zero, 3 decimal places; dm+d unit code | Never converted between units. |
+| `medication_administration.location_id` | Harbour (migration 0150) | UUID of the person's home when the record was stored, set by the database from the person (a client's value is replaced) | Keys the phone's administrations buckets per home and day (ADR-0130); never changes when the person moves. |
 | `medication_administration.flags` | Harbour | As medicines.md rule 17, with `given_before_recorded` and `clock_drift` | Shown in words. |
 | `medication_administration.due_at`, `given_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
 | `medication_administration.supersedes_id` | Harbour | The record corrected | Shown struck through beside its correction. |

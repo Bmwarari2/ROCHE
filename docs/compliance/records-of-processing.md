@@ -206,13 +206,15 @@ a medication incident (B1's incident record), whose words name no drug or count.
 `controlled_drugs_register` (2 years from the page's last entry; entries recording an
 administration keep the longer `mar_chart` period). No new recipient or sub-processor.
 
-Medicines on the phone (Phase 2 slice 68, migration 0149; ADR-0130): B1 now also covers copies,
+Medicines on the phone (Phase 2 slice 68, migrations 0149 and 0150; ADR-0130): B1 now also covers copies,
 on the phones of members who give medicines (`medicines.emar.administer`), of the MAR entry
 versions not withdrawn or removed (a stopped or replaced one included, until the person leaves
 scope) of the people in their scope (assigned people, or every live person at the homes it
 reaches), with the person's schedule times, dosing records and covert administration records
 not removed (of any version, including one withdrawn as entered in error; H-1425), and the administrations recorded today and the 34 days before (for monthly and
-weekly medicines); and each member's own
+weekly medicines): at a home, every administration recorded there in those days, including those
+of a person discharged since (H-1426); for assigned people, those recorded in the calendar months
+covering those days (up to about three months); and each member's own
 medicines competence sign-offs and withdrawals (B3) on their own phone. In the encrypted device
 database (SQLCipher), removed when the person leaves the member's scope, at sign-out, wipe or hold.
 The dm+d subset on the phone is national reference data, not personal data. No new recipient or

@@ -255,11 +255,15 @@ describe("sync streams definition", () => {
       ({ stream, query }) =>
         stream.startsWith("location_") &&
         FAMILY[stream] !== "handover" &&
+        // Administrations go by the row's own home and day, with no join to the person, so a
+        // phone's buckets stay per home (ADR-0130; H-1426): a person discharged in the last 35
+        // days keeps their administrations on that home's phones until the days pass.
+        stream !== "location_medicine_administrations" &&
         !query.includes("person_id IS NULL"),
     );
     // People, allergies, the five reference, two plan and five entry queries, tasks, and the four
-    // medicines queries and the administrations (slice 68).
-    expect(location.length).toBe(20);
+    // medicines queries (slice 68).
+    expect(location.length).toBe(19);
     const live = (column: string) =>
       `(${column} = 'active' OR ${column} = 'on_leave' OR ${column} = 'in_hospital')`;
     for (const { stream, query } of location) {

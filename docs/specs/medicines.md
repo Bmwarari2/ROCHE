@@ -1064,7 +1064,7 @@ a register.
 
 ### 13.8 Medicines on the phone (slice 68; ADR-0130)
 
-Built in slice 68 (migration 0149), for members holding `medicines.emar.administer`, in the two
+Built in slice 68 (migrations 0149 and 0150), for members holding `medicines.emar.administer`, in the two
 person scopes of the care streams (replication bypasses RLS, so the stream queries carry the scope;
 `medicines-streams.test.ts` proves it):
 - **`*_medicines`** (priority 1, with the allergy streams, HZ-002): MAR entry versions not
@@ -1076,9 +1076,13 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
   The round on the phone (slice 69) works out each version's doses with the domain's
   `marEntryEnd` and `marEntryDosesFrom` on these rows, so a replaced version and its replacement
   never both show the same dose (HZ-003).
-- **`*_medicine_administrations`**: administrations recorded on a day of `meds_recent_days` (today
-  and the 34 UTC days before, minted by the API), for the last given of a monthly or weekly
-  medicine, intervals and the 24-hour maximum (H-1421).
+- **`*_medicine_administrations`**: at the token's homes, administrations recorded on a day of
+  `meds_recent_days` (today and the 34 UTC days before, minted by the API), one bucket per home and
+  day by the row's own `location_id` (the person's home when stored, set by the database; migration
+  0150); for assigned people, those recorded in a month of `meds_recent_months` (the months covering
+  those days, at most three), one bucket per person and month. For the last given of a monthly or
+  weekly medicine, intervals and the 24-hour maximum (H-1421); never one bucket per person and day,
+  which went past PowerSync's buckets per connection (ADR-0130; H-1426).
 - **`my_medicines_competence`**: the member's own medicines competence sign-offs and their
   withdrawals.
 - **dm+d**: `GET /v1/medicines/device-subset` (integrations.md section 12 rule 9), for the products

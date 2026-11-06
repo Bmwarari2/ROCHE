@@ -76,7 +76,12 @@
 #                         makes a bucket per version in the tenant; the phone shows only those of
 #                         a version it holds; H-1425): priority 1, with the allergy streams,
 #                         so a stop or an allergy reaches the phone first (HZ-002)
-#   *_medicine_administrations  administrations recorded on a meds_recent_days day
+#   meds_recent_months    the UTC months covering meds_recent_days (at most three)
+#   *_medicine_administrations  administrations: at the token's homes, recorded on a
+#                         meds_recent_days day, one bucket per home and day (the row's own
+#                         location_id, set by the database); for assigned people, recorded in a
+#                         meds_recent_months month, one bucket per person and month. Never one per
+#                         person and day: that went past PowerSync's buckets per connection (ADR-0130)
 #   my_medicines_competence     the member's own medicines competence sign-offs and withdrawals
 # No document, reconciliation, error, review, stock or controlled drug register row syncs. The dm+d
 # subset comes from the API (GET /v1/medicines/device-subset), not a stream (ADR-0130).
@@ -1015,7 +1020,7 @@ streams:
           AND person_assignment.tenant_user_id = auth.user_id()
           AND auth.parameter('meds_assigned') = true
           AND person_assignment.deleted_at IS NULL
-          AND substring(medication_administration.recorded_at, 1, 10) IN auth.parameter('meds_recent_days')
+          AND substring(medication_administration.recorded_at, 1, 7) IN auth.parameter('meds_recent_months')
 
   location_medicines:
     auto_subscribe: true
@@ -1095,12 +1100,9 @@ streams:
                        medication_administration.recorded_at,
                        medication_administration.supersedes_id, medication_administration.covert,
                        medication_administration.flags
-        FROM medication_administration, person
-        WHERE medication_administration.person_id = person.id
-          AND medication_administration.tenant_id = auth.parameter('tenant_id')
-          AND person.tenant_id = auth.parameter('tenant_id')
-          AND person.location_id IN auth.parameter('meds_location_ids')
-          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
+        FROM medication_administration
+        WHERE medication_administration.tenant_id = auth.parameter('tenant_id')
+          AND medication_administration.location_id IN auth.parameter('meds_location_ids')
           AND substring(medication_administration.recorded_at, 1, 10) IN auth.parameter('meds_recent_days')
 
   my_medicines_competence:

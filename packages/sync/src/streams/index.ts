@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 export {
   isValidWindowDays,
   medsRecentDays,
+  medsRecentMonths,
   OFFLINE_WINDOW_RATE_KEY,
   offlineWindowDays,
   shiftWindowDays,
@@ -82,6 +83,8 @@ export interface SyncTokenClaims {
   readonly meds_assigned?: boolean;
   /** UTC days of the administrations that sync (`medsRecentDays`); empty syncs none. */
   readonly meds_recent_days?: readonly string[];
+  /** UTC months (yyyy-mm) of the assigned people's administrations (`medsRecentMonths`). */
+  readonly meds_recent_months?: readonly string[];
   /**
    * The day and night shift start times (minutes after midnight, UK time) of each nation the
    * organisation has homes in (`england`, `wales` and so on), from the rate table, sent where the
