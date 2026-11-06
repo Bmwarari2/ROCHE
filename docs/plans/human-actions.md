@@ -797,6 +797,10 @@ Logged by slice 46 (lone-worker safety, [scheduling.md](../specs/scheduling.md) 
 | H-1038 | Decide whether the shift slice (21) should start and end sessions from the rota automatically for shifts marked as lone working, instead of the worker starting them | Brian | scheduling.md section 14 | Slice 21 | Open |
 | H-1039 | Write the user guide for lone workers and on-call staff: starting a session, checking in, help and duress, what a late check-in means, and that acknowledging means having checked on the worker | Brian | HZ-125 training control | Slice 82 | Open |
 
+## Phase 2: web rota and staffing planner (slice 59)
+
+Logged by slice 59 (SCHED-001, SCHED-002, CARE-004 screens) on 31 October 2026.
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

@@ -11,6 +11,7 @@ import { complaintsShown } from "@/lib/complaints";
 import { readNotifications } from "@/lib/dashboard-data";
 import { dataRightsShown } from "@/lib/data-rights";
 import { dataSecurityShown } from "@/lib/data-security";
+import { dependencyShown } from "@/lib/dependency";
 import { developmentShown } from "@/lib/development";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
@@ -27,6 +28,7 @@ import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { dashboardShown } from "@/lib/quality-dashboard";
 import { auditsShown, frameworkShown } from "@/lib/quality-programme";
 import { retentionShown } from "@/lib/retention";
+import { myShiftsShown, rotaShown } from "@/lib/rota";
 import { roundShown } from "@/lib/round";
 import { safeguardingShown } from "@/lib/safeguarding";
 import { searchShown } from "@/lib/search";
@@ -84,6 +86,9 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         search: searchShown(me.permissions) ? t("shell.nav.search") : undefined,
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
+        rota: rotaShown(me.permissions) ? t("shell.nav.rota") : undefined,
+        myShifts: myShiftsShown(me.permissions) ? t("shell.nav.myShifts") : undefined,
+        dependency: dependencyShown(me.permissions) ? t("shell.nav.dependency") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
         safeguarding: safeguardingShown(me.permissions) ? t("shell.nav.safeguarding") : undefined,
         complaints: complaintsShown(me.permissions) ? t("shell.nav.complaints") : undefined,

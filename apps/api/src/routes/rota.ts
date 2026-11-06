@@ -16,12 +16,14 @@ import {
   RotaCheck,
   RotaItem,
   RotaList,
+  RotaWorkerList,
   ShiftPatternItem,
   ShiftPatternList,
   ShiftTemplateItem,
   ShiftTemplateList,
 } from "@harbour/contracts";
 import {
+  location,
   rosterOverride,
   rota,
   rotaPublication,
@@ -108,6 +110,7 @@ const A = {
   shiftAdded: "scheduling.shift.added",
   shiftCancelled: "scheduling.shift.cancelled",
   eligibility: "scheduling.eligibility.checked",
+  workersListed: "scheduling.rota_workers.listed",
   assigned: "scheduling.shift.assigned",
   overridden: "scheduling.roster_override.given",
   removed: "scheduling.shift_assignment.removed",
@@ -1096,6 +1099,70 @@ export const rotaRouter = createRouter()
   // ----------------------------------------------------------------------------------------
   // Assigning (HZ-124)
   // ----------------------------------------------------------------------------------------
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/locations/{id}/rota-workers",
+      tags: ["scheduling"],
+      summary: "Who may be put on a shift at a location",
+      description:
+        "scheduling.rota.manage reaching the location: the active members with a role in force there or across the organisation, by name, with their job title (the rota builder's picker). Whether each may work a given shift is the eligibility route's answer. No address, no sign-in, no staff file detail. Audited (scheduling.rota_workers.listed) with the count.",
+      security,
+      request: { params: IdParam },
+      responses: {
+        200: jsonBody(RotaWorkerList, "Members"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "scheduling.rota.manage");
+      const { id } = c.req.valid("param");
+      requireLocationInScope(access, id);
+      const items = await withTenant(c, async (tx) => {
+        // A made-up location is not found, never answered with the organisation-wide members.
+        const [home] = await tx
+          .select({ id: location.id })
+          .from(location)
+          .where(eq(location.id, id));
+        if (!home) return null;
+        // System rights only to read who holds a role in force here (tenant isolation still
+        // applies: app.tenant_id is unchanged): a rota manager cannot otherwise see members whose
+        // records are outside their own data scope, and the picker needs exactly this answer. Ids,
+        // names and job titles only; whether each may work a shift is the eligibility route's
+        // answer. Which members should be offered (only those with a staff file?) is H-963.
+        const rows = await withSystemRights(tx, () =>
+          tx.execute<{
+            id: string;
+            display_name: string;
+            job_title: string | null;
+          }>(sql`
+            SELECT DISTINCT u.id, u.display_name, u.job_title
+              FROM public.tenant_user u
+              JOIN public.role_assignment ra ON ra.tenant_user_id = u.id
+             WHERE u.status = 'active' AND u.deleted_at IS NULL
+               AND ra.deleted_at IS NULL AND ra.valid_from <= now()
+               AND (ra.valid_to IS NULL OR ra.valid_to > now())
+               AND (ra.location_id = ${id} OR ra.location_id IS NULL)
+             ORDER BY u.display_name, u.id
+             LIMIT 2000`),
+        );
+        await audit(c, tx, access, {
+          action: A.workersListed,
+          resourceType: "location",
+          resourceId: id,
+          scopeExtra: { count: rows.rows.length },
+        });
+        return rows.rows.map((r) => ({
+          id: r.id,
+          displayName: r.display_name,
+          jobTitle: r.job_title,
+        }));
+      });
+      if (!items) throw problems.notFound();
+      return c.json({ items }, 200);
+    },
+  )
   .openapi(
     createRoute({
       method: "get",

@@ -791,3 +791,32 @@ describe("hazard HZ-123 publishing needs the check the publisher saw", () => {
     expect(((await response.json()) as { code: string }).code).toBe("ineligible_assignments");
   });
 });
+
+describe("the rota builder's picker: who works at a location", () => {
+  it("lists active members with a role there or organisation-wide, for a rota manager only", async () => {
+    const r = await as("manager", `/v1/locations/${LOC}/rota-workers`);
+    expect(r.status).toBe(200);
+    const items = ((await r.json()) as { items: { id: string; displayName: string }[] }).items;
+    const ids = items.map((i) => i.id);
+    expect(ids).toEqual(expect.arrayContaining([CARER, NURSE, MANAGER, OWNER]));
+    expect(Object.keys(items[0] ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
+    expect((await as("carer", `/v1/locations/${LOC}/rota-workers`)).status).toBe(403);
+    // A manager at one home is refused another home of the same organisation (not found), and a
+    // made-up home is not found either.
+    expect((await as("manager", `/v1/locations/${LODGE.locationId}/rota-workers`)).status).toBe(
+      404,
+    );
+    expect(
+      (await as("owner", "/v1/locations/0194d000-0000-7000-8000-00000000ffff/rota-workers")).status,
+    ).toBe(404);
+    const audited = await sql<{ n: number }>(
+      "SELECT count(*)::int AS n FROM audit_event WHERE action = 'scheduling.rota_workers.listed' AND resource_id = $1",
+      [LOC],
+    );
+    expect(audited[0]?.n).toBeGreaterThan(0);
+    // Another organisation's home is not found, as for its rotas.
+    expect((await as("manager", `/v1/locations/${OTHER.locationId}/rota-workers`)).status).toBe(
+      404,
+    );
+  });
+});
