@@ -267,7 +267,7 @@ a recipient.
 ### 11.9 Changes to Thapsus-HR, without changing it for its other customers (H-1343)
 
 Thapsus-HR may change to support the link. Most of its customers are not care providers, though,
-and none of them may notice any difference. Its side is planned as its own Phase 18, "Partner
+and none of them may notice any difference. Its side is planned as its own Phase 19, "Partner
 workforce link", with an ADR of its own, built and verified in its repository. This section is
 the text for that phase.
 
@@ -313,7 +313,7 @@ the text for that phase.
 | K7 | **Documentation**: Harbour listed as a customer-enabled integration in `SUBPROCESSORS.md` (UK only) before any code is written, plus `docs/api.md` and the admin guide | - |
 
 **How "no change for everyone else" is proven.** Each item below is an acceptance criterion of
-Thapsus-HR's Phase 18:
+Thapsus-HR's Phase 19:
 
 - **Payroll outputs are unchanged.** For a tenant without a partner, payroll inputs, snapshots and
   every export format (CSV, Excel and Xero) are byte-identical before and after the change.

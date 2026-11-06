@@ -56,3 +56,7 @@ that are not care organisations. Section 11.9 is now the full text for Thapsus-H
 Sleep-ins now reach payroll as pay units rather than as a shift attribute. ADR-0126 and H-1343 are
 updated to match. The Phase 18 text could not be written into Thapsus-HR's repository from this
 session (no write access), so H-1343 asks for it to be moved there.
+
+**Renumbered on 06/11/2026.** Thapsus-HR's Phase 18 and ADR-0228 were taken by other work after
+01/11 (NFC clock-in on `phase-18-nfc-clock-in`, and the security audit fixes, ADR-0228 to
+ADR-0237). The link is now Thapsus-HR's Phase 19, and its ADR takes the next free number there.

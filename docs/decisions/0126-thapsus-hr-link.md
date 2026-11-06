@@ -109,7 +109,7 @@ full reconciliation. A pay owner changes only from the next pay period.
   connectors deliver pay.
 - Bad: Thapsus-HR needs changes before the live link works.
   - They are listed in [integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014)
-    section 11.9 as Thapsus-HR's Phase 18, and logged as H-1343.
+    section 11.9 as Thapsus-HR's Phase 19, and logged as H-1343.
   - Each one does nothing for a tenant that has not connected a partner.
   - Harbour builds against a contract-tested mock until then (section 20 rule 2).
 - Bad: a provider that wants to edit rotas in Thapsus-HR must make Thapsus-HR the rota owner.
