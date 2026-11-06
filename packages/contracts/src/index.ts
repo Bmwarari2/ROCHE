@@ -521,6 +521,7 @@ export * from "./letters";
 export * from "./mca";
 export * from "./medicine-administrations";
 export * from "./medicines";
+export * from "./medicines-authority";
 export * from "./members";
 export * from "./onboarding";
 export * from "./operations";

@@ -82,6 +82,7 @@ import {
   requireDocuments,
   UNCHECKED_POLICY,
 } from "../services/medicines";
+import { authorityMarks } from "../services/medicines-authority";
 import { loadPerson } from "../services/people";
 import {
   conflictResponse,
@@ -242,6 +243,7 @@ function sameRecord(
     (row.timingReason ?? null) === (body.timingReason ?? null) &&
     (row.intervalOverrideReason ?? null) === (body.intervalOverrideReason ?? null) &&
     (row.amountDifferenceReason ?? null) === (body.amountDifferenceReason ?? null) &&
+    row.covert === body.covert &&
     (body.givenAt === null ||
       row.deviceAt?.toISOString() === new Date(body.givenAt).toISOString() ||
       row.givenAt.toISOString() === new Date(body.givenAt).toISOString())
@@ -291,10 +293,20 @@ async function store(
     readonly overrides: readonly CompetenceOverride[];
     readonly supersedesId: string | null;
     readonly correctionReason: string | null;
+    readonly covert: boolean;
     readonly now: Date;
   },
 ) {
   const i = args.input;
+  // Covert and self-administered doses are marked, never refused (slice 38; HZ-026, HZ-120).
+  const marks = await authorityMarks(tx, {
+    personId: args.personId,
+    medicationId: (i.entry as MarEntry).id,
+    outcome: i.outcome as string,
+    covert: args.covert,
+    today: ukIsoDate(i.at),
+  });
+  const escalationsToRaise = [...args.escalations, ...marks.escalations];
   const [row] = await uniqueId(() =>
     tx
       .insert(medicationAdministration)
@@ -328,7 +340,8 @@ async function store(
                 until: o.until.toISOString(),
               }))
             : null,
-        flags: [...new Set(args.flags)],
+        flags: [...new Set([...args.flags, ...marks.flags])],
+        covert: args.covert,
         supersedesId: args.supersedesId,
         correctionReason: args.correctionReason,
       })
@@ -339,7 +352,7 @@ async function store(
     personId: args.personId,
     locationId: args.locationId,
     administrationId: stored.id,
-    escalations: args.escalations,
+    escalations: escalationsToRaise,
     at: args.now,
   });
   if (i.dueAt) {
@@ -506,6 +519,7 @@ export const medicineAdministrationsRouter = createRouter()
               : [],
             supersedesId: null,
             correctionReason: null,
+            covert: body.covert,
             now,
           });
           return {
@@ -663,6 +677,7 @@ export const medicineAdministrationsRouter = createRouter()
               : [],
             supersedesId: original.id,
             correctionReason: body.correctionReason,
+            covert: body.covert,
             now,
           });
           return {

@@ -46,6 +46,7 @@ import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { medicineAdministrationsRouter } from "./routes/medicine-administrations";
 import { medicinesRouter } from "./routes/medicines";
+import { medicinesAuthorityRouter } from "./routes/medicines-authority";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
 import { onboardingRouter } from "./routes/onboarding";
@@ -364,6 +365,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dsarRouter);
   app.route("/", medicinesRouter);
   app.route("/", medicineAdministrationsRouter);
+  app.route("/", medicinesAuthorityRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

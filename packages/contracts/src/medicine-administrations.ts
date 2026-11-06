@@ -44,6 +44,8 @@ const RecordFields = {
   amountDifferenceReason: reason.nullable().default(null),
   timingReason: reason.nullable().default(null),
   intervalOverrideReason: reason.nullable().default(null),
+  /** Given covertly, under the person's covert record for the medicine (slice 38). */
+  covert: z.boolean().default(false),
 };
 
 export const RecordAdministration = z
@@ -99,6 +101,8 @@ export const AdministrationOut = z
     administeredBy: uuid,
     recorded: Actor,
     flags: z.array(z.string()),
+    /** Given covertly: marked on the MAR (slice 38). */
+    covert: z.boolean(),
     /** The flags in words, for the record and the review (never colour alone). */
     flagsInWords: z.array(z.string()),
     givenBeforeRecordedReason: z.string().nullable(),

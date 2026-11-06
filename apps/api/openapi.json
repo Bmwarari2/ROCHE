@@ -31034,6 +31034,9 @@
               "type": "string"
             }
           },
+          "covert": {
+            "type": "boolean"
+          },
           "flagsInWords": {
             "type": "array",
             "items": {
@@ -31110,6 +31113,7 @@
           "administeredBy",
           "recorded",
           "flags",
+          "covert",
           "flagsInWords",
           "givenBeforeRecordedReason",
           "supersedesId",
@@ -31227,6 +31231,10 @@
             "minLength": 1,
             "maxLength": 2000,
             "default": null
+          },
+          "covert": {
+            "type": "boolean",
+            "default": false
           },
           "givenAt": {
             "type": [
@@ -31374,6 +31382,10 @@
             "minLength": 1,
             "maxLength": 2000,
             "default": null
+          },
+          "covert": {
+            "type": "boolean",
+            "default": false
           },
           "correctionReason": {
             "type": "string",
@@ -31837,6 +31849,1121 @@
         "required": [
           "dosingRecords"
         ]
+      },
+      "CovertRecordList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CovertRecord"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CovertRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicineName": {
+            "type": "string"
+          },
+          "capacityAssessmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bestInterestsDecisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attendees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "$ref": "#/components/schemas/CovertAttendeeRole"
+                },
+                "roleWords": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "roleWords",
+                "name"
+              ]
+            }
+          },
+          "method": {
+            "type": "string"
+          },
+          "pharmacistAdvice": {
+            "type": "string"
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "endedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "endedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/CovertStatus"
+          },
+          "statusWords": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "medicationId",
+          "medicineId",
+          "medicineName",
+          "capacityAssessmentId",
+          "bestInterestsDecisionId",
+          "attendees",
+          "method",
+          "pharmacistAdvice",
+          "startsOn",
+          "reviewOn",
+          "reviewedOn",
+          "endedOn",
+          "endedReason",
+          "changeReason",
+          "status",
+          "statusWords",
+          "version"
+        ]
+      },
+      "CovertAttendeeRole": {
+        "type": "string",
+        "enum": [
+          "prescriber",
+          "pharmacist",
+          "registered_manager",
+          "nurse",
+          "care_staff",
+          "family_or_friend",
+          "representative",
+          "advocate",
+          "other"
+        ]
+      },
+      "CovertStatus": {
+        "type": "string",
+        "enum": [
+          "not_started",
+          "current",
+          "review_overdue",
+          "ended"
+        ]
+      },
+      "NewCovertRecord": {
+        "type": "object",
+        "properties": {
+          "medicationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capacityAssessmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bestInterestsDecisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attendees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "$ref": "#/components/schemas/CovertAttendeeRole"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "role",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "method": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "pharmacistAdvice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "medicationId",
+          "capacityAssessmentId",
+          "bestInterestsDecisionId",
+          "attendees",
+          "method",
+          "pharmacistAdvice",
+          "startsOn",
+          "reviewOn"
+        ],
+        "additionalProperties": false
+      },
+      "ReviewCovertRecord": {
+        "type": "object",
+        "properties": {
+          "capacityAssessmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bestInterestsDecisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attendees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "$ref": "#/components/schemas/CovertAttendeeRole"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "role",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "method": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "pharmacistAdvice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "reviewedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "capacityAssessmentId",
+          "bestInterestsDecisionId",
+          "attendees",
+          "method",
+          "pharmacistAdvice",
+          "reviewedOn",
+          "reviewOn",
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "EndCovertRecord": {
+        "type": "object",
+        "properties": {
+          "endedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "endedOn",
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PersonSelfAdministration": {
+        "type": "object",
+        "properties": {
+          "assessments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelfAdminAssessment"
+            }
+          },
+          "medicines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "medicineId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "review_overdue",
+                    "not_assessed"
+                  ]
+                },
+                "level": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SelfAdminLevel"
+                    },
+                    {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  ]
+                },
+                "statusWords": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "medicineId",
+                "name",
+                "status",
+                "level",
+                "statusWords"
+              ]
+            }
+          }
+        },
+        "required": [
+          "assessments",
+          "medicines"
+        ]
+      },
+      "SelfAdminAssessment": {
+        "type": "object",
+        "properties": {
+          "medicineIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          },
+          "choice": {
+            "type": "string",
+            "enum": [
+              "wants_to",
+              "does_not_want_to"
+            ]
+          },
+          "capacity": {
+            "type": "string",
+            "enum": [
+              "has_capacity",
+              "lacks_capacity",
+              "assumed"
+            ]
+          },
+          "capacityAssessmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dexterity": {
+            "type": "string",
+            "enum": [
+              "able",
+              "able_with_aids",
+              "unable"
+            ]
+          },
+          "storage": {
+            "type": "string",
+            "enum": [
+              "lockable_storage",
+              "no_lockable_storage"
+            ]
+          },
+          "level": {
+            "$ref": "#/components/schemas/SelfAdminLevel"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "assessedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "levelWords": {
+            "type": "string"
+          },
+          "assessedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "medicineIds",
+          "choice",
+          "capacity",
+          "capacityAssessmentId",
+          "dexterity",
+          "storage",
+          "level",
+          "notes",
+          "assessedOn",
+          "reviewOn",
+          "id",
+          "personId",
+          "levelWords",
+          "assessedBy",
+          "recordedAt"
+        ],
+        "additionalProperties": false
+      },
+      "SelfAdminLevel": {
+        "type": "string",
+        "enum": [
+          "self_administers",
+          "self_administers_with_support",
+          "staff_administer"
+        ]
+      },
+      "NewSelfAdminAssessment": {
+        "type": "object",
+        "properties": {
+          "medicineIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          },
+          "choice": {
+            "type": "string",
+            "enum": [
+              "wants_to",
+              "does_not_want_to"
+            ]
+          },
+          "capacity": {
+            "type": "string",
+            "enum": [
+              "has_capacity",
+              "lacks_capacity",
+              "assumed"
+            ]
+          },
+          "capacityAssessmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dexterity": {
+            "type": "string",
+            "enum": [
+              "able",
+              "able_with_aids",
+              "unable"
+            ]
+          },
+          "storage": {
+            "type": "string",
+            "enum": [
+              "lockable_storage",
+              "no_lockable_storage"
+            ]
+          },
+          "level": {
+            "$ref": "#/components/schemas/SelfAdminLevel"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "assessedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "medicineIds",
+          "choice",
+          "capacity",
+          "capacityAssessmentId",
+          "dexterity",
+          "storage",
+          "level",
+          "notes",
+          "assessedOn",
+          "reviewOn"
+        ],
+        "additionalProperties": false
+      },
+      "HomelyProtocolList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomelyProtocol"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "HomelyProtocol": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "vmpId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{6,18}$"
+          },
+          "indication": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "doseQuantity": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          },
+          "unitName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "minIntervalHours": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 168
+          },
+          "maxDailyQuantity": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          },
+          "maxDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "authorisedMemberIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 500
+          },
+          "approvedByName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "approvedByRole": {
+            "type": "string",
+            "enum": [
+              "gp",
+              "pharmacist"
+            ]
+          },
+          "approvedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "withdrawnAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "withdrawnReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_use",
+              "review_overdue",
+              "withdrawn"
+            ]
+          },
+          "statusWords": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "productName",
+          "vmpId",
+          "indication",
+          "doseQuantity",
+          "unitName",
+          "minIntervalHours",
+          "maxDailyQuantity",
+          "maxDays",
+          "authorisedMemberIds",
+          "approvedByName",
+          "approvedByRole",
+          "approvedOn",
+          "reviewOn",
+          "withdrawnAt",
+          "withdrawnReason",
+          "changeReason",
+          "status",
+          "statusWords",
+          "version"
+        ]
+      },
+      "NewHomelyProtocol": {
+        "type": "object",
+        "properties": {
+          "productName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "vmpId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{6,18}$"
+          },
+          "indication": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "doseQuantity": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          },
+          "unitName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "minIntervalHours": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 168
+          },
+          "maxDailyQuantity": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          },
+          "maxDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "authorisedMemberIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 500
+          },
+          "approvedByName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "approvedByRole": {
+            "type": "string",
+            "enum": [
+              "gp",
+              "pharmacist"
+            ]
+          },
+          "approvedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "productName",
+          "vmpId",
+          "indication",
+          "doseQuantity",
+          "unitName",
+          "minIntervalHours",
+          "maxDailyQuantity",
+          "maxDays",
+          "authorisedMemberIds",
+          "approvedByName",
+          "approvedByRole",
+          "approvedOn",
+          "reviewOn"
+        ],
+        "additionalProperties": false
+      },
+      "ChangeHomelyProtocol": {
+        "type": "object",
+        "properties": {
+          "productName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "vmpId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{6,18}$"
+          },
+          "indication": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "doseQuantity": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          },
+          "unitName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "minIntervalHours": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 168
+          },
+          "maxDailyQuantity": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          },
+          "maxDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "authorisedMemberIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 500
+          },
+          "approvedByName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "approvedByRole": {
+            "type": "string",
+            "enum": [
+              "gp",
+              "pharmacist"
+            ]
+          },
+          "approvedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "productName",
+          "vmpId",
+          "indication",
+          "doseQuantity",
+          "unitName",
+          "minIntervalHours",
+          "maxDailyQuantity",
+          "maxDays",
+          "authorisedMemberIds",
+          "approvedByName",
+          "approvedByRole",
+          "approvedOn",
+          "reviewOn",
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "WithdrawHomelyProtocol": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "HomelyDoseList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomelyDose"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "HomelyDose": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protocolId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protocolVersion": {
+            "type": "integer"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "given",
+              "entered_in_error"
+            ]
+          },
+          "quantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unitName": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "givenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "givenBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enteredInErrorBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "protocolId",
+          "protocolVersion",
+          "productName",
+          "outcome",
+          "quantity",
+          "unitName",
+          "reason",
+          "givenAt",
+          "givenBy",
+          "recordedAt",
+          "supersedesId",
+          "correctionReason",
+          "enteredInErrorBy"
+        ]
+      },
+      "RecordHomelyDose": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protocolId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "id",
+          "protocolId",
+          "quantity",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "HomelyDoseEnteredInError": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ],
+        "additionalProperties": false
       },
       "SubProcessorOverview": {
         "type": "object",
@@ -67157,6 +68284,1189 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/covert-medicines": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A person's covert administration records",
+        "description": "medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Covert records, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CovertRecordList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record that one medicine is given covertly, under a best-interests decision",
+        "description": "medicines.covert.manage at the person's home. Needs the person's capacity assessment for covert medicines finding a lack of capacity, the best-interests decision after it, the prescriber and a pharmacist among those involved, the method and the pharmacist's advice, and a review within the rate table's days. One open record per medicine. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewCovertRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CovertRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/covert-medicines/{id}/review": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record a review of a covert record",
+        "description": "medicines.covert.manage at the person's home. The same evidence as a new record, the date reviewed, the next review within the rate table's days from it, a reason, and the version read. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewCovertRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reviewed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CovertRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/covert-medicines/{id}/end": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "End a covert record",
+        "description": "medicines.covert.manage at the person's home, with a reason and the version read. A covert dose after the end is flagged and escalated. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndCovertRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CovertRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/self-administration": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A person's self-administration assessments, and where each medicine stands",
+        "description": "medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assessments, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonSelfAdministration"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record a self-administration assessment or its review",
+        "description": "medicines.record.manage in the person's scope. The person's choice, capacity (assumed, or a linked assessment that says so), dexterity and storage, and the level a person decided on, for the medicines listed; a review within the rate table's days. A review is a new assessment. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSelfAdminAssessment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfAdminAssessment"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/homely-remedies": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A home's homely remedy protocols",
+        "description": "medicines.record.manage, medicines.emar.administer or care.plan.read, at a home in scope.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protocols",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyProtocolList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Add a homely remedy protocol agreed with a GP or pharmacist",
+        "description": "medicines.record.manage at the home. Every figure is the protocol's; the days before the GP is asked and the review are within the rate table's limits. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewHomelyProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/homely-remedies/{id}/change": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Change a homely remedy protocol, with a reason",
+        "description": "medicines.record.manage at the home, with the version read. Doses already given keep the version they were checked against. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeHomelyProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/homely-remedies/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Withdraw a homely remedy protocol",
+        "description": "medicines.record.manage at the home, with a reason and the version read. A withdrawn protocol is never used again. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawHomelyProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/homely-remedy-doses": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A person's homely remedy doses",
+        "description": "medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Doses, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyDoseList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record a homely remedy dose under the home's protocol",
+        "description": "medicines.emar.administer, by a member the protocol names, for a person at the protocol's home. Refused in words when it is outside the protocol: withdrawn or past review, another dose, too soon, over the most in 24 hours, the protocol's days used (ask the GP), or the same product prescribed. Resending the same id returns the same record. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordHomelyDose"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already recorded with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyDose"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyDose"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/homely-remedy-doses/{id}/entered-in-error": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Mark a homely remedy dose as entered in error",
+        "description": "The member who gave it (medicines.emar.administer) or medicines.record.manage, with a reason. A new record marks the dose; the dose stays, struck through, and no longer counts. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomelyDoseEnteredInError"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Marked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomelyDose"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
