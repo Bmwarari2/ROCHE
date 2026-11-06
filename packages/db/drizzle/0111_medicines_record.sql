@@ -578,10 +578,13 @@ REVOKE DELETE, TRUNCATE ON public.medication, public.medication_schedule,
 
 -- Sample data mode (migration 0069, HZ-072): a sample person's medicines go with them. The one
 -- list is redefined with the new tables before their parents (placement, hospital_transfer,
--- document), keeping every table migration 0075 listed.
+-- document), keeping every table migrations 0075, 0093 and 0099 listed (the union of every
+-- branch's list in batch 3a).
 CREATE OR REPLACE FUNCTION app.sample_removal_tables() RETURNS text[]
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
   SELECT ARRAY[
+    'death_step', 'missing_event', 'death_record', 'missing_episode', 'herbert_profile',
+    'outbreak_case',
     'medication_reconciliation_decision', 'medication_reconciliation_item',
     'medication_reconciliation_source', 'medication_schedule', 'medication',
     'medication_reconciliation',
