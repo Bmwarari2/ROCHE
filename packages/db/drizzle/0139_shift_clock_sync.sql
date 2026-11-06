@@ -25,6 +25,20 @@ GRANT SELECT ON public.shift, public.shift_assignment, public.clock_event TO har
 ALTER PUBLICATION powersync ADD TABLE public.shift, public.shift_assignment, public.clock_event;
 
 --> statement-breakpoint
+-- The agency window binds every definer owner that reads role rows (batch 3a, 0118):
+-- harbour_member_owner (0129) reads role_assignment and access_grant, so an agency worker's role
+-- stops counting inside its functions too once their window closes (batch 3b).
+GRANT EXECUTE ON FUNCTION app.member_is_agency(uuid), app.agency_access_open(uuid, uuid)
+  TO harbour_member_owner;
+--> statement-breakpoint
+ALTER POLICY agency_window ON public.role_assignment
+  TO harbour_app, harbour_owner, harbour_sample_owner, harbour_silo_owner, harbour_import_owner,
+     harbour_wellbeing_owner, harbour_quality_reader, harbour_invitation_owner, harbour_member_owner;
+--> statement-breakpoint
+ALTER POLICY agency_window ON public.access_grant
+  TO harbour_app, harbour_owner, harbour_sample_owner, harbour_silo_owner, harbour_import_owner,
+     harbour_wellbeing_owner, harbour_quality_reader, harbour_invitation_owner, harbour_member_owner;
+--> statement-breakpoint
 -- Sample data mode (migration 0069, HZ-072), batch 3b: the highest migration states the union of
 -- every list, children before the tables they reference, so a table one branch added is never
 -- left out by another branch's redefinition (0123 to 0138 each redefined it).

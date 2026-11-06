@@ -18,11 +18,12 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     ["harbour_app"],
   "app.auth_user_has_membership(text)": ["harbour_invitation_owner"],
   // The agency access window (ADR-0088, migration 0104), read by row-level security.
-  // The agency window binds the definer owners that read role rows too (migration 0118).
+  // The agency window binds the definer owners that read role rows too (migrations 0118, 0139).
   "app.agency_access_open(uuid, uuid)": [
     "harbour_app",
     "harbour_import_owner",
     "harbour_invitation_owner",
+    "harbour_member_owner",
     "harbour_quality_reader",
     "harbour_sample_owner",
     "harbour_silo_owner",
@@ -32,6 +33,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     "harbour_app",
     "harbour_import_owner",
     "harbour_invitation_owner",
+    "harbour_member_owner",
     "harbour_quality_reader",
     "harbour_sample_owner",
     "harbour_silo_owner",
