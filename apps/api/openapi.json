@@ -9401,6 +9401,26 @@
             "type": "string",
             "format": "date-time"
           },
+          "linesCounted": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "chartFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "chartTo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "releasedAt": {
             "type": [
               "string",
@@ -9437,6 +9457,9 @@
           "failure",
           "requestedBy",
           "requestedAt",
+          "linesCounted",
+          "chartFrom",
+          "chartTo",
           "releasedAt",
           "discardedAt",
           "fields",
@@ -9475,8 +9498,14 @@
           "readText": {
             "type": "string"
           },
-          "confidence": {
-            "type": "number"
+          "lowConfidence": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "addedByPerson": {
+            "type": "boolean"
           },
           "state": {
             "type": "string",
@@ -9491,6 +9520,28 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "decidedLine": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "decidedLabel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "medicine",
+              "strength",
+              "dose",
+              "route",
+              "directions",
+              "prescriber",
+              "text",
+              null
             ]
           },
           "decidedBy": {
@@ -9515,9 +9566,13 @@
           "line",
           "label",
           "readText",
-          "confidence",
+          "lowConfidence",
+          "truncated",
+          "addedByPerson",
           "state",
           "value",
+          "decidedLine",
+          "decidedLabel",
           "decidedBy",
           "decidedAt"
         ]
@@ -9582,6 +9637,26 @@
                   "type": "string",
                   "format": "date-time"
                 },
+                "linesCounted": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "chartFrom": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "chartTo": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
                 "releasedAt": {
                   "type": [
                     "string",
@@ -9612,6 +9687,9 @@
                 "failure",
                 "requestedBy",
                 "requestedAt",
+                "linesCounted",
+                "chartFrom",
+                "chartTo",
                 "releasedAt",
                 "discardedAt",
                 "undecided"
@@ -9637,6 +9715,23 @@
                 "enum": [
                   "confirm"
                 ]
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "label": {
+                "type": "string",
+                "enum": [
+                  "medicine",
+                  "strength",
+                  "dose",
+                  "route",
+                  "directions",
+                  "prescriber",
+                  "text"
+                ]
               }
             },
             "required": [
@@ -9661,6 +9756,23 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 500
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "label": {
+                "type": "string",
+                "enum": [
+                  "medicine",
+                  "strength",
+                  "dose",
+                  "route",
+                  "directions",
+                  "prescriber",
+                  "text"
+                ]
               }
             },
             "required": [
@@ -9690,6 +9802,106 @@
           }
         ]
       },
+      "AddOcrField": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 199
+          },
+          "label": {
+            "type": "string",
+            "enum": [
+              "medicine",
+              "strength",
+              "dose",
+              "route",
+              "directions",
+              "prescriber",
+              "text"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "line",
+          "label",
+          "value"
+        ]
+      },
+      "ReleaseOcrExtraction": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "linesCounted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "line": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 199
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "stopped",
+                    "cannot_tell"
+                  ]
+                }
+              },
+              "required": [
+                "line",
+                "status"
+              ]
+            },
+            "maxItems": 200
+          },
+          "personConfirmed": {
+            "type": "boolean"
+          },
+          "chartFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "chartTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "currentChart": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "version",
+          "linesCounted",
+          "lines",
+          "personConfirmed",
+          "chartFrom",
+          "chartTo",
+          "currentChart"
+        ]
+      },
       "OcrExtractionVersion": {
         "type": "object",
         "properties": {
@@ -9717,18 +9929,60 @@
             "type": "string",
             "format": "uuid"
           },
+          "chartFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "chartTo": {
+            "type": "string",
+            "format": "date"
+          },
           "lines": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ScannedMedicineLineItem"
             }
+          },
+          "stoppedLines": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "chartNotes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decidedBy": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "releasedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personConfirmedBy": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "extractionId",
           "personId",
           "sourceDocumentId",
-          "lines"
+          "chartFrom",
+          "chartTo",
+          "lines",
+          "stoppedLines",
+          "chartNotes",
+          "decidedBy",
+          "releasedBy",
+          "personConfirmedBy"
         ]
       },
       "ScannedMedicineLineItem": {
@@ -9738,40 +9992,78 @@
             "type": "integer"
           },
           "medicine": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "$ref": "#/components/schemas/ScannedPart"
           },
           "strength": {
-            "type": [
-              "string",
-              "null"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ScannedPart"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
             ]
           },
           "dose": {
-            "type": [
-              "string",
-              "null"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ScannedPart"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
             ]
           },
           "route": {
-            "type": [
-              "string",
-              "null"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ScannedPart"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
             ]
           },
           "directions": {
-            "type": [
-              "string",
-              "null"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ScannedPart"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
             ]
           },
           "prescriber": {
-            "type": [
-              "string",
-              "null"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ScannedPart"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
             ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "origin": {
             "type": "string",
@@ -9800,9 +10092,33 @@
           "route",
           "directions",
           "prescriber",
+          "notes",
           "origin",
           "state",
           "secondCheckRequired"
+        ]
+      },
+      "ScannedPart": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "corrected"
+            ]
+          },
+          "addedByPerson": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "value",
+          "state",
+          "addedByPerson"
         ]
       },
       "CareNoteItem": {
@@ -55390,13 +55706,13 @@
         }
       }
     },
-    "/v1/ocr-extractions/{id}/release": {
+    "/v1/ocr-extractions/{id}/fields": {
       "post": {
         "tags": [
           "integrations"
         ],
-        "summary": "Release a fully decided scan to the medicines module",
-        "description": "medicines.record.manage where it reaches the person. Only when every value is decided and at least one stands. Emits integrations.ocr_mar_released (ids only); the medicines module reads the lines, which arrive not yet checked and need a second check (HZ-005, H-548).",
+        "summary": "Add a value the scan missed, typed from the chart",
+        "description": "medicines.record.manage where it reaches the person. The value is the person's, marked as typed by them, never read by the engine.",
         "security": [
           {
             "bearerAuth": []
@@ -55420,7 +55736,96 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OcrExtractionVersion"
+                "$ref": "#/components/schemas/AddOcrField"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrExtractionItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ocr-extractions/{id}/release": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Release a fully decided scan to the medicines module",
+        "description": "medicines.record.manage where it reaches the person. Only when every value is decided, no part stands twice on a line or without its medicine, the person's own count of medicine lines on the paper matches, every line is marked in force or stopped, the person on the chart is confirmed (HZ-130) and the chart's period is given and current. Emits integrations.ocr_mar_released (ids only); the medicines module reads the lines, which arrive not yet checked and are held until a second check (HZ-005, H-548).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseOcrExtraction"
               }
             }
           }

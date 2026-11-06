@@ -24,6 +24,23 @@ the Google Cloud move.
   processing, data standards, retention, the sub-processor register, DPIA R25 and the
   medical-device boundary.
 
+## Reviews
+
+- Security review (round 1): one high (a signature request could name a staff HR document and a
+  DocuSign copy come back readable by all) fixed by allowing organisation documents only and
+  keeping the original's class and retention; a returned copy is scanned before it is stored and
+  stored once; stale cancels void nothing and send a fixed reason; a failed send marks the request
+  failed; a composite foreign key binds the signature to the tenant and document; the scan upload
+  is capped; uploads take an idempotency key; the allowlist is checked at each call; a non-signer
+  learns nothing about a request.
+- Clinical safety review (round 1): a person now decides each value's chart line and part; release
+  refuses a part twice on a line, values without their medicine, a count on the paper that differs,
+  a line not marked in force or stopped, an unconfirmed person (HZ-130) and an old chart; a
+  truncated text cannot be confirmed; a missed value can be added; the engine's confidence is only
+  a flag; OCR is off unless set and per organisation, and the mock invents nothing; imported and
+  scanned MAR entries are held until their second check whatever the organisation's rule.
+- Recommended answers for H-1260 to H-1269 are in `docs/plans/recommended-answers.md`.
+
 ## Human actions
 
 H-1260 to H-1269 in `docs/plans/human-actions.md`.

@@ -10372,7 +10372,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/ocr-extractions/{id}/release": {
+  "/v1/ocr-extractions/{id}/fields": {
     parameters: {
       query?: never;
       header?: never;
@@ -10382,8 +10382,8 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Release a fully decided scan to the medicines module
-     * @description medicines.record.manage where it reaches the person. Only when every value is decided and at least one stands. Emits integrations.ocr_mar_released (ids only); the medicines module reads the lines, which arrive not yet checked and need a second check (HZ-005, H-548).
+     * Add a value the scan missed, typed from the chart
+     * @description medicines.record.manage where it reaches the person. The value is the person's, marked as typed by them, never read by the engine.
      */
     post: {
       parameters: {
@@ -10396,7 +10396,88 @@ export interface paths {
       };
       requestBody?: {
         content: {
-          "application/json": components["schemas"]["OcrExtractionVersion"];
+          "application/json": components["schemas"]["AddOcrField"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OcrExtractionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/ocr-extractions/{id}/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Release a fully decided scan to the medicines module
+     * @description medicines.record.manage where it reaches the person. Only when every value is decided, no part stands twice on a line or without its medicine, the person's own count of medicine lines on the paper matches, every line is marked in force or stopped, the person on the chart is confirmed (HZ-130) and the chart's period is given and current. Emits integrations.ocr_mar_released (ids only); the medicines module reads the lines, which arrive not yet checked and are held until a second check (HZ-005, H-548).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReleaseOcrExtraction"];
         };
       };
       responses: {
@@ -45633,6 +45714,11 @@ export interface components {
       requestedBy: string;
       /** Format: date-time */
       requestedAt: string;
+      linesCounted: number | null;
+      /** Format: date */
+      chartFrom: string | null;
+      /** Format: date */
+      chartTo: string | null;
       /** Format: date-time */
       releasedAt: string | null;
       /** Format: date-time */
@@ -45649,10 +45735,23 @@ export interface components {
       /** @enum {string} */
       label: "medicine" | "strength" | "dose" | "route" | "directions" | "prescriber" | "text";
       readText: string;
-      confidence: number;
+      lowConfidence: boolean;
+      truncated: boolean;
+      addedByPerson: boolean;
       /** @enum {string} */
       state: "unconfirmed" | "confirmed" | "corrected" | "rejected";
       value: string | null;
+      decidedLine: number | null;
+      /** @enum {string|null} */
+      decidedLabel:
+        | "medicine"
+        | "strength"
+        | "dose"
+        | "route"
+        | "directions"
+        | "prescriber"
+        | "text"
+        | null;
       /** Format: uuid */
       decidedBy: string | null;
       /** Format: date-time */
@@ -45678,6 +45777,11 @@ export interface components {
         requestedBy: string;
         /** Format: date-time */
         requestedAt: string;
+        linesCounted: number | null;
+        /** Format: date */
+        chartFrom: string | null;
+        /** Format: date */
+        chartTo: string | null;
         /** Format: date-time */
         releasedAt: string | null;
         /** Format: date-time */
@@ -45690,18 +45794,46 @@ export interface components {
           version: number;
           /** @enum {string} */
           action: "confirm";
+          line?: number;
+          /** @enum {string} */
+          label?: "medicine" | "strength" | "dose" | "route" | "directions" | "prescriber" | "text";
         }
       | {
           version: number;
           /** @enum {string} */
           action: "correct";
           value: string;
+          line?: number;
+          /** @enum {string} */
+          label?: "medicine" | "strength" | "dose" | "route" | "directions" | "prescriber" | "text";
         }
       | {
           version: number;
           /** @enum {string} */
           action: "reject";
         };
+    AddOcrField: {
+      version: number;
+      line: number;
+      /** @enum {string} */
+      label: "medicine" | "strength" | "dose" | "route" | "directions" | "prescriber" | "text";
+      value: string;
+    };
+    ReleaseOcrExtraction: {
+      version: number;
+      linesCounted: number;
+      lines: {
+        line: number;
+        /** @enum {string} */
+        status: "active" | "stopped" | "cannot_tell";
+      }[];
+      personConfirmed: boolean;
+      /** Format: date */
+      chartFrom: string;
+      /** Format: date */
+      chartTo: string;
+      currentChart: boolean;
+    };
     OcrExtractionVersion: {
       version: number;
     };
@@ -45712,22 +45844,40 @@ export interface components {
       personId: string;
       /** Format: uuid */
       sourceDocumentId: string;
+      /** Format: date */
+      chartFrom: string;
+      /** Format: date */
+      chartTo: string;
       lines: components["schemas"]["ScannedMedicineLineItem"][];
+      stoppedLines: number[];
+      chartNotes: string[];
+      decidedBy: string[];
+      /** Format: uuid */
+      releasedBy: string;
+      /** Format: uuid */
+      personConfirmedBy: string;
     };
     ScannedMedicineLineItem: {
       line: number;
-      medicine: string | null;
-      strength: string | null;
-      dose: string | null;
-      route: string | null;
-      directions: string | null;
-      prescriber: string | null;
+      medicine: components["schemas"]["ScannedPart"];
+      strength: components["schemas"]["ScannedPart"] & (Record<string, never> | null);
+      dose: components["schemas"]["ScannedPart"] & (Record<string, never> | null);
+      route: components["schemas"]["ScannedPart"] & (Record<string, never> | null);
+      directions: components["schemas"]["ScannedPart"] & (Record<string, never> | null);
+      prescriber: components["schemas"]["ScannedPart"] & (Record<string, never> | null);
+      notes: string[];
       /** @enum {string} */
       origin: "import";
       /** @enum {string} */
       state: "not_yet_checked";
       /** @enum {boolean} */
       secondCheckRequired: true;
+    };
+    ScannedPart: {
+      value: string;
+      /** @enum {string} */
+      state: "confirmed" | "corrected";
+      addedByPerson: boolean;
     };
     CareNoteItem: {
       /** Format: uuid */
