@@ -11,11 +11,13 @@ import {
 } from "@harbour/ui";
 import {
   Archive,
+  Banknote,
   Bell,
   BookCheck,
   BookOpen,
   CalendarClock,
   CalendarDays,
+  CalendarOff,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
@@ -43,9 +45,11 @@ import {
   ShieldAlert,
   ShieldCheck,
   Stamp,
+  Timer,
   TriangleAlert,
   UserPlus,
   Users,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -116,6 +120,16 @@ export interface ShellFrameLabels {
   readonly documents?: string | undefined;
   /** Shown to holders of the workforce read permissions: the training matrix (slice 57). */
   readonly training?: string | undefined;
+  /** Shown to staff who record their own time (scheduling.timesheet.self): clock and timesheet. */
+  readonly myTime?: string | undefined;
+  /** Shown with my time: one's own pay lines from locked runs. */
+  readonly myPay?: string | undefined;
+  /** Shown to rota managers and approvers: timesheet approval at the home. */
+  readonly timesheets?: string | undefined;
+  /** Shown to staff and rota managers: leave requests, decisions and cover needed. */
+  readonly absences?: string | undefined;
+  /** Shown only to pay managers and approvers (scheduling.pay.manage or .approve). */
+  readonly pay?: string | undefined;
   /** Shown only to people who manage records retention (platform.retention.manage). */
   readonly retention?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
@@ -181,6 +195,11 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/documents")) return "documents";
   if (pathname.startsWith("/training")) return "training";
+  if (pathname.startsWith("/my-time")) return "my-time";
+  if (pathname.startsWith("/my-pay")) return "my-pay";
+  if (pathname.startsWith("/timesheets")) return "timesheets";
+  if (pathname.startsWith("/absences")) return "absences";
+  if (pathname === "/pay" || pathname.startsWith("/pay/")) return "pay";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/training/elearning")) return "elearning";
@@ -393,6 +412,35 @@ export function ShellFrame({
             icon: <GraduationCap {...icon} />,
           },
         ]
+      : []),
+    ...(labels.myTime
+      ? [{ id: "my-time", label: labels.myTime, href: "/my-time", icon: <Timer {...icon} /> }]
+      : []),
+    ...(labels.myPay
+      ? [{ id: "my-pay", label: labels.myPay, href: "/my-pay", icon: <Wallet {...icon} /> }]
+      : []),
+    ...(labels.timesheets
+      ? [
+          {
+            id: "timesheets",
+            label: labels.timesheets,
+            href: "/timesheets",
+            icon: <CalendarClock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.absences
+      ? [
+          {
+            id: "absences",
+            label: labels.absences,
+            href: "/absences",
+            icon: <CalendarOff {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.pay
+      ? [{ id: "pay", label: labels.pay, href: "/pay", icon: <Banknote {...icon} /> }]
       : []),
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]

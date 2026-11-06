@@ -91,6 +91,8 @@ export const TimesheetEntryItem = z
     id: uuid,
     version,
     workerId: uuid,
+    /** The worker's name, for those who may read the entry. */
+    workerName: z.string().nullable(),
     locationId: uuid,
     shiftId: uuid.nullable(),
     kind: TimesheetKind,
@@ -192,6 +194,8 @@ export const OptOutList = z.object({ items: z.array(OptOutItem) }).meta({ id: "O
 
 export const WorkingTimeResultList = z
   .object({
+    /** The member's name, only when there are results to show (null otherwise). */
+    memberName: z.string().nullable(),
     items: z.array(
       z.object({
         id: uuid,

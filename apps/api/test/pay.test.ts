@@ -47,12 +47,20 @@ interface Detail {
   lines: {
     id: string;
     memberId: string;
+    memberName: string | null;
     basicPence: number;
     totalPence: number;
     differencePence: number | null;
     working: { step: string }[];
   }[];
-  exceptions: { id: string; version: number; kind: string; status: string; memberId: string }[];
+  exceptions: {
+    id: string;
+    version: number;
+    kind: string;
+    status: string;
+    memberId: string;
+    memberName: string | null;
+  }[];
 }
 
 /** A manual timesheet entry for the carer, entered by the manager. */
@@ -179,6 +187,9 @@ describe("a run: approved time only, checked by a second person and locked (rule
     expect(again.status).toBe(409);
     const detail = await calculate("owner", run);
     const line = detail.lines.find((l) => l.memberId === CARER);
+    // Names for the pay screens (slice 60), read under the caller's own rights.
+    expect(line?.memberName).toBe(DEMO.users.carer.name);
+    expect(detail.exceptions[0]?.memberName).toBe(DEMO.users.carer.name);
     expect(line?.basicPence).toBe(Math.floor((1_350 * 480) / 60));
     expect(detail.exceptions.map((e) => e.kind)).toEqual(["unapproved_timesheet"]);
     const lock = await as("quality", `/v1/pay-runs/${runId}/lock`, {
@@ -280,6 +291,10 @@ describe("corrections and overrides (rules 9 and 12)", () => {
       body: { version: exception?.version, reason: "Paid next week once approved" },
     });
     expect(overridden.status).toBe(200);
+    expect(await overridden.json()).toMatchObject({
+      status: "overridden",
+      memberName: DEMO.users.carer.name,
+    });
     const locked = await as("quality", `/v1/pay-runs/${correction.id}/lock`, {
       method: "POST",
       body: { version: detail.run.version },

@@ -25,6 +25,7 @@ import { importShown } from "@/lib/imports";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
+import { absencesShown, myTimeShown, payShown, timesheetsShown } from "@/lib/pay-time";
 import { dashboardShown } from "@/lib/quality-dashboard";
 import { auditsShown, frameworkShown } from "@/lib/quality-programme";
 import { retentionShown } from "@/lib/retention";
@@ -101,6 +102,11 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
         documents: isFamilyMember(me) ? undefined : t("shell.nav.documents"),
         training: developmentShown(me.permissions) ? t("shell.nav.training") : undefined,
+        myTime: myTimeShown(me.permissions) ? t("shell.nav.myTime") : undefined,
+        myPay: myTimeShown(me.permissions) ? t("shell.nav.myPay") : undefined,
+        timesheets: timesheetsShown(me.permissions) ? t("shell.nav.timesheets") : undefined,
+        absences: absencesShown(me.permissions) ? t("shell.nav.absences") : undefined,
+        pay: payShown(me.permissions) ? t("shell.nav.pay") : undefined,
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
         evidencePacks: evidencePacksShown(me.permissions)
           ? t("shell.nav.evidencePacks")

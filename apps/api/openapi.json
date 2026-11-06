@@ -48649,6 +48649,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "workerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "locationId": {
             "type": "string",
             "format": "uuid"
@@ -48778,6 +48784,7 @@
           "id",
           "version",
           "workerId",
+          "workerName",
           "locationId",
           "shiftId",
           "kind",
@@ -49294,6 +49301,12 @@
       "WorkingTimeResultList": {
         "type": "object",
         "properties": {
+          "memberName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "items": {
             "type": "array",
             "items": {
@@ -49346,6 +49359,7 @@
           }
         },
         "required": [
+          "memberName",
           "items"
         ]
       },
@@ -51451,6 +51465,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "memberName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "paidMinutes": {
             "type": "integer"
           },
@@ -51529,6 +51549,7 @@
           "runId",
           "calculation",
           "memberId",
+          "memberName",
           "paidMinutes",
           "nmwMinutes",
           "basicPence",
@@ -51592,6 +51613,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "memberName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "kind": {
             "$ref": "#/components/schemas/PayExceptionKind"
           },
@@ -51638,6 +51665,7 @@
           "version",
           "calculation",
           "memberId",
+          "memberName",
           "kind",
           "ref",
           "message",

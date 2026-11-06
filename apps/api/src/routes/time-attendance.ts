@@ -60,6 +60,7 @@ import { publish } from "../outbox";
 import { currentBookedShiftEnd } from "../services/agency-window";
 import { rateNumber } from "../services/rates";
 import type { ShiftRow } from "../services/rota";
+import { staffNames } from "../services/staff";
 import { withSystemRights } from "../services/system-rights";
 import {
   bookedShift,
@@ -177,12 +178,17 @@ async function entryItems(
           .select()
           .from(sleepInAwakePeriod)
           .where(inArray(sleepInAwakePeriod.timesheetEntryId, ids));
+  const names = await staffNames(
+    tx,
+    rows.map((r) => r.workerId),
+  );
   return rows.map((r) => {
     const fact = timesheetFact(r);
     return {
       id: r.id,
       version: r.version,
       workerId: r.workerId,
+      workerName: names(r.workerId)?.displayName ?? null,
       locationId: r.locationId,
       shiftId: r.shiftId,
       kind: fact.kind,
@@ -1387,16 +1393,20 @@ export const timeAttendanceRouter = createRouter()
       } else {
         await requirePermission(c, "scheduling.rota.approve");
       }
-      const rows = await withTenant(c, (tx) =>
-        tx
+      const { rows, memberName } = await withTenant(c, async (tx) => {
+        const found = await tx
           .select()
           .from(workingTimeResult)
           .where(eq(workingTimeResult.workerId, id))
           .orderBy(desc(workingTimeResult.createdAt))
-          .limit(50),
-      );
+          .limit(50);
+        // The name only beside results the reader may already see (row-level security decides).
+        const names = found.length > 0 ? await staffNames(tx, [id]) : () => null;
+        return { rows: found, memberName: names(id)?.displayName ?? null };
+      });
       return c.json(
         {
+          memberName,
           items: rows.map((r) => ({
             id: r.id,
             evaluateFrom: r.evaluateFrom,
