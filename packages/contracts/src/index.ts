@@ -534,6 +534,7 @@ export * from "./invitations";
 export * from "./letters";
 export * from "./lone-worker";
 export * from "./mca";
+export * from "./medicine-administrations";
 export * from "./medicines";
 export * from "./members";
 export * from "./onboarding";

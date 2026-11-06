@@ -64,6 +64,7 @@ import {
 } from "../services/leavers";
 import { LONE_WORKER_UNROUTED_ACTION, sweepLoneWorkers } from "../services/lone-worker";
 import { raiseDolsReminders } from "../services/mca";
+import { raiseOutstandingDoseTasks } from "../services/medicine-administrations";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
 import { expireImportBatches } from "../services/platform-imports";
@@ -519,6 +520,18 @@ export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promis
     raiseDolsReminders(tx, tenantId, now),
   );
   if (raised > 0) deps.logger.info({ raised }, "DoLS expiry reminders raised");
+  return raised;
+}
+
+/**
+ * Outstanding doses (medicines.md rule 15 and 13.6; HZ-003): a task for each scheduled dose whose
+ * window has ended with no outcome, time-critical doses urgent, never twice.
+ */
+export async function escalateOutstandingDoses(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "medicines-outstanding-doses", (tx, tenantId) =>
+    raiseOutstandingDoseTasks(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "outstanding dose tasks raised");
   return raised;
 }
 

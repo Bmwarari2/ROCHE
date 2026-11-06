@@ -59,6 +59,7 @@ import { lettersRouter } from "./routes/letters";
 import { loneWorkerRouter } from "./routes/lone-worker";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { medicineAdministrationsRouter } from "./routes/medicine-administrations";
 import { medicinesRouter } from "./routes/medicines";
 import { medicinesDmdRouter } from "./routes/medicines-dmd";
 import { memberSessionsRouter } from "./routes/member-sessions";
@@ -461,6 +462,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", disclosuresRouter);
   app.route("/", qualityDashboardRouter);
   app.route("/", medicinesRouter);
+  app.route("/", medicineAdministrationsRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

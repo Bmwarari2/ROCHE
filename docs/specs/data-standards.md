@@ -1215,6 +1215,24 @@ exported (only a closed survey's results above the minimum group size leave Harb
 | `wellbeing_check_in.note` | Harbour | Plain text up to 1,000 characters; possibly health | |
 | `wellbeing_check_in.shared_at` | Harbour | ISO 8601 UTC, or empty while private | Set by the database |
 | `RecognitionItem.fromName`, `toName`; `CheckInItem.memberName`; `RecognitionColleagues.items[].name` (API, slice 61) | Harbour | The member's display name, or null when none is held | Read from `tenant_user`, never stored with the record; `memberName` only on a manager's view of shared check-ins |
+## Administrations (Phase 2, slice 22)
+
+Migration 0123 ([medicines.md](medicines.md) section 13). Retention class `mar_chart`; every column
+is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/mm/yyyy.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `medication_administration.id` | Harbour (client UUID) | UUID, chosen by the device or browser | A resend with the same id is the same record. |
+| `medication_administration.outcome` | Harbour; PRSB eMAR administration outcome (not yet coded) | `given`, `refused`, `omitted`, `not_available`, `self_administered`, `given_by_family`, `withheld` | Words from `OUTCOME_WORDS`. |
+| `medication_administration.reason_code` | Harbour (`OUTCOME_REASONS`) | For example `declined`, `asleep`, `nil_by_mouth`, `out_of_stock`, `prescriber_instruction`, `other` | "Other" and "withheld" carry words. |
+| `medication_administration.quantity`, `unit_code` | dm+d unit of measure | Numeric, more than zero, 3 decimal places; dm+d unit code | Never converted between units. |
+| `medication_administration.flags` | Harbour | As medicines.md rule 17, with `given_before_recorded` and `clock_drift` | Shown in words. |
+| `medication_administration.due_at`, `given_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
+| `medication_administration.supersedes_id` | Harbour | The record corrected | Shown struck through beside its correction. |
+| `medication_administration_witness.method` | Harbour (ADR-0084) | `step_up`, `device_factor` | |
+| `medication_dosing_record.doses` | Harbour | JSON: `date` (ISO 8601 date), `time` (`HH:MM`, UK), `quantity` | In the entry's unit. |
+| `medication.tags` | Harbour (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |
+| `medication.minimum_interval_minutes`, `prn_max_per_24h` | Harbour | Minutes; numeric in the dose's unit | As the prescription states. |
 
 ## Platform operational tables (not part of the MODS export)
 

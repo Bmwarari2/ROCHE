@@ -123,25 +123,6 @@ describe("the medicines record", () => {
     expect([422]).toContain(unknown.status);
   });
 
-  it("hazard HZ-005 refuses a when-required medicine in plain words until its dose limits can be recorded", async () => {
-    const r = await send("manager", `/v1/people/${BEN}/medicines`, {
-      method: "POST",
-      body: draft({
-        directions: {
-          kind: "when_required",
-          dose: { kind: "amount", quantity: 1, unit: TABLET },
-        },
-        indication: "Pain",
-      }),
-    });
-    expect(r.status).toBe(422);
-    const body = (await r.json()) as { code: string; title: string };
-    expect(body.code).toBe("medicine_prn_not_yet");
-    expect(body.title).toBe(
-      "When-required medicines can be added once dose limits can be recorded.",
-    );
-  });
-
   it("refuses a dose with more than 3 decimal places, and a route dm+d does not give", async () => {
     const dose = await send("manager", `/v1/people/${BEN}/medicines`, {
       method: "POST",
@@ -513,30 +494,89 @@ describe("hazard HZ-121 reconciliation", () => {
   });
 });
 
-describe("weekly schedules", () => {
-  it("hazard HZ-003 expands a weekly schedule on its weekdays, and refuses weekday names it does not use", async () => {
+describe("rule 13 fields and weekly schedules (slice 22 integration)", () => {
+  const LACTULOSE = { vmpId: "90000051000001100", ampId: null, name: "Lactulose" };
+  const ML = { code: "258773002", name: "ml" };
+
+  it("hazard HZ-003 expands a weekly schedule on its weekdays, so its doses appear on the MAR", async () => {
     const DORA = "0194d000-0000-7000-8600-000000000004";
     const today = ukDateOf(new Date());
-    const weekly = (weekdays: string[]) =>
-      send("manager", `/v1/people/${DORA}/medicines`, {
-        method: "POST",
-        body: draft({
-          directions: {
-            kind: "regular",
-            schedule: {
-              pattern: { kind: "weekly", weekdays, intervalWeeks: 1, anchorOn: today },
-              times: [{ time: "09:00", dose: { kind: "amount", quantity: 1, unit: TABLET } }],
+    const r = await send("manager", `/v1/people/${DORA}/medicines`, {
+      method: "POST",
+      body: draft({
+        directions: {
+          kind: "regular",
+          schedule: {
+            pattern: {
+              kind: "weekly",
+              weekdays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+              intervalWeeks: 1,
+              anchorOn: today,
             },
+            times: [{ time: "09:00", dose: { kind: "amount", quantity: 1, unit: TABLET } }],
           },
-        }),
-      });
-    expect((await weekly(["monday"])).status).toBe(422);
-    const r = await weekly(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+        },
+      }),
+    });
     expect(r.status, await r.clone().text()).toBe(201);
     const mar = (await (
       await send("manager", `/v1/people/${DORA}/mar?cycleStart=${today}`)
-    ).json()) as { doses: { notDue: boolean }[] };
+    ).json()) as {
+      doses: { notDue: boolean }[];
+    };
     expect(mar.doses.filter((d) => !d.notDue).length).toBeGreaterThan(5);
+    const words = await send("manager", `/v1/people/${DORA}/medicines`, {
+      method: "POST",
+      body: draft({
+        product: IBUPROFEN,
+        directions: {
+          kind: "regular",
+          schedule: {
+            pattern: { kind: "weekly", weekdays: ["monday"], intervalWeeks: 1, anchorOn: today },
+            times: [{ time: "09:00", dose: { kind: "amount", quantity: 1, unit: TABLET } }],
+          },
+        },
+      }),
+    });
+    expect(words.status).toBe(422);
+  });
+
+  it("hazard HZ-004 stores tags, the minimum interval and a when-required maximum, and refuses a when-required entry with neither", async () => {
+    const EVE = "0194d000-0000-7000-8600-000000000005";
+    const prn = (max: number | null, interval: number | null) =>
+      send("manager", `/v1/people/${EVE}/medicines`, {
+        method: "POST",
+        body: draft({
+          product: LACTULOSE,
+          indication: "Constipation",
+          directions: {
+            kind: "when_required",
+            dose: { kind: "amount", quantity: 15, unit: ML },
+            maxQuantityPer24Hours: max,
+          },
+          minimumIntervalMinutes: interval,
+          tags: [],
+        }),
+      });
+    const neither = await prn(null, null);
+    expect(neither.status).toBe(422);
+    expect(((await neither.json()) as { code: string; detail: string }).detail).toMatch(
+      /prescriber/i,
+    );
+    const ok = await prn(30, 240);
+    expect(ok.status, await ok.clone().text()).toBe(201);
+    const entry = (await ok.json()) as {
+      minimumIntervalMinutes: number;
+      directions: { maxQuantityPer24Hours: number };
+    };
+    expect(entry.minimumIntervalMinutes).toBe(240);
+    expect(entry.directions.maxQuantityPer24Hours).toBe(30);
+    const tagged = await send("manager", `/v1/people/${EVE}/medicines`, {
+      method: "POST",
+      body: draft({ tags: ["paracetamol"] }),
+    });
+    expect(tagged.status, await tagged.clone().text()).toBe(201);
+    expect(((await tagged.json()) as { tags: string[] }).tags).toEqual(["paracetamol"]);
   });
 });
 

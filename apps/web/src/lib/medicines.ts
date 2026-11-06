@@ -197,7 +197,12 @@ export function readDraft(
   const kind = text(form, "directionsKind");
   if (kind === "when_required") {
     const dose = unit ? readDose(form, "prn-", doseKind, unit, errors, t) : null;
-    if (dose) directions = { kind: "when_required", dose };
+    // Never recorded without its 24-hour maximum (H-1066; batch 3b restores when-required).
+    const max = readQuantity(text(form, "prn-max"));
+    if (max === null) errors["prn-max"] = t("medicines.form.prnMaxError");
+    if (dose && max !== null) {
+      directions = { kind: "when_required", dose, maxQuantityPer24Hours: max };
+    }
   } else if (kind === "regular") {
     const pattern = readPattern(form, t, errors);
     const times: { time: string; dose: Dose }[] = [];
@@ -253,6 +258,16 @@ export function readDraft(
   });
   if (!review.ok) errors.reviewOn = review.message;
 
+  const intervalText = text(form, "minimumInterval");
+  const minimumIntervalMinutes = intervalText === "" ? null : Number(intervalText);
+  if (
+    minimumIntervalMinutes !== null &&
+    (!Number.isInteger(minimumIntervalMinutes) ||
+      minimumIntervalMinutes < 1 ||
+      minimumIntervalMinutes > 10_080)
+  ) {
+    errors.minimumInterval = t("medicines.form.minimumIntervalError");
+  }
   if (Object.keys(errors).length > 0 || !product || !route || !directions) {
     return { ok: false, errors };
   }
@@ -268,6 +283,9 @@ export function readDraft(
       startsAt: starts.ok ? (starts.instant as string) : "",
       stopsAt: stops.ok ? stops.instant : null,
       reviewOn: review.ok ? review.date : null,
+      // Tags are set at the second check until the form offers them (follow-up).
+      tags: [],
+      minimumIntervalMinutes,
     },
   };
 }

@@ -764,6 +764,13 @@
       "when": 1793467225141,
       "tag": "0122_recommended_answers_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1793467226141,
+      "tag": "0123_medicine_administrations",
+      "breakpoints": true
     }
   ]
 }
