@@ -58,6 +58,10 @@ definer functions (security review). The member lifecycle rework brings back wha
 
 ## Follow-ups
 
+Tracked as H-1471 to H-1480 in `docs/plans/human-actions.md` (the CSO items H-1476 and H-1477 carry
+the owner-accepted recommendation wording). `MEDICINES_OUTPUT_HISTORY_DAYS` in `.env.example` is
+the lead's.
+
 - `MEDICINES_OUTPUT_HISTORY_DAYS` (optional, default 35) still needs a line in `.env.example`: this
   session's permissions do not reach that file.
 - Security review (non-blocking, open): the HR webhook's per-tenant throttle is charged before the
@@ -72,7 +76,7 @@ definer functions (security review). The member lifecycle rework brings back wha
   link's staleness note (jsdom axe and Storybook only); the note's title is a paragraph, not a
   heading or region, so heading and landmark navigation skip it; the transfer pack still prints
   `TIME-CRITICAL:` in capitals where the downtime pack says "(time-critical)"; the PDF medicine
-  lines are English literals, not ICU strings. Each needs a human action number from the lead.
+  lines are English literals, not ICU strings.
 - Clinical review (non-blocking, for the CSO): a PRN protocol on an entry recorded before 0123 with
   no 24-hour maximum shows none without words (H-1381: say "No most in 24 hours recorded on the
   entry", or refuse until the entry is corrected); a refused dose reaches handover as "Refused: a
