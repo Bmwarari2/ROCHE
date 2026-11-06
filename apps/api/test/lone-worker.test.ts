@@ -704,6 +704,14 @@ describe("hazard HZ-125: help and duress without a usable session (H-1317)", () 
     expect(own.some((n) => n.source_id === alarm?.id)).toBe(false);
   });
 
+  it("never answers with another worker's event, even to a monitor who guesses its id (security review of H-1317)", async () => {
+    const id = crypto.randomUUID();
+    expect((await emergency("carer", { id, kind: "duress" })).status).toBe(201);
+    const guess = await emergency("manager", { id, kind: "duress" });
+    expect(guess.status).toBe(409);
+    expect(JSON.stringify(await guess.json())).not.toContain(id);
+  });
+
   it("answers a resend of the same press once, without a second alarm", async () => {
     const id = crypto.randomUUID();
     expect((await emergency("carer", { id, kind: "duress" })).status).toBe(201);
