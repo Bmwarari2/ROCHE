@@ -86,7 +86,7 @@ function evacuationLines(e: Json<EvacuationPlanStatement> | null): string[] {
 
 function medicinesLines(m: Json<DowntimeMedicinesContent> | null): string[] {
   // Held elsewhere or unreadable: the section's note says where to look.
-  if (!m || m.status !== "recorded") return [];
+  if (m?.status !== "recorded") return [];
   // From the eMAR (slice 49): when it was read, and that it is not the live record (HZ-021). Each
   // line is the record as read, never an instruction (clinical review M1).
   const producedAt = (m as { producedAt?: string }).producedAt;
