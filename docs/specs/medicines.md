@@ -1136,7 +1136,11 @@ RLS and person scope), it gives:
 - each when-required medicine that may be given now, with when it was last given, by whom, the
   24-hour total, what remains and when the interval allows the next (`prnStatus`).
 
-People are ordered by room and then name, so the round follows the building. Each person's rates
+People are ordered by room and then name, so the round follows the building. When one person's
+round cannot be worked out (no medicines rates for their nation, a schedule that cannot be read),
+everyone else's round is still given; that person's entry has no doses and says in words
+(`unavailable`) to check their MAR chart before giving anything and tell the person in charge. The
+log carries their id only. Each person's rates
 (windows, tolerance) come from their own nation's rate table. The person view
 (`GET /v1/people/{id}/medicine-round`) and the location view use the same function.
 

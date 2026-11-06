@@ -55893,6 +55893,7 @@ export interface components {
           nextAllowedAt: string | null;
           notices: string[];
         }[];
+        unavailable: string | null;
       }[];
     };
     AdministrationConflictList: {

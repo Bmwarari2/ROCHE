@@ -67,6 +67,8 @@ const CD_REGISTER_TASK = "medicines.cd.register_entry_due";
 const LocationParam = z.object({ id: z.uuid() });
 const ConflictParam = z.object({ id: z.uuid() });
 const HOUR_MS = 3_600_000;
+const ROUND_UNAVAILABLE =
+  "This person's medicines round could not be worked out. Check their MAR chart before giving anything, and tell the person in charge.";
 
 function audit(
   c: Context<AppEnv>,
@@ -118,19 +120,42 @@ export const medicineRoundsRouter = createRouter()
         // Each person's nation decides their rates (security review L8).
         const ratesByNation = new Map<string, Awaited<ReturnType<typeof medicinesRates>>>();
         for (const p of people) {
-          const entries = (await personEntries(tx, p.id)).map((s) => s.entry);
-          if (entries.length === 0) continue;
-          const { nation } = await loadPerson(tx, p.id);
-          let rates = ratesByNation.get(nation);
-          if (!rates) {
-            rates = await medicinesRates(tx, access.tenantId, nation, ukIsoDate(now));
-            ratesByNation.set(nation, rates);
+          // One person's records that cannot be worked out (rates missing for their nation, a
+          // schedule that cannot be read) never take the round away from everyone else: their
+          // entry says so in words, and the log carries their id only (HZ-003).
+          try {
+            const round = await tx.transaction(async (sp) => {
+              const entries = (await personEntries(sp, p.id)).map((s) => s.entry);
+              if (entries.length === 0) return null;
+              const { nation } = await loadPerson(sp, p.id);
+              let rates = ratesByNation.get(nation);
+              if (!rates) {
+                rates = await medicinesRates(sp, access.tenantId, nation, ukIsoDate(now));
+                ratesByNation.set(nation, rates);
+              }
+              const rows = await personAdministrations(sp, p.id);
+              const pending = await pendingConflicts(sp, p.id);
+              return roundFor({ entries, rows, rates, pending }, { from, to }, now, now);
+            });
+            if (!round || (round.doses.length === 0 && round.whenRequired.length === 0)) continue;
+            rounds.push({ personId: p.id, room: p.room, ...round, unavailable: null });
+          } catch (error) {
+            c.get("services").logger.error(
+              {
+                requestId: c.get("requestId"),
+                personId: p.id,
+                code: error instanceof Error ? error.name : "unknown",
+              },
+              "medicine round could not be worked out for one person",
+            );
+            rounds.push({
+              personId: p.id,
+              room: p.room,
+              doses: [],
+              whenRequired: [],
+              unavailable: ROUND_UNAVAILABLE,
+            });
           }
-          const rows = await personAdministrations(tx, p.id);
-          const pending = await pendingConflicts(tx, p.id);
-          const round = roundFor({ entries, rows, rates, pending }, { from, to }, now, now);
-          if (round.doses.length === 0 && round.whenRequired.length === 0) continue;
-          rounds.push({ personId: p.id, room: p.room, ...round });
         }
         await audit(c, tx, access, {
           action: "medicines.round.viewed",

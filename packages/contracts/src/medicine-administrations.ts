@@ -343,6 +343,8 @@ export const LocationRound = z
         room: z.string().nullable(),
         doses: MedicineRound.shape.doses,
         whenRequired: MedicineRound.shape.whenRequired,
+        /** Why this person's round could not be worked out, in words; null when it was. */
+        unavailable: z.string().nullable(),
       }),
     ),
   })

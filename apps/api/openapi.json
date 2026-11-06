@@ -41650,13 +41650,20 @@
                       "notices"
                     ]
                   }
+                },
+                "unavailable": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "personId",
                 "room",
                 "doses",
-                "whenRequired"
+                "whenRequired",
+                "unavailable"
               ]
             }
           }

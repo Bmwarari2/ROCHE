@@ -91,8 +91,8 @@ Branch `feat/meds-rounds`, from `feat/meds-cd-register` (slice 34), with #162's 
 - Tests added: a successful `corrected`, rates per nation, the controlled drug conflict (two
   people and the register task), a web session sending a device id, a malformed double-dose event,
   a future time given, and the clock-change slot (H-1277).
-- Noted, not changed: a location in a nation with no medicines rates seeded, or a regular entry
-  with no times, fails the whole location round with a 500 rather than one person's part of it.
+- Fixed later the same day: one person's round that cannot be worked out no longer fails the whole
+  location round; their entry says so in words (`unavailable`), the log carries their id only.
 
 ## Final review fixes (06/11/2026)
 
@@ -103,3 +103,5 @@ Branch `feat/meds-rounds`, from `feat/meds-cd-register` (slice 34), with #162's 
   close the retrospective review; the provider reviews when the Registered Manager decided. Tested.
 - Security 2: self-review counts the uploaded giver, the current and named corrections' authors.
   The controlled drug witness is not yet counted.
+- Test strengthened: a correction author who did not decide is refused closing the retrospective
+  review.

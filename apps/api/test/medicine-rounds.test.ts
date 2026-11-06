@@ -460,16 +460,20 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       },
     );
     expect(corrected.status, await corrected.clone().text()).toBe(201);
-    const done = await resolveAs(conflictId, {
-      outcome: "corrected",
-      correctionId,
-      note: "Corrected to given",
-    });
+    // The uploader decides (a self-review); the correction's author did not decide.
+    const done = await send(
+      "manager",
+      `/v1/medicine-administration-conflicts/${conflictId}/resolve`,
+      {
+        method: "POST",
+        body: { outcome: "corrected", correctionId, note: "Corrected to given" },
+      },
+    );
     expect(done.status, await done.clone().text()).toBe(200);
     expect(
       (await json<{ resolution: { correctionId: string } }>(done)).resolution.correctionId,
     ).toBe(correctionId);
-    // The correction's author decided, so it is a self-review; neither they nor the uploader may
+    // Neither the correction's author (who did not decide) nor the uploader who decided may
     // close its retrospective review (hazard HZ-004; clinical and security rechecks).
     const [review] = await asDemo(
       async (c) =>
@@ -734,5 +738,35 @@ describe("hazards HZ-003 and HZ-008 an outstanding dose is escalated and reaches
     const item = handover.items.find((i) => i.sourceId === t?.id);
     expect(item?.personId).toBe(CARL);
     expect(["overdue_task", "unfinished_task"]).toContain(item?.kind);
+  });
+});
+
+describe("hazard HZ-003 one person's records that cannot be worked out never take the round away from everyone else", () => {
+  it("shows the others' doses and that person's entry in words", async () => {
+    // A regular medicine with no times on its schedule cannot be expanded into doses.
+    const broken = randomUUID();
+    await asDemo(async (c) => {
+      await c.query(
+        `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+           route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+           source_reference, transcribed_by, transcribed_at)
+         VALUES ($1, $2, $1, 1, 'transcribed', $3, 'Lactulose', '26643006', 'Oral', 'regular',
+           'every_day', 'Dr A Example', now() - interval '2 days', 'prescription', 'Prescription',
+           $4, now() - interval '2 days')`,
+        [broken, CARL, LACTULOSE.vmpId, DEMO.users.manager.id],
+      );
+    });
+    const r = await send("manager", `/v1/locations/${DEMO.locationId}/medicine-round?${slot()}`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    const round = await json<{
+      people: { personId: string; doses: unknown[]; unavailable: string | null }[];
+    }>(r);
+    const carl = round.people.find((p) => p.personId === CARL);
+    expect(carl?.doses).toEqual([]);
+    expect(carl?.unavailable).toMatch(/could not be worked out/);
+    const others = round.people.filter((p) => p.personId !== CARL);
+    expect(others.length).toBeGreaterThan(0);
+    expect(others.every((p) => p.unavailable === null)).toBe(true);
+    expect(others.some((p) => p.doses.length > 0)).toBe(true);
   });
 });
