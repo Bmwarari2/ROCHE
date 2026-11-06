@@ -1966,3 +1966,28 @@ export async function flagEntriesAlreadyUploaded(
     return fresh.length;
   });
 }
+
+/**
+ * The entries a member of staff still owns on devices whose hold is open (H-566): for each device,
+ * when an open hold task is on it and its last report names the member as the owner of what waits,
+ * that report's count. Ending a membership waits until they are handed over or their deletion is
+ * recorded, which closes the hold. Read in the system's view.
+ */
+export async function entriesToHandOver(
+  tx: Transaction,
+  memberId: string,
+  deviceIds: readonly string[],
+): Promise<number> {
+  let total = 0;
+  for (const deviceId of deviceIds) {
+    const [open] = await tx
+      .select({ id: task.id })
+      .from(task)
+      .where(openDeviceTasks(deviceId))
+      .limit(1);
+    if (!open) continue;
+    const report = await previousReport(tx, deviceId);
+    if (report && report.owner === memberId && report.waiting > 0) total += report.waiting;
+  }
+  return total;
+}

@@ -1337,6 +1337,263 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/members/{tenantUserId}/lifecycle": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's membership and sign-in status
+     * @description The membership's state (invited, active, suspended or ended), when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, and the entries their devices last reported waiting and those still to hand over (platform.user.manage, for a member it reaches; anyone else reads as not found, audited by opaque id). No address or sign-in detail.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The member's status */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberLifecycle"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{tenantUserId}/suspend": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Suspend a membership
+     * @description Suspends an active membership (platform.user.manage, step-up, a coded reason; audited). The member can no longer reach this organisation, and Care mode on their phone ends. Every session of their sign-in ends too, unless they still work for another organisation, where they keep working. When their devices last reported entries waiting, the suspension needs confirmEntriesWaiting (409 entries_waiting otherwise); those entries stay on the device, protected, and their hold falls due at once for a manager to hand over. Not your own membership (409 own_membership), never the last active member who manages users (409 last_user_manager), only an active one (409 membership_state). A second request changes nothing (replay).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SuspendMember"];
+        };
+      };
+      responses: {
+        /** @description Suspended */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberSuspended"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{tenantUserId}/end": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * End a membership
+     * @description Ends a suspended membership (platform.user.manage, step-up, a coded reason; audited): their roles and grants end; the member row, display name and job title stay so care records remain attributable. Refused while entries the member owns are still held on a device (409 entries_to_hand_over), for an active one (409 membership_state) and for your own (409 own_membership). When the member asked for their account to be deleted, the request closes: their sign-in is erased once no membership anywhere is invited or active, else kept for the other organisation and erased when that ends. A second request changes nothing (replay).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndMember"];
+        };
+      };
+      responses: {
+        /** @description Ended */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberEnded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people": {
     parameters: {
       query?: never;
@@ -42419,6 +42676,59 @@ export interface components {
         | "suspected_misuse"
         | "other";
       confirmEntriesWaiting?: boolean;
+    };
+    MemberLifecycle: {
+      /** Format: uuid */
+      id: string;
+      displayName: string;
+      jobTitle: string | null;
+      state: components["schemas"]["MembershipState"];
+      /** Format: date-time */
+      statusChangedAt: string | null;
+      /** Format: date-time */
+      deletionRequestedAt: string | null;
+      deletionRequestOpen: boolean;
+      signIn: components["schemas"]["SignInState"];
+      /** Format: date-time */
+      signInErasedAt: string | null;
+      entriesWaiting: number;
+      entriesToHandOver: number;
+    };
+    /** @enum {string} */
+    MembershipState: "invited" | "active" | "suspended" | "left";
+    /** @enum {string} */
+    SignInState: "kept" | "kept_other_organisation" | "erased" | "none";
+    MemberSuspended: {
+      state: components["schemas"]["MembershipState"];
+      replay: boolean;
+      sessionsEnded: number;
+      signIn: components["schemas"]["SignInState"];
+      entriesWaiting: number;
+    };
+    SuspendMember: {
+      /** @enum {string} */
+      reasonCode:
+        | "investigation"
+        | "leaving"
+        | "account_deletion_requested"
+        | "long_absence"
+        | "other";
+      confirmEntriesWaiting?: boolean;
+    };
+    MemberEnded: {
+      state: components["schemas"]["MembershipState"];
+      replay: boolean;
+      signIn: components["schemas"]["SignInState"];
+      deletionRequestClosed: boolean;
+    };
+    EndMember: {
+      /** @enum {string} */
+      reasonCode:
+        | "left_employment"
+        | "account_deletion_requested"
+        | "contract_ended"
+        | "dismissed"
+        | "other";
     };
     PersonList: {
       items: components["schemas"]["PersonSummary"][];

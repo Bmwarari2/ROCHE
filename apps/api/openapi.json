@@ -1380,6 +1380,184 @@
           "reasonCode"
         ]
       },
+      "MemberLifecycle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/MembershipState"
+          },
+          "statusChangedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deletionRequestedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deletionRequestOpen": {
+            "type": "boolean"
+          },
+          "signIn": {
+            "$ref": "#/components/schemas/SignInState"
+          },
+          "signInErasedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entriesToHandOver": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "jobTitle",
+          "state",
+          "statusChangedAt",
+          "deletionRequestedAt",
+          "deletionRequestOpen",
+          "signIn",
+          "signInErasedAt",
+          "entriesWaiting",
+          "entriesToHandOver"
+        ]
+      },
+      "MembershipState": {
+        "type": "string",
+        "enum": [
+          "invited",
+          "active",
+          "suspended",
+          "left"
+        ]
+      },
+      "SignInState": {
+        "type": "string",
+        "enum": [
+          "kept",
+          "kept_other_organisation",
+          "erased",
+          "none"
+        ]
+      },
+      "MemberSuspended": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/MembershipState"
+          },
+          "replay": {
+            "type": "boolean"
+          },
+          "sessionsEnded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "signIn": {
+            "$ref": "#/components/schemas/SignInState"
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "state",
+          "replay",
+          "sessionsEnded",
+          "signIn",
+          "entriesWaiting"
+        ]
+      },
+      "SuspendMember": {
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "investigation",
+              "leaving",
+              "account_deletion_requested",
+              "long_absence",
+              "other"
+            ]
+          },
+          "confirmEntriesWaiting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reasonCode"
+        ]
+      },
+      "MemberEnded": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/MembershipState"
+          },
+          "replay": {
+            "type": "boolean"
+          },
+          "signIn": {
+            "$ref": "#/components/schemas/SignInState"
+          },
+          "deletionRequestClosed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "state",
+          "replay",
+          "signIn",
+          "deletionRequestClosed"
+        ]
+      },
+      "EndMember": {
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "left_employment",
+              "account_deletion_requested",
+              "contract_ended",
+              "dismissed",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "reasonCode"
+        ]
+      },
       "PersonList": {
         "type": "object",
         "properties": {
@@ -44201,6 +44379,284 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RevokeMemberSessionsResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/lifecycle": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "A member's membership and sign-in status",
+        "description": "The membership's state (invited, active, suspended or ended), when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, and the entries their devices last reported waiting and those still to hand over (platform.user.manage, for a member it reaches; anyone else reads as not found, audited by opaque id). No address or sign-in detail.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The member's status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/suspend": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Suspend a membership",
+        "description": "Suspends an active membership (platform.user.manage, step-up, a coded reason; audited). The member can no longer reach this organisation, and Care mode on their phone ends. Every session of their sign-in ends too, unless they still work for another organisation, where they keep working. When their devices last reported entries waiting, the suspension needs confirmEntriesWaiting (409 entries_waiting otherwise); those entries stay on the device, protected, and their hold falls due at once for a manager to hand over. Not your own membership (409 own_membership), never the last active member who manages users (409 last_user_manager), only an active one (409 membership_state). A second request changes nothing (replay).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendMember"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Suspended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberSuspended"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/end": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "End a membership",
+        "description": "Ends a suspended membership (platform.user.manage, step-up, a coded reason; audited): their roles and grants end; the member row, display name and job title stay so care records remain attributable. Refused while entries the member owns are still held on a device (409 entries_to_hand_over), for an active one (409 membership_state) and for your own (409 own_membership). When the member asked for their account to be deleted, the request closes: their sign-in is erased once no membership anywhere is invited or active, else kept for the other organisation and erased when that ends. A second request changes nothing (replay).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndMember"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberEnded"
                 }
               }
             }

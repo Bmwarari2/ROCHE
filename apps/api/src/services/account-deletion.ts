@@ -1,5 +1,5 @@
 import type { AccountDeletionRequest } from "@harbour/contracts";
-import { notification, task, withRequestContext } from "@harbour/db";
+import { notification, task, tenantUser, withRequestContext } from "@harbour/db";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
@@ -13,6 +13,8 @@ import { rateNumber } from "./rates";
  * Manager (else whoever manages members), due within `account_deletion.confirmation_days`, a
  * notification to them, and an audit event. It deletes nothing: the member decides with the
  * provider, and care records are never deleted this way (they follow the retention schedule).
+ * The member row records when they asked: once the organisation ends the membership and no other
+ * is invited or active, their sign-in identity is erased (H-566, `member-lifecycle`).
  * A second request while one is open returns the first.
  */
 
@@ -93,6 +95,13 @@ export async function requestAccountDeletion(
       })
       .returning({ id: task.id, createdAt: task.createdAt });
     if (!created) throw new Error("The account deletion request was not stored.");
+    // The sign-in is erased once no membership anywhere is invited or active (H-566).
+    await tx
+      .update(tenantUser)
+      .set({ signInErasureRequestedAt: now })
+      .where(
+        and(eq(tenantUser.id, access.tenantUserId), isNull(tenantUser.signInErasureRequestedAt)),
+      );
     if (assignee) {
       await tx.insert(notification).values({
         recipientTenantUserId: assignee,
