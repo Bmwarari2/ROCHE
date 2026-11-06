@@ -20,3 +20,17 @@ recommended answer applied until the testing-phase review.
   and self-administered doses are flagged and escalated, never refused. OpenAPI and client
   regenerated; export catalogue, retention, records of processing, data standards, the
   medical-device boundary note, feature register and STATUS updated.
+
+## Review fixes (06/11/2026)
+
+- Clinical: a covert record stops covering doses once its capacity or best-interests basis changes
+  (`basis_changed`); covert only on a given dose; homely doses need the allergy check, can be
+  checked without recording, are recorded when already given (flags and an urgent task), count
+  doses of the same product under other protocols, and check the gap and the 24 hours both ways.
+  The self-administration decision kind and the round display are deferred to slices 52 and 53
+  (H-1354), recorded as open in HZ-120.
+- Security: entered in error is limited to the giver or `medicines.record.manage` at the person's
+  home and is idempotent; the database checks the actor and the permission for doses and
+  assessments (`app.may_record_for_person`); resends compare the giver and reason; ending a covert
+  record follows the person's lifecycle; the dose check is audited.
+- Both reviewers satisfied after the second round.

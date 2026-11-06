@@ -1138,6 +1138,12 @@ export const medicinesAuthorityRouter = createRouter()
           now,
           now,
         );
+        await audit(c, tx, access, {
+          action: "medicines.homely_dose.checked",
+          resourceType: "person",
+          resourceId: personId,
+          scope: { personId, protocolId: protocol.id, problems: found },
+        });
         return {
           problems: found.map((p) => ({ problem: p, message: HOMELY_DOSE_PROBLEM_WORDS[p] })),
         };

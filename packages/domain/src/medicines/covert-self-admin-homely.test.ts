@@ -447,6 +447,16 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
     ["another dose", { quantity: 1 }, ["dose_differs"]],
     ["a dose too soon", { earlier: [{ at: hoursBefore(3.9), quantity: 2 }] }, ["too_soon"]],
     [
+      "a dose recorded later that puts the next 24 hours over the most",
+      {
+        earlier: [5, 10, 15, 20].map((h) => ({
+          at: new Date(now.getTime() + h * 3_600_000),
+          quantity: 2,
+        })),
+      },
+      ["over_daily_maximum"],
+    ],
+    [
       "a dose recorded later, just before another",
       { earlier: [{ at: new Date(now.getTime() + 3_600_000), quantity: 2 }] },
       ["too_soon"],

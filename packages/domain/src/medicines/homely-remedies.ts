@@ -156,10 +156,20 @@ export function checkHomelyDose(
     )
   )
     problems.push("too_soon");
-  const inDay = before
-    .filter((d) => input.at.getTime() - d.at.getTime() < 24 * HOUR)
-    .reduce((sum, d) => sum + d.quantity, 0);
-  if (inDay + input.quantity > p.maxDailyQuantity) problems.push("over_daily_maximum");
+  // Any 24 hours holding this dose stays within the most: a dose recorded later may fall before
+  // others already given.
+  const windows = [input.at.getTime(), ...input.earlier.map((d) => d.at.getTime())].filter(
+    (start) => start <= input.at.getTime() && input.at.getTime() - start < 24 * HOUR,
+  );
+  const over = windows.some(
+    (start) =>
+      input.earlier
+        .filter((d) => d.at.getTime() >= start && d.at.getTime() < start + 24 * HOUR)
+        .reduce((sum, d) => sum + d.quantity, 0) +
+        input.quantity >
+      p.maxDailyQuantity,
+  );
+  if (over) problems.push("over_daily_maximum");
   // The course: back from this dose while each gap is at most the course gap.
   let start = input.at.getTime();
   for (const d of before) {
