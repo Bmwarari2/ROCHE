@@ -747,8 +747,12 @@ export function changeMarEntry(
       (a, b) => (a === null || b.effectiveAt.getTime() < a.effectiveAt.getTime() ? b : a),
       null,
     );
+  // H-548 (slice 51 clinical review): a change to an imported entry nobody has checked stays an
+  // imported, unchecked entry, so it is still never given before its second check: what the
+  // file said (product, dose, route) is carried into the change unchecked.
+  const importHold = current.origin === "import" && current.secondCheck === null;
   const next: MarEntry = {
-    ...newEntry(draft, meta),
+    ...newEntry(draft, importHold ? { ...meta, origin: "import" } : meta),
     version: latest.version + 1,
     replacesId: current.id,
     reanchor: count.reanchor,
@@ -884,6 +888,9 @@ export function marEntryTimesBeforeRecorded(
   );
 }
 
+/** The withdrawal reason an import's undo records (migration 0136, `app.undo_import_batch`). */
+export const IMPORT_UNDONE_REASON = "The import that added it was undone";
+
 /** Tenant policy for entries awaiting their second check (H-550). */
 export type UncheckedEntryPolicy = "give_with_notice" | "hold_until_checked";
 
@@ -930,7 +937,15 @@ export function marEntryStatus(
   policy: UncheckedEntryPolicy,
 ): MarEntryStatus {
   if (entry.withdrawn !== null) {
-    return { words: "Withdrawn before it started", mayGive: false, notice: null };
+    // An import undone withdraws its entries whenever they started (slice 51, platform.md rule 28).
+    const undone = entry.origin === "import" && entry.withdrawn.reason === IMPORT_UNDONE_REASON;
+    return {
+      words: undone
+        ? "Withdrawn: the import that added it was undone"
+        : "Withdrawn before it started",
+      mayGive: false,
+      notice: null,
+    };
   }
   if (now.getTime() < entry.startsAt.getTime()) {
     return {
@@ -975,7 +990,7 @@ export function marEntryStatus(
     // either policy: no person transcribed it from the source, so the check is the first person to
     // compare it (H-548; ADR-0095; HZ-005).
     status = {
-      words: "Not yet checked",
+      words: "Imported, not yet checked",
       mayGive: false,
       notice: join(MAR_ENTRY_NOTICES.importedHold),
     };

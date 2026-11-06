@@ -7209,6 +7209,9 @@
           },
           "competence": {
             "type": "string"
+          },
+          "importedMedicines": {
+            "type": "integer"
           }
         }
       },
@@ -48615,9 +48618,12 @@
       "ImportRecordType": {
         "type": "string",
         "enum": [
-          "people"
+          "people",
+          "medicines",
+          "care_plans",
+          "staff_files"
         ],
-        "description": "What a batch imports (people in slice 26)"
+        "description": "What a batch imports (people in slice 26; medicines, care plans and staff files in slice 51)"
       },
       "ImportBatchStatus": {
         "type": "string",
@@ -48684,6 +48690,34 @@
           "batchId": {
             "type": "string",
             "format": "uuid"
+          },
+          "recordType": {
+            "$ref": "#/components/schemas/ImportRecordType"
+          },
+          "rowOutcomes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "type": "integer"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "creates",
+                    "refused"
+                  ]
+                }
+              },
+              "required": [
+                "row",
+                "outcome"
+              ]
+            }
+          },
+          "createsCount": {
+            "type": "integer"
           },
           "rows": {
             "type": "integer",

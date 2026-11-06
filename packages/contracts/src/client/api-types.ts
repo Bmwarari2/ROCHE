@@ -60633,6 +60633,7 @@ export interface components {
       memberId?: string;
       trainingTopic?: string;
       competence?: string;
+      importedMedicines?: number;
     } | null;
     CreateTask: {
       title: string;
@@ -71774,10 +71775,10 @@ export interface components {
       undoneAt: string | null;
     };
     /**
-     * @description What a batch imports (people in slice 26)
+     * @description What a batch imports (people in slice 26; medicines, care plans and staff files in slice 51)
      * @enum {string}
      */
-    ImportRecordType: "people";
+    ImportRecordType: "people" | "medicines" | "care_plans" | "staff_files";
     /**
      * @description Where a batch stands; forward only
      * @enum {string}
@@ -71804,6 +71805,13 @@ export interface components {
     ImportDryRunReport: {
       /** Format: uuid */
       batchId: string;
+      recordType?: components["schemas"]["ImportRecordType"];
+      rowOutcomes?: {
+        row: number;
+        /** @enum {string} */
+        outcome: "creates" | "refused";
+      }[];
+      createsCount?: number;
       rows: number;
       validRows: number;
       errorCount: number;

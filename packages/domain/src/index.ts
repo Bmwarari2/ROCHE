@@ -87,6 +87,7 @@ export * from "./platform/feature-flags";
 export * from "./platform/forms";
 export * from "./platform/image-metadata";
 export * from "./platform/imports";
+export * from "./platform/imports-clinical";
 export * from "./platform/invitations";
 export * from "./platform/membership";
 export * from "./platform/notifications";

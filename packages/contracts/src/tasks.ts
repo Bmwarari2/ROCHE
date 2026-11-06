@@ -99,6 +99,8 @@ export const TaskDetails = z
     memberId: uuid.optional(),
     trainingTopic: z.string().optional(),
     competence: z.string().optional(),
+    /** How many medicines a clinical import added for the person, to be checked (slice 51). */
+    importedMedicines: z.number().int().optional(),
   })
   .meta({ id: "TaskDetails" });
 export type TaskDetails = z.infer<typeof TaskDetails>;

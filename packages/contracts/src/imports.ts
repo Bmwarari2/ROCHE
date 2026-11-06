@@ -14,9 +14,11 @@ const count = z.number().int().min(0);
 /** The largest CSV text one upload takes, in characters (the request body is capped too). */
 export const IMPORT_MAX_CSV_CHARACTERS = 10_000_000;
 
-export const ImportRecordType = z
-  .enum(["people"])
-  .meta({ id: "ImportRecordType", description: "What a batch imports (people in slice 26)" });
+export const ImportRecordType = z.enum(["people", "medicines", "care_plans", "staff_files"]).meta({
+  id: "ImportRecordType",
+  description:
+    "What a batch imports (people in slice 26; medicines, care plans and staff files in slice 51)",
+});
 export type ImportRecordType = z.infer<typeof ImportRecordType>;
 
 export const ImportBatchStatus = z
@@ -114,6 +116,12 @@ const rowNumbers = z.array(z.number().int().min(1));
 export const ImportDryRunReport = z
   .object({
     batchId: uuid,
+    /** Slice 51 types: the type, every row's outcome and how many records committing creates. */
+    recordType: ImportRecordType.optional(),
+    rowOutcomes: z
+      .array(z.object({ row: z.number().int(), outcome: z.enum(["creates", "refused"]) }))
+      .optional(),
+    createsCount: z.number().int().optional(),
     rows: count,
     validRows: count,
     errorCount: count,

@@ -751,7 +751,12 @@ its key. A pair of rows is warned of once, on the later row, naming the earliest
 row names at most three existing records (`recordMatchesCapped`); a file with more than 50 rows on
 one date of birth, or more than 500 possible duplicates, is refused (`IMPORT_WARNING_LIMITS`,
 product limits), so every warning found is listed and can be acknowledged.
-| `import_batch.record_type` | Harbour | `people` | Contacts, allergies and staff follow (slice 51). |
+| `import_batch.record_type` | Harbour | `people`, `medicines`, `care_plans`, `staff_files` | Slice 51 adds the last three (migration 0136); contacts and allergies follow. |
+| Medicines import columns (slice 51) | dm+d, SNOMED CT (route and unit codes), Harbour | `person_nhs_number`, `vmp_id` and `amp_id` (dm+d codes, check digit), `route_code`, `directions` (`regular`, `when_required`), `dose_quantity` (above zero, at most three decimals), `dose_unit_code`, `times` (24-hour `HH:MM`, each once; regular only), `indication` (when-required), `special_instructions`, `prescriber`, `starts_on`, `stops_on` (dd/mm/yyyy), `source_kind`, `source_reference` | No name column: the product's name is dm+d's. Stored as a MAR entry with `origin` `import`, not yet checked |
+| Care plans import columns (slice 51) | PCSP need domains | `person_nhs_number`, `domain`, `need`, `outcome` (each up to 4,000 characters), `strengths`, `contingency` | One draft per person, a section per row |
+| Staff files import columns (slice 51) | As the staff file (above) | `member_email`, `kind` (`identity_with_photo`, `dbs_certificate`, `right_to_work`, `professional_registration`, `references`, `relevant_qualifications`) and that check's own columns | Stored unverified; health, conduct and employment history are never imported |
+| `medication.import_batch_id`, `care_plan.import_batch_id`, `compliance_item.import_batch_id` | Harbour | `import_batch.id` or empty | The batch that created the record; set only as it commits, never changed (migration 0136). `medication.origin` is `import` exactly when it is set |
+| Import dry run `rowOutcomes` (slice 51) | Harbour | `row` (1-based), `outcome` (`creates`, `refused`) | Every row, in file order; no value |
 | `import_batch.status` | Harbour | `staged`, `committed`, `undone`, `discarded`, `expired` | Forward only (a guard in migration 0088). `expires_at` is `uploaded_at` plus `import.staging_expiry_days`; `dry_run_errors` and `dry_run_warnings` are counts; `closed_by` is empty when the system expired it. No file name, heading or value is kept. |
 | `import_row.cells` | Harbour | JSON object: field key to the cell's text exactly as uploaded; `row_number` from 1, the first row under the header | Quarantine: personal data, deleted when the batch commits, is discarded or expires; not exported (the organisation holds its file). |
 | `import_commit.record_ids`, `record_count` | Harbour | Array of `person.id` (UUIDv7); a count | Kept after an undo as opaque ids; `undone_at` and `undone_by` set once. |
@@ -1378,6 +1383,26 @@ kept as their incident (`serious_incident`), reviews as the medicines record (`m
 | `medication_review.due_on`, `done_on` | ISO 8601 date | UK dates | |
 | `medication_review.clinician_role` | Harbour | `gp`, `pharmacist`, `prescriber`, `consultant`, `other` | |
 | `medication_review.outcome` | Harbour | Text up to 4,000 characters, the clinician's words | Never a Harbour suggestion. |
+## Medicines record and reconciliation (Phase 2, slice 16)
+
+Migration 0111 ([medicines.md](medicines.md) sections 2 and 12). Retention class `mar_chart`;
+every column is exported. dm+d (NHSBSA, SNOMED CT UK Drug Extension) is the coding standard;
+until slice 10 the identifiers are checked by shape and check digit, not against the release.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `medication.vmp_id`, `amp_id`, `medication_reconciliation_item.vmp_id`, `amp_id` | dm+d VPID and APID (SNOMED CT concept ids) | 6 to 18 digits, partition `00` or `10`, Verhoeff check digit (`isDmdId`) | No foreign key until slice 10's tables (an expand step adds it). |
+| `medication.product_name` | dm+d VMP or AMP description | As dm+d words it at transcription | Kept as transcribed; a later dm+d release does not rewrite it. |
+| `medication.route_code`, `route_name` | dm+d route of administration lookup | Code and description | Permitted routes per product from dm+d (slice 10). |
+| `medication_schedule.unit_code`, `unit_name`, `medication.prn_dose.unit` | dm+d unit of measure | Code and description | Written in full on screen ("micrograms", "units") by `formatDose`. |
+| `medication_schedule.quantity`, `from_quantity`, `to_quantity` | Harbour (structured dose) | Numeric, more than zero, at most 3 decimal places | A range is from less than to; variable has no quantity. |
+| `medication_schedule.time` | ISO 8601 local time | `HH:MM`, 24-hour, UK time | Expanded to instants with the time-zone database (rule 4). |
+| `medication.pattern_kind` and its columns | Harbour (section 18 schedule type) | `every_day`; `every_n_days` (`interval_days`, `anchor_on`); `weekly` (`weekdays`, `interval_weeks`, `anchor_on`); `monthly` (`day_of_month`) | The anchor is its own date (rule 6a). |
+| `medication.state`, `origin`, `directions` | Harbour | As medicines.md rule 6 | |
+| `medication.source_kind`, `stop_source_kind`, `medication_reconciliation_source.kind` | Harbour (`MAR_SOURCE_KINDS`) | `prescription`, `pharmacy_label`, `pharmacy_mar`, `discharge_letter`, `transfer_letter`, `gp_record`, `clinic_letter`, `prescriber_instruction`, `previous_mar`; a source may also be `person_or_family` | No verbal instruction (H-552). |
+| `medication.cd_schedule` | Misuse of Drugs Regulations 2001 schedules, from dm+d | `1`, `2`, `3`, `4`, `4.1`, `4.2`, `5`; null until slice 10 | |
+| `medication_reconciliation.trigger` | Harbour; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
+| `medication_reconciliation_item.says` | Harbour | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
 
 ## Platform operational tables (not part of the MODS export)
 

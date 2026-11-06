@@ -257,12 +257,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
       60_000,
     ),
+    medicines: createMedicinesPorts(config.medicinesFixtures),
     adapterFor: createAdapterResolver({
       production: config.NODE_ENV === "production",
       mocks,
       smtp: config.smtp,
     }),
-    medicines: createMedicinesPorts(config.medicinesFixtures),
     mockEmail: mocks.email,
     evidenceLinkThrottles: {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
@@ -522,6 +522,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", medicineRoundsRouter);
   app.route("/", disclosuresRouter);
   app.route("/", medicationErrorsRouter);
+  app.route("/", medicinesRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

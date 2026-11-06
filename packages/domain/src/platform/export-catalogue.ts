@@ -2476,6 +2476,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       signed_off_recorded_by: {
         description: "Tenant user who recorded the agreement (tenant_user.id).",
       },
+      import_batch_id: {
+        description: "The import batch that created it (import_batch.id), or empty (slice 51).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -8818,6 +8821,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         },
       },
       vetting_check_id: { description: "The check applied, when not by hand (vetting_check.id)." },
+      import_batch_id: {
+        description: "The import batch that created it (import_batch.id), or empty (slice 51).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

@@ -113,6 +113,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `medication_error` (slice 45; one per medication incident, kept with its incident) | serious_incident |
 | `medication_review` (slice 45) | mar_chart |
 | `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `medication`, `medication_schedule`, `medication_administration`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `outbreak` ([safety.md](safety.md) section 11) | serious_incident, as its UKHSA report |
+| `outbreak_case` | care_record for residents; staff cases follow it for now, to be confirmed by the DPO (H-767) |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item` | staff_file (tenant's chosen row) |
 | `vetting_consent`, `vetting_check` (identity and vetting adapters, slice 77; [workforce.md](workforce.md) section 2e) | staff_file (tenant's chosen row), as the staff file they belong to; a check's result holds no certificate content |

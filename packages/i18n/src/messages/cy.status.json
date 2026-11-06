@@ -7110,6 +7110,14 @@
     "shred.decide.both",
     "shred.certificate.memberRef",
     "shred.certificate.technical",
-    "shred.certificate.technicalAbout"
+    "shred.certificate.technicalAbout",
+    "import.recordType",
+    "import.upload.recordType",
+    "import.upload.recordTypeHint",
+    "import.report.rowsTitle",
+    "import.report.row",
+    "import.upload.recordTypeChanged",
+    "import.report.rowsSummary",
+    "import.report.rowsTruncated"
   ]
 }

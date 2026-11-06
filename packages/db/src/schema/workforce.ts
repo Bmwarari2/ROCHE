@@ -17,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
+import { importBatch } from "./imports";
 import { location, tenantUser } from "./platform";
 
 /**
@@ -230,9 +231,16 @@ export const complianceItem = pgTable(
     /** `EVIDENCE_SOURCES`: seen by hand, or the vetting check applied (slice 77). */
     evidenceSource: text("evidence_source").notNull().default("manual"),
     vettingCheckId: uuid("vetting_check_id"),
+    /** The import batch that created the item, unverified (slice 51, migration 0136), never changed. */
+    importBatchId: uuid("import_batch_id"),
     ...mutableColumns(),
   },
   (t) => [
+    foreignKey({
+      name: "compliance_item_import_batch_fk",
+      columns: [t.tenantId, t.importBatchId],
+      foreignColumns: [importBatch.tenantId, importBatch.id],
+    }),
     unique("compliance_item_tenant_id_id_key").on(t.tenantId, t.id),
     unique("compliance_item_kind_key").on(t.tenantId, t.staffProfileId, t.kind),
     foreignKey({
