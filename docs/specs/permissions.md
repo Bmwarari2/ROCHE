@@ -142,6 +142,9 @@ that home only.
 | `scheduling.dependency.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.wellbeing.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.wellbeing.self` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |
+
+| `scheduling.pay.manage` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
+| `scheduling.pay.approve` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `operations.premises.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.catering.manage` |  |  | yes |  | yes | yes |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.housekeeping.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |

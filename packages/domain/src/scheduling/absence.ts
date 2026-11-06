@@ -2,7 +2,7 @@ import { type RateNation, RateNotFoundError, type RateRow, resolveRate } from ".
 import { DAYS_PER_WEEK, daysFrom, plusDays } from "./intervals";
 
 /**
- * Absence and leave (scheduling.md section 15; SCHED-010; hazards HZ-123, HZ-124): requests and
+ * Absence and leave (scheduling.md section 17; SCHED-010; hazards HZ-123, HZ-124): requests and
  * decisions, self-certification and fit notes, periods of incapacity for SSP, and which rostered
  * shifts an absence leaves needing cover. Pure; every statutory figure comes from the rate table.
  * Nothing here holds or judges anyone's health: the kind of absence and its dates only.

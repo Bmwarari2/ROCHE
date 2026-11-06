@@ -115,7 +115,7 @@ CREATE UNIQUE INDEX "return_to_work_absence_key" ON "return_to_work" USING btree
 CREATE UNIQUE INDEX "shift_cover_need_open_key" ON "shift_cover_need" USING btree ("tenant_id","assignment_id","absence_id") WHERE resolved_at IS NULL;--> statement-breakpoint
 CREATE INDEX "shift_cover_need_shift_idx" ON "shift_cover_need" USING btree ("tenant_id","shift_id");--> statement-breakpoint
 
--- Absence and leave (scheduling.md section 15; SCHED-010; hazards HZ-123 and HZ-124).
+-- Absence and leave (scheduling.md section 17; SCHED-010; hazards HZ-123 and HZ-124).
 -- Forced row-level security with the tenant policy on every table (ADR-0002).
 DO $$
 DECLARE t text;

@@ -86,7 +86,7 @@ import {
 import { audit, dbCode, requireLocationInScope } from "./people-shared";
 
 /**
- * Absence and leave (scheduling.md section 15; SCHED-010; hazards HZ-123, HZ-124). A member asks
+ * Absence and leave (scheduling.md section 17; SCHED-010; hazards HZ-123, HZ-124). A member asks
  * for their own leave; a rota manager records a sickness or leave; an approver (never the member)
  * decides; approving or recording raises a cover need on each of the member's rostered shifts it
  * touches, and the rota counts those shifts as open. Fit notes, return to work, the Bradford factor

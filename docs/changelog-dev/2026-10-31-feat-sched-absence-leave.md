@@ -4,7 +4,7 @@ Branch `feat/sched-absence-leave`, cut from `feat/sched-rota-builder`.
 
 ## What changed
 
-- Spec: [scheduling.md](../specs/scheduling.md) section 15 (schema, rules 1 to 8, permissions,
+- Spec: [scheduling.md](../specs/scheduling.md) section 17 (schema, rules 1 to 8, permissions,
   API, test list). Rates `ssp.piw_min_days`, `ssp.piw_link_weeks`, `ssp.self_certification_days`
   (to verify, H-972); retention class `sickness_absence` (H-973).
 - Domain `packages/domain/src/scheduling/absence.ts`: kinds and states, who may decide (never the

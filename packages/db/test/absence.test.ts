@@ -6,7 +6,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Absence and leave in the database (scheduling.md section 15; SCHED-010; migration 0107; hazards
+ * Absence and leave in the database (scheduling.md section 17; SCHED-010; migration 0107; hazards
  * HZ-123 and HZ-124): a member reads and asks for their own; rota managers and approvers read those
  * at their home; a decision only by an approver there, never the member; fit notes and return to
  * work only for holders of workforce.hr_document.read (health data), append-only; cover needs

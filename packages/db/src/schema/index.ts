@@ -25,6 +25,7 @@ export * from "./medicines-dmd";
 export * from "./onboarding";
 export * from "./operations";
 export * from "./operator";
+export * from "./pay";
 export * from "./people";
 export * from "./people-lifecycle";
 export * from "./platform";

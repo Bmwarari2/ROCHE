@@ -18,7 +18,7 @@ import {
   STATUTORY_LEAVE_KINDS,
 } from "./absence";
 
-/** Absence and leave (scheduling.md section 15; SCHED-010; HZ-123, HZ-124). Invented people. */
+/** Absence and leave (scheduling.md section 17; SCHED-010; HZ-123, HZ-124). Invented people. */
 
 const rates = resolveAbsenceRates(readRateTable(), "england", "2026-10-31", null);
 const TODAY = "2026-10-31";

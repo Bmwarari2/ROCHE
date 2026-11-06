@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Absence and leave (scheduling.md section 15; SCHED-010; hazards HZ-123, HZ-124): leave asked
+ * Absence and leave (scheduling.md section 17; SCHED-010; hazards HZ-123, HZ-124): leave asked
  * for and decided, sickness recorded with self-certification and fit notes, return to work, the
  * Bradford factor with its working, SSP working for payroll, and the cover an absence needs on
  * the rota. Never a diagnosis: the condition stays on the fit note document itself.

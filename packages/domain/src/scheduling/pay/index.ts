@@ -6,5 +6,6 @@ export * from "./holiday";
 export * from "./money";
 export * from "./nmw";
 export * from "./pay-rules";
+export * from "./pay-run";
 export * from "./rates";
 export * from "./ssp";

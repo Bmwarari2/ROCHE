@@ -321,6 +321,15 @@ export const PERMISSIONS = {
   "scheduling.wellbeing.self": {
     description: "Answer staff surveys, thank colleagues and keep own wellbeing check-ins",
   },
+  // Pay runs hold staff file data and sickness dates (special category): MFA, as the staff file.
+  "scheduling.pay.manage": {
+    description: "Write pay rule sets and pay profiles; draft and calculate pay runs",
+    sensitive: true,
+  },
+  "scheduling.pay.approve": {
+    description: "Approve pay rule sets; check and lock pay runs; override their exceptions",
+    sensitive: true,
+  },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
   "operations.catering.manage": {

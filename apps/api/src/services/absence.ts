@@ -26,7 +26,7 @@ import { rateNumber } from "./rates";
 import { withSystemRights } from "./system-rights";
 
 /**
- * Absences and the rota (scheduling.md section 15 rules 7 and 8; HZ-123, HZ-124). Whether a
+ * Absences and the rota (scheduling.md section 17 rules 7 and 8; HZ-123, HZ-124). Whether a
  * rostered member is away is read with the system's rights, because their absence may belong to
  * another home whose managers the reader is not: only the yes or no leaves (never the kind, the
  * dates or anything about health), so the rota never counts an absent member as care on the floor

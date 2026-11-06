@@ -1205,7 +1205,7 @@ export const rotaRouter = createRouter()
               ),
             };
           }
-          // HZ-124: never onto a shift on a day the member is away (section 15 rule 8).
+          // HZ-124: never onto a shift on a day the member is away (section 17 rule 8).
           if (await memberAwayFor(tx, body.workerId, s)) {
             await audit(c, tx, access, {
               action: A.assigned,

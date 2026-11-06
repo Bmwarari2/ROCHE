@@ -22,6 +22,10 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.member_is_agency(uuid)": ["harbour_app"],
   // Whose working time an approver reads (migration 0109).
   "app.reads_worker_time(uuid)": ["harbour_app"],
+  // A pay run's state for its lines' policies (migration 0116).
+  "app.has_locked_pay_line(uuid)": ["harbour_app"],
+  "app.pay_run_calculation(uuid)": ["harbour_app"],
+  "app.pay_run_status(uuid)": ["harbour_app"],
   "app.claim_invitation(text)": ["harbour_app"],
   "app.pulse_survey_results(uuid)": ["harbour_app"],
   "app.submit_pulse_response(uuid, jsonb)": ["harbour_app"],

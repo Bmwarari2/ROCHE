@@ -19,7 +19,7 @@ import { document, location, tenantUser } from "./platform";
 import { shift, shiftAssignment } from "./rota";
 
 /**
- * Absence and leave (scheduling.md section 15; SCHED-010; hazards HZ-123 and HZ-124): absences
+ * Absence and leave (scheduling.md section 17; SCHED-010; hazards HZ-123 and HZ-124): absences
  * with their requests and decisions, fit notes (an HR-only document with its dates, never the
  * condition), return to work records, and the cover needs an absence raises on the member's
  * rostered shifts. The rules live in packages/domain/src/scheduling/absence.ts; row-level

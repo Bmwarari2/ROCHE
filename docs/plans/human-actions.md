@@ -650,6 +650,41 @@ section 16) on 31 October 2026, from the block H-990 to H-999 the lead assigned.
 | H-998 | Confirm the privacy notice tells staff about clock events, flags and stored working time results (WORK-011) | DPO | records of processing (slice 30) | Time and attendance in a real tenant | open |
 | H-999 | Decide whether payroll exports (slice 76) use only approved entries not superseded (built: `scheduling.timesheet_approved` on the outbox for each approval) and how corrections after an export reach payroll | Brian | ADR-0097 | Payroll corrections | open |
 
+## Phase 2: absence and leave (slice 40)
+
+Logged by slice 40 (SCHED-010, [scheduling.md](../specs/scheduling.md) section 17) on 31 October 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-970 | Confirm the absence kinds and which are asked for (all leave kinds) and which only recorded (sickness), and whether compassionate and carer's leave need their own statutory rules here | Brian with an employment adviser | scheduling.md section 17 rules 1 and 2; `ABSENCE_KINDS` | None (default applied) | open |
+| H-971 | Agree who decides leave (holders of scheduling.rota.approve at the home, never the member) and who may record a sickness (scheduling.rota.manage) | Registered Manager at the design partner | scheduling.md section 17 permissions | Role design at onboarding | open |
+| H-972 | Verify the three SSP figures added to the rate table on legislation.gov.uk and record the page and date in rates.md: a period of incapacity is 4 or more consecutive days (s 152(2)), periods link within 8 weeks (s 152(3)), and no medical evidence for the first 7 days (SSP (Medical Evidence) Regulations 1985), as they stand after the Employment Rights Act 2025 | Brian (or an employment adviser) | rates.md `ssp.piw_min_days`, `ssp.piw_link_weeks`, `ssp.self_certification_days` (to-verify) | Marking the rates verified | open |
+| H-973 | Confirm the `sickness_absence` retention class (6 years after the absence) for absences, fit notes, return to work records and SSP workings, or set another | DPO lead | retention.md; migration 0107 | Retention engine for absences | open |
+| H-974 | Confirm the Article 9 condition for fit notes and return to work notes (Article 9(2)(b), DPA 2018 Schedule 1 paragraph 1, employment) and that the appropriate policy document covers them; add them to the DPIA | DPO lead | records-of-processing.md (absence and leave) | DPIA sign-off | open |
+| H-975 | Decide how the Bradford factor may be used in the organisation's absence policy (Harbour shows it with its working and never acts on it), and confirm the 52-week window (adds to H-583) | Brian with the design partner | scheduling.md section 17 rule 5; rates.md `absence.bradford.window_weeks` | None (default applied) | open |
+| H-976 | Confirm with payroll how the SSP working is used: average weekly earnings typed by HR for each request (not stored), qualifying days by weekday, and the link to the slice 6 rule | Brian with the design partner's payroll | `GET /v1/absences/{id}/ssp` | Payroll integration | open |
+| H-977 | Review the cover rules with the CSO: an absence flags the member's shifts for cover rather than taking them off, the rota check counts those shifts as open, and assigning someone on a day they are away is refused | CSO | hazards HZ-123 and HZ-124; scheduling.md section 17 rules 7 and 8 | Clinical safety case sign-off | open |
+| H-978 | Build a consumer of `scheduling.cover_needed` that raises a task for the rota's managers and notifies them (today the published rota reads as changed and the check counts the shift as open, but nobody is told at once), add an advisory note when assigning someone with a leave request not yet decided, tell return to work users not to record a condition in the notes, and show cover needs on the rota screens (slice 59 is on a separate branch: its builder and check pages should read `assignment.coverNeeded` and `coverNeededAssignmentIds`) and build the absence screens | Brian | phase-2.md slices 59 and 40 | Absence screens | open |
+| H-979 | Decide whether statutory family pay (SMP, SPP, ShPP, SAP, parental bereavement) is worked out on maternity, paternity and adoption absences in a later slice, using the slice 6 family pay rules | Brian with an employment adviser | `packages/domain/src/scheduling/pay/family-pay.ts` | Family leave pay | open |
+
+## Phase 2: pay calculation runs (slice 36)
+
+Logged by slice 36 (pay calculation runs, [scheduling.md](../specs/scheduling.md) section 18) on 31
+October 2026, from the block H-1100 to H-1109 the lead assigned.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1100 | At upgrade, give existing tenants' Finance role the two new pay permissions (`scheduling.pay.manage`, `scheduling.pay.approve`); built-in roles carry them for new tenants, and Registered Managers and deputies never do (pay is organisation-wide) | Brian | `roles.ts`; migration 0116 | Pay runs in existing tenants | open |
+| H-1101 | Confirm with a payroll adviser which payments count as pay for the minimum wage and holiday (built: basic, enhancements and the sleep-in allowance; never mileage or an on-call allowance for time at home; the minimum wage top-up is a line of its own), and whether every sleep-in may be read as one where sleep is expected with suitable facilities (built: yes, so only awake times count; a sleep-in without them should be recorded as on call at the workplace) | Brian with a payroll adviser (H-529) | `payRunLine` | Pay runs in a real tenant | open |
+| H-1102 | Decide who checks and locks runs (built: a holder of `scheduling.pay.approve` who neither created nor calculated the run, with MFA) and whether locking needs a step-up sign-in like an export; before any route grants permissions, a grantor must hold each permission granted and never grant to themselves, or an organisation-wide manager could grant themselves pay (security review) | Brian with the DPO | rule 11 | Locking in a real tenant | open |
+| H-1103 | Build the holiday ledger the slice 6 rules leave open: the 28-day yearly cap, rounding the accrued total to the nearest hour, and holiday pay during sick and statutory leave (regs 15B, 15C, 16A) | Brian | rule 5 | Holiday balances | open |
+| H-1104 | Decide how average weekly earnings for SSP are found (built: typed on the pay profile by Finance; slice 40's H-976 asks the same) rather than worked out from the 8 weeks of locked runs before the sickness, and how days already paid in a period of incapacity are counted (built: its qualifying days before the pay period, which can understate what is left, and in Northern Ireland, where waiting days remain, can pay a waiting day; better from the SSP days of locked lines) | Brian with a payroll adviser | rule 6 | SSP without typed earnings | open |
+| H-1105 | Decide whether an overtime threshold is per week or per pay period, and whether bank holidays beyond the nation's calendar (the rule set's extra days) need approval each year | Brian with a Registered Manager | rule 3 | Overtime in monthly runs | open |
+| H-1106 | Decide whether a below-minimum-wage exception may be overridden at all (built: yes, with a reason, because the top-up line is already added) or must be put right in the rule set, and the same for `rate_missing` and `no_role_rate`, which leave a line with no pay; and the CSO confirms pay runs create no clinical hazard (the slice 36 paragraph in the medical-device boundary) | Brian with the Nominated Individual; the CSO for the boundary | rule 9 | Pay runs in a real tenant | open |
+| H-1107 | Confirm the privacy notice tells staff about pay runs, the working kept with each line and who sees it (WORK-011) | DPO | records of processing (slice 36) | Pay runs in a real tenant | open |
+| H-1108 | Choose the first payroll provider for the export port (slice 76: Xero Payroll first) and add it to the sub-processor register and DPIA before any line is sent | DPO with Brian | `PayrollExportPort` | Slice 76 | open |
+| H-1109 | Decide how deductions for the employer's own use (uniform) and accommodation are recorded for the minimum wage check (built: none; the slice 6 rule takes them) | Brian with a payroll adviser | rule 4 | Minimum wage checks with deductions | open |
+
 ## Phase 2: deaths and missing persons (slice 37)
 
 Logged by slice 37 (`feat/safety-deaths-missing`, migration 0099) on 31 October 2026, from its block
@@ -699,7 +734,6 @@ Logged by slice 67 (PLAT-014 web wizard) on 31 October 2026.
 | H-897 | Run the import journeys on a phone-width screen (slice 74) and with a screen reader, and record the result | Accessibility lead | `apps/web/e2e/import.spec.ts` | Slice 74 | open |
 | H-898 | Agree the import file limits shown to people (5,000 rows, the 12 MiB upload) with the design partner, and whether a larger home needs more | Brian with the design partner | `IMPORT_LIMITS`; `IMPORT_UPLOAD_MAX_BYTES` | None (default applied) | open |
 | H-899 | Confirm that the SSO settings screens (the other half of slice 67) wait for the SSO API, and schedule them | Brian | phase-2.md slice 67 | SSO settings screens | open |
-
 ## Phase 2: Thapsus-HR link (slices 86 to 90)
 
 Logged on 01/11/2026 with [ADR-0126](../decisions/0126-thapsus-hr-link.md), when the owner asked for

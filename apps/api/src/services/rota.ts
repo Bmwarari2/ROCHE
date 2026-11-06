@@ -431,7 +431,7 @@ export async function rotaShifts(tx: Transaction, rotaId: string) {
     overridden.set(o.assignmentId, [...(overridden.get(o.assignmentId) ?? []), ...o.keys]);
   }
   shifts.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || (a.id < b.id ? -1 : 1));
-  // HZ-123: an assignment whose member is away on the shift needs cover (section 15 rule 7).
+  // HZ-123: an assignment whose member is away on the shift needs cover (section 17 rule 7).
   const away = await assignmentsAway(
     tx,
     assignments.flatMap((a) => {
@@ -684,15 +684,15 @@ export async function rotaCheck(
         !inducted.some((i) => i.workerId === a.workerId),
     )
     .map((a) => a.id);
+  const coverNeededAssignmentIds = shifts.flatMap((s) => {
+    const a = assignmentOf(s.id);
+    return a && coverNeededOf(a.id) ? [a.id] : [];
+  });
   // H-927: a booked bank or agency worker on a shift running now with nobody assigned (HZ-073).
   const rotaShiftSet = new Set(shifts.map((s) => s.id));
   const peopleUnassigned = (await agencyWithoutPeople(tx, rotaRow.locationId, now, now, now))
     .filter((x) => rotaShiftSet.has(x.shiftId))
     .map((x) => x.assignmentId);
-  const coverNeededAssignmentIds = shifts.flatMap((s) => {
-    const a = assignmentOf(s.id);
-    return a && coverNeededOf(a.id) ? [a.id] : [];
-  });
   const blockedAssignmentIds = eligibility.filter((e) => !e.covered).map((e) => e.assignmentId);
   const periodsToAcknowledge = staffing
     .filter((p) => p.status === "below" || p.status === "incomplete" || p.status === "no_scale")
@@ -702,8 +702,8 @@ export async function rotaCheck(
     workingTime.some((w) => w.status === "cannot_check" || w.findings.length > 0) ||
     openShiftIds.length > 0 ||
     inductionsDue.length > 0 ||
-    peopleUnassigned.length > 0 ||
     coverNeededAssignmentIds.length > 0 ||
+    peopleUnassigned.length > 0 ||
     eligibility.some((e) => !e.allowed);
   const digest = createHash("sha256")
     .update(
@@ -724,8 +724,8 @@ export async function rotaCheck(
         ]),
         periodsToAcknowledge,
         inductionsDue,
-        peopleUnassigned,
         coverNeededAssignmentIds,
+        peopleUnassigned,
         workingTime,
       }),
     )
@@ -740,8 +740,8 @@ export async function rotaCheck(
     eligibility,
     openShiftIds,
     inductionsDue,
-    peopleUnassigned,
     coverNeededAssignmentIds,
+    peopleUnassigned,
     hasWarnings,
     periodsToAcknowledge,
     blockedAssignmentIds,

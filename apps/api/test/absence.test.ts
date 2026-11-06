@@ -7,7 +7,7 @@ import { createLogger } from "../src/logger";
 import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
- * Absence and leave through the API (scheduling.md section 15; SCHED-010; hazards HZ-123 and
+ * Absence and leave through the API (scheduling.md section 17; SCHED-010; hazards HZ-123 and
  * HZ-124): a member asks for leave and an approver (never the member) decides; approving raises a
  * cover need on the member's rostered shift, the rota shows it and the check counts it as open;
  * nobody is put on a shift on a day they are away; cancelling and taking them off resolve it; a

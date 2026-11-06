@@ -16,6 +16,7 @@ const APPEND_ONLY_TABLES = [
   "staff_privacy_acknowledgement",
   "staff_image_consent",
   "audit_event",
+  "pay_run_line",
   "agency_awr_record",
   "record_version",
   "workflow_transition",
