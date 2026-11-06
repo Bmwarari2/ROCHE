@@ -317,7 +317,7 @@ describe("hazard HZ-124 one decision across the dates a shift touches", () => {
 });
 
 describe("hazard HZ-124 an agency worker's DBS is never overridden", () => {
-  // A missing certificate is never overridable for anyone (H-835); a certificate at the wrong level
+  // A missing certificate is never overridable for anyone (H-830); a certificate at the wrong level
   // is, except for an agency worker.
   const dbsMissing: RosterBlocker = { kind: "dbs", reason: "wrong_level" };
   it("hazard HZ-124 refuses an override of a DBS blocker when the caller marks it strict", () => {

@@ -80,3 +80,20 @@ describe("hazard HZ-124 an agency worker's checks come from the agency's confirm
     expect(checks.memberActive).toBe(false);
   });
 });
+
+describe("hazard HZ-123 an agency worker never counts as a registered nurse or a driver", () => {
+  // The agency's confirmation names the register, not its part, and carries no driving check
+  // (H-835), so the staffing comparison never counts an agency worker towards those skills.
+  it.each<[string, AgencyConfirmation | null]>([
+    [
+      "a confirmed NMC registration in date",
+      { ...confirmed, registrationBody: "nmc", registrationValidUntil: "2027-03-31" },
+    ],
+    ["no registration", { ...confirmed, registrationBody: null, registrationValidUntil: null }],
+    ["nothing confirmed", null],
+  ])("%s", (_name, confirmation) => {
+    const checks = agencyRosterChecks(confirmation, DAY, ACTIVE);
+    expect(checks.registeredNurse).toBe(false);
+    expect(checks.driver).toBe(false);
+  });
+});
