@@ -314,6 +314,13 @@ export const PERMISSIONS = {
     description: "Name the on-call route for lone-worker alarms",
     sensitive: true,
   },
+  "scheduling.wellbeing.manage": {
+    description:
+      "Run staff pulse surveys and read their results above the minimum group size, recognition and check-ins members share",
+  },
+  "scheduling.wellbeing.self": {
+    description: "Answer staff surveys, thank colleagues and keep own wellbeing check-ins",
+  },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
   "operations.catering.manage": {

@@ -15,6 +15,7 @@ import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
 import {
   buildDowntimePacks,
+  closeEndedSurveysJob,
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
@@ -111,6 +112,7 @@ const QUEUES = {
   importExpiry: "import-expiry",
   dmdRelease: "dmd-release-load",
   loneWorkers: "lone-worker-sweep",
+  pulseSurveyClose: "pulse-survey-close",
 } as const;
 
 // The dm+d load (ADR-0080) is long and rare: its own queue holds one job, queued or running, and
@@ -258,6 +260,10 @@ await work(QUEUES.loneWorkers, async () => {
   await sweepLoneWorkersJob(deps);
 });
 
+await work(QUEUES.pulseSurveyClose, async () => {
+  await closeEndedSurveysJob(deps);
+});
+
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
 await boss.schedule(QUEUES.escalations, "* * * * *");
@@ -319,6 +325,9 @@ await boss.schedule(QUEUES.importExpiry, "31 * * * *");
 // Monthly, as section 15.3 sets the dm+d refresh, early on the 3rd; a release already loaded is
 // not loaded again, and a manual run is `pnpm --filter @harbour/db dmd:load` (ADR-0080).
 await boss.schedule(QUEUES.dmdRelease, "41 4 3 * *");
+
+// Hourly: a survey closes, and its answers are released, within the hour after its last day.
+await boss.schedule(QUEUES.pulseSurveyClose, "17 * * * *");
 
 logger.info("Harbour worker started");
 

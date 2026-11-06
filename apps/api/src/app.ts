@@ -109,6 +109,7 @@ import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
 import { timeAttendanceRouter } from "./routes/time-attendance";
+import { wellbeingRouter } from "./routes/wellbeing";
 import { workflowsRouter } from "./routes/workflows";
 import {
   createOidcDiscovery,
@@ -459,6 +460,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorBreachNoticesRouter);
   app.route("/", peopleDetailsRouter);
   app.route("/", schedulingDependencyRouter);
+  app.route("/", wellbeingRouter);
   app.route("/", rotaRouter);
   app.route("/", agencyRouter);
   app.route("/", absencesRouter);

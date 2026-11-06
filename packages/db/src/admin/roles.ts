@@ -27,6 +27,8 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
  * sub-processor notices; migration 0067), `harbour_sample_owner` (counting sample and real people
  * and removing a sample batch; migration 0069), `harbour_import_owner` (deleting an import's
  * staged rows when its batch closes, and undoing a committed import; migration 0088),
+ * `harbour_wellbeing_owner` (taking an anonymous staff survey response, releasing responses when a
+ * survey closes and its results above the minimum group size; migration 0115).
  * `harbour_silo_owner` (raising a named speak-up concern with its reporter, appointing the Freedom
  * to Speak Up lead, the silo guards and the audit chain check; migration 0086, ADR-0089), `harbour_quality_reader` (counting the quality
  * dashboard's records at one location; migration 0108), `harbour_dmd_loader` (the dm+d release loader's functions, the only
@@ -40,6 +42,7 @@ export const NOLOGIN_ROLES = [
   "harbour_notice_resolver",
   "harbour_sample_owner",
   "harbour_import_owner",
+  "harbour_wellbeing_owner",
   "harbour_silo_owner",
   "harbour_quality_reader",
   "harbour_dmd_loader",
@@ -91,6 +94,7 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   await client.query("GRANT harbour_notice_resolver TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_sample_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_import_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_wellbeing_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_silo_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_quality_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_dmd_loader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
