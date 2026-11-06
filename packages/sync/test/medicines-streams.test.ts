@@ -187,6 +187,16 @@ const source: SourceRows = {
   ],
   medication_dosing_record: [
     {
+      id: "d-ada-replaced",
+      tenant_id: A,
+      person_id: "ada",
+      medication_id: "m-ada-replaced",
+      doses: "[]",
+      check_outcome: "agreed",
+      check_at: "2026-11-05 09:00:00+00",
+      recorded_at: "2026-11-05 08:00:00+00",
+    },
+    {
       id: "d-ada-withdrawn",
       tenant_id: A,
       person_id: "ada",
@@ -208,6 +218,21 @@ const source: SourceRows = {
     },
   ],
   covert_medication_record: [
+    {
+      id: "c-ada-replaced",
+      tenant_id: A,
+      person_id: "ada",
+      medication_id: "m-ada-replaced",
+      medicine_id: "m-ada-medicine",
+      method: "x",
+      pharmacist_advice: null,
+      starts_on: "2026-10-01",
+      review_on: "2027-01-01",
+      reviewed_on: null,
+      ended_on: null,
+      version: 1,
+      deleted_at: null,
+    },
     {
       id: "c-ada-withdrawn",
       tenant_id: A,
@@ -341,8 +366,8 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       "m-ada-unchecked",
     ]);
     expect(ids(device, "medication_schedule")).toEqual(["s-ada", "s-ada-replaced"]);
-    expect(ids(device, "medication_dosing_record")).toEqual(["d-ada"]);
-    expect(ids(device, "covert_medication_record")).toEqual(["c-ada"]);
+    expect(ids(device, "medication_dosing_record")).toEqual(["d-ada", "d-ada-replaced"]);
+    expect(ids(device, "covert_medication_record")).toEqual(["c-ada", "c-ada-replaced"]);
   });
 
   it("gives administrations recorded on the token's days only (35 UTC days, for monthly medicines)", async () => {

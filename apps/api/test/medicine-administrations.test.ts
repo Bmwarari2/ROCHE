@@ -693,7 +693,7 @@ describe("hazard HZ-113 the dm+d rows a phone needs (slice 68; ADR-0130)", () =>
     expect(carer.status).toBe(200);
     const subset = await json<{ products: { id: string }[]; unresolved: string[] }>(carer);
     const ids = new Set([...subset.products.map((p) => p.id), ...subset.unresolved]);
-    // The carer is assigned to Ada and Ben (the demo seed's first three residents).
+    // The demo seed assigns the carer to its first three residents: Ada, Ben and Carl.
     expect(ids.has(PARACETAMOL.vmpId)).toBe(true);
     expect(ids.has(LACTULOSE.vmpId)).toBe(true);
     // A quality lead reads records but does not give medicines.

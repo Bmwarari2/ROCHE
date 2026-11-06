@@ -1071,6 +1071,9 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
   withdrawn or removed, a stopped or replaced one included (the phone judges `stop_at`,
   `stop_effective_at` and `replaced_from`, so a change from tomorrow never takes today's doses off
   the round), with the schedule times, dosing records and covert records of those versions only.
+  The round on the phone (slice 69) works out each version's doses with the domain's
+  `marEntryEnd` and `marEntryDosesFrom` on these rows, so a replaced version and its replacement
+  never both show the same dose (HZ-003).
 - **`*_medicine_administrations`**: administrations recorded on a day of `meds_recent_days` (today
   and the 34 UTC days before, minted by the API), for the last given of a monthly or weekly
   medicine, intervals and the 24-hour maximum (H-1421).

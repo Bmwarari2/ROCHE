@@ -62,7 +62,12 @@ Option 2.
 - Bad: stopped and replaced versions accumulate on the phone with the person (dozens a year at
   most); the phone hides them once ended.
 - Bad: 35 days of administrations is more on the phone than 48 hours; still only the member's
-  people, under SQLCipher.
+  people, under SQLCipher. Estimate for a 60-bed home: about 10 regular medicines a person at
+  about 3 doses a day gives some 63,000 administrations (about 300 bytes each, some 19 MB), plus
+  a few hundred MAR entry versions; well within the 30-second budget on 4G for the first sync
+  (H-1421), and each later sync carries only the day's changes. If the pilot shows otherwise, the
+  window narrows (a product setting) or stopped and replaced versions sync only while their end is
+  within it.
 - Bad: the dm+d subset is as fresh as the last fetch; offline, the last subset stays and the phone
   says when it was fetched (slice 69).
 
