@@ -249,6 +249,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/workforce/cases")) return "cases";
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/documents")) return "documents";
+  if (pathname.startsWith("/training/elearning")) return "elearning";
   if (pathname.startsWith("/training")) return "training";
   if (pathname.startsWith("/my-time")) return "my-time";
   if (pathname.startsWith("/my-pay")) return "my-pay";
@@ -257,7 +258,6 @@ function currentSection(pathname: string): string {
   if (pathname === "/pay" || pathname.startsWith("/pay/")) return "pay";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
-  if (pathname.startsWith("/training/elearning")) return "elearning";
   if (pathname.startsWith("/staff")) return "staff-files";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";

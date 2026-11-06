@@ -6653,7 +6653,7 @@
   "medicines.form.prnMaxError": "Enter the most that can be given in 24 hours, as the prescription says.",
   "medicines.form.minimumInterval": "Minimum time between doses, in minutes (optional)",
   "medicines.form.minimumIntervalHint": "Leave blank if the prescription gives none.",
-  "medicines.form.minimumIntervalError": "Enter whole minutes between 1 and 10080, or leave it blank.",
+  "medicines.form.minimumIntervalError": "Enter a whole number of minutes from 1 to 10,080 (7 days), or leave it blank.",
   "medicines.form.indicationHint": "Needed for a when-required medicine. As written on the source.",
   "medicines.form.specialInstructions": "Special instructions",
   "medicines.form.source": "Where this comes from",

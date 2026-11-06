@@ -156,6 +156,43 @@ describe("hazard HZ-005 a dose is sent as the number typed, never rounded", () =
     });
   });
 
+  // H-1066: a when-required medicine is never recorded without its 24-hour maximum; the minimum
+  // interval is optional, whole minutes up to 7 days. Each error links to its field.
+  it.each<[string, Record<string, string>, string | null]>([
+    ["no 24-hour maximum", {}, "prn-max"],
+    ["a zero maximum", { "prn-max": "0" }, "prn-max"],
+    ["a maximum in words", { "prn-max": "eight" }, "prn-max"],
+    ["a maximum and no interval", { "prn-max": "8", minimumInterval: "" }, null],
+    ["a zero interval", { "prn-max": "8", minimumInterval: "0" }, "minimumInterval"],
+    ["a part-minute interval", { "prn-max": "8", minimumInterval: "1.5" }, "minimumInterval"],
+    ["an interval over 7 days", { "prn-max": "8", minimumInterval: "10081" }, "minimumInterval"],
+    ["a four-hour interval", { "prn-max": "8", minimumInterval: "240" }, null],
+  ])("when required: %s", (_name, extra, errorKey) => {
+    const read = readDraft(
+      form({
+        ...regular,
+        directionsKind: "when_required",
+        doseKind: "amount",
+        "prn-quantity": "1",
+        ...extra,
+      }),
+      t,
+      PARACETAMOL,
+      NOW,
+    );
+    if (errorKey === null) {
+      expect(read.ok).toBe(true);
+    } else {
+      expect(read.ok).toBe(false);
+      const errors = read.ok ? {} : read.errors;
+      expect(Object.keys(errors)).toContain(errorKey);
+      // Keys the form's DRAFT_FIELDS names, so each error links to its field.
+      for (const key of Object.keys(errors)) {
+        expect(["prn-max", "minimumInterval"]).toContain(key);
+      }
+    }
+  });
+
   it("reads a when-required range and weekly days, and refuses a repeated time", () => {
     const prn = readDraft(
       form({
@@ -164,6 +201,7 @@ describe("hazard HZ-005 a dose is sent as the number typed, never rounded", () =
         doseKind: "range",
         "prn-from": "1",
         "prn-to": "2",
+        "prn-max": "8",
       }),
       t,
       PARACETAMOL,
@@ -171,7 +209,13 @@ describe("hazard HZ-005 a dose is sent as the number typed, never rounded", () =
     );
     expect(prn).toMatchObject({
       ok: true,
-      body: { directions: { kind: "when_required", dose: { kind: "range", from: 1, to: 2 } } },
+      body: {
+        directions: {
+          kind: "when_required",
+          dose: { kind: "range", from: 1, to: 2 },
+          maxQuantityPer24Hours: 8,
+        },
+      },
     });
     const weekly = readDraft(
       form({
