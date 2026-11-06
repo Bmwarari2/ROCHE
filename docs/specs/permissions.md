@@ -140,6 +140,9 @@ that home only.
 | `scheduling.visit.manage` |  |  | yes |  | yes | yes |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.timesheet.self` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |
 | `scheduling.dependency.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `scheduling.lone_worker.check_in` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |
+| `scheduling.lone_worker.monitor` |  |  | yes |  | yes | yes |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `scheduling.lone_worker.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.wellbeing.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.wellbeing.self` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |
 

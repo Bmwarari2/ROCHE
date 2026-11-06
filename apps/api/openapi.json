@@ -45105,6 +45105,18 @@
             "type": "string",
             "format": "uuid"
           },
+          "fromName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "toName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "locationId": {
             "type": "string",
             "format": "uuid"
@@ -45121,9 +45133,38 @@
           "id",
           "fromMemberId",
           "toMemberId",
+          "fromName",
+          "toName",
           "locationId",
           "message",
           "createdAt"
+        ]
+      },
+      "RecognitionColleagues": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "NewRecognition": {
@@ -45178,6 +45219,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "memberName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "locationId": {
             "type": "string",
             "format": "uuid"
@@ -45208,6 +45255,7 @@
         "required": [
           "id",
           "memberId",
+          "memberName",
           "locationId",
           "mood",
           "note",
@@ -50404,6 +50452,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "workerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "locationId": {
             "type": "string",
             "format": "uuid"
@@ -50456,6 +50510,7 @@
         "required": [
           "sessionId",
           "workerTenantUserId",
+          "workerName",
           "locationId",
           "workKind",
           "startedAt",
@@ -101686,6 +101741,76 @@
         }
       }
     },
+    "/v1/recognition/colleagues": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Colleagues one may thank at a home",
+        "description": "scheduling.wellbeing.self, at a home where the member works: the active members who work there, by name, never the member themself. Refused with the same words wherever the member does not work, so it never says who works where.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "locationId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Colleagues",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecognitionColleagues"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/wellbeing-check-ins": {
       "get": {
         "tags": [
@@ -108062,7 +108187,7 @@
           "scheduling"
         ],
         "summary": "Lone workers now",
-        "description": "scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.",
+        "description": "scheduling.lone_worker.monitor. Open sessions at the locations where one holds it, other than one's own, each with its status in words, when the next check-in is due, the last check-in (and whether it came late from an offline device) and any open alarm. Audited.",
         "security": [
           {
             "bearerAuth": []

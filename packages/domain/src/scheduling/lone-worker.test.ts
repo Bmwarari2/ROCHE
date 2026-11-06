@@ -241,7 +241,7 @@ describe("sessionStatus: when the sweep reminds and when it raises the alarm", (
 });
 
 /**
- * The offline rule, end to end (scheduling.md section 14.4). Each row is a worker whose device
+ * The offline rule, end to end (scheduling.md section 15.4). Each row is a worker whose device
  * may be offline: the check-ins they made (device time) with when the server received each, and
  * what the server shows at the time it looks.
  */

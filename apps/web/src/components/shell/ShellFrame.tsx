@@ -29,6 +29,7 @@ import {
   FolderLock,
   Gauge,
   GraduationCap,
+  HeartHandshake,
   House,
   ListChecks,
   ListTodo,
@@ -48,6 +49,7 @@ import {
   Timer,
   TriangleAlert,
   UserPlus,
+  UserRoundCheck,
   Users,
   Wallet,
 } from "lucide-react";
@@ -90,6 +92,10 @@ export interface ShellFrameLabels {
   readonly approvals?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
   readonly downtime?: string | undefined;
+  /** Shown only to people who check in alone, watch lone workers or name the on-call route. */
+  readonly loneWorking?: string | undefined;
+  /** Shown only to people who answer staff surveys or run them (scheduling.wellbeing.*). */
+  readonly wellbeing?: string | undefined;
   /** Shown only in a family member's portal session (comms.feed.read). */
   readonly updates?: string | undefined;
   /** Shown only to people who may search (platform.search.use). */
@@ -190,6 +196,8 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/speak-up")) return "speak-up";
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
+  if (pathname.startsWith("/lone-working")) return "loneWorking";
+  if (pathname.startsWith("/wellbeing")) return "wellbeing";
   if (pathname.startsWith("/approvals")) return "approvals";
   if (pathname.startsWith("/letters")) return "letters";
   if (pathname.startsWith("/tasks")) return "tasks";
@@ -384,6 +392,26 @@ export function ShellFrame({
             label: labels.downtime,
             href: "/downtime",
             icon: <CloudOff {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.loneWorking
+      ? [
+          {
+            id: "loneWorking",
+            label: labels.loneWorking,
+            href: "/lone-working",
+            icon: <UserRoundCheck {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.wellbeing
+      ? [
+          {
+            id: "wellbeing",
+            label: labels.wellbeing,
+            href: "/wellbeing",
+            icon: <HeartHandshake {...icon} />,
           },
         ]
       : []),

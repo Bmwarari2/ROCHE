@@ -24,6 +24,7 @@ import { peopleLabel, t } from "@/lib/i18n";
 import { importShown } from "@/lib/imports";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
+import { loneWorkerNavShown } from "@/lib/lone-worker";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { absencesShown, myTimeShown, payShown, timesheetsShown } from "@/lib/pay-time";
 import { dashboardShown } from "@/lib/quality-dashboard";
@@ -36,6 +37,7 @@ import { searchShown } from "@/lib/search";
 import { speakUpShown } from "@/lib/speak-up";
 import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
+import { wellbeingNavShown } from "@/lib/wellbeing";
 
 /** "CQC location 1-000000001", for the location switcher. */
 function locationDescription(location: LocationSummary): string | undefined {
@@ -98,6 +100,8 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           : undefined,
         approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
+        loneWorking: loneWorkerNavShown(me.permissions) ? t("shell.nav.loneWorking") : undefined,
+        wellbeing: wellbeingNavShown(me.permissions) ? t("shell.nav.wellbeing") : undefined,
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
         tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
         documents: isFamilyMember(me) ? undefined : t("shell.nav.documents"),

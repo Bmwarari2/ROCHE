@@ -20,7 +20,7 @@ import { location, tenantUser } from "./platform";
 import { incident } from "./safety";
 
 /**
- * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 14; HZ-125). The rules
+ * Lone-worker safety (SCHED-012, Phase 2 slice 46; scheduling.md section 15; HZ-125). The rules
  * live in packages/domain/src/scheduling/lone-worker.ts; row-level security, the append-only
  * events and the guards are in migration 0113. Lane C owns this file.
  */
