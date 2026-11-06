@@ -109,10 +109,12 @@ docs/specs/retention.md). So:
    (30, rate table), notifies them, and audits the request. A second request while one is open
    returns the first.
 3. The manager decides with the member and the data protection lead and ends the account's access:
-   today by revoking its sessions (`POST /v1/members/{tenantUserId}/sessions/revoke`, which signs
-   them out of every device); suspending or removing a member and erasing the sign-in identity has no route
-   yet (a gap, H-566). **Nothing is deleted by the request itself, and care records are never deleted
-   this way.**
+   by suspending the membership, then ending it (`POST /v1/members/{tenantUserId}/suspend` and
+   `/end`; [platform.md](../specs/platform.md), Member lifecycle, H-566). Once the person has no
+   invited or active membership anywhere, their sign-in identity (email, password hash, passkeys,
+   TOTP secret, sessions) is erased and the request closes with its outcome. **The request itself
+   deletes nothing, and care records are never deleted this way**: the member row, name and job
+   title stay so the records they made remain attributable.
 4. **On the web** (Google requires a link usable without the app): a public page explaining the same
    route and the provider's contact process (H-564).
 

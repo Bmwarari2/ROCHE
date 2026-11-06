@@ -87,7 +87,7 @@ const audits = (action: string, member: string, outcome = "success") =>
   );
 const json = async <T>(response: Response) => (await response.json()) as T;
 
-describe("H-566 suspending and ending a membership", () => {
+describe("hazard HZ-110 H-566 suspending and ending a membership", () => {
   it("needs platform.user.manage and a fresh sign-in, audited", async () => {
     expect((await suspend(h.tokens.carer ?? "", DEMO.users.nurse.id)).status).toBe(403);
     const manager = await signIn(DEMO.users.manager.email);

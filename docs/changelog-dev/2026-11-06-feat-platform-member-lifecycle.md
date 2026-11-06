@@ -1,0 +1,38 @@
+# Member lifecycle (H-566)
+
+Branch `feat/platform-member-lifecycle`, from `main` at `5dec5f37`. Builds H-566's recommended
+answer so account deletion requests can be completed ([platform.md](../specs/platform.md), Member
+lifecycle).
+
+## What changed
+
+- **Migration 0144**: `tenant_user` gains `status_changed_at`, `sign_in_erasure_requested_at` and
+  `sign_in_erased_at`.
+  - `app.change_member_status` suspends from active and ends from suspended, as the manager:
+    `platform.user.manage` again, never your own membership, never the last active member who
+    manages users; ending ends roles and grants.
+  - A trigger keeps an ended membership ended and an erased row without a sign-in.
+  - `app.sign_ins_due_for_erasure` and `app.memberships_of_sign_in`, owned by the membership reader.
+- **API**: `POST /v1/members/{id}/suspend` and `/end` (step-up, coded reasons, audited, replays
+  change nothing) and `GET /v1/members/{id}/lifecycle`.
+  - Suspending ends the member's sessions unless they work for another organisation (H-354), stops
+    Care mode with `not_a_member` and makes held entries due at once; shared devices stay in use.
+  - Ending waits for held entries to be handed over (409 `entries_to_hand_over`).
+- **Erasure**: once the member asked for deletion and no membership anywhere is invited or active,
+  the Better Auth user and its sessions, accounts, passkeys and TOTP secret go, and the request
+  closes as `sign_in_erased` (or `membership_ended_sign_in_kept` while another organisation keeps
+  them). The nightly invitation sweep finishes any erasure that became due elsewhere. The member
+  row, display name and job title stay (Regulation 17).
+- **Web**: the member page in Settings, Team shows the membership, sign-in, deletion request and held
+  entries, with suspend and end sheets. A seeded leaver (Lee Leaver, no sign-in) for the journey.
+- **Docs**: platform.md, app-store-privacy.md, records of processing, data standards, retention,
+  HZ-110 controls and tests (agreed with the lead: no new hazard), H-566 built, H-1390 to H-1393.
+
+## Tests
+
+- `packages/db/test/member-lifecycle.test.ts`, `apps/api/test/member-lifecycle.test.ts`,
+  `apps/web/src/lib/team.test.ts`, `apps/web/e2e/member-lifecycle.spec.ts` (axe, light and dark).
+
+## Left
+
+- Reinstating a suspended membership (H-1392).

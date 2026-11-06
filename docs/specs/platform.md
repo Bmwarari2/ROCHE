@@ -286,6 +286,64 @@ shows it; upload and remove a logo; axe in light and dark).
   device revocation (`hurryRevokedHold`).
 - Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
+### Member lifecycle (H-566)
+
+A manager ends a member's access in two steps, then the person's sign-in identity goes once they
+work nowhere else. Recommended answer to H-566 ([recommended-answers.md](../plans/recommended-answers.md)),
+built on `feat/platform-member-lifecycle` (migration 0144).
+
+- **Suspend** (`POST /v1/members/{tenantUserId}/suspend`, `platform.user.manage`, step-up, a coded
+  reason: `investigation`, `leaving`, `account_deletion_requested`, `long_absence`, `other`):
+  active to suspended. The member no longer reaches the organisation (the tenant middleware admits
+  active members only), so Care mode on their phone ends with `not_a_member`. Every session of the
+  sign-in ends too, unless the person still has an invited or active membership of another
+  organisation, where they keep working (H-354). When their devices last reported entries waiting,
+  the manager confirms that count first (409 `entries_waiting`); those entries stay on the device,
+  protected, and each hold falls due at once for a manager to hand over (`hurryRevokedHold`, HZ-110).
+  Shared devices are not revoked: other staff go on using them.
+- **End** (`POST /v1/members/{tenantUserId}/end`, the same permission, step-up, a coded reason:
+  `left_employment`, `account_deletion_requested`, `contract_ended`, `dismissed`, `other`):
+  suspended to ended (`left`). Refused while entries the member owns are still held on a device whose
+  hold is open (409 `entries_to_hand_over`): they are handed over, or their deletion recorded on the
+  device, first. Their roles end and their grants are revoked. The member row, display name and job
+  title stay so care records remain attributable (Regulation 17); the staff file follows `staff_file`
+  retention.
+- **Erasure**: the account deletion request (`POST /v1/me/account-deletion-request`) records when the
+  member asked (`tenant_user.sign_in_erasure_requested_at`). Once no membership of the sign-in, in
+  any organisation, is invited or active (`app.sign_ins_due_for_erasure`), the sign-in identity is
+  erased: the Better Auth user (email, password hash), and with it by cascade its sessions, accounts,
+  passkeys and TOTP secret, and any verification addressed to them. Each membership loses its link
+  (`auth_user_id` null, `sign_in_erased_at` set); an ended one's address becomes
+  `<member id>@erased.invalid`. Ending the last membership erases at once; the nightly sweep
+  (invitation queue) erases any sign-in that became due another way (an ending elsewhere, the leaver
+  process), well within `account_deletion.confirmation_days`. Erasure runs again safely.
+- **The request closes** with its outcome, audited by opaque id (`platform.account_deletion.completed`):
+  `sign_in_erased`, or `membership_ended_sign_in_kept` when the person still works for another
+  organisation (their sign-in is erased by the sweep when that membership ends too).
+- **Status** (`GET /v1/members/{tenantUserId}/lifecycle`): state, when it last changed, whether
+  deletion was asked for and is still open, the sign-in's state (`kept`, `kept_other_organisation`,
+  `erased`, `none`), entries waiting and entries to hand over. No address or sign-in detail.
+- **Rules in the database** (`app.change_member_status`, security definer, called as the manager):
+  `platform.user.manage` again; never the caller's own membership; suspend only from active, end only
+  from suspended, the same state again a replay that changes nothing; never the organisation's last
+  active member who manages users. A trigger keeps an ended membership ended and an erased row
+  without a sign-in, whoever writes.
+- **Reach**: both routes and the status reach only members the manager's permission reaches
+  (ADR-0071, `memberReached`); anyone else, another organisation's member included, reads as not
+  found, audited by opaque id.
+- **Audit**: `platform.member.suspended`, `platform.member.ended` (each refusal as `denied` with its
+  reason), `platform.member.sign_in_erased` (per membership, and once for the sign-in),
+  `platform.account_deletion.completed`, `platform.member.lifecycle_viewed` (refusals).
+- **Web**: the member page in Settings, Team shows the state (icon and word), the sign-in, any
+  deletion request and held entries, with "Suspend membership" and "End membership" sheets taking a
+  coded reason.
+- **Not built**: reinstating a suspended membership (H-1392).
+- **Tests**: `packages/db/test/member-lifecycle.test.ts`, `apps/api/test/member-lifecycle.test.ts`
+  (a suspended member cannot sign in, Care mode stops, a member of two organisations keeps the other,
+  erasure only when no membership is active, idempotency, cross-tenant refusal, attribution survives
+  erasure), `apps/web/src/lib/team.test.ts`, `apps/web/e2e/member-lifecycle.spec.ts` (axe, both
+  themes).
+
 ## Invitations and MFA enrolment (PLAT-004)
 
 Status: the rules are built (`packages/domain/src/platform/invitations.ts`, table-driven tests),

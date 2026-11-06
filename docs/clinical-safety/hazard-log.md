@@ -2913,7 +2913,7 @@ person receiving care.
 | Status | Open |
 | Clinical owner | `[CSO name - human action]` |
 | Engineering owner | `platform` module (lead engineer) |
-| Source | The admin sign-out and the idle timeout (platform.md, Identity; branch `feat/platform-session-controls`, #40: `apps/api/src/routes/member-sessions.ts`, `apps/api/src/http/context.ts`); related to HZ-006 (silent sync failure, loss of offline records), HZ-021 (essential information), HZ-040 (held entries) and HZ-111 (the browser side of the idle timeout) |
+| Source | The admin sign-out and the idle timeout (platform.md, Identity; branch `feat/platform-session-controls`, #40: `apps/api/src/routes/member-sessions.ts`, `apps/api/src/http/context.ts`), and suspending a membership (platform.md, Member lifecycle, H-566: `apps/api/src/routes/member-lifecycle.ts`); related to HZ-006 (silent sync failure, loss of offline records), HZ-021 (essential information), HZ-040 (held entries) and HZ-111 (the browser side of the idle timeout) |
 
 **Description**: the server ends a Care mode session (a manager signing the member out, or an idle timeout if it applied to the phone), and at its next contact the phone clears what it had synced, keeping only unsent entries (HZ-006). The carer loses the care plan, allergies and other reference data on the device until they sign in again, which may be impossible without signal, and entries wait longer to reach the record.
 
@@ -2933,6 +2933,8 @@ person receiving care.
 | Design | When the member's devices last reported entries waiting, the sign-out is refused until the manager confirms (409 `entries_waiting`), saying that signing out removes the care record from their phone until they sign in again and that unsent entries stay on the phone until then | Built in Phase 1 (`feat/platform-session-controls`, #40 review M2) |
 | Design | For a member signed out because they have left or been suspended, the holds on their devices fall due at once and the manager is told, as after a device revocation (`hurryRevokedHold`) | Built in Phase 1 (`feat/platform-session-controls`, #40 review M2) |
 | Design | A device whose session the API has ended keeps unsent entries, encrypted, for their owner to send after signing in again (HZ-006, `held-work.ts`) | Built in Phase 1 (#15) |
+| Design | Suspending a membership (H-566) ends Care mode on the member's phone with `not_a_member` (the tenant middleware admits active members only), so the phone keeps unsent entries and clears the rest, as after a sign-out; the manager first confirms the entries the member's devices last reported waiting (409 `entries_waiting`), and each hold falls due at once for a manager to hand over (`hurryRevokedHold`). Shared devices are not revoked, so other staff keep their records on them. A member who also works for another organisation keeps their sessions there | Built in Phase 2 (`feat/platform-member-lifecycle`, `apps/api/src/routes/member-lifecycle.ts`) |
+| Design | Ending a membership waits until the entries the member owns on a device with an open hold are handed over or their deletion is recorded (409 `entries_to_hand_over`), so an ended member's entries are not stranded; the member row, display name and job title stay, so handed-over and earlier entries remain attributed to them after their sign-in is erased | Built in Phase 2 (`feat/platform-member-lifecycle`) |
 | Design | The sign-out confirmation says how old the devices' last report is | Planned (STATUS item 18) |
 | Training and user documentation | Deployer control: sign a carer out mid-shift only for a lost or stolen device, a departure, a suspension or suspected misuse, and tell them to sign in again before going on with care (DCB0160 template) | Phase 1 |
 
@@ -2945,6 +2947,7 @@ person receiving care.
 | `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-110 hazard HZ-111 idle timeouts per role, when turned on`: `never signs out the mobile app's session, which the device lock covers` | Passing (Phase 1) |
 | `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-110 a manager signs a member of staff out of every device`: `hazard HZ-110 asks before signing out a member whose phone holds entries, then signs out every session and chases the hold`; `hazard HZ-110 never signs out someone who also works for another organisation`; `hazard HZ-110 reaches only members wholly at the manager's homes, and audits a refusal`; `hazard HZ-110 needs platform.user.manage and a fresh sign-in` | Passing (Phase 1) |
 | `apps/mobile/src/app-state/held-work.test.ts`: `when the API ends the session (401 or 403)` (unsent entries kept, the rest cleared) | Passing (Phase 1) |
+| `apps/api/test/member-lifecycle.test.ts`: `hazard HZ-110 H-566 suspending and ending a membership`: `suspends a carer: sign-in refused, Care mode stops, held entries chased, then ended and erased`; `keeps a member of two organisations working in the other, and erases once that ends too`; `refuses another organisation's member as not found (cross-tenant), audited`; `needs platform.user.manage and a fresh sign-in, audited` | Passing (Phase 2) |
 
 ---
 
