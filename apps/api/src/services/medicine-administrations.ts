@@ -1,5 +1,6 @@
 import type { AdministrationOut, DosingRecordOut } from "@harbour/contracts";
 import {
+  auditEvent,
   medication,
   medicationAdministration,
   medicationAdministrationWitness,
@@ -360,6 +361,7 @@ export async function closeOutstandingDoseTask(
  */
 /** One person's missed doses could not be checked by the job (HZ-003, slice 48). */
 export const DOSE_CHECK_FAILED_TASK = "medicines.dose.check_failed";
+const DOSE_CHECK_FAILED_ACTION = "medicines.dose_check.failed";
 
 export async function raiseOutstandingDoseTasks(
   tx: Transaction,
@@ -443,33 +445,47 @@ export async function raiseOutstandingDoseTasks(
       });
     } catch (error) {
       onFailure(personId, error);
-      // A person looks instead: one open task per person, so the job stays idempotent.
-      const [open] = await tx
-        .select({ id: task.id })
-        .from(task)
-        .where(
-          and(
-            eq(task.kind, DOSE_CHECK_FAILED_TASK),
-            eq(task.sourceId, personId),
-            inArray(task.status, ["open", "in_progress"]),
-          ),
-        )
-        .limit(1);
-      if (!open) {
-        await tx.insert(task).values({
-          kind: DOSE_CHECK_FAILED_TASK,
-          title:
-            "This person's missed doses could not be checked: look at their MAR chart now and tell the person in charge",
-          requiredPermission: "medicines.emar.administer",
-          personId,
-          locationId: person.locationId,
-          sourceType: "person",
-          sourceId: personId,
-          assigneeRoleKey: "clinical_lead",
-          dueAt: now,
-          priority: "urgent",
+      // A person looks instead: one open task per person, so the job stays idempotent. In its own
+      // savepoint, so a failure here never rolls back everyone else's tasks (review item 2).
+      try {
+        raised += await tx.transaction(async (sp) => {
+          await sp.insert(auditEvent).values({
+            tenantId,
+            action: DOSE_CHECK_FAILED_ACTION,
+            resourceType: "person",
+            resourceId: personId,
+            scope: { job: "medicines-outstanding-doses" },
+          });
+          const [open] = await sp
+            .select({ id: task.id })
+            .from(task)
+            .where(
+              and(
+                eq(task.kind, DOSE_CHECK_FAILED_TASK),
+                eq(task.sourceId, personId),
+                inArray(task.status, ["open", "in_progress"]),
+              ),
+            )
+            .limit(1);
+          if (open) return 0;
+          await sp.insert(task).values({
+            kind: DOSE_CHECK_FAILED_TASK,
+            title:
+              "This person's missed doses could not be checked: look at their MAR chart for the last three days now",
+            requiredPermission: "medicines.emar.administer",
+            personId,
+            locationId: person.locationId,
+            sourceType: "person",
+            sourceId: personId,
+            assigneeRoleKey: "clinical_lead",
+            dueAt: now,
+            priority: "urgent",
+            details: { from: new Date(now.getTime() - LOOKBACK_MS).toISOString() },
+          });
+          return 1;
         });
-        raised += 1;
+      } catch (fallbackError) {
+        onFailure(personId, fallbackError);
       }
     }
   }

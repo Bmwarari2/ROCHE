@@ -499,9 +499,16 @@ export async function escalateOutstandingDoses(deps: TaskDeps, now = new Date())
   const raised = await eachTenant(deps, "medicines-outstanding-doses", (tx, tenantId) =>
     raiseOutstandingDoseTasks(tx, tenantId, now, (personId, error) =>
       // Opaque ids and the error's kind only (HZ-003).
+      // The operator's failed-job alarm counts it, with the database code (review item 1).
       deps.logger.error(
-        { tenantId, personId, code: error instanceof Error ? error.name : "unknown" },
-        "missed doses could not be checked for one person",
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: "medicines-outstanding-doses",
+          tenantId,
+          personId,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
       ),
     ),
   );

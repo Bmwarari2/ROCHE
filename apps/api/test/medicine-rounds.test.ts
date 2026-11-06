@@ -771,6 +771,19 @@ describe("hazard HZ-003 one person's records that cannot be worked out never tak
   });
 
   it("keeps raising missed-dose tasks for everyone else, and asks a person to look at the one that failed", async () => {
+    // A broken schedule for one person (a regular medicine with no times), so the test stands alone.
+    const broken = randomUUID();
+    await asDemo(async (c) => {
+      await c.query(
+        `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+           route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+           source_reference, transcribed_by, transcribed_at)
+         VALUES ($1, $2, $1, 1, 'transcribed', $3, 'Lactulose', '26643006', 'Oral', 'regular',
+           'every_day', 'Dr A Example', now() - interval '2 days', 'prescription', 'Prescription',
+           $4, now() - interval '2 days')`,
+        [broken, CARL, LACTULOSE.vmpId, DEMO.users.manager.id],
+      );
+    });
     // A good schedule for another person, with a dose three hours ago and no outcome.
     const good = randomUUID();
     const due = new Date(Date.now() - 3 * 60 * MINUTE);
@@ -805,6 +818,13 @@ describe("hazard HZ-003 one person's records that cannot be worked out never tak
     await escalateOutstandingDoses(deps);
     expect(await count(outstanding, good)).toBeGreaterThan(0);
     expect(await count(failed, CARL)).toBe(1);
+    expect(
+      await count(
+        `SELECT count(*)::text AS n FROM audit_event
+          WHERE action = 'medicines.dose_check.failed' AND resource_id = $1`,
+        CARL,
+      ),
+    ).toBeGreaterThan(0);
     // Run again: nothing new is raised for either.
     const before = await count(outstanding, good);
     await escalateOutstandingDoses(deps);

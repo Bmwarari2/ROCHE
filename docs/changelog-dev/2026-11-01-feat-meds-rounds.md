@@ -108,3 +108,6 @@ Branch `feat/meds-rounds`, from `feat/meds-cd-register` (slice 34), with #162's 
 - The missed-dose job works out each person in a savepoint: one person who cannot be worked out
   is logged by id and gets one urgent `medicines.dose.check_failed` task; everyone else's tasks are
   still raised (HZ-003). Tested, including a second run raising nothing new.
+- Review follow-up: the failure counts in the operator's failed-job alarm with the database code and
+  is audited (`medicines.dose_check.failed`); the fallback task runs in its own savepoint and says
+  how far back to look; the test stands alone.
