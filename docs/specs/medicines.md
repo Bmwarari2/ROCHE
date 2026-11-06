@@ -1813,3 +1813,57 @@ Not sent to devices yet (the round stream is a contract until slice 68).
   refusals, the flag and escalation before an assessment and none after; protocol refusals, a dose
   by a named member once per id, refusals in words, entered in error, a prescribed product,
   withdrawal.
+
+## 17. Printable MAR chart and controlled drugs register page (slice 50; MEDS-014)
+
+Both PDFs are drawn from the record when asked and never stored. The web streams them as downloads
+that the browser is told not to keep. No migration. HZ-122, with HZ-007.
+
+**Routes** (`apps/api/src/routes/medicines-print.ts`):
+- `GET /v1/people/{id}/mar/print?month=yyyy-mm`: the MAR chart for one calendar month in UK time.
+  It needs a permission that reads the MAR (`medicines.record.manage`, `medicines.emar.administer`
+  or `care.plan.read`). Audited as `medicines.mar.printed`, with the month.
+- `GET /v1/controlled-drugs/pages/{pageId}/print`: a register page. It needs a permission that reads
+  the register. Audited as `medicines.cd.printed`. This replaces slice 54's plain print view as the
+  printable format (H-1331); the plain view stays for printing straight from the browser.
+
+**The MAR chart** (`apps/api/src/services/mar-pdf.ts`):
+1. Every page names the person and the month. Every page says "Printed from the eMAR at … This is
+   not the live record: check the eMAR before giving or holding any medicine." The page footer says
+   "Page n of m".
+2. **Allergies** come first. Every allergy is listed, most severe first, with its reaction. "No known
+   allergies" shows when it was recorded. A status not recorded says "Allergy status not recorded.
+   Find out before giving any medicine." and is never shown as none.
+3. **A key to the codes**: G given, R refused, N not given, W withheld, U not available, S taken by
+   the person themselves, F given by family. It also explains "covert", "corrected" and the giver's
+   initials.
+4. **Each medicine** in force during the month, or with records in it, shows:
+   - the product and route, with "Time-critical:" first where tagged;
+   - the directions in the domain's words, the prescriber, and the start and end;
+   - its status on the eMAR when printed.
+5. **Scheduled doses** are listed by day ("Mon 02/11/2026: 08:00 G AE; 20:00 R AE"). A dose with no
+   record says "no outcome recorded" when its time has passed, or "not yet due". A time before the
+   entry was recorded says "not due". A covert dose is marked "covert"; a correction is marked
+   "corrected" and shows the record that stands.
+6. **When-required doses** are listed as recorded, with the time, code, amount, marks and initials,
+   or "No dose recorded this month".
+7. **Staff initials on this chart** lists the initials and names of everyone who gave a dose.
+
+**The register page** (`apps/api/src/services/cd-register-pdf.ts`):
+- the heading: the person, the drug as dm+d names it, the unit, and the balance when printed;
+- every entry in order: movement, signed quantity, running balance, when, counterparty and
+  reference, who recorded it, and who witnessed it or why there was no witness;
+- each correction under the entry it corrects, saying what it corrects and why;
+- every stock check: counted, expected, the result in words, and who counted and witnessed it;
+- on every page, the same printed-time notice.
+
+**Web**: the Medicines tab has "Print the MAR chart": choose one of the last 12 months and download
+the PDF. A register page has "Download the register page (PDF)". If no PDF comes back, the page says
+so.
+
+**Tests**:
+- `apps/api/test/medicines-print.test.ts`: the cells, the lines, the month in UK time and the
+  register lines, all pure and table-driven, and the routes (the notice on every page, audited,
+  another organisation refused);
+- `apps/web/src/lib/medicines-print.test.ts`;
+- `apps/web/e2e/medicines-print.spec.ts`: axe in light and dark, and the download.

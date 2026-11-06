@@ -150,6 +150,10 @@ H-09, H-105, H-521, H-522, H-535, H-569, H-663, H-664, H-781 and H-829.
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 50, printable MAR and register page** (`feat/meds-printable-mar`, MEDS-014, from
+batch 3b; no migration): the MAR chart for a month and a controlled drugs register page as PDFs, each
+with the printed time and "not the live record" on every page (HZ-122, new; HZ-007).
+
 **Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
 recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
 H-213, H-214, H-262, H-264 (migration 0118), H-267, H-269, H-270, H-381, H-410, H-420, H-481,

@@ -1,5 +1,5 @@
 import { ButtonLink, Card } from "@harbour/ui";
-import { Printer } from "lucide-react";
+import { FileDown, Printer } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -22,6 +22,7 @@ import {
 } from "@/lib/controlled-drugs";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { cdPdfHref } from "@/lib/medicines-print";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
 
@@ -99,6 +100,11 @@ async function RegisterPage({
 
   return (
     <>
+      {firstParam(query.print) === "failed" ? (
+        <p className="m-0 font-semibold" role="status">
+          {t("cd.print.failed")}
+        </p>
+      ) : null}
       {done && ARRIVALS.has(done) ? (
         <RecordedArrival message={t("cd.done", { done, until })} param="done" />
       ) : null}
@@ -117,6 +123,13 @@ async function RegisterPage({
             >
               {t("cd.print.open")}
             </ButtonLink>
+          </div>
+          <div>
+            {/* A plain link: the PDF downloads, so client-side navigation must not take it. */}
+            <a href={cdPdfHref(id, pageId)} className="hb-button hb-button--secondary">
+              <FileDown size={18} strokeWidth={1.5} aria-hidden="true" />
+              <span className="hb-button__label">{t("cd.print.pdf")}</span>
+            </a>
           </div>
         </div>
       </Card>
