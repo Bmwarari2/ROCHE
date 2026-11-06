@@ -170,7 +170,7 @@ export interface paths {
     put?: never;
     /**
      * Ask for your own account to be deleted (MOB-011; App Store and Google Play)
-     * @description Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them and audits the request. Nothing is deleted, and care records never are by this route. A second request while the first is open returns the first (`already_requested`).
+     * @description Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them, audits the request and records it on the member row (H-566): once that membership has ended and none is held elsewhere, the nightly sweep erases the sign-in identity. Care records are never deleted by this route. A second request while the first is open returns the first (`already_requested`).
      */
     post: {
       parameters: {
@@ -1528,7 +1528,7 @@ export interface paths {
     put?: never;
     /**
      * Reinstate a suspended member
-     * @description platform.user.manage with step-up and a coded reason (H-566, H-1463). Undoes a suspension before the membership ends: the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. An ended membership is never reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.
+     * @description platform.user.manage with step-up and a coded reason (H-566, H-1463, H-1469). Undoes a suspension, or, for a holder of the permission across the organisation, an ending whose sign-in has not been erased (a wrong leaving date withdrawn; the roles and grants ended with it stay ended): the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. Otherwise an ended membership is not reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.
      */
     post: {
       parameters: {
@@ -62420,6 +62420,7 @@ export interface components {
       devicesUsed: number;
       /** Format: date-time */
       lastReportedAt: string | null;
+      mayReinstate: boolean;
     };
     /** @enum {string} */
     MemberSignInState: "kept" | "kept_other_organisation" | "erased" | "none";

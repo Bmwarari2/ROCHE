@@ -87,7 +87,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.sign_in_erasure_due(text)": [],
   "app.sign_ins_due_for_erasure()": ["harbour_worker"],
   "app.request_sign_in_erasure()": ["harbour_app"],
-  "app.change_membership(uuid, text)": ["harbour_app"],
+  "app.change_membership(uuid, text)": ["harbour_app", "harbour_worker"],
   "app.sign_in_memberships_elsewhere(uuid)": ["harbour_app"],
   "app.sweep_expired_invitations()": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins()": ["harbour_worker"],

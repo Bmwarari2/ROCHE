@@ -143,6 +143,7 @@ describe("the membership lifecycle (H-566)", () => {
     state: "active" as const,
     signIn: "kept" as const,
     entriesToHandOver: 0,
+    mayReinstate: false,
     ...o,
   });
   it.each([
@@ -150,6 +151,7 @@ describe("the membership lifecycle (H-566)", () => {
     [member({ state: "suspended" }), ["reinstate", "end"]],
     [member({ state: "suspended", entriesToHandOver: 2 }), ["reinstate"]],
     [member({ state: "left" }), ["erase"]],
+    [member({ state: "left", mayReinstate: true }), ["reinstate", "erase"]],
     [member({ state: "left", signIn: "kept_other_organisation" }), []],
     [member({ state: "left", signIn: "erased" }), []],
     [member({ state: "invited", signIn: "none" }), []],

@@ -42,6 +42,14 @@ export interface MembershipFacts {
   readonly otherMemberships: number;
   /** The same sign-in is a Harbour operator's (erasure only). */
   readonly operator: boolean;
+  /**
+   * Reinstating an ended membership only: the manager holds platform.user.manage across the
+   * organisation (H-1469), and the member's sign-in has not been erased.
+   */
+  readonly organisationWide?: boolean;
+  readonly signInErased?: boolean;
+  /** The member asked for their account to be deleted (their request stands). */
+  readonly deletionRequested?: boolean;
 }
 
 export type MembershipProblem =
@@ -83,7 +91,15 @@ export function checkMembershipChange(f: MembershipFacts): MembershipCheck {
     case "reinstate":
       // Undoes a suspension made by mistake, before the membership ends (H-1463).
       if (f.state === "active" || f.state === "invited") return ok("replay");
-      if (f.state === "left") return refuse("membership_ended");
+      // An ended membership comes back only from someone who manages users across the
+      // organisation (a wrong leaving date withdrawn, HZ-133), and never once its sign-in is gone.
+      if (f.state === "left") {
+        return f.organisationWide === true &&
+          f.signInErased !== true &&
+          f.deletionRequested !== true
+          ? ok("apply")
+          : refuse("membership_ended");
+      }
       return ok("apply");
     case "end":
       if (f.state === "left") return ok("replay");
@@ -103,7 +119,8 @@ export function checkMembershipChange(f: MembershipFacts): MembershipCheck {
 export const MEMBERSHIP_MESSAGES: Readonly<Record<MembershipProblem, string>> = {
   own_membership:
     "You cannot suspend, reinstate, end or erase your own membership. Ask another manager.",
-  membership_ended: "This membership has ended, so it cannot be suspended or reinstated.",
+  membership_ended:
+    "This membership has ended, so it cannot be suspended. Only someone who manages users across the organisation can reinstate it, and not once its sign-in has been erased.",
   suspend_first:
     "Suspend the membership first: that ends their access and their devices' sessions.",
   membership_not_ended: "End the membership before erasing the sign-in.",

@@ -73,11 +73,11 @@ export type MembershipKind = "suspend" | "reinstate" | "end" | "erase";
 
 /**
  * Which changes to offer (H-566): suspend an active membership; reinstate or end a suspended one
- * (ending only once the member's held entries are handed over); erase the sign-in of an ended one
- * whose sign-in nobody else relies on. Never the manager's own; the API refuses that too.
+ * (ending only once the member's held entries are handed over); for an ended one, reinstate it
+ * when the API allows this manager (H-1469) and erase a sign-in nobody else relies on. Never the manager's own; the API refuses that too.
  */
 export function membershipChanges(
-  member: Pick<MemberLifecycle, "id" | "state" | "signIn" | "entriesToHandOver">,
+  member: Pick<MemberLifecycle, "id" | "state" | "signIn" | "entriesToHandOver" | "mayReinstate">,
   myId: string,
 ): readonly MembershipKind[] {
   if (member.id === myId) return [];
@@ -85,7 +85,13 @@ export function membershipChanges(
   if (member.state === "suspended") {
     return member.entriesToHandOver === 0 ? ["reinstate", "end"] : ["reinstate"];
   }
-  if (member.state === "left" && member.signIn === "kept") return ["erase"];
+  if (member.state === "left") {
+    // Reinstating an ended membership: only when the API says this manager may (H-1469).
+    return [
+      ...(member.mayReinstate ? (["reinstate"] as const) : []),
+      ...(member.signIn === "kept" ? (["erase"] as const) : []),
+    ];
+  }
   return [];
 }
 

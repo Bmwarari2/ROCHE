@@ -12,7 +12,6 @@ import {
   type Transaction,
   task,
   tenantUser,
-  withRequestContext,
 } from "@harbour/db";
 import {
   checkMembershipChange,
@@ -20,6 +19,7 @@ import {
   type MembershipAction,
   type MembershipProblem,
   type MembershipState,
+  scopeFor,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -89,6 +89,8 @@ function membershipProblem(problem: MembershipProblem): HttpProblem {
 interface LockedMember {
   readonly state: MembershipState;
   readonly authUserId: string | null;
+  readonly signInErasedAt: Date | null;
+  readonly deletionRequestedAt: Date | null;
 }
 
 /**
@@ -107,7 +109,12 @@ async function lockMember(
     sql`SELECT pg_advisory_xact_lock(hashtext(${`${access.tenantId}:membership_change`}))`,
   );
   const [member] = await tx
-    .select({ state: tenantUser.status, authUserId: tenantUser.authUserId })
+    .select({
+      state: tenantUser.status,
+      authUserId: tenantUser.authUserId,
+      signInErasedAt: tenantUser.signInErasedAt,
+      deletionRequestedAt: tenantUser.signInErasureRequestedAt,
+    })
     .from(tenantUser)
     .where(and(eq(tenantUser.id, tenantUserId), isNull(tenantUser.deletedAt)));
   if (!member || !(await memberReached(tx, access, tenantUserId, now))) return null;
@@ -132,6 +139,11 @@ async function devicesOf(tx: Transaction, tenantUserId: string): Promise<string[
     .from(deviceBinding)
     .where(eq(deviceBinding.tenantUserId, tenantUserId));
   return rows.map((r) => r.id);
+}
+
+/** Whether the manager holds platform.user.manage across the organisation (ADR-0071). */
+function organisationWide(access: TenantAccess): boolean {
+  return scopeFor(access.effective, PERMISSION).scope === "tenant";
 }
 
 const DATABASE_REFUSALS: ReadonlySet<string> = new Set<MembershipProblem>([
@@ -203,7 +215,11 @@ function checked(
   tenantUserId: string,
   access: TenantAccess,
   member: LockedMember,
-  facts: { readonly otherMemberships?: number; readonly operator?: boolean } = {},
+  facts: {
+    readonly otherMemberships?: number;
+    readonly operator?: boolean;
+    readonly organisationWide?: boolean;
+  } = {},
   scope: Record<string, unknown> = {},
 ): "apply" | "replay" {
   const check = checkMembershipChange({
@@ -213,6 +229,9 @@ function checked(
     signInLinked: member.authUserId !== null,
     otherMemberships: facts.otherMemberships ?? 0,
     operator: facts.operator ?? false,
+    organisationWide: facts.organisationWide ?? false,
+    signInErased: member.signInErasedAt !== null,
+    deletionRequested: member.deletionRequestedAt !== null,
   });
   if (!check.ok) {
     throw refusal(
@@ -462,7 +481,7 @@ export const memberLifecycleRouter = createRouter()
       tags: ["platform"],
       summary: "Reinstate a suspended member",
       description:
-        "platform.user.manage with step-up and a coded reason (H-566, H-1463). Undoes a suspension before the membership ends: the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. An ended membership is never reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.",
+        "platform.user.manage with step-up and a coded reason (H-566, H-1463, H-1469). Undoes a suspension, or, for a holder of the permission across the organisation, an ending whose sign-in has not been erased (a wrong leaving date withdrawn; the roles and grants ended with it stay ended): the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. Otherwise an ended membership is not reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.",
       security,
       request: {
         params: Params,
@@ -483,14 +502,6 @@ export const memberLifecycleRouter = createRouter()
       const services = c.get("services");
       const requestId = c.get("requestId");
       const now = new Date();
-      // Whether the manager holds everything the member's roles and grants give, where they apply
-      // (app.may_invite, read in the manager's own view, as an invitation is; security review H1).
-      const mayGiveBack = await withRequestContext(services.db, access.context, async (tx) => {
-        const r = await tx.execute<{ may: boolean }>(
-          sql`SELECT app.may_invite(${tenantUserId}::uuid) AS may`,
-        );
-        return r.rows[0]?.may === true;
-      });
       const done = await withAuditedRefusal(c, access, () =>
         inSystemView(services.db, access, async (tx) => {
           const member = await lockMember(tx, access, tenantUserId, now);
@@ -506,12 +517,24 @@ export const memberLifecycleRouter = createRouter()
             );
           }
           if (
-            checked("reinstate", REINSTATED, tenantUserId, access, member, {}, { reasonCode }) ===
-            "replay"
+            checked(
+              "reinstate",
+              REINSTATED,
+              tenantUserId,
+              access,
+              member,
+              { organisationWide: organisationWide(access) },
+              { reasonCode },
+            ) === "replay"
           ) {
             return { replay: true, state: member.state };
           }
-          if (!mayGiveBack) {
+          // Whether the manager holds everything the member's roles and grants give, where they
+          // apply (app.may_invite, as for an invitation), read under the lock (security review L2).
+          const may = await tx.execute<{ may: boolean }>(
+            sql`SELECT app.may_invite(${tenantUserId}::uuid) AS may`,
+          );
+          if (may.rows[0]?.may !== true) {
             throw refusal(
               REINSTATED,
               tenantUserId,
@@ -611,7 +634,9 @@ export const memberLifecycleRouter = createRouter()
           waiting: [...owned.values()].reduce((sum, n) => sum + n, 0),
           toHandOver: await entriesToHandOver(tx, tenantUserId, devices),
           requestOpen: open.length > 0,
-          others: row.authUserId ? await elsewhere(tx, tenantUserId) : 0,
+          // Whether they work elsewhere is shown only once the membership here has ended
+          // (security review M3): until then it is another organisation's business.
+          others: row.authUserId && row.state === "left" ? await elsewhere(tx, tenantUserId) : 0,
         };
       });
       if (!found) {
@@ -648,6 +673,13 @@ export const memberLifecycleRouter = createRouter()
           entriesToHandOver: found.toHandOver,
           devicesUsed: found.devices,
           lastReportedAt: found.latest?.toISOString() ?? null,
+          mayReinstate:
+            tenantUserId !== access.tenantUserId &&
+            (row.state === "suspended" ||
+              (row.state === "left" &&
+                row.erasedAt === null &&
+                row.requestedAt === null &&
+                organisationWide(access))),
         },
         200,
       );

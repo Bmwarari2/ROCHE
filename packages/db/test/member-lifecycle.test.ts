@@ -129,10 +129,11 @@ describe("H-566 app.change_membership", () => {
     expect(await asManager(change(XAVI, "end"))).toBe("suspended");
     expect(await asManager(change(XAVI, "end"))).toBe("unchanged");
     await expect(asManager(change(XAVI, "suspend"))).rejects.toThrow(/membership_ended/);
-    await expect(asManager(change(XAVI, "reinstate"))).rejects.toThrow(/membership_ended/);
     expect(await asManager(change(XAVI, "unlink_sign_in"))).toBe("left");
     expect(await stateOf(XAVI)).toEqual({ status: "left", auth_user_id: null });
     expect(await asManager(change(XAVI, "unlink_sign_in"))).toBe("unchanged");
+    // Once the sign-in is gone, an ended membership never comes back (migration 0153, H-1469).
+    await expect(asManager(change(XAVI, "reinstate"))).rejects.toThrow(/membership_ended/);
   });
 
   it("refuses someone without platform.user.manage, oneself, a job, an unknown action and another organisation", async () => {
@@ -215,12 +216,16 @@ describe("H-566 the guard trigger for any role but the owner", () => {
     expect(await stateOf(PIA)).toEqual({ status: "active", auth_user_id: "auth-pia" });
   });
 
-  it("never brings an ended membership back", async () => {
+  it("brings an ended membership back only as active or invited, never to another state", async () => {
     await setState(QUIN, "left");
     try {
+      // Migration 0153 (H-1469): back to active with its sign-in, through app.change_membership.
       await expect(
-        asMemberOwner("UPDATE tenant_user SET status = 'active' WHERE id = $1", [QUIN]),
-      ).rejects.toThrow(/cannot change from left to active/);
+        asMemberOwner("UPDATE tenant_user SET status = 'suspended' WHERE id = $1", [QUIN]),
+      ).rejects.toThrow(/cannot change from left to suspended/);
+      await expect(
+        asMemberOwner("UPDATE tenant_user SET status = 'invited' WHERE id = $1", [QUIN]),
+      ).rejects.toThrow(/cannot change from left to invited/);
     } finally {
       await setState(QUIN, "active");
     }
@@ -399,15 +404,72 @@ describe("H-566 the lifecycle times and the erasure sweep (migration 0153)", () 
     expect((await due()).map((r) => r.auth_user_id)).not.toContain(AUTH_USER_SHARED);
   });
 
-  it("lets the system unlink only an ended membership whose sign-in is due, recording when", async () => {
-    await expect(system()(change(a.carer, "unlink_sign_in"))).rejects.toThrow(/sign_in_in_use/);
-    // The system does nothing else.
-    await expect(system()(change(XAVI, "suspend"))).rejects.toThrow(/not_permitted/);
-    expect(await system()(change(ROSA, "unlink_sign_in"))).toBe("left");
+  it("lets the worker, and only the worker, unlink an ended membership whose sign-in is due, recording when", async () => {
+    const worker = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      inContext(db.pool("harbour_worker"), ctx(TENANT_A, null, "tenant"), fn);
+    // The application role acting as the system cannot (security review M1).
+    await expect(system()(change(ROSA, "unlink_sign_in"))).rejects.toThrow(/not_permitted/);
+    await expect(worker(change(a.carer, "unlink_sign_in"))).rejects.toThrow(/sign_in_in_use/);
+    // The worker does nothing else.
+    await expect(worker(change(XAVI, "suspend"))).rejects.toThrow(/not_permitted/);
+    expect(await worker(change(ROSA, "unlink_sign_in"))).toBe("left");
     const after = await times(ROSA);
     expect(after?.auth).toBeNull();
     expect(after?.erased).not.toBeNull();
-    expect(await system()(change(ROSA, "unlink_sign_in"))).toBe("unchanged");
+    expect(await worker(change(ROSA, "unlink_sign_in"))).toBe("unchanged");
     expect((await due()).map((r) => r.auth_user_id)).not.toContain("auth-rosa");
+  });
+});
+
+describe("H-1469 reinstating an ended membership (a wrong leaving date withdrawn, HZ-133)", () => {
+  const SAM = "0199f000-0000-7000-8000-000000000751";
+  const NORTH_ROLE = "0199f000-0000-7000-8000-000000000752";
+  beforeAll(async () => {
+    await owner(async (c) => {
+      await c.query(
+        `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status)
+         VALUES ($1, 'auth-sam', 'Sam Example', 'sam@example.invalid', 'left')`,
+        [SAM],
+      );
+      await c.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions)
+         VALUES ($1, 'north_user_manager', 'North user manager', 'location', '{platform.user.manage}')`,
+        [NORTH_ROLE],
+      );
+      await c.query(
+        "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+        [a.northManager, NORTH_ROLE, a.locationNorth],
+      );
+    });
+    await setState(a.manager, "active");
+    await setState(a.northManager, "active");
+  });
+
+  it("refuses a manager whose permission is only at a home", async () => {
+    await expect(as(a.northManager)(change(SAM, "reinstate"))).rejects.toThrow(/membership_ended/);
+    expect((await stateOf(SAM))?.status).toBe("left");
+  });
+
+  it("brings it back for a manager across the organisation, through the guard, recording when", async () => {
+    expect(await as(a.manager)(change(SAM, "reinstate"))).toBe("left");
+    expect(await stateOf(SAM)).toMatchObject({ status: "active", auth_user_id: "auth-sam" });
+    // The application role still cannot do it itself.
+    await setState(SAM, "left");
+    await expect(
+      as(a.manager)((c) =>
+        c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [SAM]),
+      ),
+    ).rejects.toThrow(/only through app.change_membership/);
+  });
+
+  it("never once the sign-in has been erased", async () => {
+    await owner((c) =>
+      c.query(
+        "UPDATE tenant_user SET auth_user_id = NULL, sign_in_erased_at = now() WHERE id = $1",
+        [SAM],
+      ),
+    );
+    await expect(as(a.manager)(change(SAM, "reinstate"))).rejects.toThrow(/membership_ended/);
+    expect((await stateOf(SAM))?.status).toBe("left");
   });
 });

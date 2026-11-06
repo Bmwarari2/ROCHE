@@ -99,3 +99,23 @@ describe("H-566 the sign-in is erased only when nobody else relies on it", () =>
     }
   });
 });
+
+describe("H-566 H-1469 reinstating an ended membership (a wrong leaving date withdrawn, HZ-133)", () => {
+  it.each<[Partial<MembershipFacts>, MembershipCheck]>([
+    [{ organisationWide: true }, { ok: true, outcome: "apply" }],
+    [{ organisationWide: false }, { ok: false, problem: "membership_ended" }],
+    [{}, { ok: false, problem: "membership_ended" }],
+    [
+      { organisationWide: true, signInErased: true },
+      { ok: false, problem: "membership_ended" },
+    ],
+    [
+      { organisationWide: true, self: true },
+      { ok: false, problem: "own_membership" },
+    ],
+  ])("%o gives %o", (extra, expected) => {
+    expect(checkMembershipChange(facts({ action: "reinstate", state: "left", ...extra }))).toEqual(
+      expected,
+    );
+  });
+});

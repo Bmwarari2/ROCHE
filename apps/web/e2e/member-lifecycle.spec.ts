@@ -61,7 +61,7 @@ test("the manager suspends, then ends, a membership after a coded reason", async
   // Suspended by mistake: reinstated (H-1392), then suspended again.
   await membership(page).getByRole("button", { name: "Reinstate membership" }).click();
   const reinstate = page.getByRole("dialog", { name: /^Reinstate Lee Leaver's membership/ });
-  await expect(reinstate.getByRole("button", { name: "Keep it suspended" })).toBeVisible();
+  await expect(reinstate.getByRole("button", { name: "Keep it as it is" })).toBeVisible();
   await bothThemes(page, "reinstate confirmation");
   await reinstate.getByLabel("Reason").selectOption({ label: "They were suspended by mistake" });
   await reinstate.getByRole("button", { name: "Reinstate membership" }).click();

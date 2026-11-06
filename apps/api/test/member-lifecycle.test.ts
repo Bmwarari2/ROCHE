@@ -699,3 +699,28 @@ describe("H-566 the erasure sweep completes a deletion request (migration 0153)"
     expect(status).toMatchObject({ state: "left", signIn: "erased", deletionRequestOpen: false });
   });
 });
+
+describe("H-1469 reinstating an ended membership (a wrong leaving date withdrawn, HZ-133)", () => {
+  it("lets a manager across the organisation bring it back, never a home's manager, audited", async () => {
+    const pat = await newMember("Pat");
+    await suspend("manager", pat.id);
+    expect((await end("manager", pat.id)).status).toBe(200);
+    const home = await reinstate("manager", pat.id);
+    expect(home.status).toBe(409);
+    expect(await codeOf(home)).toBe("membership_ended");
+    const status = (await (await lifecycle("owner", pat.id)).json()) as Record<string, unknown>;
+    expect(status).toMatchObject({ state: "left", mayReinstate: true });
+    const back = await reinstate("owner", pat.id);
+    expect(back.status).toBe(200);
+    expect(await back.json()).toMatchObject({ state: "active", replay: false });
+    expect((await stateOf(pat.id))?.status).toBe("active");
+    expect(
+      (await audits("platform.member.reinstated", pat.id)).map((a) => [a.outcome, a.reason]),
+    ).toEqual([
+      ["denied", "membership_ended"],
+      ["success", "suspended_in_error"],
+    ]);
+    const [last] = (await audits("platform.member.reinstated", pat.id)).slice(-1);
+    expect(last?.scope).toMatchObject({ from: "left", to: "active" });
+  });
+});

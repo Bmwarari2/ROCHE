@@ -192,6 +192,11 @@ export const MemberLifecycle = z
     devicesUsed: z.number().int().min(0),
     /** When any of those devices last reported its unsent work, if one ever did. */
     lastReportedAt: z.iso.datetime({ offset: true }).nullable(),
+    /**
+     * Whether this manager may reinstate the membership now: a suspended one, or an ended one whose
+     * sign-in has not been erased when they manage users across the organisation (H-1469).
+     */
+    mayReinstate: z.boolean(),
   })
   .meta({ id: "MemberLifecycle" });
 export type MemberLifecycle = z.infer<typeof MemberLifecycle>;
