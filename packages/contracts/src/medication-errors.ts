@@ -76,11 +76,11 @@ const errorFields = {
 };
 
 export const NewMedicationError = z
-  .object({ personId: uuid, ...errorFields })
+  .strictObject({ personId: uuid, ...errorFields })
   .meta({ id: "NewMedicationError" });
 
 export const EditMedicationError = z
-  .object({ ...errorFields, version })
+  .strictObject({ ...errorFields, version })
   .meta({ id: "EditMedicationError" });
 
 export const MedicationErrorPrompt = z
@@ -119,7 +119,7 @@ export const ReviewerRole = z
   .enum(["gp", "pharmacist", "prescriber", "consultant", "other"])
   .meta({ id: "ReviewerRole" });
 export const ReviewStatus = z
-  .enum(["overdue", "due_soon", "scheduled", "not_scheduled"])
+  .enum(["overdue", "due_soon", "scheduled", "not_booked", "not_scheduled"])
   .meta({ id: "ReviewStatus" });
 
 export const MedicationReviewOut = z
@@ -142,7 +142,14 @@ export const ReviewTrackerLine = z
     /** The person's name as recorded, for the tracker list. */
     name: z.string(),
     lastDoneOn: isoDate.nullable(),
+    /** The earliest booked review not yet done. */
+    bookedOn: isoDate.nullable(),
+    /** The last done plus the interval. */
+    intervalDueOn: isoDate.nullable(),
+    /** The earlier of the two. */
     nextDueOn: isoDate.nullable(),
+    /** True when a review is booked later than the interval allows. */
+    bookedAfterInterval: z.boolean(),
     nextFrom: z.enum(["scheduled", "interval"]).nullable(),
     status: ReviewStatus,
     statusWords: z.string(),
@@ -154,11 +161,11 @@ export const PersonMedicationReviews = z
   .meta({ id: "PersonMedicationReviews" });
 
 export const ScheduleMedicationReview = z
-  .object({ dueOn: isoDate })
+  .strictObject({ dueOn: isoDate })
   .meta({ id: "ScheduleMedicationReview" });
 
 export const RecordMedicationReview = z
-  .object({
+  .strictObject({
     doneOn: isoDate,
     clinicianName: words(200),
     clinicianRole: ReviewerRole,
@@ -184,6 +191,7 @@ export const OverrideReport = z
         memberId: uuid,
         name: z.string().nullable(),
         competenceOverride: z.number().int(),
+        competenceNotCurrent: z.number().int(),
         givenBeforeRecorded: z.number().int(),
       }),
     ),
@@ -207,9 +215,8 @@ export const UsageReport = z
           z.object({
             medicineId: uuid,
             name: z.string(),
-            prn: z.boolean(),
-            psychotropic: z.boolean(),
-            given: z.number().int(),
+            prnGiven: z.number().int(),
+            psychotropicGiven: z.number().int(),
           }),
         ),
       }),
@@ -227,6 +234,7 @@ export const MedicationErrorTrend = z
         month: z.string(),
         errors: z.number().int(),
         nearMisses: z.number().int(),
+        notYetKnown: z.number().int(),
         byKind: z.record(z.string(), z.number().int()),
         byStage: z.record(z.string(), z.number().int()),
       }),

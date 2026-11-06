@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addMonthsToDate } from "../care/assessment";
 import {
   checkReviewDone,
+  overrideCounts,
   REVIEW_STATUS_WORDS,
   reviewStatus,
   USAGE_REPORT_NOTE,
@@ -32,19 +33,19 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
       { status: "not_scheduled", nextDueOn: null, lastDoneOn: null, nextFrom: null },
     ],
     [
-      "a scheduled review well ahead",
+      "a booked review well ahead",
       [{ dueOn: "2027-01-10", doneOn: null }],
       "2026-11-01",
       { status: "scheduled", nextDueOn: "2027-01-10", nextFrom: "scheduled" },
     ],
     [
-      "a scheduled review on the last day of the window",
+      "a booked review on the last day of the window",
       [{ dueOn: "2026-11-29", doneOn: null }],
       "2026-11-01",
       { status: "due_soon", nextDueOn: "2026-11-29" },
     ],
     [
-      "a scheduled review the day after the window",
+      "a booked review the day after the window",
       [{ dueOn: "2026-11-30", doneOn: null }],
       "2026-11-01",
       { status: "scheduled" },
@@ -52,7 +53,7 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
     ["due today", [{ dueOn: "2026-11-01", doneOn: null }], "2026-11-01", { status: "due_soon" }],
     ["due yesterday", [{ dueOn: "2026-10-31", doneOn: null }], "2026-11-01", { status: "overdue" }],
     [
-      "the last one done, nothing scheduled: the interval after it",
+      "the last one done, nothing booked: the interval after it, overdue",
       [{ dueOn: "2025-10-01", doneOn: "2025-10-20" }],
       "2026-11-01",
       {
@@ -63,9 +64,30 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
       },
     ],
     [
-      "a scheduled review wins over the interval",
+      "the interval ahead with nothing booked: due, not yet booked",
+      [{ dueOn: "2026-06-01", doneOn: "2026-06-01" }],
+      "2026-11-01",
+      { status: "not_booked", nextDueOn: "2027-06-01", nextFrom: "interval", bookedOn: null },
+    ],
+    [
+      "a review booked after the interval has run out: overdue by the interval",
       [
         { dueOn: "2025-10-01", doneOn: "2025-10-20" },
+        { dueOn: "2027-03-01", doneOn: null },
+      ],
+      "2026-11-01",
+      {
+        status: "overdue",
+        nextDueOn: "2026-10-20",
+        nextFrom: "interval",
+        bookedOn: "2027-03-01",
+        bookedAfterInterval: true,
+      },
+    ],
+    [
+      "a review booked before the interval runs out",
+      [
+        { dueOn: "2026-06-01", doneOn: "2026-06-01" },
         { dueOn: "2026-12-15", doneOn: null },
       ],
       "2026-11-01",
@@ -73,11 +95,11 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
         status: "scheduled",
         nextDueOn: "2026-12-15",
         nextFrom: "scheduled",
-        lastDoneOn: "2025-10-20",
+        bookedAfterInterval: false,
       },
     ],
     [
-      "the earliest of two scheduled",
+      "the earliest of two booked",
       [
         { dueOn: "2027-02-01", doneOn: null },
         { dueOn: "2026-11-10", doneOn: null },
@@ -116,26 +138,32 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
 });
 
 describe("hazard HZ-131 PRN and psychotropic use, information only (slice 45)", () => {
-  const meds = new Map([
-    ["m-prn", { name: "Paracetamol", prn: true, psychotropic: false }],
-    ["m-psy", { name: "Risperidone", prn: false, psychotropic: true }],
-    ["m-both", { name: "Lorazepam", prn: true, psychotropic: true }],
-    ["m-reg", { name: "Amlodipine", prn: false, psychotropic: false }],
-  ]);
+  const dose = (
+    personId: string,
+    medicineId: string,
+    name: string,
+    prn: boolean,
+    psy: boolean,
+    taken = true,
+  ) => ({
+    personId,
+    medicineId,
+    name,
+    prn,
+    psychotropic: psy,
+    taken,
+  });
 
   it("counts doses taken per person, by kind, leaving out other entries and doses not taken", () => {
-    const rows = usageCounts(
-      [
-        { personId: "p1", medicineId: "m-prn", taken: true },
-        { personId: "p1", medicineId: "m-prn", taken: true },
-        { personId: "p1", medicineId: "m-both", taken: true },
-        { personId: "p1", medicineId: "m-psy", taken: false },
-        { personId: "p1", medicineId: "m-reg", taken: true },
-        { personId: "p2", medicineId: "m-psy", taken: true },
-        { personId: "p3", medicineId: "m-reg", taken: true },
-      ],
-      meds,
-    );
+    const rows = usageCounts([
+      dose("p1", "m-prn", "Paracetamol", true, false),
+      dose("p1", "m-prn", "Paracetamol", true, false),
+      dose("p1", "m-both", "Lorazepam", true, true),
+      dose("p1", "m-psy", "Risperidone", false, true, false),
+      dose("p1", "m-reg", "Amlodipine", false, false),
+      dose("p2", "m-psy", "Risperidone", false, true),
+      dose("p3", "m-reg", "Amlodipine", false, false),
+    ]);
     expect(rows).toEqual([
       {
         personId: "p1",
@@ -143,8 +171,8 @@ describe("hazard HZ-131 PRN and psychotropic use, information only (slice 45)", 
         psychotropicGiven: 1,
         psychotropicPrnGiven: 1,
         byMedicine: [
-          { medicineId: "m-both", name: "Lorazepam", prn: true, psychotropic: true, given: 1 },
-          { medicineId: "m-prn", name: "Paracetamol", prn: true, psychotropic: false, given: 2 },
+          { medicineId: "m-both", name: "Lorazepam", prnGiven: 1, psychotropicGiven: 1 },
+          { medicineId: "m-prn", name: "Paracetamol", prnGiven: 2, psychotropicGiven: 0 },
         ],
       },
       {
@@ -153,13 +181,46 @@ describe("hazard HZ-131 PRN and psychotropic use, information only (slice 45)", 
         psychotropicGiven: 1,
         psychotropicPrnGiven: 0,
         byMedicine: [
-          { medicineId: "m-psy", name: "Risperidone", prn: false, psychotropic: true, given: 1 },
+          { medicineId: "m-psy", name: "Risperidone", prnGiven: 0, psychotropicGiven: 1 },
         ],
       },
     ]);
   });
 
+  it("classes each dose by the version it was given under when an entry changes in the period", () => {
+    const rows = usageCounts([
+      dose("p1", "m", "Haloperidol", false, true),
+      dose("p1", "m", "Haloperidol", true, true),
+      dose("p1", "m", "Haloperidol", true, false),
+    ]);
+    expect(rows[0]).toMatchObject({ prnGiven: 2, psychotropicGiven: 2, psychotropicPrnGiven: 1 });
+  });
+
   it("says it is a count for a clinician, never a judgement", () => {
     expect(USAGE_REPORT_NOTE).toMatch(/does not judge/);
+  });
+});
+
+describe("hazard HZ-119 competence overrides count against the right member (slice 45)", () => {
+  it("counts an override and lapsed competence against the giver, late recording against the recorder", () => {
+    expect(
+      overrideCounts([
+        { administeredBy: "giver", recordedBy: "recorder", flags: ["competence_override"] },
+        {
+          administeredBy: "giver",
+          recordedBy: "recorder",
+          flags: ["competence_not_current", "given_before_recorded"],
+        },
+        { administeredBy: "recorder", recordedBy: "recorder", flags: ["early"] },
+      ]),
+    ).toEqual([
+      { memberId: "giver", competenceOverride: 1, competenceNotCurrent: 1, givenBeforeRecorded: 0 },
+      {
+        memberId: "recorder",
+        competenceOverride: 0,
+        competenceNotCurrent: 0,
+        givenBeforeRecorded: 1,
+      },
+    ]);
   });
 });

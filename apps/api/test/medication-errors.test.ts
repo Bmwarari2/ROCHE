@@ -18,6 +18,10 @@ const FALL = randomUUID();
 const CD_ENTRY = randomUUID();
 const PRN_ENTRY = randomUUID();
 const DOSE = randomUUID();
+const CLOSED = randomUUID();
+/** Fixed dates, so the tests do not depend on the clock (UK midnight, the 1st of the month). */
+const DAY = "2026-10-15";
+const PERIOD = `from=${DAY}&to=${DAY}`;
 
 const send = (user: string, path: string, init: { method?: string; body?: unknown } = {}) =>
   h.request(path, { token: h.tokens[user], tenant: DEMO.tenantId, ...init });
@@ -73,17 +77,30 @@ beforeAll(async () => {
   await asDemo(async (c) => {
     await c.query(
       `INSERT INTO incident (id, location_id, type, occurred_at, description, raised_by, person_ids)
-       VALUES ($1, $3, 'medication', now() - interval '1 minute', 'Evening dose given late', $4, $5),
-              ($2, $3, 'fall', now() - interval '1 hour', 'Slipped in the lounge', $4, $5)`,
-      [INCIDENT, FALL, LOC, DEMO.users.carer.id, [ADA]],
+       VALUES ($1, $3, 'medication', '2026-10-15T18:00:00Z', 'Evening dose given late', $4, $5),
+              ($2, $3, 'fall', '2026-10-15T17:00:00Z', 'Slipped in the lounge', $4, $5),
+              ($6, $3, 'medication', '2026-10-15T16:00:00Z', 'Dose missed', $4, $5)`,
+      [INCIDENT, FALL, LOC, DEMO.users.carer.id, [ADA], CLOSED],
+    );
+    for (const incident of [INCIDENT, FALL, CLOSED]) {
+      await c.query(
+        `INSERT INTO incident_person (incident_id, kind, role, person_id)
+         VALUES ($1, 'service_user', 'affected', $2)`,
+        [incident, ADA],
+      );
+    }
+    await c.query(
+      `UPDATE incident SET status = 'closed', closed_at = '2026-10-16T09:00:00Z', closed_by = $2,
+         closed_reason = 'Reviewed' WHERE id = $1`,
+      [CLOSED, DEMO.users.manager.id],
     );
     await c.query(
       `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
          route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
          source_reference, transcribed_by, transcribed_at, tags, cd_schedule)
        VALUES ($1, $2, $1, 1, 'transcribed', '90000011000001104', 'Lorazepam 1mg tablets',
-         '26643006', 'Oral', 'regular', 'every_day', 'Dr A Example', now() - interval '2 days',
-         'prescription', 'Prescription, 01/11/2026', $3, now() - interval '2 days',
+         '26643006', 'Oral', 'regular', 'every_day', 'Dr A Example', '2026-10-01T09:00:00Z',
+         'prescription', 'Prescription, 01/11/2026', $3, '2026-10-01T09:00:00Z',
          ARRAY['psychotropic'], '4.1')`,
       [CD_ENTRY, ADA, DEMO.users.manager.id],
     );
@@ -98,8 +115,8 @@ beforeAll(async () => {
          route_code, route_name, directions, prescriber, starts_at, source_kind, source_reference,
          transcribed_by, transcribed_at, prn_dose, indication)
        VALUES ($1, $2, $1, 1, 'transcribed', '90000051000001100', 'Paracetamol 500mg tablets',
-         '26643006', 'Oral', 'when_required', 'Dr A Example', now() - interval '2 days',
-         'prescription', 'Prescription, 01/11/2026', $3, now() - interval '2 days',
+         '26643006', 'Oral', 'when_required', 'Dr A Example', '2026-10-01T09:00:00Z',
+         'prescription', 'Prescription, 01/11/2026', $3, '2026-10-01T09:00:00Z',
          '{"kind": "amount", "quantity": 1, "unitCode": "428673006", "unitName": "tablet"}'::jsonb,
          'Pain')`,
       [PRN_ENTRY, ADA, DEMO.users.manager.id],
@@ -107,15 +124,15 @@ beforeAll(async () => {
     await c.query(
       `INSERT INTO medication_administration (id, person_id, medication_id, due_at, outcome, quantity,
          unit_code, given_at, recorded_by, flags)
-       VALUES ($1, $2, $3, now() - interval '3 minutes', 'given', 1, '428673006', now() - interval '3 minutes', $4,
+       VALUES ($1, $2, $3, '2026-10-15T07:00:00Z', 'given', 1, '428673006', '2026-10-15T07:05:00Z', $4,
          ARRAY['competence_override'])`,
       [DOSE, ADA, CD_ENTRY, DEMO.users.carer.id],
     );
-    for (const hours of [5, 4]) {
+    for (const hours of [10, 12]) {
       await c.query(
         `INSERT INTO medication_administration (id, person_id, medication_id, outcome, quantity,
            unit_code, given_at, recorded_by)
-         VALUES ($5, $1, $2, 'given', 1, '428673006', now() - make_interval(mins => $3), $4)`,
+         VALUES ($5, $1, $2, 'given', 1, '428673006', '2026-10-15T00:00:00Z'::timestamptz + make_interval(hours => $3), $4)`,
         [ADA, PRN_ENTRY, hours, DEMO.users.carer.id, randomUUID()],
       );
     }
@@ -224,19 +241,31 @@ describe("hazard HZ-131 medication errors on the incident (slice 45)", () => {
       method: "PATCH",
       body: { ...blank, version: 9 },
     });
-    expect([403, 409]).toContain(r.status);
+    expect(r.status).toBe(403);
+  });
+
+  it("refuses details on a closed incident", async () => {
+    const r = await send("manager", `/v1/incidents/${CLOSED}/medication-error`, {
+      method: "POST",
+      body: { ...blank, personId: ADA },
+    });
+    expect(r.status).toBe(422);
+    expect(JSON.stringify(await r.json())).toMatch(/closed/);
   });
 
   it("counts it in the trend by month, kind and stage", async () => {
-    const today = ukIsoDate(new Date());
-    const r = await json<{ months: { errors: number; byKind: Record<string, number> }[] }>(
+    const r = await json<{
+      months: { month: string; errors: number; byKind: Record<string, number> }[];
+    }>(
       await send(
         "manager",
-        `/v1/locations/${LOC}/medication-errors/trend?from=${today.slice(0, 8)}01&to=${today}`,
+        `/v1/locations/${LOC}/medication-errors/trend?from=2026-09-01&to=2026-10-31`,
       ),
     );
-    expect(r.months.at(-1)?.errors).toBeGreaterThanOrEqual(1);
-    expect(r.months.at(-1)?.byKind.wrong_time).toBeGreaterThanOrEqual(1);
+    expect(r.months.map((m) => m.month)).toEqual(["2026-09", "2026-10"]);
+    expect(r.months[0]?.errors).toBe(0);
+    expect(r.months[1]?.errors).toBe(1);
+    expect(r.months[1]?.byKind.wrong_time).toBe(1);
   });
 });
 
@@ -293,8 +322,42 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
       await send("manager", `/v1/locations/${LOC}/medication-reviews`),
     );
     const ada = tracker.items.find((i) => i.personId === ADA);
-    expect(ada?.status).toBe("scheduled");
+    expect(ada?.status).toBe("not_booked");
     expect(ada?.nextFrom).toBe("interval");
+  });
+
+  it("moves and cancels a booked review only with a reason", async () => {
+    const made = await json<{ id: string; version: number }>(
+      await send("manager", `/v1/people/${ADA}/medication-reviews`, {
+        method: "POST",
+        body: { dueOn: ukIsoDate(new Date(Date.now() + 30 * 86_400_000)) },
+      }),
+    );
+    const noReason = await send("manager", `/v1/medication-reviews/${made.id}/reschedule`, {
+      method: "POST",
+      body: { dueOn: ukIsoDate(new Date(Date.now() + 40 * 86_400_000)), version: made.version },
+    });
+    expect(noReason.status).toBe(422);
+    const moved = await send("manager", `/v1/medication-reviews/${made.id}/reschedule`, {
+      method: "POST",
+      body: {
+        dueOn: ukIsoDate(new Date(Date.now() + 40 * 86_400_000)),
+        reason: "GP surgery asked to move it",
+        version: made.version,
+      },
+    });
+    expect(moved.status, await moved.clone().text()).toBe(200);
+    const after = await json<{ version: number }>(moved);
+    const cancelled = await send("manager", `/v1/medication-reviews/${made.id}/cancel`, {
+      method: "POST",
+      body: { reason: "Booked twice", version: after.version },
+    });
+    expect(cancelled.status, await cancelled.clone().text()).toBe(200);
+    const doneAgain = await send("manager", `/v1/medication-reviews/${reviewId}/reschedule`, {
+      method: "POST",
+      body: { dueOn: ukIsoDate(new Date()), reason: "Wrong", version },
+    });
+    expect(doneAgain.status).toBe(422);
   });
 
   it("refuses a review recorded as done in the future, and a carer reading reviews", async () => {
@@ -315,15 +378,10 @@ describe("hazard HZ-131 medication reviews (slice 45, MEDS-013)", () => {
 });
 
 describe("hazard HZ-131 the reports are counts, information only (slice 45)", () => {
-  const today = () => ukIsoDate(new Date());
-
-  it("counts competence overrides per member", async () => {
-    const r = await json<{ items: { memberId: string; competenceOverride: number }[] }>(
-      await send(
-        "manager",
-        `/v1/locations/${LOC}/medicines/override-report?from=${today()}&to=${today()}`,
-      ),
-    );
+  it("counts competence overrides against the member who gave the dose", async () => {
+    const r = await json<{
+      items: { memberId: string; competenceOverride: number; givenBeforeRecorded: number }[];
+    }>(await send("manager", `/v1/locations/${LOC}/medicines/override-report?${PERIOD}`));
     expect(r.items.find((i) => i.memberId === DEMO.users.carer.id)?.competenceOverride).toBe(1);
   });
 
@@ -331,12 +389,7 @@ describe("hazard HZ-131 the reports are counts, information only (slice 45)", ()
     const r = await json<{
       note: string;
       items: { personId: string; prnGiven: number; psychotropicGiven: number }[];
-    }>(
-      await send(
-        "manager",
-        `/v1/locations/${LOC}/medicines/prn-report?from=${today()}&to=${today()}`,
-      ),
-    );
+    }>(await send("manager", `/v1/locations/${LOC}/medicines/prn-report?${PERIOD}`));
     expect(r.note).toMatch(/does not judge/);
     const ada = r.items.find((i) => i.personId === ADA);
     expect(ada?.prnGiven).toBe(2);
@@ -353,12 +406,13 @@ describe("hazard HZ-131 the reports are counts, information only (slice 45)", ()
       ).status,
     ).toBe(422);
     expect(
-      (
-        await send(
-          "carer",
-          `/v1/locations/${LOC}/medicines/prn-report?from=${today()}&to=${today()}`,
-        )
-      ).status,
+      (await send("carer", `/v1/locations/${LOC}/medicines/prn-report?${PERIOD}`)).status,
     ).toBe(403);
+    const long = await send(
+      "manager",
+      `/v1/locations/${LOC}/medicines/prn-report?from=2024-01-01&to=2026-10-15`,
+    );
+    expect(long.status).toBe(422);
+    expect(JSON.stringify(await long.json())).toMatch(/days or fewer/);
   });
 });

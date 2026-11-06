@@ -116,14 +116,15 @@ export function medicationErrorTriage(answers: MedicationErrorAnswers): Medicati
   if (maybe(answers.reachedPerson) || answers.kinds.includes("omitted_dose")) {
     tasks.push({
       task: "clinical_advice",
-      reason: "Ask the GP, a pharmacist or NHS 111 what to do now, and record the advice",
+      reason:
+        "Ask the GP, a pharmacist or NHS 111 what to do now, and record who you told and their advice. If the person is unwell, call 999",
     });
   }
   if (maybe(answers.controlledDrug)) {
     tasks.push({
       task: "controlled_drug_report",
       reason:
-        "Report the controlled drug incident to the area's NHS England Controlled Drugs Accountable Officer",
+        "If a controlled drug was or may have been involved, report it to the area's NHS England Controlled Drugs Accountable Officer and record the date and reference",
     });
   }
   if (maybe(answers.deliberateOrRepeated)) {
@@ -166,7 +167,12 @@ export type MedicationErrorProblem =
   | "text_too_long"
   | "clinician_incomplete"
   | "clinician_told_in_future"
+  | "clinician_told_before_incident"
   | "cd_report_incomplete"
+  | "cd_report_in_future"
+  | "reference_too_long"
+  | "omitted_not_reached"
+  | "cd_denied_for_scheduled"
   | "cd_report_without_cd";
 
 export const MEDICATION_ERROR_PROBLEM_WORDS: Readonly<Record<MedicationErrorProblem, string>> = {
@@ -175,6 +181,14 @@ export const MEDICATION_ERROR_PROBLEM_WORDS: Readonly<Record<MedicationErrorProb
   text_too_long: "Keep each answer to 2,000 characters or fewer.",
   clinician_incomplete: "Say both who was told and when, or neither.",
   clinician_told_in_future: "The time the clinician was told cannot be in the future.",
+  clinician_told_before_incident:
+    "The clinician cannot have been told before the incident happened.",
+  cd_report_in_future: "The controlled drug report cannot be dated in the future.",
+  reference_too_long: "Keep the controlled drug report reference to 120 characters or fewer.",
+  omitted_not_reached:
+    "An omitted dose reaches the person by its absence: answer yes or not sure to whether it reached them.",
+  cd_denied_for_scheduled:
+    "The medicine is a controlled drug (it has a controlled drug schedule): answer yes or not sure.",
   cd_report_incomplete:
     "Record both the date of the controlled drug report and the reference you were given.",
   cd_report_without_cd:
@@ -186,8 +200,16 @@ const tooLong = (value: string | null, max: number) => value !== null && value.l
 /** Checks a medication error record; every problem at once, in a fixed order. */
 export function checkMedicationErrorRecord(
   input: MedicationErrorRecordInput,
-  now: Date,
-  clockToleranceMinutes: number,
+  context: {
+    readonly now: Date;
+    readonly clockToleranceMinutes: number;
+    /** When the incident happened, so the clinician cannot be told before it. */
+    readonly occurredAt: Date | null;
+    /** The linked medicine's controlled drug schedule, if any (B5). */
+    readonly medicineCdSchedule: string | null;
+    /** Today as a UK date, for the controlled drug report's date. */
+    readonly today: string;
+  },
 ): MedicationErrorProblem[] {
   const problems: MedicationErrorProblem[] = [];
   if (input.kinds.some((k) => !(MEDICATION_ERROR_KINDS as readonly string[]).includes(k)))
@@ -196,19 +218,32 @@ export function checkMedicationErrorRecord(
   if (
     [input.immediateActions, input.adviceGiven, input.rootCause, input.clinicianTold].some((v) =>
       tooLong(v, MEDICATION_ERROR_TEXT_MAX),
-    ) ||
-    tooLong(input.cdReportReference, MEDICATION_ERROR_REFERENCE_MAX)
+    )
   )
     problems.push("text_too_long");
+  if (tooLong(input.cdReportReference, MEDICATION_ERROR_REFERENCE_MAX))
+    problems.push("reference_too_long");
+  if (input.kinds.includes("omitted_dose") && input.reachedPerson === "no")
+    problems.push("omitted_not_reached");
+  if (context.medicineCdSchedule !== null && input.controlledDrug === "no")
+    problems.push("cd_denied_for_scheduled");
   if ((input.clinicianToldAt === null) !== blank(input.clinicianTold))
     problems.push("clinician_incomplete");
   if (
     input.clinicianToldAt !== null &&
-    input.clinicianToldAt.getTime() > now.getTime() + clockToleranceMinutes * 60_000
+    input.clinicianToldAt.getTime() > context.now.getTime() + context.clockToleranceMinutes * 60_000
   )
     problems.push("clinician_told_in_future");
+  if (
+    input.clinicianToldAt !== null &&
+    context.occurredAt !== null &&
+    input.clinicianToldAt.getTime() < context.occurredAt.getTime()
+  )
+    problems.push("clinician_told_before_incident");
   if ((input.cdReportedOn === null) !== blank(input.cdReportReference))
     problems.push("cd_report_incomplete");
+  if (input.cdReportedOn !== null && input.cdReportedOn > context.today)
+    problems.push("cd_report_in_future");
   if (input.cdReportedOn !== null && input.controlledDrug === "no")
     problems.push("cd_report_without_cd");
   return problems;
@@ -233,45 +268,68 @@ export function presumedControlledDrug(
 export type MedicationErrorPrompt = MedicationErrorTask | "cqc_through_classifier";
 
 /**
- * The prompts shown with a record (medicines.md section 14.1): slice 7's triage, with the
- * controlled drug report prompt kept until its date and reference are recorded (H-594), the
- * safeguarding prompt also for significant harm (H-549: moderate, severe or fatal on the incident,
- * or not yet graded), and a reminder that CQC notification is decided by the incident's own
- * classifier. Harbour sends nothing.
+ * The prompts shown with a record (medicines.md section 14.1). Each stays until the evidence that
+ * answers it is recorded, then goes, so the open ones are never lost among done ones:
+ * - clinical advice (slice 7's triage) until who was told, when, and their advice are recorded;
+ * - the controlled drug report (H-594) until its date and reference are recorded;
+ * - safeguarding until the incident's own safeguarding question is answered: raised when the error
+ *   may be deliberate or repeated (triage), or reached or may have reached the person with harm
+ *   moderate, severe or fatal, or not yet graded (H-549);
+ * - the CQC reminder always, as the incident's own questions decide notification.
+ * An omitted dose counts as reaching the person. Harbour sends nothing.
  */
 export function medicationErrorPrompts(
   answers: MedicationErrorAnswers,
   context: {
     readonly cdReported: boolean;
     readonly harmGrade: "none" | "low" | "moderate" | "severe" | "fatal" | null;
+    readonly clinicalAdviceRecorded: boolean;
+    readonly safeguardingAnswered: boolean;
   },
 ): { readonly prompt: MedicationErrorPrompt; readonly reason: string }[] {
   const triage = medicationErrorTriage(answers);
   const prompts: { prompt: MedicationErrorPrompt; reason: string }[] = triage.tasks
     .filter((t) => !(t.task === "controlled_drug_report" && context.cdReported))
+    .filter((t) => !(t.task === "clinical_advice" && context.clinicalAdviceRecorded))
     .map((t) => ({ prompt: t.task, reason: t.reason }));
+  const reached = answers.reachedPerson !== "no" || answers.kinds.includes("omitted_dose");
+  const graded = context.harmGrade !== null;
   const significant =
-    context.harmGrade === null ||
     context.harmGrade === "moderate" ||
     context.harmGrade === "severe" ||
     context.harmGrade === "fatal";
   if (
-    significant &&
-    answers.reachedPerson !== "no" &&
+    reached &&
+    (significant || !graded) &&
     !prompts.some((p) => p.prompt === "safeguarding_consideration")
   ) {
     prompts.push({
       prompt: "safeguarding_consideration",
-      reason:
-        "A medication error that caused or risked significant harm may need a safeguarding concern: answer the safeguarding question",
+      reason: graded
+        ? "A medication error that caused significant harm may need a safeguarding concern: answer the incident's safeguarding question"
+        : "The harm is not graded yet: once it is, consider whether a safeguarding concern is needed and answer the incident's safeguarding question",
     });
   }
-  prompts.push({
+  const shown = context.safeguardingAnswered
+    ? prompts.filter((p) => p.prompt !== "safeguarding_consideration")
+    : prompts;
+  shown.push({
     prompt: "cqc_through_classifier",
     reason:
-      "A medication error is notified to CQC only for what it caused or shows (a death, a serious injury, abuse or neglect): the incident's own questions decide this",
+      "Whether CQC must be told depends on what the error caused or shows, for example a death, an injury, abuse or neglect, or police involvement: answer the incident's notification questions, which decide this",
   });
-  return prompts;
+  return shown;
+}
+
+/** The UK month (`YYYY-MM`) of an instant: 31/03 at 23:30 UTC is April under BST. */
+export function ukMonthOf(instant: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+  })
+    .format(instant)
+    .slice(0, 7);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -279,13 +337,37 @@ export function medicationErrorPrompts(
 
 export interface MedicationErrorTrendRow {
   readonly month: string;
+  /** Reached, or may have reached, the person (an omitted dose always counts). */
   readonly errors: number;
+  /** Did not reach the person. */
   readonly nearMisses: number;
+  /** Not yet known whether it reached the person. */
+  readonly notYetKnown: number;
   readonly byKind: Readonly<Partial<Record<MedicationErrorKindName, number>>>;
   readonly byStage: Readonly<Partial<Record<MedicationErrorStage, number>>>;
 }
 
-/** Errors and near misses by UK month (`YYYY-MM`), kind and stage, months in order. */
+/** Every UK month from `from` to `to` (`YYYY-MM`), inclusive. */
+export function monthsBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  let [y, m] = from.split("-").map(Number) as [number, number];
+  const [ty, tm] = to.split("-").map(Number) as [number, number];
+  while (y < ty || (y === ty && m <= tm)) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m === 13) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * Errors, near misses and those not yet known, by UK month (`YYYY-MM`), kind and stage. Every
+ * month in `months` appears, with zeros when nothing happened, so a gap is never read as missing
+ * data.
+ */
 export function medicationErrorTrend(
   records: readonly {
     readonly month: string;
@@ -293,20 +375,31 @@ export function medicationErrorTrend(
     readonly stage: MedicationErrorStage | null;
     readonly reachedPerson: Tri | null;
   }[],
+  months: readonly string[],
 ): MedicationErrorTrendRow[] {
   const rows = new Map<
     string,
     {
       errors: number;
       nearMisses: number;
+      notYetKnown: number;
       byKind: Record<string, number>;
       byStage: Record<string, number>;
     }
   >();
+  const blankRow = () => ({
+    errors: 0,
+    nearMisses: 0,
+    notYetKnown: 0,
+    byKind: {} as Record<string, number>,
+    byStage: {} as Record<string, number>,
+  });
+  for (const month of months) rows.set(month, blankRow());
   for (const r of records) {
-    const row = rows.get(r.month) ?? { errors: 0, nearMisses: 0, byKind: {}, byStage: {} };
-    if (r.reachedPerson === "no") row.nearMisses += 1;
-    else row.errors += 1;
+    const row = rows.get(r.month) ?? blankRow();
+    if (r.kinds.includes("omitted_dose") || r.reachedPerson === "yes") row.errors += 1;
+    else if (r.reachedPerson === "no") row.nearMisses += 1;
+    else row.notYetKnown += 1;
     for (const k of r.kinds) row.byKind[k] = (row.byKind[k] ?? 0) + 1;
     if (r.stage) row.byStage[r.stage] = (row.byStage[r.stage] ?? 0) + 1;
     rows.set(r.month, row);

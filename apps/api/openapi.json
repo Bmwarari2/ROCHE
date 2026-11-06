@@ -32220,7 +32220,8 @@
           "rootCause",
           "cdReportedOn",
           "cdReportReference"
-        ]
+        ],
+        "additionalProperties": false
       },
       "EditMedicationError": {
         "type": "object",
@@ -32333,7 +32334,8 @@
           "cdReportedOn",
           "cdReportReference",
           "version"
-        ]
+        ],
+        "additionalProperties": false
       },
       "PersonMedicationReviews": {
         "type": "object",
@@ -32444,12 +32446,29 @@
             ],
             "format": "date"
           },
+          "bookedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "intervalDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "nextDueOn": {
             "type": [
               "string",
               "null"
             ],
             "format": "date"
+          },
+          "bookedAfterInterval": {
+            "type": "boolean"
           },
           "nextFrom": {
             "type": [
@@ -32473,7 +32492,10 @@
           "personId",
           "name",
           "lastDoneOn",
+          "bookedOn",
+          "intervalDueOn",
           "nextDueOn",
+          "bookedAfterInterval",
           "nextFrom",
           "status",
           "statusWords"
@@ -32485,6 +32507,7 @@
           "overdue",
           "due_soon",
           "scheduled",
+          "not_booked",
           "not_scheduled"
         ]
       },
@@ -32498,7 +32521,8 @@
         },
         "required": [
           "dueOn"
-        ]
+        ],
+        "additionalProperties": false
       },
       "RecordMedicationReview": {
         "type": "object",
@@ -32539,7 +32563,51 @@
           "clinicianRole",
           "outcome",
           "version"
-        ]
+        ],
+        "additionalProperties": false
+      },
+      "ChangeMedicationReview": {
+        "type": "object",
+        "properties": {
+          "dueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "dueOn",
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "CancelMedicationReview": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
       },
       "ReviewTracker": {
         "type": "object",
@@ -32584,6 +32652,9 @@
                 "competenceOverride": {
                   "type": "integer"
                 },
+                "competenceNotCurrent": {
+                  "type": "integer"
+                },
                 "givenBeforeRecorded": {
                   "type": "integer"
                 }
@@ -32592,6 +32663,7 @@
                 "memberId",
                 "name",
                 "competenceOverride",
+                "competenceNotCurrent",
                 "givenBeforeRecorded"
               ]
             }
@@ -32650,22 +32722,18 @@
                       "name": {
                         "type": "string"
                       },
-                      "prn": {
-                        "type": "boolean"
+                      "prnGiven": {
+                        "type": "integer"
                       },
-                      "psychotropic": {
-                        "type": "boolean"
-                      },
-                      "given": {
+                      "psychotropicGiven": {
                         "type": "integer"
                       }
                     },
                     "required": [
                       "medicineId",
                       "name",
-                      "prn",
-                      "psychotropic",
-                      "given"
+                      "prnGiven",
+                      "psychotropicGiven"
                     ]
                   }
                 }
@@ -32716,6 +32784,9 @@
                 "nearMisses": {
                   "type": "integer"
                 },
+                "notYetKnown": {
+                  "type": "integer"
+                },
                 "byKind": {
                   "type": "object",
                   "additionalProperties": {
@@ -32733,6 +32804,7 @@
                 "month",
                 "errors",
                 "nearMisses",
+                "notYetKnown",
                 "byKind",
                 "byStage"
               ]
@@ -68092,7 +68164,7 @@
           "medicines"
         ],
         "summary": "An incident's medication error details",
-        "description": "safety.incident.read, with the incident's own scope. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Harbour sends nothing. Audited.",
+        "description": "safety.incident.read, with MFA and the incident's own scope; refused for a restricted incident. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Harbour sends nothing. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -68170,7 +68242,7 @@
           "medicines"
         ],
         "summary": "Add medication error details to a medication incident",
-        "description": "safety.incident.report, on a medication incident one can see, about one of its people; the medicine and dose record, when given, are that person's. One per incident. The classifier is not changed. Audited with ids only.",
+        "description": "safety.incident.report, with MFA, by the incident's raiser or a manager of incidents where it happened, on a medication incident that is open and not restricted, about one of its people; the medicine and dose record, when given, are that person's and of one entry. One per incident. The classifier is not changed. Audited with ids only.",
         "security": [
           {
             "bearerAuth": []
@@ -68267,7 +68339,7 @@
           "medicines"
         ],
         "summary": "Change an incident's medication error details",
-        "description": "safety.incident.manage, or the member who added them (safety.incident.report). The version read must be sent back. Recording the controlled drug report's date and reference clears its prompt. Audited with ids only.",
+        "description": "safety.incident.report, with MFA, by the member who added them, the incident's raiser, or a manager of incidents where it happened; never on a closed or restricted incident. The version read must be sent back. Each prompt clears once its evidence is recorded. Audited with ids only.",
         "security": [
           {
             "bearerAuth": []
@@ -68626,6 +68698,204 @@
         }
       }
     },
+    "/v1/medication-reviews/{id}/reschedule": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Move a booked medication review to another date",
+        "description": "medicines.record.manage. Only a review not yet done, with a reason; the version read must be sent back. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeMedicationReview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicationReviewOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medication-reviews/{id}/cancel": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Cancel a booked medication review",
+        "description": "medicines.record.manage. Only a review not yet done, with a reason; it stays in the history. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelMedicationReview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicationReviewOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/locations/{id}/medication-reviews": {
       "get": {
         "tags": [
@@ -68702,7 +68972,7 @@
           "medicines"
         ],
         "summary": "Competence overrides and doses recorded after they were given",
-        "description": "medicines.record.manage across the location. Per member, how many administration records in the period (UK dates, inclusive) carry each reported flag, from the records of people living there. Information for the manager; no judgement. Audited.",
+        "description": "medicines.record.manage across the location. Per member, from the latest record per dose given in the period (UK dates, inclusive) to people living there now: doses they gave under a competence override or with no current competence, and doses they recorded after they were given. Information for the manager; no judgement. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -68878,7 +69148,7 @@
           "medicines"
         ],
         "summary": "Medication errors and near misses by month",
-        "description": "medicines.record.manage across the location. Per UK month in the period (by when the incident happened), errors and near misses by kind and stage, from the incidents one can see. Audited.",
+        "description": "medicines.record.manage across the location. Per UK month in the period (by when the incident happened, every month shown), errors, near misses and those not yet known, by kind and stage, from the incidents one can see. Audited.",
         "security": [
           {
             "bearerAuth": []

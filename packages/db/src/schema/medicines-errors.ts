@@ -114,7 +114,10 @@ export const medicationError = pgTable(
         AND (cd_report_reference IS NULL OR char_length(btrim(cd_report_reference)) BETWEEN 1 AND 120)
         AND (cd_reported_on IS NULL OR controlled_drug IS DISTINCT FROM 'no')`,
     ),
-    check("medication_error_retention", sql`retention_class = 'serious_incident'`),
+    check(
+      "medication_error_retention",
+      sql`retention_class IN ('care_record', 'serious_incident')`,
+    ),
   ],
 );
 

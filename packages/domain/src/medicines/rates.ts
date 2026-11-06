@@ -23,6 +23,7 @@ export const MEDICINES_RATE_KEYS = {
   competenceOverrideMaxHours: "medicines.competence_override.max_hours",
   reviewIntervalMonths: "medicines.review_interval_months",
   reviewDueSoonDays: "medicines.review_due_soon_days",
+  reportMaxDays: "medicines.report_max_days",
   clockDriftMinutes: "sync.clock_drift_flag_minutes",
 } as const;
 

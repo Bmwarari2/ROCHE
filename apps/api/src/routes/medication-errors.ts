@@ -14,6 +14,7 @@ import {
   UsageReport,
 } from "@harbour/contracts";
 import {
+  classifierAnswer,
   incident,
   medication,
   medicationAdministration,
@@ -24,12 +25,9 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
-  type AdministrationFlag,
   type AdministrationOutcome,
-  can,
   checkMedicationErrorRecord,
   checkReviewDone,
-  countReportedFlags,
   DOSE_TAKEN_OUTCOMES,
   MEDICATION_ERROR_KIND_WORDS,
   MEDICATION_ERROR_PROBLEM_WORDS,
@@ -40,6 +38,8 @@ import {
   type MedicationErrorStage,
   medicationErrorPrompts,
   medicationErrorTrend,
+  monthsBetween,
+  overrideCounts,
   presumedControlledDrug,
   REVIEW_PROBLEM_WORDS,
   REVIEW_STATUS_WORDS,
@@ -47,14 +47,22 @@ import {
   USAGE_REPORT_NOTE,
   ukDayBounds,
   ukIsoDate,
+  ukMonthOf,
   usageCounts,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  mfaRefusal,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { problems } from "../http/problem";
+import { loadPerson, requireWrite } from "../services/people";
 import { rateNumber } from "../services/rates";
 import {
   conflictResponse,
@@ -64,6 +72,7 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
+import { mayChange, readIncident } from "./safety-shared";
 
 /**
  * Medication errors on incidents, medication reviews and the medicines reports (Phase 2 slice 45;
@@ -76,7 +85,6 @@ import {
 const tags = ["medicines"];
 const REPORT = "safety.incident.report" as const;
 const READ = "safety.incident.read" as const;
-const MANAGE_INCIDENT = "safety.incident.manage" as const;
 const RECORD = "medicines.record.manage" as const;
 const IdParam = z.object({ id: z.uuid() });
 const PeriodQuery = ReportPeriod;
@@ -96,9 +104,29 @@ function locationAllowed(access: TenantAccess, locationId: string): boolean {
   return scope === "tenant" || (scope === "locations" && locationIds.includes(locationId));
 }
 
-function period(from: string, to: string): { startsAt: Date; endsAt: Date } {
+/** A report period in UK dates, inclusive, at most the rate table's longest (security review L2). */
+async function period(
+  tx: Transaction,
+  tenantId: string,
+  from: string,
+  to: string,
+): Promise<{ startsAt: Date; endsAt: Date }> {
   if (to < from) throw problems.invalid("The end of the period must be on or after its start.");
+  const maxDays = await rateNumber(tx, tenantId, MEDICINES_RATE_KEYS.reportMaxDays);
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1;
+  if (days > maxDays) throw problems.invalid(`Choose a period of ${maxDays} days or fewer.`);
   return { startsAt: ukDayBounds(from).startsAt, endsAt: ukDayBounds(to).endsAt };
+}
+
+/**
+ * An incident about a person is part of their care record: MFA, as for the incident itself; and a
+ * restricted incident (people the reader cannot see) is refused whole (security review M2, M3).
+ */
+async function incidentFor(tx: Transaction, access: TenantAccess, incidentId: string) {
+  if (!access.mfaSatisfied) throw mfaRefusal(access);
+  const found = await readIncident(tx, incidentId);
+  if (found.restricted) throw problems.forbidden();
+  return found.row;
 }
 
 /** The database's refusals of an error record, in words. */
@@ -117,28 +145,67 @@ function errorRefusal(error: unknown): never {
     throw problems.invalid(
       "Choose a medicine and a dose record of the person this error is about.",
     );
+  if (message.includes("medication_error_dose_of_other_medicine"))
+    throw problems.invalid("The dose record must be of the medicine chosen.");
   if (message.includes("medication_error_not_on_incident"))
     throw problems.invalid(
       "Medication details go on a medication incident, about one of the people on it.",
     );
   if (constraint === "medication_error_cd_report")
     throw problems.invalid(MEDICATION_ERROR_PROBLEM_WORDS.cd_report_incomplete);
+  // Any other check the database makes is a refusal in words, never a server error (L4).
+  if (
+    (error as { code?: string }).code === "23514" ||
+    (cause as { code?: string } | undefined)?.code === "23514"
+  )
+    throw problems.invalid("Some details could not be saved: check each answer and try again.");
   throw error;
 }
 
 type ErrorRow = typeof medicationError.$inferSelect;
+
+/**
+ * The medicine an error is about: the one named, or the one the dose record was given under, so a
+ * controlled drug is presumed from either (slice 45 clinical review B6).
+ */
+async function medicineOf(
+  tx: Transaction,
+  medicationId: string | null,
+  administrationId: string | null,
+): Promise<{ name: string; cdSchedule: string | null } | undefined> {
+  let id = medicationId;
+  if (id === null && administrationId !== null) {
+    const [dose] = await tx
+      .select({ medicationId: medicationAdministration.medicationId })
+      .from(medicationAdministration)
+      .where(eq(medicationAdministration.id, administrationId));
+    id = dose?.medicationId ?? null;
+  }
+  if (id === null) return undefined;
+  const [med] = await tx
+    .select({ name: medication.productName, cdSchedule: medication.cdSchedule })
+    .from(medication)
+    .where(eq(medication.id, id));
+  return med;
+}
 
 async function errorOut(tx: Transaction, row: ErrorRow): Promise<MedicationErrorOut> {
   const [inc] = await tx
     .select({ harmGrade: incident.harmGrade })
     .from(incident)
     .where(eq(incident.id, row.incidentId));
-  const [med] = row.medicationId
-    ? await tx
-        .select({ name: medication.productName, cdSchedule: medication.cdSchedule })
-        .from(medication)
-        .where(eq(medication.id, row.medicationId))
-    : [];
+  const med = await medicineOf(tx, row.medicationId, row.administrationId);
+  // The incident's own safeguarding question answered clears the safeguarding prompt (B13).
+  const [safeguarding] = await tx
+    .select({ id: classifierAnswer.id })
+    .from(classifierAnswer)
+    .where(
+      and(
+        eq(classifierAnswer.incidentId, row.incidentId),
+        eq(classifierAnswer.questionKey, "safeguarding.concern"),
+      ),
+    )
+    .limit(1);
   const answered = (v: string | null) => v as "yes" | "no" | "unsure" | null;
   const controlledDrug = presumedControlledDrug(
     answered(row.controlledDrug),
@@ -174,8 +241,9 @@ async function errorOut(tx: Transaction, row: ErrorRow): Promise<MedicationError
     cdReportReference: row.cdReportReference,
     medicineName: med?.name ?? null,
     controlledDrugPresumed: row.controlledDrug === null && controlledDrug === "yes",
-    nearMiss:
-      answers.reachedPerson === null || answers.reachedPerson === "unsure"
+    nearMiss: kinds.includes("omitted_dose")
+      ? false
+      : answers.reachedPerson === null || answers.reachedPerson === "unsure"
         ? null
         : answers.reachedPerson === "no",
     kindWords: kinds.map((k) => MEDICATION_ERROR_KIND_WORDS[k]),
@@ -184,6 +252,9 @@ async function errorOut(tx: Transaction, row: ErrorRow): Promise<MedicationError
     prompts: medicationErrorPrompts(answers, {
       cdReported: row.cdReportedOn !== null,
       harmGrade: harm,
+      clinicalAdviceRecorded:
+        row.clinicianToldAt !== null && row.clinicianTold !== null && row.adviceGiven !== null,
+      safeguardingAnswered: safeguarding !== undefined,
     }),
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
@@ -193,8 +264,9 @@ async function errorOut(tx: Transaction, row: ErrorRow): Promise<MedicationError
 
 type ErrorBody = z.infer<typeof EditMedicationError> | z.infer<typeof NewMedicationError>;
 
-async function checkBody(tx: Transaction, access: TenantAccess, body: ErrorBody) {
+async function checkBody(tx: Transaction, access: TenantAccess, body: ErrorBody, occurredAt: Date) {
   const tolerance = await rateNumber(tx, access.tenantId, MEDICINES_RATE_KEYS.clockDriftMinutes);
+  const med = await medicineOf(tx, body.medicationId, body.administrationId);
   const found = checkMedicationErrorRecord(
     {
       kinds: body.kinds,
@@ -210,8 +282,13 @@ async function checkBody(tx: Transaction, access: TenantAccess, body: ErrorBody)
       cdReportedOn: body.cdReportedOn,
       cdReportReference: body.cdReportReference,
     },
-    new Date(),
-    tolerance,
+    {
+      now: new Date(),
+      clockToleranceMinutes: tolerance,
+      occurredAt,
+      medicineCdSchedule: med?.cdSchedule ?? null,
+      today: ukIsoDate(new Date()),
+    },
   );
   if (found.length > 0)
     throw problems.invalid(found.map((p) => MEDICATION_ERROR_PROBLEM_WORDS[p]).join(" "));
@@ -275,6 +352,83 @@ function trackerLine(
   };
 }
 
+/**
+ * The latest administration record per dose given in a period, for people living at the location
+ * now: a record corrected by another is left out wherever the correction's time falls (slice 45
+ * clinical review B15). Attribution is by the person's current home (spec 14.3; B19, L1).
+ */
+async function latestAdministrations(
+  tx: Transaction,
+  locationId: string,
+  startsAt: Date,
+  endsAt: Date,
+) {
+  const rows = await tx
+    .select({
+      id: medicationAdministration.id,
+      personId: medicationAdministration.personId,
+      medicationId: medicationAdministration.medicationId,
+      outcome: medicationAdministration.outcome,
+      flags: medicationAdministration.flags,
+      administeredBy: medicationAdministration.administeredBy,
+      recordedBy: medicationAdministration.recordedBy,
+    })
+    .from(medicationAdministration)
+    .innerJoin(person, eq(person.id, medicationAdministration.personId))
+    .where(
+      and(
+        eq(person.locationId, locationId),
+        isNull(person.deletedAt),
+        gte(medicationAdministration.givenAt, startsAt),
+        lt(medicationAdministration.givenAt, endsAt),
+      ),
+    );
+  const ids = rows.map((r) => r.id);
+  const corrected = new Set(
+    ids.length === 0
+      ? []
+      : (
+          await tx
+            .select({ supersedesId: medicationAdministration.supersedesId })
+            .from(medicationAdministration)
+            .where(inArray(medicationAdministration.supersedesId, ids))
+        ).map((r) => r.supersedesId),
+  );
+  return rows.filter((r) => !corrected.has(r.id));
+}
+
+/** A review change, with the database's reason refusals said in words (clinical review B4). */
+async function reviewChange(
+  tx: Transaction,
+  run: () => Promise<(typeof medicationReview.$inferSelect)[]>,
+): Promise<typeof medicationReview.$inferSelect | undefined> {
+  try {
+    await tx.execute("SAVEPOINT medication_review_change");
+    const [row] = await run();
+    await tx.execute("RELEASE SAVEPOINT medication_review_change");
+    return row;
+  } catch (error) {
+    await tx.execute("ROLLBACK TO SAVEPOINT medication_review_change");
+    const text = `${(error as Error).message} ${(error as { cause?: { message?: string } }).cause?.message ?? ""}`;
+    if (text.includes("_needs_reason"))
+      throw problems.invalid(
+        "Give a new reason for this change: the last one has already been used.",
+      );
+    throw error;
+  }
+}
+
+const ChangeReview = z
+  .strictObject({
+    dueOn: z.iso.date(),
+    reason: z.string().trim().min(1).max(500),
+    version: z.number().int().min(1),
+  })
+  .meta({ id: "ChangeMedicationReview" });
+const CancelReview = z
+  .strictObject({ reason: z.string().trim().min(1).max(500), version: z.number().int().min(1) })
+  .meta({ id: "CancelMedicationReview" });
+
 export const medicationErrorsRouter = createRouter()
   .openapi(
     createRoute({
@@ -283,7 +437,7 @@ export const medicationErrorsRouter = createRouter()
       tags,
       summary: "An incident's medication error details",
       description:
-        "safety.incident.read, with the incident's own scope. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Harbour sends nothing. Audited.",
+        "safety.incident.read, with MFA and the incident's own scope; refused for a restricted incident. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Harbour sends nothing. Audited.",
       security,
       request: { params: IdParam },
       responses: {
@@ -296,11 +450,7 @@ export const medicationErrorsRouter = createRouter()
       const access = await requirePermission(c, READ);
       const { id } = c.req.valid("param");
       const body = await withTenant(c, async (tx) => {
-        const [inc] = await tx
-          .select({ id: incident.id })
-          .from(incident)
-          .where(eq(incident.id, id));
-        if (!inc) throw problems.notFound();
+        await incidentFor(tx, access, id);
         const [row] = await tx
           .select()
           .from(medicationError)
@@ -322,7 +472,7 @@ export const medicationErrorsRouter = createRouter()
       tags,
       summary: "Add medication error details to a medication incident",
       description:
-        "safety.incident.report, on a medication incident one can see, about one of its people; the medicine and dose record, when given, are that person's. One per incident. The classifier is not changed. Audited with ids only.",
+        "safety.incident.report, with MFA, by the incident's raiser or a manager of incidents where it happened, on a medication incident that is open and not restricted, about one of its people; the medicine and dose record, when given, are that person's and of one entry. One per incident. The classifier is not changed. Audited with ids only.",
       security,
       request: {
         params: IdParam,
@@ -340,16 +490,15 @@ export const medicationErrorsRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await withTenant(c, async (tx) => {
-        const [inc] = await tx
-          .select({ id: incident.id, type: incident.type, personIds: incident.personIds })
-          .from(incident)
-          .where(eq(incident.id, id));
-        if (!inc) throw problems.notFound();
+        const inc = await incidentFor(tx, access, id);
+        // The raiser or a manager of incidents where it happened, as for the incident (M1).
+        if (!(await mayChange(tx, access, inc))) throw problems.forbidden();
+        if (inc.status === "closed") throw problems.invalid("A closed incident cannot be changed.");
         if (inc.type !== "medication" || !inc.personIds.includes(body.personId))
           throw problems.invalid(
             "Medication details go on a medication incident, about one of the people on it.",
           );
-        await checkBody(tx, access, body);
+        await checkBody(tx, access, body, inc.occurredAt);
         let row: ErrorRow | undefined;
         try {
           await tx.execute("SAVEPOINT medication_error_insert");
@@ -381,7 +530,7 @@ export const medicationErrorsRouter = createRouter()
       tags,
       summary: "Change an incident's medication error details",
       description:
-        "safety.incident.manage, or the member who added them (safety.incident.report). The version read must be sent back. Recording the controlled drug report's date and reference clears its prompt. Audited with ids only.",
+        "safety.incident.report, with MFA, by the member who added them, the incident's raiser, or a manager of incidents where it happened; never on a closed or restricted incident. The version read must be sent back. Each prompt clears once its evidence is recorded. Audited with ids only.",
       security,
       request: {
         params: IdParam,
@@ -399,14 +548,18 @@ export const medicationErrorsRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await withTenant(c, async (tx) => {
+        const inc = await incidentFor(tx, access, id);
         const [current] = await tx
           .select()
           .from(medicationError)
           .where(and(eq(medicationError.incidentId, id), isNull(medicationError.deletedAt)));
         if (!current) throw problems.notFound();
-        if (current.createdBy !== access.tenantUserId && !can(access.effective, MANAGE_INCIDENT))
+        // Its author, the incident's raiser, or a manager of incidents where it happened: holding
+        // the permission at another home never counts (security review H1).
+        if (current.createdBy !== access.tenantUserId && !(await mayChange(tx, access, inc)))
           throw problems.forbidden();
-        await checkBody(tx, access, body);
+        if (inc.status === "closed") throw problems.invalid("A closed incident cannot be changed.");
+        await checkBody(tx, access, body, inc.occurredAt);
         let row: ErrorRow | undefined;
         try {
           await tx.execute("SAVEPOINT medication_error_update");
@@ -506,8 +659,8 @@ export const medicationErrorsRouter = createRouter()
       const { id } = c.req.valid("param");
       const { dueOn } = c.req.valid("json");
       const out = await withTenant(c, async (tx) => {
-        const [p] = await tx.select({ id: person.id }).from(person).where(eq(person.id, id));
-        if (!p) throw problems.notFound();
+        // Never for someone who has left or died (people.md rule 3; security review L5).
+        requireWrite(await loadPerson(tx, id), "care_plan");
         const [row] = await tx.insert(medicationReview).values({ personId: id, dueOn }).returning();
         if (!row) throw new Error("review not stored");
         await audit(c, tx, access, {
@@ -554,28 +707,141 @@ export const medicationErrorsRouter = createRouter()
           .from(medicationReview)
           .where(and(eq(medicationReview.id, id), isNull(medicationReview.deletedAt)));
         if (!current) throw problems.notFound();
+        requireWrite(
+          await loadPerson(tx, current.personId),
+          "care_note",
+          ukDayBounds(body.doneOn).startsAt,
+        );
         if (current.doneOn !== null && !body.correctionReason)
           throw problems.invalid(
             "This review is already recorded as done: give a reason for the correction.",
           );
-        const [row] = await tx
-          .update(medicationReview)
-          .set({
-            doneOn: body.doneOn,
-            clinicianName: body.clinicianName,
-            clinicianRole: body.clinicianRole,
-            outcome: body.outcome,
-            recordedBy: access.tenantUserId,
-            correctionReason: current.doneOn !== null ? (body.correctionReason ?? null) : null,
-          })
-          .where(and(eq(medicationReview.id, id), eq(medicationReview.version, body.version)))
-          .returning();
+        const row = await reviewChange(tx, () =>
+          tx
+            .update(medicationReview)
+            .set({
+              doneOn: body.doneOn,
+              clinicianName: body.clinicianName,
+              clinicianRole: body.clinicianRole,
+              outcome: body.outcome,
+              recordedBy: access.tenantUserId,
+              correctionReason:
+                current.doneOn !== null
+                  ? (body.correctionReason ?? null)
+                  : current.correctionReason,
+            })
+            .where(and(eq(medicationReview.id, id), eq(medicationReview.version, body.version)))
+            .returning(),
+        );
         if (!row) throw problems.conflict();
         await audit(c, tx, access, {
           action:
             current.doneOn !== null
               ? "medicines.medication_review.corrected"
               : "medicines.medication_review.done",
+          resourceType: "medication_review",
+          resourceId: id,
+          scope: { personId: row.personId },
+        });
+        return reviewOut(row);
+      });
+      return c.json(out, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/medication-reviews/{id}/reschedule",
+      tags,
+      summary: "Move a booked medication review to another date",
+      description:
+        "medicines.record.manage. Only a review not yet done, with a reason; the version read must be sent back. Audited with ids only.",
+      security,
+      request: {
+        params: IdParam,
+        body: { content: { "application/json": { schema: ChangeReview } } },
+      },
+      responses: {
+        200: jsonBody(MedicationReviewOut, "Moved"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, RECORD);
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const out = await withTenant(c, async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(medicationReview)
+          .where(and(eq(medicationReview.id, id), isNull(medicationReview.deletedAt)));
+        if (!current) throw problems.notFound();
+        if (current.doneOn !== null)
+          throw problems.invalid("A review already done is corrected, not moved.");
+        requireWrite(await loadPerson(tx, current.personId), "care_plan");
+        const row = await reviewChange(tx, () =>
+          tx
+            .update(medicationReview)
+            .set({ dueOn: body.dueOn, correctionReason: body.reason })
+            .where(and(eq(medicationReview.id, id), eq(medicationReview.version, body.version)))
+            .returning(),
+        );
+        if (!row) throw problems.conflict();
+        await audit(c, tx, access, {
+          action: "medicines.medication_review.rescheduled",
+          resourceType: "medication_review",
+          resourceId: id,
+          scope: { personId: row.personId },
+        });
+        return reviewOut(row);
+      });
+      return c.json(out, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/medication-reviews/{id}/cancel",
+      tags,
+      summary: "Cancel a booked medication review",
+      description:
+        "medicines.record.manage. Only a review not yet done, with a reason; it stays in the history. Audited with ids only.",
+      security,
+      request: {
+        params: IdParam,
+        body: { content: { "application/json": { schema: CancelReview } } },
+      },
+      responses: {
+        200: jsonBody(MedicationReviewOut, "Cancelled"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, RECORD);
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const out = await withTenant(c, async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(medicationReview)
+          .where(and(eq(medicationReview.id, id), isNull(medicationReview.deletedAt)));
+        if (!current) throw problems.notFound();
+        if (current.doneOn !== null)
+          throw problems.invalid("A review already done is corrected, not cancelled.");
+        const row = await reviewChange(tx, () =>
+          tx
+            .update(medicationReview)
+            .set({ deletedAt: new Date(), correctionReason: body.reason })
+            .where(and(eq(medicationReview.id, id), eq(medicationReview.version, body.version)))
+            .returning(),
+        );
+        if (!row) throw problems.conflict();
+        await audit(c, tx, access, {
+          action: "medicines.medication_review.cancelled",
           resourceType: "medication_review",
           resourceId: id,
           scope: { personId: row.personId },
@@ -624,7 +890,13 @@ export const medicationErrorsRouter = createRouter()
                 );
         const figures = await reviewFigures(tx, access.tenantId);
         const today = ukIsoDate(new Date());
-        const rank = { overdue: 0, due_soon: 1, not_scheduled: 2, scheduled: 3 } as const;
+        const rank = {
+          overdue: 0,
+          due_soon: 1,
+          not_scheduled: 2,
+          not_booked: 3,
+          scheduled: 4,
+        } as const;
         const lines = people
           .map((p) =>
             trackerLine(
@@ -658,7 +930,7 @@ export const medicationErrorsRouter = createRouter()
       tags,
       summary: "Competence overrides and doses recorded after they were given",
       description:
-        "medicines.record.manage across the location. Per member, how many administration records in the period (UK dates, inclusive) carry each reported flag, from the records of people living there. Information for the manager; no judgement. Audited.",
+        "medicines.record.manage across the location. Per member, from the latest record per dose given in the period (UK dates, inclusive) to people living there now: doses they gave under a competence override or with no current competence, and doses they recorded after they were given. Information for the manager; no judgement. Audited.",
       security,
       request: { params: IdParam, query: PeriodQuery },
       responses: { 200: jsonBody(OverrideReport, "Report"), ...errorResponses },
@@ -668,26 +940,10 @@ export const medicationErrorsRouter = createRouter()
       const { id } = c.req.valid("param");
       const { from, to } = c.req.valid("query");
       if (!locationAllowed(access, id)) throw problems.forbidden();
-      const { startsAt, endsAt } = period(from, to);
       const items = await withTenant(c, async (tx) => {
-        const rows = await tx
-          .select({
-            recordedBy: medicationAdministration.recordedBy,
-            flags: medicationAdministration.flags,
-          })
-          .from(medicationAdministration)
-          .innerJoin(person, eq(person.id, medicationAdministration.personId))
-          .where(
-            and(
-              eq(person.locationId, id),
-              gte(medicationAdministration.givenAt, startsAt),
-              lt(medicationAdministration.givenAt, endsAt),
-            ),
-          );
-        const counts = countReportedFlags(
-          rows.map((r) => ({ recordedBy: r.recordedBy, flags: r.flags as AdministrationFlag[] })),
-        );
-        const memberIds = [...counts.keys()];
+        const { startsAt, endsAt } = await period(tx, access.tenantId, from, to);
+        const counts = overrideCounts(await latestAdministrations(tx, id, startsAt, endsAt));
+        const memberIds = counts.map((n) => n.memberId);
         const names = new Map(
           memberIds.length === 0
             ? []
@@ -698,14 +954,8 @@ export const medicationErrorsRouter = createRouter()
                   .where(inArray(tenantUser.id, memberIds))
               ).map((u) => [u.id, u.name]),
         );
-        const out = [...counts.entries()]
-          .filter(([, n]) => n.competence_override > 0 || n.given_before_recorded > 0)
-          .map(([memberId, n]) => ({
-            memberId,
-            name: names.get(memberId) ?? null,
-            competenceOverride: n.competence_override,
-            givenBeforeRecorded: n.given_before_recorded,
-          }))
+        const out = counts
+          .map((n) => ({ ...n, name: names.get(n.memberId) ?? null }))
           .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "en-GB"));
         await audit(c, tx, access, {
           action: "medicines.report.override_viewed",
@@ -735,28 +985,9 @@ export const medicationErrorsRouter = createRouter()
       const { id } = c.req.valid("param");
       const { from, to } = c.req.valid("query");
       if (!locationAllowed(access, id)) throw problems.forbidden();
-      const { startsAt, endsAt } = period(from, to);
       const items = await withTenant(c, async (tx) => {
-        const rows = await tx
-          .select({
-            id: medicationAdministration.id,
-            personId: medicationAdministration.personId,
-            medicationId: medicationAdministration.medicationId,
-            outcome: medicationAdministration.outcome,
-            supersedesId: medicationAdministration.supersedesId,
-          })
-          .from(medicationAdministration)
-          .innerJoin(person, eq(person.id, medicationAdministration.personId))
-          .where(
-            and(
-              eq(person.locationId, id),
-              gte(medicationAdministration.givenAt, startsAt),
-              lt(medicationAdministration.givenAt, endsAt),
-            ),
-          );
-        // The latest record per dose: a record another corrects is left out.
-        const corrected = new Set(rows.map((r) => r.supersedesId).filter((v) => v !== null));
-        const latest = rows.filter((r) => !corrected.has(r.id));
+        const { startsAt, endsAt } = await period(tx, access.tenantId, from, to);
+        const latest = await latestAdministrations(tx, id, startsAt, endsAt);
         const medIds = [...new Set(latest.map((r) => r.medicationId))];
         const meds =
           medIds.length === 0
@@ -771,24 +1002,24 @@ export const medicationErrorsRouter = createRouter()
                 })
                 .from(medication)
                 .where(inArray(medication.id, medIds));
+        // Each dose is classed by the version it was given under (B16).
         const byVersion = new Map(meds.map((m) => [m.id, m]));
-        const medicines = new Map(
-          meds.map((m) => [
-            m.medicineId,
-            {
-              name: m.name,
-              prn: m.directions === "when_required",
-              psychotropic: m.tags.includes("psychotropic"),
-            },
-          ]),
-        );
         const counts = usageCounts(
-          latest.map((r) => ({
-            personId: r.personId,
-            medicineId: byVersion.get(r.medicationId)?.medicineId ?? r.medicationId,
-            taken: DOSE_TAKEN_OUTCOMES.has(r.outcome as AdministrationOutcome),
-          })),
-          medicines,
+          latest.flatMap((r) => {
+            const m = byVersion.get(r.medicationId);
+            return m
+              ? [
+                  {
+                    personId: r.personId,
+                    medicineId: m.medicineId,
+                    name: m.name,
+                    prn: m.directions === "when_required",
+                    psychotropic: m.tags.includes("psychotropic"),
+                    taken: DOSE_TAKEN_OUTCOMES.has(r.outcome as AdministrationOutcome),
+                  },
+                ]
+              : [];
+          }),
         );
         const personIds = counts.map((r) => r.personId);
         const names = new Map(
@@ -831,7 +1062,7 @@ export const medicationErrorsRouter = createRouter()
       tags,
       summary: "Medication errors and near misses by month",
       description:
-        "medicines.record.manage across the location. Per UK month in the period (by when the incident happened), errors and near misses by kind and stage, from the incidents one can see. Audited.",
+        "medicines.record.manage across the location. Per UK month in the period (by when the incident happened, every month shown), errors, near misses and those not yet known, by kind and stage, from the incidents one can see. Audited.",
       security,
       request: { params: IdParam, query: PeriodQuery },
       responses: { 200: jsonBody(MedicationErrorTrend, "Trend"), ...errorResponses },
@@ -841,8 +1072,8 @@ export const medicationErrorsRouter = createRouter()
       const { id } = c.req.valid("param");
       const { from, to } = c.req.valid("query");
       if (!locationAllowed(access, id)) throw problems.forbidden();
-      const { startsAt, endsAt } = period(from, to);
       const months = await withTenant(c, async (tx) => {
+        const { startsAt, endsAt } = await period(tx, access.tenantId, from, to);
         const rows = await tx
           .select({
             occurredAt: incident.occurredAt,
@@ -868,11 +1099,12 @@ export const medicationErrorsRouter = createRouter()
         });
         return medicationErrorTrend(
           rows.map((r) => ({
-            month: ukIsoDate(r.occurredAt).slice(0, 7),
+            month: ukMonthOf(r.occurredAt),
             kinds: r.kinds as MedicationErrorKind[],
             stage: r.stage as MedicationErrorStage | null,
             reachedPerson: r.reachedPerson as "yes" | "no" | "unsure" | null,
           })),
+          monthsBetween(from.slice(0, 7), to.slice(0, 7)),
         );
       });
       return c.json(

@@ -39,7 +39,7 @@ CREATE TABLE "medication_error" (
 	CONSTRAINT "medication_error_cd_report" CHECK ((cd_reported_on IS NULL) = (cd_report_reference IS NULL)
         AND (cd_report_reference IS NULL OR char_length(btrim(cd_report_reference)) BETWEEN 1 AND 120)
         AND (cd_reported_on IS NULL OR controlled_drug IS DISTINCT FROM 'no')),
-	CONSTRAINT "medication_error_retention" CHECK (retention_class = 'serious_incident')
+	CONSTRAINT "medication_error_retention" CHECK (retention_class IN ('care_record', 'serious_incident'))
 );
 --> statement-breakpoint
 CREATE TABLE "medication_review" (
@@ -114,9 +114,22 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.incident i
     WHERE i.tenant_id = NEW.tenant_id AND i.id = NEW.incident_id AND i.type = 'medication'
-      AND NEW.person_id = ANY (i.person_ids)
+      AND i.deleted_at IS NULL AND NEW.person_id = ANY (i.person_ids)
   ) THEN
     RAISE EXCEPTION 'medication_error_not_on_incident' USING ERRCODE = 'check_violation';
+  END IF;
+  -- Kept as long as its incident (slice 45 clinical review B21).
+  NEW.retention_class := (SELECT i.retention_class FROM public.incident i
+                          WHERE i.tenant_id = NEW.tenant_id AND i.id = NEW.incident_id);
+  -- The medicine and the dose record, when both are given, are of one medicines entry (B6).
+  IF NEW.medication_id IS NOT NULL AND NEW.administration_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.medication_administration a
+    JOIN public.medication given ON given.tenant_id = a.tenant_id AND given.id = a.medication_id
+    JOIN public.medication named ON named.tenant_id = NEW.tenant_id AND named.id = NEW.medication_id
+    WHERE a.tenant_id = NEW.tenant_id AND a.id = NEW.administration_id
+      AND given.medicine_id = named.medicine_id
+  ) THEN
+    RAISE EXCEPTION 'medication_error_dose_of_other_medicine' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END
@@ -139,6 +152,12 @@ BEGIN
          (OLD.due_on, OLD.done_on, OLD.clinician_name, OLD.clinician_role, OLD.outcome, OLD.deleted_at)
      AND (NEW.correction_reason IS NULL OR NEW.correction_reason IS NOT DISTINCT FROM OLD.correction_reason) THEN
     RAISE EXCEPTION 'medication_review_done_needs_reason' USING ERRCODE = 'check_violation';
+  END IF;
+  -- A booked review is moved or cancelled only with a reason (slice 45 clinical review B3).
+  IF OLD.done_on IS NULL AND NEW.done_on IS NULL
+     AND (NEW.due_on, NEW.deleted_at) IS DISTINCT FROM (OLD.due_on, OLD.deleted_at)
+     AND (NEW.correction_reason IS NULL OR NEW.correction_reason IS NOT DISTINCT FROM OLD.correction_reason) THEN
+    RAISE EXCEPTION 'medication_review_change_needs_reason' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END

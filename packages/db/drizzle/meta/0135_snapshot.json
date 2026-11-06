@@ -15623,7 +15623,7 @@
         },
         "medication_error_retention": {
           "name": "medication_error_retention",
-          "value": "retention_class = 'serious_incident'"
+          "value": "retention_class IN ('care_record', 'serious_incident')"
         }
       },
       "isRLSEnabled": false

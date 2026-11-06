@@ -28014,7 +28014,7 @@ export interface paths {
     };
     /**
      * An incident's medication error details
-     * @description safety.incident.read, with the incident's own scope. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Harbour sends nothing. Audited.
+     * @description safety.incident.read, with MFA and the incident's own scope; refused for a restricted incident. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Harbour sends nothing. Audited.
      */
     get: {
       parameters: {
@@ -28077,7 +28077,7 @@ export interface paths {
     put?: never;
     /**
      * Add medication error details to a medication incident
-     * @description safety.incident.report, on a medication incident one can see, about one of its people; the medicine and dose record, when given, are that person's. One per incident. The classifier is not changed. Audited with ids only.
+     * @description safety.incident.report, with MFA, by the incident's raiser or a manager of incidents where it happened, on a medication incident that is open and not restricted, about one of its people; the medicine and dose record, when given, are that person's and of one entry. One per incident. The classifier is not changed. Audited with ids only.
      */
     post: {
       parameters: {
@@ -28155,7 +28155,7 @@ export interface paths {
     head?: never;
     /**
      * Change an incident's medication error details
-     * @description safety.incident.manage, or the member who added them (safety.incident.report). The version read must be sent back. Recording the controlled drug report's date and reference clears its prompt. Audited with ids only.
+     * @description safety.incident.report, with MFA, by the member who added them, the incident's raiser, or a manager of incidents where it happened; never on a closed or restricted incident. The version read must be sent back. Each prompt clears once its evidence is recorded. Audited with ids only.
      */
     patch: {
       parameters: {
@@ -28462,6 +28462,186 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/medication-reviews/{id}/reschedule": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Move a booked medication review to another date
+     * @description medicines.record.manage. Only a review not yet done, with a reason; the version read must be sent back. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeMedicationReview"];
+        };
+      };
+      responses: {
+        /** @description Moved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicationReviewOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medication-reviews/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a booked medication review
+     * @description medicines.record.manage. Only a review not yet done, with a reason; it stays in the history. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CancelMedicationReview"];
+        };
+      };
+      responses: {
+        /** @description Cancelled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicationReviewOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/locations/{id}/medication-reviews": {
     parameters: {
       query?: never;
@@ -28539,7 +28719,7 @@ export interface paths {
     };
     /**
      * Competence overrides and doses recorded after they were given
-     * @description medicines.record.manage across the location. Per member, how many administration records in the period (UK dates, inclusive) carry each reported flag, from the records of people living there. Information for the manager; no judgement. Audited.
+     * @description medicines.record.manage across the location. Per member, from the latest record per dose given in the period (UK dates, inclusive) to people living there now: doses they gave under a competence override or with no current competence, and doses they recorded after they were given. Information for the manager; no judgement. Audited.
      */
     get: {
       parameters: {
@@ -28681,7 +28861,7 @@ export interface paths {
     };
     /**
      * Medication errors and near misses by month
-     * @description medicines.record.manage across the location. Per UK month in the period (by when the incident happened), errors and near misses by kind and stage, from the incidents one can see. Audited.
+     * @description medicines.record.manage across the location. Per UK month in the period (by when the incident happened, every month shown), errors, near misses and those not yet known, by kind and stage, from the incidents one can see. Audited.
      */
     get: {
       parameters: {
@@ -40533,14 +40713,19 @@ export interface components {
       /** Format: date */
       lastDoneOn: string | null;
       /** Format: date */
+      bookedOn: string | null;
+      /** Format: date */
+      intervalDueOn: string | null;
+      /** Format: date */
       nextDueOn: string | null;
+      bookedAfterInterval: boolean;
       /** @enum {string|null} */
       nextFrom: "scheduled" | "interval" | null;
       status: components["schemas"]["ReviewStatus"];
       statusWords: string;
     };
     /** @enum {string} */
-    ReviewStatus: "overdue" | "due_soon" | "scheduled" | "not_scheduled";
+    ReviewStatus: "overdue" | "due_soon" | "scheduled" | "not_booked" | "not_scheduled";
     ScheduleMedicationReview: {
       /** Format: date */
       dueOn: string;
@@ -40552,6 +40737,16 @@ export interface components {
       clinicianRole: components["schemas"]["ReviewerRole"];
       outcome: string;
       correctionReason?: string | null;
+      version: number;
+    };
+    ChangeMedicationReview: {
+      /** Format: date */
+      dueOn: string;
+      reason: string;
+      version: number;
+    };
+    CancelMedicationReview: {
+      reason: string;
       version: number;
     };
     ReviewTracker: {
@@ -40567,6 +40762,7 @@ export interface components {
         memberId: string;
         name: string | null;
         competenceOverride: number;
+        competenceNotCurrent: number;
         givenBeforeRecorded: number;
       }[];
     };
@@ -40587,9 +40783,8 @@ export interface components {
           /** Format: uuid */
           medicineId: string;
           name: string;
-          prn: boolean;
-          psychotropic: boolean;
-          given: number;
+          prnGiven: number;
+          psychotropicGiven: number;
         }[];
       }[];
     };
@@ -40603,6 +40798,7 @@ export interface components {
         month: string;
         errors: number;
         nearMisses: number;
+        notYetKnown: number;
         byKind: {
           [key: string]: number;
         };

@@ -316,3 +316,72 @@ describe("the code lists match the domain", () => {
     expect(list(REVIEWER_ROLE_SQL)).toEqual([...domain.REVIEWER_ROLES]);
   });
 });
+
+describe("hazard HZ-131 slice 45 review fixes in the database", () => {
+  it("refuses a medicine and a dose record of different entries (B6)", async () => {
+    const SECOND = "0193a000-0000-7000-8000-00000000e103";
+    await inContext(app(), manager, (c) => entry(c, SECOND, a.personAda));
+    await inContext(app(), manager, (c) =>
+      c.query(
+        "UPDATE medication_error SET medication_id = NULL, administration_id = NULL WHERE id = $1",
+        [ADA_ERROR],
+      ),
+    );
+    expect(
+      await refused(
+        manager,
+        "UPDATE medication_error SET medication_id = $1, administration_id = $2 WHERE id = $3",
+        [SECOND, ADA_DOSE, ADA_ERROR],
+      ),
+    ).toMatch(/medication_error_dose_of_other_medicine/);
+    expect(
+      await refused(
+        manager,
+        "UPDATE medication_error SET medication_id = $1, administration_id = $2 WHERE id = $3",
+        [ADA_ENTRY, ADA_DOSE, ADA_ERROR],
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps an error as long as its incident (B21)", async () => {
+    await inContext(app(), manager, (c) =>
+      c.query("UPDATE incident SET retention_class = 'serious_incident' WHERE id = $1", [
+        MED_INCIDENT,
+      ]),
+    );
+    await inContext(app(), manager, (c) =>
+      c.query("UPDATE medication_error SET immediate_actions = 'Checked' WHERE id = $1", [
+        ADA_ERROR,
+      ]),
+    );
+    const { rows } = await inContext(app(), manager, (c) =>
+      c.query<{ retention_class: string }>(
+        "SELECT retention_class FROM medication_error WHERE id = $1",
+        [ADA_ERROR],
+      ),
+    );
+    expect(rows[0]?.retention_class).toBe("serious_incident");
+  });
+
+  it("moves or cancels a booked review only with a reason (B3)", async () => {
+    const REVIEW = "0193a000-0000-7000-8000-00000000e703";
+    await inContext(app(), manager, (c) =>
+      c.query(
+        "INSERT INTO medication_review (id, person_id, due_on) VALUES ($1, $2, '2027-01-10')",
+        [REVIEW, a.personAda],
+      ),
+    );
+    expect(
+      await refused(manager, "UPDATE medication_review SET due_on = '2027-02-01' WHERE id = $1", [
+        REVIEW,
+      ]),
+    ).toMatch(/medication_review_change_needs_reason/);
+    expect(
+      await refused(
+        manager,
+        "UPDATE medication_review SET due_on = '2027-02-01', correction_reason = 'GP surgery moved it' WHERE id = $1",
+        [REVIEW],
+      ),
+    ).toBeNull();
+  });
+});
