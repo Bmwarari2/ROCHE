@@ -180,6 +180,10 @@ export const PERMISSIONS = {
     description: "Manage stock, ordering and disposal",
     careRecord: true,
   },
+  "medicines.covert.manage": {
+    description: "Record and end covert administration agreed in a best-interests decision",
+    careRecord: true,
+  },
   "medicines.override.approve": {
     description: "Approve overrides such as expired competence",
     careRecord: true,

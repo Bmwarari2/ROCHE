@@ -1431,6 +1431,23 @@ until slice 10 the identifiers are checked by shape and check digit, not against
 | `medication.cd_schedule` | Misuse of Drugs Regulations 2001 schedules, from dm+d | `1`, `2`, `3`, `4`, `4.1`, `4.2`, `5`; null until slice 10 | |
 | `medication_reconciliation.trigger` | Harbour; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
 | `medication_reconciliation_item.says` | Harbour | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
+## Covert, self-administration and homely remedies (Phase 2, slice 38)
+
+Migration 0140 ([medicines.md](medicines.md) section 15). Retention class `mar_chart`; every column
+is exported. Dates are UK dates; times are instants in UTC, shown in UK time, 24-hour, dd/mm/yyyy.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `covert_medication_record.attendees` | Harbour | JSON array of `role` (`prescriber`, `pharmacist`, `registered_manager`, `nurse`, `care_staff`, `family_or_friend`, `representative`, `advocate`, `other`) and `name` | The prescriber and a pharmacist are required (NICE SC1 1.15.3). |
+| `covert_medication_record.method`, `pharmacist_advice` | Harbour | Text | As agreed with the pharmacist; never Harbour's suggestion. |
+| `covert_medication_record.starts_on`, `review_on`, `reviewed_on`, `ended_on` | ISO 8601 date | UK date | Review within `medicines.covert.review_max_days`. |
+| `medication_administration.covert` | Harbour | Boolean | Marked on the MAR; the flags `covert_without_record` and `covert_review_overdue` say when no current record covered it. |
+| `self_administration_assessment.choice`, `capacity`, `dexterity`, `storage`, `level` | Harbour | `wants_to`, `does_not_want_to`; `has_capacity`, `lacks_capacity`, `assumed`; `able`, `able_with_aids`, `unable`; `lockable_storage`, `no_lockable_storage`; `self_administers`, `self_administers_with_support`, `staff_administer` | A level other than staff giving needs the person's choice, capacity not lacking, dexterity and lockable storage. |
+| `self_administration_assessment.medicine_ids` | Harbour | Array of `medication.medicine_id` | The person's own medicines only. |
+| `homely_remedy_protocol.vmp_id` | dm+d VMP | SNOMED CT concept id (6 to 18 digits) | Optional; an exact match with a current entry is refused at the dose. |
+| `homely_remedy_protocol.dose_quantity`, `max_daily_quantity`, `min_interval_hours`, `max_days` | Harbour | Numeric in `unit_name`; hours; days | The home's figures, agreed with a GP or pharmacist; `max_days` within `medicines.homely_remedy.max_days_ceiling`. |
+| `homely_remedy_administration.outcome` | Harbour | `given`, `entered_in_error` | A record entered in error stays, struck through, and no longer counts. |
+| `homely_remedy_administration.allergies_checked`, `already_given_reason`, `flags` | Harbour | Boolean; text; array of `HomelyDoseProblem` codes | Flags only on a dose already given outside the protocol, with its reason. |
 
 ## Platform operational tables (not part of the MODS export)
 

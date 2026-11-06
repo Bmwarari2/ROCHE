@@ -161,6 +161,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "care.respect.record",
       "care.delegated.signoff",
       "medicines.record.manage",
+      "medicines.covert.manage",
       "medicines.cd.administer",
       "medicines.cd.witness",
       "medicines.stock.manage",

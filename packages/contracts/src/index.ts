@@ -590,6 +590,7 @@ export * from "./mca";
 export * from "./medicine-administrations";
 export * from "./medicine-stock";
 export * from "./medicines";
+export * from "./medicines-authority";
 export * from "./members";
 export * from "./onboarding";
 export * from "./operations";

@@ -187,6 +187,10 @@ const FLAG_WORDS: Readonly<Record<string, string>> = {
   breach_hidden: "the correction hides a limit the record broke",
   close_to_next_dose: "given closer to the next dose than the schedule allows",
   inside_minimum_interval: "given inside the minimum interval",
+  covert_without_record: "given covertly with no current covert record for this medicine",
+  covert_review_overdue: "given covertly while the covert record's review is overdue",
+  self_admin_not_assessed: "taken by the person with no assessment that they look after it",
+  self_admin_review_overdue: "taken by the person while their assessment's review is overdue",
 };
 
 export function flagWords(flags: readonly string[]): string[] {
@@ -235,6 +239,7 @@ export function administrationOut(
     administeredBy: r.administeredBy,
     recorded: { id: r.recordedBy, at: r.recordedAt.toISOString() },
     flags: [...r.flags],
+    covert: r.covert,
     flagsInWords: flagWords(r.flags),
     givenBeforeRecordedReason: r.givenBeforeRecordedReason,
     supersedesId: r.supersedesId,

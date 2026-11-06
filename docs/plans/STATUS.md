@@ -298,6 +298,13 @@ evidence, access as the incident with MFA), medication reviews (booked or by int
 cancelled with a reason), and the override, PRN and psychotropic, and error trend reports. Clinical
 and security review findings of 01/11/2026 fixed on 06/11/2026. Next: the web screens (H-1299).
 Lands through merge batch 3b.
+**Phase 2 slice 38, covert, self-administration and homely remedies** (`feat/meds-covert-self-admin`,
+MEDS-004, MEDS-006, MEDS-007, from slice 22; migration 0140; HZ-026 extended, HZ-120 added; H-1350
+to H-1359, recommended answers applied): per-medicine covert records on the capacity assessment and
+best-interests decision, with review and end; covert and self-administered doses marked and
+escalated, never refused; self-administration assessments; homely remedy protocols per home and
+doses checked against them. New permission `medicines.covert.manage`, backfilled to built-in roles.
+Next: the web screens (slices 52, 53, 55). Lands through a merge batch.
 
 **Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
 with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client

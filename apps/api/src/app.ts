@@ -79,6 +79,7 @@ import { medicineAdministrationsRouter } from "./routes/medicine-administrations
 import { medicineRoundsRouter } from "./routes/medicine-rounds";
 import { medicineStockRouter } from "./routes/medicine-stock";
 import { medicinesRouter } from "./routes/medicines";
+import { medicinesAuthorityRouter } from "./routes/medicines-authority";
 import { medicinesDmdRouter } from "./routes/medicines-dmd";
 import { memberLifecycleRouter } from "./routes/member-lifecycle";
 import { memberSessionsRouter } from "./routes/member-sessions";
@@ -525,6 +526,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", medicineRoundsRouter);
   app.route("/", medicationErrorsRouter);
   app.route("/", medicineStockRouter);
+  app.route("/", medicinesAuthorityRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

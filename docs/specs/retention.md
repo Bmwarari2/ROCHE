@@ -101,6 +101,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `incident` with `retention_class` `serious_incident` (set once any notification applies), its people, answers, `candour_record` and `investigation`, and `statutory_notification` | serious_incident |
 | `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
 | `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_administration_conflict`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision` | mar_chart |
+| `medication`, `medication_schedule`, `medication_administration`, `medication_administration_witness`, `medication_dosing_record`, `medication_reconciliation`, `medication_reconciliation_source`, `medication_reconciliation_item`, `medication_reconciliation_decision`, `covert_medication_record`, `self_administration_assessment`, `homely_remedy_protocol`, `homely_remedy_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `controlled_drug_page`, `controlled_drug_witness_assertion`, `controlled_drug_stock_check` | controlled_drugs_register |
 | `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |

@@ -38,35 +38,3 @@ ALTER POLICY agency_window ON public.role_assignment
 ALTER POLICY agency_window ON public.access_grant
   TO harbour_app, harbour_owner, harbour_sample_owner, harbour_silo_owner, harbour_import_owner,
      harbour_wellbeing_owner, harbour_quality_reader, harbour_invitation_owner, harbour_member_owner;
---> statement-breakpoint
--- Sample data mode (migration 0069, HZ-072), batch 3b: the highest migration states the union of
--- every list, children before the tables they reference, so a table one branch added is never
--- left out by another branch's redefinition (0123 to 0138 each redefined it).
-CREATE OR REPLACE FUNCTION app.sample_removal_tables() RETURNS text[]
-LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
-  SELECT ARRAY[
-    'outbreak_case', 'missing_event', 'missing_episode', 'medication_review',
-    'medicine_stock_movement', 'medicine_disposal', 'medicine_order_line', 'medicine_stock_item',
-    'controlled_drug_stock_check', 'controlled_drug_entry', 'controlled_drug_witness_assertion',
-    'controlled_drug_page', 'medication_administration_witness',
-    'medication_administration_conflict', 'medication_error', 'medication_administration',
-    'medication_dosing_record', 'medication_reconciliation_decision',
-    'medication_reconciliation_item', 'medication_reconciliation_source', 'medication_schedule',
-    'medication', 'medication_reconciliation', 'dependency_assessment', 'about_me',
-    'about_me_share_link', 'activity_record', 'admission_condition', 'advance_care_record',
-    'allergy', 'assessment', 'bed_occupancy', 'body_map_mark', 'break_glass_event',
-    'candour_record', 'care_note', 'care_plan_action', 'care_plan_change', 'consent_record',
-    'document_signature', 'dols_legal_change_review', 'entry_device_deletion_flag',
-    'exit_checklist_item', 'family_portal_user', 'feed_item_withdrawal', 'feed_view',
-    'handover_note', 'incident_person', 'key_issue', 'legal_hold', 'letter',
-    'notification_delivery', 'observation', 'person_assignment', 'person_care_profile',
-    'property_item', 'refused_entry', 'sharing_decision_suspension', 'safeguarding_concern',
-    'statutory_notification', 'visit_log', 'welcome_checklist_item', 'workflow_transition',
-    'care_plan_section', 'dols_authorisation', 'death_step', 'death_record', 'exit_record',
-    'feed_item', 'handover_item', 'hospital_transfer', 'notification', 'placement',
-    'review_record', 'risk_assessment', 'sharing_decision', 'task', 'admission_decision',
-    'best_interests_decision', 'care_plan', 'herbert_profile', 'ocr_field', 'ocr_extraction',
-    'document', 'task_series', 'workflow_instance', 'capacity_assessment', 'contact',
-    'pre_admission_assessment'
-  ]::text[]
-$$;

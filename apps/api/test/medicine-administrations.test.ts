@@ -343,7 +343,9 @@ describe("hazard HZ-004 when required: the 24-hour maximum", () => {
     expect(taken.status, await taken.clone().text()).toBe(201);
     const out = await json<Recorded>(taken);
     expect(out.administration.flags).toContain("over_maximum");
-    expect(out.escalations.map((e) => e.severity)).toEqual(["urgent"]);
+    // Slice 38: taken by the person with no self-administration assessment is also escalated.
+    expect(out.escalations.map((e) => e.severity)).toEqual(["urgent", "warning"]);
+    expect(out.administration.flags).toContain("self_admin_not_assessed");
     const round = await json<{ whenRequired: { entryId: string; remaining: number | null }[] }>(
       await send("manager", `/v1/people/${BEN}/medicine-round`),
     );

@@ -235,6 +235,17 @@ order headers name no person. A controlled drug's stock stays in its register an
 Orders through the pharmacy port send each line's product, quantity and unit with a person
 pseudonym stable within the organisation, never Harbour's id or a name; only a mock exists, and the pharmacy is assessed before it receives anything
 (H-517, H-1321). Retention class `mar_chart`; cycles and storage `tenant_configuration`.
+Covert administration, self-administration and homely remedies (Phase 2 slice 38, migration 0140):
+B1 now also covers covert administration records (the medicine, the capacity assessment and
+best-interests decision they stand on, who took part with their names and roles, how the medicine
+is given, the pharmacist's advice, reviews and the end, each change with its reason),
+self-administration assessments (the person's choice, capacity, dexterity, storage, the level
+decided and notes) and homely remedy doses (the remedy, amount, why it was given, who gave it).
+Covert administration is health data about a person who lacks capacity (Art 9(2)(h)); the lawful
+basis is unchanged (never consent). Attendee names may be family members, representatives and
+clinicians (third parties in a subject access bundle). Homely remedy protocols are the home's own
+documents and name staff and the GP or pharmacist who agreed them. Retention class `mar_chart`. No
+new recipient or sub-processor; none of it is sent to devices yet.
 
 Notes:
 

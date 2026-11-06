@@ -1684,3 +1684,130 @@ and `GET /v1/controlled-drugs/pages/{pageId}/witness-assertions` (`medicines.cd.
 entry); `apps/web/e2e/controlled-drugs.spec.ts` (a witness signs, the manager records a receipt with
 that signature, a correction, a stock check that does not balance, and the print view; axe in light
 and dark).
+## 15. Covert administration, self-administration and homely remedies (slice 38; MEDS-004, MEDS-006, MEDS-007)
+
+Hazards HZ-026 and HZ-120; human actions H-1350 to H-1359. Section 14 is slice 45's (on its own
+branch). Harbour records and applies the organisation's decisions: it never recommends covert
+administration, a method, a level of self-administration or a remedy (medical-device boundary).
+Every limit is the rate table's or the home's own protocol's, never a literal.
+
+### 15.1 Covert administration (MEDS-004)
+
+A **covert record** (`covert_medication_record`, mutable with `expected_version`, history kept) is
+per medicine (the stable `medicine_id`, copied by the database from the entry version chosen). It
+stands on:
+
+- the person's **capacity assessment** for the decision `covert_medicines` finding a lack of
+  capacity (NICE SC1 (2014) 1.15.1: never covertly to a person who has capacity), not corrected
+  since;
+- the **best-interests decision** after that assessment, not corrected since (NICE SC1 1.15.3);
+- **who took part**, by role and name, which must include the prescriber and a pharmacist;
+- **how it is given** and the **pharmacist's advice** on giving it that way (crushing, food,
+  timing), in their words;
+- a start date, not before the decision, and a **review date** within
+  `medicines.covert.review_max_days` (H-1352).
+
+One open record per medicine. A **review** records the same evidence again with the date reviewed,
+the next review date (within the rate table's days from the review) and a reason; an **end** records
+the date and reason. Every change needs a new reason; an ended record is closed (database guard).
+A record whose capacity assessment or best-interests decision has since been corrected, or whose
+person a later assessment of covert medicines finds to have capacity, shows as needing review
+(`basis_changed`) and no longer covers a dose (NICE SC1 1.15.1).
+Writing needs `medicines.covert.manage` at the person's home, in the API and in row-level security.
+
+**On the MAR**: a dose that was given may be marked **covert** (`medication_administration.covert`),
+shown on the record; covert on any other outcome is refused. Showing the record's status, method
+and advice beside the entry on the round is the round view's (slice 53, H-1354). A covert dose is never refused, because it has happened and the record must say so
+(HZ-004): with no current record for the medicine it carries `covert_without_record` and an urgent
+task for the nurse in charge; while the record's review is overdue it carries
+`covert_review_overdue` and a task (H-1351).
+
+### 15.2 Self-administration (MEDS-006)
+
+A **self-administration assessment** (`self_administration_assessment`, append-only; a review is a
+new assessment) records, for the medicines it lists (the person's own, checked by the database):
+the person's **choice**, **capacity** (assumed, as the Act requires, or a linked assessment that
+says so), **dexterity**, **storage**, the **level** decided (looks after and takes them; takes them
+with support; staff give them), notes, the date and a review date within
+`medicines.self_admin.review_max_days` (H-1353). A level other than staff giving needs the person's
+choice, capacity not lacking, dexterity and lockable storage (domain and database). A linked
+capacity assessment must be the person's current one and say what the assessment records; it is
+not yet tied to a self-administration decision kind, which needs its own migration (H-1354). The
+latest
+assessment listing a medicine decides its status: current, review overdue or not assessed.
+
+A dose recorded as **taken by the person** (`self_administered`) is never refused: with no current
+assessment that has them self-administering it carries `self_admin_not_assessed` and a task; while
+the review is overdue, `self_admin_review_overdue` (H-1353).
+
+### 15.3 Homely remedies (MEDS-007)
+
+A **homely remedy protocol** (`homely_remedy_protocol`, per home, mutable with history) holds the
+product (dm+d VMP when coded), what it is for, one dose and its unit, the shortest gap in hours, the
+most in 24 hours, the days a course may last before the person's GP is asked (within
+`medicines.homely_remedy.max_days_ceiling`), the staff allowed to give it, the GP or pharmacist who
+agreed it and when, and a review date within `medicines.homely_remedy.review_max_days` (H-1355).
+Changing it needs a new reason; a withdrawn protocol is closed.
+
+A **homely remedy dose** (`homely_remedy_administration`, append-only, client UUID) needs the giver
+to confirm they checked the person's allergies (Harbour never matches them: HZ-007, ADR-0082), and
+is recorded by the member who gives it (database). It can be checked first without recording
+(`POST .../homely-remedy-doses/check`). It is refused in words when (H-1356):
+
+- the protocol is withdrawn or past its review date;
+- the member is not named on it;
+- the dose is not the protocol's;
+- it is sooner than the shortest gap, or would exceed the most in 24 hours;
+- the course (doses with gaps no longer than `medicines.homely_remedy.course_gap_hours`) has
+  lasted the protocol's days: the GP is asked first;
+- the person has the same dm+d product on a current entry (another product with the same
+  ingredient is not caught: ADR-0082, H-1357);
+- the person does not live at the protocol's home (database guard).
+
+Doses of the same product under other protocols at the home (the same dm+d product, or the same
+name when not coded) count too, so a replaced protocol never starts afresh. Gaps, the 24 hours and
+the course are elapsed hours, not calendar days, so a clock change neither adds nor removes time
+(H-1355). A dose **already given** is recorded with when and why: what the check finds is recorded
+as flags and escalated urgently, never refused (HZ-004; H-1356); a time in the future is refused.
+
+A dose recorded in error is marked by a new record with a reason; it stays, struck through, and no
+longer counts.
+
+### 15.4 Permissions
+
+| Action | Permission | Scope |
+| --- | --- | --- |
+| Read covert records, assessments, protocols and homely remedy doses | `medicines.record.manage`, `medicines.emar.administer` or `care.plan.read` | The person; the home |
+| Record, review and end a covert record | `medicines.covert.manage` (new: owner, Registered Manager, deputy, clinical lead; backfilled to existing tenants' built-in roles by migration 0140) | The person's home |
+| Record a self-administration assessment | `medicines.record.manage` | The person |
+| Add, change and withdraw a homely remedy protocol | `medicines.record.manage` | The home |
+| Give a homely remedy | `medicines.emar.administer`, and named on the protocol | The person, at the protocol's home |
+| Mark a homely remedy dose entered in error | The member who gave it, or `medicines.record.manage` | The person |
+
+All are care-record permissions (MFA). Audited with ids only.
+
+### 15.5 Schema (migration 0140)
+
+`covert_medication_record`, `self_administration_assessment`, `homely_remedy_protocol` and
+`homely_remedy_administration`, each with `tenant_id`, forced row-level security and the tenant
+policy; the person's scope on the three about a person; the home's scope on protocols; history
+(`capture_version`) on the two mutable tables; append-only triggers and no UPDATE or DELETE grant
+on the other two; no DELETE on any. `medication_administration` gains `covert` (default false:
+expand only) and four flags. Retention `mar_chart`. Sample data removal lists the new person tables.
+Not sent to devices yet (the round stream is a contract until slice 68).
+
+### 15.6 Test list
+
+- Domain, table-driven: every covert record problem and status; the covert dose marks; every
+  self-administration problem, the status from several assessments, the dose marks; every protocol
+  problem, every homely remedy dose refusal, the course gap.
+- Database: isolation and scope; the covert guard (lack of capacity for covert medicines, the
+  decision after it, prescriber and pharmacist, another person's medicine, a new reason for every
+  change, closed once ended); the covert write policy; self-administration of the person's own
+  medicines only, append-only; protocol writes by home, a dose only by a named member at the home
+  on the current version, entered in error, append-only; the role backfill, idempotent and audited.
+- API: covert permission, refusals in words, one open record per medicine, a covert dose marked,
+  review with the version read, end and the urgent escalation after it; self-administration
+  refusals, the flag and escalation before an assessment and none after; protocol refusals, a dose
+  by a named member once per id, refusals in words, entered in error, a prescribed product,
+  withdrawal.

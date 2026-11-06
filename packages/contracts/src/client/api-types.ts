@@ -49211,6 +49211,1132 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/covert-medicines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A person's covert administration records
+     * @description medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Covert records, newest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CovertRecordList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record that one medicine is given covertly, under a best-interests decision
+     * @description medicines.covert.manage at the person's home. Needs the person's capacity assessment for covert medicines finding a lack of capacity, the best-interests decision after it, the prescriber and a pharmacist among those involved, the method and the pharmacist's advice, and a review within the rate table's days. One open record per medicine. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewCovertRecord"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CovertRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/covert-medicines/{id}/review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a review of a covert record
+     * @description medicines.covert.manage at the person's home. The same evidence as a new record, the date reviewed, the next review within the rate table's days from it, a reason, and the version read. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReviewCovertRecord"];
+        };
+      };
+      responses: {
+        /** @description Reviewed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CovertRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/covert-medicines/{id}/end": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * End a covert record
+     * @description medicines.covert.manage at the person's home, with a reason and the version read. A covert dose after the end is flagged and escalated. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndCovertRecord"];
+        };
+      };
+      responses: {
+        /** @description Ended */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CovertRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/self-administration": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A person's self-administration assessments, and where each medicine stands
+     * @description medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Assessments, newest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonSelfAdministration"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a self-administration assessment or its review
+     * @description medicines.record.manage in the person's scope. The person's choice, capacity (assumed, or a linked assessment that says so), dexterity and storage, and the level a person decided on, for the medicines listed; a review within the rate table's days. A review is a new assessment. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewSelfAdminAssessment"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SelfAdminAssessment"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/homely-remedies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A home's homely remedy protocols
+     * @description medicines.record.manage, medicines.emar.administer or care.plan.read, at a home in scope.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Protocols */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyProtocolList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add a homely remedy protocol agreed with a GP or pharmacist
+     * @description medicines.record.manage at the home. Every figure is the protocol's; the days before the GP is asked and the review are within the rate table's limits. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewHomelyProtocol"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyProtocol"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/homely-remedies/{id}/change": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Change a homely remedy protocol, with a reason
+     * @description medicines.record.manage at the home, with the version read. Doses already given keep the version they were checked against. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeHomelyProtocol"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyProtocol"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/homely-remedies/{id}/withdraw": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Withdraw a homely remedy protocol
+     * @description medicines.record.manage at the home, with a reason and the version read. A withdrawn protocol is never used again. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["WithdrawHomelyProtocol"];
+        };
+      };
+      responses: {
+        /** @description Withdrawn */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyProtocol"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/homely-remedy-doses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A person's homely remedy doses
+     * @description medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Doses, newest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyDoseList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a homely remedy dose under the home's protocol
+     * @description medicines.emar.administer, by a member the protocol names, for a person at the protocol's home, with the person's allergies checked. Refused in words when it is outside the protocol: withdrawn or past review, another dose, too soon, over the most in 24 hours, the protocol's days used (ask the GP), or the same product prescribed; doses of the same product under other protocols at the home count. A dose already given (`alreadyGiven`, with when and why) is recorded with what the check found as flags and escalated urgently. Resending the same id returns the same record. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordHomelyDose"];
+        };
+      };
+      responses: {
+        /** @description Already recorded with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyDose"];
+          };
+        };
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyDose"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/homely-remedy-doses/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Check a homely remedy dose against the protocol before giving it
+     * @description medicines.emar.administer. Says in words whether the dose is within the protocol now; records nothing.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CheckHomelyDose"];
+        };
+      };
+      responses: {
+        /** @description What the check found */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyDoseCheck"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/homely-remedy-doses/{id}/entered-in-error": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mark a homely remedy dose as entered in error
+     * @description The member who gave it (medicines.emar.administer) or medicines.record.manage at the person's home, with a reason. A new record marks the dose; the dose stays, struck through, and no longer counts. Resending the same id returns the same record. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["HomelyDoseEnteredInError"];
+        };
+      };
+      responses: {
+        /** @description Already marked with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyDose"];
+          };
+        };
+        /** @description Marked */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HomelyDose"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sub-processors": {
     parameters: {
       query?: never;
@@ -72548,6 +73674,7 @@ export interface components {
         at: string;
       };
       flags: string[];
+      covert: boolean;
       flagsInWords: string[];
       givenBeforeRecordedReason: string | null;
       /** Format: uuid */
@@ -72609,6 +73736,8 @@ export interface components {
       /** @default null */
       intervalOverrideReason: string | null;
       controlledDrug?: components["schemas"]["CdWitness"];
+      /** @default false */
+      covert: boolean;
       /**
        * Format: date-time
        * @default null
@@ -72665,6 +73794,8 @@ export interface components {
       /** @default null */
       intervalOverrideReason: string | null;
       controlledDrug?: components["schemas"]["CdWitness"];
+      /** @default false */
+      covert: boolean;
       correctionReason: string;
       /** Format: date-time */
       givenAt: string;
@@ -73572,6 +74703,299 @@ export interface components {
       minCelsius: number | null;
       /** @default null */
       maxCelsius: number | null;
+    };
+    CovertRecordList: {
+      items: components["schemas"]["CovertRecord"][];
+    };
+    CovertRecord: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      medicationId: string;
+      /** Format: uuid */
+      medicineId: string;
+      medicineName: string;
+      /** Format: uuid */
+      capacityAssessmentId: string;
+      /** Format: uuid */
+      bestInterestsDecisionId: string;
+      attendees: {
+        role: components["schemas"]["CovertAttendeeRole"];
+        roleWords: string;
+        name: string;
+      }[];
+      method: string;
+      pharmacistAdvice: string;
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      reviewOn: string;
+      /** Format: date */
+      reviewedOn: string | null;
+      /** Format: date */
+      endedOn: string | null;
+      endedReason: string | null;
+      changeReason: string | null;
+      status: components["schemas"]["CovertStatus"];
+      statusWords: string;
+      version: number;
+    };
+    /** @enum {string} */
+    CovertAttendeeRole:
+      | "prescriber"
+      | "pharmacist"
+      | "registered_manager"
+      | "nurse"
+      | "care_staff"
+      | "family_or_friend"
+      | "representative"
+      | "advocate"
+      | "other";
+    /** @enum {string} */
+    CovertStatus: "not_started" | "current" | "review_overdue" | "basis_changed" | "ended";
+    NewCovertRecord: {
+      /** Format: uuid */
+      medicationId: string;
+      /** Format: uuid */
+      capacityAssessmentId: string;
+      /** Format: uuid */
+      bestInterestsDecisionId: string;
+      attendees: {
+        role: components["schemas"]["CovertAttendeeRole"];
+        name: string;
+      }[];
+      method: string;
+      pharmacistAdvice: string;
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      reviewOn: string;
+    };
+    ReviewCovertRecord: {
+      /** Format: uuid */
+      capacityAssessmentId: string;
+      /** Format: uuid */
+      bestInterestsDecisionId: string;
+      attendees: {
+        role: components["schemas"]["CovertAttendeeRole"];
+        name: string;
+      }[];
+      method: string;
+      pharmacistAdvice: string;
+      /** Format: date */
+      reviewedOn: string;
+      /** Format: date */
+      reviewOn: string;
+      reason: string;
+      version: number;
+    };
+    EndCovertRecord: {
+      /** Format: date */
+      endedOn: string;
+      reason: string;
+      version: number;
+    };
+    PersonSelfAdministration: {
+      assessments: components["schemas"]["SelfAdminAssessment"][];
+      medicines: {
+        /** Format: uuid */
+        medicineId: string;
+        name: string;
+        /** @enum {string} */
+        status: "current" | "review_overdue" | "not_assessed";
+        level: components["schemas"]["SelfAdminLevel"] & (string | null);
+        statusWords: string;
+      }[];
+    };
+    SelfAdminAssessment: {
+      medicineIds: string[];
+      /** @enum {string} */
+      choice: "wants_to" | "does_not_want_to";
+      /** @enum {string} */
+      capacity: "has_capacity" | "lacks_capacity" | "assumed";
+      /** Format: uuid */
+      capacityAssessmentId: string | null;
+      /** @enum {string} */
+      dexterity: "able" | "able_with_aids" | "unable";
+      /** @enum {string} */
+      storage: "lockable_storage" | "no_lockable_storage";
+      level: components["schemas"]["SelfAdminLevel"];
+      notes: string | null;
+      /** Format: date */
+      assessedOn: string;
+      /** Format: date */
+      reviewOn: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      levelWords: string;
+      /** Format: uuid */
+      assessedBy: string;
+      /** Format: date-time */
+      recordedAt: string;
+    };
+    /** @enum {string} */
+    SelfAdminLevel: "self_administers" | "self_administers_with_support" | "staff_administer";
+    NewSelfAdminAssessment: {
+      medicineIds: string[];
+      /** @enum {string} */
+      choice: "wants_to" | "does_not_want_to";
+      /** @enum {string} */
+      capacity: "has_capacity" | "lacks_capacity" | "assumed";
+      /** Format: uuid */
+      capacityAssessmentId: string | null;
+      /** @enum {string} */
+      dexterity: "able" | "able_with_aids" | "unable";
+      /** @enum {string} */
+      storage: "lockable_storage" | "no_lockable_storage";
+      level: components["schemas"]["SelfAdminLevel"];
+      notes: string | null;
+      /** Format: date */
+      assessedOn: string;
+      /** Format: date */
+      reviewOn: string;
+    };
+    HomelyProtocolList: {
+      items: components["schemas"]["HomelyProtocol"][];
+    };
+    HomelyProtocol: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      productName: string;
+      vmpId: string | null;
+      indication: string;
+      doseQuantity: number;
+      unitName: string;
+      minIntervalHours: number;
+      maxDailyQuantity: number;
+      maxDays: number;
+      authorisedMemberIds: string[];
+      approvedByName: string;
+      /** @enum {string} */
+      approvedByRole: "gp" | "pharmacist";
+      /** Format: date */
+      approvedOn: string;
+      /** Format: date */
+      reviewOn: string;
+      /** Format: date-time */
+      withdrawnAt: string | null;
+      withdrawnReason: string | null;
+      changeReason: string | null;
+      /** @enum {string} */
+      status: "in_use" | "review_overdue" | "withdrawn";
+      statusWords: string;
+      version: number;
+    };
+    NewHomelyProtocol: {
+      productName: string;
+      vmpId: string | null;
+      indication: string;
+      doseQuantity: number;
+      unitName: string;
+      minIntervalHours: number;
+      maxDailyQuantity: number;
+      maxDays: number;
+      authorisedMemberIds: string[];
+      approvedByName: string;
+      /** @enum {string} */
+      approvedByRole: "gp" | "pharmacist";
+      /** Format: date */
+      approvedOn: string;
+      /** Format: date */
+      reviewOn: string;
+    };
+    ChangeHomelyProtocol: {
+      productName: string;
+      vmpId: string | null;
+      indication: string;
+      doseQuantity: number;
+      unitName: string;
+      minIntervalHours: number;
+      maxDailyQuantity: number;
+      maxDays: number;
+      authorisedMemberIds: string[];
+      approvedByName: string;
+      /** @enum {string} */
+      approvedByRole: "gp" | "pharmacist";
+      /** Format: date */
+      approvedOn: string;
+      /** Format: date */
+      reviewOn: string;
+      reason: string;
+      version: number;
+    };
+    WithdrawHomelyProtocol: {
+      reason: string;
+      version: number;
+    };
+    HomelyDoseList: {
+      items: components["schemas"]["HomelyDose"][];
+    };
+    HomelyDose: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      protocolId: string;
+      protocolVersion: number;
+      productName: string;
+      /** @enum {string} */
+      outcome: "given" | "entered_in_error";
+      quantity: number | null;
+      unitName: string;
+      reason: string | null;
+      /** Format: date-time */
+      givenAt: string;
+      /** Format: uuid */
+      givenBy: string;
+      allergiesChecked: boolean;
+      alreadyGivenReason: string | null;
+      flags: string[];
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      /** Format: uuid */
+      enteredInErrorBy: string | null;
+    };
+    HomelyDoseCheck: {
+      problems: {
+        problem: string;
+        message: string;
+      }[];
+    };
+    CheckHomelyDose: {
+      /** Format: uuid */
+      protocolId: string;
+      quantity: number;
+    };
+    RecordHomelyDose: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      protocolId: string;
+      quantity: number;
+      reason: string;
+      /** @enum {boolean} */
+      allergiesChecked: true;
+      /** @default null */
+      alreadyGiven: {
+        /** Format: date-time */
+        givenAt: string;
+        reason: string;
+      } | null;
+    };
+    HomelyDoseEnteredInError: {
+      /** Format: uuid */
+      id: string;
+      reason: string;
     };
     SubProcessorOverview: {
       noticeDays: number;

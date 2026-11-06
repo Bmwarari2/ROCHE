@@ -94,6 +94,7 @@ import {
   requireDocuments,
   UNCHECKED_POLICY,
 } from "../services/medicines";
+import { authorityMarks } from "../services/medicines-authority";
 import { loadPerson } from "../services/people";
 import {
   conflictResponse,
@@ -257,6 +258,7 @@ function sameRecord(
     (row.timingReason ?? null) === (body.timingReason ?? null) &&
     (row.intervalOverrideReason ?? null) === (body.intervalOverrideReason ?? null) &&
     (row.amountDifferenceReason ?? null) === (body.amountDifferenceReason ?? null) &&
+    row.covert === body.covert &&
     (body.givenAt === null ||
       row.deviceAt?.toISOString() === new Date(body.givenAt).toISOString() ||
       row.givenAt.toISOString() === new Date(body.givenAt).toISOString())
@@ -307,10 +309,23 @@ async function store(
     readonly supersedesId: string | null;
     readonly correctionReason: string | null;
     readonly cdEntryId?: string | null;
+    readonly covert: boolean;
     readonly now: Date;
   },
 ) {
   const i = args.input;
+  if (args.covert && i.outcome !== "given") {
+    throw problems.invalid("Only a dose that was given can be marked as given covertly.");
+  }
+  // Covert and self-administered doses are marked, never refused (slice 38; HZ-026, HZ-120).
+  const marks = await authorityMarks(tx, {
+    personId: args.personId,
+    medicationId: (i.entry as MarEntry).id,
+    outcome: i.outcome as string,
+    covert: args.covert,
+    today: ukIsoDate(i.at),
+  });
+  const escalationsToRaise = [...args.escalations, ...marks.escalations];
   const [row] = await uniqueId(() =>
     tx
       .insert(medicationAdministration)
@@ -344,7 +359,8 @@ async function store(
                 until: o.until.toISOString(),
               }))
             : null,
-        flags: [...new Set(args.flags)],
+        flags: [...new Set([...args.flags, ...marks.flags])],
+        covert: args.covert,
         supersedesId: args.supersedesId,
         correctionReason: args.correctionReason,
         cdEntryId: args.cdEntryId ?? null,
@@ -356,7 +372,7 @@ async function store(
     personId: args.personId,
     locationId: args.locationId,
     administrationId: stored.id,
-    escalations: args.escalations,
+    escalations: escalationsToRaise,
     at: args.now,
   });
   if (i.dueAt) {
@@ -610,6 +626,7 @@ export const medicineAdministrationsRouter = createRouter()
             supersedesId: null,
             correctionReason: null,
             cdEntryId: cd?.cdEntryId ?? null,
+            covert: body.covert,
             now,
           });
           // Slice 42's stock hook (medicines.md section 15 rule 3): a given dose moves the person's
@@ -831,6 +848,7 @@ export const medicineAdministrationsRouter = createRouter()
             // A correction that moves no stock carries the chain's register entry forward, so a later
             // correction corrects that entry (security review M1, clinical review H1).
             cdEntryId: cdMove?.id ?? original.cdEntryId,
+            covert: body.covert,
             now,
           });
           await neverFailingTheDose(
