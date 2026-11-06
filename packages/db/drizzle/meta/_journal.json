@@ -575,6 +575,13 @@
       "when": 1793490000000,
       "tag": "0123_medicine_administrations",
       "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1793490001420,
+      "tag": "0142_medicines_covert_self_admin",
+      "breakpoints": true
     }
   ]
 }

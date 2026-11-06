@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  boolean,
   check,
   date,
   foreignKey,
@@ -665,6 +666,8 @@ export const medicationAdministration = pgTable(
     /** The competence override used (`CompetenceOverride`), when one was. */
     competenceOverride: jsonb("competence_override"),
     flags: text("flags").array().notNull().default(sql`'{}'::text[]`),
+    /** Given covertly (slice 38): shown on the MAR; the flags say whether a record covered it. */
+    covert: boolean("covert").notNull().default(false),
     supersedesId: uuid("supersedes_id"),
     correctionReason: text("correction_reason"),
     /** Barcode evidence (ADR-0081): a hook until the barcode slice lands. */
@@ -731,7 +734,8 @@ export const medicationAdministration = pgTable(
         'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',
         'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',
         'amount_in_other_unit', 'competence_not_current', 'given_before_recorded',
-        'given_by_someone_else', 'close_to_last_dose', 'clock_drift']::text[]`,
+        'given_by_someone_else', 'close_to_last_dose', 'clock_drift', 'covert_without_record',
+        'covert_review_overdue', 'self_admin_not_assessed', 'self_admin_review_overdue']::text[]`,
     ),
   ],
 );
