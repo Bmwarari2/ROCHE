@@ -39,6 +39,7 @@ import { caseworkRouter } from "./routes/casework";
 import { caseworkSupportRouter } from "./routes/casework-support";
 import { colleaguesRouter } from "./routes/colleagues";
 import { complaintsRouter } from "./routes/complaints";
+import { controlledDrugsRouter } from "./routes/controlled-drugs";
 import { dataProtectionRouter } from "./routes/data-protection";
 import { dataSecurityRouter } from "./routes/data-security";
 import { deathsMissingRouter } from "./routes/deaths-missing";
@@ -479,6 +480,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", qualityDashboardRouter);
   app.route("/", medicinesRouter);
   app.route("/", medicineAdministrationsRouter);
+  app.route("/", controlledDrugsRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

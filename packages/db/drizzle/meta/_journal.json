@@ -792,6 +792,13 @@
       "when": 1793467230141,
       "tag": "0127_payroll_export",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1793467231141,
+      "tag": "0128_controlled_drugs_register",
+      "breakpoints": true
     }
   ]
 }

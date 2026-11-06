@@ -515,6 +515,7 @@ export * from "./care-planning";
 export * from "./casework";
 export * from "./client-id";
 export * from "./complaints";
+export * from "./controlled-drugs";
 export * from "./data-protection";
 export * from "./data-rights";
 export * from "./data-security";

@@ -211,6 +211,14 @@ second check by another person, stopping with a reason and a source, and reconci
 and lines to each person's decision and completion; the person and their allergies beside every
 form. A dm+d product search on the API's port (`GET /v1/medicines/products`). Self-administration is
 not in slice 16's API (H-1281). Open: H-1280 to H-1287.
+**Phase 2 slice 34, the controlled drugs register** (`feat/meds-cd-register`, MEDS-005, from
+slice 22 with #162's latest head merged in): migration 0128 adds pages, append-only entries with the
+running balance checked by the database, witness signatures (the witness's own step-up, for the
+recorder and what they watched, used once) and stock checks; a count that does not balance raises a
+medication incident through the safety module. A controlled drug given writes its register entry
+with the administration; corrections are margin entries. Next for medicines: slice 50 (printable
+page), slice 28, slice 48 and the screens. Open: H-1200 to H-1209.
+
 **Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
 with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
 UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the

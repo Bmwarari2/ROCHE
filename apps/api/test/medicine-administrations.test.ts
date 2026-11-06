@@ -590,8 +590,8 @@ describe("hazard HZ-004 correcting a correction", () => {
   });
 });
 
-describe("hazard HZ-116 controlled drugs wait for the register (slice 34)", () => {
-  it("refuses a controlled drug's dose here, so one person never records it alone", async () => {
+describe("hazard HZ-116 a controlled drug given needs its register entry (slice 34)", () => {
+  it("refuses a controlled drug given without the witness's signature, so one person never records it alone", async () => {
     // dm+d gives the schedule from slice 10; the row is written directly here, as an import would.
     const entry = { id: randomUUID() };
     await asDemo(async (c) => {
@@ -616,12 +616,12 @@ describe("hazard HZ-116 controlled drugs wait for the register (slice 34)", () =
       body: {
         id: randomUUID(),
         entryId: entry.id,
-        outcome: "refused",
-        reason: { code: "declined", note: null },
+        outcome: "given",
+        amount: { quantity: 1, unitCode: TABLET.code },
       },
     });
     expect(r.status).toBe(422);
-    expect((await json<{ code: string }>(r)).code).toBe("administration_controlled_drug_register");
+    expect((await json<{ code: string }>(r)).code).toBe("administration_cd_witness_required");
   });
 
   it("reads records for at most 31 days at a time", async () => {

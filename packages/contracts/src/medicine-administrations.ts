@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CdWitness } from "./controlled-drugs";
 import { Dose, MarSourceKind } from "./medicines";
 
 /**
@@ -44,6 +45,12 @@ const RecordFields = {
   amountDifferenceReason: reason.nullable().default(null),
   timingReason: reason.nullable().default(null),
   intervalOverrideReason: reason.nullable().default(null),
+  /**
+   * For a controlled drug whose stock this moves (slice 34): the witness's signature for this
+   * administration, or where policy allows why there was none. The register entry is written with
+   * the record.
+   */
+  controlledDrug: CdWitness.nullable().default(null),
 };
 
 export const RecordAdministration = z

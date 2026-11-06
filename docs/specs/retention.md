@@ -100,6 +100,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `applicant`, `application`, `application_event`, `interview`, `job_offer` (slice 23) | applicant.unsuccessful, or applicant.talent_pool when later; a hired applicant's records follow the staff file |
 | `equality_monitoring` (slice 23) | applicant.unsuccessful, from the vacancy's closing date |
 | `job_template`, `vacancy` (slice 23) | organisation_document |
+| `controlled_drug_page`, `controlled_drug_witness_assertion`, `controlled_drug_stock_check` | controlled_drugs_register |
+| `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
 | `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
 | `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |
 | `sponsored_worker`, `sponsor_absence`, `sponsor_report` (slice 35) | sponsor_record (2 years after employment ends, never less than right to work copies; H-901 recommended answer, review at testing) |

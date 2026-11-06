@@ -179,6 +179,13 @@ const FLAG_WORDS: Readonly<Record<string, string>> = {
   over_maximum: "more than the most allowed in 24 hours was taken",
   given_before_recorded: "recorded after it was given",
   clock_drift: "the device clock was far from Harbour's",
+  corrected: "this record corrects an earlier one",
+  dose_removed: "a dose recorded as taken was corrected away or reduced",
+  dose_moved: "the time of a dose recorded as taken was corrected",
+  breach_created: "the correction breaks a limit the record kept",
+  breach_hidden: "the correction hides a limit the record broke",
+  close_to_next_dose: "given closer to the next dose than the schedule allows",
+  inside_minimum_interval: "given inside the minimum interval",
 };
 
 export function flagWords(flags: readonly string[]): string[] {
