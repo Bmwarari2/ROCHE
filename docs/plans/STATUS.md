@@ -46,9 +46,11 @@ The owner paused all work in the evening of 06/11/2026. Every builder was asked 
   - 3a's nmcPart: the web staff file sends it.
 - The medication error and review hazard is **HZ-134** (it collided with HZ-131).
 - **To resume:**
-  - Check that the remote head is the integrator's last push (an earlier push silently failed).
-  - Wait for CI to be green, then merge.
-  - `main`'s highest migration is then 0140.
+  - The remote head at the pause was **051e609b**, checked with `git ls-remote`.
+  - CI on it was green apart from Playwright, which was still running. All 340 journeys passed locally.
+  - Merge when Playwright is green. `main`'s highest migration is then 0140.
+  - 0139 changed before reaching `main`, so rebuild any private database that ran the old 0139.
+  - Follow-ups are in the batch's changelog fragment, notably: homely remedies are not counted in PRN checks until slices 52 and 55, and the assigned-scope reach rule needs work.
 
 **Batch 3c, ready to build after 3b merges** (all branches finished, reviewed and pushed):
 
