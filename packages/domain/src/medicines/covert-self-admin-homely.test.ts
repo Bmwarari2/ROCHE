@@ -20,6 +20,18 @@ const PERSON = "p1";
 const today = "2026-11-06";
 
 describe("hazard HZ-026 a covert record stands on a capacity assessment and best-interests decision (slice 38)", () => {
+  const CAP = {
+    personId: PERSON,
+    outcome: "lacks_capacity" as const,
+    decisionKind: "covert_medicines",
+    superseded: false,
+  };
+  const BI = {
+    personId: PERSON,
+    capacityAssessmentId: "ca1",
+    decidedOn: "2026-11-01",
+    superseded: false,
+  };
   const good: CovertRecordInput = {
     personId: PERSON,
     capacity: {
@@ -55,33 +67,29 @@ describe("hazard HZ-026 a covert record stands on a capacity assessment and best
     ["no capacity assessment", { capacity: null }, ["no_capacity_assessment"]],
     [
       "a person who has capacity",
-      { capacity: { ...good.capacity!, outcome: "has_capacity" } },
+      { capacity: { ...CAP, outcome: "has_capacity" } },
       ["capacity_not_lacking"],
     ],
     [
       "an assessment of another decision",
-      { capacity: { ...good.capacity!, decisionKind: "bed_rails" } },
+      { capacity: { ...CAP, decisionKind: "bed_rails" } },
       ["capacity_other_decision"],
     ],
     [
       "an assessment about someone else",
-      { capacity: { ...good.capacity!, personId: "p2" } },
+      { capacity: { ...CAP, personId: "p2" } },
       ["capacity_other_person"],
     ],
-    [
-      "a corrected assessment",
-      { capacity: { ...good.capacity!, superseded: true } },
-      ["capacity_superseded"],
-    ],
+    ["a corrected assessment", { capacity: { ...CAP, superseded: true } }, ["capacity_superseded"]],
     ["no best-interests decision", { bestInterests: null }, ["no_best_interests_decision"]],
     [
       "a decision after another assessment",
-      { bestInterests: { ...good.bestInterests!, capacityAssessmentId: "ca2" } },
+      { bestInterests: { ...BI, capacityAssessmentId: "ca2" } },
       ["best_interests_other_assessment"],
     ],
     [
       "a corrected decision",
-      { bestInterests: { ...good.bestInterests!, superseded: true } },
+      { bestInterests: { ...BI, superseded: true } },
       ["best_interests_superseded"],
     ],
     [
