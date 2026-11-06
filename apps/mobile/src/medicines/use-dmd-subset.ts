@@ -44,7 +44,9 @@ export function useDmdSubsetRefresh(): void {
   // biome-ignore lint/correctness/useExhaustiveDependencies: tick re-runs the check on the timer.
   useEffect(() => {
     // Until the MAR entries are read, the key would be empty and ask for a subset of nothing.
-    if (appEnv.demoMode || isLoading || !status.connected || !gives || !token || !tenantId) return;
+    // Nor before the first full sync: the MAR rows arrive in batches (security re-review, minor 4).
+    if (appEnv.demoMode || isLoading || !status.hasSynced || !status.connected) return;
+    if (!gives || !token || !tenantId) return;
     let active = true;
     (async () => {
       const kept = await db.getAll<{ id: string; value: string | null }>(
@@ -83,5 +85,5 @@ export function useDmdSubsetRefresh(): void {
     return () => {
       active = false;
     };
-  }, [db, isLoading, status.connected, gives, token, tenantId, needs, tick]);
+  }, [db, isLoading, status.hasSynced, status.connected, gives, token, tenantId, needs, tick]);
 }

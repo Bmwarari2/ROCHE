@@ -15,7 +15,7 @@ Branch `feat/mobile-meds-sync`, slice 68 (no PR yet), on `integration/phase-2-ba
 - `GET /v1/medicines/device-subset` gives the dm+d rows the member's MARs need; the phone keeps
   them in local-only tables, replaced whole on connecting, when the MAR products change and at most hourly (ADR-0130).
 - Docs: medicines.md section 13.8, ADR-0130, HZ-002 and HZ-113, data standards, records of
-  processing, register, H-1421 to H-1424.
+  processing, register, H-1421 to H-1425.
 
 ## What is next
 

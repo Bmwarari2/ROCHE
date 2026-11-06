@@ -259,7 +259,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Test | Status |
 | --- | --- |
-| `packages/sync/test/medicines-streams.test.ts`: `hazard HZ-002 sends medicines and allergies first`, every version not withdrawn or removed (a replaced one too) with its schedules, dosing and covert records only, administrations on the token's 35 days, the member's scope only, other tenants and device parameters never | Passing (Phase 2 slice 68) |
+| `packages/sync/test/medicines-streams.test.ts`: `hazard HZ-002 sends medicines and allergies first`, every version not withdrawn or removed (a replaced one too) with the person's schedules, dosing and covert records, buckets per person never per version, administrations on the token's 35 days, the member's scope only, other tenants and device parameters never | Passing (Phase 2 slice 68) |
 | Slice 16 adds no control: the medicines record is served by the API and not yet published to devices (the offline eMAR is slices 68 to 70) | Noted (Phase 2 slice 16) |
 | `apps/api/test/medicines.test.ts`: `hazard HZ-002 gives each MAR dose its entry's status, so a cell never hides a notice` (each dose carries the entry's status now, in words, with whether it may be given and any not-yet-checked or stopped notice, and a not-yet-checked version's doses carry the notice; the status is the entry's now, not at each dose's time, which the CSO is asked to accept in H-1025; slice 16 clinical review M6) | Passing (Phase 2 slice 16) |
 | `packages/ui-native/src/logic/sync-banner.test.ts`: `warns that offline data may be out of date past the threshold (HZ-002)`; stale warning kept until caught up (threshold 15 minutes, ADR-0029; CSO to confirm) | Passing (Phase 0) |

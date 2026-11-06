@@ -1070,7 +1070,9 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
 - **`*_medicines`** (priority 1, with the allergy streams, HZ-002): MAR entry versions not
   withdrawn or removed, a stopped or replaced one included (the phone judges `stop_at`,
   `stop_effective_at` and `replaced_from`, so a change from tomorrow never takes today's doses off
-  the round), with the schedule times, dosing records and covert records of those versions only.
+  the round), with the person's schedule times, dosing records and covert records (not removed)
+  whatever version they belong to, in buckets per person (ADR-0130; H-1425); the phone shows only
+  those of a version it holds.
   The round on the phone (slice 69) works out each version's doses with the domain's
   `marEntryEnd` and `marEntryDosesFrom` on these rows, so a replaced version and its replacement
   never both show the same dose (HZ-003).

@@ -2,7 +2,7 @@
 status: "accepted"
 date: 2026-11-06
 decision-makers: engineering (Claude Code sessions), for the lead of Phase 2 batch 3b
-consulted: clinical safety officer (HZ-002, HZ-003, HZ-113; H-1421 to H-1424)
+consulted: clinical safety officer (HZ-002, HZ-003, HZ-113; H-1421 to H-1424), data protection officer (H-1425)
 informed: Registered Managers in the pilot
 ---
 
@@ -40,8 +40,14 @@ Option 2.
   `replaced_from`; the phone judges the times. A change recorded today usually takes effect at
   00:00 tomorrow, so the replaced version still gives today's doses: filtering it out would take
   them off the round (clinical review, B1). A stop must reach the phone anyway, and nothing in
-  force is ever filtered out for want of a clock. Their schedule times, dosing records and covert
-  records follow the same versions only (a subquery on `medication`; security review, finding 1).
+  force is ever filtered out for want of a clock. The person's schedule times, dosing records and
+  covert records (not removed) sync whatever version they belong to: a filter on the version needs
+  a subquery on `medication`, which the stream engine turns into a bucket per version in the
+  tenant (some 43,000 for one phone at a 60-bed home; security re-review, M1). The phone shows
+  only those of a version it holds. Administrations recorded against a withdrawn version sync too:
+  a dose given is a fact the round counts (intervals, the maximum). Keeping the rows of withdrawn
+  versions off the phone needs a flag copied onto each child row by trigger (a migration, through
+  the tables' write-once guards); H-1425 asks the DPO whether that is needed.
 - **Administrations**: those recorded on a day of `meds_recent_days` (today and the 34 UTC days
   before, minted by the API), so the last given of a monthly or weekly medicine, an interval of up
   to 34 days and the 24-hour maximum are always on the phone (clinical review, M3; H-1421). A
@@ -75,4 +81,4 @@ Option 2.
 
 Migration 0149; `packages/sync/src/streams/sync-config.yaml`; `medicines-streams.test.ts`;
 `apps/api/src/services/dmd.ts` (`dmdDeviceRows`); `apps/mobile/src/medicines/dmd-subset.ts`.
-Questions for people: H-1421 to H-1424.
+Questions for people: H-1421 to H-1425.

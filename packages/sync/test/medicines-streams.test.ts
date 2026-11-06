@@ -9,7 +9,8 @@ import { compile, ids, type SourceRows, syncFor } from "./support/simulator";
  * the medicines of the people in the member's `medicines.emar.administer` scope (assigned people, or
  * live people at the token's locations), in the token's tenant; every MAR entry version not
  * withdrawn or removed (a replaced one too, so a change from tomorrow never takes today's doses
- * off the phone), with the schedules, dosing and covert records of those versions only;
+ * off the phone), with the person's schedules, dosing and covert records (of any version; the
+ * phone shows only those of a version it holds; H-1425), in buckets per person, never per version;
  * administrations recorded on the token's days only; and the
  * member's own medicines competence, never a colleague's; and that nothing the device sends widens
  * it (hazards HZ-011, HZ-002). Invented ids only.
@@ -365,9 +366,24 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       "m-ada-stopped",
       "m-ada-unchecked",
     ]);
-    expect(ids(device, "medication_schedule")).toEqual(["s-ada", "s-ada-replaced"]);
-    expect(ids(device, "medication_dosing_record")).toEqual(["d-ada", "d-ada-replaced"]);
-    expect(ids(device, "covert_medication_record")).toEqual(["c-ada", "c-ada-replaced"]);
+    // A person's schedules, dosing and covert records come whatever version they belong to
+    // (H-1425); a removed covert record never does.
+    expect(ids(device, "medication_schedule")).toEqual([
+      "s-ada",
+      "s-ada-removed",
+      "s-ada-replaced",
+      "s-ada-withdrawn",
+    ]);
+    expect(ids(device, "medication_dosing_record")).toEqual([
+      "d-ada",
+      "d-ada-replaced",
+      "d-ada-withdrawn",
+    ]);
+    expect(ids(device, "covert_medication_record")).toEqual([
+      "c-ada",
+      "c-ada-replaced",
+      "c-ada-withdrawn",
+    ]);
   });
 
   it("gives administrations recorded on the token's days only (35 UTC days, for monthly medicines)", async () => {
@@ -444,6 +460,28 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       "a-ada-two-days",
     ]);
     expect(ids(device, "competence_sign_off")).toEqual(["cs-carer"]);
+  });
+
+  it("keeps the medicines buckets per person, never per MAR entry version (security re-review, M1)", async () => {
+    // Many versions for one person and others: the bucket count must not follow them.
+    const many: SourceRows = {
+      ...source,
+      medication: [
+        ...(source.medication ?? []),
+        ...Array.from({ length: 40 }, (_, i) =>
+          medication(`m-many-${i}`, A, i % 2 ? "ada" : "dee"),
+        ),
+      ],
+    };
+    for (const token of [
+      claims(),
+      claims({ sub: "nurse", meds_assigned: false, meds_location_ids: [NORTH, SOUTH] }),
+    ]) {
+      const device = await syncFor(hydrated, many, token);
+      const meds = device.buckets.filter((b) => /^(assigned|location)_medicines\b/.test(b));
+      // One bucket per person in scope (at most four people here), whatever the versions.
+      expect(meds.length).toBeLessThanOrEqual(4);
+    }
   });
 
   it("hazard HZ-002 sends medicines and allergies first", () => {
