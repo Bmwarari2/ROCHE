@@ -17,8 +17,22 @@ section 11). No migration.
   test, and a test to re-pin when Phase 19 ships.
 - **Hazard HZ-133** in the hazard log with its controls and tests.
 
+## Reviews
+
+- Security reviewer: no critical or high findings. Fixed: the UK check now runs on the URL the
+  adapter really sends to; the mock enforces the allow-lists, refuses nested values and keeps
+  idempotency keys per route for 24 hours, answering conflict for a reused key with another body;
+  staleness ignores an out-of-range limit and distrusts a sync in the future; absence ids and dates
+  are checked; credentials in the URL are refused.
+- Clinical safety reviewer: request changes, all fixed. Two different employee numbers never match
+  through email and date of birth; a leaving date that is not a real day refuses sign-in, and a
+  sync that drops or moves a leaving date later never restores access; pay units to Thapsus-HR are
+  guarded as well as the export, and a pay route changes only from a later period; the rota stays
+  with this product until slice 88's checks exist.
+
 ## Left
 
 - The mock follows the facts ADR-0126 records at d9888cef; it is checked against Thapsus-HR's
   published OpenAPI document and re-pinned to its main when this session can read that repository.
-- H-1340 to H-1345 are unchanged.
+- H-1340 to H-1345 are unchanged. For the CSO: rate HZ-133 (H-1345), confirm the staleness limit
+  (H-1344), and decide whether a provider may make Thapsus-HR the rota owner once slice 88 ships.

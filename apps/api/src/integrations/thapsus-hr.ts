@@ -1,18 +1,20 @@
-import type {
-  HealthResult,
-  HrAbsence,
-  HrCapability,
-  HrClockEvent,
-  HrEmployee,
-  HrLocation,
-  HrPage,
-  HrPayUnit,
-  HrRate,
-  HrResult,
-  HrShift,
-  HrStarter,
-  HrWorkspace,
-  ThapsusHrPort,
+import {
+  type HealthResult,
+  type HrAbsence,
+  type HrCapability,
+  type HrClockEvent,
+  type HrEmployee,
+  type HrLocation,
+  type HrPage,
+  type HrPayUnit,
+  type HrRate,
+  type HrResult,
+  type HrShift,
+  type HrStarter,
+  type HrWorkspace,
+  type OutboundFlow,
+  outboundProblems,
+  type ThapsusHrPort,
 } from "@harbour/domain";
 
 /**
@@ -50,15 +52,28 @@ export class MockThapsusHr implements ThapsusHrPort {
   readonly employeesById = new Map<string, HrEmployee & { leavingDate: string | null }>();
   readonly absencesList: (HrAbsence & Record<string, unknown>)[] = [];
   readonly locationsList: HrLocation[] = [];
-  /** Idempotency keys seen, with what they created (Thapsus-HR keeps them 24 hours). */
-  private readonly keys = new Map<string, string>();
+  /**
+   * Idempotency keys by route, with what they created and when: Thapsus-HR keeps a key 24 hours,
+   * so a retry after that creates the record again unless Harbour looks up its partner reference
+   * first (rule 5).
+   */
+  private readonly keys = new Map<string, { id: string; body: string; at: number }>();
+  /** The mock's clock, for tests of the 24-hour window. */
+  now: () => number = () => Date.now();
   /** Every write the mock was given, for tests to check nothing extra crossed. */
   readonly writes: { readonly route: string; readonly body: unknown }[] = [];
   /** Calls left this minute before a 429 (600 by default in Thapsus-HR). */
   callsLeft = Number.POSITIVE_INFINITY;
   private next = 1;
 
-  constructor(readonly workspaceInfo: HrWorkspace) {}
+  /**
+   * `apiBaseUrl` is where this adapter sends, from Harbour's connection record; `workspaceInfo` is
+   * what the workspace says about itself, which is never trusted for the UK check.
+   */
+  constructor(
+    readonly workspaceInfo: HrWorkspace,
+    readonly apiBaseUrl: string = workspaceInfo.apiBaseUrl,
+  ) {}
 
   capabilities() {
     return THAPSUS_HR_CAPABILITIES;
@@ -96,17 +111,32 @@ export class MockThapsusHr implements ThapsusHrPort {
     );
   }
 
-  private idempotent(key: string, route: string, body: unknown): HrResult<{ readonly id: string }> {
-    const known = this.keys.get(key);
-    if (known) return { ok: true, value: { id: known } };
+  private idempotent(
+    flow: OutboundFlow,
+    key: string,
+    route: string,
+    body: object,
+  ): HrResult<{ readonly id: string }> {
+    // Anything outside the flow's allow-list is refused, never sent (rule 4).
+    if (outboundProblems(flow, body).length > 0) return { ok: false, error: "refused" };
+    const scoped = `${route} ${key}`;
+    const text = JSON.stringify(body);
+    const known = this.keys.get(scoped);
+    if (known && this.now() - known.at < 24 * 3_600_000) {
+      return known.body === text
+        ? { ok: true, value: { id: known.id } }
+        : { ok: false, error: "conflict" };
+    }
     const id = `hr-${this.next++}`;
-    this.keys.set(key, id);
+    this.keys.set(scoped, { id, body: text, at: this.now() });
     this.writes.push({ route, body });
     return { ok: true, value: { id } };
   }
 
   async createEmployee(starter: HrStarter, idempotencyKey: string) {
-    return this.limited() ?? this.idempotent(idempotencyKey, "POST /v1/employees", starter);
+    return (
+      this.limited() ?? this.idempotent("starter", idempotencyKey, "POST /v1/employees", starter)
+    );
   }
 
   async absences(cursor: string | null) {
@@ -118,12 +148,15 @@ export class MockThapsusHr implements ThapsusHrPort {
 
   async upsertShift(shift: HrShift, idempotencyKey: string) {
     // Available today; partner ownership (read-only to others, 409 partnerManaged) is K2, planned.
-    return this.limited() ?? this.idempotent(idempotencyKey, "POST /v1/shifts", shift);
+    return this.limited() ?? this.idempotent("shift", idempotencyKey, "POST /v1/shifts", shift);
   }
 
   async postClockEvent(event: HrClockEvent, idempotencyKey: string) {
     // `source: partner` is K2, planned; the route itself is available.
-    return this.limited() ?? this.idempotent(idempotencyKey, "POST /v1/clock/events", event);
+    return (
+      this.limited() ??
+      this.idempotent("clock_event", idempotencyKey, "POST /v1/clock/events", event)
+    );
   }
 
   async putPayUnits(

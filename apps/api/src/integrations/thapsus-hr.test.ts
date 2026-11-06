@@ -16,12 +16,19 @@ const workspace = {
 };
 
 function contract(name: string, make: () => ThapsusHrPort) {
-  describe(`Thapsus-HR contract: ${name}`, () => {
+  describe(`hazard HZ-133 Thapsus-HR contract: ${name}`, () => {
     it("says where it runs, and the link accepts only a UK workspace on the UK host", async () => {
       const ws = await make().workspace();
       expect(ws.ok).toBe(true);
       if (!ws.ok) return;
-      expect(connectionRefusal({ ...ws.value, thapsusDomain: "thapsus.example" })).toBeNull();
+      expect(
+        connectionRefusal({
+          homeRegion: ws.value.homeRegion,
+          // The URL this adapter really sends to, never what the workspace reports (rule 1).
+          apiBaseUrl: make().apiBaseUrl,
+          thapsusDomain: "thapsus.example",
+        }),
+      ).toBeNull();
     });
 
     it("creates a starter once per idempotency key, sending only the starter's fields", async () => {
@@ -87,7 +94,7 @@ function contract(name: string, make: () => ThapsusHrPort) {
 
 contract("mock", () => new MockThapsusHr(workspace));
 
-describe("the mock's behaviour", () => {
+describe("hazard HZ-133 the mock's behaviour", () => {
   it("returns 429 with Retry-After once the minute's calls are spent", async () => {
     const port = new MockThapsusHr(workspace);
     port.callsLeft = 1;
@@ -121,7 +128,76 @@ describe("the mock's behaviour", () => {
   });
 });
 
-describe("the pin (re-pin when Thapsus-HR Phase 19 ships)", () => {
+describe("hazard HZ-133 the mock's guards", () => {
+  it("is refused when it sends to the EU host though the workspace claims the UK one", () => {
+    const port = new MockThapsusHr(workspace, "https://api.eu.thapsus.example/v1");
+    expect(
+      connectionRefusal({
+        homeRegion: "uk",
+        apiBaseUrl: port.apiBaseUrl,
+        thapsusDomain: "thapsus.example",
+      }),
+    ).toBe("not_uk_host");
+  });
+
+  const shift = {
+    harbourRef: "s9",
+    employeeId: "e1",
+    locationId: "l1",
+    role: "care_worker",
+    startsAt: "2026-12-01T08:00:00Z",
+    endsAt: "2026-12-01T16:00:00Z",
+    startsAtLocal: "2026-12-01T08:00",
+    endsAtLocal: "2026-12-01T16:00",
+    breakMinutes: 30,
+  };
+
+  it("refuses a payload outside the flow's allow-list, sending nothing", async () => {
+    const port = new MockThapsusHr(workspace);
+    const nested = {
+      ...shift,
+      role: { visit: { address: "1 Example Road" } },
+    } as unknown as typeof shift;
+    expect(await port.upsertShift(nested, "evt-9")).toEqual({ ok: false, error: "refused" });
+    expect(
+      await port.postClockEvent(
+        {
+          harbourRef: "c9",
+          employeeId: "e1",
+          kind: "break_start",
+          at: "t",
+          atLocal: "t",
+          locationId: "l1",
+        },
+        "evt-10",
+      ),
+    ).toEqual({ ok: false, error: "refused" });
+    expect(port.writes).toEqual([]);
+  });
+
+  it("answers conflict when a key comes back with a different body", async () => {
+    const port = new MockThapsusHr(workspace);
+    await port.upsertShift(shift, "evt-11");
+    expect(await port.upsertShift({ ...shift, breakMinutes: 45 }, "evt-11")).toEqual({
+      ok: false,
+      error: "conflict",
+    });
+  });
+
+  it("forgets a key after 24 hours, as Thapsus-HR does: a later retry would create it again", async () => {
+    const port = new MockThapsusHr(workspace);
+    let clock = Date.parse("2026-12-01T08:00:00Z");
+    port.now = () => clock;
+    const first = await port.upsertShift(shift, "evt-12");
+    clock += 24 * 3_600_000;
+    const later = await port.upsertShift(shift, "evt-12");
+    if (!first.ok || !later.ok) throw new Error("not ok");
+    // So Harbour looks up its partner reference before retrying an old event (rule 5, slice 88).
+    expect(later.value.id).not.toBe(first.value.id);
+  });
+});
+
+describe("hazard HZ-133 the pin (re-pin when Thapsus-HR Phase 19 ships)", () => {
   // When Phase 19 (K1 to K7) ships: pin the new commit on Thapsus-HR's main, check the mock and this
   // contract against its published OpenAPI document, and move each capability below to available.
   it("is commit d9888cef, with every Phase 19 capability still planned", () => {
